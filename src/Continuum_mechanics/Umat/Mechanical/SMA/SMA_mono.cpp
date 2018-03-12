@@ -406,7 +406,7 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
         
     }
 	else {
-        Eel = Etot + DEtot - alpha*(T+DT-T_init); - ET;
+        Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
         sigma = el_pred(L, Eel, ndi);
         
         ///Computation of the tangent modulus
