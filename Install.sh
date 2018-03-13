@@ -174,7 +174,7 @@ make install
 make test
 cd ..
 cd ..
-cp ${current_dir}/simcoon-python-builder/build/lib/simcoon ${current_dir}/python-setup/simmit/simcoon.so
+cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
 cd ${current_dir}/python-setup
 
 #Change the current dir and install python library

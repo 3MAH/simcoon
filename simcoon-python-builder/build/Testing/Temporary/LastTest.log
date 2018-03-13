@@ -1,0 +1,18 @@
+Start testing: Mar 13 00:15 CET
+----------------------------------------------------------
+1/1 Testing: Tarma2numpy
+1/1 Test: Tarma2numpy
+Command: "/usr/local/bin/python" "/scratch/source/simcoon/simcoon-python-builder/test/arma2numpy/run_test.py"
+Directory: /scratch/source/simcoon/simcoon-python-builder/test/arma2numpy
+"Tarma2numpy" start time: Mar 13 00:15 CET
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.11 sec
+----------------------------------------------------------
+Test Passed.
+"Tarma2numpy" end time: Mar 13 00:15 CET
+"Tarma2numpy" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 13 00:15 CET
