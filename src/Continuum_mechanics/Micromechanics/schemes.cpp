@@ -237,7 +237,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         else if(option_start == 1)
             Lt_Mori_Tanaka(phase, n_matrix);
         else {
-            cout << "error , option is not valid for the start option of Self-Consistent scheme (0 : MT, 1 : h_E)";
+            cout << "error , option is not valid for the start option of Self-Consistent scheme (0 : h_E, 1 : MT)";
         }
         
         //Compute the effective tensor from the previous strain localization tensors
