@@ -299,7 +299,7 @@ void solver(const string &umat_name, const vec &props, const double &nstatev, co
                                     
                                 }
                                 
-                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < iota)&&(tnew_dt < 1.)) {
+/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < iota)&&(tnew_dt < 1.)) {
 //                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;
@@ -309,15 +309,27 @@ void solver(const string &umat_name, const vec &props, const double &nstatev, co
 //                                    cout << "The error has exceeded 100 times the precision, the simulation has stopped at " << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;
-                                }
+                                }*/
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
                                         if(inforce_solver == 1) {
                                             
-//                                            cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
+                                            cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
 //                                            cout << "The next increment has integrated the error to avoid propagation\n";
                                             //The solver has been inforced!
+                                            tnew_dt = 1.;
+                                            
+                                            if (inc+1<sptr_meca->ninc) {
+                                                for(int k = 0 ; k < 6 ; k++)
+                                                {
+                                                    if(sptr_meca->cBC_meca(k)) {
+                                                        sptr_meca->mecas(inc+1,k) -= residual(k);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else if (inforce_solver == 2) {
                                             tnew_dt = 1.;
                                             
                                             if (inc+1<sptr_meca->ninc) {
