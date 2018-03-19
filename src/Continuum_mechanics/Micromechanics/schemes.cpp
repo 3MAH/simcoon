@@ -232,7 +232,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
     //In the self_consistent scheme we need to have the effective tangent modulus first, based on some guessed initial concentration tensor.
     if(start) {
         //ensure that the Lt of phase is actually 0
-        if(option_start == 0)
+        if((option_start == 0)&&(n_matrix < 0))
             Lt_Homogeneous_E(phase);
         else if(option_start == 1)
             Lt_Mori_Tanaka(phase, n_matrix);
@@ -278,7 +278,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         else {
             elli_multi->A = elli_multi->T;
         }
-    }
+    }    
 }
     
 void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const bool &start, const int &option_start) {
@@ -292,12 +292,12 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
     //In the self_consistent scheme we need to have the effective tangent modulus first, based on some guessed initial concentration tensor.
     if(start) {
         //ensure that the Lt of phase is actually 0
-        if(option_start == 0)
+        if((option_start == 0)&&(n_matrix < 0))
             Lt_Homogeneous_E(phase);
         else if(option_start == 1)
             Lt_Mori_Tanaka(phase, n_matrix);
         else {
-            cout << "error , option is not valid for the start option of Self-Consistent scheme (0 : MT, 1 : h_E)";
+            cout << "error , option is not valid for the start option of Self-Consistent scheme (0 : h_E, 1 : MT)";
         }
         
         //Compute the effective tensor from the previous strain localization tensors
@@ -325,7 +325,7 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         }
         
     }
-    
+
     for(unsigned int i=0; i<phase.sub_phases.size(); i++) {
         //Note The tangent modulus are turned in the coordinate system of the ellipspoid in the fillT function
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(phase.sub_phases[i].sptr_multi);
