@@ -855,7 +855,7 @@ void write_CDN(const cubic_mesh &cm, const string &path_data, const string &outp
     out_set.close();
 }
     
-void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &path_data, const string &outputfile){
+void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const string &path_data, const string &outputfile){
 
     //Find the neighbours
     std::vector<std::vector<Node> > neigh;
@@ -870,12 +870,25 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
     double min_dis = 1.E-6;
     
     //Construct all the equations
-    cubic_equation cubic_eq(cm, cm_perio);
+    cubic_equation cubic_eq(cm, cm_perio, loading_type);
     equation eq;
+    
+    std::vector<int> list_dofs;
+    //Mechanical
+    if (loading_type == 0) {
+        list_dofs = {1,2,3};
+    }
+    //Thermomechanical
+    else if (loading_type == 1) {
+        list_dofs = {1,2,3,11};
+    }
+    //Thermal
+    else {
+        list_dofs = {11};
+    }
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
-    
     out_set.open(filename, ios::out);
     
     out_set << "************************************\n";
@@ -937,7 +950,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i]; //extract a matrix
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 1, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[1], j+1);
@@ -959,7 +972,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 2, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[3], j+1);
@@ -982,7 +995,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 3, j+1);
             cout << "eq = " << eq << endl;
             //Replace in equation the nodes with the equations from cubic_equation
@@ -1008,7 +1021,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[1], j+1);
@@ -1031,7 +1044,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[2], j+1);
@@ -1054,7 +1067,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[3], j+1);
@@ -1077,7 +1090,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[5], j+1);
@@ -1100,7 +1113,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[6], j+1);
@@ -1123,7 +1136,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[7], j+1);
@@ -1146,7 +1159,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[9], j+1);
@@ -1169,7 +1182,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[10], j+1);
@@ -1192,7 +1205,7 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (int j=0; j<3; j++) {
+        for (unsigned int j=0; j<list_dofs.size(); j++) {
             eq = set_equation(neigh_temp, weight_temp, 0, j+1);
             //Replace in equation the nodes with the equations from cubic_equation
             replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[11], j+1);
@@ -1201,37 +1214,37 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
     }
     
     //Corner_listXpYmZm
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXpYmZm[j];
         write_eq(out_set, eq);
     }
     //Corner_listXpYpZm
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXpYpZm[j];
         write_eq(out_set, eq);
     }
     //Corner_listXmYpZm
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXmYpZm[j];
         write_eq(out_set, eq);
     }
     //Corner_listXmYmZp
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXmYmZp[j];
         write_eq(out_set, eq);
     }
     //Corner_listXpYmZp
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXpYmZp[j];
         write_eq(out_set, eq);
     }
     //Corner_listXpYpZp
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXpYpZp[j];
         write_eq(out_set, eq);
     }
     //Corner_listXmYpZp
-    for (int j=0; j<3; j++) {
+    for (unsigned int j=0; j<list_dofs.size(); j++) {
         eq = cubic_eq.Corner_listXmYpZp[j];
         write_eq(out_set, eq);
     }
