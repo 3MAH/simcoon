@@ -69,12 +69,12 @@ class cubic_equation
         std::vector<std::vector<equation> > Face_listZp;
 
         cubic_equation(); 	//default constructor
-        cubic_equation(const cubic_mesh &, const cubic_mesh &); 	//Parameter constructor
+        cubic_equation(const cubic_mesh &, const cubic_mesh &, const unsigned int &); 	//Parameter constructor
         
         cubic_equation(const cubic_equation &);	//Copy constructor
         ~cubic_equation();
     
-        void construct(const cubic_mesh &, const cubic_mesh &);
+        void construct(const cubic_mesh &, const cubic_mesh &, const unsigned int &);
         
         //    virtual cubic_equation& operator = (const cubic_equation&);
         friend std::ostream& operator << (std::ostream&, const cubic_equation&);
