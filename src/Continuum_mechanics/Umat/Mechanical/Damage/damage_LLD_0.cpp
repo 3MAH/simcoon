@@ -315,29 +315,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         //damaged modulus
         //Compute the elastic strain and the related stress
         Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-        
-        if (ndi == 1) {
-            sigma(0) = sigma_start(0) + L_tilde(0,0)*(DEel_start(0));
-        }
-        else if (ndi == 2) {
-            
-            double Q11 = L_tilde(0,0)-L_tilde(0,2)*L_tilde(2,0)/L_tilde(2,2);
-            double Q12 = L_tilde(0,1)-L_tilde(0,2)*L_tilde(2,1)/L_tilde(2,2);
-            double Q14 = L_tilde(0,3)-L_tilde(0,2)*L_tilde(2,3)/L_tilde(2,2);
-            double Q21 = L_tilde(1,0)-L_tilde(1,2)*L_tilde(2,0)/L_tilde(2,2);
-            double Q22 = L_tilde(1,1)-L_tilde(1,2)*L_tilde(2,1)/L_tilde(2,2);
-            double Q24 = L_tilde(1,3)-L_tilde(1,2)*L_tilde(2,3)/L_tilde(2,2);
-            double Q41 = L_tilde(3,0)-L_tilde(3,2)*L_tilde(2,0)/L_tilde(2,2);
-            double Q42 = L_tilde(3,1)-L_tilde(3,2)*L_tilde(2,1)/L_tilde(2,2);
-            double Q44 = L_tilde(3,3)-L_tilde(3,2)*L_tilde(2,3)/L_tilde(2,2);
-            
-            sigma(0) = sigma_start(0) + Q11*DEel_start(0) + Q12*DEel_start(1) + Q14*DEel_start(3);
-            sigma(1) = sigma_start(1) + Q21*DEel_start(0) + Q22*DEel_start(1) + Q24*DEel_start(3);
-            sigma(3) = sigma_start(3) + Q41*DEel_start(0) + Q42*DEel_start(1) + Q44*DEel_start(3);
-        }
-        else
-            sigma = L_tilde*Eel;
-            
+        sigma = el_pred(L_tilde, Eel, ndi);
         
         if (fabs(sigma(1)) < iota )
             Yd_22 = 0.;
@@ -358,9 +336,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
             Yd_13 = 0.;
         else
             Yd_13 = 0.5*(pow(sigma(4),2.)/(G12_0*pow(1.-d_12,2.)));
-        
-        
-        
+                
         //Compute Y_t and Y_ts, which are used in the evolution equation of damage
         Y_ts = sqrt(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33));     //transvers/shear coupling
         Y_t = sqrt(Yd_22 + Yd_33);               //transverse
@@ -500,29 +476,8 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     //damaged modulus
     //Compute the elastic strain and the related stress
     Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
+    sigma = el_pred(L_tilde, Eel, ndi);
     
-    if (ndi == 1) {
-        sigma(0) = sigma_start(0) + L_tilde(0,0)*(DEel_start(0));
-    }
-    else if (ndi == 2) {
-        
-        double Q11 = L_tilde(0,0)-L_tilde(0,2)*L_tilde(2,0)/L_tilde(2,2);
-        double Q12 = L_tilde(0,1)-L_tilde(0,2)*L_tilde(2,1)/L_tilde(2,2);
-        double Q14 = L_tilde(0,3)-L_tilde(0,2)*L_tilde(2,3)/L_tilde(2,2);
-        double Q21 = L_tilde(1,0)-L_tilde(1,2)*L_tilde(2,0)/L_tilde(2,2);
-        double Q22 = L_tilde(1,1)-L_tilde(1,2)*L_tilde(2,1)/L_tilde(2,2);
-        double Q24 = L_tilde(1,3)-L_tilde(1,2)*L_tilde(2,3)/L_tilde(2,2);
-        double Q41 = L_tilde(3,0)-L_tilde(3,2)*L_tilde(2,0)/L_tilde(2,2);
-        double Q42 = L_tilde(3,1)-L_tilde(3,2)*L_tilde(2,1)/L_tilde(2,2);
-        double Q44 = L_tilde(3,3)-L_tilde(3,2)*L_tilde(2,3)/L_tilde(2,2);
-        
-        sigma(0) = sigma_start(0) + Q11*DEel_start(0) + Q12*DEel_start(1) + Q14*DEel_start(3);
-        sigma(1) = sigma_start(1) + Q21*DEel_start(0) + Q22*DEel_start(1) + Q24*DEel_start(3);
-        sigma(3) = sigma_start(3) + Q41*DEel_start(0) + Q42*DEel_start(1) + Q44*DEel_start(3);
-    }
-    else
-        sigma = L_tilde*Eel;
-
     if (solver_type == 0) {
     
 		//Tangent modulus
@@ -568,9 +523,6 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
 		
 		dPhi_d_12d_22 = Macaulay_p(dY_tsdd_22)/Y_12_c;
 		dPhi_d_12d_12 = Macaulay_p(dY_tsdd_12)/Y_12_c - dlambda_12 - 1.;
-    
-    
-    
     
 		// dPhi_p_tsd_sigma = (B*Theta_ts*eta_stress(sigma_eff_ts));
 		dPhi_p_tsd_sigma = (Theta_ts*eta_stress(sigma_eff_ts));
