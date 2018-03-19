@@ -62,7 +62,7 @@ void write_CDN(const cubic_mesh &, const std::string & = "data", const std::stri
 
 void write_eq(std::ostream &, const equation &);
     
-void write_NonPerio2_CDN(const cubic_mesh &, const cubic_mesh &, const std::string & = "data", const std::string & = "CDN_0.inp");
+void write_NonPerio2_CDN(const cubic_mesh &, const cubic_mesh &, const unsigned int &, const std::string & = "data", const std::string & = "CDN_0.inp");
     
 //void write_NonPerio_CDN(const cubic_mesh &, const cubic_mesh &, const std::string & = "data", const std::string & = "CDN_0.inp");
     
