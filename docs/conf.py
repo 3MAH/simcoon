@@ -45,8 +45,8 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
+#source_suffix = '.rst'
 
 # The encoding of source files.
 #
@@ -56,8 +56,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'smartplus'
-copyright = u'2016, Yves Chemisky'
+project = u'simcoon'
+copyright = u'2018, Yves Chemisky'
 author = u'Yves Chemisky'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -150,7 +150,7 @@ html_theme = 'sphinxdoc'
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
 #
-html_logo = '_static/front_logo.png'
+html_logo = '_static/simcoon_logo_small.png'
 
 # The name of an image file (relative to this directory) to use as a favicon of
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -241,7 +241,7 @@ html_static_path = ['_static']
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'smartplusdoc'
+htmlhelp_basename = 'simcoondoc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -267,7 +267,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'smartplus.tex', u'smartplus Documentation',
+    (master_doc, 'simcoon.tex', u'simcoon Documentation',
      u'Yves Chemisky', 'manual'),
 ]
 
@@ -303,7 +303,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'smartplus', u'smartplus Documentation',
+    (master_doc, 'simcoon', u'simcoon Documentation',
      [author], 1)
 ]
 
@@ -318,8 +318,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'smartplus', u'smartplus Documentation',
-     author, 'smartplus', 'One line description of project.',
+    (master_doc, 'simcoon', u'simcoon Documentation',
+     author, 'simcoon', 'One line description of project.',
      'Miscellaneous'),
 ]
 
