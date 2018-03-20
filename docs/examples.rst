@@ -4,7 +4,7 @@ Examples
 Run a simulation
 ----------------
 
-Here is a simple example to run your first simulation using SMART+.
+Here is a simple example to run your first simulation using simcoon.
 Open the file Path.txt in the folder Control
 You should find something that look like that
 
@@ -97,7 +97,7 @@ The struture of the tabular file will be the following:
 	3	0.03	30	30
 	...
 
-The columns define the quantities in the followin order : #ninc, #time, #S11, #S22.
+The columns define the quantities in the following order : #ninc, #time, #S11, #S22.
 The order of the mechanical quantities is always 11,12,22,13,23,33, and if the temperature is set (with the letter 'T' instead of '0'), the following order is always considered: #ninc, #time, #T, #S11, #S22 in the case of the biaxial loading.
 
 .. code-block:: none
@@ -107,7 +107,6 @@ The order of the mechanical quantities is always 11,12,22,13,23,33, and if the t
 	2	0.02	295.15	30	30
 	3	0.03	296.15	30	30
 	...
-
 
 
 Set up a micro mechanical model
@@ -183,9 +182,9 @@ The characteristics of the phases are described below:
 
 For a wide majority of composites, the orientation of the material coincides with the orientation of the reinforcement (For instance transversely isotropic carbon fibers).
 However, for metallic polycristals, the two materials systems have to be considered to separate the orientation of the lattice with the orientation of the ellipsoid that represent a grain.
-This version of SMART+ currently does not support coated inclusions, but the files Nphase[i].dat is prepared so that you can easily add this to a custom micromechancial model.
+This version of simcoon currently does not support coated inclusions, but the files Nphase[i].dat is prepared so that you can easily add this to a custom micromechancial model.
 
-Note that the Euler system reference utilised (3-1-3 for the most common) is defined in the parameter.hpp file. For instance this system is defined by default in the parameter.hpp:
+Note that the Euler system reference utilized (3-1-3 for the most common) is defined in the parameter.hpp file. For instance this system is defined by default in the parameter.hpp:
 
 .. code-block:: none
 
