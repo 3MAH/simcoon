@@ -8,7 +8,7 @@ About
 
 simcoon is a C++ library with emphasis on speed and ease-of-use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ and a Python API to generate user material subroutine based on a library of functions. Also, simcoon provides tools to analyse the behavior of material, considering loading at the material point level.
 
-SMART+ is mainly developed by contributors from the staff and students of Arts et Métiers ParisTech, that are members of the LEM3 laboratory. It is released under the GNU General Public License: GPL, version 3.
+Simcoon is mainly developed by contributors from the staff and students of Arts et Métiers ParisTech, that are members of the LEM3 laboratory. It is released under the GNU General Public License: GPL, version 3.
 Several institutions have contributed to the development of simcoon:
 
 
