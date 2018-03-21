@@ -23,7 +23,7 @@
 
 #include <iostream>
 #include <armadillo>
-#include <simcoon/simulation/Phase/state_variables.hpp>
+#include <simcoon/Simulation/Phase/state_variables.hpp>
 
 namespace simcoon{
 
