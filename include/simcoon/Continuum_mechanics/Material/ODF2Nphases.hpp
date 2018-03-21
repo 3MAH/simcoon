@@ -24,7 +24,7 @@
 #include <iostream>
 #include <string.h>
 #include <armadillo>
-#include <simcoon/simulation/Phase/phase_characteristics.hpp>
+#include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF.hpp>
 
 namespace simcoon{

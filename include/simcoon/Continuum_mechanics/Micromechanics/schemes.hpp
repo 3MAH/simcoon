@@ -23,7 +23,7 @@
 #pragma once
 
 #include <armadillo>
-#include <simcoon/simulation//Phase/phase_characteristics.hpp>
+#include <simcoon/Simulation//Phase/phase_characteristics.hpp>
 
 namespace simcoon{
 
