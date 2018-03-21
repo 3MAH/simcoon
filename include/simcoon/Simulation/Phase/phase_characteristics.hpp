@@ -26,10 +26,10 @@
 #include <string>
 #include <memory>
 #include <armadillo>
-#include <simcoon/simulation/Geometry/geometry.hpp>
-#include <simcoon/simulation/Phase/material_characteristics.hpp>
-#include <simcoon/simulation/Phase/state_variables.hpp>
-#include <simcoon/simulation/Solver/output.hpp>
+#include <simcoon/Simulation/Geometry/geometry.hpp>
+#include <simcoon/Simulation/Phase/material_characteristics.hpp>
+#include <simcoon/Simulation/Phase/state_variables.hpp>
+#include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
 
 namespace simcoon{
