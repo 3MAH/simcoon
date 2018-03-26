@@ -35,6 +35,6 @@ void find_neighbours_set(std::vector<std::vector<Node> > &, std::vector<arma::ma
     
 void set_weights(std::vector<arma::mat> &, const std::vector<arma::mat> &, const unsigned int &, const double &);
     
-equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &, const unsigned int &);
+equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &, const unsigned int &, const unsigned int &);
 
 } //namespace simcoon
