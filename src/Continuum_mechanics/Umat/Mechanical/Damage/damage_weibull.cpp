@@ -1,6 +1,6 @@
-/* This file is part of SMART+ private.
+/* This file is part of Simcoon private.
  
- Only part of SMART+ is free software: you can redistribute it and/or modify
+ Only part of Simcoon is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
