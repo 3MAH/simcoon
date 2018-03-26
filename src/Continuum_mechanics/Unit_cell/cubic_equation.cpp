@@ -52,8 +52,6 @@ namespace simcoon{
 /*!
  \brief default constructor
  */
-
-std::vector<std::string> cubic_equation::set_name_CD = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
     
 //-------------------------------------------------------------
 cubic_equation::cubic_equation()
@@ -121,8 +119,6 @@ cubic_equation::~cubic_equation() {}
 void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type)
 //-------------------------------------------------------------
 {
-    std::vector<int> CD;
-    std::vector<int> list_dofs;
     mat Dxyz;
     Mat<int> CD_num;
     //Mechanical
@@ -131,6 +127,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz}};
         CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
         list_dofs = {1,2,3};
+        CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
     }
     //Thermomechanical
     else if (loading_type == 1) {
@@ -138,19 +135,21 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz},{-1.0*cm.Dx,-1.0*cm.Dy,-1.0*cm.Dz}};
         CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023, 1010111, 1020211, 1030311};
         list_dofs = {1,2,3,11};
+        CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23", "CDT1", "CDT2", "CDT3"};
     }
     //Thermal
     else {
-        CD_num.resize(1,3);
-        CD_num(0,1) = 6;
-        CD_num(0,1) = 7;
-        CD_num(0,2) = 8;
+        CD_num.resize(3,1);
+        CD_num(0,0) = 0;
+        CD_num(1,0) = 1;
+        CD_num(2,0) = 2;
         Dxyz.resize(3,1);
-        CD_num(0,0) = -1.0*cm.Dx;
-        CD_num(1,0) = -1.0*cm.Dy;
-        CD_num(2,0) = -1.0*cm.Dz;
+        Dxyz(0,0) = -1.0*cm.Dx;
+        Dxyz(1,0) = -1.0*cm.Dy;
+        Dxyz(2,0) = -1.0*cm.Dz;
         CD = {1010111, 1020211, 1030311};
         list_dofs = {11};
+        CD_set_name = {"CDT1", "CDT2", "CDT3"};
     }
     
     //construct the constrain drivers
@@ -159,7 +158,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Node node;
         node.number = n;
         node.coords = null;
-        Constrain_Driver_123.push_back(node);
+        CD_nodes.push_back(node);
     }
     
     unsigned int size_list_dofs = list_dofs.size();
@@ -202,7 +201,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXpYmZm[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXpYmZm[i].components.push_back(temp);
@@ -219,7 +218,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXmYpZm[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXmYpZm[i].components.push_back(temp);
@@ -236,7 +235,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXmYmZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXmYmZp[i].components.push_back(temp);
@@ -254,12 +253,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXpYpZm[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXpYpZm[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p2,i)];
+        temp.node = CD_nodes[CD_num(p2,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p2,i);
         Corner_listXpYpZm[i].components.push_back(temp);
@@ -277,12 +276,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXpYmZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXpYmZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p2,i)];
+        temp.node = CD_nodes[CD_num(p2,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p2,i);
         Corner_listXpYmZp[i].components.push_back(temp);
@@ -300,12 +299,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXmYpZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXmYpZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p2,i)];
+        temp.node = CD_nodes[CD_num(p2,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p2,i);
         Corner_listXmYpZp[i].components.push_back(temp);
@@ -324,17 +323,17 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         temp.coef = -1.0;
         Corner_listXpYpZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p1,i)];
+        temp.node = CD_nodes[CD_num(p1,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p1,i);
         Corner_listXpYpZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p2,i)];
+        temp.node = CD_nodes[CD_num(p2,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p2,i);
         Corner_listXpYpZp[i].components.push_back(temp);
         
-        temp.node = Constrain_Driver_123[CD_num(p3,i)];
+        temp.node = CD_nodes[CD_num(p3,i)];
         temp.dof = 1;
         temp.coef = Dxyz(p3,i);
         Corner_listXpYpZp[i].components.push_back(temp);
@@ -353,7 +352,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXpYm[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXpYm[i][j].components.push_back(temp);
@@ -374,12 +373,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXpYp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXpYp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p2,i)];
+            temp.node = CD_nodes[CD_num(p2,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p2,i);
             Edge_listXpYp[i][j].components.push_back(temp);
@@ -399,7 +398,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXmYp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXmYp[i][j].components.push_back(temp);
@@ -419,7 +418,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXpZm[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXpZm[i][j].components.push_back(temp);
@@ -440,12 +439,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXpZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXpZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p2,i)];
+            temp.node = CD_nodes[CD_num(p2,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p2,i);
             Edge_listXpZp[i][j].components.push_back(temp);
@@ -465,7 +464,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listXmZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listXmZp[i][j].components.push_back(temp);
@@ -485,7 +484,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listYpZm[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listYpZm[i][j].components.push_back(temp);
@@ -506,12 +505,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listYpZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listYpZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p2,i)];
+            temp.node = CD_nodes[CD_num(p2,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p2,i);
             Edge_listYpZp[i][j].components.push_back(temp);
@@ -531,7 +530,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Edge_listYmZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Edge_listYmZp[i][j].components.push_back(temp);
@@ -551,7 +550,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Face_listXp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Face_listXp[i][j].components.push_back(temp);
@@ -571,7 +570,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Face_listYp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Face_listYp[i][j].components.push_back(temp);
@@ -591,7 +590,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             temp.coef = -1.0;
             Face_listZp[i][j].components.push_back(temp);
             
-            temp.node = Constrain_Driver_123[CD_num(p1,i)];
+            temp.node = CD_nodes[CD_num(p1,i)];
             temp.dof = 1;
             temp.coef = Dxyz(p1,i);
             Face_listZp[i][j].components.push_back(temp);
