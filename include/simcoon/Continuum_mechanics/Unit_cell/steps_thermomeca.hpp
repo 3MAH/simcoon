@@ -33,7 +33,7 @@
 namespace simcoon{
     
 //======================================
-class aba_step_meca : public step_meca
+class aba_step_thermomeca : public step_thermomeca
 //======================================
 {
 private:
