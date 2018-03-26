@@ -99,11 +99,7 @@ void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbo
         if((N==2)||(neighbours_dist[i](N,0) - neighbours_dist[i](N-1,0) > min_dist)){
             neighbours[i].pop_back();
             neighbours_dist[i].shed_row(N);
-        }
-        
-        for(auto n:neighbours[i]) {
-            cout << "neighbours[" << i << "] = \n" << n << endl;
-        }
+        }        
     }
 }
 
@@ -142,17 +138,17 @@ void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsig
 }
                                        
                                        
-equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &face, const unsigned int &j_dof) {
+equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &face, const unsigned int &loading_type, const unsigned int &dof) {
     
     //The weight are set such that
     Mat<int> face_dof = {{0,2,3,0},{1,0,3,0},{1,2,0,0}};
-    std::vector<int> list_dof = {1,2,3,11};
+    unsigned int j_dof = index_from_dof(dof, loading_type);
     
     equation eq;
     eq.components.resize(neigh.size());
     for (unsigned int j=0; j<neigh.size(); j++) {
         eq.components[j].node = neigh[j];
-        eq.components[j].dof = list_dof[j_dof];
+        eq.components[j].dof = dof;
         if (j==0) {
             eq.components[j].coef = 1.0;
         }
@@ -161,7 +157,7 @@ equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, c
                 eq.components[j].coef = -1.0*weight(j-1,0);
             }
             else {
-                eq.components[j].coef = -1.0*weight(j-1,face_dof(face-1,j_dof-1));
+                eq.components[j].coef = -1.0*weight(j-1,face_dof(face-1,j_dof));
             }
         }
     }
