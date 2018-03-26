@@ -44,8 +44,10 @@ class cubic_equation
             
     public :
     
-    static std::vector<std::string> set_name_CD;
-    std::vector<Node> Constrain_Driver_123;
+    std::vector<Node> CD_nodes;
+    std::vector<int> CD;
+    std::vector<std::string> CD_set_name;
+    std::vector<int> list_dofs;
     
         std::vector<equation> Corner_listXmYpZm;
         std::vector<equation> Corner_listXpYmZm;
