@@ -231,7 +231,7 @@ void write_materials(std::vector<aba_material> &aba_mats, const string &path_dat
     param_mats.close();
 }
     
-void update_steps(std::vector<aba_step_meca> &aba_steps, const std::vector<block> &blocks, const bool &nlgeom) {
+void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vector<block> &blocks, const bool &nlgeom, const int &loading_type, const int &max_temp) {
 
     string name_step_ini = "Step";
     string name_step = name_step_ini;
@@ -240,17 +240,59 @@ void update_steps(std::vector<aba_step_meca> &aba_steps, const std::vector<block
     for (unsigned int i=0; i<blocks.size(); i++) {
         for (int j=0; j<blocks[i].ncycle; j++) {
             for (int k=0; k<blocks[i].nstep; k++) {
-                aba_step_meca temp;
-                name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
-                shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[k]);
-                if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
-                    type = 1;
-                }
-                else {
-                    type = 0;
-                }
-                temp.update(*sptr_meca, name_step, nlgeom, type);
-                aba_steps.push_back(temp);
+                
+                switch (type) {
+                    case 0: {
+                        
+                        aba_step_meca temp;
+                        name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
+                        shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[k]);
+                        if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
+                            type = 1;
+                        }
+                        else {
+                            type = 0;
+                        }
+                        temp.update(*sptr_meca, name_step, nlgeom, type);
+                        aba_steps.push_back(temp);
+                        break;
+                    }
+                    case 1: {
+                        
+                        aba_step_thermomeca temp;
+                        name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
+                        shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[k]);
+                        
+                        if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
+                            type = 1;
+                        }
+                        else {
+                            type = 0;
+                        }
+                        temp.update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
+                        aba_steps.push_back(temp);
+                        break;
+                    }
+                    case 1: {
+                        
+                        aba_step_thermo temp;
+                        name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
+                        shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[k]);
+                        
+                        if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
+                            type = 1;
+                        }
+                        else {
+                            type = 0;
+                        }
+                        temp.update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
+                        aba_steps.push_back(temp);
+                        break;
+                    }
+                    default: {
+                        cout << "Please provide a consistent loading type for the block " << number << "\n";
+                        break;
+                    }
             }
         }
     }
@@ -293,7 +335,7 @@ void write_nodes_file(const std::vector<Node> &nodes, std::ofstream &out_set){
     }
 }
     
-void write_node(const std::string &name, const Node &node, std::ofstream &out_set){
+void write_node_set(const std::string &name, const Node &node, std::ofstream &out_set){
     
     out_set << "*Nset, nset=" << name << ", unsorted\n";
     out_set << node.number << endl;
@@ -416,7 +458,7 @@ void write_PBC(const cubic_mesh &cm, const unsigned int &nb_nodes, const string 
 
     for (unsigned int i=0; i<cm.list_of_corners.size(); i++) {
         if (cm.list_of_corners[i]->number != 0) {
-            write_node(cm.set_name_corners[i], *cm.list_of_corners[i], out_set);
+            write_node_set(cm.set_name_corners[i], *cm.list_of_corners[i], out_set);
         }
     }
     for (unsigned int i=0; i<cm.list_of_edges.size(); i++) {
@@ -600,7 +642,7 @@ void write_CDN(const cubic_mesh &cm, const string &path_data, const string &outp
     out_set << "*NSet, NSet=CD23\n";
     out_set << "1060023\n";
     out_set << "**\n";
-    out_set << "*NSet, NSet=Constrain_Driver_123, Unsorted\n";
+    out_set << "*NSet, NSet=CD_nodes, Unsorted\n";
     out_set << "1010011, 1020022, 1030033, 1040012, 1050013, 1060023\n";
     out_set << "**\n";
     out_set << "************************************\n";
@@ -902,7 +944,15 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
     out_set << "****** CONSTRAIN DRIVER NODES ******\n";
     out_set << "************************************\n";
     out_set << "**\n";
-    out_set << "*Node\n";
+    
+    for(unsigned int i=0; i<cubic_eq.CD.size();i++) {
+        out_set << "*Node\n";
+        out_set << cubic_eq.CD_nodes[i];
+        write_node_set(cubic_eq.CD_set_name[i],  cubic_eq.CD_nodes[i], out_set);
+    }
+    write_nodes_set("CD_nodes", cubic_eq.CD_nodes, out_set);
+    
+/*
     out_set << "1010011, 0, 0, 0\n";
     out_set << "*NSet, NSet=CD11\n";
     out_set << "1010011\n";
@@ -927,8 +977,8 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
     out_set << "*NSet, NSet=CD23\n";
     out_set << "1060023\n";
     out_set << "**\n";
-    out_set << "*NSet, NSet=Constrain_Driver_123, Unsorted\n";
-    out_set << "1010011, 1020022, 1030033, 1040012, 1050013, 1060023\n";
+    out_set << "*NSet, NSet=CD_nodes, Unsorted\n";
+    out_set << "1010011, 1020022, 1030033, 1040012, 1050013, 1060023\n";*/
     out_set << "**\n";
     out_set << "************************************\n";
     out_set << "********** MPC EQUATIONS ***********\n";
@@ -950,10 +1000,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i]; //extract a matrix
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 1, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 1, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[1], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[1], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -972,10 +1022,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 2, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 2, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[3], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[3], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -995,11 +1045,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 3, j+1);
-            cout << "eq = " << eq << endl;
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 3, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[5], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[5], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1021,10 +1070,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[1], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[1], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1044,10 +1093,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[2], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[2], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1067,10 +1116,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[3], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[3], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1090,10 +1139,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[5], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[5], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1113,10 +1162,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[6], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[6], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1136,10 +1185,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[7], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[7], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1159,10 +1208,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[9], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[9], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1182,10 +1231,10 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[10], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[10], loading_type, j);
             write_eq(out_set, eq);
         }
     }
@@ -1205,47 +1254,47 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
         
         neigh_temp = neigh[i]; // extract a vector
         weight_temp = weights[i];
-        for (unsigned int j=0; j<list_dofs.size(); j++) {
-            eq = set_equation(neigh_temp, weight_temp, 0, j+1);
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
             //Replace in equation the nodes with the equations from cubic_equation
-            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[11], j+1);
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[11], loading_type, j);
             write_eq(out_set, eq);
         }
     }
     
     //Corner_listXpYmZm
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXpYmZm[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXpYmZm[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXpYpZm
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXpYpZm[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXpYpZm[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXmYpZm
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXmYpZm[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXmYpZm[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXmYmZp
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXmYmZp[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXmYmZp[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXpYmZp
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXpYmZp[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXpYmZp[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXpYpZp
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXpYpZp[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXpYpZp[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
     //Corner_listXmYpZp
-    for (unsigned int j=0; j<list_dofs.size(); j++) {
-        eq = cubic_eq.Corner_listXmYpZp[j];
+    for (auto j:list_dofs) {
+        eq = cubic_eq.Corner_listXmYpZp[index_from_dof(j, loading_type)];
         write_eq(out_set, eq);
     }
 }
