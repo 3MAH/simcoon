@@ -218,7 +218,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     for(int i=0; i<ngboys; i++) {
         Dp_gb_n[i] = zeros(n_param);
     }
-    bool bad_des = false;
+    //bool bad_des = false;
     int compt_des = 0;
     
     while((g<ngen)&&(compt_des < stationnarity_nb)) {
@@ -262,7 +262,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
             gboys[g].pop[i].p = p;
             
             if(gboys[g].pop[i].cout > cost_gb_cost_n[i]) {
-                bad_des = true;
+                //bad_des = true;
                 gboys[g].pop[i].lambda *= 3;
                 gboys[g].pop[i].p = gen[g].pop[i].p;
                 gboys[g].pop[i].cout = cost_gb_cost_n[i];
@@ -294,7 +294,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         //In the simulation run, make sure that we remove all the temporary files
         boost::filesystem::path path_to_remove(data_num_folder);
         for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-            boost::filesystem::remove_all(it->path());
+            uintmax_t temp = boost::filesystem::remove_all(it->path());
         }
         
         //Run the identified simulation and store results in the results folder
