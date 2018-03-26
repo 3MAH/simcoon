@@ -52,13 +52,10 @@ step_thermomeca::step_thermomeca() : step()
 
 /*!
  \brief Constructor with parameters
- cBC_meca = mcBC_meca;  Type of boundary conditions
- BC_meca = mBC_meca;    Target values of the BC
- BC_T = mBC_T;          target temperature
- Etot = mEtot;          current strain
- sigma = msigma;        current stress
- T = mT;                current temperature
- Q = mQ                 heat
+ cBC_meca = mcBC_meca;  Type of mechanical boundary conditions
+ BC_meca = mBC_meca;    Target values of the mechanical BC
+ cBC_meca = mcBC_meca;  Type of thermal boundary conditions
+ BC_T = mBC_T;          target values of the thermal BC
  */
 
 //-------------------------------------------------------------
@@ -286,10 +283,11 @@ step_thermomeca& step_thermomeca::operator = (const step_thermomeca& stm)
     
     cBC_meca = stm.cBC_meca;
     BC_meca = stm.BC_meca;
+    mecas = stm.mecas;
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
-    
+
 	return *this;
 }
     
