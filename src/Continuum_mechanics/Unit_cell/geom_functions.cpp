@@ -913,7 +913,7 @@ void set_CornerXpYpZp(std::vector<Node> &set, const cubic_mesh &cm_perio) {
         for(auto n:set_face)
         //FaceXm
         for (unsigned int i=0; i<3; i++) {
-            temp_component.node = cubic_eq.Constrain_Driver_123[CD_num(0,i)];
+            temp_component.node = cubic_eq.CD_nodes[CD_num(0,i)];
             temp_component.dof = 1;
             temp_component.coef = perio_disp(i);
             eq.component.push_back(temp_component);
@@ -922,7 +922,7 @@ void set_CornerXpYpZp(std::vector<Node> &set, const cubic_mesh &cm_perio) {
     else if(name_set == cm.set_name_faces[2]) {
         //FaceYp
         for (unsigned int i=0; i<3; i++) {
-            temp_component.node = cubic_eq.Constrain_Driver_123[CD_num(1,i)];
+            temp_component.node = cubic_eq.CD_nodes[CD_num(1,i)];
             temp_component.dof = 1;
             temp_component.coef = perio_disp(i);
             eq.component.push_back(temp_component);
@@ -931,7 +931,7 @@ void set_CornerXpYpZp(std::vector<Node> &set, const cubic_mesh &cm_perio) {
     else if(name_set == cm.set_name_faces[3]) {
         //FaceZp
         for (unsigned int i=0; i<3; i++) {
-            temp_component.node = cubic_eq.Constrain_Driver_123[CD_num(2,i)];
+            temp_component.node = cubic_eq.CD_nodes[CD_num(2,i)];
             temp_component.dof = 1;
             temp_component.coef = perio_disp(i);
             eq.component.push_back(temp_component);
@@ -939,8 +939,25 @@ void set_CornerXpYpZp(std::vector<Node> &set, const cubic_mesh &cm_perio) {
     }
 }*/
     
+unsigned int index_from_dof(const unsigned int &dof, const unsigned int &loading_type) {
     
-void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &weight, const cubic_mesh &cm, const std::string &name_set, const unsigned int &j_dof) {
+    if (dof < 4) {
+        return dof-1;
+    }
+    else if(dof == 11) {
+        if (loading_type == 1) {
+            return 3;
+        }
+        else if(loading_type == 2)
+        return 0;
+    }
+    else {
+        cout << "in Continuum_Mechanics/Unit/cell/geom_functions.cpp : error: dof is not recognized" << endl;
+        return 0;
+    }
+}
+    
+void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &weight, const cubic_mesh &cm, const std::string &name_set, const unsigned int &loading_type, const unsigned int &dof) {
     
     UNUSED(weight);
     std::vector<equation> set_eq;
@@ -951,107 +968,109 @@ void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &w
     unsigned int N=0;
     uvec is_unique = ones<uvec>(N);
     
+    unsigned int j_dof = index_from_dof(dof, loading_type);
+    
     if(name_set == cm.set_name_faces[1]) {
         //FaceXp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listXp[j_dof-1]), std::end(cubic_eq.Face_listXp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYm[j_dof-1]), std::end(cubic_eq.Edge_listXpYm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof-1]), std::end(cubic_eq.Edge_listXpYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZm[j_dof-1]), std::end(cubic_eq.Edge_listXpZm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof-1]), std::end(cubic_eq.Edge_listXpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listXp[j_dof]), std::end(cubic_eq.Face_listXp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYm[j_dof]), std::end(cubic_eq.Edge_listXpYm[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof]), std::end(cubic_eq.Edge_listXpYp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZm[j_dof]), std::end(cubic_eq.Edge_listXpZm[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof]), std::end(cubic_eq.Edge_listXpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_faces[3]) {
         //FaceYp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listYp[j_dof-1]), std::end(cubic_eq.Face_listYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmYp[j_dof-1]), std::end(cubic_eq.Edge_listXmYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof-1]), std::end(cubic_eq.Edge_listXpYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZm[j_dof-1]), std::end(cubic_eq.Edge_listYpZm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof-1]), std::end(cubic_eq.Edge_listYpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listYp[j_dof]), std::end(cubic_eq.Face_listYp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmYp[j_dof]), std::end(cubic_eq.Edge_listXmYp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof]), std::end(cubic_eq.Edge_listXpYp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZm[j_dof]), std::end(cubic_eq.Edge_listYpZm[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof]), std::end(cubic_eq.Edge_listYpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_faces[5]) {
         //FaceZp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listZp[j_dof-1]), std::end(cubic_eq.Face_listZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmZp[j_dof-1]), std::end(cubic_eq.Edge_listXmZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof-1]), std::end(cubic_eq.Edge_listXpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYmZp[j_dof-1]), std::end(cubic_eq.Edge_listYmZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof-1]), std::end(cubic_eq.Edge_listYpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Face_listZp[j_dof]), std::end(cubic_eq.Face_listZp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmZp[j_dof]), std::end(cubic_eq.Edge_listXmZp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof]), std::end(cubic_eq.Edge_listXpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYmZp[j_dof]), std::end(cubic_eq.Edge_listYmZp[j_dof]));
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof]), std::end(cubic_eq.Edge_listYpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[1]) {
         //EdgeXpYm
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYm[j_dof-1]), std::end(cubic_eq.Edge_listXpYm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYm[j_dof]), std::end(cubic_eq.Edge_listXpYm[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[2]) {
         //EdgeXpYp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof-1]), std::end(cubic_eq.Edge_listXpYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpYp[j_dof]), std::end(cubic_eq.Edge_listXpYp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[3]) {
         //EdgeXmYp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmYp[j_dof-1]), std::end(cubic_eq.Edge_listXmYp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmYp[j_dof]), std::end(cubic_eq.Edge_listXmYp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[5]) {
         //EdgeXpZm
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZm[j_dof-1]), std::end(cubic_eq.Edge_listXpZm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZm[j_dof]), std::end(cubic_eq.Edge_listXpZm[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof]);
     }
     else if(name_set == cm.set_name_edges[6]) {
         //EdgeXpZp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof-1]), std::end(cubic_eq.Edge_listXpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXpZp[j_dof]), std::end(cubic_eq.Edge_listXpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[7]) {
         //EdgeXmZp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmZp[j_dof-1]), std::end(cubic_eq.Edge_listXmZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listXmZp[j_dof]), std::end(cubic_eq.Edge_listXmZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[9]) {
         //EdgeYpZm
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZm[j_dof-1]), std::end(cubic_eq.Edge_listYpZm[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZm[j_dof]), std::end(cubic_eq.Edge_listYpZm[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZm[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZm[j_dof]);
     }
     else if(name_set == cm.set_name_edges[10]) {
         //EdgeYpZp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof-1]), std::end(cubic_eq.Edge_listYpZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYpZp[j_dof]), std::end(cubic_eq.Edge_listYpZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYpZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYpZp[j_dof]);
     }
     else if(name_set == cm.set_name_edges[11]) {
         //EdgeYmZp
         set_eq.clear();
-        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYmZp[j_dof-1]), std::end(cubic_eq.Edge_listYmZp[j_dof-1]));
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof-1]);
-        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof-1]);
+        set_eq.insert(std::end(set_eq), std::begin(cubic_eq.Edge_listYmZp[j_dof]), std::end(cubic_eq.Edge_listYmZp[j_dof]));
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof]);
+        set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
     }
 
 //    std::vector<int> CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
