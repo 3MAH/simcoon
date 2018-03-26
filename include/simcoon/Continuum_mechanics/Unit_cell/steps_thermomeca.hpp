@@ -28,7 +28,7 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/Simulation/Solver/step.hpp>
-#include <simcoon/Simulation/Solver/step_meca.hpp>
+#include <simcoon/Simulation/Solver/step_thermomeca.hpp>
 
 namespace simcoon{
     
@@ -45,21 +45,22 @@ protected:
     std::string name;     //name of the step
     bool nlgeom;
     int type; //Automatic or fixed
+    double max_temp;
         
-    aba_step_meca(); 	//default constructor
-    aba_step_meca(const std::string &, const bool &, const int &, const int &, const double &, const double &, const double &, const int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
+    aba_step_thermomeca(); 	//default constructor
+    aba_step_thermomeca(const std::string &, const bool &, const int &, const double &, const int &, const double &, const double &, const double &, const int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
     
-    aba_step_meca(const aba_step_meca&);	//Copy constructor
-    virtual ~aba_step_meca();
+    aba_step_thermomeca(const aba_step_thermomeca&);	//Copy constructor
+    virtual ~aba_step_thermomeca();
 
     using step::generate;
-    virtual void update(const step_meca&, const std::string &, const bool &, const int &);
+    virtual void update(const step_thermomeca&, const std::string &, const bool &, const int &, const int &);
     
-    virtual aba_step_meca& operator = (const aba_step_meca&);
+    virtual aba_step_thermomeca& operator = (const aba_step_thermomeca&);
     
     virtual void write(const std::string &, const std::string &inputfile, const bool & = true);
     
-    friend  std::ostream& operator << (std::ostream&, const aba_step_meca&);
+    friend  std::ostream& operator << (std::ostream&, const aba_step_thermomeca&);
 };
     
 } //namespace simcoon
