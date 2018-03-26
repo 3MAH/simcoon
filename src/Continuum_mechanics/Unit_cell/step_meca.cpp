@@ -28,7 +28,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
-#include <simcoon/Continuum_mechanics/Unit_cell/steps.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/steps_meca.hpp>
 
 using namespace std;
 using namespace arma;
@@ -209,9 +209,9 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "S, E, SDV,\n";
     param_aba << "*Node Output, nset=AllNodes\n";
     param_aba << "U,\n";
-    param_aba << "*Node Output, nset=Constrain_Driver_123\n";
+    param_aba << "*Node Output, nset=CD_nodes\n";
     param_aba << "RF, CF, U,\n";
-    param_aba << "*Node print, nset=Constrain_Driver_123, summary=no\n";
+    param_aba << "*Node print, nset=CD_nodes, summary=no\n";
     param_aba << "RF1, CF1, U1,\n";
     param_aba << "*End Step\n";
     param_aba << "**" << endl;
