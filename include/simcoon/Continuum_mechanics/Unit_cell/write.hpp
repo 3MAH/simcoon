@@ -48,8 +48,8 @@ void update_steps(std::vector<aba_step_meca> &, const std::vector<block> &, cons
 
 void write_steps(std::vector<aba_step_meca> &, const double &, const std::string & = "data", const std::string & = "Nstep_0.inp");
     
-void write_node(const std::string &, const Node &, std::ofstream &);
 void write_nodes_file(const Node &, std::ofstream &);
+void write_node_set(const std::string &, const Node &, std::ofstream &);
 void write_nodes_set(const std::string &, const std::vector<Node> &, std::ofstream &);
 
 void append_perio_nodes(const cubic_mesh &, const std::string &, const std::string &);
