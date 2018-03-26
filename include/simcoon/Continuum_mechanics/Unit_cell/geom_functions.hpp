@@ -94,7 +94,9 @@ void set_CornerXmYpZp(std::vector<Node> &, const cubic_mesh &);
 void set_CornerXpYmZp(std::vector<Node> &, const cubic_mesh &);
 void set_CornerXpYpZp(std::vector<Node> &, const cubic_mesh &);
     
-void replace_perio_eq(equation &, const cubic_equation &, const arma::mat &, const cubic_mesh &, const std::string &, const unsigned int &);
+unsigned int index_from_dof(const unsigned int &, const unsigned int &);
+
+void replace_perio_eq(equation &, const cubic_equation &, const arma::mat &, const cubic_mesh &, const std::string &, const unsigned int &, const unsigned int &);
     
 } //namespace simcoon
 
