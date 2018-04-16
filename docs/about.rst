@@ -17,6 +17,8 @@ Several institutions have contributed to the development of simcoon:
 * **TU Bergakademie Freiberg**: School of Mines and Technical University in Freiberg, Germany.
 * **Texas A&M University**: Top University in Texas, USA.
 
-![alt text](_static/arts-et-metiers1.gif "Arts et MŽtiers")
+.. image:: _static/arts-et-metiers1.gif
 
-![alt text](_static/lem3_logo.png "LEM3")
+.. image:: _static/lem3_logo.png
+
+.. image:: _static/TAM-PrimaryMarkA.png
