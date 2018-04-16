@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "\n----------------------------"
-echo "Start of SMART+ compilation."
+echo "Start of Simcoon compilation."
 echo "---------------------------\n"
 
 blue=`tput setaf 4`
