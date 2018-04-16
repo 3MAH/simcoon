@@ -12,13 +12,11 @@ Simcoon is mainly developed by contributors from the staff and students of Arts 
 Several institutions have contributed to the development of simcoon:
 
 
-* **Arts et Métiers:** : Top French school of engineers, focused on technology and applications.
+* **Arts et MŽtiers:** : Top French school of engineers, focused on technology and applications.
 * **CNRS**: National French Center for scientific research. The LEM3 laboratory is labelled from the CNRS.
 * **TU Bergakademie Freiberg**: School of Mines and Technical University in Freiberg, Germany.
 * **Texas A&M University**: Top University in Texas, USA.
 
-.. image:: _static/arts-et-metiers1.gif
+![alt text](_static/arts-et-metiers1.gif "Arts et MŽtiers")
 
-.. image:: _static/lem3_logo.png
-
-.. image:: _static/TAM-PrimaryMarkA.png
+![alt text](_static/lem3_logo.png "LEM3")
