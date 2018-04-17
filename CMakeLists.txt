@@ -33,10 +33,6 @@ enable_testing()
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-#Inclusion of Boost
-find_package(Boost 1.57.0 COMPONENTS system filesystem unit_test_framework REQUIRED)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-
 #Inclusion of Armadillo
 include(FindArmadillo)
 find_package(Armadillo 5.2 REQUIRED)
@@ -45,6 +41,11 @@ include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 # Find CGAL
 find_package(CGAL REQUIRED COMPONENTS Core) 
 include( ${CGAL_USE_FILE} )
+
+
+#Inclusion of Boost
+find_package(Boost 1.57.0 COMPONENTS system filesystem unit_test_framework REQUIRED)
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
 #include(FindOpenMP)
@@ -104,7 +105,7 @@ add_library(simcoon SHARED ${source_files})
 target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
 
 #Define lists of executables for compilation
-set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
+set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter)
 
 #Compile public executable
 foreach (Exe_to_compile ${All_exe_to_compile})
