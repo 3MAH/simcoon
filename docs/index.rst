@@ -7,10 +7,10 @@ Contents:
    :maxdepth: 3
 
    about.rst
-   Libraries/index.rst
-   Micromechanics/index.rst
-   Umat/index.rst
-   examples.rst
+   installation.rst
+   examples.rst   
+   Continuum_Mechanics/index.rst   
+   Simulation/index.rst
 
 * :ref:`genindex`
 * :ref:`search`
