@@ -8,7 +8,7 @@ You need to have CMake installed
 
 .. image:: _static/CMake.png
 
-If not installed, I recommend for Ubuntu and debian-based systems
+If not installed, for Ubuntu and debian-based systems:
 
 .. code-block:: none
 
