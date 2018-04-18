@@ -1,4 +1,4 @@
-Continuum Mechanics
+Functions
 ===================
 
 .. toctree::

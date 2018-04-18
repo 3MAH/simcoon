@@ -1,4 +1,4 @@
-The Eshelby tensor library
+Eshelby tensor library
 ===================
 
 .. default-domain:: cpp
@@ -19,3 +19,4 @@ The Eshelby tensor library
     .. code-block:: cpp
 
         mat S = Eshelby_sphere(nu);
+
