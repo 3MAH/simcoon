@@ -30,6 +30,6 @@ The following dependencies are required to install simcoon:
 - CGAL_
 .. _CGAL : https://www.cgal.org
 
-.. image:: _static/boost_logo.jpg
-.. image:: _static/Armadillo_logo.jpg
+.. image:: _static/boost_logo.png
+.. image:: _static/Armadillo_logo.png
 .. image:: _static/CGAL_logo.png
