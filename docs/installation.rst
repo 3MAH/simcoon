@@ -27,7 +27,7 @@ The following dependencies are required to install simcoon:
 .. _Boost : https://www.boost.org
 - Armadillo_ 
 .. _Armadillo : http://arma.sourceforge.net
-- CGAL
+- CGAL_
 .. _CGAL : https://www.cgal.org
 
 .. image:: _static/boost_logo.jpg
