@@ -111,15 +111,40 @@ The Eshelby Library provides various estimations of the Eshelby tensor and the H
           
 .. function:: mat Eshelby(mat, double, double, double, vec, vec, vec, vec, int, int)
 
-
-    Provides the numerical estimation of the Eshelby tensor of an ellispoid in the general case of anisotropic media, as a function of the stiffness tensor, and the three semi-axis length of the ellipsoid in the direction :math:`1`,:math:`2` and :math:`3`, respectively. It also requires the list of integration and their respective weight for the numerical integration, as well as the number of integration points in the 1 and 2 directions. The points and weights are calculated using the points_  function.
+    Provides the numerical estimation of the Eshelby tensor of an ellispoid in the general case of anisotropic media, as a function of the stiffness tensor, and the three semi-axis length of the ellipsoid in the direction :math:`1`,:math:`2` and :math:`3`, respectively. It also requires the list of integration and their respective weight for the numerical integration, as well as the number of integration points in the :math:`1` and :math:`2` directions. The points and weights are calculated using the points_  function.
 
     .. code-block:: cpp
         
         mat S = Eshelby(L, a1, a2, a3, x, wx, y, wy, mp, np);
         
-*L* is the stiffness tensor of the media; *a1* is the semi-axis of the ellispoid length in the direction :math:`1`; *a2* is the semi-axis of the ellispoid length in the direction :math:`2`; *a3* is the semi-axis of the ellipsoid length in the direction :math:`3`; *x* is the vector of points in the direction :math:`1`; *wx* is the vector of the weights of points in the direction :math:`1`; *y* is the vector of points in the direction :math:`2`; *wx* is the vector of the weights of points in the direction :math:`2`; *mp* is the number of points in the direction :math:`1`; *np* is the number of points in the direction :math:`2`;
+    *L* is the stiffness tensor of the media; *a1* is the semi-axis of the ellispoid length in the direction :math:`1`; *a2* is the semi-axis of the ellispoid length in the direction :math:`2`; *a3* is the semi-axis of the ellipsoid length in the direction :math:`3`; *x* is the vector of points in the direction :math:`1`; *wx* is the vector of the weights of points in the direction :math:`1`; *y* is the vector of points in the direction :math:`2`; *wx* is the vector of the weights of points in the direction :math:`2`; *mp* is the number of points in the direction :math:`1`; *np* is the number of points in the direction :math:`2`;
 
-The function returns the Eshelby tensor as a mat, according to the conventions of a localisation tensor
+    The function returns the Eshelby tensor as a mat, according to the conventions of a localisation tensor
 
+.. function:: mat T_II(mat, double, double, double, vec, vec, vec, vec, int, int)
 
+    Provides the numerical estimation of the Hill interaction tensor of an ellispoid in the general case of anisotropic media, as a function of the stiffness tensor, and the three semi-axis length of the ellipsoid in the direction :math:`1`,:math:`2` and :math:`3`, respectively. It also requires the list of integration and their respective weight for the numerical integration, as well as the number of integration points in the :math:`1` and :math:`2` directions. The points and weights are calculated using the points_  function.
+
+    .. code-block:: cpp
+        
+        mat S = T_II(L, a1, a2, a3, x, wx, y, wy, mp, np)
+                
+    *L* is the stiffness tensor of the media; *a1* is the semi-axis of the ellispoid length in the direction :math:`1`; *a2* is the semi-axis of the ellispoid length in the direction :math:`2`; *a3* is the semi-axis of the ellipsoid length in the direction :math:`3`; *x* is the vector of points in the direction :math:`1`; *wx* is the vector of the weights of points in the direction :math:`1`; *y* is the vector of points in the direction :math:`2`; *wx* is the vector of the weights of points in the direction :math:`2`; *mp* is the number of points in the direction :math:`1`; *np* is the number of points in the direction :math:`2`;
+
+    The function returns the Hill interaction tensor as a mat, according to the conventions of a localisation tensor
+
+.. function:: void points(mat, double, double, double, vec, vec, vec, vec, int, int)
+
+    This methods computes the list of integration and their respective weight for the numerical integration, as a function of the number of integration points in the 1 and 2 directions. 
+  
+    .. code-block:: cpp
+      
+        vec x(mp);
+        vec wx(mp);
+        vec y(np);
+        vec wy(np);
+        points(x, wx, y, wy, mp, np);
+       
+    *x* is the vector of points in the direction :math:`1`; *wx* is the vector of the weights of points in the direction :math:`1`; *y* is the vector of points in the direction :math:`2`; *wx* is the vector of the weights of points in the direction :math:`2`; *mp* is the number of points in the direction :math:`1`; *np* is the number of points in the direction :math:`2`.
+    Update *x*, *wx*, *y* and *wy* according to *mp* and *np*. Note that *x*, *wx*, *y*, *wy* have to be initialized first with the size of *mp* and *np*, respectively.
+    
