@@ -46,6 +46,12 @@ namespace simcoon{
 ///@param kspt section point number within the current layer - not used
 ///@param kstep step number
 ///@param kinc increment number    
+
+void size_statev(phase_characteristics &, unsigned int &);
+    
+void statev_2_phases(phase_characteristics &, unsigned int &, const arma::vec &);
+
+void phases_2_statev(arma::vec &, unsigned int &, const phase_characteristics &);
     
 void abaqus2smart_M(double *, double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
 
