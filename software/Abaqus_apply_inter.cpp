@@ -11,7 +11,8 @@
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Continuum_Mechanics/Unit_cell/node.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/steps.hpp>
+#include <simcoon/Continuum_Mechanics/Unit_cell/step_meca.hpp>
+#include <simcoon/Continuum_Mechanics/Unit_cell/step_thermomeca.hpp>
 #include <simcoon/Continuum_Mechanics/Unit_cell/read.hpp>
 #include <simcoon/Continuum_Mechanics/Unit_cell/write.hpp>
 #include <simcoon/Continuum_Mechanics/Unit_cell/geom_functions.hpp>
@@ -45,10 +46,12 @@ int main() {
     //Action 0 : Defining the mesh and the periodic mesh
     
     unsigned int nb_nodes = 0;
-    unsigned int loading_type = 2;
+    unsigned int loading_type = 0;
+    int max_temp = 10;
     std::vector<Node> nodes;
     read_mesh(nodes, path_data, pointsfile);
     nb_nodes = nodes.size();
+    unsigned int nb_nodes_init = nb_nodes;
     cubic_mesh cm(nodes, pointsfile);
     cm.get_domain();
     //cm.find_pairs();
@@ -72,9 +75,10 @@ int main() {
     string PBC_file_name = "PBC_file_name.inp";
     string TIE_file_name = "TIE_file_name.inp";
     string CDN_file_name = "CDN_file_name.inp";
-    write_PBC(cm, nb_nodes, path_run, PBC_file_name);
+//    write_PBC(cm, nb_nodes, path_run, PBC_file_name);
+    write_PBC(cm, nb_nodes_init, path_run, PBC_file_name);
 //    write_TIE(cm, cm_perio, path_run, TIE_file_name);
-    write_NonPerio2_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
 //    write_CDN(cm, path_run, CDN_file_name);
     
     //Action 4 : The steps
@@ -90,9 +94,10 @@ int main() {
     
     //Phases
     string steps_file_name = "steps_file_name.inp";
-    std::vector<aba_step_meca> aba_steps;
-    update_steps(aba_steps, blocks, nlgeom);
-    write_steps(aba_steps, T_init, path_run, steps_file_name);
+    std::vector<std::shared_ptr<step>> aba_steps;
+    
+    update_steps(aba_steps, blocks, nlgeom, loading_type, max_temp);
+    write_steps(aba_steps, loading_type, T_init, path_run, steps_file_name);
     
     //Finally
     string run_file = "run_aba.inp";
