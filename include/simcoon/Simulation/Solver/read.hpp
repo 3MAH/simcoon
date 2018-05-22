@@ -42,7 +42,7 @@ void solver_essentials(int &, const std::string & = "data", const std::string & 
 void solver_control(double &, double &, int &, int &, int &, double &, double &, const std::string & = "data", const std::string & = "solver_control.inp");
     
 /// Function that reads the material properties
-void read_matprops(std::string &, int &, arma::vec &, int &, double &, double &, double &, const std::string & = "data", const std::string & = "material.dat");
+void read_matprops(std::string &, unsigned int &, arma::vec &, unsigned int &, double &, double &, double &, const std::string & = "data", const std::string & = "material.dat");
     
 /// Function that reads the output parameters
 void read_output(solver_output &, const int &, const int &, const std::string & = "data", const std::string & = "output.dat");
