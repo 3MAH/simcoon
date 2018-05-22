@@ -50,8 +50,8 @@ int main() {
     string sol_control = "solver_control.inp";
 
     string umat_name;
-	int nprops = 0;
-	int nstatev = 0;
+	unsigned int nprops = 0;
+	unsigned int nstatev = 0;
 	vec props;
     
 	double psi_rve = 0.;

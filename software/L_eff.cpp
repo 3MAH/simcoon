@@ -45,8 +45,8 @@ int main() {
     string path_data = "data";
     string materialfile = "material.dat";
 	
-    int nprops = 0;
-    int nstatev = 0;
+    unsigned int nprops = 0;
+    unsigned int nstatev = 0;
     vec props;
     
     double psi_rve = 0.;
