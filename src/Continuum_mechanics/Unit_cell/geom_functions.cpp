@@ -58,7 +58,7 @@ std::vector<Node> copy_list_nodes(const std::vector<Node> &nodes) {
     }
     
     if (copied_list.size() == 0) {
-        cout << "There is no node on the list to copy";
+        cout << "There is no node on the list to copy" << endl;
     }
     return copied_list;
 }
@@ -116,10 +116,10 @@ Node find_corner(const std::vector<Node> &nodes, const Point &corner, const doub
         }
     }
     if (count == 0) {
-        cout << "There is no node close to the selected corner";
+        cout << "There is no node close to the selected corner" << endl;
     }
     if (count > 1) {
-        cout << "There are duplicate nodes close to the selected corner, the last one in the list has been selected";
+        cout << "There are duplicate nodes close to the selected corner, the last one in the list has been selected" << endl;
     }
     return clos_Node;
         
@@ -136,7 +136,7 @@ std::vector<Node> find_edge(const std::vector<Node> &nodes, const Line &edge, co
         }
     }
     if (count == 0) {
-        cout << "There is no node close to the selected edge";
+        cout << "There is no node close to the selected edge" << endl;
     }
     return on_edge;
 }
@@ -361,7 +361,7 @@ std::vector<Node> find_face(const std::vector<Node> &nodes, const Plane &face, c
         }
     }
     if (count == 0) {
-        cout << "There is no node close to the selected face";
+        cout << "There is no node close to the selected face" << endl;
     }
     return on_face;
 }
@@ -1072,9 +1072,6 @@ void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &w
         set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXmYmZp[j_dof]);
         set_eq.insert(std::end(set_eq), cubic_eq.Corner_listXpYmZp[j_dof]);
     }
-
-//    std::vector<int> CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
-
     
     equation temp_eq;
     bool replace = false;
@@ -1082,79 +1079,10 @@ void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &w
     for (it = eq.components.begin()+1; it != eq.components.end(); ++it) {
         for(auto n = set_eq.begin(); ((n != set_eq.end())&&(replace != true)); ++n) {
             if(it->node == n->components[0].node) {
-                //Insert in the original eq
 
                 coefs_temps.components = n->components;
                 for(unsigned int k=0; k<coefs_temps.components.size(); k++) {
-/*                    switch(coefs_temps.components[k].node.number) {
-                        case 1010011:
-                            if(name_set == cm.set_name_faces[1])
-                                weight_temp = weight(it-eq.components.begin()-1,0);
-                            else
-                                weight_temp = weight(it-eq.components.begin()-1,1);
-                            break;
-                        case 1020022:
-                            if(name_set == cm.set_name_faces[3])
-                                weight_temp = weight(it-eq.components.begin()-1,0);
-                            else
-                                weight_temp = weight(it-eq.components.begin()-1,2);
-                            
-                            break;
-                        case 1030033:
-                            if(name_set == cm.set_name_faces[5])
-                                weight_temp = weight(it-eq.components.begin()-1,0);
-                            else
-                                weight_temp = weight(it-eq.components.begin()-1,3);
-                            break;
-                        case 1040012:
-                            if(name_set == cm.set_name_faces[1]) {
-                                weight_temp = weight(it-eq.components.begin()-1,2);
-                            }
-                            else if(name_set == cm.set_name_faces[3]) {
-                                weight_temp = weight(it-eq.components.begin()-1,1);
-                            }
-                            else if(name_set == cm.set_name_faces[5]) {
-                                if (dof == 1)
-                                    weight_temp = weight(it-eq.components.begin()-1,2);
-                                else if(dof == 2)
-                                    weight_temp = weight(it-eq.components.begin()-1,1);
-                            }
-                            break;
-                        case 1050013:
-                            if(name_set == cm.set_name_faces[1]) {
-                                weight_temp = weight(it-eq.components.begin()-1,3);
-                            }
-                            else if(name_set == cm.set_name_faces[3]) {
-                                if (dof == 1)
-                                    weight_temp = weight(it-eq.components.begin()-1,3);
-                                else if(dof == 3)
-                                    weight_temp = weight(it-eq.components.begin()-1,1);
-                            }
-                            else if(name_set == cm.set_name_faces[5]) {
-                                weight_temp = weight(it-eq.components.begin()-1,1);
-                            }
-                            break;
-                        case 1060023:
-                            if(name_set == cm.set_name_faces[1]) {
-                                if (dof == 2)
-                                    weight_temp = weight(it-eq.components.begin()-1,3);
-                                else if(dof == 3)
-                                    weight_temp = weight(it-eq.components.begin()-1,2);
-
-                            }
-                            else if(name_set == cm.set_name_faces[3]) {
-                                weight_temp = weight(it-eq.components.begin()-1,3);
-                            }
-                            else if(name_set == cm.set_name_faces[5]) {
-                                weight_temp = weight(it-eq.components.begin()-1,2);
-                            }
-                            break;
-                        default:
-                            weight_temp = it->coef;
-                            break;
-                    }*/
                     coefs_temps.components[k].coef *= -1.0*it->coef;
-//                    coefs_temps.components[k].coef *= weight_temp;
                 }
                 replace = true;
                 temp_eq.components.insert(temp_eq.components.end(), coefs_temps.components.begin()+1, coefs_temps.components.end());
