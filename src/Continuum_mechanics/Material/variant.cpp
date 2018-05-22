@@ -23,8 +23,8 @@
 #include <fstream>
 #include <assert.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Material/variant.hpp>
-#include <simcoon/Continuum_Mechanics/Material/crystallo.hpp>
+#include <simcoon/Continuum_mechanics/Material/variant.hpp>
+#include <simcoon/Continuum_mechanics/Material/crystallo.hpp>
 
 using namespace std;
 using namespace arma;

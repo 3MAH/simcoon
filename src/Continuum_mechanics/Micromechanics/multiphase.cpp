@@ -26,14 +26,14 @@
 #include <armadillo>
 #include <memory>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_Mechanics/Micromechanics/multiphase.hpp>
-#include <simcoon/Continuum_Mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/ellipsoid_multi.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
-#include <simcoon/Continuum_Mechanics/Micromechanics/schemes.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
 
 using namespace std;
 using namespace arma;

@@ -21,9 +21,9 @@
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/damage.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 
 using namespace std;

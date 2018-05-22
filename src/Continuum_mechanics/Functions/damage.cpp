@@ -26,8 +26,8 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/damage.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 
 using namespace std;
 using namespace arma;

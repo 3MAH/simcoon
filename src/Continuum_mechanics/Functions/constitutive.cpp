@@ -24,7 +24,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <math.h>
 #include <string.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 
 using namespace std;
 using namespace arma;

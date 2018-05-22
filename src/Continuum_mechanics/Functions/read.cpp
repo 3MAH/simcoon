@@ -23,7 +23,7 @@
 #include <armadillo>
 #include <iostream>
 #include <fstream>
-#include <simcoon/Continuum_Mechanics/Functions/read.hpp>
+#include <simcoon/Continuum_mechanics/Functions/read.hpp>
 
 using namespace std;
 using namespace arma;

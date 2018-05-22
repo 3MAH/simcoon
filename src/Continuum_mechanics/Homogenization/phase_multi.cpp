@@ -24,7 +24,7 @@
 #include <string>
 #include <assert.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Homogenization/phase_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
 
 using namespace std;
 using namespace arma;

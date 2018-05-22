@@ -23,7 +23,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
 using namespace arma;

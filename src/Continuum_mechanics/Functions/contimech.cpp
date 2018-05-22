@@ -24,8 +24,8 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
 using namespace std;
 using namespace arma;

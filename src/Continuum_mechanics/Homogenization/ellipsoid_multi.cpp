@@ -24,11 +24,11 @@
 #include <string>
 #include <assert.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/ellipsoid_multi.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
 using namespace arma;

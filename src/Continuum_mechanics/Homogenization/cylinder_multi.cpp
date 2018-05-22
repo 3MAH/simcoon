@@ -29,7 +29,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Geometry/cylinder.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/cylinder_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/cylinder_multi.hpp>
 
 using namespace std;
 using namespace arma;

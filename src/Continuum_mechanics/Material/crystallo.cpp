@@ -23,9 +23,9 @@
 #include <math.h>
 #include <string.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_Mechanics/Material/crystallo.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Material/crystallo.hpp>
 
 using namespace std;
 using namespace arma;

@@ -23,8 +23,8 @@
 #include <fstream>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_Mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.hpp>
 
 using namespace std;
 using namespace arma;

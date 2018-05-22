@@ -24,8 +24,8 @@
 #include <iostream>
 #include <fstream>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Material/ODF.hpp>
-#include <simcoon/Continuum_Mechanics/Material/PDF.hpp>
+#include <simcoon/Continuum_mechanics/Material/ODF.hpp>
+#include <simcoon/Continuum_mechanics/Material/PDF.hpp>
 
 using namespace std;
 using namespace arma;

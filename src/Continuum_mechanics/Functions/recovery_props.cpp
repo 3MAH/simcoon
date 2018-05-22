@@ -25,7 +25,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/recovery_props.hpp>
+#include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
 using namespace std;
 using namespace arma;

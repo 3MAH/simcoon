@@ -26,11 +26,11 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Simulation/Phase/output.hpp>
-#include <simcoon/Continuum_Mechanics/Umat/Mechanical/Damage/damage_LLD_0.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Damage/damage_LLD_0.hpp>
 
 using namespace std;
 using namespace arma;

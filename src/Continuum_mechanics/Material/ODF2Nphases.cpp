@@ -33,9 +33,9 @@
 #include <simcoon/Simulation/Geometry/cylinder.hpp>
 #include <simcoon/Simulation/Maths/random.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
-#include <simcoon/Continuum_Mechanics/Material/ODF.hpp>
-#include <simcoon/Continuum_Mechanics/Material/ODF2Nphases.hpp>
-#include <simcoon/Continuum_Mechanics/Material/read.hpp>
+#include <simcoon/Continuum_mechanics/Material/ODF.hpp>
+#include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
+#include <simcoon/Continuum_mechanics/Material/read.hpp>
 
 using namespace std;
 using namespace arma;

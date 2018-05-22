@@ -34,11 +34,11 @@
 #include <simcoon/Simulation/Geometry/layer.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 // #include <simcoon/Simulation/Geometry/cylinder.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/phase_multi.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/layer_multi.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/ellipsoid_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/layer_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 // #include <smartplus/Libraries/Homogenization/cylinder_multi.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
 using namespace arma;

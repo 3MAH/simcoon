@@ -27,8 +27,8 @@
 #include <armadillo>
 #include <memory>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Material/peak.hpp>
-#include <simcoon/Continuum_Mechanics/Material/PDF.hpp>
+#include <simcoon/Continuum_mechanics/Material/peak.hpp>
+#include <simcoon/Continuum_mechanics/Material/PDF.hpp>
 
 
 using namespace std;

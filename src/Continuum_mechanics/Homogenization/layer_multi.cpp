@@ -24,7 +24,7 @@
 #include <string>
 #include <assert.h>
 #include <armadillo>
-#include <simcoon/Continuum_Mechanics/Homogenization/layer_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/layer_multi.hpp>
 
 using namespace std;
 using namespace arma;

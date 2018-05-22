@@ -19,7 +19,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/func_N.hpp>
+#include <simcoon/Continuum_mechanics/Functions/func_N.hpp>
 
 //Add the header of the cumulative function you want
 
@@ -27,7 +27,7 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
+    
 //This function returns damage evolution (/dt) due to interfacial stress computation
 void func_N(const vec &params, const vec &variables, const string& N_file, const string& outputfile, const string& path_data, const string& path_results) {
     

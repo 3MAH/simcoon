@@ -25,11 +25,11 @@
 #include <fstream>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_Mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
 
 using namespace std;
 using namespace arma;

@@ -26,7 +26,7 @@
 #include <armadillo>
 #include <memory>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_Mechanics/Material/peak.hpp>
+#include <simcoon/Continuum_mechanics/Material/peak.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
 
 using namespace std;
