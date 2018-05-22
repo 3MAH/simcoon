@@ -32,7 +32,8 @@
 #include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/section_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/materials.hpp>
-#include <simcoon/Continuum_mechanics/Unit_cell/steps.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/step_meca.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/step_thermomeca.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_mesh.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_equation.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/interpolate.hpp>
@@ -235,16 +236,15 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
 
     string name_step_ini = "Step";
     string name_step = name_step_ini;
-    int type = 0;
+    unsigned int type = 0;
     
     for (unsigned int i=0; i<blocks.size(); i++) {
         for (int j=0; j<blocks[i].ncycle; j++) {
             for (int k=0; k<blocks[i].nstep; k++) {
                 
-                switch (type) {
+                switch (loading_type) {
                     case 0: {
                         
-                        aba_step_meca temp;
                         name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
                         shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[k]);
                         if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
@@ -253,53 +253,39 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
                         else {
                             type = 0;
                         }
-                        temp.update(*sptr_meca, name_step, nlgeom, type);
-                        aba_steps.push_back(temp);
+                        shared_ptr<aba_step_meca> sptr_meca_aba(new aba_step_meca);
+                        sptr_meca_aba->update(*sptr_meca, name_step, nlgeom, type);
+                        aba_steps.push_back(sptr_meca_aba);
                         break;
                     }
                     case 1: {
                         
-                        aba_step_thermomeca temp;
                         name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[k]);
                         
-                        if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
+                        if ((sptr_thermomeca->Dn_init == 1.)&&(sptr_thermomeca->Dn_mini == 1.)) {
                             type = 1;
                         }
                         else {
                             type = 0;
                         }
-                        temp.update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
-                        aba_steps.push_back(temp);
-                        break;
-                    }
-                    case 1: {
-                        
-                        aba_step_thermo temp;
-                        name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
-                        shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[k]);
-                        
-                        if ((sptr_meca->Dn_init == 1.)&&(sptr_meca->Dn_mini == 1.)) {
-                            type = 1;
-                        }
-                        else {
-                            type = 0;
-                        }
-                        temp.update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
-                        aba_steps.push_back(temp);
+                        shared_ptr<aba_step_thermomeca> sptr_thermomeca_aba(new aba_step_thermomeca);
+                        sptr_thermomeca_aba->update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
+                        aba_steps.push_back(sptr_thermomeca_aba);
                         break;
                     }
                     default: {
-                        cout << "Please provide a consistent loading type for the block " << number << "\n";
+                        cout << "Please provide a consistent loading type for the block " << i << "\n";
                         break;
                     }
+                }
             }
         }
     }
     
 }
     
-void write_steps(std::vector<aba_step_meca> &aba_steps, const double &temp_init, const string &path_data, const string &outputfile) {
+void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int &loading_type, const double &temp_init, const string &path_data, const string &outputfile) {
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream param_mats;
@@ -321,8 +307,27 @@ void write_steps(std::vector<aba_step_meca> &aba_steps, const double &temp_init,
     param_mats << "** ==================\n";
     param_mats << "**" << endl;
     
-    for(unsigned int i=0; i<aba_steps.size(); i++) {
-        aba_steps[i].write(path_data,outputfile,true);
+    switch (loading_type) {
+        case 0: {
+            
+            for(unsigned int i=0; i<aba_steps.size(); i++) {
+                shared_ptr<aba_step_meca> sptr_meca_aba = std::dynamic_pointer_cast<aba_step_meca>(aba_steps[i]);
+                sptr_meca_aba->write(path_data,outputfile,true);
+            }
+            break;
+        }
+        case 1: {
+            
+            for(unsigned int i=0; i<aba_steps.size(); i++) {
+                shared_ptr<aba_step_thermomeca> sptr_thermomeca_aba = std::dynamic_pointer_cast<aba_step_thermomeca>(aba_steps[i]);
+                sptr_thermomeca_aba->write(path_data,outputfile,true);
+            }
+            break;
+        }
+        default: {
+            cout << "Error in Continuum/Mechanics/Unit_Cell/write.cpp, function write_steps : Please provide a consistent loading type to write the list of steps in the .inp file" << endl;
+            break;
+        }
     }
     param_mats.close();
 }
@@ -599,7 +604,7 @@ void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &p
     out_set.close();
 }
 
-void write_CDN(const cubic_mesh &cm, const string &path_data, const string &outputfile){
+/*void write_CDN(const cubic_mesh &cm, const string &path_data, const string &outputfile){
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
@@ -895,9 +900,9 @@ void write_CDN(const cubic_mesh &cm, const string &path_data, const string &outp
     }
     out_set << "**\n";
     out_set.close();
-}
+}*/
     
-void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const string &path_data, const string &outputfile){
+void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const string &path_data, const string &outputfile){
 
     //Find the neighbours
     std::vector<std::vector<Node> > neigh;
@@ -952,33 +957,6 @@ void write_NonPerio2_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const
     }
     write_nodes_set("CD_nodes", cubic_eq.CD_nodes, out_set);
     
-/*
-    out_set << "1010011, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD11\n";
-    out_set << "1010011\n";
-    out_set << "*Node\n";
-    out_set << "1020022, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD22\n";
-    out_set << "1020022\n";
-    out_set << "*Node\n";
-    out_set << "1030033, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD33\n";
-    out_set << "1030033\n";
-    out_set << "*Node\n";
-    out_set << "1040012, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD12\n";
-    out_set << "1040012\n";
-    out_set << "*Node\n";
-    out_set << "1050013, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD13\n";
-    out_set << "1050013\n";
-    out_set << "*Node\n";
-    out_set << "1060023, 0, 0, 0\n";
-    out_set << "*NSet, NSet=CD23\n";
-    out_set << "1060023\n";
-    out_set << "**\n";
-    out_set << "*NSet, NSet=CD_nodes, Unsorted\n";
-    out_set << "1010011, 1020022, 1030033, 1040012, 1050013, 1060023\n";*/
     out_set << "**\n";
     out_set << "************************************\n";
     out_set << "********** MPC EQUATIONS ***********\n";
