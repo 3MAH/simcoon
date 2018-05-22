@@ -26,6 +26,6 @@
 namespace simcoon{
 
 //function that solves a
-void solver(const std::string &, const arma::vec &, const double &, const double &, const double &, const double &, const int &, const double & = 0.5, const double & = 2., const int & = 10, const int & = 100, const int & = 1, const double & = 1.E-6, const double & = 10000., const std::string& = "data", const std::string& = "results", const std::string& = "path.txt", const std::string& = "result_job.txt");
+void solver(const std::string &, const arma::vec &, const unsigned int &, const double &, const double &, const double &, const int &, const double & = 0.5, const double & = 2., const int & = 10, const int & = 100, const int & = 1, const double & = 1.E-6, const double & = 10000., const std::string& = "data", const std::string& = "results", const std::string& = "path.txt", const std::string& = "result_job.txt");
 
 } //namespace simcoon
