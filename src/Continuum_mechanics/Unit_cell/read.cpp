@@ -50,6 +50,23 @@ std::vector<std::string> split(const std::string &s, const char &delim)
     return elems;
 }
     
+void unit_cell_essentials(int &loading_type, int &BC_type, int &max_temp, const string &path, const string &filename) {
+    
+    string pathfile = path + "/" + filename;
+    ifstream unit_cell_essentials;
+    string buffer;
+    
+    unit_cell_essentials.open(pathfile, ios::in);
+    if(!unit_cell_essentials) {
+        cout << "Error: cannot open : " << filename << " in :" << path << endl;
+        return;
+    }
+    
+    ///Get the control values for the solver
+    solver_essentials >> buffer >> loading_type >> buffer >> BC_type >> max_temp;
+    solver_essentials.close();
+}
+    
 void read_sections(std::vector<section_characteristics> &sections, const string &path_data, const string &inputfile) {
     
     unsigned int nsections = 0;
