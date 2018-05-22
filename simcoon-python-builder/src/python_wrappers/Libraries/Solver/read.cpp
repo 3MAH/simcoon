@@ -16,7 +16,7 @@ using namespace arma2numpy;
 namespace simpy {
 
 //This function reads material properties to prepare a simulation
-void read_matprops(int &nprops, bn::ndarray &props, int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const bp::str &path_data_py, const bp::str &materialfile_py) {
+void read_matprops(unsigned int &nprops, bn::ndarray &props, unsigned int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const bp::str &path_data_py, const bp::str &materialfile_py) {
     vec v = array2vec(props);
     string umat_name;
     string path_data = bp::extract<std::string>(path_data_py);
