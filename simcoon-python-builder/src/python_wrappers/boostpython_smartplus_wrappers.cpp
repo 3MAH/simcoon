@@ -33,7 +33,7 @@ using namespace std;
 using namespace arma;
 using namespace simpy;
 
-BOOST_PYTHON_MODULE(simmit) {
+BOOST_PYTHON_MODULE(simcoon) {
 
     Py_Initialize();
     bn::initialize();
