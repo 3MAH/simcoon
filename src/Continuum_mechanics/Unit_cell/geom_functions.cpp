@@ -952,7 +952,7 @@ unsigned int index_from_dof(const unsigned int &dof, const unsigned int &loading
         return 0;
     }
     else {
-        cout << "in Continuum_Mechanics/Unit/cell/geom_functions.cpp : error: dof is not recognized" << endl;
+        cout << "in Continuum_mechanics/Unit/cell/geom_functions.cpp : error: dof is not recognized" << endl;
         return 0;
     }
 }
