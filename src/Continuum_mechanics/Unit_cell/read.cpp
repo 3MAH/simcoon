@@ -63,8 +63,8 @@ void unit_cell_essentials(int &loading_type, int &BC_type, int &max_temp, const 
     }
     
     ///Get the control values for the solver
-    solver_essentials >> buffer >> loading_type >> buffer >> BC_type >> max_temp;
-    solver_essentials.close();
+    unit_cell_essentials >> buffer >> loading_type >> buffer >> BC_type >> max_temp;
+    unit_cell_essentials.close();
 }
     
 void read_sections(std::vector<section_characteristics> &sections, const string &path_data, const string &inputfile) {
