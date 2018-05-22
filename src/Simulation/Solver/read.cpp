@@ -123,7 +123,7 @@ void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int 
 
 }
     
-void read_matprops(string &umat_name, int &nprops, vec &props, int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const string &path_data, const string &materialfile) {
+void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const string &path_data, const string &materialfile) {
 
     ///Material properties reading, use "material.dat" to specify parameters values
 	string buffer;
@@ -151,7 +151,7 @@ void read_matprops(string &umat_name, int &nprops, vec &props, int &nstatev, dou
 		string buffer;
 		propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
         
-		for(int i=0;i<nprops;i++)
+		for(unsigned int i=0;i<nprops;i++)
 			propsmat >> buffer >> props(i);
 	}
 	else {
