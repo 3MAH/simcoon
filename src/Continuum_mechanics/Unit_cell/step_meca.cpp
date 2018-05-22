@@ -28,7 +28,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
-#include <simcoon/Continuum_mechanics/Unit_cell/steps_meca.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/step_meca.hpp>
 
 using namespace std;
 using namespace arma;
