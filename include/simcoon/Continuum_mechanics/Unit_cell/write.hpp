@@ -24,7 +24,7 @@
 #include <string>
 #include <simcoon/Continuum_mechanics/Unit_cell/materials.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/section_characteristics.hpp>
-#include <simcoon/Continuum_mechanics/Unit_cell/steps.hpp>
+#include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/equation.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_mesh.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -44,9 +44,9 @@ void update_materials(std::vector<aba_material> &, const int &, const int &, con
 
 void write_materials(std::vector<aba_material> &, const std::string & = "data", const std::string & = "Nmat_0.inp");
 
-void update_steps(std::vector<aba_step_meca> &, const std::vector<block> &, const bool & = false);
+void update_steps(std::vector<std::shared_ptr<step> > &, const std::vector<block> &, const bool &, const int &, const int &);
 
-void write_steps(std::vector<aba_step_meca> &, const double &, const std::string & = "data", const std::string & = "Nstep_0.inp");
+void write_steps(const std::vector<std::shared_ptr<step> > &, const int &, const double &, const std::string & = "data", const std::string & = "Nstep_0.inp");
     
 void write_nodes_file(const Node &, std::ofstream &);
 void write_node_set(const std::string &, const Node &, std::ofstream &);
@@ -62,8 +62,6 @@ void write_CDN(const cubic_mesh &, const std::string & = "data", const std::stri
 
 void write_eq(std::ostream &, const equation &);
     
-void write_NonPerio2_CDN(const cubic_mesh &, const cubic_mesh &, const unsigned int &, const std::string & = "data", const std::string & = "CDN_0.inp");
-    
-//void write_NonPerio_CDN(const cubic_mesh &, const cubic_mesh &, const std::string & = "data", const std::string & = "CDN_0.inp");
+void write_NonPerio_CDN(const cubic_mesh &, const cubic_mesh &, const unsigned int &, const std::string & = "data", const std::string & = "CDN_0.inp");
     
 } //namespace simcoon
