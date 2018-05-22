@@ -97,13 +97,14 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     // Preliminaries of the convergence loop
     int nbiter = 0;
     double error = 1.;
-    std::vector<vec> DEtot_N(nphases); //Table that stores all the previous increments of strain
+    std::vector<mat> A_N(nphases); //Table that stores all the previous increments of strain
     
 	//Convergence loop, localization
 	while ((error > precision_micro)&&(nbiter <= maxiter_micro)) {
 	  
         for(int i=0; i<nphases; i++) {
-            DEtot_N[i] = phase.sub_phases[i].sptr_sv_global->DEtot;
+            auto elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(phase.sub_phases[i].sptr_multi);
+            A_N[i] = elli_multi->A;
         }
 
         //Compute the strain concentration tensor for each phase:
@@ -150,7 +151,8 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
         
         error = 0.;
         for(int i=0; i<nphases; i++) {
-            error += norm(DEtot_N[i] - phase.sub_phases[i].sptr_sv_global->DEtot,2);
+            auto elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(phase.sub_phases[i].sptr_multi);
+            error += norm(A_N[i] - elli_multi->A,2);
         }
         error*=(1./nphases);
     
