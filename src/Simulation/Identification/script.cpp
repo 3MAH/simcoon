@@ -39,13 +39,13 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Simulation/Phase/write.hpp>
-#include <simcoon/Continuum_Mechanics/Material/ODF.hpp>
-#include <simcoon/Continuum_Mechanics/Material/PDF.hpp>
-#include <simcoon/Continuum_Mechanics/Material/read.hpp>
-#include <simcoon/Continuum_Mechanics/Material/ODF2Nphases.hpp>
-#include <simcoon/Continuum_Mechanics/Material/PDF2Nphases.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/func_N.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/read.hpp>
+#include <simcoon/Continuum_mechanics/Material/ODF.hpp>
+#include <simcoon/Continuum_mechanics/Material/PDF.hpp>
+#include <simcoon/Continuum_mechanics/Material/read.hpp>
+#include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
+#include <simcoon/Continuum_mechanics/Material/PDF2Nphases.hpp>
+#include <simcoon/Continuum_mechanics/Functions/func_N.hpp>
+#include <simcoon/Continuum_mechanics/Functions/read.hpp>
 
 using namespace std;
 using namespace arma;

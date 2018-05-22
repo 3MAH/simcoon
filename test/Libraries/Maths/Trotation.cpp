@@ -26,7 +26,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
 using namespace arma;
