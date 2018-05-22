@@ -34,8 +34,7 @@ The following dependencies are required to install simcoon:
 .. image:: _static/Armadillo_logo.png
 .. image:: _static/CGAL_logo.png
 
-Download simcoon from Github_
-.. _Github : https://github.com/simcoon/simcoon/
+Download simcoon from Github : https://github.com/simcoon/simcoon/
 
 Copy the files in a folder. Using a terminal, nagitate to such folder and run the installation script:
 
