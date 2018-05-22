@@ -168,8 +168,8 @@ void launch_solver(const individual &ind, const int &nfiles, vector<parameters> 
         pathfile = "path_id_" + to_string(i+1) + ".txt";
         
         string umat_name;
-        int nprops = 0;
-        int nstatev = 0;
+        unsigned int nprops = 0;
+        unsigned int nstatev = 0;
         vec props;
         
         double psi_rve = 0.;
@@ -236,11 +236,11 @@ void launch_odf(const individual &ind, vector<parameters> &params, const string 
     apply_parameters(params, path_data);
     
     string umat_name;
-    int nprops;
+    unsigned int nprops;
+    unsigned int nstatev = 0;
     double psi_rve = 0.;
     double theta_rve = 0.;
     double phi_rve = 0.;
-    int nstatev = 0;
     vec props;
     
     //Then read the material properties
@@ -339,11 +339,11 @@ void launch_pdf(const individual &ind, vector<parameters> &params, const string 
     apply_parameters(params, path_data);
     
     string umat_name;
-    int nprops;
+    unsigned int nprops;
+    unsigned int nstatev = 0;    
     double psi_rve = 0.;
     double theta_rve = 0.;
     double phi_rve = 0.;
-    int nstatev = 0;
     vec props;
     
     //Then read the material properties
@@ -479,10 +479,14 @@ void run_simulation(const string &simul_type, const individual &ind, const int &
     }
     
     std::map<std::string, int> list_simul;
-    list_simul = {{"SOLVE",1},{"ODF",2},{"PDF",3},{"FUNCN",4}};
+    list_simul = {{"SCRIPT",0},{"SOLVE",1},{"ODF",2},{"PDF",3},{"FUNCN",4}};
     
     switch (list_simul[simul_type]) {
             
+        case 0: {
+            //to finish
+            break;
+        }
         case 1: {
             launch_solver(ind, nfiles, params, consts, folder, name, path_data, path_keys, inputdatafile);
             break;
@@ -499,8 +503,6 @@ void run_simulation(const string &simul_type, const individual &ind, const int &
             launch_func_N(ind, nfiles, params, consts, folder, name, path_data, path_keys, inputdatafile);
             break;
         }
-            
-            
         default: {
             cout << "\n\nError in run_simulation : The specified solver (" << simul_type << ") does not exist.\n";
             return;
