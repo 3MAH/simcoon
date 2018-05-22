@@ -1,0 +1,18 @@
+** ==================
+** MATERIALS
+** ==================
+**
+*Material, name=ELISO-100000
+*Depvar
+1,
+User Material, constants=3
+**
+3000,0.4,0
+**
+*Material, name=ELISO-100001
+*Depvar
+1,
+User Material, constants=3
+**
+70000,0.3,0
+**
