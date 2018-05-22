@@ -50,7 +50,7 @@ std::vector<std::string> split(const std::string &s, const char &delim)
     return elems;
 }
     
-void unit_cell_essentials(int &loading_type, int &BC_type, int &max_temp, const string &path, const string &filename) {
+void unit_cell_essentials(unsigned int &loading_type, unsigned int &BC_type, int &max_temp, const string &path, const string &filename) {
     
     string pathfile = path + "/" + filename;
     ifstream unit_cell_essentials;

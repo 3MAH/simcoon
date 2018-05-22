@@ -34,7 +34,7 @@ namespace simcoon{
 /// Function that splits a line using delimiters
 std::vector<std::string> split(const std::string &, const char & = ',');
    
-void unit_cell_essentials(int &, int &, int &, const std::string & = "data", const std::string & = "unit_cell_essentials.inp");
+void unit_cell_essentials(unsigned int &, unsigned int &, int &, const std::string & = "data", const std::string & = "unit_cell_essentials.inp");
 
 /// Function that reads the characteristics of a phase
 void read_sections(std::vector<section_characteristics> &, const std::string & = "data", const std::string & = "Nsections0.dat");
