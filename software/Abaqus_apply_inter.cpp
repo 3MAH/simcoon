@@ -10,14 +10,14 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/node.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/step_meca.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/step_thermomeca.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/read.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/write.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/geom_functions.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/cubic_mesh.hpp>
-#include <simcoon/Continuum_Mechanics/Unit_cell/interpolate.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/step_meca.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/step_thermomeca.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/read.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/write.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/geom_functions.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/cubic_mesh.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/interpolate.hpp>
 
 using namespace std;
 using namespace arma;
@@ -30,6 +30,7 @@ int main() {
     string pointsfile = "node_nperio.inp";
     string points_out = "node_perio0.inp";
     string el_file = "element.inp";
+    string uc_essentials = "unit_cell_essentials.inp";
     
     //copy the original node file
     string src_file = path_data + "/" + pointsfile;
@@ -47,7 +48,11 @@ int main() {
     
     unsigned int nb_nodes = 0;
     unsigned int loading_type = 0;
-    int max_temp = 10;
+    unsigned int BC_type = 0;
+    int max_temp = 0;
+    
+    unit_cell_essentials(loading_type, BC_type, max_temp, path_data, uc_essentials);
+    
     std::vector<Node> nodes;
     read_mesh(nodes, path_data, pointsfile);
     nb_nodes = nodes.size();
