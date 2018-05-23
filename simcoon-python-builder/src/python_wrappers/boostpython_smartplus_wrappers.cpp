@@ -3,11 +3,11 @@
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/constitutive.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/contimech.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/criteria.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/recovery_props.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/Leff.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
