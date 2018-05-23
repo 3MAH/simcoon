@@ -5,8 +5,8 @@
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 
-#include <simcoon/Continuum_Mechanics/Functions/criteria.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 
 namespace bn = boost::python::numpy;
 using namespace std;

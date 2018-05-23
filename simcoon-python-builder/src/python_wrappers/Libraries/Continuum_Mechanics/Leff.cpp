@@ -6,9 +6,9 @@
 
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Continuum_Mechanics/Umat/umat_L_elastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_L_elastic.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/Leff.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 
 namespace bp = boost::python;
 namespace bn = boost::python::numpy;

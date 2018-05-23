@@ -4,8 +4,8 @@
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 
-#include <simcoon/Continuum_Mechanics/Functions/recovery_props.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/recovery_props.hpp>
+#include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 
 namespace bp = boost::python;
 namespace bn = boost::python::numpy;

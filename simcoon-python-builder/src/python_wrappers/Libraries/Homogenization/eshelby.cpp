@@ -4,7 +4,7 @@
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 
-#include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
 namespace bn = boost::python::numpy;

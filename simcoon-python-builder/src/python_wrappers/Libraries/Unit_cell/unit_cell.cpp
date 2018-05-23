@@ -5,7 +5,7 @@
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/arma2numpy/list_vector.hpp>
 
-#include <simcoon/Continuum_Mechanics/Unit_cell/write.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/write.hpp>
 #include <simcoon/python_wrappers/Libraries/Unit_cell/unit_cell.hpp>
 
 using namespace std;

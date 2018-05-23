@@ -4,8 +4,8 @@
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 
-#include <simcoon/Continuum_Mechanics/Functions/kinematics.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 
 namespace bn = boost::python::numpy;
 using namespace std;

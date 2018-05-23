@@ -4,8 +4,8 @@
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 
-#include <simcoon/Continuum_Mechanics/Functions/constitutive.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_Mechanics/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 
 namespace bn = boost::python::numpy;
 using namespace std;
