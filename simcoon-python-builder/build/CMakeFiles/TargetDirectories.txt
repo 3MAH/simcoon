@@ -1,3 +1,0 @@
-/scratch/source/simcoon/simcoon-python-builder/build/CMakeFiles/simmit.dir
-/scratch/source/simcoon/simcoon-python-builder/build/CMakeFiles/Tarma2numpy.dir
-/scratch/source/simcoon/simcoon-python-builder/build/CMakeFiles/arma2numpy.dir
