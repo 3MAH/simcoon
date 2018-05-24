@@ -56,7 +56,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     string buffer;
 
     unsigned int nb_nodes = 0;
-    unsigned int loading_type = 0;
+    unsigned int loading_type = 1;
     
     std::vector<Node> nodes;
     read_mesh(nodes, path_data, pointsfile);

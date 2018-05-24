@@ -945,10 +945,10 @@ unsigned int index_from_dof(const unsigned int &dof, const unsigned int &loading
         return dof-1;
     }
     else if(dof == 11) {
-        if (loading_type == 1) {
+        if (loading_type == 2) {
             return 3;
         }
-        else if(loading_type == 2)
+        else if(loading_type == 3)
         return 0;
     }
     else {

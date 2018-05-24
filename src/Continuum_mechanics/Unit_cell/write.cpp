@@ -243,7 +243,7 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
             for (int k=0; k<blocks[i].nstep; k++) {
                 
                 switch (loading_type) {
-                    case 0: {
+                    case 1: {
                         
                         name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
                         shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[k]);
@@ -258,7 +258,7 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
                         aba_steps.push_back(sptr_meca_aba);
                         break;
                     }
-                    case 1: {
+                    case 2: {
                         
                         name_step = name_step_ini + to_string(i+1) + to_string(j+1) + to_string(k+1);
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[k]);
@@ -308,7 +308,7 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
     param_mats << "**" << endl;
     
     switch (loading_type) {
-        case 0: {
+        case 1: {
             
             for(unsigned int i=0; i<aba_steps.size(); i++) {
                 shared_ptr<aba_step_meca> sptr_meca_aba = std::dynamic_pointer_cast<aba_step_meca>(aba_steps[i]);
@@ -316,7 +316,7 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
             }
             break;
         }
-        case 1: {
+        case 2: {
             
             for(unsigned int i=0; i<aba_steps.size(); i++) {
                 shared_ptr<aba_step_thermomeca> sptr_thermomeca_aba = std::dynamic_pointer_cast<aba_step_thermomeca>(aba_steps[i]);
@@ -922,17 +922,19 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     
     std::vector<int> list_dofs;
     //Mechanical
-    if (loading_type == 0) {
+    if (loading_type == 1) {
         list_dofs = {1,2,3};
     }
     //Thermomechanical
-    else if (loading_type == 1) {
+    else if (loading_type == 2) {
         list_dofs = {1,2,3,11};
     }
     //Thermal
-    else {
+    else if (loading_type == 3) {
         list_dofs = {11};
     }
+    else
+        cout << "error in Continuum_mechanics/Unit_cell/write.cpp : loading type should take values in the range (1,3)" << endl;
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
