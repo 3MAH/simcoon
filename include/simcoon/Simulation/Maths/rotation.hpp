@@ -36,6 +36,7 @@ arma::mat rotate_mat(const arma::mat &, const double &, const int &);
 arma::mat fillR(const double &, const int &, const bool & = true);
 //To generate a 3x3 rotation matrix (with 3 angles and a convention, by default null string means the generic convention indicated in the parameters.hpp). By default active , alibi rotation is considered
 arma::mat fillR(const double &, const double &, const double &, const bool & = true, const std::string & = "");
+arma::mat fillR(const double &, const double &, const double phi, const int & , const int & , const int & , const bool &);
     
 //To generate a 6x6 rotation matrix for stress tensors
 arma::mat fillQS(const double &, const int &, const bool & = true);

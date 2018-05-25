@@ -109,16 +109,20 @@ mat fillR(const double &psi, const double &theta, const double &phi, const bool 
         else
             R = { {c3*c2*c1-s3*s1,c3*s1+c2*c1*s3,-c1*s2}, {-c1*s3-c3*c2*s1,c3*c1-c2*s3*s1,s2*s1}, {c3*s2,s3*s2,c2} };
     }
-    else if(conv == "") {
-            
+    else
+        cout << "error in Simulation/Maths/rotation.cpp: please provide a consistent convention for Euler rotation, i.e 'zxz' or 'zyz' " << endl;
+    return R;
+}
+    
+mat fillR(const double &psi, const double &theta, const double &phi, const int & axis_psi, const int & axis_theta, const int & axis_phi, const bool &active) {
+        
         mat R1 = fillR(psi, axis_psi, active);
         mat R2 = fillR(theta, axis_theta, active);
         mat R3 = fillR(phi, axis_phi, active);
         
-        R = R3*R2*R1;
-    }
-    return R;
+        return R3*R2*R1;
 }
+    
     
 mat fillQS(const double &alpha, const int &axis, const bool &active) {
 
