@@ -104,7 +104,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     double alpha_lambda = 0.;
 
     //Elastic stiffness tensor
-    mat L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
+    L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
     
     ///@brief Initialization
     if (start) {
