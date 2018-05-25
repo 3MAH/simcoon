@@ -156,12 +156,13 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
     
 	//Rotation of internal variables (tensors)
     ET = rotate_strain(ET, DR);
+
+    //Elstic stiffness tensor
+    L = L_iso(E, nu, "Enu");    
     
     ///@brief Initialization
     if(start)
     {
-        //Elstic stiffness tensor
-        L = L_iso(E, nu, "Enu");
         T_init = T;
         vec vide = zeros(6);
         sigma = vide;

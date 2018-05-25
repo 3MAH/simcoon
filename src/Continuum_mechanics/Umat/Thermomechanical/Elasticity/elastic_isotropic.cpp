@@ -63,8 +63,7 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-	// ######################  Elastic compliance and stiffness #################################			
-	//defines L
+    //Elastic stiffness tensor and thermal tensor
 	dSdE = L_iso(E, nu, "Enu");
     dSdT = -1.*dSdE*alpha;
 	

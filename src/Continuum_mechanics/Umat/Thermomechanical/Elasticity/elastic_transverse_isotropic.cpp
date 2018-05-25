@@ -77,8 +77,7 @@ void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, 
     alpha = alphaT*Ith();
     alpha(axis-1) += alphaL-alphaT;    
     
-	// ######################  Elastic stiffness #################################			
-	//defines L
+    //Elastic stiffness tensor and thermal tensor
 	dSdE = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
     dSdT = -1.*dSdE*alpha;
     

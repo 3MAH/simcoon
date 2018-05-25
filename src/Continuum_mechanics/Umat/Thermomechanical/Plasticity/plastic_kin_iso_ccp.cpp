@@ -88,8 +88,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    // ######################  Elastic compliance and stiffness #################################
-    //defines L
+    //Elastic stiffness tensor and thermal tensor
     mat L = L_iso(E, nu, "Enu");
     mat M = M_iso(E, nu, "Enu");
     

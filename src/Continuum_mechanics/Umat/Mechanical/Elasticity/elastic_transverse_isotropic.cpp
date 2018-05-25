@@ -67,12 +67,13 @@ void umat_elasticity_trans_iso(const vec &Etot, const vec &DEtot, vec &sigma, ma
     double GLT = props(5);
     double alphaL = props(6);
     double alphaT = props(7);
+
+    //Elastic stiffness tensor
+    L = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);    
     
     ///@brief Initialization
     if(start)
     {
-        //Elastic stiffness tensor
-		L = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
         T_init = T;
         sigma = zeros(6);
         

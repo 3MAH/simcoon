@@ -109,12 +109,13 @@ void umat_plasticity_kin_iso_CCP(const vec &Etot, const vec &DEtot, vec &sigma, 
     //Rotation of internal variables (tensors)
     EP = rotate_strain(EP, DR);
     a = rotate_strain(a, DR);
-    
+
+    //Elstic stiffness tensor
+    L = L_iso(E, nu, "Enu");
+        
     ///@brief Initialization
     if(start)
     {
-        //Elstic stiffness tensor
-        L = L_iso(E, nu, "Enu");
         T_init = T;
         vec vide = zeros(6);
         sigma = vide;

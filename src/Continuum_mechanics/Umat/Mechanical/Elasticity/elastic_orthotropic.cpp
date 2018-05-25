@@ -66,12 +66,13 @@ void umat_elasticity_ortho(const vec &Etot, const vec &DEtot, vec &sigma, mat &L
     double alphax = props(9);
     double alphay = props(10);
     double alphaz = props(11);
+
+    //Elastic stiffness tensor
+    L = L_ortho(Ex,Ey,Ez,nuxy,nuxz,nuyz,Gxy,Gxz,Gyz, "EnuG");    
     
     ///@brief Initialization
     if(start)
     {
-	    //Elastic stiffness tensor
-		L = L_ortho(Ex,Ey,Ez,nuxy,nuxz,nuyz,Gxy,Gxz,Gyz, "EnuG");
         T_init = T;
         sigma = zeros(6);
         

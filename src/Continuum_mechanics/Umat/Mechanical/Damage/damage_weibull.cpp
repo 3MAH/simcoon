@@ -66,15 +66,14 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    // ######################  Elastic compliance and stiffness #################################
-    //defines L
-    L = L_iso(E, nu, "Enu");
-    mat M = M_iso(E, nu, "Enu");
-    
     ///@brief Temperature initialization
     double T_init = statev(0);
     ///@brief Damage variable
     double Damage = statev(1);
+    
+    //Elastic stiffness tensors
+    L = L_iso(E, nu, "Enu");
+    mat M = M_iso(E, nu, "Enu");    
     
     ///@brief Initialization
     if(start)

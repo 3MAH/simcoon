@@ -79,9 +79,8 @@ void umat_elasticity_ortho_T(const vec &Etot, const vec &DEtot, vec &sigma, doub
     alpha(1) = alphay;
     alpha(2) = alphaz;    
     
-	// ######################  Elastic compliance and stiffness #################################			
-	//defines L
-	dSdE = L_ortho(Ex,Ey,Ez,nuxy,nuxz,nuyz,Gxy,Gxz,Gyz, "EnuG");
+    //Elastic stiffness tensor and thermal tensor
+    dSdE = L_ortho(Ex,Ey,Ez,nuxy,nuxz,nuyz,Gxy,Gxz,Gyz, "EnuG");
     dSdT = -1.*dSdE*alpha;
     
     if(start) { //Initialization

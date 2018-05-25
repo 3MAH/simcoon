@@ -102,11 +102,13 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     double p0_lambda = 1.E-1;
     double n_lambda = 1.0;
     double alpha_lambda = 0.;
+
+    //Elastic stiffness tensor
+    mat L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
     
     ///@brief Initialization
     if (start) {
-		//Elastic stiffness tensor
-		mat L = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
+
         Tinit = T;
         d_22 = 0.;
         d_12 = 0.;

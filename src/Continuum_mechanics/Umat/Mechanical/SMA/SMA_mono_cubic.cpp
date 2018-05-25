@@ -160,12 +160,13 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     
 	//Rotation of internal variables (tensors)
     ET = rotate_strain(ET, DR);
+
+    //Elstic stiffness tensor
+    L = L_cubic(C11, C12, C44, "Cii");
     
 	///@brief Initialization
 	if(start)
 	{
-        //Elstic stiffness tensor
-        L = L_cubic(C11, C12, C44, "Cii");
         T_init = T;
         vec vide = zeros(6);
         sigma = vide;

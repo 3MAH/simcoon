@@ -93,7 +93,7 @@ void umat_plasticity_hill_isoh_CCP_N(const vec &Etot, const vec &DEtot, vec &sig
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
-    //Define the viscoelastic stiffness
+    //Define the elastic stiffness
     mat L = L_iso(E, nu, "Enu");
     mat M = M_iso(E, nu, "Enu");
     ///@brief Temperature initialization

@@ -167,7 +167,7 @@ void umat_sma_unified_T_T(const vec &Etot, const vec &DEtot, vec &sigma, double 
     double a3 = statev(15);
     double Y0t = statev(16);
     
-    // ######################  Elastic compliance and stiffness #################################
+    //Elastic stiffness tensor and thermal tensor
     //defines K and mu explicitely
     //Find the elastic stiffness tensor that is dependent on fraction volume of martensite
     double K_A = E_A/(3.*(1.-2*nu_A));
