@@ -26,6 +26,7 @@
 #include <armadillo>
 #include <boost/filesystem.hpp>
 #include <CGAL/Simple_cartesian.h>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
@@ -108,8 +109,17 @@ void write_section(section_characteristics &section_rve, const string &path_data
     section_rve.abamat.write(path_data,outputfile,true);
     
     param_mats.open(filename, ios::app);
+    vec x = {1.0,0.,0.};
+    vec y = {0.,1.0,0.};
     
-    param_mats << "*Solid Section, ElSet=" << section_rve.elset_name << ", Material=" << section_rve.abamat.umat_name << "-" << section_rve.abamat.id << endl;
+    mat R = fillR(section_rve.abamat.psi_mat, section_rve.abamat.theta_mat, section_rve.abamat.phi_mat,true,"xzx");
+    vec u = R*x;
+    vec v = R*y;
+    
+    param_mats << "*Orientation, name=Ori-" << section_rve.abamat.number << endl;
+    param_mats << u(0) << ", " << u(1) << ", " << u(2) << ", " << v(0) << ", " << v(1) << ", " << v(2) << endl;
+    param_mats << "1, 0." << endl;
+    param_mats << "*Solid Section, ElSet=" << section_rve.elset_name << ", orientation=Ori-" << section_rve.abamat.number << ", Material=" << section_rve.abamat.umat_name << "-" << section_rve.abamat.number << endl;
     param_mats.close();
 }
     
@@ -131,9 +141,19 @@ void write_sections(section_characteristics &section_rve, const string &path_dat
     }
     
     param_mats.open(filename, ios::app);
+    vec x = {1.0,0.,0.};
+    vec y = {0.,1.0,0.};
     
     for(unsigned int i=0; i<section_rve.sub_sections.size(); i++) {
-        param_mats << "*Solid Section, ElSet=" << section_rve.sub_sections[i].elset_name << ", Material=" << section_rve.sub_sections[i].abamat.umat_name << "-" << section_rve.sub_sections[i].abamat.id << endl;
+        
+        mat R = fillR(section_rve.sub_sections[i].abamat.psi_mat, section_rve.sub_sections[i].abamat.theta_mat, section_rve.sub_sections[i].abamat.phi_mat,true,"zxz");
+        vec u = R*x;
+        vec v = R*y;
+        
+        param_mats << "*Orientation, name=Ori-" << section_rve.sub_sections[i].abamat.number << endl;
+        param_mats << u(0) << ", " << u(1) << ", " << u(2) << ", " << v(0) << ", " << v(1) << ", " << v(2) << endl;
+        param_mats << "1, 0." << endl;
+        param_mats << "*Solid Section, ElSet=" << section_rve.sub_sections[i].elset_name << ", orientation=Ori-" << section_rve.sub_sections[i].abamat.number << ", Material=" << section_rve.sub_sections[i].abamat.umat_name << "-" << section_rve.sub_sections[i].abamat.number << endl;
     }
     param_mats.close();
 }
@@ -155,9 +175,19 @@ void write_sections(std::vector<section_characteristics> &sections, const string
     }
     
     param_mats.open(filename, ios::app);
+    vec x = {1.0,0.,0.};
+    vec y = {0.,1.0,0.};
     
     for(auto s : sections) {
-        param_mats << "*Solid Section, ElSet=" << s.elset_name << ", Material=" << s.abamat.umat_name << "-" << s.abamat.id << endl;
+        
+        mat R = fillR(s.abamat.psi_mat, s.abamat.theta_mat, s.abamat.phi_mat,true,"zxz");
+        vec u = R*x;
+        vec v = R*y;
+
+        param_mats << "*Orientation, name=Ori-" << s.abamat.number << endl;
+        param_mats << u(0) << ", " << u(1) << ", " << u(2) << ", " << v(0) << ", " << v(1) << ", " << v(2) << endl;
+        param_mats << "1, 0." << endl;
+        param_mats << "*Solid Section, ElSet=" << s.elset_name << ", orientation=Ori-" << s.abamat.number << ", Material=" << s.abamat.umat_name << "-" << s.abamat.number << endl;
     }
     param_mats.close();
 }
