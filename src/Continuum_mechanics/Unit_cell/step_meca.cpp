@@ -167,7 +167,7 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     }
     
     //Insert the step name and type, as well as the controls
-    param_aba << "*Step, name=" << name << ", inc=" << ninc << "\n";
+    param_aba << "*Step, name=" << name << ", inc=" << round(1./(Dn_mini*Dn_init)) << "\n";
     if (type == 0) {
         param_aba << "*Static\n" << Dn_init*Dn_inc*BC_Time << " ," << BC_Time << " ," << Dn_mini*Dn_inc*BC_Time << " ," << Dn_inc*BC_Time << "\n";
     }
@@ -199,7 +199,7 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "*Cload, op=NEW\n";
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 1)
-            param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << " , 1, " << BC_meca(k) << "\n";
         else if(cBC_meca(k) == 2)
             param_aba << "CD" << CD(k) << " , 1, " << 0. << "\n";
     }
