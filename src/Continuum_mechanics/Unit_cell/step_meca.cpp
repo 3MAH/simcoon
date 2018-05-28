@@ -192,6 +192,8 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
         if(cBC_meca(k) == 0)
             param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
     }
+    
+    param_aba << "*Temperature\n AllNodes, " << Ts(k);
 
     param_aba << "**Stress - BC\n";
     param_aba << "*Cload, op=NEW\n";
