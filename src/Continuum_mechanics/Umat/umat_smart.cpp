@@ -448,7 +448,7 @@ void abaqus2smart_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     for (int i=0; i<3; i++) {
         Wt(i) = statev[i+4];
     }
-    for (int i=0; i<nstatev-4; i++) {
+    for (int i=0; i<nstatev-7; i++) {
         statev_smart(i) = statev[i+7];
     }
     
