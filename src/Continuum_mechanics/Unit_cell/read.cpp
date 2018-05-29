@@ -63,7 +63,7 @@ void unit_cell_essentials(unsigned int &loading_type, unsigned int &BC_type, int
     }
     
     ///Get the control values for the solver
-    unit_cell_essentials >> buffer >> loading_type >> buffer >> BC_type >> max_temp;
+    unit_cell_essentials >> buffer >> loading_type >> buffer >> BC_type >> buffer >> max_temp;
     unit_cell_essentials.close();
 }
     

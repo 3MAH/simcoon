@@ -170,12 +170,12 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
     }
     
     //Insert the step name and type, as well as the controls
-    param_aba << "*Step, name=" << name << ", inc=" << ninc << "\n";
+    param_aba << "*Step, name=" << name << ", inc=" << (int)round(1./(Dn_mini*Dn_inc)) << "\n";
     if (type == 0) {
-        param_aba << "*Coupled Temperature-displacement, creep=none, deltmx=" << max_temp << "\n" << Dn_init*Dn_inc*BC_Time << " ," << BC_Time << " ," << Dn_mini*Dn_inc*BC_Time << " ," << Dn_inc*BC_Time << "\n";
+        param_aba << "*Coupled Temperature-displacement, creep=none, steady state\n" << Dn_init*Dn_inc*BC_Time << " ," << BC_Time << " ," << Dn_mini*Dn_inc*BC_Time << " ," << Dn_inc*BC_Time << "\n";
     }
     else if(type ==1) {
-        param_aba << "*Coupled Temperature-displacement, creep=none" << Dn_inc*BC_Time << " ," << BC_Time << "\n";
+        param_aba << "*Coupled Temperature-displacement, creep=none, steady state\n" << Dn_inc*BC_Time << " ," << BC_Time << "\n";
     }
     else {
         cout << "Error, the type of the step is not recognized (0: Automatic, 1: Fixed)" << endl;
@@ -185,12 +185,15 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
     //Insert the 'Strain' and 'Stress' boundary conditions
     param_aba << "**\n";
     Col<int> CD = {11,22,33,12,13,23};
-
-    param_aba << "**Strain - BC\n";
+    
+    param_aba << "**Strain or Temperature - BC\n";
     param_aba << "*Boundary, op=NEW\n";
     param_aba << "CentreNode, 1, 1\n";
     param_aba << "CentreNode, 2, 2\n";
     param_aba << "CentreNode, 3, 3\n";
+    if(cBC_T == 0) {
+        param_aba << "AllNodes, 11, 11, " << BC_T << "\n";
+    }
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 0)
             param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
@@ -203,6 +206,12 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
             param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
         else if(cBC_meca(k) == 2)
             param_aba << "CD" << CD(k) << " , 1, " << 0. << "\n";
+    }
+    if(cBC_T == 1) {
+        param_aba << "*Dflux\n AllNodes, BF, " << BC_T << "\n";
+    }
+    if(cBC_T == 2) {
+        param_aba << "*Dflux\n AllNodes, BF, " << 0. << "\n";
     }
     
     param_aba << "**\n";

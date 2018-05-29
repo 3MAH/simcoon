@@ -167,7 +167,7 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     }
     
     //Insert the step name and type, as well as the controls
-    param_aba << "*Step, name=" << name << ", inc=" << round(1./(Dn_mini*Dn_init)) << "\n";
+    param_aba << "*Step, name=" << name << ", inc=" << (int)round(1./(Dn_mini*Dn_inc)) << "\n";
     if (type == 0) {
         param_aba << "*Static\n" << Dn_init*Dn_inc*BC_Time << " ," << BC_Time << " ," << Dn_mini*Dn_inc*BC_Time << " ," << Dn_inc*BC_Time << "\n";
     }
@@ -183,6 +183,8 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "**\n";
     Col<int> CD = {11,22,33,12,13,23};
 
+    param_aba << "*Temperature\n AllNodes, " << BC_T << "\n";
+    
     param_aba << "**Strain - BC\n";
     param_aba << "*Boundary, op=NEW\n";
     param_aba << "CentreNode, 1, 1\n";
@@ -190,29 +192,26 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "CentreNode, 3, 3\n";
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 0)
-            param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << ", 1, 1, " << BC_meca(k) << "\n";
     }
-    
-    param_aba << "*Temperature\n AllNodes, " << Ts(k);
-
     param_aba << "**Stress - BC\n";
     param_aba << "*Cload, op=NEW\n";
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 1)
-            param_aba << "CD" << CD(k) << " , 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << ", 1, " << BC_meca(k) << "\n";
         else if(cBC_meca(k) == 2)
-            param_aba << "CD" << CD(k) << " , 1, " << 0. << "\n";
+            param_aba << "CD" << CD(k) << ", 1, " << 0. << "\n";
     }
     
     param_aba << "**\n";
 
-    param_aba << "*Output, field\n";
+    param_aba << "*Output, field, time interval=" << Dn_inc*BC_Time << "\n";
     param_aba << "*Element Output, directions=YES\n";
-    param_aba << "S, E, SDV,\n";
+    param_aba << "S, E, SDV, TEMP\n";
     param_aba << "*Node Output, nset=AllNodes\n";
     param_aba << "U,\n";
     param_aba << "*Node Output, nset=CD_nodes\n";
-    param_aba << "RF, CF, U,\n";
+    param_aba << "RF, CF, U, NT\n";
     param_aba << "*Node print, nset=CD_nodes, summary=no\n";
     param_aba << "RF1, CF1, U1,\n";
     param_aba << "*End Step\n";

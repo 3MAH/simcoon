@@ -116,7 +116,7 @@ Node find_corner(const std::vector<Node> &nodes, const Point &corner, const doub
         }
     }
     if (count == 0) {
-        cout << "There is no node close to the selected corner" << endl;
+        cout << "There is no node close to the selected corner of coordinates : " << corner.x() << ",\t" << corner.y() << ",\t" << corner.z() << endl;
     }
     if (count > 1) {
         cout << "There are duplicate nodes close to the selected corner, the last one in the list has been selected" << endl;
@@ -239,7 +239,7 @@ bool find_edge_pair(std::vector<Node> &edge1, std::vector<Node> &edge2, std::vec
             }
         }
         if (count > 1 ) {
-            cout << "There are duplicate nodeson the edge";
+            cout << "There are duplicate nodes on the edge";
             return false;
         }
         if (count == 0) {
@@ -945,10 +945,6 @@ unsigned int index_from_dof(const unsigned int &dof, const unsigned int &loading
         return dof-1;
     }
     else if(dof == 11) {
-        if (loading_type == 2) {
-            return 3;
-        }
-        else if(loading_type == 3)
         return 0;
     }
     else {

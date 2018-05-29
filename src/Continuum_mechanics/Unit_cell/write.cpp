@@ -283,7 +283,7 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
                         else {
                             type = 0;
                         }
-                        shared_ptr<aba_step_meca> sptr_meca_aba(new aba_step_meca);
+                        shared_ptr<aba_step_meca> sptr_meca_aba = make_shared<aba_step_meca>();
                         sptr_meca_aba->update(*sptr_meca, name_step, nlgeom, type);
                         aba_steps.push_back(sptr_meca_aba);
                         break;
@@ -299,7 +299,7 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
                         else {
                             type = 0;
                         }
-                        shared_ptr<aba_step_thermomeca> sptr_thermomeca_aba(new aba_step_thermomeca);
+                        shared_ptr<aba_step_thermomeca> sptr_thermomeca_aba = make_shared<aba_step_thermomeca>();
                         sptr_thermomeca_aba->update(*sptr_thermomeca, name_step, nlgeom, type, max_temp);
                         aba_steps.push_back(sptr_thermomeca_aba);
                         break;
@@ -328,8 +328,8 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
     param_mats << "CentreNode, 3, 3\n";
     
     param_mats << "**\n";
-    param_mats << "**Initial Conditions, type=TEMPERATURE\n";
-    param_mats << "**AllNodes, " << temp_init << "\n";
+    param_mats << "*Initial Conditions, type=TEMPERATURE\n";
+    param_mats << "AllNodes, " << temp_init << "\n";
     param_mats << "**\n";
     
     param_mats << "** ==================\n";
@@ -1273,39 +1273,53 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     }
     
     //Corner_listXpYmZm
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXpYmZm[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXpYmZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYmZm[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXpYpZm
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXpYpZm[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXpYpZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYpZm[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXmYpZm
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXmYpZm[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXmYpZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYpZm[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXmYmZp
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXmYmZp[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXmYmZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYmZp[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXpYmZp
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXpYmZp[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXpYmZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYmZp[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXpYpZp
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXpYpZp[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXpYpZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYpZp[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
     //Corner_listXmYpZp
-    for (auto j:list_dofs) {
-        eq = cubic_eq.Corner_listXmYpZp[index_from_dof(j, loading_type)];
-        write_eq(out_set, eq);
+    if(cm.Corner_listXmYpZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYpZp[index_from_dof(j, loading_type)];
+            write_eq(out_set, eq);
+        }
     }
 }
     

@@ -141,7 +141,7 @@ void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsig
 equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &face, const unsigned int &loading_type, const unsigned int &dof) {
     
     //The weight are set such that
-    Mat<int> face_dof = {{0,2,3,0},{1,0,3,0},{1,2,0,0}};
+    Mat<int> face_dof = {{0,2,3},{1,0,3},{1,2,0}};
     unsigned int j_dof = index_from_dof(dof, loading_type);
     
     equation eq;

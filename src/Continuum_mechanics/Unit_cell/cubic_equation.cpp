@@ -122,20 +122,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
     mat Dxyz;
     Mat<int> CD_num;
     //Mechanical
-    if (loading_type == 1) {
+    if((loading_type == 1) || (loading_type == 2)){
         CD_num = {{0,3,4},{3,1,5},{4,5,2}};
         Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz}};
         CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
         list_dofs = {1,2,3};
         CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
-    }
-    //Thermomechanical
-    else if (loading_type == 2) {
-        CD_num = {{0,3,4,6},{3,1,5,7},{4,5,2,8}};
-        Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz},{-1.0*cm.Dx,-1.0*cm.Dy,-1.0*cm.Dz}};
-        CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023, 1010111, 1020211, 1030311};
-        list_dofs = {1,2,3,11};
-        CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23", "CDT1", "CDT2", "CDT3"};
     }
     //Thermal
     else if(loading_type == 3) {
