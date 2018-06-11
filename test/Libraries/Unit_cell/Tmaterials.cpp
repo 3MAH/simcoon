@@ -89,10 +89,12 @@ BOOST_AUTO_TEST_CASE( aba_write_materials )
 
     aba_material rve_mat_2 = rve_mat_1;
     
-    rve_mat_1.write(path_data, inputfile_1);
-    rve_mat_2.write(path_data, inputfile_2);
-    rve_mat_3.write(path_data, inputfile_3);
-    rve_mat_4.write(path_data, inputfile_4);
+    unsigned int loading_type = 1;
+    
+    rve_mat_1.write(loading_type, path_data, inputfile_1);
+    rve_mat_2.write(loading_type, path_data, inputfile_2);
+    rve_mat_3.write(loading_type, path_data, inputfile_3);
+    rve_mat_4.write(loading_type, path_data, inputfile_4);
     
     string path_inputfile_1 = path_data + "/" + inputfile_1;
     string path_inputfile_2 = path_data + "/" + inputfile_2;
@@ -119,11 +121,11 @@ BOOST_AUTO_TEST_CASE( aba_write_materials )
     aba_mats.push_back(rve_mat_3);
     aba_mats.push_back(rve_mat_4);
     update_materials(aba_mats, 2, 0, 2, path_data);
-    write_materials(aba_mats, path_data, "Nmat_0.inp");
+    write_materials(aba_mats, loading_type, path_data, "Nmat_0.inp");
     
     section_characteristics section_rve;
     update_sections(section_rve, 2, 0, 2, path_data);
-    write_sections(section_rve, path_data, "Nmatsec_0.inp");
+    write_sections(section_rve, loading_type, path_data, "Nmatsec_0.inp");
     
     BOOST_CHECK_EQUAL_COLLECTIONS(b1_phase, e1_phase, b2_phase, e2_phase);
     BOOST_CHECK_EQUAL_COLLECTIONS(b11_phase, e11_phase, b3_phase, e3_phase);
@@ -139,7 +141,9 @@ BOOST_AUTO_TEST_CASE( read_write_aba )
     string path_data = "data";
     string path_inputfile;
     string path_outputfile;
-        
+
+    unsigned int loading_type = 1;    
+    
     //Sections
     std::vector<section_characteristics> sections;
     
@@ -147,7 +151,7 @@ BOOST_AUTO_TEST_CASE( read_write_aba )
     outputfile = "Nsections1.dat";
     
     read_sections(sections, path_data, inputfile);
-    write_sections(sections, path_data, outputfile);
+    write_sections(sections, loading_type, path_data, outputfile);
     path_inputfile = path_data + "/" + inputfile;
     path_outputfile = path_data + "/" + outputfile;
     
