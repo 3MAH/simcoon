@@ -71,6 +71,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     std::vector<block> blocks;  //loading blocks
     phase_characteristics rve;  // Representative volume element
     
+    unsigned int size_meca = 0; //6 for small perturbation, 9 for finite deformation
 	bool start = true;
 	double Time = 0.;
 	double DTime = 0.;
@@ -131,6 +132,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 Delta = zeros(6);
                 K = zeros(6,6);
                 invK = zeros(6,6);
+
+                if(blocks[i].control_type == 1)
+                    size_meca = 6;
+                else if(blocks[i].control_type > 1)
+                    size_meca = 9;
                 
                 shared_ptr<state_variables_M> sv_M;
                 
@@ -140,16 +146,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
-                    //Dynamic cast from some other (possible state_variable_M/T)
-                    /*sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-                    rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(sv_M->Etot, sv_M->DEtot, sv_M->sigma, sv_M->sigma_start, sv_M->T, sv_M->DT, sv_M->sse, sv_M->spd, nstatev, sv_M->statev, sv_M->statev_start);*/
                     //sv_M is reassigned properly
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 sv_M->L = zeros(6,6);
                 sv_M->Lt = zeros(6,6);
                 
+                //At start, the rotation increment is null
                 DR = eye(3,3);
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
@@ -187,10 +190,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 start = false;
                 
                 /// Cycle loop
-                for(int n = 0; n < blocks[i].ncycle; n++){
+                for(unsigned int n = 0; n < blocks[i].ncycle; n++){
                     
                     /// Step loop
-                    for(int j = 0; j < blocks[i].nstep; j++){
+                    for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                         sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
                         sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
@@ -459,10 +462,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 start = false;
                 
                 /// Cycle loop
-                for(int n = 0; n < blocks[i].ncycle; n++){
+                for(unsigned int n = 0; n < blocks[i].ncycle; n++){
                     
                     /// Step loop
-                    for(int j = 0; j < blocks[i].nstep; j++){
+                    for(unsigned int j = 0; j < blocks[i].nstep; j++){
                         
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
