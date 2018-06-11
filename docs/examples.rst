@@ -19,6 +19,8 @@ You should find something that look like that
     1
     #Loading_type
     1
+    #Control_type(NLGEOM)
+    1    
     #Repeat
     1
     #Steps
@@ -44,12 +46,14 @@ Just below, under the tag #Number_of_blocks, you define the number of blocks. He
 The next part is to define the first block:
 #Block defines the block number
 #Loading_type defines the physical problem to solve, which is:
-1 – mechanical; 2 – thermomechanical
+1 for mechanical; 2 for thermomechanical
+#Control_type defines if the mechanical part of the problem to solve is controlled from infinitesimal strains/stress, or if a finite deformation framework is utilized.
+1 for infinitesimal strains/stress; 2 for finite deformation
 #Repeat is the number of time the block is repeated
 #Steps is the number of steps of the block
 
 The next part of the file defines the steps of the first block. It always starts with the mode of the step (#mode), which is:
-1 – linear; 2 – sinusoidal; 3 – tabular (from a file)
+1 for linear; 2 for sinusoidal; 3 for tabular (from a file)
 
 In this example we will consider that the step mode is linear. We therefore need to set up the following
 
@@ -59,11 +63,18 @@ In this example we will consider that the step mode is linear. We therefore need
 #. The size of the increment as a fraction of the step $\delta n$, under #Dn_inc. (#Dn_inc 0.01 means that 100 increments will be utilized to simulate the step)
 #. The time $\Delta t$ of the step (under #time). Note that the increment of time for any increment is $\delta t = \Delta t \delta n$
 #. The mechanical loading stage at the end of the step (#mechanical_state)
-The elements are organized such that either stress or strain components are defined in the following order:
+If Control_type=1, the elements are organized such that either stress or strain components are defined in the following order:
 11
 12 22
 13 23 33
 The letter 'S' in front of any component means that a stress control is considered in that direction, and the letter 'E' stands for a strain control. Note that those values indicate the state at the end of the step
+#. The thermal loading stage at the end of the step (#temperature_state)
+If Control_type=2, the elements are organized such that either the first Piola stress $\Sigma$ or displacement gradient $\nabla u$ components are defined in the following order:
+11 12 13
+21 22 23
+31 32 33
+The letter 'S' in front of any component means that a stress control is considered in that direction, and the letter 'E' stands for a kinematic control. Note that those values indicate the state at the end of the step
+
 #. The thermal loading stage at the end of the step (#temperature_state)
 For mechanical loading, the letter 'T' is followed by the temperature at the end of the step. For thermomechanical loading, either the final temperature can be considered (with the letter 'T'), or the thermal flux (with the letter 'Q'). This last quantity is defined as the rate of heat that flows to the material representative volume element considered.
 
