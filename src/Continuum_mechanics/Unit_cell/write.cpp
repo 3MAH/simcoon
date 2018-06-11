@@ -94,7 +94,7 @@ void update_sections(section_characteristics &section_rve, const int &nsections,
     section_rve.update(umat_name_macro, id, rve);
 }
 
-void write_section(section_characteristics &section_rve, const string &path_data, const string &outputfile) {
+void write_section(section_characteristics &section_rve, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream param_mats;
@@ -106,7 +106,7 @@ void write_section(section_characteristics &section_rve, const string &path_data
     param_mats << "**" << endl;
     param_mats.close();
     
-    section_rve.abamat.write(path_data,outputfile,true);
+    section_rve.abamat.write(loading_type,path_data,outputfile,true);
     
     param_mats.open(filename, ios::app);
     vec x = {1.0,0.,0.};
@@ -124,7 +124,7 @@ void write_section(section_characteristics &section_rve, const string &path_data
 }
     
     
-void write_sections(section_characteristics &section_rve, const string &path_data, const string &outputfile) {
+void write_sections(section_characteristics &section_rve, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream param_mats;
@@ -137,7 +137,7 @@ void write_sections(section_characteristics &section_rve, const string &path_dat
     param_mats.close();
     
     for(unsigned int i=0; i<section_rve.sub_sections.size(); i++) {
-        section_rve.sub_sections[i].abamat.write(path_data,outputfile,true);
+        section_rve.sub_sections[i].abamat.write(loading_type,path_data,outputfile,true);
     }
     
     param_mats.open(filename, ios::app);
@@ -158,7 +158,7 @@ void write_sections(section_characteristics &section_rve, const string &path_dat
     param_mats.close();
 }
 
-void write_sections(std::vector<section_characteristics> &sections, const string &path_data, const string &outputfile) {
+void write_sections(std::vector<section_characteristics> &sections, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream param_mats;
@@ -171,7 +171,7 @@ void write_sections(std::vector<section_characteristics> &sections, const string
     param_mats.close();
     
     for(auto s : sections) {
-        s.abamat.write(path_data,outputfile,true);
+        s.abamat.write(loading_type,path_data,outputfile,true);
     }
     
     param_mats.open(filename, ios::app);
@@ -245,7 +245,7 @@ void update_materials(std::vector<aba_material> &aba_mats, const int &nphases, c
     
 }
     
-void write_materials(std::vector<aba_material> &aba_mats, const string &path_data, const string &outputfile) {
+void write_materials(std::vector<aba_material> &aba_mats, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream param_mats;
@@ -257,7 +257,7 @@ void write_materials(std::vector<aba_material> &aba_mats, const string &path_dat
     param_mats << "**" << endl;
         
     for(unsigned int i=0; i<aba_mats.size(); i++) {
-        aba_mats[i].write(path_data,outputfile,true);
+        aba_mats[i].write(loading_type,path_data,outputfile,true);
     }
     param_mats.close();
 }
@@ -269,8 +269,8 @@ void update_steps(std::vector<std::shared_ptr<step> > &aba_steps, const std::vec
     unsigned int type = 0;
     
     for (unsigned int i=0; i<blocks.size(); i++) {
-        for (int j=0; j<blocks[i].ncycle; j++) {
-            for (int k=0; k<blocks[i].nstep; k++) {
+        for (unsigned int j=0; j<blocks[i].ncycle; j++) {
+            for (unsigned int k=0; k<blocks[i].nstep; k++) {
                 
                 switch (loading_type) {
                     case 1: {

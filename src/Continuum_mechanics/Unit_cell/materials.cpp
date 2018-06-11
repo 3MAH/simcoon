@@ -189,7 +189,7 @@ aba_material& aba_material::operator = (const aba_material& sv)
 }
     
 //-------------------------------------------------------------
-void aba_material::write(const string &path_data, const string &inputfile, const bool &append)
+void aba_material::write(const unsigned int &loading_type, const string &path_data, const string &inputfile, const bool &append)
 //-------------------------------------------------------------
 {
     std::string filename = path_data + "/" + inputfile;
@@ -203,8 +203,16 @@ void aba_material::write(const string &path_data, const string &inputfile, const
     }
     
     param_aba << "*Material, name=" << umat_name << "-" << id << "\n";
-    param_aba << "*Depvar\n";
-    param_aba << nstatev << ",\n";
+    param_aba << "*Depvar\n     ";
+    if (loading_type==1) {
+        param_aba << nstatev+4 << "\n";
+    }
+    else if (loading_type==2){
+        param_aba << nstatev+7 << "\n";
+    }
+    else {
+        cout << "error in aba_material::write (/Continuum_mechanics/Unit_cell/materials.cpp) : loading_type should take a value that is either 1 (Mechanical loading) or 2 (Thermomechanical loading)" << endl;
+    }
     param_aba << "User Material, constants=" << nprops << "\n";
     param_aba << "**" << endl;
     

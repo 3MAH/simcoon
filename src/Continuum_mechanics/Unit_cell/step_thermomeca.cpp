@@ -61,7 +61,7 @@ aba_step_thermomeca::aba_step_thermomeca() : step_thermomeca()
  */    
     
 //-------------------------------------------------------------
-aba_step_thermomeca::aba_step_thermomeca(const std::string &mname, const bool &mnlgeom, const int &mtype, const double &mmax_temp, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step_thermomeca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs)
+aba_step_thermomeca::aba_step_thermomeca(const std::string &mname, const bool &mnlgeom, const int &mtype, const double &mmax_temp, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step_thermomeca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs)
 //-------------------------------------------------------------
 {
     name = mname;
@@ -203,7 +203,7 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
     param_aba << "*Cload, op=NEW\n";
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 1)
-            param_aba << "CD" << CD(k) << " , 1, 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << " , 1, " << BC_meca(k) << "\n";
         else if(cBC_meca(k) == 2)
             param_aba << "CD" << CD(k) << " , 1, " << 0. << "\n";
     }

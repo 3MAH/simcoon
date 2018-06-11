@@ -60,7 +60,7 @@ aba_step_meca::aba_step_meca() : step_meca()
  */    
     
 //-------------------------------------------------------------
-aba_step_meca::aba_step_meca(const std::string &mname, const bool &mnlgeom, const int &mtype, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step_meca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs)
+aba_step_meca::aba_step_meca(const std::string &mname, const bool &mnlgeom, const int &mtype, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step_meca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs)
 //-------------------------------------------------------------
 {
     name = mname;

@@ -35,16 +35,17 @@ class block
 	protected:
 
 	public :
-		int number;
-        int nstep;
-        int ncycle;
-        int type;
+		unsigned int number;
+        unsigned int nstep;
+        unsigned int ncycle;
+        unsigned int type;
+        unsigned int control_type;
     
         std::vector<std::shared_ptr<step> > steps;
     
         block(); 	//default constructor
-		block(int, int, int, int);	//constructor - allocates memory for the step vector
-        block(int, int, int, int, const std::vector<std::shared_ptr<step> > &); //Constructor with parameters
+		block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&);	//constructor - allocates memory for the step vector
+        block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const std::vector<std::shared_ptr<step> > &); //Constructor with parameters
 		block(const block&);	//Copy constructor
 		~block();
 		

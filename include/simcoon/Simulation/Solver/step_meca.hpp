@@ -46,7 +46,8 @@ protected:
     arma::vec Ts;
     
     step_meca(); 	//default constructor
-    step_meca(const int &, const double &, const double &, const double &, const int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
+    step_meca(const unsigned int &); 	//constructor that allocates BC_meca and cBC_meca
+    step_meca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
     
     step_meca(const step_meca&);	//Copy constructor
     virtual ~step_meca();

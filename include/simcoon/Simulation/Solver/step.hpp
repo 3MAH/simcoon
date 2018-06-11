@@ -44,6 +44,7 @@ protected:
     double Dn_inc;    //Maximal fraction of the step
     int ninc;       //Number of milestones in the step (based on Dnmaxi)
     int mode;
+    unsigned int control_type;
     
     arma::vec times;
     double BC_Time;
@@ -51,7 +52,7 @@ protected:
     std::string file; //  It is used for input/output values of the loading path
     
     step(); 	//default constructor
-    step(const int &, const double &, const double &, const double &, const int &);	//Constructor with parameters
+    step(const int &, const double &, const double &, const double &, const int &, const unsigned int &);	//Constructor with parameters
     step(const step &);	//Copy constructor
     virtual ~step();
    

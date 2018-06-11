@@ -49,6 +49,7 @@ block::block()
 	nstep=0;
 	ncycle=0;
     type=0;
+    control_type=0;
 }
 
 /*!
@@ -60,7 +61,7 @@ block::block()
 */
 
 //-------------------------------------------------------------
-block::block(int n, int m, int k, int t)
+block::block(const unsigned int &n, const unsigned int &m, const unsigned int &k, const unsigned int &t, const unsigned int &c_t)
 //-------------------------------------------------------------
 {
 	assert(n>=0);
@@ -71,6 +72,7 @@ block::block(int n, int m, int k, int t)
 	nstep = m;
 	ncycle = k;
     type = t;
+    control_type=c_t;
 }
 
 /*!
@@ -83,7 +85,7 @@ block::block(int n, int m, int k, int t)
  */
 
 //-------------------------------------------------------------
-block::block(int mnumber, int mnstep, int mncycle, int mtype, const vector<shared_ptr<step> > &msteps)
+block::block(const unsigned int &mnumber, const unsigned int &mnstep, const unsigned int &mncycle, const unsigned int &mtype, const unsigned int &mcontrol_type, const vector<shared_ptr<step> > &msteps)
 //-------------------------------------------------------------
 {	
 	assert(mnstep>0);
@@ -93,6 +95,7 @@ block::block(int mnumber, int mnstep, int mncycle, int mtype, const vector<share
 	nstep = mnstep;
 	ncycle = mncycle;
     type = mtype;
+    control_type = mcontrol_type;
     
     steps = msteps;
 }
@@ -130,20 +133,21 @@ void block::generate()
 	assert(nstep>0);
 	assert(ncycle>0);
 	assert(type>0);
+	assert(control_type>0);
     
     switch (type) {
         case 1: {
             
-            for (int i=0; i<nstep; i++) {
-                shared_ptr<step_meca> sptr_meca(new step_meca);
+            for (unsigned int i=0; i<nstep; i++) {
+                shared_ptr<step_meca> sptr_meca = make_shared<step_meca>(control_type);
                 steps.push_back(sptr_meca);
             }
             break;
         }
         case 2: {
             
-            for (int i=0; i<nstep; i++) {
-                shared_ptr<step_thermomeca> sptr_thermomeca(new step_thermomeca);
+            for (unsigned int i=0; i<nstep; i++) {
+                shared_ptr<step_thermomeca> sptr_thermomeca = make_shared<step_thermomeca>(control_type);
                 steps.push_back(sptr_thermomeca);
             }
             break;
@@ -199,6 +203,7 @@ block& block::operator = (const block &bl)
 	nstep = bl.nstep;
 	ncycle = bl.ncycle;
     type = bl.type;
+    control_type = bl.control_type;
     
 //    generate();
     
@@ -215,11 +220,12 @@ ostream& operator << (ostream &s, const block &bl)
 	s << "Number of steps: " << bl.nstep << "\n";
 	s << "Number of cycles: " << bl.ncycle << "\n";
 	s << "Type of block: " << bl.type << "\n";
+	s << "Control type of block: " << bl.control_type << "\n";
 	
     switch (bl.type) {
         case 1: {
             
-            for (int j=0; j<bl.nstep; j++) {
+            for (unsigned int j=0; j<bl.nstep; j++) {
                 shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(bl.steps[j]);
                 cout << "\n" << *sptr_meca;
             }
@@ -227,7 +233,7 @@ ostream& operator << (ostream &s, const block &bl)
         }
         case 2: {
             
-            for (int j=0; j<bl.nstep; j++) {
+            for ( unsigned int j=0; j<bl.nstep; j++) {
                 shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(bl.steps[j]);
                 cout << "\n" << *sptr_thermomeca;
             }

@@ -34,15 +34,15 @@ namespace simcoon{
 /// Function that reads the output parameters
 void update_sections(section_characteristics &, const int &, const int &, const int &, const std::string & = "data");
     
-void write_section(section_characteristics &, const std::string & = "data", const std::string & = "Nmat_0.inp");
+void write_section(section_characteristics &, const unsigned int &, const std::string & = "data", const std::string & = "Nmat_0.inp");
 
-void write_sections(std::vector<section_characteristics> &, const std::string & = "data", const std::string & = "Nmat_0.inp");
+void write_sections(std::vector<section_characteristics> &, const unsigned int &, const std::string & = "data", const std::string & = "Nmat_0.inp");
     
-void write_sections(section_characteristics &, const std::string & = "data", const std::string & = "Nmat_0.inp");    
+void write_sections(section_characteristics &, const unsigned int &,const std::string & = "data", const std::string & = "Nmat_0.inp");
 
 void update_materials(std::vector<aba_material> &, const int &, const int &, const int &, const std::string & = "data");
 
-void write_materials(std::vector<aba_material> &, const std::string & = "data", const std::string & = "Nmat_0.inp");
+void write_materials(std::vector<aba_material> &, const unsigned &, const std::string & = "data", const std::string & = "Nmat_0.inp");
 
 void update_steps(std::vector<std::shared_ptr<step> > &, const std::vector<block> &, const bool &, const int &, const int &);
 

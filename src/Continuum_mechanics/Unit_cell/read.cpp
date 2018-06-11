@@ -50,7 +50,7 @@ std::vector<std::string> split(const std::string &s, const char &delim)
     return elems;
 }
     
-void unit_cell_essentials(unsigned int &loading_type, unsigned int &BC_type, int &max_temp, const string &path, const string &filename) {
+/*void unit_cell_essentials(unsigned int &loading_type, unsigned int &BC_type, int &max_temp, const string &path, const string &filename) {
     
     string pathfile = path + "/" + filename;
     ifstream unit_cell_essentials;
@@ -65,7 +65,7 @@ void unit_cell_essentials(unsigned int &loading_type, unsigned int &BC_type, int
     ///Get the control values for the solver
     unit_cell_essentials >> buffer >> loading_type >> buffer >> BC_type >> buffer >> max_temp;
     unit_cell_essentials.close();
-}
+}*/
     
 void read_sections(std::vector<section_characteristics> &sections, const string &path_data, const string &inputfile) {
     

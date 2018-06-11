@@ -254,7 +254,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
         switch(blocks[i].type) {
             case 1: {
                 
-                for(int j = 0; j < blocks[i].nstep; j++){
+                for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                     shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
                     
@@ -286,7 +286,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
             }
             case 2: {
                 
-                for(int j = 0; j < blocks[i].nstep; j++){
+                for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                     shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
                     
@@ -346,9 +346,9 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
     blocks.resize(nblock);
     
     /// Reading path_file
-    for(int i = 0 ; i < nblock ; i++){
+    for(unsigned int i = 0 ; i < nblock ; i++){
         
-        path >> buffer >> blocks[i].number >> buffer >> blocks[i].type >> buffer >> blocks[i].ncycle >> buffer >> blocks[i].nstep;
+        path >> buffer >> blocks[i].number >> buffer >> blocks[i].type >> buffer >> blocks[i].control_type >> buffer >> blocks[i].ncycle >> buffer >> blocks[i].nstep;
 
         if (blocks[i].number != i+1) {
             cout << "The number of blocks could not be found. Please verify the blocks order in the path file";
@@ -359,7 +359,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
         switch(blocks[i].type) {
             case 1: {
 
-                for(int j = 0; j < blocks[i].nstep; j++){
+                for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                     path >> buffer >> blocks[i].steps[j]->mode;
                     blocks[i].steps[j]->number = j+1;
@@ -428,7 +428,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
             }
             case 2: {
                 
-                for(int j = 0; j < blocks[i].nstep; j++){
+                for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                     path >> buffer >> blocks[i].steps[j]->mode;
                     blocks[i].steps[j]->number = j+1;

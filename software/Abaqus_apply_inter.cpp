@@ -47,11 +47,9 @@ int main() {
     //Action 0 : Defining the mesh and the periodic mesh
     
     unsigned int nb_nodes = 0;
-    unsigned int loading_type = 0;
-    unsigned int BC_type = 0;
     int max_temp = 0;
     
-    unit_cell_essentials(loading_type, BC_type, max_temp, path_data, uc_essentials);
+    //unit_cell_essentials(BC_type, max_temp, path_data, uc_essentials); //Unused
     
     std::vector<Node> nodes;
     read_mesh(nodes, path_data, pointsfile);
@@ -70,12 +68,30 @@ int main() {
     string sections_file = "Nsections.dat";
     string sections_out = "mat_sec.inp";
     
-    //Sections
+    //Action 2 : The steps
+    string pathfile = "path.txt";
+    bool nlgeom = false;
+    double T_init = 0.;
+    std::vector<block> blocks;  //loading blocks
+    //Read the loading path
+    read_path(blocks, T_init, path_data, pathfile);
+    unsigned int loading_type = blocks[0].type;
+    unsigned int control_type = blocks[0].control_type;
+    
+    //Phases
+    string steps_file_name = "steps_file_name.inp";
+    std::vector<std::shared_ptr<step>> aba_steps;
+    
+    update_steps(aba_steps, blocks, nlgeom, loading_type, max_temp);
+    write_steps(aba_steps, loading_type, T_init, path_run, steps_file_name);
+    
+    
+    //Action 3 : Sections and materials
     std::vector<section_characteristics> sections;
     read_sections(sections, path_data, sections_file);
-    write_sections(sections, path_run, sections_out);
+    write_sections(sections, loading_type, path_run, sections_out);
     
-    //Action 2 : the Periocidc Boundary Conditions : PBC & Constraint drivers : CDN
+    //Action 4 : the Periocidc Boundary Conditions : PBC & Constraint drivers : CDN
     
     string PBC_file_name = "PBC_file_name.inp";
     string TIE_file_name = "TIE_file_name.inp";
@@ -85,24 +101,6 @@ int main() {
 //    write_TIE(cm, cm_perio, path_run, TIE_file_name);
     write_NonPerio_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
 //    write_CDN(cm, path_run, CDN_file_name);
-    
-    //Action 4 : The steps
-    string pathfile = "path.txt";
-    bool nlgeom = false;
-    
-    ///Usefull UMAT variables
-    std::vector<block> blocks;  //loading blocks
-    
-    double T_init = 0.;
-    //Read the loading path
-    read_path(blocks, T_init, path_data, pathfile);
-    
-    //Phases
-    string steps_file_name = "steps_file_name.inp";
-    std::vector<std::shared_ptr<step>> aba_steps;
-    
-    update_steps(aba_steps, blocks, nlgeom, loading_type, max_temp);
-    write_steps(aba_steps, loading_type, T_init, path_run, steps_file_name);
     
     //Finally
     string run_file = "run_aba.inp";
