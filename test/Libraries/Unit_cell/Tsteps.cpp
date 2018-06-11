@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE( aba_write_steps )
     
     double T_init = 0.;
     bool nlgeom = false;
-    int loading_type = 0;
+    int loading_type = 1;
     int max_temp = 10;
     //Read the loading path
     read_path(blocks, T_init, path_data, pathfile);
