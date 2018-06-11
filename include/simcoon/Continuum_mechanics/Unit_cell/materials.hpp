@@ -61,7 +61,7 @@ protected:
     
     virtual aba_material& operator = (const aba_material&);
     
-    virtual void write(const std::string &, const std::string &inputfile, const bool & = true);
+    virtual void write(const unsigned int &, const std::string &, const std::string &inputfile, const bool & = true);
     
     friend std::ostream& operator << (std::ostream&, const aba_material&);
 };
