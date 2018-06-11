@@ -51,6 +51,7 @@ step::step()
     Dn_inc = 0.;
 	ninc=0;
 	mode=0;
+    control_type=0;
     
     BC_Time = 0.;
     
@@ -65,7 +66,7 @@ step::step()
  */
 
 //-------------------------------------------------------------
-step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode)
+step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type)
 //-------------------------------------------------------------
 {
     
@@ -81,6 +82,7 @@ step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, c
     Dn_inc = mDn_inc;
     ninc = std::round(1./mDn_inc);
 	mode = mmode;
+    control_type = mcontrol_type;
     
     times = zeros(ninc);
     BC_Time = 0.;
@@ -103,6 +105,7 @@ step::step(const step& st)
     Dn_inc = st.Dn_inc;
 	ninc = st.ninc;
 	mode = st.mode;
+    control_type = st.control_type;
     
     times = st.times;
     BC_Time = st.BC_Time;
@@ -187,6 +190,7 @@ step& step::operator = (const step& st)
     Dn_inc = st.Dn_inc;
     ninc = st.ninc;
 	mode = st.mode;
+    control_type = st.control_type;
     
     times = st.times;
     BC_Time = st.BC_Time;
@@ -203,6 +207,7 @@ ostream& operator << (ostream& s, const step& st)
 	s << "Display info on the step " << st.number << "\n";
 	s << "Number of increments: " << st.ninc << "\twithin " << st.BC_Time << " s\n";
 	s << "Loading mode: " << st.mode << "\n";
+	s << "Control type: " << st.control_type << "\n";
 	   
 	return s;
 }

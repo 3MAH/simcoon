@@ -44,8 +44,20 @@ namespace simcoon{
 step_thermomeca::step_thermomeca() : step()
 //-------------------------------------------------------------
 {
-    cBC_meca = zeros<Col<int> >(6);
-    BC_meca = zeros(6);
+    BC_T = 0.;
+    cBC_T = 0;
+}
+    
+step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
+{
+    if (control_type == 1) {
+        cBC_meca = zeros<Col<int> >(6);
+        BC_meca = zeros(6);
+    }
+    else if(control_type > 1) {
+        cBC_meca = zeros<Col<int> >(9);
+        BC_meca = zeros(9);
+    }
     BC_T = 0.;
     cBC_T = 0;
 }
@@ -59,7 +71,7 @@ step_thermomeca::step_thermomeca() : step()
  */
 
 //-------------------------------------------------------------
-step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode)
+step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
 //-------------------------------------------------------------
 {
     cBC_meca = mcBC_meca;
@@ -122,7 +134,12 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     step::generate();
     
     Ts = zeros(ninc);
-    mecas = zeros(ninc, 6);
+    unsigned int size_meca = 0;
+    if(control_type == 0)
+        size_meca = 6;
+    else if(control_type > 0)
+        size_meca = 9;
+    mecas = zeros(ninc, size_meca);
     
     vec inc_coef = ones(ninc);
     if (mode == 2) {
@@ -138,7 +155,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         for (int i=0; i<ninc; i++) {
             times(i) = (BC_Time)/ninc;
             
-            for(int k = 0 ; k < 6 ; k++) {
+            for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) == 1){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-msigma(k))/ninc;
                 }
@@ -159,8 +176,8 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     else if (mode ==3){ ///Incremental loading
         
         //Look at how many cBc are present to know the size of the file (1 for time + 6 for each meca + 1 for temperature):
-        int size_BC = 8;
-        for(int k = 0 ; k < 6 ; k++) {
+        unsigned int size_BC = size_meca + 2;
+        for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2){
                 size_BC--;
             }
@@ -183,7 +200,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
             kT++;
         }
         
-        for (int k=0; k<6; k++) {
+        for (unsigned int k=0; k<size_meca; k++) {
             if (cBC_meca(k) == 0) {
                 BC_file_n(kT+1) = mEtot(k);
                 kT++;
@@ -200,7 +217,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         for (int i=0; i<ninc; i++) {
             
             pathinc >> buffer;
-            for (int j=0; j<size_BC; j++) {
+            for (unsigned int j=0; j<size_BC; j++) {
                 pathinc >> BC_file(j);
             }
             
@@ -218,7 +235,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 Ts(i) = 0.;
             }
             
-            for(int k = 0 ; k < 6 ; k++) {
+            for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
                     mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
                     kT++;
@@ -230,7 +247,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
             BC_file_n = BC_file;
         }
         //At the end, everything static becomes a stress-controlled with zeros
-        for(int k = 0 ; k < 6 ; k++) {
+        for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)
                 cBC_meca(k) = 1;
         }
