@@ -213,7 +213,7 @@ void aba_material::write(const unsigned int &loading_type, const string &path_da
     else {
         cout << "error in aba_material::write (/Continuum_mechanics/Unit_cell/materials.cpp) : loading_type should take a value that is either 1 (Mechanical loading) or 2 (Thermomechanical loading)" << endl;
     }
-    param_aba << "User Material, constants=" << nprops << "\n";
+    param_aba << "*User Material, constants=" << nprops << "\n";
     param_aba << "**" << endl;
     
     int z=0;
