@@ -326,8 +326,8 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
     param_mats << "CentreNode, 1, 1\n";
     param_mats << "CentreNode, 2, 2\n";
     param_mats << "CentreNode, 3, 3\n";
-    
     param_mats << "**\n";
+    
     param_mats << "*Initial Conditions, type=TEMPERATURE\n";
     param_mats << "AllNodes, " << temp_init << "\n";
     param_mats << "**\n";
@@ -956,8 +956,8 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
         list_dofs = {1,2,3};
     }
     //Thermomechanical
-    else if (loading_type == 2) {
-        list_dofs = {1,2,3,11};
+    else if (loading_type == 1) {
+        list_dofs = {1,2,3};
     }
     //Thermal
     else if (loading_type == 3) {
