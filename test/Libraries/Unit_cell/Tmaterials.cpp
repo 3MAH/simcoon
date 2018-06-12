@@ -142,7 +142,7 @@ BOOST_AUTO_TEST_CASE( read_write_aba )
     string path_inputfile;
     string path_outputfile;
 
-    unsigned int loading_type = 1;    
+    unsigned int loading_type = 1;
     
     //Sections
     std::vector<section_characteristics> sections;
