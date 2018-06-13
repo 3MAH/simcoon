@@ -276,21 +276,34 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     double HfR = 0.;
 
     //Hardening function definition (Smooth hardening functions)
-    if ((xi > 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1) - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3) - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi <= 0.)&&((1. - xi) > 0.)) {
-        HfF = 0.5*a1*(1. - pow(1. - xi,n2)) + a3;
-        HfR = 0.5*a2*(1. - pow((1. - xi),n4)) - a3;
-    }
-    else if ((xi > 0.)&&((1. - xi) <= 0.)) {
-        HfF = 0.5*a1*(1. + pow(xi,n1)) + a3;
-        HfR = 0.5*a2*(1. + pow(xi,n3)) - a3;
+    if ((n1==1.)&&(n2==1.)) {
+        HfF = a1*xi + a3;
     }
     else {
-        HfF =  a3;
-        HfR = - a3;
+        if ((xi > 0.) && ((1. - xi) > 0.)) {
+            HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
+        }
+        else if (xi <= 0.) {
+            HfF = 0.5*a1-1.+a3;
+        }
+        else if (xi >= 1.) {
+            HfF = a1+a3;
+        }
+    }
+    
+    if ((n3==1.)&&(n4==1.)) {
+        HfR = a2*xi - a3;
+    }
+    else {
+        if ((xi > 0.) && ((1. - xi) > 0.)) {
+            HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
+        }
+        else if (xi <= 0.) {
+            HfR = 0.5*a2-1.-a3;
+        }
+        else if (xi >= 1.) {
+            HfR = a2-a3;
+        }
     }
     
     //Set the Lagrange multiplliers due to Physical limitations
@@ -406,30 +419,35 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         kappa_j[1] = L*(lambdaTR - DM_sig - Dalpha_T); //derivative w/ xiR is minus derivative w/ xi
         
         //Hardening function definition (Smooth hardening functions)
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
+        if ((n1==1.)&&(n2==1.)) {
+            HfF = a1*xi + a3;
         }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfF = 0.5*a1*(1. - pow(1. - xi, n2)) + a3;
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfF = 0.5*a1*(1. + pow(xi, n1)) + a3;
-        }
-        else  {
-            HfF = 0.5*a1 + a3;
+        else {
+            if ((xi > 0.) && ((1. - xi) > 0.)) {
+                HfF = 0.5*a1*(1. + pow(xi, n1) - pow(1. - xi, n2)) + a3;
+            }
+            else if (xi <= 0.) {
+                HfF = 0.5*a1-1.+a3;
+            }
+            else if (xi >= 1.) {
+                HfF = a1+a3;
+            }
         }
         
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
+        if ((n3==1.)&&(n4==1.)) {
+            HfR = a2*xi - a3;
         }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            HfR = 0.5*a2*(1. - pow((1. - xi), n4)) - a3;
+        else {
+            if ((xi > 0.) && ((1. - xi) > 0.)) {
+                HfR = 0.5*a2*(1. + pow(xi, n3) - pow((1. - xi), n4)) - a3;
+            }
+            else if (xi <= 0.) {
+                HfR = 0.5*a2-1.-a3;
+            }
+            else if (xi >= 1.) {
+                HfR = a2-a3;
+            }
         }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            HfR = 0.5*a2*(1. + pow(xi, n3)) - a3;
-        }
-        else
-            HfR = 0.5*a2* -a3;
         
         // Find Hcur explicit
         if (Mises_stress(sigma) > sigmacrit)
@@ -453,32 +471,35 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         YtR = Y0t + D*sum(sigma%ETMean);
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;  // PhiR < 0.
         
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
+        //Hardening function definition (Smooth hardening functions)
+        if ((n1==1.)&&(n2==1.)) {
+            dHfF = a1;
         }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfF = 0.5*a1*(n2*pow(1. - xi, n2 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.));
-        }
-        else
-        {
-            dHfF = 0.;
+        else {
+            if ((xi > 0.) && ((1. - xi) > 0.)) {
+                dHfF = 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
+            }
+            else if (xi <= 0.) {
+                dHfF = 1.E12;
+            }
+            else if (xi >= 1.) {
+                dHfF = 1.E12;
+            }
         }
         
-        if ((xi > 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
+        if ((n3==1.)&&(n4==1.)) {
+            dHfR = a2;
         }
-        else if ((xi <= 0.) && ((1. - xi) > 0.)) {
-            dHfR = 0.5*a2*(n4*pow(1. - xi, n4 - 1.));
-        }
-        else if ((xi > 0.) && ((1. - xi) <= 0.)) {
-            dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.));
-        }
-        else
-        {
-            dHfR = 0.;
+        else {
+            if ((xi > 0.) && ((1. - xi) > 0.)) {
+                dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
+            }
+            else if (xi <= 0.) {
+                dHfR = 1.E12;
+            }
+            else if (xi >= 1.) {
+                dHfR = 1.E12;
+            }
         }
         
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(sigma);
