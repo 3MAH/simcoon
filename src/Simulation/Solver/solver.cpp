@@ -81,6 +81,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 //    mat L = zeros(6,6);
 //    mat Lt = zeros(6,6);
     mat DR = eye(3,3);
+    mat R = eye(3,3);
+
     
 //    mat dSdE = zeros(6,6);
 //    mat dSdT = zeros(1,6);
@@ -133,9 +135,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 K = zeros(6,6);
                 invK = zeros(6,6);
 
-                if(blocks[i].control_type == 1)
+                if((blocks[i].control_type == 1)||(blocks[i].control_type == 2))
                     size_meca = 6;
-                else if(blocks[i].control_type > 1)
+                else if(blocks[i].control_type == 3)
                     size_meca = 9;
                 
                 shared_ptr<state_variables_M> sv_M;
@@ -165,6 +167,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 if(solver_type == 1) {
                     //RNL
                     sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[0].steps[0]);
+                    assert(blocks[i].control_type == 1);
                     sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
                     
                     Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
@@ -196,7 +199,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     for(unsigned int j = 0; j < blocks[i].nstep; j++){
                     
                         sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
-                        sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
+                        if (blocks[i].control_type == 1) {
+                            sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
+                        }
+                        else if(blocks[i].control_type == 3) {
+                            sptr_meca->generate_gradU(Time, sv_M->F0, sv_M->T);
+                        }
                         
                         nK = sum(sptr_meca->cBC_meca);
                         
@@ -218,11 +226,20 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 
                                 if(nK == 0){
                                     
-                                    sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
-                                    sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                    DTime = Dtinc*sptr_meca->times(inc);
-                                    
-                                    run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                    if (blocks[i].control_type == 1) {
+                                        sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        
+                                        run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                    }
+                                    else if(blocks[i].control_type == 3) {
+                                        sv_M->F1 = sv_M->F0 + Dtinc*sptr_meca->mecas.row(inc).t();
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        
+                                        run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                    }
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
