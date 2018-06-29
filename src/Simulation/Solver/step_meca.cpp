@@ -112,7 +112,7 @@ step_meca::~step_meca() {}
 void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------
 {
-    assert(control_type > 0);
+    assert(control_type < 3);
     
     //This in for the case of an incremental path file, to get the number of increments
     string buffer;
@@ -138,11 +138,7 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     step::generate();
     
     Ts = zeros(ninc);
-    unsigned int size_meca = 0;
-    if(control_type == 0)
-        size_meca = 6;
-    else if(control_type > 0)
-        size_meca = 9;
+    unsigned int size_meca = 6;
 
     mecas = zeros(ninc, size_meca);
         
@@ -248,12 +244,142 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
 	}
     
 }
-    
-/*!
- \brief Standard operator = for block
- */
 
-//----------------------------------------------------------------------
+//-------------------------------------------------------------
+void step_meca::generate_gradU(const double &mTime, const mat &mF, const double &mT)
+//-------------------------------------------------------------
+{
+    
+    unsigned int size_meca = 9;
+    assert(control_type == 3);
+    for (unsigned int k=0; k<size_meca; k++) {
+        assert(cBC_meca(k) != 1);
+    }
+    
+    mat I2 = eye(3,3);
+    //This in for the case of an incremental path file, to get the number of increments
+    string buffer;
+    ifstream pathinc;
+    if(mode == 3){
+        ninc = 0;
+        pathinc.open(file, ios::in);
+        if(!pathinc)
+        {
+            cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and is you have added the extension\n";
+        }
+        //read the file to get the number of increments
+        while (!pathinc.eof())
+        {
+            getline (pathinc,buffer);
+            if (buffer != "") {
+                ninc++;
+            }
+        }
+        pathinc.close();
+    }
+    
+    step::generate();
+    Ts = zeros(ninc);
+    mecas = zeros(ninc, size_meca);
+    
+    vec inc_coef = ones(ninc);          //If the mode is equal to 2, this is a sinuasoidal load control mode
+    if (mode == 2) {
+        double sum_ = 0.;
+        for(int k = 0 ; k < ninc ; k++){
+            inc_coef(k) =  cos(pi + (k+1)*2.*pi/(ninc+1))+1.;
+            sum_ += inc_coef(k);
+        }
+        inc_coef = inc_coef*ninc/sum_;
+    }
+    
+    if (mode < 3) {
+        for (int i=0; i<ninc; i++) {
+            Ts(i) = (BC_T - mT)/ninc;
+            times(i) = (BC_Time)/ninc;
+            
+            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3)+I2(k/3,k%3))/ninc;
+            }
+        }
+    }
+    else if (mode ==3){ ///Incremental loading
+        
+        //Look at how many cBc are present to know the size of the file (1 for time + 6 for each meca + 1 for temperature):
+        unsigned int size_BC = size_meca + 2;
+        for(unsigned int k = 0 ; k < size_meca ; k++) {
+            if (cBC_meca(k) == 2){
+                size_BC--;
+            }
+        }
+        if (cBC_T == 2 ) {
+            size_BC--;
+        }
+        
+        vec BC_file_n = zeros(size_BC); //vector that temporarly stores the previous values
+        vec BC_file = zeros(size_BC); //vector that temporarly stores the values
+        
+        BC_file_n(0) = mTime;
+        int kT = 0;
+        if (cBC_T == 0) {
+            BC_file_n(kT+1) = mT;
+            kT++;
+        }
+        for (unsigned int k=0; k<size_meca; k++) {
+            if (cBC_meca(k) == 0) {
+                BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
+                kT++;
+            }
+        }
+        
+        //Read all the informations and fill the meca accordingly
+        pathinc.open(file, ios::in);
+        
+        for (int i=0; i<ninc; i++) {
+            
+            pathinc >> buffer;
+            for (unsigned int j=0; j<size_BC; j++) {
+                pathinc >> BC_file(j);
+            }
+            
+            times(i) = (BC_file(0) - BC_file_n(0));
+            kT = 0;
+            if (cBC_T == 0) {
+                Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);
+                kT++;
+            }
+            else if(cBC_T == 2) {
+                Ts(i) = 0.;
+            }
+            
+            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                if (cBC_meca(k) < 2){
+                    mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
+                    kT++;
+                }
+                else if (cBC_meca(k) == 2){
+                    mecas(i,k) = 0.;
+                }
+            }
+            BC_file_n = BC_file;
+        }
+        //At the end, everything static becomes a stress-controlled with zeros
+        for(unsigned int k = 0 ; k < size_meca ; k++) {
+            if (cBC_meca(k) == 2)
+                cBC_meca(k) = 1;
+        }
+        
+    }
+    else{
+        cout << "\nError: The mode of the step number " << number << " does not correspond to an existing loading mode.\n";
+    }
+    
+}
+    
+    /*!
+     \brief Standard operator = for block
+     */
+    
+    //----------------------------------------------------------------------
 void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime) {
     
     if(tnew_dt < 1.){
