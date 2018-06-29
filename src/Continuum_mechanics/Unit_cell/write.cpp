@@ -239,7 +239,7 @@ void update_materials(std::vector<aba_material> &aba_mats, const int &nphases, c
     for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
         aba_material temp;
         id_mat = 100000 + rve.sptr_matprops->props(1)*1000 + rve.sub_phases[i].sptr_matprops->number;
-        temp.update(*rve.sub_phases[i].sptr_matprops, *rve.sub_phases[i].sptr_sv_global, id_mat);
+        temp.update(*rve.sub_phases[i].sptr_matprops, 0., 0., *rve.sub_phases[i].sptr_sv_global, id_mat);
         aba_mats.push_back(temp);
     }
     
@@ -956,7 +956,7 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
         list_dofs = {1,2,3};
     }
     //Thermomechanical
-    else if (loading_type == 1) {
+    else if (loading_type == 2) {
         list_dofs = {1,2,3};
     }
     //Thermal
