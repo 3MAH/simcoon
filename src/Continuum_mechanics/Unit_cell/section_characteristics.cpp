@@ -103,7 +103,8 @@ void section_characteristics::update(const std::string &melset_name, const int &
 {
     elset_name = melset_name;
     id = mid;
-    abamat.update(*pc.sptr_matprops, *pc.sptr_sv_global, mid);
+    //Note : there is no density nor conductivity here since here section_characteristics inheritates from phases characteristics
+    abamat.update(*pc.sptr_matprops, 0., 0., *pc.sptr_sv_global, mid);
     
     int nphases = pc.sub_phases.size();
     sub_sections.resize(nphases);
