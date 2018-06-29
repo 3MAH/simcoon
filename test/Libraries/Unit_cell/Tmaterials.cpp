@@ -57,6 +57,9 @@ BOOST_AUTO_TEST_CASE( aba_write_materials )
     double theta_rve = 0.;
     double phi_rve = 0.;
     
+    double density = 5.;
+    double conductivity = 12.;
+    
     rve_ellipsoid.sptr_matprops->update(0, umat_name_macro, 1, psi_rve, theta_rve, phi_rve, props_rve.n_elem, props_rve);
     rve_ellipsoid.construct(2,1); //The rve is supposed to be mechanical only here
     string inputfile = "Nellipsoids" + to_string(int(rve_ellipsoid.sptr_matprops->props(1))) + ".dat";
@@ -82,10 +85,10 @@ BOOST_AUTO_TEST_CASE( aba_write_materials )
     //aba_material rve_mat_2(3);
     //aba_material rve_mat_21(3,true, 200);
     
-    aba_material rve_mat_3(number, mid, umat_name, save, psi_mat, theta_mat, phi_mat, nprops, nstatev, props);
+    aba_material rve_mat_3(number, mid, umat_name, save, psi_mat, theta_mat, phi_mat, density, conductivity, nprops, nstatev, props);
     
     aba_material rve_mat_4(rve_mat_3);
-    rve_mat_1.update(*rve_ellipsoid.sub_phases[0].sptr_matprops, *rve_ellipsoid.sub_phases[0].sptr_sv_global, mid);
+    rve_mat_1.update(*rve_ellipsoid.sub_phases[0].sptr_matprops, density, conductivity, *rve_ellipsoid.sub_phases[0].sptr_sv_global, mid);
 
     aba_material rve_mat_2 = rve_mat_1;
     
@@ -150,7 +153,7 @@ BOOST_AUTO_TEST_CASE( read_write_aba )
     inputfile = "Nsections0.dat";
     outputfile = "Nsections1.dat";
     
-    read_sections(sections, path_data, inputfile);
+    read_sections(sections, loading_type, path_data, inputfile);
     write_sections(sections, loading_type, path_data, outputfile);
     path_inputfile = path_data + "/" + inputfile;
     path_outputfile = path_data + "/" + outputfile;
