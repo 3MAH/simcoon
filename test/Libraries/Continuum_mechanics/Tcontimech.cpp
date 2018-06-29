@@ -90,68 +90,6 @@ BOOST_AUTO_TEST_CASE( tr_dev_Mises_eta )
     BOOST_CHECK( norm(dev2 - (2./3.)*testdev/dstrain,2) < iota );
     
 }
-
-BOOST_AUTO_TEST_CASE( v2t_func )
-{
-	
-    vec test = zeros(6);
-    test(0) = 4.;
-    test(1) = 2.;
-    test(2) = 6.;
-    test(3) = 8.;
-    test(4) = 3.;
-    test(5) = 7.;
-    
-	mat strain = zeros(3,3);
-	mat stress = zeros(3,3);
-	mat teststrain = zeros(3,3);
-	mat teststress = zeros(3,3);
-	
-	teststrain(0,0) = 4.;
-	teststrain(0,1) = 4.;
-	teststrain(0,2) = 1.5;
-	teststrain(1,0) = 4.;
-	teststrain(1,1) = 2.;
-	teststrain(1,2) = 3.5;
-	teststrain(2,0) = 1.5;
-	teststrain(2,1) = 3.5;
-	teststrain(2,2) = 6.;							
-
-	teststress(0,0) = 4.;
-	teststress(0,1) = 8.;
-	teststress(0,2) = 3.;
-	teststress(1,0) = 8.;
-	teststress(1,1) = 2.;
-	teststress(1,2) = 7.;
-	teststress(2,0) = 3.;
-	teststress(2,1) = 7.;
-	teststress(2,2) = 6.;
-	
-	//Test of v2t_strain function
-	strain = v2t_strain(zeros(6));
-    BOOST_CHECK( norm(strain,2) < iota );
-	strain = v2t_strain(test);
-    BOOST_CHECK( norm(strain - teststrain,2) < iota );
-
-    //Test of t2v_strain function
-	vec dev1 = t2v_strain(zeros(3,3));
-    vec dev2 = t2v_strain(teststrain);
-    BOOST_CHECK( norm(dev1,2) < iota );
-    BOOST_CHECK( norm(dev2 - test,2) < iota );
-
-	//Test of v2t_stress function
-	stress = v2t_stress(zeros(6));
-    BOOST_CHECK( norm(stress,2) < iota );
-	stress = v2t_stress(test);
-    BOOST_CHECK( norm(stress - teststress,2) < iota );
-    
-	//Test of t2v_stress function
-	dev1 = t2v_stress(zeros(3,3));
-	dev2 = t2v_stress(teststress);
-    BOOST_CHECK( norm(dev1,2) < iota );
-    BOOST_CHECK( norm(dev2 - test,2) < iota );
-    
-}
     
 BOOST_AUTO_TEST_CASE( J2_J3 )
 {
