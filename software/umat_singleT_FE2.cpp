@@ -16,7 +16,7 @@
  */
 
 ///@file umat_singleT.cpp
-///@brief umat template to run smart subroutines using Abaqus
+///@brief umat template to run simcoon subroutines using Abaqus
 ///@brief Implemented in 1D-2D-3D
 ///@author Chemisky & Despringre
 ///@version 1.0
