@@ -178,7 +178,7 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
         param_aba << "*Coupled Temperature-displacement, creep=none, steady state\n" << Dn_inc*BC_Time << " ," << BC_Time << "\n";
     }
     else {
-        cout << "Error, the type of the step is not recognized (0: Automatic, 1: Fixed)" << endl;
+        cout << "Error in  Continuum_mechanics/Unit_cell/step_thermomeca.cpp, the type of the step is not recognized (0: Automatic, 1: Fixed)" << endl;
         return;
     }
 
@@ -216,7 +216,7 @@ void aba_step_thermomeca::write(const string &path_data, const string &inputfile
     
     param_aba << "**\n";
 
-    param_aba << "*Output, field\n";
+    param_aba << "*Output, field, time interval=" << Dn_inc*BC_Time << "\n";
     param_aba << "*Element Output, directions=YES\n";
     param_aba << "S, E, SDV,\n";
     param_aba << "*Node Output, nset=AllNodes\n";
