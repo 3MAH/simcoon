@@ -36,6 +36,14 @@ esac
 #Number of procs used to compil (+1 because if nproc=1 => 1/2=0)
 nproc_used=$(( ($(nprocs)+1)/2 ))
 
+if [ ! -d "exec" ]
+then
+    mkdir ${current_dir}/build
+    echo "exec folder created.\n"
+else
+    echo "exec directory already exists."
+fi
+
 #Test if build exist and if it's necessary to erase it
 if [ ! -d "build" ]
 then
@@ -85,7 +93,7 @@ then
 	Test_OK=$?
 
 	#Create the list of the file to copy after compilation
-	executableToCopy="solver identification L_eff Elastic_props ODF PDF"
+	executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
 	objectToCopy="umat_single umat_singleT"
 
 	# Copy all important files (+ final message)
@@ -120,7 +128,7 @@ then
 			fi
 			
 			#Copy the file from build/bin to exec
-			cp ${current_dir}/build/bin/${file} ${current_dir}/exec
+			cp ${current_dir}/build/bin/${file} ${current_dir}/exec/
 			echo "${blue}${file}${reset} copied in ${blue}${current_dir}/exec${reset}"
 		done
 		
