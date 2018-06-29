@@ -45,6 +45,8 @@ aba_material::aba_material() : material_characteristics()
 {
 	id=0;
     nstatev = 0;
+    density = 0.;
+    conductivity = 0.;
 }
 
 /*!
@@ -73,6 +75,9 @@ aba_material::aba_material(const int &n, const bool &init, const double &value)
 	theta_mat=0.;
 	phi_mat=0.;
 	
+    density = 0.;
+    conductivity = 0.;
+    
     nprops = n;
     if (init) {
         props = value*ones(n);
@@ -91,7 +96,7 @@ aba_material::aba_material(const int &n, const bool &init, const double &value)
 */
 
 //-------------------------------------------------------------
-aba_material::aba_material(const int &mnumber, const int &mid, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const int &mnprops, const int &mnstatev, const vec &mprops)
+aba_material::aba_material(const int &mnumber, const int &mid, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const double &mconductivity, const double &mdensity, const int &mnprops, const int &mnstatev, const vec &mprops)
 //-------------------------------------------------------------
 {	
 	assert(mnprops);
@@ -105,6 +110,9 @@ aba_material::aba_material(const int &mnumber, const int &mid, const string &mum
 	theta_mat = mtheta_mat;
 	phi_mat = mphi_mat;
     
+    conductivity = mconductivity;
+    density = mdensity;
+    
 	nprops = mnprops;
 	nstatev = mnstatev;
 	props = mprops;
@@ -112,15 +120,18 @@ aba_material::aba_material(const int &mnumber, const int &mid, const string &mum
 
 /*!
   \brief Copy constructor
-  \param sv aba_material object to duplicate
+  \param mc aba_material object to duplicate
 */
 
 //------------------------------------------------------
-aba_material::aba_material(const aba_material& sv) : material_characteristics(sv)
+aba_material::aba_material(const aba_material& mc) : material_characteristics(mc)
 //------------------------------------------------------
 {
-    id = sv.id;
-	nstatev = sv.nstatev;
+    id = mc.id;
+	nstatev = mc.nstatev;
+    
+    conductivity = mc.conductivity;
+    density = mc.density;
 }
 
 /*!
@@ -138,17 +149,19 @@ aba_material::~aba_material() {}
 */
     
 //-------------------------------------------------------------
-void aba_material::update(const int &mnumber, const int &mid, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const int &mnprops, const int &mnstatev, const vec &mprops)
+void aba_material::update(const int &mnumber, const int &mid, const string &mumat_name, const int &msave, const double &mpsi_mat, const double &mtheta_mat, const double &mphi_mat, const double &mconductivity, const double &mdensity, const int &mnprops, const int &mnstatev, const vec &mprops)
 //-------------------------------------------------------------
 {
     
     material_characteristics::update(mnumber, mumat_name, msave, mpsi_mat, mtheta_mat, mphi_mat, mnprops, mprops);
     id = mid;
-	nstatev = mnstatev;    
+	nstatev = mnstatev;
+    conductivity = mconductivity;
+    density = mdensity;
 }
     
 //-------------------------------------------------------------
-void aba_material::update(const material_characteristics &mc, const state_variables &sv, const int &mid)
+    void aba_material::update(const material_characteristics &mc, const double &mconductivity, const double &mdensity, const state_variables &sv, const int &mid)
 //-------------------------------------------------------------
 {
 
@@ -161,29 +174,35 @@ void aba_material::update(const material_characteristics &mc, const state_variab
     theta_mat = mc.theta_mat;
     phi_mat = mc.phi_mat;
     
+    conductivity = mconductivity;
+    density = mdensity;
+    
     nprops = mc.nprops;
     nstatev = sv.nstatev;
     props = mc.props;
 }
     
 //----------------------------------------------------------------------
-aba_material& aba_material::operator = (const aba_material& sv)
+aba_material& aba_material::operator = (const aba_material& mc)
 //----------------------------------------------------------------------
 {
-	assert(sv.nprops);
+	assert(mc.nprops);
 
-	number = sv.number;
-	id = sv.id;
-	umat_name = sv.umat_name;
-    save = sv.save;
+	number = mc.number;
+	id = mc.id;
+	umat_name = mc.umat_name;
+    save = mc.save;
     
-    psi_mat = sv.psi_mat;
-	theta_mat = sv.theta_mat;
-	phi_mat = sv.phi_mat;
+    psi_mat = mc.psi_mat;
+	theta_mat = mc.theta_mat;
+	phi_mat = mc.phi_mat;
+    
+    conductivity = mc.conductivity;
+    density = mc.density;
 		
-	nprops = sv.nprops;
-    nstatev = sv.nstatev;
-	props = sv.props;
+	nprops = mc.nprops;
+    nstatev = mc.nstatev;
+	props = mc.props;
     
 	return *this;
 }
@@ -203,11 +222,13 @@ void aba_material::write(const unsigned int &loading_type, const string &path_da
     }
     
     param_aba << "*Material, name=" << umat_name << "-" << id << "\n";
-    param_aba << "*Depvar\n     ";
     if (loading_type==1) {
+        param_aba << "*Depvar\n     ";
         param_aba << nstatev+4 << "\n";
     }
     else if (loading_type==2){
+        
+        param_aba << "*Depvar\n     ";
         param_aba << nstatev+7 << "\n";
     }
     else {
@@ -233,19 +254,19 @@ void aba_material::write(const unsigned int &loading_type, const string &path_da
 }
 
 //--------------------------------------------------------------------------
-ostream& operator << (ostream& s, const aba_material& sv)
+ostream& operator << (ostream& s, const aba_material& mc)
 //--------------------------------------------------------------------------
 {
-	assert(sv.nprops);
+	assert(mc.nprops);
 
 	s << "Display state variables\n";
-	s << "Number of the phase: " << sv.number << "\n";
-	s << "Name of the material = " << sv.umat_name << "\n";
-	s << "local material orientation: psi = " << sv.psi_mat << "\t theta = " << sv.theta_mat << "\t phi = " << sv.phi_mat << "\n";
-	s << "nprops: \n" << sv.nprops << "\n";
-	s << "nstatev: \n" << sv.nstatev << "\n";
+	s << "Number of the phase: " << mc.number << "\n";
+	s << "Name of the material = " << mc.umat_name << "\n";
+	s << "local material orientation: psi = " << mc.psi_mat << "\t theta = " << mc.theta_mat << "\t phi = " << mc.phi_mat << "\n";
+	s << "nprops: \n" << mc.nprops << "\n";
+	s << "nstatev: \n" << mc.nstatev << "\n";
 	s << "props: \n";
-    s << sv.props.t();
+    s << mc.props.t();
 	s << "\n";
 
 	s << "\n\n";
