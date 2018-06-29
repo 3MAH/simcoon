@@ -22,18 +22,6 @@ double Mises_strain(const boost::python::numpy::ndarray &);
 //This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
 boost::python::numpy::ndarray eta_strain(const boost::python::numpy::ndarray &);
 
-//This function transforms the strain Voigt vector into a 3*3 strain matrix
-boost::python::numpy::ndarray v2t_strain(const boost::python::numpy::ndarray &);
-
-//This function transforms a 3*3 strain matrix into a strain Voigt vector
-boost::python::numpy::ndarray t2v_strain (const boost::python::numpy::ndarray &);
-
-//This function transforms the stress Voigt vector into a 3*3 stress matrix
-boost::python::numpy::ndarray v2t_stress(const boost::python::numpy::ndarray &);
-
-//This function transforms a 3*3 stress matrix into a stress Voigt vector
-boost::python::numpy::ndarray t2v_stress (const boost::python::numpy::ndarray &);
-
 //Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J2_stress(const boost::python::numpy::ndarray &);
 
