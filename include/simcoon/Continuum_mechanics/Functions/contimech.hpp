@@ -54,18 +54,6 @@ double Mises_strain(const arma::vec &);
 //This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
 arma::vec eta_strain(const arma::vec &);
 
-//This function transforms the strain Voigt vector into a 3*3 strain matrix
-arma::mat v2t_strain(const arma::vec &v);
-
-//This function transforms a 3*3 strain matrix into a strain Voigt vector
-arma::vec t2v_strain (const arma::mat &);
-
-//This function transforms the stress Voigt vector into a 3*3 stress matrix
-arma::mat v2t_stress(const arma::vec &);
-
-//This function transforms a 3*3 stress matrix into a stress Voigt vector
-arma::vec t2v_stress (const arma::mat &);
-
 //Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J2_stress(const arma::vec &);
 
