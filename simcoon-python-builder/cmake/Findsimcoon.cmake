@@ -33,7 +33,7 @@
 
 #Look into classical UNIX and MAC paths, what follows is for Windows users
 find_library(SIMCOON_LIBRARY
-  NAMES smartplus
+  NAMES simcoon
   PATHS "$ENV{ProgramFiles}/simcoon/lib"  "$ENV{ProgramFiles}/simcoon/lib64" "$ENV{ProgramFiles}/simcoon"
   )
 find_path(SIMCOON_INCLUDE_DIR
