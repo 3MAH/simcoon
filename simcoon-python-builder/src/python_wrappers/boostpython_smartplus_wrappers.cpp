@@ -5,6 +5,7 @@
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
@@ -33,7 +34,7 @@ using namespace std;
 using namespace arma;
 using namespace simpy;
 
-BOOST_PYTHON_MODULE(simmit) {
+BOOST_PYTHON_MODULE(simcoon) {
 
     Py_Initialize();
     bn::initialize();
