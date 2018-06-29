@@ -43,19 +43,21 @@ protected:
     public :
     
     int id;     //id key of the considered phase
-    int nstatev; //Taken from the state_variables object 
+    int nstatev; //Taken from the state_variables object
+    double density;
+    double conductivity;
     
     aba_material(); 	//default constructor
     aba_material(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for props
     
-    aba_material(const int &, const int &, const std::string &, const int &, const double &, const double &, const double &, const int &, const int &, const arma::vec &); //constructor with parameters (2nd : id, 9th : nstatev)
+    aba_material(const int &, const int &, const std::string &, const int &, const double &, const double &, const double &, const double &, const double &, const int &, const int &, const arma::vec &); //constructor with parameters (2nd : id, 9th : nstatev)
     
     aba_material(const aba_material&);	//Copy constructor
     virtual ~aba_material();
     
     using material_characteristics::update;
-    virtual void update(const int &, const int &, const std::string &, const int &, const double &, const double &, const double &, const int &,const int &, const arma::vec &);
-    virtual void update(const material_characteristics&, const state_variables&, const int &);
+    virtual void update(const int &, const int &, const std::string &, const int &, const double &, const double &, const double &, const double &, const double &, const int &, const int &, const arma::vec &);
+    virtual void update(const material_characteristics&, const double &, const double &, const state_variables&, const int &);
     
     virtual int dimstatev () const {return nstatev;}       // returns the number of props, nprops
     
