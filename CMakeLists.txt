@@ -26,6 +26,10 @@ option(DEBUG "Compile with debugging information" OFF)
 #  "${PROJECT_BINARY_DIR}/configuration.hpp"
 #)
 
+# put our local cmake find scripts at the beginning of the cmake
+# module search path
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
+
 #Setup CMake to run tests
 enable_testing()
 
@@ -38,10 +42,13 @@ include(FindArmadillo)
 find_package(Armadillo 5.2 REQUIRED)
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
+# Find FTensor
+find_package(FTensor)
+include_directories(SYSTEM ${FTENSOR_INCLUDE_DIRS})
+
 # Find CGAL
 find_package(CGAL REQUIRED COMPONENTS Core) 
 include( ${CGAL_USE_FILE} )
-
 
 #Inclusion of Boost
 find_package(Boost 1.57.0 COMPONENTS system filesystem unit_test_framework REQUIRED)
@@ -66,13 +73,13 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
 # Debugging CFLAGS.  Turn optimizations off; turn debugging symbols on.
 if(DEBUG)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O0")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++11")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++11")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++11")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++11")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Drestrict=")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
 endif(DEBUG)
 
 #if Apple OS, set the -framework Accelerate
@@ -99,13 +106,20 @@ include_directories("${PROJECT_BINARY_DIR}")
 #Command file to get all the files in the src/ and include/
 file(GLOB_RECURSE source_files src*/* include/*)
 
+set(objs
+ external/umat_externalM.o external/umat_externalT.o
+ PROPERTIES
+ EXTERNAL_OBJECT true
+ GENERATED true
+)
+
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
 target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
 
 #Define lists of executables for compilation
-set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter)
+set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
 
 #Compile public executable
 foreach (Exe_to_compile ${All_exe_to_compile})
@@ -148,10 +162,10 @@ endforeach(testSrc)
 
 
 #add_library(umat OBJECT software/umat_single.cpp)
-#set_property(TARGET umat PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++11 -DARMA_DONT_USE_WRAPPER")
+#set_property(TARGET umat PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++14 -DARMA_DONT_USE_WRAPPER")
 
 #add_library(umatT OBJECT software/umat_singleT.cpp)
-#set_property(TARGET umatT PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++11 -DARMA_DONT_USE_WRAPPER")
+#set_property(TARGET umatT PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++14 -DARMA_DONT_USE_WRAPPER")
 
 
 ################################################################################
