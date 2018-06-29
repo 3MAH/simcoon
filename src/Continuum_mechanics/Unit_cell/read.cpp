@@ -67,7 +67,7 @@ std::vector<std::string> split(const std::string &s, const char &delim)
     unit_cell_essentials.close();
 }*/
     
-void read_sections(std::vector<section_characteristics> &sections, const string &path_data, const string &inputfile) {
+void read_sections(std::vector<section_characteristics> &sections, const unsigned int &loading_type, const string &path_data, const string &inputfile) {
     
     unsigned int nsections = 0;
     std::string buffer;
@@ -104,7 +104,7 @@ void read_sections(std::vector<section_characteristics> &sections, const string 
         
 
         sections[i].abamat.resize(nprops, nstatev);
-        sections[i].abamat.update(0, 0, "umat", 1, 0., 0., 0., nprops, nstatev, zeros(nprops));
+        sections[i].abamat.update(0, 0, "umat", 1, 0., 0., 0., 0., 0., nprops, nstatev, zeros(nprops));
         
         for(int j=0; j<sections[i].abamat.nprops; j++) {
             paramphases >> buffer;
@@ -113,11 +113,24 @@ void read_sections(std::vector<section_characteristics> &sections, const string 
     paramphases.close();
     
     paramphases.open(path_inputfile, ios::in);
-    paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
+    if (loading_type == 1) {
+        paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
+    }
+    else if((loading_type == 2)||(loading_type == 3)){
+        paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
+    }
+    else
+        cout << "error in Continuum_mechanics/Unit_cell/read : loading type should take values in the range (1,3)" << endl;
+
     
     for(unsigned int i=0; i<nsections; i++) {
         
-        paramphases >> sections[i].abamat.number >> sections[i].elset_name >> sections[i].abamat.umat_name >> sections[i].abamat.psi_mat >> sections[i].abamat.theta_mat >> sections[i].abamat.phi_mat >> buffer >> buffer;
+        if (loading_type == 1) {
+            paramphases >> sections[i].abamat.number >> sections[i].elset_name >> sections[i].abamat.umat_name >> sections[i].abamat.psi_mat >> sections[i].abamat.theta_mat >> sections[i].abamat.phi_mat >> buffer >> buffer;
+        }
+        else if((loading_type == 2)||(loading_type == 3)){
+            paramphases >> sections[i].abamat.number >> sections[i].elset_name >> sections[i].abamat.umat_name >> sections[i].abamat.psi_mat >> sections[i].abamat.theta_mat >> sections[i].abamat.phi_mat >> sections[i].abamat.conductivity >> sections[i].abamat.density >> buffer >> buffer;
+        }
         
         sections[i].abamat.id = sections[i].abamat.number;
         
