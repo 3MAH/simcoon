@@ -175,7 +175,7 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
         param_aba << "*Static, direct\n" << Dn_inc*BC_Time << " ," << BC_Time << "\n";
     }
     else {
-        cout << "Error, the type of the step is not recognized (0: Automatic, 1: Fixed)" << endl;
+        cout << "Error in  Continuum_mechanics/Unit_cell/step_meca.cpp, the type of the step is not recognized (0: Automatic, 1: Fixed)" << endl;
         return;
     }
 
