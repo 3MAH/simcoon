@@ -26,6 +26,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 
 using namespace std;
 using namespace arma;
@@ -177,66 +178,6 @@ vec eta_strain(const vec &v) {
 	}
 
 }
-    
-//This function transforms the strain Voigt vector into a 3*3 strain matrix
-mat v2t_strain(const vec &v) {
-	assert(v.size()==6);
-	mat strain(3,3);
-	
-	for (int i=0; i<3; i++)
-    { strain (i,i) = v(i);
-		for (int j=i+1; j<3; j++) {
-				strain(i,j) = 0.5 * v(i+j+2);
-				strain(j,i) = 0.5 * v(i+j+2);
-			}
-		}	
-		
-	return strain;
-}
-
-//This function transforms a 3*3 strain matrix into a strain Voigt vector
-vec t2v_strain (const mat &strain) {
-	assert((strain.n_cols==3)&&(strain.n_rows==3));	
-	vec v(6);
-
-	for (int i=0; i<3; i++)
-    { v(i) = strain (i,i);
-		for (int j=i+1; j<3; j++)
-			v(i+j+2) =  strain(i,j) + strain(j,i);
-    }
-	
-	return v;
-}
-
-//This function transforms the stress Voigt vector into a 3*3 stress matrix
-mat v2t_stress(const vec &v) {
-	assert(v.size()==6);	
-	mat stress(3,3);
-	
-	for (int i=0; i<3; i++)
-    { stress (i,i) = v(i);
-		for (int j=i+1; j<3; j++) {
-				stress(i,j) = v(i+j+2);
-				stress(j,i) = v(i+j+2);
-			}
-		}	
-		
-	return stress;
-}
-
-//This function transforms a 3*3 stress matrix into a stress Voigt vector
-vec t2v_stress (const mat &stress) {
-	assert((stress.n_cols==3)&&(stress.n_rows==3));	
-	vec v(6);
-
-	for (int i=0; i<3; i++)
-    { v(i) = stress (i,i);
-		for (int j=i+1; j<3; j++)
-			v(i+j+2) =  0.5*(stress(i,j) + stress(j,i));
-    }
-	
-	return v;
-}
 
 //Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J2_stress(const vec &v) {
@@ -364,7 +305,7 @@ mat p_ikjl(const vec &a) {
 	int il=0;
 	int jk=0;
     
-    mat Id = zeros(3,3);
+    umat Id(3,3);
     Id(0,0) = 0;
     Id(0,1) = 3;
     Id(0,2) = 4;
