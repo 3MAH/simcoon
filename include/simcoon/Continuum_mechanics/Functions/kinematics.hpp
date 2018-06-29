@@ -36,6 +36,12 @@ arma::mat R_Cauchy_Green(const arma::mat &);
 //This function computes the Left Cauchy-Green B
 arma::mat L_Cauchy_Green(const arma::mat &);
 
+//This funtion computes the RU decomposition of the deformation gradient F (order of arguments: R, U, F)
+void RU_decomposition(arma::mat &, arma::mat &, const arma::mat &);
+
+//This funtion computes the VR decomposition of the deformation gradient F (order of arguments: R, V, F)
+void VR_decomposition(arma::mat &, arma::mat &, const arma::mat &);
+    
 //This function computes the common Right (or Left) Cauchy-Green invariants
 arma::vec Inv_X(const arma::mat &);
 

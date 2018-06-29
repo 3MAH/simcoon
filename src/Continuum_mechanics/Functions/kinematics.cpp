@@ -49,6 +49,18 @@ mat R_Cauchy_Green(const mat &F) {
 mat L_Cauchy_Green(const mat &F) {
     return F*F.t();
 }
+
+void RU_decomposition(mat &R, mat &U, const mat &F) {
+    mat U2 = F.t()*F;
+    U = sqrtmat_sympd(U2);
+    R = F*inv(U);
+}
+
+void VR_decomposition(mat &R, mat &V, const mat &F) {
+    mat V2 = F*F.t();
+    V = sqrtmat_sympd(V2);
+    R = inv(V)*F;
+}
     
 //This function computes the common Right (or Left) Cauchy-Green invariants
 vec Inv_X(const mat &X) {
@@ -100,8 +112,8 @@ mat finite_W(const mat &F, const mat &DF, const double &DTime) {
 
 }
     
-//This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)
-// Note : here R is the is the rigid body rotation in the polar decomposition of the deformation gradient F
+//This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
+// Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
 mat finite_Omega(const mat &R, const mat &DR, const double &DTime) {
     
     //Definition of Omega = dot(R)*R^-1 (or R.t() since R is a rotation matrix)
@@ -127,7 +139,6 @@ mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
     
     return (eye(3,3)+0.5*DTime*Omega0)*(inv(eye(3,3)-0.5*DTime*Omega1));
 }
-
     
     
 } //namespace simcoon
