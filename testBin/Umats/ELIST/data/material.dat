@@ -1,0 +1,19 @@
+Material
+Name	ELIST
+Number_of_material_parameters	8
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+axis	1
+E_L	4500
+E_T	2300
+nu_TL	0.05
+nu_TT	0.3
+G_LT	2700
+alpha_L	1.E-5
+alpha_T	2.5E-5

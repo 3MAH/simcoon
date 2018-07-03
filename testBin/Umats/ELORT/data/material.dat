@@ -1,0 +1,23 @@
+Material
+Name	ELORT
+Number_of_material_parameters	12
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+E_1     4500
+E_2     2300
+E_3     2700
+nu_12     0.06
+nu_13     0.08
+nu_23     0.3
+G_12     2200
+G_13     2100
+G_23     2400
+alpha_1     1.0E-5
+alpha_2     2.5E-5
+alpha_3     2.2E-5

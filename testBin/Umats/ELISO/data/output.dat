@@ -1,0 +1,11 @@
+#Outpout_values
+Meca   6
+0   1   2   3   4   5
+T   1
+
+Number_of_wanted_internal_variables	0
+
+#Block #type_1_N_2_T    #every
+1      1                1
+2      1                1
+3      0                0
