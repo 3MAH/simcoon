@@ -161,7 +161,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         gboys[g].construct(ngboys, n_param, id0, lambdaLM);
     }
     gen_initialize(geninit, spop, apop, idnumber, aleaspace, n_param, params, lambdaLM);
-
+    
     string data_num_folder = "num_data";
     if(!boost::filesystem::is_directory(data_num_folder)) {
         cout << "The folder for the numerical data, " << data_num_folder << ", is not present and has been created" << endl;
@@ -171,6 +171,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     /// Run the simulations corresponding to each individual
     /// The simulation input files should be ready!
     for(int i=0; i<geninit.size(); i++) {
+        
         run_simulation(simul_type, geninit.pop[i], nfiles, params, consts, data_num, data_num_folder, data_num_name, path_data, path_keys, materialfile);
         
         //Calculation of the cost function
@@ -294,7 +295,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         //In the simulation run, make sure that we remove all the temporary files
         boost::filesystem::path path_to_remove(data_num_folder);
         for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-            uintmax_t temp = boost::filesystem::remove_all(it->path());
+            boost::filesystem::remove_all(it->path());
         }
         
         //Run the identified simulation and store results in the results folder

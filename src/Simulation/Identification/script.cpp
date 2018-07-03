@@ -475,7 +475,7 @@ void run_simulation(const string &simul_type, const individual &ind, const int &
     //In the simulation run, make sure that we remove all the temporary files
     boost::filesystem::path path_to_remove(folder);
     for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-        uintmax_t temp = boost::filesystem::remove_all(it->path());
+        boost::filesystem::remove_all(it->path());
     }
     
     std::map<std::string, int> list_simul;
