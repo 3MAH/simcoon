@@ -330,7 +330,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
     string pathfile_inc;
     int conver;
     char bufferchar;
-    int nblock;
+    unsigned int nblock;
     Col<int> Equiv = subdiag2vec();
     
     std::string path_inputfile = path_data + "/" + pathfile;
