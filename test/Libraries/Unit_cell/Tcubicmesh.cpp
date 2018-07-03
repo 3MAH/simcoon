@@ -45,7 +45,7 @@ typedef Kernel::Point_3 Point;
 BOOST_AUTO_TEST_CASE( aba_construct_mesh )
 {
     
-    string path_data = "data_Unit_cell";
+    string path_data = "data";
     string path_run = "run_aba";
 //    string pointsfile = "Points.inp";
     string pointsfile = "Twill_Weave.txt";

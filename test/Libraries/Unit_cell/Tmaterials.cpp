@@ -42,7 +42,7 @@ using namespace simcoon;
 
 BOOST_AUTO_TEST_CASE( aba_write_materials )
 {
-    string path_data = "data_Unit_cell";
+    string path_data = "data";
     string inputfile_1 = "Nmat_1.inp";
     string inputfile_2 = "Nmat_2.inp";
     string inputfile_3 = "Nmat_3.inp";

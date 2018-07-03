@@ -40,7 +40,7 @@ using namespace simcoon;
 BOOST_AUTO_TEST_CASE( read_write )
 {
     
-    string path_data = "data_umat";
+    string path_data = "data";
     string materialfile = "material.dat";    
     
     double psi_rve = 0.;

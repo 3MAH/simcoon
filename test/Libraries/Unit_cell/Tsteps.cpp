@@ -40,7 +40,7 @@ using namespace simcoon;
 
 BOOST_AUTO_TEST_CASE( aba_write_steps )
 {
-    string path_data = "data_Unit_cell";
+    string path_data = "data";
     string pathfile = "path.txt";
     
     ///Usefull UMAT variables
