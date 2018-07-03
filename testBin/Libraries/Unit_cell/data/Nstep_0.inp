@@ -3,8 +3,8 @@ CentreNode, 1, 1
 CentreNode, 2, 2
 CentreNode, 3, 3
 **
-**Initial Conditions, type=TEMPERATURE
-**AllNodes, 0
+*Initial Conditions, type=TEMPERATURE
+AllNodes, 0
 **
 ** ==================
 ** STEPS

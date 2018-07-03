@@ -1,0 +1,26 @@
+** ==================
+** MATERIALS
+** ==================
+**
+*Material, name=ELISO-100000
+*Depvar
+     5
+*User Material, constants=3
+**
+3000,0.4,0
+**
+*Material, name=ELISO-100001
+*Depvar
+     5
+*User Material, constants=3
+**
+70000,0.3,0
+**
+*Orientation, name=Ori-0
+1, 0, 0, 0, 1, 0
+1, 0.
+*Solid Section, ElSet=ABAPC0, orientation=Ori-0, Material=ELISO-0
+*Orientation, name=Ori-1
+1, 0, 0, 0, 1, 0
+1, 0.
+*Solid Section, ElSet=ABAPC1, orientation=Ori-1, Material=ELISO-1
