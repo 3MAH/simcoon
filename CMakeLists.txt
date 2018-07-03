@@ -128,7 +128,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-	target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
+	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
 
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
@@ -139,8 +139,16 @@ file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
 
+        get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
+
+	file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
+	message(STATUS "Configuring ${testRel}")
         #Extract the filename without an extension (NAME_WE)
-        get_filename_component(testName ${testSrc} NAME_WE)
+        get_filename_component(testName ${testRel} NAME_WE)
+        get_filename_component(testFolder ${testRel} DIRECTORY)
+
+	message(STATUS "Configuring ${testName}")
+	message(STATUS "Configuring ${testFolder}")
 
         #Add compile target
 	link_directories ( ${BOOST_LIBRARY_DIRS} )
@@ -151,13 +159,13 @@ foreach(testSrc ${TEST_SRCS})
 
         #I like to move testing binaries into a testBin directory
         set_target_properties(${testName} PROPERTIES 
-            RUNTIME_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR}/testBin)
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
         #Finally add it to test execution - 
         #Notice the WORKING_DIRECTORY and COMMAND
-        add_test(NAME ${testName} 
-                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin 
-                 COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testName} )
+        add_test(NAME ${testFolder}/${testName} 
+                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+                 COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName} )
 endforeach(testSrc)
 
 
