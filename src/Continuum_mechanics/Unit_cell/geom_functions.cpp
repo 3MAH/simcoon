@@ -941,6 +941,8 @@ void set_CornerXpYpZp(std::vector<Node> &set, const cubic_mesh &cm_perio) {
     
 unsigned int index_from_dof(const unsigned int &dof, const unsigned int &loading_type) {
     
+    UNUSED(loading_type);
+    
     if (dof < 4) {
         return dof-1;
     }
