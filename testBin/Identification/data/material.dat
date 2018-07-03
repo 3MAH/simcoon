@@ -1,0 +1,13 @@
+Material
+Name	MIPLN
+Number_of_material_parameters	2
+Number_of_internal_variables	0
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+P1 2
+P2 0

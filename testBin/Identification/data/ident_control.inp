@@ -1,0 +1,20 @@
+Number_of_generations
+100
+Aleatory_Space_Population_0=mesh_1=meshlimit_2=random_3=defined
+2
+Space_Population
+10
+Golden_boys
+1
+Max_population_per_subgeneration
+5
+Mutation_probability_pourcentage
+5
+Perturbation
+0.001
+Lagrange_parameters
+0.001	10
+Lambda_LM
+0.01
+phiEps
+1.

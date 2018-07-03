@@ -1,0 +1,41 @@
+Weight_1_per_file
+type_0_no_weight_1_weight_per_file
+0
+#if_1_list
+
+Weight_2_per_columns
+type_0_no_weight_1_sum_per_columns_2_weight_per_columns_plus_sum_3_weight_per_columns_no_sum
+1
+#if_2_or_3_list
+
+Weight_3_or_uncertainty_per_point
+type_0_no_weight_1_weight_column_for_each_exp_col
+0
+#if_1_list_per_file_of_columns
+
+
+
+
+
+
+#Below is a reminder only
+
+Weight_1_per_file
+type_0_no_weight_1_weight_per_file
+1
+#if_1_list
+2.0
+
+Weight_2_per_columns
+type_0_no_weight_1_sum_per_columns_2_weight_per_columns_plus_sum_3_weight_per_columns_no_sum
+2
+#if_2_or_3_list
+4.0	1.0
+
+Weight_3_or_uncertainty_per_point
+type_0_no_weight_1_weight_column_for_each_exp_col
+1
+#if_1_list_per_file_of_columns
+9	10
+
+
