@@ -244,10 +244,13 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     mat invBbar = zeros(N_prony, N_prony);
     mat invBhat = zeros(N_prony, N_prony);
     std::vector<vec> P_epsilon(N_prony);
+    std::vector<double> P_theta(N_prony);
     dSdE = L0;
+    dSdT = -1.*L0*alpha;
     
     for (int i=0; i<N_prony; i++) {
         P_epsilon[i] = zeros(6);
+        P_theta[i] = 0.;
     }
     
     for (int i=0; i<N_prony; i++) {
@@ -272,13 +275,60 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_prony; i++) {
         for (int j = 0; j <N_prony; j++) {
             P_epsilon[i] += invBhat(j, i)*(L_i[j]*dPhi_idv_temp[j]);
+            P_theta[i] += invBhat(j, i)*(dPhi_idv_temp[j]*(L_i[j]*alpha));
         }
-        dSdE += -1.*(kappa_j[i]*P_epsilon[i].t());                     
+        dSdE += -1.*(kappa_j[i]*P_epsilon[i].t());
+        dSdT +=  -1.*(kappa_j[i]*P_theta[i]);
     }
     
     for (int i=0; i<N_prony; i++) {
         A_v[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
     }
+    
+    //computation of the internal energy production
+    double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);
+    double eta_r_start = c_0*log(T/T_init) + sum(alpha%sigma_start);
+    
+    double eta_ir = 0.;
+    double eta_ir_start = 0.;
+    
+    double eta = eta_r + eta_ir;
+    double eta_start = eta_r_start + eta_ir_start;
+    
+    double Deta = eta - eta_start;
+    double Deta_r = eta_r - eta_r_start;
+    double Deta_ir = eta_ir - eta_ir_start;
+    
+    vec Gamma_epsilon = zeros(6);
+    double Gamma_theta = 0.;
+    
+    vec N_epsilon = zeros(6);
+    double N_theta = 0.;
+    
+    double A_p = -Hp;
+    double dA_pdp = -dHpdp;
+    //    double A_theta = 0;
+    
+    if(DTime < 1.E-12) {
+        r = 0.;
+        drdE = zeros(6);
+        drdT = 0.;
+    }
+    else {
+        for (int i=0; i<N_prony; i++) {
+            Gamma_epsilon += (dSdE*DEV)*(1./DTime) + sum(sigma%Lambdav)*P_epsilon[0]/DTime;
+            Gamma_theta = sum(dSdT%DEV)*(1./DTime) + sum(sigma%Lambdav)*P_theta[0]/DTime;
+        }
+        
+        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
+        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
+        
+        drdE = N_epsilon + Gamma_epsilon;
+        drdT = N_theta + Gamma_theta;
+        
+        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
+    }
+    
     double Dgamma_loc = 0.;
     for (int i=0; i<N_prony; i++) {
         Dgamma_loc += 0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
@@ -292,6 +342,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     }
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
+    
+    Wt += (T+0.5*DT)*Deta;
+    Wt_r += (T+0.5*DT)*Deta_r;
+    Wt_ir = (T+0.5*DT)*Deta_ir;
     
     //Return the statev;
     statev(0) = T_init;
