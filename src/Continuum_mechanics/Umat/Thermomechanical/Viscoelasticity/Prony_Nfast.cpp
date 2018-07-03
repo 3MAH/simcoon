@@ -39,10 +39,12 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     UNUSED(tnew_dt);
     
     //From the props to the material properties
-    double E0 = props(0);
-    double nu0 = props(1);
-    double alpha_iso = props(2);
-    int N_prony = int(props(3));
+    double rho = props(0);
+    double c_p = props(1);
+    double E0 = props(2);
+    double nu0 = props(3);
+    double alpha_iso = props(4);
+    int N_prony = int(props(5));
     
     vec E_visco = zeros(N_prony);
     vec nu_visco = zeros(N_prony);
@@ -50,10 +52,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     vec etaS_visco = zeros(N_prony);
     
     for (int i=0; i<N_prony; i++) {
-        E_visco(i) = props(4+i*4);
-        nu_visco(i) = props(4+i*4+1);
-        etaB_visco(i) = props(4+i*4+2);
-        etaS_visco(i) = props(4+i*4+3);
+        E_visco(i) = props(6+i*4);
+        nu_visco(i) = props(6+i*4+1);
+        etaB_visco(i) = props(6+i*4+2);
+        etaS_visco(i) = props(6+i*4+3);
     }
     
     //definition of the CTE tensor
@@ -117,7 +119,20 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         }
         sigma = zeros(6);
         sigma_start = zeros(6);
+        
+        Wm = 0.;
+        Wm_r = 0.;
+        Wm_ir = 0.;
+        Wm_d = 0.;
+        
+        Wt = 0.;
+        Wt_r = 0.;
+        Wt_ir = 0.;
+        
     }
+    
+    //Additional parameters and variables
+    double c_0 = rho*c_p;
     
     //Variables at the start of the increment
     vec DEV_tilde = zeros(6);
@@ -275,7 +290,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_prony; i++) {
         for (int j = 0; j <N_prony; j++) {
             P_epsilon[i] += invBhat(j, i)*(L_i[j]*dPhi_idv_temp[j]);
-            P_theta[i] += invBhat(j, i)*(dPhi_idv_temp[j]*(L_i[j]*alpha));
+            P_theta[i] += invBhat(j, i)*sum(dPhi_idv_temp[j]%(L_i[j]*alpha));
         }
         dSdE += -1.*(kappa_j[i]*P_epsilon[i].t());
         dSdT +=  -1.*(kappa_j[i]*P_theta[i]);

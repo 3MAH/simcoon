@@ -135,6 +135,9 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         Wt_ir = 0.;
     }
     
+    //Additional parameters and variables
+    double c_0 = rho*c_p;
+    
     //Variables at the start of the increment
     vec DEV = zeros(6);
     vec EV_start = EV;
@@ -292,7 +295,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_kelvin; i++) {
         for (int j = 0; j <N_kelvin; j++) {
             P_epsilon[i] += invBhat(j, i)*(L0*dPhi_idsigma[j]);
-            P_theta[i] += invBhat(j, i)*(dPhi_idsigma[j]*(L0*alpha));
+            P_theta[i] += invBhat(j, i)*sum(dPhi_idsigma[j]%(L0*alpha));
             
         }
         dSdE += -1.*(kappa_j[i]*P_epsilon[i].t());
