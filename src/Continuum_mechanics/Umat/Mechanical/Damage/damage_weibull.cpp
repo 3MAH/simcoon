@@ -49,6 +49,8 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     UNUSED(nshr);
     UNUSED(tnew_dt);
     UNUSED(DR);
+    UNUSED(sigma_in);
+    UNUSED(solver_type);
     
     //From the props to the material properties
     double E = props(0);
