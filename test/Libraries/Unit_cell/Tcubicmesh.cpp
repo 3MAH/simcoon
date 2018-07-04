@@ -74,7 +74,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
 
 BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {
 
-    string path_data = "data_Unit_cell";
+    string path_data = "data";
     string pointsfile = "node_nperio.txt";
     string points_out = "node_perio0.txt";
 
