@@ -111,6 +111,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     vec sigma_start = sigma;
     std::vector<vec> DEV_i(N_kelvin);
     std::vector<vec> A_v(N_kelvin);
+    std::vector<mat> dA_dEv(N_kelvin);
     std::vector<vec> A_v_start(N_kelvin);
     
     if(start) { //Initialization
@@ -304,6 +305,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     for (int i=0; i<N_kelvin; i++) {
         A_v[i] += L_i[i]*EV_i[i];
+        dA_dEv[i] = L_i[i];
     }
 
     //computation of the internal energy production
@@ -325,20 +327,18 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     vec N_epsilon = zeros(6);
     double N_theta = 0.;
-    
-    double A_p = -Hp;
-    double dA_pdp = -dHpdp;
-    //    double A_theta = 0;
-    
+        
     if(DTime < 1.E-12) {
         r = 0.;
         drdE = zeros(6);
         drdT = 0.;
     }
     else {
-        for (int i=0; i<N_prony; i++) {
-            Gamma_epsilon += (dSdE*DEV)*(1./DTime) + sum(sigma%Lambdav)*P_epsilon[0]/DTime;
-            Gamma_theta = sum(dSdT%DEV)*(1./DTime) + sum(sigma%Lambdav)*P_theta[0]/DTime;
+        Gamma_epsilon = (dSdE*DEV)*(1./DTime);
+        Gamma_theta = sum(dSdT%DEV)*(1./DTime);
+        for (int i=0; i<N_kelvin; i++) {
+             Gamma_epsilon += sum((dA_dEv[i]*Lambdav[i])%P_epsilon[0])*(DEV_i[i]/DTime) + sum(A_v[i]%Lambdav[i])*P_epsilon[i]*(1./DTime) + sum(sigma%Lambdav[i])*P_epsilon[i]/DTime;
+             Gamma_theta += sum((dA_dEv[i]*Lambdav[i])%DEV_i[i])*P_theta[i]/DTime + sum(A_v[i]%Lambdav[i])*P_theta[i]*(1./DTime) + sum(sigma%Lambdav[i])*P_theta[i]/DTime;
         }
         
         N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
