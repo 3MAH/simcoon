@@ -79,11 +79,19 @@ BOOST_AUTO_TEST_CASE( MIMTN_solver )
     string path_comparison = "comparison/results_job_global-0.txt";
     string path_outputfile = path_results + "/" + "results_job_global-0.txt";
     
-    std::ifstream ifs1_phase(path_comparison);
-    std::ifstream ifs2_phase(path_outputfile);
+    mat C;
+    C.load(path_comparison);
+    mat R;
+    R.load(path_outputfile);
     
-    std::istream_iterator<double> b1_phase(ifs1_phase), e1_phase;
-    std::istream_iterator<double> b2_phase(ifs2_phase), e2_phase;
-    
-    BOOST_CHECK_EQUAL_COLLECTIONS(b1_phase, e1_phase, b2_phase, e2_phase);
+    for (int i=0; i<C.n_rows; i++) {
+        for (int j=0; j<C.n_cols; j++) {
+            if (fabs(C(i,j)) > iota) {
+                BOOST_CHECK( pow(pow(C(i,j),2.) - pow(R(i,j),2.),0.5)/fabs(C(i,j)) < 1.E-6 );
+            }
+            else {
+                BOOST_CHECK( pow(pow(C(i,j),2.) - pow(R(i,j),2.),0.5) < 1.E-6 );
+            }
+        }
+    }
 }
