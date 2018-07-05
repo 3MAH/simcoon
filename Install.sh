@@ -38,7 +38,7 @@ nproc_used=$(( ($(nprocs)+1)/2 ))
 
 if [ ! -d "exec" ]
 then
-    mkdir ${current_dir}/build
+    mkdir ${current_dir}/exec
     echo "exec folder created.\n"
 else
     echo "exec directory already exists."
