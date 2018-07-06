@@ -235,7 +235,7 @@ vec dEq_stress(const vec &v, const string &eq_type, const vec &param)
     else if(eq_type == "Hill") {
         return dHill_stress(v, param);
     }
-    else if(eq_type == "Prager") {
+    else if(eq_type == "Ani") {
         return dAni_stress(v, param);
     }
     else {
