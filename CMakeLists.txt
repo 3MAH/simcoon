@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 2.6)
 project(simcoon)
 
 # The version number
-set(VERSION_MAJOR 0)
+set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)
 set(VERSION_PATCH 0)
 
@@ -119,7 +119,7 @@ add_library(simcoon SHARED ${source_files})
 target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
 
 #Define lists of executables for compilation
-set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
+set (All_exe_to_compile Abaqus_apply_inter solver identification L_eff Elastic_props ODF PDF)
 
 #Compile public executable
 foreach (Exe_to_compile ${All_exe_to_compile})
