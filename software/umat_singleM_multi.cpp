@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Simulation/Solver/read.hpp>
 
 ///@param stress array containing the components of the stress tensor (dimension ntens)
 ///@param statev array containing the evolution variables (dimension nstatev)
@@ -117,25 +118,28 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	umat_name = umat_name.substr(0, 5);
 	   
     unsigned int nstatev_macro = 0;
+    unsigned int nprops_macro = 0;
     double psi_rve = 0.;
     double theta_rve = 0.;
     double phi_rve = 0.;
-    vec props_smart = zeros(nprops);
-    read_matprops(umat_name, nprops, props_smart, nstatev_macro, psi_rve, theta_rve, phi_rve, path_data, materialfile);
+    vec props_macro = zeros(nprops);
+    read_matprops(umat_name, nprops_macro, props_macro, nstatev_macro, psi_rve, theta_rve, phi_rve, path_data, materialfile);
     
-    unsigned int nstatev_multi = nstatev-statev_macro-4;
+    unsigned int nstatev_multi = nstatev-nstatev_macro-4;
     vec statev_macro = zeros(nstatev_macro);
     vec statev_multi(&statev[nstatev_macro+4], nstatev_multi, false, false);
     
     phase_characteristics rve;
     rve.construct(0,1);
     auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-    rve_sv_M->resize(nstatev_smart);
+    rve_sv_M->resize(nstatev_macro);
     rve.sptr_matprops->resize(nprops);
     
+    unsigned int pos=0;
+    
     statev_2_phases(rve, pos, statev_multi);
-	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
-    rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
+	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_macro, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+    rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_macro);
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     phases_2_statev(statev_multi, pos, rve);    
     
