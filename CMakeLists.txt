@@ -142,13 +142,9 @@ foreach(testSrc ${TEST_SRCS})
         get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 	file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
-	message(STATUS "Configuring ${testRel}")
         #Extract the filename without an extension (NAME_WE)
         get_filename_component(testName ${testRel} NAME_WE)
         get_filename_component(testFolder ${testRel} DIRECTORY)
-
-	message(STATUS "Configuring ${testName}")
-	message(STATUS "Configuring ${testFolder}")
 
         #Add compile target
 	link_directories ( ${BOOST_LIBRARY_DIRS} )
