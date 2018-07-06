@@ -76,7 +76,6 @@ int main() {
     //Read the loading path
     read_path(blocks, T_init, path_data, pathfile);
     unsigned int loading_type = blocks[0].type;
-    unsigned int control_type = blocks[0].control_type;
     
     //Phases
     string steps_file_name = "steps_file_name.inp";
@@ -88,7 +87,7 @@ int main() {
     
     //Action 3 : Sections and materials
     std::vector<section_characteristics> sections;
-    read_sections(sections, path_data, sections_file);
+    read_sections(sections, loading_type, path_data, sections_file);
     write_sections(sections, loading_type, path_run, sections_out);
     
     //Action 4 : the Periocidc Boundary Conditions : PBC & Constraint drivers : CDN
