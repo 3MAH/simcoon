@@ -304,3 +304,18 @@ The Constitutive Library
         Eel.randu(6);
         int ndi = 3;
         vec sigma =  el_pred(sigma_start,L, Eel, ndi);
+
+.. function:: mat Isotropize(const mat &Lt) {
+
+    Provides an isotropized version of an anisotropic stiffness tensor. Such isotropic tensor is called consistent since for any given strain it return the same stress as the anisotropic version.
+
+    .. code-block:: cpp
+
+        double EL = (double)rand();
+        double ET = (double)rand();
+        double nuTL = (double)rand();
+        double nuTT = (double)rand();
+        double GLT = (double)rand();
+        double axis = 1;
+        mat L_isotrans = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
+        mat L_iso = Isotropize(Lisotrans);
