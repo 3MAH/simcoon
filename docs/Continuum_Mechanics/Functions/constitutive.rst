@@ -23,7 +23,7 @@ The Constitutive Library
 
 .. function:: mat Ivol()
 
-    Provides the volumic of the identity tensor :math:`I_{vol}` written in the SMART+ formalism. So :
+    Provides the volumic of the identity tensor :math:`I_{vol}` written in the Simcoon formalism. So :
 
     .. math::
 
@@ -41,7 +41,7 @@ The Constitutive Library
 
 .. function:: mat Idev()
 
-    Provides the deviatoric of the identity tensor :math:`I_{dev}` written in the SMART+ formalism. So :
+    Provides the deviatoric of the identity tensor :math:`I_{dev}` written in the Simcoon formalism. So :
     
      .. math:: 
      
@@ -75,7 +75,7 @@ The Constitutive Library
 
 .. function:: mat Idev2()
 
-    Provides the deviatoric of the identity tensor :math:`\widehat{I}` written in the SMART+ formalism. So :
+    Provides the deviatoric of the identity tensor :math:`\widehat{I}` written in the Simcoon formalism. So :
 
     .. math::
 
