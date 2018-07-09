@@ -5,7 +5,7 @@ The Continuum Mechanics Library
 
 .. function:: double tr(const vec &v)
 
-    Provides the trace of a second order tensor written as a vector v in the SMART+ formalism.
+    Provides the trace of a second order tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -14,7 +14,7 @@ The Continuum Mechanics Library
 
 .. function:: vec dev(const vec &v)
 
-    Provides the deviatoric part of a second order tensor written as a vector v in the SMART+ formalism.
+    Provides the deviatoric part of a second order tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -23,7 +23,7 @@ The Continuum Mechanics Library
 
 .. function:: double Mises_stress(const vec &v)
 
-    Provides the Von Mises stress :math:`\sigma^{Mises}` of a second order stress tensor written as a vector v in the SMART+ formalism.
+    Provides the Von Mises stress :math:`\sigma^{Mises}` of a second order stress tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -32,7 +32,7 @@ The Continuum Mechanics Library
 
 .. function:: vec eta_stress(const vec &v)
 
-    Provides the stress flow :math:`\eta_{stress}=\frac{3/2\sigma_{dev}}{\sigma_{Mises}}` from a second order stress tensor written as a vector v in the SMART+ formalism (i.e. the shear terms are multiplied by 2, providing shear angles).
+    Provides the stress flow :math:`\eta_{stress}=\frac{3/2\sigma_{dev}}{\sigma_{Mises}}` from a second order stress tensor written as a vector v in the 'simcoon' formalism (i.e. the shear terms are multiplied by 2, providing shear angles).
 
     .. code-block:: cpp
 
@@ -41,7 +41,7 @@ The Continuum Mechanics Library
 
 .. function:: double Mises_strain(const vec &v)
 
-    Provides the Von Mises strain :math:`\varepsilon^{Mises}` of a second order stress tensor written as a vector v in the SMART+ formalism.
+    Provides the Von Mises strain :math:`\varepsilon^{Mises}` of a second order stress tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -50,7 +50,7 @@ The Continuum Mechanics Library
 
 .. function:: vec eta_strain(const vec &v)
 
-    Provides the strain flow :math:`\eta_{strain}=\frac{2/3\varepsilon_{dev}}{\varepsilon_{Mises}}` from a second order strain tensor written as a vector v in the SMART+ formalism (i.e. the shear terms are multiplied by 2, providing shear angles).
+    Provides the strain flow :math:`\eta_{strain}=\frac{2/3\varepsilon_{dev}}{\varepsilon_{Mises}}` from a second order strain tensor written as a vector v in the 'simcoon' formalism (i.e. the shear terms are multiplied by 2, providing shear angles).
 
     .. code-block:: cpp
 
@@ -59,7 +59,7 @@ The Continuum Mechanics Library
 
 .. function:: double J2_stress(const vec &v)
 
-    Provides the second invariant of a second order stress tensor written as a vector v in the SMART+ formalism.
+    Provides the second invariant of a second order stress tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -68,7 +68,7 @@ The Continuum Mechanics Library
 
 .. function:: double J2_strain(const vec &v)
 
-    Provides the second invariant of a second order strain tensor written as a vector v in the SMART+ formalism.
+    Provides the second invariant of a second order strain tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -77,7 +77,7 @@ The Continuum Mechanics Library
 
 .. function:: double J3_stress(const vec &v)
 
-    Provides the third invariant of a second order stress tensor written as a vector v in the SMART+ formalism.
+    Provides the third invariant of a second order stress tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
@@ -86,7 +86,7 @@ The Continuum Mechanics Library
 
 .. function:: double J3_strain(const vec &v)
 
-    Provides the third invariant of a second order strain tensor written as a vector v in the SMART+ formalism.
+    Provides the third invariant of a second order strain tensor written as a vector v in the 'simcoon' formalism.
 
     .. code-block:: cpp
 
