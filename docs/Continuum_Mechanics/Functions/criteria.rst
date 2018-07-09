@@ -64,7 +64,7 @@ The Criteria Library
     Returns an anisotropic configurational tensor in the Voigt format (6x6 matrix)
 
     The vector of parameters must be constituted of 9 values, respectively:
-    :math:`P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44}=P_{1212},P_{55}=P_{1313},P_66=P_{2323}`
+    :math:`P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44}=P_{1212},P_{55}=P_{1313},P_{66}=P_{2323}`
 
     .. code-block:: cpp
 
@@ -83,7 +83,10 @@ The Criteria Library
         vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
         mat P = P_Hill(P_params);
 
-    Note that the values of :math:`F^*,G^*,H^*` have been scaled up so that math:`F^*=\frac{1}{3}F,G^*=\frac{1}{3}G,H^*=\frac{1}{3}H`.
+    Note that the values of :math:`F^*,G^*,H^*` have been scaled up so that
+
+    .. math:: F^*=\frac{1}{3}F,G^*=\frac{1}{3}G,H^*=\frac{1}{3}H.
+
     The reason is that if :math:`F^*=G^*=H^*=L=M=N=1`, the Mises equivalent stress is retrieved when defining an equivalent stress based on the obtained configurational tensor (see below).
 
 .. function:: double Ani_stress(const vec &v, const mat &H)
@@ -92,7 +95,7 @@ The Criteria Library
 
     .. math::
 
-        \sigma^{Ani} = \sqrt{\frac{3.}{2.} \boldsymbol{\sigma} \cdot \boldsymbol{H} \cdot \boldsymbol{\sigma}}
+        \sigma^{Ani} = \sqrt{\frac{3}{2} \boldsymbol{\sigma} \cdot \boldsymbol{H} \cdot \boldsymbol{\sigma}}
 
     .. code-block:: cpp
 
@@ -103,7 +106,7 @@ The Criteria Library
 
 .. function:: double dAni_stress(const vec &v, const mat &H)
 
-    Returns an the derivative (with respect to stress) of an anisotropic equivalent stress, providing a configurational tensor
+    Returns the derivative (with respect to stress) of an anisotropic equivalent stress, providing a configurational tensor
 
     .. warning:: Might be not stable for pure deviatoric criteria
 
@@ -112,7 +115,7 @@ The Criteria Library
         vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
         mat P = P_Hill(P_params);
         vec sigma = randu(6);
-        vec dsigma_anidsigma = dAni_stress(sigma,P_Hill);
+        vec dsigma_anidsigma = dAni_stress(sigma,P_params);
 }
 
 .. function:: double Hill_stress(const vec &v, const vec &params)
@@ -121,49 +124,70 @@ The Criteria Library
 
     .. seealso:: The definition of the *P_Hill* function: :func:`P_Hill`.
 
-    .. math::
+    .. code-block:: cpp
 
-        \sigma^{Ani} = \sqrt{\frac{3.}{2.} \boldsymbol{\sigma} \cdot \boldsymbol{H} \cdot \boldsymbol{\sigma}}
+        vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
+        vec sigma = randu(6);
+        mat sigma_Hill = Hill_stress(sigma, P_params);
+
+.. function:: vec dHill_stress(const vec &v, const vec &params)
+
+    Returns the derivative (with respect to stress) of an Hill equivalent stress
+
+    .. warning:: Might be not stable for pure deviatoric criteria
 
     .. code-block:: cpp
 
         vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
-        mat P = P_Hill(P_params);
         vec sigma = randu(6);
-        double sigma_ani = Ani_stress(sigma,P_Hill);
+        double dsigma_Hilldsigma = dHill_stress(sigma,P_params);
 
-.. function:: double Hill_stress(const vec &v, const vec &params)
+.. function:: double Ani_stress(const vec &v, const vec &params)
 
-    Returns an the Hill equivalent stress, providing a configurational tensor
-
-    .. math::
-
-        \sigma^{Ani} = \sqrt{\frac{3.}{2.} \boldsymbol{\sigma} \cdot \boldsymbol{H} \cdot \boldsymbol{\sigma}}
+    Returns the Anisotropic stress equivalent stress, providing a set of parameters
+    .. seealso:: The definition of the *P_Ani* function: :func:`P_Ani`.
 
     .. code-block:: cpp
 
         vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
-        mat P = P_Hill(P_params);
         vec sigma = randu(6);
         double sigma_ani = Ani_stress(sigma,P_Hill);
 
-.. function:: double Hill_stress(const vec &v, const vec &params)
+.. function:: vec dAni_stress(const vec &v, const vec &params)
 
-    Returns an the Hill equivalent stress, providing a configurational tensor
+    Returns the derivative (with respect to stress) of an Anisotropic equivalent stress
 
-    .. math::
-
-        \sigma^{Ani} = \sqrt{\frac{3.}{2.} \boldsymbol{\sigma} \cdot \boldsymbol{H} \cdot \boldsymbol{\sigma}}
+    .. warning:: Might be not stable for pure deviatoric criteria
 
     .. code-block:: cpp
 
         vec P_params = {1.,1.2,1.3,0.95,0.8,1.2};
-        mat P = P_Hill(P_params);
         vec sigma = randu(6);
-        double sigma_ani = Ani_stress(sigma,P_Hill);
+        double dsigma_anidsigma = dAni_stress(sigma,P_params);
 
+.. function:: double Eq_stress(const vec &v, const string &eq_type, const vec &params)
 
-double Hill_stress(const vec &v, const vec &params) {
+    Returns the an equivalent stress, providing a set of parameters and a string to determine which equivalent stress definition will be utilized
+    The possible choices are :"Mises", "Tresca", "Prager", "Hill", "Ani"
+
+    .. code-block:: cpp
+
+        vec P_params = {0.3,2.}; //b and n parameters for the Prager criterion
+        vec sigma = randu(6);
+        double sigma_eq = Eq_stress(sigma,P_params);
+
+.. function:: double dEq_stress(const vec &v, const string &eq_type, const vec &params)
+
+    Returns the derivative with respect o stress of an equivalent stress, providing a set of parameters and a string to determine which equivalent stress definition will be utilized
+    The possible choices are :"Mises", "Tresca", "Prager", "Hill", "Ani"
+
+    .. warning:: Might be not stable for pure deviatoric criteria
+
+    .. code-block:: cpp
+
+        vec P_params = {0.3,2.}; //b and n parameters for the Prager criterion
+        vec sigma = randu(6);
+        vec dsigma_eqdsigma = Eq_stress(sigma,P_params);
 
 .. rubric:: References
 
