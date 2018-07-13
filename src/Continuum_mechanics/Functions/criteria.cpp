@@ -108,7 +108,7 @@ double Tresca_stress(const vec &v)
     return lambda(0) - lambda(2);
 }
 
-//This function returns the Prager equivalent stress.
+//This function returns the Tresca equivalent stress.
 vec dTresca_stress(const vec &v)
 {
     return eta_stress(v);
