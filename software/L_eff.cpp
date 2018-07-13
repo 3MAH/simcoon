@@ -15,9 +15,8 @@
  
  */
 
-///@file constitutive.hpp
-///@brief solver: solve the mechanical thermomechanical equilibrium			//
-//	for a homogeneous loading path, allowing repeatable steps
+///@file L_eff.cpp
+///@brief solver: Determination of the effective elastic properties	of a composite
 ///@version 1.9
 
 #include <iostream>
