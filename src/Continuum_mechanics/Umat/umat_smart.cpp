@@ -94,9 +94,9 @@ namespace simcoon{
 
 
 void size_statev(phase_characteristics &rve, unsigned int &size) {
-    
+
     for (auto r:rve.sub_phases) {
-        size+=r.sptr_sv_local->nstatev;
+        size = size + rve.sptr_sv_local->nstatev + 62;
         size_statev(r,size);
     }
 }
