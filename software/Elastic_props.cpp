@@ -28,6 +28,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_L_elastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -66,8 +67,11 @@ int main() {
     
     auto sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
 
-    //Second we call a recursive method that find all the elastic moduli iof the phases
+    //Second we call a recursive method that find all the elastic moduli of the phases
     get_L_elastic(rve);
+    
+    auto sub = rve.sub_phases[0];
+    cout << "rve.subphases[0][0]" << sub.sub_phases[0];
     
     string eq_UMAT;
     int eq_axis;
@@ -81,7 +85,7 @@ int main() {
         cout << "E = " << eq_props(0) << " ; nu = " << eq_props(1)  << endl;
     }
     else if(eq_UMAT == "ELIST") {
-        cout << " EL = " << eq_props(0) << "\n ET = " << eq_props(1) << "\n nuLT = " << eq_props(2)  << "\n nuTT = " << eq_props(3)  << "\n GLT = " << eq_props(4) << endl;
+        cout << "axis = " << eq_axis << " EL = " << eq_props(0) << "\n ET = " << eq_props(1) << "\n nuLT = " << eq_props(2)  << "\n nuTT = " << eq_props(3)  << "\n GLT = " << eq_props(4) << endl;
     }
     else if(eq_UMAT == "ELCUB") {
         cout << " E = " << eq_props(0) << "\n nu = " << eq_props(1) << "\n G = " << eq_props(2) << endl;
@@ -89,9 +93,15 @@ int main() {
     else if(eq_UMAT == "ELORT") {
         cout << " E1 = " << eq_props(0) << "\n E2 = " << eq_props(1) << "\n E3 = " << eq_props(2) << "\n nu12 = " << eq_props(3) << "\n nu13 = " << eq_props(4) << "\n nu23 = " << eq_props(5) << "\n G12 = " << eq_props(6) << "\n G13 = " << eq_props(7) << "\n G23 = " << eq_props(8) << endl;
     }
+    else if (eq_UMAT == "ELMON") {
+        cout << "axis = " << eq_axis << endl;
+    }
     else {
         cout << "No equivalent elastic props computed !" << endl;
-	}
+	}    
+    unsigned int statev_abaqus = 0;
+    size_statev(rve, statev_abaqus);
+    cout << "The Umat has a number of statev equal to: " << statev_abaqus << endl;
     
 	return 0;
 }
