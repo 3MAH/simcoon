@@ -59,7 +59,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
     //1 - We need to figure out the type of geometry and read the phase
-    if((start)||(solver_type==2)) {
+    if(start) {
         switch (method) {
                 
             case 100: case 101: case 102: case 103: {
@@ -89,7 +89,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
         
         for (int i=0; i<nphases; i++) {
             //Run the appropriate constitutive model
-            select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, 0, tnew_dt);
+            select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
         }
     }
 
@@ -141,7 +141,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
             
             //Theta method for the tangent modulus
             //mat Lt_start = umat_sub_phases_M->Lt
-            select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, 0, tnew_dt);
+            select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 
             //Theta method for the tangent modulus
             //umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
