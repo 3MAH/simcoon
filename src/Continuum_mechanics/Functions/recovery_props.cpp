@@ -108,9 +108,9 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
         umat_type = "ELMON";
         if(type_sym(0,0) == 1)
             axis = 1;
-        else if(type_sym(0,1) == 1)
+        else if(type_sym(1,0) == 1)
             axis = 2;
-        else if(type_sym(0,2) == 1)
+        else if(type_sym(2,0) == 1)
             axis = 3;
         else {
             cout << "Error in the Monoclinic check";
