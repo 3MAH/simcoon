@@ -221,7 +221,7 @@ void umat_plasticity_iso_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat 
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     
-    if (solver_type == 0) {
+    if((solver_type == 0)||(solver_type==2)) {
     
         //Computation of the tangent modulus
         mat Bhat = zeros(1, 1);

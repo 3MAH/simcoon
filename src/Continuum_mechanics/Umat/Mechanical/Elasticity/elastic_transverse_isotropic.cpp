@@ -96,7 +96,7 @@ void umat_elasticity_trans_iso(const vec &Etot, const vec &DEtot, vec &sigma, ma
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
     sigma = el_pred(Lt, Eel, ndi);
     
-    if (solver_type == 0) {
+    if((solver_type == 0)||(solver_type==2)) {
         Lt = L;
 	}
     else if(solver_type == 1) {

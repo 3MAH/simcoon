@@ -480,7 +480,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
     sigma = el_pred(L_tilde, Eel, ndi);
     
-    if (solver_type == 0) {
+    if (solver_type == 0)||(solver_type == 2) {
     
 		//Tangent modulus
 		mat B = L*inv(L_tilde);         //stress "localization factor" in damage
