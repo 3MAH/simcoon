@@ -32,7 +32,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( Prager )
+BOOST_AUTO_TEST_CASE( Aniso )
 {
     double b = 0.;
     double n = 2.;
@@ -41,6 +41,18 @@ BOOST_AUTO_TEST_CASE( Prager )
     //Check that Prager is equal to 400 in that case
     double test_tresca = Tresca_stress(sigma);
     BOOST_CHECK( test_tresca - 400. < iota );
+    
+    //Check that Prager is equal to 400 in that case
+    double test_prager = Prager_stress(sigma, b, n);
+    BOOST_CHECK( test_prager - 400. < iota );
+    
+}
+
+BOOST_AUTO_TEST_CASE( Prager )
+{
+    double b = 0.;
+    double n = 2.;
+    vec sigma = {400.,0.,0.,0.,0.,0.};
     
     //Check that Prager is equal to 400 in that case
     double test_prager = Prager_stress(sigma, b, n);
