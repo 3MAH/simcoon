@@ -28,7 +28,7 @@ using namespace arma;
 
 namespace simcoon{
     
-//This function returns damage evolution (/dt) due to interfacial stress computation
+//This function returns a file with the values computed according to an implemented function (to define)
 void func_N(const vec &params, const vec &variables, const string& N_file, const string& outputfile, const string& path_data, const string& path_results) {
     
     std::string buffer;
@@ -59,12 +59,11 @@ void func_N(const vec &params, const vec &variables, const string& N_file, const
         cum_N >> N(i) >> buffer;
     }
     cum_N.close();
-  
-    vec y;
     
     //In here you are asked to introduced the function you want to solve
     UNUSED(params);
     UNUSED(variables);
+    vec y;
 //    vec y = p_cumulative(N, variables(0), variables(1), params); Insert here the fonction you want
     
     //write in the file
