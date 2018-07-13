@@ -113,23 +113,23 @@ void get_L_elastic(phase_characteristics &rve)
             break;
         }
         case 100: {
-            for (auto r : rve.sub_phases) {
-                get_L_elastic(r);
+            for (int i=0; i<rve.sub_phases.size(); i++) {
+                get_L_elastic(rve.sub_phases[i]);
             }
             Lt_Homogeneous_E(rve);
             break;
         }
         case 101: {
-            for (auto r : rve.sub_phases) {
-                get_L_elastic(r);
+            for (int i=0; i<rve.sub_phases.size(); i++) {
+                get_L_elastic(rve.sub_phases[i]);
             }
             int n_matrix = rve.sptr_matprops->props(4);
             Lt_Mori_Tanaka(rve, n_matrix);
             break;	
         }
         case 103: {
-            for (auto r : rve.sub_phases) {
-                get_L_elastic(r);
+            for (int i=0; i<rve.sub_phases.size(); i++) {
+                get_L_elastic(rve.sub_phases[i]);
             }
             int n_matrix = rve.sptr_matprops->props(4);
             Lt_Self_Consistent(rve, n_matrix, true, 1);
@@ -140,8 +140,8 @@ void get_L_elastic(phase_characteristics &rve)
             
             while ((error > precision_micro)&&(nbiter <= maxiter_micro)) {
                 Lt_n = umat_M->Lt;
-                for (auto r : rve.sub_phases) {
-                    get_L_elastic(r);
+                for (int i=0; i<rve.sub_phases.size(); i++) {
+                    get_L_elastic(rve.sub_phases[i]);
                 }
                 Lt_Self_Consistent(rve, n_matrix, false, 1);
                 umat_M->Lt = zeros(6,6);
@@ -155,8 +155,8 @@ void get_L_elastic(phase_characteristics &rve)
             break;
         }
         case 104: {
-            for (auto r : rve.sub_phases) {
-                get_L_elastic(r);
+            for (int i=0; i<rve.sub_phases.size(); i++) {
+                get_L_elastic(rve.sub_phases[i]);
             }
             Lt_Periodic_Layer(rve);
             break;
