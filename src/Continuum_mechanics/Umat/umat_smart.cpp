@@ -96,7 +96,7 @@ namespace simcoon{
 void size_statev(phase_characteristics &rve, unsigned int &size) {
 
     for (auto r:rve.sub_phases) {
-        size = size + rve.sptr_sv_local->nstatev + 62;
+        size = size + rve.sptr_sv_local->nstatev + 57;
         size_statev(r,size);
     }
 }
@@ -125,7 +125,7 @@ void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &s
         //vec statev    nstatevX 62+nstatev
         //vec statev_start
 
-        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
 
         vec vide = zeros(6);
@@ -136,11 +136,11 @@ void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &s
         umat_phase_M->T = statev(pos+19);
         umat_phase_M->DT = statev(pos+20);
         for (int i=0; i<6; i++) {
-            umat_phase_M->L.col(i) = statev.subvec(pos+21+i*6,pos+21+i*6+6);
+            umat_phase_M->Lt.col(i) = statev.subvec(pos+21+i*6,size(vide));
         }
-        umat_phase_M->statev = statev.subvec(pos+62,pos+62+nstatev);
+        umat_phase_M->statev = statev.subvec(pos+57,size(umat_phase_M->statev));
     
-        pos+=62+nstatev;
+        pos+=57+nstatev;
         statev_2_phases(r,pos,statev);
     }
 
@@ -170,7 +170,7 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
         //vec statev    nstatevX 62+nstatev
         //vec statev_start
         
-        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
         
         vec vide = zeros(6);
@@ -180,11 +180,11 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
         statev(pos+19) = umat_phase_M->T;
         statev(pos+20) = umat_phase_M->DT;
         for (int i=0; i<6; i++) {
-            statev.subvec(pos+21+i*6,pos+21+i*6+6) = umat_phase_M->L.col(i);
+            statev.subvec(pos+21+i*6,size(vide)) = umat_phase_M->Lt.col(i);
         }
-        statev.subvec(pos+62,pos+62+nstatev) = umat_phase_M->statev;
+        statev.subvec(pos+57,size(umat_phase_M->statev)) = umat_phase_M->statev;
         
-        pos+=62+nstatev;
+        pos+=57+nstatev;
         phases_2_statev(statev,pos,r);
     }
     
@@ -588,7 +588,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
                 break;
             }
             case 100: case 101: case 103: case 104: {
-                umat_multi(rve, DR, Time, DTime, ndi, nshr, start, tnew_dt, list_umat[rve.sptr_matprops->umat_name]);
+                umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, list_umat[rve.sptr_matprops->umat_name]);
                 break;
             }
             default: {

@@ -48,7 +48,7 @@ namespace simcoon{
 
 ///@brief The table Nphases.dat will store the necessary informations about the geometry of the phases and the material properties
 
-void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &method)
+void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, const bool &start, const unsigned int &solver_type, double &tnew_dt, const int &method)
 {
 
     int nphases = phase.sptr_matprops->props(0); // Number of phases
@@ -59,7 +59,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
     //1 - We need to figure out the type of geometry and read the phase
-    if(start) {
+    if((start)||(solver_type==2)) {
         switch (method) {
                 
             case 100: case 101: case 102: case 103: {
