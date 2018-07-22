@@ -136,7 +136,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
         
         }
     
-        for (int i=0; i<phase.sub_phases.size(); i++) {
+        for (unsigned int i=0; i<phase.sub_phases.size(); i++) {
             phase.sub_phases[i].sptr_sv_global->to_start();
             
             //Theta method for the tangent modulus
