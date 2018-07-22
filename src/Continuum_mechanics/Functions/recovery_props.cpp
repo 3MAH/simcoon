@@ -87,14 +87,14 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     
     for (unsigned int i=0; i<check_sym.n_rows; i++) {
         for (unsigned int j=0; j<check_sym.n_cols; j++) {
-            if(check_sym(i,j) < limit)
+            if(check_sym(i,j) < sim_limit)
                 type_sym(i,j) = 1;
             else
                 type_sym(i,j) = 0;
         }
     }
         
-    if (check_L_sym_diff < limit)
+    if (check_L_sym_diff < sim_limit)
         maj_sym = 1;
     else
         maj_sym = 0;

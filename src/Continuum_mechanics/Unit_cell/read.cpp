@@ -138,9 +138,9 @@ void read_sections(std::vector<section_characteristics> &sections, const unsigne
             paramphases >> sections[i].abamat.props(j);
         }
         
-        sections[i].abamat.psi_mat*=(pi/180.);
-        sections[i].abamat.theta_mat*=(pi/180.);
-        sections[i].abamat.phi_mat*=(pi/180.);
+        sections[i].abamat.psi_mat*=(sim_pi/180.);
+        sections[i].abamat.theta_mat*=(sim_pi/180.);
+        sections[i].abamat.phi_mat*=(sim_pi/180.);
     }
     
     paramphases.close();

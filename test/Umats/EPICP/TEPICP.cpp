@@ -84,13 +84,13 @@ BOOST_AUTO_TEST_CASE( EPICP_solver )
     mat R;
     R.load(path_outputfile);
     
-    for (unsigned int i=0; i<C.n_rows; i++) {
-        for (unsigned int j=0; j<C.n_cols; j++) {
-            if (fabs(C(i,j)) > iota) {
+    for (int i=0; i<C.n_rows; i++) {
+        for (int j=0; j<C.n_cols; j++) {
+            if (fabs(C(i,j)) > sim_iota) {
                 BOOST_CHECK( pow(pow(C(i,j),2.) - pow(R(i,j),2.),0.5)/fabs(C(i,j)) < 1.E-6 );
             }
             else {
-                BOOST_CHECK( fabs(R(i,j)) <= iota );
+                BOOST_CHECK( pow(pow(C(i,j),2.) - pow(R(i,j),2.),0.5) < 1.E-6 );
             }
         }
     }

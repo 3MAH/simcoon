@@ -84,15 +84,20 @@ BOOST_AUTO_TEST_CASE( read_write )
     cmname[2] = 'I';
     cmname[3] = 'S';
     cmname[4] = 'O';
+    double pnewdt = 1.;
     
     bool start = false;
     double Time = 0.;
     double DTime = 0.;
     //    int solver_type = 0;
     
+    dstran[0] = 0.001;
+    dtime = 0.1;
+    
     unsigned int nstatev_multi = 0;
     unsigned int nstatev_macro = 0;
     vec props_smart = zeros(nprops);
+    int solver_type = 0;
     
     vec sigma = zeros(6);
     vec Etot = zeros(6);
@@ -123,7 +128,7 @@ BOOST_AUTO_TEST_CASE( read_write )
     
     abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev_macro, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
     smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
-    
+    select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     phases_2_statev(statev_multi, pos, rve);
     
     BOOST_CHECK_EQUAL_COLLECTIONS(statev_multi.begin(), statev_multi.end(), statev_multi_n.begin(), statev_multi_n.end());

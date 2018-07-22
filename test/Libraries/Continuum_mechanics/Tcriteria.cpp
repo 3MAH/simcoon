@@ -40,11 +40,11 @@ BOOST_AUTO_TEST_CASE( Aniso )
 
     //Check that Prager is equal to 400 in that case
     double test_tresca = Tresca_stress(sigma);
-    BOOST_CHECK( test_tresca - 400. < iota );
+    BOOST_CHECK( test_tresca - 400. < sim_iota );
     
     //Check that Prager is equal to 400 in that case
     double test_prager = Prager_stress(sigma, b, n);
-    BOOST_CHECK( test_prager - 400. < iota );
+    BOOST_CHECK( test_prager - 400. < sim_iota );
     
 }
 
@@ -56,6 +56,6 @@ BOOST_AUTO_TEST_CASE( Prager )
     
     //Check that Prager is equal to 400 in that case
     double test_prager = Prager_stress(sigma, b, n);
-    BOOST_CHECK( test_prager - 400. < iota );
+    BOOST_CHECK( test_prager - 400. < sim_iota );
     
 }

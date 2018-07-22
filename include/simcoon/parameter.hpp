@@ -28,8 +28,8 @@
 
 namespace simcoon{
 
-#ifndef pi
-#define pi boost::math::constants::pi<double>()
+#ifndef sim_pi
+#define sim_pi boost::math::constants::pi<double>()
 #endif
     
 #ifndef axis_psi
@@ -44,12 +44,12 @@ namespace simcoon{
 #define axis_phi 3
 #endif
 
-#ifndef limit
-#define limit 1E-9
+#ifndef sim_limit
+#define sim_limit 1.E-9
 #endif
 
-#ifndef iota
-#define iota 1E-12
+#ifndef sim_iota
+#define sim_iota 1.E-12
 #endif
 
 #ifndef miniter_umat

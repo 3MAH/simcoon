@@ -133,7 +133,7 @@ void umat_zener_fast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, con
         Lambdav = eta_norm_strain(flow_V1);
         dPhidsigma = invH1*(eta_norm_strain(flow_V1)%Ir05()); //Dimension of strain (similar to Lambda in general)
         
-        if (DTime > iota) {
+        if (DTime > sim_iota) {
             Phi(0) = norm_strain(flow_V1) - Ds_j(0)/DTime;
             dPhidv = -1.*sum((dPhidsigma)%(L1*Lambdav))-1./DTime;
         }
@@ -169,7 +169,7 @@ void umat_zener_fast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, con
     mat delta = eye(1,1);
     
     for (int i=0; i<1; i++) {
-        if(Ds_j[i] > iota)
+        if(Ds_j[i] > sim_iota)
             op(i) = 1.;
     }
     

@@ -145,7 +145,7 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     if (mode == 2) {
         double sum_ = 0.;
         for(int k = 0 ; k < ninc ; k++){
-            inc_coef(k) =  cos(pi + (k+1)*2.*pi/(ninc+1))+1.;
+            inc_coef(k) =  cos(sim_pi+ (k+1)*2.*sim_pi/(ninc+1))+1.;
             sum_ += inc_coef(k);
         }
         inc_coef = inc_coef*ninc/sum_;

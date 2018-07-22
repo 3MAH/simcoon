@@ -133,15 +133,16 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve.construct(0,1);
     auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
     rve_sv_M->resize(nstatev_macro);
-    rve.sptr_matprops->resize(nprops);
+    rve.sptr_matprops->resize(nprops_macro);
     
     unsigned int pos=0;
     
     statev_2_phases(rve, pos, statev_multi);
-	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_macro, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
-    rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_macro);
+	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev_macro, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_macro, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+    rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops_macro, props_macro);
+    start = true;
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
-    phases_2_statev(statev_multi, pos, rve);    
+    phases_2_statev(statev_multi, pos, rve);
     
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
 }

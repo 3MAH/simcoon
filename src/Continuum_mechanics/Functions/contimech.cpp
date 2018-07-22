@@ -241,9 +241,9 @@ double Macaulay_n(const double &d) {
 //This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
 double sign(const double &d) {
     
-    if ((d < iota)&&(fabs(d) > iota))
+    if ((d < sim_iota)&&(fabs(d) > sim_iota))
         return -1.;
-    else if(d > iota)
+    else if(d > sim_iota)
         return 1.;
     else
         return 0.;

@@ -47,12 +47,12 @@ vec get_densities_ODF(const vec &x, const string &path_data, const string &input
     vec y = zeros(x.n_elem);
     vec x_rad;
     if (!radian) {
-        x_rad = x*(pi/180.);
+        x_rad = x*(sim_pi/180.);
         if(x_rad.min() < 0.) {
             cout << "Error : x.min() < 0. Please provide an angle vector with all angles >=0.";
             return y;
         }
-        if(x_rad.max() > pi) {
+        if(x_rad.max() > sim_pi) {
             cout << "Error : x.max() > pi Please provide an angle vector with all angles <=pi/180";
             return y;
         }
@@ -62,7 +62,7 @@ vec get_densities_ODF(const vec &x, const string &path_data, const string &input
             cout << "Error : x.min() < 0. Please provide an angle vector with all angles >=0.";
             return y;
         }
-        if(x.max() > pi) {
+        if(x.max() > sim_pi) {
             cout << "Error : x.max() > pi Please provide an angle vector with all angles <=pi";
             return y;
         }
@@ -162,7 +162,7 @@ phase_characteristics discretize_ODF(const phase_characteristics &rve_init, ODF 
         fill_angles(alpha, temp, odf_rve, angles_mat);
         
         if(alpha - odf_rve.limits(0) < dalpha)
-            temp.sptr_shape->concentration = dalpha/6. * (odf_rve.density(pi+alpha-dalpha/2) + 4.*odf_rve.density(alpha) + odf_rve.density(alpha+dalpha/2));
+            temp.sptr_shape->concentration = dalpha/6. * (odf_rve.density(sim_pi+alpha-dalpha/2) + 4.*odf_rve.density(alpha) + odf_rve.density(alpha+dalpha/2));
         else
             temp.sptr_shape->concentration = dalpha/6. * (odf_rve.density(alpha-dalpha/2) + 4.*odf_rve.density(alpha) + odf_rve.density(alpha+dalpha/2));
 

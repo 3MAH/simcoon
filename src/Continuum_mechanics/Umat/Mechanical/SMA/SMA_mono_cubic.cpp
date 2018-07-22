@@ -173,7 +173,7 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
         ET = vide;
         xi = 0.;
         for(int i=0; i<nvariants; i++) {
-            xin(i) = limit;
+            xin(i) = sim_limit;
             xi += xin(i);
         }
         

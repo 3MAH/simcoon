@@ -102,7 +102,7 @@ BOOST_AUTO_TEST_CASE( identification_layers )
     read_layer(rve_layer_0, path_results, "Nlayers0.dat");
 
     for(unsigned int i=0; i<nprops; i++) {
-        if (fabs(rve_layer_0.sptr_matprops->props(i)) > iota) {
+        if (fabs(rve_layer_0.sptr_matprops->props(i)) > sim_iota) {
             BOOST_CHECK( pow(pow(rve_layer_0.sptr_matprops->props(i),2.) - pow(rve_layer_1.sptr_matprops->props(i),2.),0.5)/fabs(rve_layer_0.sptr_matprops->props(i)) < 1.E-6 );
         }
         else {

@@ -234,19 +234,19 @@ state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, co
 	L = sv.L;
 	Lt = sv.Lt;
     
-  	if(fabs(phi) > iota) {
+  	if(fabs(phi) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, -phi, axis_phi);
         sigma_in_start = rotate_stress(sigma_in_start, -phi, axis_phi);
 		L = rotateL(L, -phi, axis_phi);
 		Lt = rotateL(Lt, -phi, axis_phi);
 	}
-  	if(fabs(theta) > iota) {
+  	if(fabs(theta) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, -theta, axis_theta);
         sigma_in_start = rotate_stress(sigma_in_start, -theta, axis_theta);
 		Lt = rotateL(Lt, -theta, axis_theta);
 		L = rotateL(L, -theta, axis_theta);
 	}
-	if(fabs(psi) > iota) {
+	if(fabs(psi) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, -psi, axis_psi);
         sigma_in_start = rotate_stress(sigma_in_start, -psi, axis_psi);
 		Lt = rotateL(Lt, -psi, axis_psi);
@@ -272,19 +272,19 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
     L = sv.L;
     Lt = sv.Lt;
     
-  	if(fabs(psi) > iota) {
+  	if(fabs(psi) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, psi, axis_psi);
         sigma_in_start = rotate_stress(sigma_in_start, psi, axis_psi);
 		L = rotateL(L, psi, axis_psi);
 		Lt = rotateL(Lt, psi, axis_psi);
 	}			
-	if(fabs(theta) > iota) {
+	if(fabs(theta) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, theta, axis_theta);
         sigma_in_start = rotate_stress(sigma_in_start, theta, axis_theta);
 		L = rotateL(L, theta, axis_theta);
 		Lt = rotateL(Lt, theta, axis_theta);
 	}
-	if(fabs(phi) > iota) {
+	if(fabs(phi) > sim_iota) {
         sigma_in = rotate_stress(sigma_in, phi, axis_phi);
         sigma_in_start = rotate_stress(sigma_in_start, phi, axis_phi);
 		L = rotateL(L, phi, axis_phi);

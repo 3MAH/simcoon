@@ -288,7 +288,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     
     mat R = zeros(3,3);
     
-  	if(fabs(phi) > iota) {
+  	if(fabs(phi) > sim_iota) {
 		Etot = rotate_strain(Etot, -phi, axis_phi);
 		DEtot = rotate_strain(DEtot, -phi, axis_phi);
 		sigma = rotate_stress(sigma, -phi, axis_phi);
@@ -296,7 +296,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
         F0 = rotate_mat(F0, -phi, axis_phi);
         F1 = rotate_mat(F1, -phi, axis_phi);
 	}
-  	if(fabs(theta) > iota) {
+  	if(fabs(theta) > sim_iota) {
 		Etot = rotate_strain(Etot, -theta, axis_theta);
 		DEtot = rotate_strain(DEtot, -theta, axis_theta);
 		sigma = rotate_stress(sigma, -theta, axis_theta);
@@ -304,7 +304,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
         F0 = rotate_mat(F0, -theta, axis_theta);
         F1 = rotate_mat(F1, -theta, axis_theta);
 	}
-	if(fabs(psi) > iota) {
+	if(fabs(psi) > sim_iota) {
 		Etot = rotate_strain(Etot, -psi, axis_psi);
 		DEtot = rotate_strain(DEtot, -psi, axis_psi);
 		sigma = rotate_stress(sigma, -psi, axis_psi);
@@ -334,7 +334,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;    
     
-  	if(fabs(psi) > iota) {
+  	if(fabs(psi) > sim_iota) {
 		Etot = rotate_strain(Etot, psi, axis_psi);
 		DEtot = rotate_strain(DEtot, psi, axis_psi);
 		sigma = rotate_stress(sigma, psi, axis_psi);
@@ -342,7 +342,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
         F0 = rotate_mat(F0, psi, axis_psi);
         F1 = rotate_mat(F1, psi, axis_psi);
 	}
-	if(fabs(theta) > iota) {
+	if(fabs(theta) > sim_iota) {
 		Etot = rotate_strain(Etot, theta, axis_theta);
 		DEtot = rotate_strain(DEtot, theta, axis_theta);
 		sigma = rotate_stress(sigma, theta, axis_theta);
@@ -350,7 +350,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
         F0 = rotate_mat(F0, theta, axis_theta);
         F1 = rotate_mat(F1, theta, axis_theta);
 	}
-	if(fabs(phi) > iota) {
+	if(fabs(phi) > sim_iota) {
 		Etot = rotate_strain(Etot, phi, axis_phi);
 		DEtot = rotate_strain(DEtot, phi, axis_phi);
 		sigma = rotate_stress(sigma, phi, axis_phi);

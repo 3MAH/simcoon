@@ -37,7 +37,7 @@ void Newton_Raphon(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp,
         assert(fabs(Y_crit(i)) > 0.);
     }
     
-    if (fabs(det(denom)) > limit) {
+    if (fabs(det(denom)) > sim_limit) {
         dp = -1.*solve(denom,Phi);
     }
     else {
@@ -100,7 +100,7 @@ void Fischer_Burmeister(const vec &Phi, const vec &Y_crit, const mat &denom, vec
         
     }
     
-    if (fabs(det(denomFB)) > limit) {
+    if (fabs(det(denomFB)) > sim_limit) {
         dp = -1.*solve(denomFB,FB);
     }
     else {
@@ -218,7 +218,7 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
         }
     }
     
-    if (fabs(det(denomFB)) > limit) {
+    if (fabs(det(denomFB)) > sim_limit) {
         dp = -1.*solve(denomFB,FB);
     }
     else {
@@ -291,7 +291,7 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         
     }
     
-    if (fabs(det(denomFB)) > limit) {
+    if (fabs(det(denomFB)) > sim_limit) {
         dp = -1.*solve(denomFB, FB);
     }
     else {
@@ -421,7 +421,7 @@ void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &
         }
     }
     
-    if (fabs(det(denomFB)) > limit) {
+    if (fabs(det(denomFB)) > sim_limit) {
         dp = -1.*solve(denomFB, FB);
     }
     else {

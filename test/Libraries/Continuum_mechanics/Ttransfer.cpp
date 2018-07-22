@@ -71,27 +71,27 @@ BOOST_AUTO_TEST_CASE( v2t_func )
 	
 	//Test of v2t_strain function
 	strain = v2t_strain(zeros(6));
-    BOOST_CHECK( norm(strain,2) < iota );
+    BOOST_CHECK( norm(strain,2) < sim_iota );
 	strain = v2t_strain(test);
-    BOOST_CHECK( norm(strain - teststrain,2) < iota );
+    BOOST_CHECK( norm(strain - teststrain,2) < sim_iota );
 
     //Test of t2v_strain function
 	vec dev1 = t2v_strain(zeros(3,3));
     vec dev2 = t2v_strain(teststrain);
-    BOOST_CHECK( norm(dev1,2) < iota );
-    BOOST_CHECK( norm(dev2 - test,2) < iota );
+    BOOST_CHECK( norm(dev1,2) < sim_iota );
+    BOOST_CHECK( norm(dev2 - test,2) < sim_iota );
 
 	//Test of v2t_stress function
 	stress = v2t_stress(zeros(6));
-    BOOST_CHECK( norm(stress,2) < iota );
+    BOOST_CHECK( norm(stress,2) < sim_iota );
 	stress = v2t_stress(test);
-    BOOST_CHECK( norm(stress - teststress,2) < iota );
+    BOOST_CHECK( norm(stress - teststress,2) < sim_iota );
     
 	//Test of t2v_stress function
 	dev1 = t2v_stress(zeros(3,3));
 	dev2 = t2v_stress(teststress);
-    BOOST_CHECK( norm(dev1,2) < iota );
-    BOOST_CHECK( norm(dev2 - test,2) < iota );
+    BOOST_CHECK( norm(dev1,2) < sim_iota );
+    BOOST_CHECK( norm(dev2 - test,2) < sim_iota );
     
 }
 
@@ -176,9 +176,9 @@ BOOST_AUTO_TEST_CASE( FTensor_transfer )
 	C = mat_FTensor4(L);
 	mat L2 = FTensor4_mat(C);
 
-    BOOST_CHECK( norm(testmat2 - testmat,2) < iota );
-    BOOST_CHECK( norm(test_strain - test,2) < iota );
-    BOOST_CHECK( norm(test_stress - test,2) < iota );
-    BOOST_CHECK( norm(L2 - L,2) < iota );
+    BOOST_CHECK( norm(testmat2 - testmat,2) < sim_iota );
+    BOOST_CHECK( norm(test_strain - test,2) < sim_iota );
+    BOOST_CHECK( norm(test_stress - test,2) < sim_iota );
+    BOOST_CHECK( norm(L2 - L,2) < sim_iota );
     
 }

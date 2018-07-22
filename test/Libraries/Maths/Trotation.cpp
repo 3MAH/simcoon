@@ -40,9 +40,9 @@ BOOST_AUTO_TEST_CASE( basic_rotation )
     double theta = 42.;
     double phi = 165;
     
-    psi *= (pi/180.);
-    theta *= (pi/180.);
-    phi *= (pi/180.);
+    psi *= (sim_pi/180.);
+    theta *= (sim_pi/180.);
+    phi *= (sim_pi/180.);
     
     mat R1 = { {cos(psi),-sin(psi),0}, {sin(psi),cos(psi), 0}, {0,0,1}};
     mat R2 = { {1,0,0}, {0,cos(theta),-sin(theta)}, {0,sin(theta),cos(theta)} };
@@ -95,9 +95,9 @@ BOOST_AUTO_TEST_CASE( rotation )
     double theta = 32.;
     double phi = -4.5;
     
-    psi *= (pi/180.);
-    theta *= (pi/180.);
-    phi *= (pi/180.);
+    psi *= (sim_pi/180.);
+    theta *= (sim_pi/180.);
+    phi *= (sim_pi/180.);
     
     //Rotation
     mat R1 = { {cos(psi),-sin(psi),0}, {sin(psi),cos(psi), 0}, {0,0,1}};
