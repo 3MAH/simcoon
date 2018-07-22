@@ -69,10 +69,7 @@ int main() {
 
     //Second we call a recursive method that find all the elastic moduli of the phases
     get_L_elastic(rve);
-    
-    auto sub = rve.sub_phases[0];
-    cout << "rve.subphases[0][0]" << sub.sub_phases[0];
-    
+        
     string eq_UMAT;
     int eq_axis;
     vec eq_props;
