@@ -30,6 +30,9 @@
 #include <simcoon/Simulation/Geometry/cylinder.hpp>
 #include <simcoon/Simulation/Phase/material_characteristics.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
+#include <simcoon/Simulation/Phase/read.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
+#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 
 using namespace std;
 using namespace arma;
@@ -49,6 +52,7 @@ void get_phase_charateristics(phase_characteristics &rve, const string &path_dat
     switch (method) {
             
         case 100: case 101: case 103: {
+            
             //Definition of the static vectors x,wx,y,wy
             ellipsoid_multi::mp = rve.sptr_matprops->props(2);
             ellipsoid_multi::np = rve.sptr_matprops->props(3);
@@ -67,6 +71,10 @@ void get_phase_charateristics(phase_characteristics &rve, const string &path_dat
             read_layer(rve, path_data, inputfile);
             break;
         }
+    }
+    
+    for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
+        get_phase_charateristics(rve.sub_phases[i], path_data);
     }
 }
 
@@ -128,9 +136,9 @@ void read_phase(phase_characteristics &rve, const string &path_data, const strin
             paramphases >> r.sptr_matprops->props(j);
         }
         
-        r.sptr_matprops->psi_mat*=(pi/180.);
-        r.sptr_matprops->theta_mat*=(pi/180.);
-        r.sptr_matprops->phi_mat*=(pi/180.);
+        r.sptr_matprops->psi_mat*=(sim_pi/180.);
+        r.sptr_matprops->theta_mat*=(sim_pi/180.);
+        r.sptr_matprops->phi_mat*=(sim_pi/180.);
     }
     
     paramphases.close();
@@ -196,13 +204,13 @@ void read_layer(phase_characteristics &rve, const string &path_data, const strin
             paramphases >> r.sptr_matprops->props(j);
         }
         
-        r.sptr_matprops->psi_mat*=(pi/180.);
-        r.sptr_matprops->theta_mat*=(pi/180.);
-        r.sptr_matprops->phi_mat*=(pi/180.);
+        r.sptr_matprops->psi_mat*=(sim_pi/180.);
+        r.sptr_matprops->theta_mat*=(sim_pi/180.);
+        r.sptr_matprops->phi_mat*=(sim_pi/180.);
         
-        sptr_layer->psi_geom*=(pi/180.);
-        sptr_layer->theta_geom*=(pi/180.);
-        sptr_layer->phi_geom*=(pi/180.);
+        sptr_layer->psi_geom*=(sim_pi/180.);
+        sptr_layer->theta_geom*=(sim_pi/180.);
+        sptr_layer->phi_geom*=(sim_pi/180.);
     }
     
     paramphases.close();
@@ -268,13 +276,13 @@ void read_ellipsoid(phase_characteristics &rve, const string &path_data, const s
             paramphases >> r.sptr_matprops->props(j);
         }
         
-        r.sptr_matprops->psi_mat*=(pi/180.);
-        r.sptr_matprops->theta_mat*=(pi/180.);
-        r.sptr_matprops->phi_mat*=(pi/180.);
+        r.sptr_matprops->psi_mat*=(sim_pi/180.);
+        r.sptr_matprops->theta_mat*=(sim_pi/180.);
+        r.sptr_matprops->phi_mat*=(sim_pi/180.);
         
-        sptr_ellipsoid->psi_geom*=(pi/180.);
-        sptr_ellipsoid->theta_geom*=(pi/180.);
-        sptr_ellipsoid->phi_geom*=(pi/180.);
+        sptr_ellipsoid->psi_geom*=(sim_pi/180.);
+        sptr_ellipsoid->theta_geom*=(sim_pi/180.);
+        sptr_ellipsoid->phi_geom*=(sim_pi/180.);
     }
     paramphases.close();
     
@@ -351,13 +359,13 @@ void read_cylinder(phase_characteristics &rve, const string &path_data, const st
             paramphases >> r.sptr_matprops->props(j);
         }
         
-        r.sptr_matprops->psi_mat*=(pi/180.);
-        r.sptr_matprops->theta_mat*=(pi/180.);
-        r.sptr_matprops->phi_mat*=(pi/180.);
+        r.sptr_matprops->psi_mat*=(sim_pi/180.);
+        r.sptr_matprops->theta_mat*=(sim_pi/180.);
+        r.sptr_matprops->phi_mat*=(sim_pi/180.);
         
-        sptr_cylinder->psi_geom*=(pi/180.);
-        sptr_cylinder->theta_geom*=(pi/180.);
-        sptr_cylinder->phi_geom*=(pi/180.);
+        sptr_cylinder->psi_geom*=(sim_pi/180.);
+        sptr_cylinder->theta_geom*=(sim_pi/180.);
+        sptr_cylinder->phi_geom*=(sim_pi/180.);
     }
     paramphases.close();
     
