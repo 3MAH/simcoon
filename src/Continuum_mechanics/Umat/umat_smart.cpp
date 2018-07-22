@@ -27,8 +27,11 @@
 #include <math.h>
 #include <vector>
 #include <armadillo>
+#include <boost/dll/import.hpp> // for import_alias
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.hpp>
@@ -68,6 +71,7 @@
 
 using namespace std;
 using namespace arma;
+namespace dll = boost::dll;
 
 namespace simcoon{
 
@@ -125,14 +129,13 @@ void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &s
         //vec statev    nstatevX 62+nstatev
         //vec statev_start
 
-        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
 
         vec vide = zeros(6);
         umat_phase_M->Etot = statev.subvec(pos,size(vide));
         umat_phase_M->DEtot = statev.subvec(pos+6,size(vide));
         umat_phase_M->sigma = statev.subvec(pos+12,size(vide));
-        umat_phase_M->sigma_start = statev.subvec(pos+18,size(vide));
         umat_phase_M->T = statev(pos+19);
         umat_phase_M->DT = statev(pos+20);
         for (int i=0; i<6; i++) {
@@ -170,7 +173,7 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
         //vec statev    nstatevX 62+nstatev
         //vec statev_start
         
-        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+        shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         unsigned int nstatev = umat_phase_M->statev.n_elem;
         
         vec vide = zeros(6);
@@ -188,6 +191,70 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
         phases_2_statev(statev,pos,r);
     }
     
+}
+
+void run_umat_M_aba(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt, const string &path_external) {
+    
+	///@brief Macroscopic state variables and control increments
+	double stress[6];
+	double stran[6];
+	double dstran[6];
+	double temperature;
+	double Dtemperature;
+	
+	///@brief Umat variable list unused here
+	double sse = 0.;
+	double spd = 0.;
+	double scd = 0.;
+	double rpl = 0.;
+	double drpldt = 0.;
+	double predef = 0.;
+	double dpred = 0.;
+	int layer = 0;
+	int kspt = 0;
+	double celent = 0.;
+	double dfgrd0[9];
+	double dfgrd1[3];
+	double drplde[6];
+	double coords = 0;
+	double drot[9];
+		
+	///@brief Usefull UMAT variables
+	int ntens = 6;
+	int noel = 1;
+	int npt = 1;
+	int kstep = 0;
+	int kinc = 0;
+	double ddsdde[36];
+	double ddsddt[6];
+	char cmname[5];
+    strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
+	int nprops = rve.sptr_matprops->nprops;
+	double props[nprops];
+	int nstatev = rve.sptr_sv_global->nstatev;
+	double statev[nstatev];
+	double pnewdt = tnew_dt;
+	double time[2];
+	double dtime;
+    
+    auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+
+    //temporary variables (unused) that should not be updated (but need to be passed in for abaqus2smart_M declaration)
+    mat DR_temp = zeros(3,3);
+    double Time_temp = 0.;
+    double DTime_temp = 0.;
+
+    //
+    boost::filesystem::path lib_path(path_external);          // path_external contains path to directory with our external umat
+    boost::shared_ptr<umat_plugin_api> external_umat;            // variable to hold a pointer to plugin variable
+
+    external_umat = dll::import<umat_plugin_api>(lib_path / "umat_plugin_aba", "external_umat", dll::load_mode::append_decorations);
+
+    //the smart variables are converted to Abaqus format
+    
+    smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, rve_sv_M->nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+    external_umat->umat_(stress, statev, ddsdde, sse, spd, scd, rpl, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, predef, dpred, cmname, ndi, nshr, ntens, nstatev, props, nprops, coords, drot, pnewdt, celent, dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
+    abaqus2smart_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, rve_sv_M->statev.size(), statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time_temp, DTime_temp, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR_temp, start);
 }
     
 
@@ -237,12 +304,22 @@ void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const d
             DEtot(2) = dstran[2];
             DEtot(3) = dstran[3];
             
-            for(int i=0 ; i<4 ; i++)
-            {
-                for(int j=0 ; j<4 ; j++)
-                    Lt(j,i) = ddsdde[i*4+j];
-            }
-            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[4];
+            Lt(0,2) = ddsdde[8];
+            Lt(0,3) = ddsdde[3];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[5];
+            Lt(1,2) = ddsdde[9];
+            Lt(1,3) = ddsdde[7];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[6];
+            Lt(2,2) = ddsdde[10];
+            Lt(2,3) = ddsdde[11];
+            Lt(3,0) = ddsdde[12];
+            Lt(3,1) = ddsdde[13];
+            Lt(3,2) = ddsdde[14];
+            Lt(3,3) = ddsdde[15];
         }
         else {							// 3D
             sigma(0) = stress[0];
@@ -266,12 +343,42 @@ void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const d
             DEtot(4) = dstran[4];
             DEtot(5) = dstran[5];
             
-            for(int i=0 ; i<6 ; i++)
-            {
-                for(int j=0 ; j<6 ; j++)
-                    Lt(j,i) = ddsdde[i*6+j];
-            }
-            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[6];
+            Lt(0,2) = ddsdde[12];
+            Lt(0,3) = ddsdde[18];
+            Lt(0,4) = ddsdde[24];
+            Lt(0,5) = ddsdde[30];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[7];
+            Lt(1,2) = ddsdde[13];
+            Lt(1,3) = ddsdde[19];
+            Lt(1,4) = ddsdde[25];
+            Lt(1,5) = ddsdde[31];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[8];
+            Lt(2,2) = ddsdde[14];
+            Lt(2,3) = ddsdde[20];
+            Lt(2,4) = ddsdde[26];
+            Lt(2,5) = ddsdde[32];
+            Lt(3,0) = ddsdde[3];
+            Lt(3,1) = ddsdde[9];
+            Lt(3,2) = ddsdde[15];
+            Lt(3,3) = ddsdde[21];
+            Lt(3,4) = ddsdde[27];
+            Lt(3,5) = ddsdde[33];
+            Lt(4,0) = ddsdde[4];
+            Lt(4,1) = ddsdde[10];
+            Lt(4,2) = ddsdde[16];
+            Lt(4,3) = ddsdde[22];
+            Lt(4,4) = ddsdde[28];
+            Lt(4,5) = ddsdde[34];
+            Lt(5,0) = ddsdde[5];
+            Lt(5,1) = ddsdde[11];
+            Lt(5,2) = ddsdde[17];
+            Lt(5,3) = ddsdde[23];
+            Lt(5,4) = ddsdde[29];
+            Lt(5,5) = ddsdde[35];
         }
     }
     
@@ -313,6 +420,169 @@ void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const d
     }
     for (int i=0; i<nstatev-4; i++) {
         statev_smart(i) = statev[i+4];
+    }
+    
+}
+
+void abaqus2smart_M_full(double *stress, double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
+{
+    
+    if(ndi == 1){						// 1D
+        sigma(0) = stress[0];
+        Etot(0) = stran[0];
+        DEtot(0) = dstran[0];
+        Lt(0,0) = ddsdde[0];
+        
+    }
+    else if(ndi == 2){					// 2D Plane Stress
+        sigma(0) = stress[0];
+        sigma(1) = stress[1];
+        sigma(3) = stress[2];
+        
+        Etot(0) = stran[0];
+        Etot(1) = stran[1];
+        Etot(3) = stran[2];
+        
+        DEtot(0) = dstran[0];
+        DEtot(1) = dstran[1];
+        DEtot(3) = dstran[2];
+        
+        for(int i=0 ; i<3 ; i++)
+        {
+            for(int j=0 ; j<3 ; j++)
+                Lt(j,i) = ddsdde[i*3+j];
+        }
+    }
+    else if(ndi == 3){
+        if(nshr == 1) {
+            sigma(0) = stress[0];		// 2D Generalized Plane Strain (Plane Strain, Axisymetric)
+            sigma(1) = stress[1];
+            sigma(2) = stress[2];
+            sigma(3) = stress[3];
+            
+            Etot(0) = stran[0];
+            Etot(1) = stran[1];
+            Etot(2) = stran[2];
+            Etot(3) = stran[3];
+            
+            DEtot(0) = dstran[0];
+            DEtot(1) = dstran[1];
+            DEtot(2) = dstran[2];
+            DEtot(3) = dstran[3];
+            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[4];
+            Lt(0,2) = ddsdde[8];
+            Lt(0,3) = ddsdde[3];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[5];
+            Lt(1,2) = ddsdde[9];
+            Lt(1,3) = ddsdde[7];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[6];
+            Lt(2,2) = ddsdde[10];
+            Lt(2,3) = ddsdde[11];
+            Lt(3,0) = ddsdde[12];
+            Lt(3,1) = ddsdde[13];
+            Lt(3,2) = ddsdde[14];
+            Lt(3,3) = ddsdde[15];
+        }
+        else {							// 3D
+            sigma(0) = stress[0];
+            sigma(1) = stress[1];
+            sigma(2) = stress[2];
+            sigma(3) = stress[3];
+            sigma(4) = stress[4];
+            sigma(5) = stress[5];
+            
+            Etot(0) = stran[0];
+            Etot(1) = stran[1];
+            Etot(2) = stran[2];
+            Etot(3) = stran[3];
+            Etot(4) = stran[4];
+            Etot(5) = stran[5];
+            
+            DEtot(0) = dstran[0];
+            DEtot(1) = dstran[1];
+            DEtot(2) = dstran[2];
+            DEtot(3) = dstran[3];
+            DEtot(4) = dstran[4];
+            DEtot(5) = dstran[5];
+            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[6];
+            Lt(0,2) = ddsdde[12];
+            Lt(0,3) = ddsdde[18];
+            Lt(0,4) = ddsdde[24];
+            Lt(0,5) = ddsdde[30];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[7];
+            Lt(1,2) = ddsdde[13];
+            Lt(1,3) = ddsdde[19];
+            Lt(1,4) = ddsdde[25];
+            Lt(1,5) = ddsdde[31];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[8];
+            Lt(2,2) = ddsdde[14];
+            Lt(2,3) = ddsdde[20];
+            Lt(2,4) = ddsdde[26];
+            Lt(2,5) = ddsdde[32];
+            Lt(3,0) = ddsdde[3];
+            Lt(3,1) = ddsdde[9];
+            Lt(3,2) = ddsdde[15];
+            Lt(3,3) = ddsdde[21];
+            Lt(3,4) = ddsdde[27];
+            Lt(3,5) = ddsdde[33];
+            Lt(4,0) = ddsdde[4];
+            Lt(4,1) = ddsdde[10];
+            Lt(4,2) = ddsdde[16];
+            Lt(4,3) = ddsdde[22];
+            Lt(4,4) = ddsdde[28];
+            Lt(4,5) = ddsdde[34];
+            Lt(5,0) = ddsdde[5];
+            Lt(5,1) = ddsdde[11];
+            Lt(5,2) = ddsdde[17];
+            Lt(5,3) = ddsdde[23];
+            Lt(5,4) = ddsdde[29];
+            Lt(5,5) = ddsdde[35];
+        }
+    }
+    
+    ///@brief rotation matrix
+    DR(0,0) = drot[0];
+    DR(0,1) = drot[3];
+    DR(0,2) = drot[6];
+    DR(1,0) = drot[1];
+    DR(1,1) = drot[4];
+    DR(1,2) = drot[7];
+    DR(2,0) = drot[2];
+    DR(2,1) = drot[5];
+    DR(2,2) = drot[8];
+    
+    ///@brief Temperature and temperature increment creation
+    T = temperature;
+    DT = Dtemperature;
+    
+    ///@brief Time
+    Time = time[1];
+    DTime = dtime;
+    
+    ///@brief Initialization
+    if(Time < 1E-12)
+    {
+        start = true;
+    }
+    else
+    {
+        start = false;
+    }
+    
+    ///@brief : Pass the material properties and the internal variables
+    for (int i=0; i<nprops; i++) {
+        props_smart(i) = props[i];
+    }
+    for (int i=0; i<nstatev; i++) {
+        statev_smart(i) = statev[i];
     }
     
 }
@@ -370,10 +640,24 @@ void abaqus2smart_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
             {
                 dSdT(i,0) = ddsddt[i];
                 drpldE(i,0) = drplde[i];
-                
-                for(int j=0 ; j<4 ; j++)
-                    dSdE(j,i) = ddsdde[i*4+j];
             }
+            
+            dSdE(0,0) = ddsdde[0];
+            dSdE(0,1) = ddsdde[4];
+            dSdE(0,2) = ddsdde[8];
+            dSdE(0,3) = ddsdde[3];
+            dSdE(1,0) = ddsdde[1];
+            dSdE(1,1) = ddsdde[5];
+            dSdE(1,2) = ddsdde[9];
+            dSdE(1,3) = ddsdde[7];
+            dSdE(2,0) = ddsdde[2];
+            dSdE(2,1) = ddsdde[6];
+            dSdE(2,2) = ddsdde[10];
+            dSdE(2,3) = ddsdde[11];
+            dSdE(3,0) = ddsdde[12];
+            dSdE(3,1) = ddsdde[13];
+            dSdE(3,2) = ddsdde[14];
+            dSdE(3,3) = ddsdde[15];
             
         }
         else {							// 3D
@@ -402,10 +686,45 @@ void abaqus2smart_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
             {
                 dSdT(i,0) = ddsddt[i];
                 drpldE(i,0) = drplde[i];
-                
-                for(int j=0 ; j<6 ; j++)
-                    dSdE(j,i) = ddsdde[i*6+j];
             }
+            
+            dSdE(0,0) = ddsdde[0];
+            dSdE(0,1) = ddsdde[6];
+            dSdE(0,2) = ddsdde[12];
+            dSdE(0,3) = ddsdde[18];
+            dSdE(0,4) = ddsdde[24];
+            dSdE(0,5) = ddsdde[30];
+            dSdE(1,0) = ddsdde[1];
+            dSdE(1,1) = ddsdde[7];
+            dSdE(1,2) = ddsdde[13];
+            dSdE(1,3) = ddsdde[19];
+            dSdE(1,4) = ddsdde[25];
+            dSdE(1,5) = ddsdde[31];
+            dSdE(2,0) = ddsdde[2];
+            dSdE(2,1) = ddsdde[8];
+            dSdE(2,2) = ddsdde[14];
+            dSdE(2,3) = ddsdde[20];
+            dSdE(2,4) = ddsdde[26];
+            dSdE(2,5) = ddsdde[32];
+            dSdE(3,0) = ddsdde[3];
+            dSdE(3,1) = ddsdde[9];
+            dSdE(3,2) = ddsdde[15];
+            dSdE(3,3) = ddsdde[21];
+            dSdE(3,4) = ddsdde[27];
+            dSdE(3,5) = ddsdde[33];
+            dSdE(4,0) = ddsdde[4];
+            dSdE(4,1) = ddsdde[10];
+            dSdE(4,2) = ddsdde[16];
+            dSdE(4,3) = ddsdde[22];
+            dSdE(4,4) = ddsdde[28];
+            dSdE(4,5) = ddsdde[34];
+            dSdE(5,0) = ddsdde[5];
+            dSdE(5,1) = ddsdde[11];
+            dSdE(5,2) = ddsdde[17];
+            dSdE(5,3) = ddsdde[23];
+            dSdE(5,4) = ddsdde[29];
+            dSdE(5,5) = ddsdde[35];
+            
         }
     }
     
@@ -605,22 +924,26 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     
     tnew_dt = 1.;
     
-    select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-    
-    if (Time + DTime > limit) {
+    if (Time > sim_limit) {
         start = false;
     }
+    select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 }
 
-void run_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     
     tnew_dt = 1.;
+    string path_external = "external";
     
-    select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-    
-    if (Time + DTime > limit) {
-        start = false;
+    if (solver_type < 2) {
+        if (Time > sim_limit) {
+            start = false;
+        }
+        select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+    }
+    else if(solver_type == 2) {
+        run_umat_M_aba(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, path_external);
     }
 }
     
@@ -724,6 +1047,155 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &n
     }
     for (unsigned int i=0; i<statev_smart.n_elem; i++) {
         statev[i+4] = statev_smart(i);
+    }
+}
+
+void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *dstran, double *time, double &dtime, double &temperature, double &Dtemperature, int &nprops, double *props,  int &nstatev, double *statev, const int &ndi, const int &nshr, double *drot, const vec &sigma, const mat &Lt, const vec &Etot, const vec &DEtot, const double &T, const double &DT, const double &Time, const double &DTime, const vec &props_smart, const vec &Wm, const vec &statev_smart, const mat &DR, bool &start)
+{
+
+    UNUSED(Wm);
+    
+    if(ndi == 1) {							// 1D
+        stress[0] = sigma(0);
+        ddsdde[0] = Lt(0,0);
+    }
+    else if(ndi == 2) {						// 2D Plane Stress
+        stress[0] = sigma(0);
+        stress[1] = sigma(1);
+        stress[2] = sigma(3);
+        
+        assert(Lt(2,2) > 0.);
+        ddsdde[0] = Lt(0,0)-Lt(0,2)*Lt(2,0)/Lt(2,2);
+        ddsdde[4] = Lt(1,1)-Lt(1,2)*Lt(2,1)/Lt(2,2);
+        ddsdde[3] = Lt(0,1)-Lt(0,2)*Lt(2,1)/Lt(2,2);
+        ddsdde[1] = Lt(1,0)-Lt(1,2)*Lt(2,0)/Lt(2,2);
+        ddsdde[6] = Lt(0,3)-Lt(0,2)*Lt(2,3)/Lt(2,2);
+        ddsdde[7] = Lt(1,3)-Lt(1,2)*Lt(2,3)/Lt(2,2);
+        ddsdde[2] = Lt(3,0)-Lt(3,2)*Lt(2,0)/Lt(2,2);
+        ddsdde[5] = Lt(3,1)-Lt(3,2)*Lt(2,1)/Lt(2,2);
+        ddsdde[8] = Lt(3,3)-Lt(3,2)*Lt(2,3)/Lt(2,2);
+    }
+    else if(ndi == 3){
+        if (nshr == 1) {					// 2D Generalized Plane Strain (Plane Strain, Axisymetric)
+            stress[0] = sigma(0);
+            stress[1] = sigma(1);
+            stress[2] = sigma(2);
+            stress[3] = sigma(3);
+            
+            ddsdde[0] = Lt(0,0);
+            ddsdde[4] = Lt(0,1);
+            ddsdde[8] = Lt(0,2);
+            ddsdde[3] = Lt(0,3);
+            ddsdde[1] = Lt(1,0);
+            ddsdde[5] = Lt(1,1);
+            ddsdde[9] = Lt(1,2);
+            ddsdde[7] = Lt(1,3);
+            ddsdde[2] = Lt(2,0);
+            ddsdde[6] = Lt(2,1);
+            ddsdde[10] = Lt(2,2);
+            ddsdde[11] = Lt(2,3);
+            ddsdde[12] = Lt(3,0);
+            ddsdde[13] = Lt(3,1);
+            ddsdde[14] = Lt(3,2);
+            ddsdde[15] = Lt(3,3);
+        }
+        else {								// 3D
+            stress[0] = sigma(0);
+            stress[1] = sigma(1);
+            stress[2] = sigma(2);
+            stress[3] = sigma(3);
+            stress[4] = sigma(4);
+            stress[5] = sigma(5);
+            
+            stran[0] = Etot(0);
+            stran[1] = Etot(1);
+            stran[2] = Etot(2);
+            stran[3] = Etot(3);
+            stran[4] = Etot(4);
+            stran[5] = Etot(5);
+            
+            dstran[0] = DEtot(0);
+            dstran[1] = DEtot(1);
+            dstran[2] = DEtot(2);
+            dstran[3] = DEtot(3);
+            dstran[4] = DEtot(4);
+            dstran[5] = DEtot(5);
+            
+            ddsdde[0] = Lt(0,0);
+            ddsdde[6] = Lt(0,1);
+            ddsdde[12] = Lt(0,2);
+            ddsdde[18] = Lt(0,3);
+            ddsdde[24] = Lt(0,4);
+            ddsdde[30] = Lt(0,5);
+            ddsdde[1] = Lt(1,0);
+            ddsdde[7] = Lt(1,1);
+            ddsdde[13] = Lt(1,2);
+            ddsdde[19] = Lt(1,3);
+            ddsdde[25] = Lt(1,4);
+            ddsdde[31] = Lt(1,5);
+            ddsdde[2] = Lt(2,0);
+            ddsdde[8] = Lt(2,1);
+            ddsdde[14] = Lt(2,2);
+            ddsdde[20] = Lt(2,3);
+            ddsdde[26] = Lt(2,4);
+            ddsdde[32] = Lt(2,5);
+            ddsdde[3] = Lt(3,0);
+            ddsdde[9] = Lt(3,1);
+            ddsdde[15] = Lt(3,2);
+            ddsdde[21] = Lt(3,3);
+            ddsdde[27] = Lt(3,4);
+            ddsdde[33] = Lt(3,5);
+            ddsdde[4] = Lt(4,0);
+            ddsdde[10] = Lt(4,1);
+            ddsdde[16] = Lt(4,2);
+            ddsdde[22] = Lt(4,3);
+            ddsdde[28] = Lt(4,4);
+            ddsdde[34] = Lt(4,5);
+            ddsdde[5] = Lt(5,0);
+            ddsdde[11] = Lt(5,1);
+            ddsdde[17] = Lt(5,2);
+            ddsdde[23] = Lt(5,3);
+            ddsdde[29] = Lt(5,4);
+            ddsdde[35] = Lt(5,5);
+        }
+    }
+
+    
+    ///@brief rotation matrix
+    drot[0] = DR(0,0);
+    drot[3] = DR(0,1);
+    drot[6] = DR(0,2);
+    drot[1] = DR(1,0);
+    drot[4] = DR(1,1);
+    drot[7] = DR(1,2);
+    drot[2] = DR(2,0);
+    drot[5] = DR(2,1);
+    drot[8] = DR(2,2);
+    
+    ///@brief Temperature and temperature increment creation
+    temperature = T;
+    Dtemperature = DT;
+    
+    ///@brief Time
+    time[1] = Time;
+    dtime = DTime;
+    
+    ///@brief Initialization
+    if(Time < 1E-12)
+    {
+        start = true;
+    }
+    else
+    {
+        start = false;
+    }
+    
+    ///@brief : Pass the material properties and the internal variables
+    for (int i=0; i<nprops; i++) {
+        props[i] = props_smart(i);
+    }
+    for (int i=0; i<nstatev; i++) {
+        statev[i] = statev_smart(i);
     }
 }
     

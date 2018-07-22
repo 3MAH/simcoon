@@ -175,7 +175,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //jacobian inversion
                     invK = inv(K);
                 }
-                else if ((solver_type < 0)||(solver_type > 1)) {
+                else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
                     return;
                 }
@@ -261,7 +261,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
-                                        if(solver_type == 0){
+                                        if(solver_type != 1){
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
@@ -310,7 +310,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         error = norm(residual, 2.);
                                         
                                         if(tnew_dt < 1.) {
-                                            if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > iota)||(inforce_solver == 0)) {
+                                            if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > sim_iota)||(inforce_solver == 0)) {
                                                 compteur = maxiter_solver;
                                             }
                                         }
@@ -319,7 +319,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                 }
                                 
-/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < iota)&&(tnew_dt < 1.)) {
+/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
 //                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;
@@ -461,7 +461,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //jacobian inversion
                     invK = inv(K);
                 }
-                else if ((solver_type < 0)||(solver_type > 1)) {
+                else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
                     return;
                 }
@@ -559,7 +559,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
-                                        if(solver_type == 0){
+                                        if(solver_type != 1){
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
@@ -648,7 +648,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         error = norm(residual, 2.);
                                         
                                         if(tnew_dt < 1.) {
-                                            if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > iota)||(inforce_solver == 0)) {
+                                            if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > sim_iota)||(inforce_solver == 0)) {
                                                 compteur = maxiter_solver;
                                             }
                                         }
@@ -657,7 +657,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                 }
                                 
-                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < iota)&&(tnew_dt < 1.)) {
+                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
                                     cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;

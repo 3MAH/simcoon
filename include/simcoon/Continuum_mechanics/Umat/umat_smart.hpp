@@ -24,6 +24,10 @@
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 
+extern "C"{
+	void umat_(double *, double *, double *, double &, double &, double &, double &, double *, double *, double &, const double *, const double *, const double *, const double &, const double &, const double &, const double &, const double &, char *, const int &, const int &, const int &, const int &, const double *, const int &, const double &, const double *, double &, const double &, const double *, const double *, const int &, const int &, const double &, const int &, const int &, const int &);
+}
+
 namespace simcoon{
 
 ///@param stress array containing the components of the stress tensor (dimension ntens)
@@ -45,7 +49,7 @@ namespace simcoon{
 ///@param layer layer number - not used
 ///@param kspt section point number within the current layer - not used
 ///@param kstep step number
-///@param kinc increment number    
+///@param kinc increment number
 
 void size_statev(phase_characteristics &, unsigned int &);
     
@@ -55,7 +59,11 @@ void phases_2_statev(arma::vec &, unsigned int &, const phase_characteristics &)
     
 void abaqus2smart_M(double *, double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
 
+void abaqus2smart_M_full(double *, double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
+
 void abaqus2smart_T(double *, double *, double *, double *, double &, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
+
+void run_umat_M_aba(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &, const std::string &);
     
 void select_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
     
@@ -66,6 +74,8 @@ void run_umat_T(phase_characteristics &, const arma::mat &, const double &, cons
 void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
     
 void smart2abaqus_M(double *, double *, double *, const int &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &);
+   
+void smart2abaqus_M_full(double *, double *, double *, double *, double *, double &, double &, double &, int &, double *, int &, double *, const int &, const int &, double *, const arma::vec &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, bool &);
     
 void smart2abaqus_T(double *, double *, double *, double *, double &, double &, double *, const int &, const int &, const arma::vec &, const arma::vec &, const double &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
             
