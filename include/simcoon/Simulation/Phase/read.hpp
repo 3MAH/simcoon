@@ -27,7 +27,7 @@
 namespace simcoon{
 
 /// Function that generate a phase characteristics object
-void get_phase_charateristics(phase_characteristics &, const string &);
+void get_phase_charateristics(phase_characteristics &, const std::string &);
     
 /// Function that reads the characteristics of a phase
 void read_phase(phase_characteristics &, const std::string & = "data", const std::string & = "Nphases0.dat");
