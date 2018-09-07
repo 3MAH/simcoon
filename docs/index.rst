@@ -8,7 +8,8 @@ Contents:
 
    about.rst
    installation.rst
-   examples.rst   
+   examples.rst
+   external.rst
    Continuum_Mechanics/index.rst   
    Simulation/index.rst
 
