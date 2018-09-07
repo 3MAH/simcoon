@@ -90,10 +90,10 @@ This Library provides the macroscopic response of a composite with N phases, usi
       DTime (double): The increment of time.
     </li>
     <li>
-      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
-      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
       ndi (int): Number of direct stress components used in the analysis.
@@ -155,10 +155,10 @@ This Library provides the macroscopic response of a composite with N phases, usi
       DTime (double): The increment of time.
     </li>
     <li>
-      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
-      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
       ndi (int): Number of direct stress components used in the analysis.
@@ -220,10 +220,10 @@ This Library provides the macroscopic response of a composite with N phases, usi
       DTime (double): The increment of time.
     </li>
     <li>
-      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      sse (double): The specific elastic strain energy of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
-      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of SMART+).
+      spd (double): The specific plastic dissipation of the composite. Given at the beginning of the increment, updated at the end (unused in this version of 'simcoon').
     </li>
     <li>
       ndi (int): Number of direct stress components used in the analysis.
