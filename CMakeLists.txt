@@ -1,7 +1,9 @@
 # CMakeLists.txt
 
 cmake_minimum_required(VERSION 2.6)
-project(simcoon)
+project(simcoon CXX C)
+include(CheckIncludeFileCXX)
+include(CheckLibraryExists)
 
 # The version number
 set(VERSION_MAJOR 1)
@@ -15,6 +17,9 @@ else()
 endif()
 
 message(STATUS "Configuring ${PROJECT_NAME} ${VERSION_NUMBER}")
+
+# Adhere to GNU filesystem layout conventions
+include(GNUInstallDirs)
 
 # We default to debugging mode for developers.
 option(DEBUG "Compile with debugging information" OFF)
@@ -37,16 +42,23 @@ enable_testing()
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
+message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
+message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}"     )
+message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
+message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
+message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
+
 #Inclusion of Armadillo
 include(FindArmadillo)
 find_package(Armadillo 5.2 REQUIRED)
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
-# Find FTensor
+#Find FTensor
 find_package(FTensor)
 include_directories(SYSTEM ${FTENSOR_INCLUDE_DIRS})
 
-# Find CGAL
+#Find CGAL
 find_package(CGAL REQUIRED COMPONENTS Core) 
 include( ${CGAL_USE_FILE} )
 
@@ -91,11 +103,6 @@ endif()
 if(OPENMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
-
-if(OPENMP_FOUND)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
-
 
 #Inclusion of public headers
 include_directories(include)
