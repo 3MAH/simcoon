@@ -41,6 +41,8 @@ protected:
     arma::Col<int> cBC_meca; //True is for stress (flux), false if for strain (state)
     arma::vec BC_meca;
     arma::mat mecas;
+    arma::mat BC_R;    
+    std::vector<arma::mat> Rs;    
     double BC_T;
     int cBC_T;         //True (1) is for a heat flux entering in a material point, 0 is for fixed temperature
     arma::vec Ts;

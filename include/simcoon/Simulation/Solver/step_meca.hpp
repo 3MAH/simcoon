@@ -41,6 +41,8 @@ protected:
     arma::Col<int> cBC_meca; //True is for stress (flux), false if for strain (state)
     arma::vec BC_meca;
     arma::mat mecas;
+    arma::mat BC_R;
+    std::vector<arma::mat> Rs;
     double BC_T;
     int cBC_T;
     arma::vec Ts;
