@@ -24,6 +24,15 @@
 
 namespace simcoon{
 
+//This function returns the deviatoric part of m
+arma::mat dev(const arma::mat &m);
+
+//This function returns the spherical part of m
+arma::mat sph(const arma::mat &m);
+
+//This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
+arma::vec ER_to_F(const mat&E, const mat&R)
+
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
 arma::mat G_UdX(const arma::mat &);
 
