@@ -57,6 +57,23 @@ vec dev(const vec &v) {
 	return vdev;
 }
 
+//This function returns the deviatoric part of v
+mat dev(const mat &m) {
+	assert(m.n_rows()==3);
+	assert(m.n_cols()==3);
+
+    return m - sph(m);
+}
+
+//This function returns the deviatoric part of v
+mat sph(const mat &m) {
+	assert(m.n_rows()==3);
+	assert(m.n_cols()==3);
+
+    return (1./3.)*(m(0,0)+m(1,1)+m(2,2))*eye(3,3);
+}
+
+
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress 
 double Mises_stress(const vec &v) {
 	assert(v.size()==6);
