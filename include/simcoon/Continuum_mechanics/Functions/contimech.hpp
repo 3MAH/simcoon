@@ -30,6 +30,12 @@ double tr(const arma::vec &);
 //This function returns the deviatoric part of v
 arma::vec dev(const arma::vec &);
 
+//This function returns the deviatoric part of the matrix m
+arma::mat dev(const arma::mat &m);
+
+//This function returns the spherical part of the matrix m
+aram::mat sph(const arma::mat &m;
+
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress 
 double Mises_stress(const arma::vec &);
 
