@@ -44,8 +44,8 @@ BOOST_AUTO_TEST_CASE( dev_sph )
     
     mat testsph = (1./3.)*eye(3,3);
  
-    BOOST_CHECK( fnorm(test - testdev,2) < sim_iota );
-    BOOST_CHECK( fnorm(test - testsph,2) < sim_iota );
+    BOOST_CHECK( norm(test - testdev,2) < sim_iota );
+    BOOST_CHECK( norm(test - testsph,2) < sim_iota );
 }
 
 BOOST_AUTO_TEST_CASE( tr_dev_Mises_eta )
