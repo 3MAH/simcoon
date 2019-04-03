@@ -50,7 +50,7 @@ mat ER_to_F(const mat&E, const mat&R) {
     }
 
     //F=RU
-    return vectorise(R*U);
+    return R*U;
 }
     
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
