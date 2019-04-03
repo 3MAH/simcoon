@@ -40,12 +40,12 @@ BOOST_AUTO_TEST_CASE( dev_sph )
     mat testdev = zeros(3,3);
     testdev(0,0) = 2./3.;
     testdev(1,1) = -1./3.;
-    testdev(1,1) = -1./3.;
+    testdev(2,2) = -1./3.;
     
     mat testsph = (1./3.)*eye(3,3);
- 
-    BOOST_CHECK( norm(test - testdev,2) < sim_iota );
-    BOOST_CHECK( norm(test - testsph,2) < sim_iota );
+    
+    BOOST_CHECK( norm(sph(test) - testsph,2) < sim_iota );
+    BOOST_CHECK( norm(dev(test) - testdev,2) < sim_iota );
 }
 
 BOOST_AUTO_TEST_CASE( tr_dev_Mises_eta )
@@ -66,7 +66,8 @@ BOOST_AUTO_TEST_CASE( tr_dev_Mises_eta )
     BOOST_CHECK( fabs(tr2 - 12.) < sim_iota );
 
     //Test of dev function
-    vec dev1 = dev(zeros(6));
+    vec vide = zeros(6);
+    vec dev1 = dev(vide);
     vec dev2 = dev(test);
     double trdev2 = tr(dev2);
 	vec testdev = zeros(6);
