@@ -37,6 +37,9 @@ arma::mat v2t_stress(const arma::vec &);
 //This function transforms a 3x3 stress matrix into a stress Voigt vector
 arma::vec t2v_stress (const arma::mat &);
 
+//This function transforms a symmetric 3x3 stress matrix into vector (6 components 11,22,33,12,13,23)
+arma::vec t2v_sym (const arma::mat &);
+
 //This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
 FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &X);
 
