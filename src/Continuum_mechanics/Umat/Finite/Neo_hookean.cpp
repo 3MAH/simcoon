@@ -24,7 +24,11 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/Neo_hookean.hpp>
 
 using namespace std;
@@ -39,7 +43,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_elasticity_iso(const mat &F, vec &sigma, mat &Lt, mat &L, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void umat_neo_hookean(const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
 {  	
 
     UNUSED(nprops);
@@ -57,26 +61,8 @@ void umat_elasticity_iso(const mat &F, vec &sigma, mat &Lt, mat &L, const int &n
     double nu = props(1);
     double alpha = props(2);
 
-    mat C = R_Cauchy_Green(F);
-    mat B = L_Cauchy_Green(F);
-    
-    vec lambda = eig_sym(C);
-    
-    double I1 = pow(lambda(2),2.) + pow(lambda(1),2.) + pow(lambda(0),2.); //ascending order
-    double J = lambda(2)*lambda(1)*lambda(0);
-    double I1_bar = pow(J,-2./3.)*I1;
-    
-    double W = C10*(I1_bar-3.) + D1*pow(J-2.,2.);
-
-    double p = -2.*D1*J*(J-1);
-
-    mat I = eye(3,3);
-    mat PKII = (-2./3.)*I1_bar*inc(C) (1./J)*(-p*I)+2.*C1*dev()
-    mat sigma_Cauchy = (1./J)*(-p*I)+2.*C1*dev();
-    vec sigma = m2t_stress(sigma_Cauchy);
-
-    //Elastic stiffness tensor
-    L = L_iso(E, nu, "Enu");
+    double C_10 = E/(4.*(1+nu));
+    double D_1 = 6.*(1-2.*nu)/E;
     
     ///@brief Initialization
     if(start)
@@ -91,23 +77,51 @@ void umat_elasticity_iso(const mat &F, vec &sigma, mat &Lt, mat &L, const int &n
     }
     
 	vec sigma_start = sigma;
+    
+    //definition of the Right Cauchy-Green tensor
+    mat C = R_Cauchy_Green(F1);
+    
+    //Not utilized here, useful to find stretch
+    /*
+    vec lambda2_alpha = zeros(3);
+    vec lambda_alpha = zeros(3);
+    vec N_alpha;
+    eig_sym(lambda_alpha, N_alpha, C);
+    for(unsigned int i=0; i<3; i++) {
+        lambda_alpha(i) = sqrt(lambda2_alpha(i));
+    }
+    */
+    
+    //Invariants of C
+    double I1 = trace(C); // pow(lambda_alpha(2),2.) + pow(lambda_alpha(1),2.) + pow(lambda_alpha(0),2.); //ascending order
+    double J = det(F1); //lambda(2)*lambda(1)*lambda(0)
+    double I1_bar = pow(J,-2./3.)*I1;
+    
+    double W = C_10*(I1_bar-3.) + (1./D_1)*pow(J-1.,2.);
+
+    mat invC = inv(C);
+    mat I = eye(3,3);
+
+    //Compute the PKII stress and then the Cauchy stress
+    mat S = (-2./3.)*C_10*I1_bar*invC + 2.*C_10*(1./J)*pow(J,-2./3.)*I + (2./D_1)*(J-1)*J*invC;
+    mat sigma_Cauchy = PKII2Cauchy(S, F1, J);
+    sigma = t2v_stress(sigma_Cauchy);
 	
-	//Compute the elastic strain and the related stress	
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(L, Eel, ndi);
+    L = (-2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(invC,I)+(2./9.)*C_10*I1_bar*sym_dyadic(invC,invC)-(2./3.)*C_10*I1_bar*dinvSdS(C)
+    -(2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(I,invC)
+    +(1./D_1)*(J-1.)*J*sym_dyadic(invC,invC)+(2./D_1)*(J-1)*J*dinvSdS(C);
     
     if((solver_type == 0)||(solver_type==2)) {
         Lt = L;
 	}
-    else if(solver_type == 1) {
-        sigma_in = zeros(6);
-    }
     
     //Computation of the mechanical and thermal work quantities
+    /*
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
     Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
     Wm_ir += 0.;
     Wm_d += 0.;
+    */
     
     statev(0) = T_init;
 }
