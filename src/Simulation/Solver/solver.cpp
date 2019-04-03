@@ -203,7 +203,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
                         }
                         else if(blocks[i].control_type == 3) {
-                            sptr_meca->generate_gradU(Time, sv_M->F0, sv_M->T);
+                            sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
                         }
                         
                         nK = sum(sptr_meca->cBC_meca);
