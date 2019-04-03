@@ -47,9 +47,9 @@ mat sph(const mat &m) {
 }
 
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
-vec ER_to_F(vec &F, const mat&E, const mat&R) {
+vec ER_to_F(const mat&E, const mat&R) {
 
-    From E we compute C // E = 1/2 (C-I) --> C = U^2 = 2E+I
+    //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
     mat C = 2.*E+eye(3,3);
 
     vec lambda2_alpha;
@@ -57,16 +57,16 @@ vec ER_to_F(vec &F, const mat&E, const mat&R) {
     vec N_alpha;
 
     //Since C=U^2, an eigenvalue decomposition allows to find \lambda_alpha^2 (eigenvalues for U^2), therefore finding \lambda_alpha (eigenvalues for U) is straightforward.
-    eig_sym(lambda_alpha, N_alpha, C);
+    eig_sym(lambda2_alpha, N_alpha, C);
     mat U = zeros(3,3);
     for(unsigned int i=0; i<3; i++) {
         lambda_alpha(i) = sqrt(lambda2_alpha(i));
-        N = N_alpha.col(i);
+        vec N = N_alpha.col(i);
         U += lambda_alpha(i)*(N.t()*N);
     }
 
     //F=RU
-    return vectorize(R*U);
+    return vectorise(R*U);
 }
     
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
