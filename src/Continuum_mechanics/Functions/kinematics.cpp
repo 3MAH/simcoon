@@ -31,7 +31,7 @@ using namespace arma;
 namespace simcoon{
 
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
-vec ER_to_F(const mat&E, const mat&R) {
+mat ER_to_F(const mat&E, const mat&R) {
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
     mat C = 2.*E+eye(3,3);
