@@ -93,6 +93,10 @@ vec t2v_stress (const mat &stress) {
     return v;
 }
 
+vec t2v_sym (const mat &m) {
+    return t2v_stress(m);
+}
+
 //This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
 Tensor2<double,3,3> mat_FTensor2(const mat &m) {
     
