@@ -50,13 +50,13 @@ step_meca::step_meca() : step()
 
 step_meca::step_meca(const unsigned int &control_type) : step()
 {
-    if (control_type == 1) {
-        cBC_meca = zeros<Col<int> >(6);
-        BC_meca = zeros(6);
-    }
-    else if(control_type > 1) {
+    if (control_type == 4 || control_type == 5) { //Control with F (4) or gradU (5)
         cBC_meca = zeros<Col<int> >(9);
         BC_meca = zeros(9);
+    }
+    else {
+        cBC_meca = zeros<Col<int> >(6);
+        BC_meca = zeros(6);
     }
     BC_T = 0.;
     cBC_T = 0;
@@ -112,7 +112,7 @@ step_meca::~step_meca() {}
 void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------
 {
-    assert(control_type < 3);
+    assert(control_type <= 3);
     
     //This in for the case of an incremental path file, to get the number of increments
     string buffer;
@@ -138,10 +138,9 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     step::generate();
     
     Ts = zeros(ninc);
-    unsigned int size_meca = 6;
-
+    unsigned int size_meca = BC_meca.n_elem;
     mecas = zeros(ninc, size_meca);
-        
+    
     vec inc_coef = ones(ninc);          //If the mode is equal to 2, this is a sinuasoidal load control mode
     if (mode == 2) {
         double sum_ = 0.;
@@ -246,12 +245,12 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
 }
 
 //-------------------------------------------------------------
-void step_meca::generate_gradU(const double &mTime, const mat &mF, const double &mT)
+void step_meca::generate_kin(const double &mTime, const mat &mF, const double &mT)
 //-------------------------------------------------------------
 {
     
     unsigned int size_meca = 9;
-    assert(control_type == 3);
+    assert(control_type > 3);
     for (unsigned int k=0; k<size_meca; k++) {
         assert(cBC_meca(k) != 1);
     }
@@ -298,13 +297,21 @@ void step_meca::generate_gradU(const double &mTime, const mat &mF, const double 
             times(i) = (BC_Time)/ninc;
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
-                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3)+I2(k/3,k%3))/ninc;
+                if (control_type == 4) {
+                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
+                }
+                else if (control_type == 5) {
+                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
+                }
+                else {
+                    cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
+                }
             }
         }
     }
     else if (mode ==3){ ///Incremental loading
         
-        //Look at how many cBc are present to know the size of the file (1 for time + 6 for each meca + 1 for temperature):
+        //Look at how many cBc are present to know the size of the file (1 for time + 6/9 for each meca + 1 for temperature):
         unsigned int size_BC = size_meca + 2;
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2){
@@ -326,7 +333,15 @@ void step_meca::generate_gradU(const double &mTime, const mat &mF, const double 
         }
         for (unsigned int k=0; k<size_meca; k++) {
             if (cBC_meca(k) == 0) {
-                BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
+                if (control_type == 4) {
+                    BC_file_n(kT+1) = mF(k/3,k%3);
+                }
+                else if (control_type == 5) {
+                    BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
+                }
+                else {
+                    cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
+                }
                 kT++;
             }
         }
@@ -362,10 +377,10 @@ void step_meca::generate_gradU(const double &mTime, const mat &mF, const double 
             }
             BC_file_n = BC_file;
         }
-        //At the end, everything static becomes a stress-controlled with zeros
+        //At the end, everything static becomes a deformation-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
             if (cBC_meca(k) == 2)
-                cBC_meca(k) = 1;
+                cBC_meca(k) = 0;
         }
         
     }
@@ -438,14 +453,27 @@ ostream& operator << (ostream& s, const step_meca& stm)
 	temp(4) = 5;
 	temp(5) = 2;
     
+    unsigned int size_meca = stm.BC_meca.n_elem;
     if (stm.mode == 3) {
-        for(int k = 0 ; k < 6 ; k++) {
-            if(stm.cBC_meca(temp(k)) == 0)
-                s << "E " << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
-            else if(stm.cBC_meca(temp(k)) == 1)
-                s << "S " << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
-            else if(stm.cBC_meca(temp(k)) == 2)
-                s << 0 << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+    
+        if(stm.control_type == 4) {
+            s << "Control: " << stm.control_type << " : Transformation gradient F\n";
+        }
+        else if (stm.control_type == 5) {
+            s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
+        }
+        else {
+            if(stm.control_type == 1) { s << "Control: " << stm.control_type << " : small strain hyp.\n";}
+            if(stm.control_type == 2) { s << "Control: " << stm.control_type << " : Green-Lag / PKII\n";}
+            if(stm.control_type == 3) { s << "Control: " << stm.control_type << " : True strain / stress\n";}
+            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                if(stm.cBC_meca(temp(k)) == 0)
+                    s << "E " << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+                else if(stm.cBC_meca(temp(k)) == 1)
+                    s << "S " << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+                else if(stm.cBC_meca(temp(k)) == 2)
+                    s << 0 << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+            }
         }
         cout << "Temperature: ";
         if(stm.cBC_T == 0)
@@ -457,8 +485,26 @@ ostream& operator << (ostream& s, const step_meca& stm)
 
         s << "\tTime of the step " << stm.BC_Time << " s\n\t";
         s << "\tInitial fraction: " << stm.Dn_init << "\tMinimal fraction: " << stm.Dn_mini << "\tIncrement fraction: " << stm.Dn_inc << "\n\t";
-        for(int k = 0 ; k < 6 ; k++) {
-            s << ((stm.cBC_meca(temp(k)) == 0) ? "\tE " : "\tS ") << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+
+        if(stm.control_type == 4) {
+            s << "Control: " << stm.control_type << " : Transformation gradient F\n";
+            for(unsigned int k = 0 ; k <size_meca ; k++) {
+                s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+            }
+        }
+        else if (stm.control_type == 5) {
+            s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
+            for(unsigned int k = 0 ; k <size_meca ; k++) {
+                s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+            }
+        }
+        else {
+            if(stm.control_type == 1) { s << "Control: " << stm.control_type << " : small strain hyp.\n";}
+            if(stm.control_type == 2) { s << "Control: " << stm.control_type << " : Green-Lag / PKII\n";}
+            if(stm.control_type == 3) { s << "Control: " << stm.control_type << " : True strain / stress\n";}
+            for(unsigned int k = 0 ; k <size_meca ; k++) {
+                s << ((stm.cBC_meca(temp(k)) == 0) ? "\tE " : "\tS ") << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
+            }
         }
         s << "Temperature at the end of step: " << stm.BC_T << "\n";
     }
