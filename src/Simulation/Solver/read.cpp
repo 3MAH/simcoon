@@ -367,20 +367,31 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
                         
                         shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
+                        unsigned int size_meca = sptr_meca->BC_meca.n_elem;
                         
                         path >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer >> sptr_meca->Dn_inc >> buffer >> sptr_meca->BC_Time >> buffer;
-                        for(int k = 0 ; k < 6 ; k++) {
-                            path >> bufferchar;
-                            conver = bufferchar;
-                            if (conver == 83){
-                                sptr_meca->cBC_meca(Equiv(k)) = 1;
-                                path >> sptr_meca->BC_meca(Equiv(k));
-                            }
-                            else if (conver == 69){
-                                sptr_meca->cBC_meca(Equiv(k)) = 0;
-                                path >> sptr_meca->BC_meca(Equiv(k));
+                        
+                        if (sptr_meca->control_type <= 3) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 83){
+                                    sptr_meca->cBC_meca(Equiv(k)) = 1;
+                                    path >> sptr_meca->BC_meca(Equiv(k));
+                                }
+                                else if (conver == 69){
+                                    sptr_meca->cBC_meca(Equiv(k)) = 0;
+                                    path >> sptr_meca->BC_meca(Equiv(k));
+                                }
                             }
                         }
+                        if (sptr_meca->control_type >= 4) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                                sptr_meca->cBC_meca(k) = 0;
+                                path >> sptr_meca->BC_meca(k);
+                            }
+                        }
+                        
                         path >> buffer >> bufferchar;
                         conver = bufferchar;
                         if (conver == 84){
@@ -392,24 +403,50 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     }
                     else if (blocks[i].steps[j]->mode == 3) {
                         
-                        shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);                        
+                        shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
+                        unsigned int size_meca = sptr_meca->BC_meca.n_elem;
                         
                         path >> buffer >> pathfile_inc >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer;
                         sptr_meca->file = path_data + "/" + pathfile_inc;
                         
-                        for(int k = 0 ; k < 6 ; k++) {
-                            path >> bufferchar;
-                            conver = bufferchar;
-                            if (conver == 83){
-                                sptr_meca->cBC_meca(Equiv(k)) = 1;
+                        if (sptr_meca->control_type <= 3) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 83){
+                                    sptr_meca->cBC_meca(Equiv(k)) = 1;
+                                }
+                                else if (conver == 69) {
+                                    sptr_meca->cBC_meca(Equiv(k)) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_meca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
                             }
-                            else if (conver == 69) {
-                                sptr_meca->cBC_meca(Equiv(k)) = 0;
+                        }
+                        else if (sptr_meca->control_type == 4) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 70){
+                                    sptr_meca->cBC_meca(k) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_meca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
                             }
-                            else if (conver == 48) {
-                                sptr_meca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                        }
+                        else if (sptr_meca->control_type == 5) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 85){
+                                    sptr_meca->cBC_meca(k) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_meca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
                             }
-                                
                         }
                         path >> buffer >> bufferchar;
                         conver = bufferchar;
@@ -436,21 +473,31 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
+                        unsigned int size_meca = sptr_thermomeca->BC_meca.n_elem;
                         
                         path >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer >> sptr_thermomeca->Dn_inc >> buffer >> sptr_thermomeca->BC_Time >> buffer;
                     
-                        for(int k = 0 ; k < 6 ; k++) {
-                            path >> bufferchar;
-                            conver = bufferchar;
-                            if (conver == 83){
-                                sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
-                                path >> sptr_thermomeca->BC_meca(Equiv(k));
-                            }
-                            else if (conver == 69){
-                                sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
-                                path >> sptr_thermomeca->BC_meca(Equiv(k));
+                        if (sptr_thermomeca->control_type <= 3) {
+                            for(int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 83){
+                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
+                                    path >> sptr_thermomeca->BC_meca(Equiv(k));
+                                }
+                                else if (conver == 69){
+                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
+                                    path >> sptr_thermomeca->BC_meca(Equiv(k));
+                                }
                             }
                         }
+                        if (sptr_thermomeca->control_type >= 4) {
+                            for(int k = 0 ; k < size_meca ; k++) {
+                                sptr_thermomeca->cBC_meca(k) = 0;
+                                path >> sptr_thermomeca->BC_meca(k);
+                            }
+                        }
+                        
                         path >> buffer >> bufferchar;
                         conver = bufferchar;
                         if (conver == 81){
@@ -470,24 +517,51 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     else if (blocks[i].steps[j]->mode == 3) {
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
+                        unsigned int size_meca = sptr_thermomeca->BC_meca.n_elem;
                         
                         path >> buffer >> pathfile_inc >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer;
                         sptr_thermomeca->file = path_data + "/" + pathfile_inc;
                         
-                        for(int k = 0 ; k < 6 ; k++) {
-                            path >> bufferchar;
-                            conver = bufferchar;
-                            if (conver == 83){
-                                sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
+                        if (sptr_thermomeca->control_type <= 3) {
+                            for(int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 83){
+                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
+                                }
+                                else if (conver == 69) {
+                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
                             }
-                            else if (conver == 69) {
-                                sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
-                            }
-                            else if (conver == 48) {
-                                sptr_thermomeca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                            }
-                            
                         }
+                        else if (sptr_thermomeca->control_type == 4) {
+                            for(int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 70){
+                                    sptr_thermomeca->cBC_meca(k) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_thermomeca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
+                            }
+                        }
+                        else if (sptr_thermomeca->control_type == 5) {
+                            for(int k = 0 ; k < size_meca ; k++) {
+                                path >> bufferchar;
+                                conver = bufferchar;
+                                if (conver == 85){
+                                    sptr_thermomeca->cBC_meca(k) = 0;
+                                }
+                                else if (conver == 48) {
+                                    sptr_thermomeca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
+                                }
+                            }
+                        }
+                        
                         path >> buffer >> bufferchar;
                         conver = bufferchar;
                         if (conver == 84){
