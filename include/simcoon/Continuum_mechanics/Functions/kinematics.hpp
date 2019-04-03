@@ -24,12 +24,6 @@
 
 namespace simcoon{
 
-//This function returns the deviatoric part of m
-arma::mat dev(const arma::mat &);
-
-//This function returns the spherical part of m
-arma::mat sph(const arma::mat &);
-
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
 arma::vec ER_to_F(const arma::mat&, const arma::mat&);
 

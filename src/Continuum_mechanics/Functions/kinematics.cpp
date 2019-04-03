@@ -30,22 +30,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns the deviatoric part of m
-mat dev(const mat &m) {
-	assert(m.n_rows()==3);
-	assert(m.n_cols()==3);
-
-    return m - sph(m);
-}
-
-//This function returns the spherical part of m
-mat sph(const mat &m) {
-	assert(m.n_rows()==3);
-	assert(m.n_cols()==3);
-
-    return (1./3.)*(m(0,0)+m(1,1)+m(2,2))*eye(3,3);
-}
-
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
 vec ER_to_F(const mat&E, const mat&R) {
 
