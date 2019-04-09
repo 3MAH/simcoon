@@ -60,6 +60,7 @@ step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
     }
     BC_T = 0.;
     cBC_T = 0;
+    BC_R = eye(3,3);
 }
 
 /*!
@@ -106,7 +107,7 @@ step_thermomeca::step_thermomeca(const step_thermomeca& stm) : step(stm)
 step_thermomeca::~step_thermomeca() {}
 
 //-------------------------------------------------------------
-void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
+void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT, const mat& mR)
 //-------------------------------------------------------------
 {
 
@@ -138,6 +139,8 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
     mecas = zeros(ninc, size_meca);
+    Rs = zeros(ninc,9);
+    vec mR_vec = vectorise(mR);    
     
     vec inc_coef = ones(ninc);
     if (mode == 2) {
@@ -160,6 +163,9 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 else if (cBC_meca(k) == 0){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mEtot(k))/ninc;
                 }
+            }
+            for(unsigned int k = 0 ; k < 9 ; k++) {
+                Rs(i,k) = inc_coef(i)*(BC_R(k)-mR_vec(k))/ninc;
             }
             
             if (cBC_T == 1) {
@@ -212,6 +218,9 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         //Read all the informations and fill the meca accordingly
         pathinc.open(file, ios::in);
         
+        //For mode 3, no rotation is considered yet
+        mR_vec = vectorise(eye(3,3));
+        
         for (int i=0; i<ninc; i++) {
             
             pathinc >> buffer;
@@ -243,6 +252,10 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 }
             }
             BC_file_n = BC_file;
+
+            for(unsigned int k = 0 ; k < 9 ; k++) {
+                Rs(i,k) = mR_vec(k);
+            }
         }
         //At the end, everything static becomes a stress-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {

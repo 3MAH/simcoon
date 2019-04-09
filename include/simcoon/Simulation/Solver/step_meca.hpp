@@ -42,7 +42,7 @@ protected:
     arma::vec BC_meca;
     arma::mat mecas;
     arma::mat BC_R;
-    std::vector<arma::mat> Rs;
+    arma::mat Rs;
     double BC_T;
     int cBC_T;
     arma::vec Ts;
@@ -55,7 +55,7 @@ protected:
     virtual ~step_meca();
     
     using step::generate;
-    virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&);
+    virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&, const arma::mat&);
     virtual void generate_kin(const double&, const arma::mat&m, const double &);
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &);
     

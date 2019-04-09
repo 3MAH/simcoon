@@ -60,6 +60,7 @@ step_meca::step_meca(const unsigned int &control_type) : step()
     }
     BC_T = 0.;
     cBC_T = 0;
+    BC_R = eye(3,3);
 }
     
     
@@ -109,7 +110,7 @@ step_meca::step_meca(const step_meca& stm) : step(stm)
 step_meca::~step_meca() {}
 
 //-------------------------------------------------------------
-void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
+void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT, const mat& mR)
 //-------------------------------------------------------------
 {
     assert(control_type <= 3);
@@ -140,6 +141,8 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
     mecas = zeros(ninc, size_meca);
+    Rs = zeros(ninc,9);
+    vec mR_vec = vectorise(mR);
     
     vec inc_coef = ones(ninc);          //If the mode is equal to 2, this is a sinuasoidal load control mode
     if (mode == 2) {
@@ -164,7 +167,9 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mEtot(k))/ninc;
                 }
             }
-            
+            for(unsigned int k = 0 ; k < 9 ; k++) {
+                Rs(i,k) = inc_coef(i)*(BC_R(k)-mR_vec(k))/ninc;
+            }
         }
     }
     else if (mode ==3){ ///Incremental loading
@@ -203,6 +208,9 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
         //Read all the informations and fill the meca accordingly
         pathinc.open(file, ios::in);
         
+        //For mode 3, no rotation is considered yet
+        mR_vec = vectorise(eye(3,3));
+        
         for (int i=0; i<ninc; i++) {
 
             pathinc >> buffer;
@@ -230,6 +238,10 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
                 }
             }
             BC_file_n = BC_file;
+            
+            for(unsigned int k = 0 ; k < 9 ; k++) {
+                Rs(i,k) = mR_vec(k);
+            }
         }
         //At the end, everything static becomes a stress-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
