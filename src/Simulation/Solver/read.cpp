@@ -385,10 +385,21 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        if (sptr_meca->control_type >= 4) {
+                        else if (sptr_meca->control_type >= 4) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 sptr_meca->cBC_meca(k) = 0;
                                 path >> sptr_meca->BC_meca(k);
+                            }
+                        }
+                        else {
+                            cout << "Error in read.cpp : read_path. Please provide a valid control_type" << endl;
+                        }
+                        
+                        //Add the rotation for control_type 2 and 3
+                        if ((sptr_meca->control_type == 2)||(sptr_meca->control_type == 3)) {
+                            path >> buffer;
+                            for(unsigned int k = 0 ; k < 9 ; k++) {
+                                path >> sptr_meca->BC_R(k);
                             }
                         }
                         
@@ -398,7 +409,8 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             path >> sptr_meca->BC_T;
                         }
                         else
-                            cout << "Error, This is a mechanical step, only temperature boundary condition is allowed here\n";
+                            cout << "Error in read.cpp : read_path. This is a mechanical step, only temperature boundary condition is allowed here\n";
+                        
 
                     }
                     else if (blocks[i].steps[j]->mode == 3) {
@@ -448,6 +460,11 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
+                        else {
+                            cout << "Error in read.cpp : read_path. Please provide a valid control_type" << endl;
+                        }
+                        
+                        //Note that rotation is supposed to be zero for control_type (BC_R = eye(3,3))
                         path >> buffer >> bufferchar;
                         conver = bufferchar;
                         if (conver == 84){
@@ -478,7 +495,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         path >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer >> sptr_thermomeca->Dn_inc >> buffer >> sptr_thermomeca->BC_Time >> buffer;
                     
                         if (sptr_thermomeca->control_type <= 3) {
-                            for(int k = 0 ; k < size_meca ; k++) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
                                 if (conver == 83){
@@ -492,7 +509,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             }
                         }
                         if (sptr_thermomeca->control_type >= 4) {
-                            for(int k = 0 ; k < size_meca ; k++) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 sptr_thermomeca->cBC_meca(k) = 0;
                                 path >> sptr_thermomeca->BC_meca(k);
                             }
@@ -523,7 +540,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         sptr_thermomeca->file = path_data + "/" + pathfile_inc;
                         
                         if (sptr_thermomeca->control_type <= 3) {
-                            for(int k = 0 ; k < size_meca ; k++) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
                                 if (conver == 83){
@@ -538,7 +555,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             }
                         }
                         else if (sptr_thermomeca->control_type == 4) {
-                            for(int k = 0 ; k < size_meca ; k++) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
                                 if (conver == 70){
@@ -550,7 +567,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             }
                         }
                         else if (sptr_thermomeca->control_type == 5) {
-                            for(int k = 0 ; k < size_meca ; k++) {
+                            for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
                                 if (conver == 85){
