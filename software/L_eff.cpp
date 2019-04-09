@@ -59,7 +59,7 @@ int main() {
     
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
     rve.construct(0,1);
-    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
     
     auto sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
 
