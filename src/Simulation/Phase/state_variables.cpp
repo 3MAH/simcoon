@@ -41,7 +41,7 @@ namespace simcoon{
 */
 
 //-------------------------------------------------------------
-state_variables::state_variables() : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3)
+state_variables::state_variables() : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {
 	Etot = zeros(6);
@@ -50,6 +50,8 @@ state_variables::state_variables() : Etot(6), DEtot(6), sigma(6), sigma_start(6)
 	sigma_start = zeros(6);
     F0 = zeros(3,3);
     F1 = zeros(3,3);
+    R = zeros(3,3);
+    DR = zeros(3,3);
     T = 0.;
     DT = 0.;
 	nstatev=0;
@@ -62,7 +64,7 @@ state_variables::state_variables() : Etot(6), DEtot(6), sigma(6), sigma_start(6)
 */
 
 //-------------------------------------------------------------
-state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3)
+state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {
     
@@ -72,6 +74,8 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
     sigma_start = zeros(6);
     F0 = zeros(3,3);
     F1 = zeros(3,3);
+    R = zeros(3,3);
+    DR = zeros(3,3);
     T = 0.;
     DT = 0.;
     
@@ -90,7 +94,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -100,6 +104,10 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     assert (mF0.n_cols == 3);
     assert (mF1.n_rows == 3);
     assert (mF1.n_cols == 3);
+    assert (mR.n_rows == 3);
+    assert (mR.n_cols == 3);
+    assert (mDR.n_rows == 3);
+    assert (mDR.n_cols == 3);
 	
 	Etot = mEtot;
 	DEtot = mDEtot;
@@ -107,6 +115,8 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 	sigma_start = msigma_start;
     F0 = mF0;
     F1 = mF1;
+    R = mR;
+    DR = mDR;
     T = mT;
     DT = mDT;
     
@@ -121,7 +131,7 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 */
 
 //------------------------------------------------------
-state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3)
+state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
 //------------------------------------------------------
 {
 	Etot = sv.Etot;
@@ -130,6 +140,8 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
     T = sv.T;
     DT = sv.DT;
     
@@ -165,6 +177,8 @@ state_variables& state_variables::operator = (const state_variables& sv)
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
     T = sv.T;
     DT = sv.DT;
 
@@ -185,6 +199,8 @@ state_variables& state_variables::copy_fields(const state_variables& sv)
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
     T = sv.T;
     DT = sv.DT;
     
@@ -221,7 +237,7 @@ void state_variables::resize(const int &m, const bool &init, const double &value
     
     
 //-------------------------------------------------------------
-void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
+void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
 //-------------------------------------------------------------
 {
     assert (mEtot.size() == 6);
@@ -231,7 +247,10 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &msi
     assert (mF0.n_cols == 3);
     assert (mF1.n_rows == 3);
     assert (mF1.n_cols == 3);
-
+    assert (mR.n_rows == 3);
+    assert (mR.n_cols == 3);
+    assert (mDR.n_rows == 3);
+    assert (mDR.n_cols == 3);
     
     Etot = mEtot;
     DEtot = mDEtot;
@@ -239,6 +258,8 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &msi
     sigma_start = msigma_start;
     F0 = mF0;
     F1 = mF1;
+    R = mR;
+    DR = mDR;
     T = mT;
     DT = mDT;
     
@@ -265,6 +286,7 @@ void state_variables::set_start()
     Etot += DEtot;
     T += DT;
     F0 = F1;
+    R += DR;
 }
     
     
@@ -279,14 +301,14 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
     T = sv.T;
     DT = sv.DT;
     
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
-    
-    mat R = zeros(3,3);
     
   	if(fabs(phi) > sim_iota) {
 		Etot = rotate_strain(Etot, -phi, axis_phi);
@@ -295,6 +317,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -phi, axis_phi);
         F0 = rotate_mat(F0, -phi, axis_phi);
         F1 = rotate_mat(F1, -phi, axis_phi);
+        R = rotate_mat(R, -phi, axis_phi);
+        DR = rotate_mat(DR, -phi, axis_phi);
 	}
   	if(fabs(theta) > sim_iota) {
 		Etot = rotate_strain(Etot, -theta, axis_theta);
@@ -303,6 +327,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -theta, axis_theta);
         F0 = rotate_mat(F0, -theta, axis_theta);
         F1 = rotate_mat(F1, -theta, axis_theta);
+        R = rotate_mat(R, -theta, axis_theta);
+        DR = rotate_mat(DR, -theta, axis_theta);
 	}
 	if(fabs(psi) > sim_iota) {
 		Etot = rotate_strain(Etot, -psi, axis_psi);
@@ -311,6 +337,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -psi, axis_psi);
         F0 = rotate_mat(F0, -psi, axis_psi);
         F1 = rotate_mat(F1, -psi, axis_psi);
+        R = rotate_mat(R, -psi, axis_psi);
+        DR = rotate_mat(DR, -psi, axis_psi);
 	}
     
 	return *this;
@@ -327,6 +355,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
     T = sv.T;
     DT = sv.DT;
     
@@ -341,6 +371,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, psi, axis_psi);
         F0 = rotate_mat(F0, psi, axis_psi);
         F1 = rotate_mat(F1, psi, axis_psi);
+        R = rotate_mat(R, psi, axis_psi);
+        DR = rotate_mat(DR, psi, axis_psi);
 	}
 	if(fabs(theta) > sim_iota) {
 		Etot = rotate_strain(Etot, theta, axis_theta);
@@ -349,6 +381,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, theta, axis_theta);
         F0 = rotate_mat(F0, theta, axis_theta);
         F1 = rotate_mat(F1, theta, axis_theta);
+        R = rotate_mat(R, theta, axis_theta);
+        DR = rotate_mat(DR, theta, axis_theta);
 	}
 	if(fabs(phi) > sim_iota) {
 		Etot = rotate_strain(Etot, phi, axis_phi);
@@ -357,6 +391,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, phi, axis_phi);
         F0 = rotate_mat(F0, phi, axis_phi);
         F1 = rotate_mat(F1, phi, axis_phi);
+        R = rotate_mat(R, phi, axis_phi);
+        DR = rotate_mat(DR, phi, axis_phi);
     }
     
 	return *this;
@@ -372,6 +408,8 @@ ostream& operator << (ostream& s, const state_variables& sv)
 	s << "sigma_start: \n" << sv.sigma_start << "\n";
     s << "F0: \n" << sv.F0 << "\n";
     s << "F1: \n" << sv.F1 << "\n";
+    s << "R: \n" << sv.R << "\n";
+    s << "DR: \n" << sv.DR << "\n";
     s << "T: \n" << sv.T << "\n";
     s << "DT: \n" << sv.DT << "\n";
     
