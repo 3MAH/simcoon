@@ -144,7 +144,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
@@ -155,20 +155,20 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 sv_M->Lt = zeros(6,6);
                 
                 //At start, the rotation increment is null
-                DR = eye(3,3);
+                sv_M->DR = eye(3,3);
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
                 sv_M->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
                     //RNL
                     sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[0].steps[0]);
                     assert(blocks[i].control_type == 1);
-                    sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
+                    sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T, sv_M->R);
                     
                     Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                     
@@ -200,7 +200,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     
                         sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
                         if (blocks[i].control_type == 1) {
-                            sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
+                            sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T, sv_M->R);
                         }
                         else if(blocks[i].control_type == 3) {
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
@@ -226,14 +226,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 
                                 if(nK == 0){
                                     
-                                    if (blocks[i].control_type == 1) {
+                                    if (blocks[i].control_type <= 3) {
                                         sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
                                         
                                         run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                     }
-                                    else if(blocks[i].control_type == 3) {
+                                    else if((blocks[i].control_type == 4)||(blocks[i].control_type == 5)) {
                                         sv_M->F1 = sv_M->F0 + Dtinc*sptr_meca->mecas.row(inc).t();
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
@@ -422,7 +422,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {
@@ -454,7 +454,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 if(solver_type == 1) {
                     //RNL
                     sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[0].steps[0]);
-                    sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
+                    sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T, sv_T->R);
                     
                     Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
                     
@@ -486,7 +486,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                         
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
-                        sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
+                        sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T, sv_T->R);
                         
                         nK = sum(sptr_thermomeca->cBC_meca);
                         
