@@ -110,7 +110,7 @@ BOOST_AUTO_TEST_CASE( FTensor_transfer )
     testmat(2,2) = 6.;
     
     temp = mat_FTensor2(testmat);
-    mat testmat2 = FTensor_mat(temp);
+    mat testmat2 = FTensor2_mat(temp);
 
     vec test = zeros(6);
 	test(0) = 4.;
