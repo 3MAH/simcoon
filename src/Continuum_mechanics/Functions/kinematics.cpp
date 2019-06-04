@@ -31,26 +31,29 @@ using namespace arma;
 namespace simcoon{
 
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
-mat ER_to_F(const mat&E, const mat&R) {
+mat ER_to_F(const mat &E, const mat &R) {
+
+    assert(E.ncols == 3);
+    assert(E.nrows == 3);
+    assert(R.ncols == 3);
+    assert(R.nrows == 3);
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
     mat C = 2.*E+eye(3,3);
 
     vec lambda2_alpha;
     vec lambda_alpha = zeros(3);
-    vec N_alpha;
+    mat N_alpha;
 
     //Since C=U^2, an eigenvalue decomposition allows to find \lambda_alpha^2 (eigenvalues for U^2), therefore finding \lambda_alpha (eigenvalues for U) is straightforward.
-    eig_sym(lambda2_alpha, N_alpha, C);
+    /*eig_sym(lambda2_alpha, N_alpha, C);
     mat U = zeros(3,3);
     for(unsigned int i=0; i<3; i++) {
         lambda_alpha(i) = sqrt(lambda2_alpha(i));
         vec N = N_alpha.col(i);
-        U += lambda_alpha(i)*(N.t()*N);
-    }
-
-    //F=RU
-    return R*U;
+        U = U + (lambda_alpha(i)*(N*N.t()));
+    }*/
+    return (R*sqrtmat_sympd(C));
 }
     
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
@@ -112,23 +115,17 @@ mat Euler_Almansi(const mat &F) {
 }
     
 //This function computes the velocity difference
-mat finite_L(const mat &F, const mat &DF, const double &DTime) {
-    
-    //Inverse of F0 and F1: G0 and G1
-    mat G=inv(F);
+mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     
     //Definition of L = dot(F)*F^-1
-    return (1./DTime)*(DF)*G;
+    return (1./DTime)*(F1-F0)*inv(F1);
 }
     
 //This function computes the spin tensor W (correspond to Jaumann rate)
-mat finite_W(const mat &F, const mat &DF, const double &DTime) {
+mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
-    //Inverse of F
-    mat G=inv(F);
-    
     //Definition of L = dot(F)*F^-1
-    mat L=(1./DTime)*(DF)*G;
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
     
     //Definition of the rotation matrix Q
     return 0.5*(L-L.t());
@@ -144,13 +141,10 @@ mat finite_Omega(const mat &R, const mat &DR, const double &DTime) {
 }    
 
 //This function computes the deformation rate D
-mat finite_D(const mat &F, const mat &DF, const double &DTime) {
-    
-    //Inverse of F0 and F1: G0 and G1
-    mat G=inv(F);
+mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
     
     //Definition of L = dot(F)*F^-1
-    mat L=(1./DTime)*(DF)*G;
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
     
     //Definition of the deformation rate D
     return 0.5*(L+L.t());
