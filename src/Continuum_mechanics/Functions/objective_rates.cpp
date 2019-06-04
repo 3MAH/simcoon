@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <FTensor.hpp>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -34,11 +35,9 @@ using namespace FTensor;
 
 namespace simcoon{
 
-void Jaumann(mat &DR, mat &R, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
+void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    mat L0 = (1./DTime)*(F1-F0)*inv(F0);
-    mat L1 = (1./DTime)*(F1-F0)*inv(F1);
-    mat L = 0.5*L0+0.5*L1;
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
     
     //decomposition of L
     D = 0.5*(L+L.t());
@@ -46,10 +45,9 @@ void Jaumann(mat &DR, mat &R, mat &D, mat &W, const double &DTime, const mat &F0
     
     //Jaumann
     DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
-    R += DR;
 }
     
-void Green_Naghdi(mat &DR, mat &R, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
+void Green_Naghdi(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     //Green-Naghdi
     mat U0;
     mat R0;
@@ -58,20 +56,105 @@ void Green_Naghdi(mat &DR, mat &R, mat &D, mat &W, const double &DTime, const ma
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    mat L0 = (1./DTime)*(F1-F0)*inv(F0);
-    mat L1 = (1./DTime)*(F1-F0)*inv(F1);
-    mat L = 0.5*L0+0.5*L1;
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
     
     //decomposition of L
     D = 0.5*(L+L.t());
     W = 0.5*(L-L.t());
 
     //alternative ... to test
-    //mat U = 0.5*(U0 + U1);
-    //R = 0.5*(R0 + R1);
-    //DR = (F1-F0)*inv(U)-R*(U1-U0)*inv(U);
-    R = R0;
     DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+}
+
+mat get_BBBB(const mat &F1) {
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    mat BBBB = zeros(6,6);
+    
+    double f_z = 0.;
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
+            }
+        }
+    }
+    return BBBB;
+}
+
+void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    mat I = eye(3,3);
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    mat N = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+    Omega = W + N;
+    cout << "N = \n" << N << endl;
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+}
+
+mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
+    mat I = eye(3,3);
+    mat DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    mat DR_05 = (inv(I-0.3334*DTime*Omega))*(I+0.3334*DTime*Omega);
+    //return (DR*(DR_05.t()*D*DR_05)*DR.t())*DTime;
+    return DR_05*D*DR_05.t()*DTime;
+    //return D*DTime;
+}
+
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
+    
+    mat invF = inv(F);
+    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_ = mat_FTensor4(Lt);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> H;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    return FTensor4_mat(DSDE_);
 }
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
@@ -135,6 +218,30 @@ mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
     return FTensor4_mat(Dtau_JaumannDD_);
 }
 
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
+
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Dtau_LieDD);
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_;
+    
+    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_;
+
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    Dtau_logarithmicDD_(i,j,k,l) = Dtau_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    return FTensor4_mat(Dtau_logarithmicDD_);
+}
+
+
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
 mat Dtau_JaumannDD_Dtau_LieDD(const mat &Dtau_JaumannDD, const mat &tau) {
     
@@ -144,7 +251,7 @@ mat Dtau_JaumannDD_Dtau_LieDD(const mat &Dtau_JaumannDD, const mat &tau) {
     Tensor4<double,3,3,3,3> Dtau_LieDD_;
     
     Index<'i', 3> i;
-    Index<'j', 3> s;
+    Index<'s', 3> s;
     Index<'p', 3> p;
     Index<'r', 3> r;
     
