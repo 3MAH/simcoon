@@ -60,6 +60,7 @@ step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
     }
     BC_T = 0.;
     cBC_T = 0;
+    BC_w = zeros(3,3);
     BC_R = eye(3,3);
 }
 
@@ -72,7 +73,7 @@ step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
  */
 
 //-------------------------------------------------------------
-step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
+step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const mat &mBC_w, const mat &mBC_R) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
 //-------------------------------------------------------------
 {
     cBC_meca = mcBC_meca;
@@ -81,6 +82,8 @@ step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, con
     BC_T = mBC_T;
     cBC_T = mcBC_T;
     Ts = mTs;
+    BC_w = mBC_w;
+    BC_R = mBC_R;
 }
 
 /*!
@@ -98,6 +101,8 @@ step_thermomeca::step_thermomeca(const step_thermomeca& stm) : step(stm)
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
+    BC_w = stm.BC_w;
+    BC_R = stm.BC_R;
 }
 
 /*!
@@ -107,7 +112,7 @@ step_thermomeca::step_thermomeca(const step_thermomeca& stm) : step(stm)
 step_thermomeca::~step_thermomeca() {}
 
 //-------------------------------------------------------------
-void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT, const mat& mR)
+void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------
 {
 
@@ -139,8 +144,6 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
     mecas = zeros(ninc, size_meca);
-    Rs = zeros(ninc,9);
-    vec mR_vec = vectorise(mR);    
     
     vec inc_coef = ones(ninc);
     if (mode == 2) {
@@ -163,9 +166,6 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 else if (cBC_meca(k) == 0){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mEtot(k))/ninc;
                 }
-            }
-            for(unsigned int k = 0 ; k < 9 ; k++) {
-                Rs(i,k) = inc_coef(i)*(BC_R(k)-mR_vec(k))/ninc;
             }
             
             if (cBC_T == 1) {
@@ -219,8 +219,6 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         pathinc.open(file, ios::in);
         
         //For mode 3, no rotation is considered yet
-        mR_vec = vectorise(eye(3,3));
-        
         for (int i=0; i<ninc; i++) {
             
             pathinc >> buffer;
@@ -252,10 +250,6 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 }
             }
             BC_file_n = BC_file;
-
-            for(unsigned int k = 0 ; k < 9 ; k++) {
-                Rs(i,k) = mR_vec(k);
-            }
         }
         //At the end, everything static becomes a stress-controlled with zeros
         for(unsigned int k = 0 ; k < size_meca ; k++) {
@@ -431,7 +425,7 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
 }
 
 //----------------------------------------------------------------------
-void step_thermomeca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime) {
+void step_thermomeca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime, const mat &DR) {
     
     if(tnew_dt < 1.){
         rve.to_start();
@@ -439,6 +433,7 @@ void step_thermomeca::assess_inc(const double &tnew_dt, double &tinc, const doub
     else {
         tinc += Dtinc;
         Time += DTime;
+        BC_R = BC_R*DR;
         rve.set_start();
     }
 }
@@ -467,6 +462,8 @@ step_thermomeca& step_thermomeca::operator = (const step_thermomeca& stm)
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
+    BC_w = stm.BC_w;
+    BC_R = stm.BC_R;
 
 	return *this;
 }
