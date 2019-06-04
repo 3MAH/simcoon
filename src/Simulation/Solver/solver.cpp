@@ -33,6 +33,9 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -78,11 +81,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     double T_init = 0.;
     double tnew_dt = 1.;
     
-//    mat L = zeros(6,6);
-//    mat Lt = zeros(6,6);
+    mat C = zeros(6,6); //Stiffness dS/dE
+    mat c = zeros(6,6); //stifness dtau/deps
     mat DR = eye(3,3);
     mat R = eye(3,3);
-
     
 //    mat dSdE = zeros(6,6);
 //    mat dSdT = zeros(1,6);
@@ -144,7 +146,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
@@ -155,20 +157,19 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 sv_M->Lt = zeros(6,6);
                 
                 //At start, the rotation increment is null
-                sv_M->DR = eye(3,3);
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
                 sv_M->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
                     //RNL
                     sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[0].steps[0]);
                     assert(blocks[i].control_type == 1);
-                    sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T, sv_M->R);
+                    sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
                     
                     Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                     
@@ -189,7 +190,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 //                    rve.output(so, -1, -1, -1, -1, Time, "local");
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(); //DEtot = 0 and DT = 0 so we can use it safely here
+                rve.set_start(); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -200,12 +201,22 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     
                         sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
                         if (blocks[i].control_type == 1) {
-                            sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T, sv_M->R);
+                            sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
                         }
-                        else if(blocks[i].control_type == 3) {
+                        else if (blocks[i].control_type == 2) {
+                            sptr_meca->generate(Time, sv_M->Etot, sv_M->PKII, sv_M->T);
+                        }
+                        else if (blocks[i].control_type == 3) {
+                            sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
+                        }
+                        else if((blocks[i].control_type == 4)||(blocks[i].control_type == 5)) {
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
                         }
-                        
+                        else {
+                            cout << "error in Simulation/Solver/solver.cpp: control_type should be a int value in a range of 1 to 5" << endl;
+                            exit(0);
+                        }
+                    
                         nK = sum(sptr_meca->cBC_meca);
                         
                         inc = 0;
@@ -222,24 +233,70 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             while (tinc<1.) {
                                 
-                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
-                                
+                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);                                
                                 if(nK == 0){
                                     
-                                    if (blocks[i].control_type <= 3) {
+                                    if (blocks[i].control_type == 1) {
                                         sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        sv_M->DR = eye(3,3);
                                         DTime = Dtinc*sptr_meca->times(inc);
-                                        
-                                        run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                     }
-                                    else if((blocks[i].control_type == 4)||(blocks[i].control_type == 5)) {
-                                        sv_M->F1 = sv_M->F0 + Dtinc*sptr_meca->mecas.row(inc).t();
+                                    else if (blocks[i].control_type == 2) {
+                                        sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        //Application of the Hughes-Winget (1980) algorithm
+                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                        
+                                        sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
+                                        sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
+                                        
+                                        mat D = zeros(3,3);
+                                        mat Omega = zeros(3,3);
+                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        
+                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        //sv_M->Detot = t2v_strain(Delta_log_strain(D, W, DTime));
+
+                                        //sv_M->Detot = t2v_strain(D*DTime);
+                                        
+                                        mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
+                                        //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
+                                        cout << "etot + Detot = \n" << t2v_strain(sv_M->DR*v2t_strain(sv_M->etot)*sv_M->DR.t()) + sv_M->Detot << endl;
+                                        cout << "e_tot_log = \n" << e_tot_log << endl;
+                                        
+                                    }
+                                    else if (blocks[i].control_type == 3) {
+                                        sv_M->Detot = Dtinc*sptr_meca->mecas.row(inc).t();
+                                        mat V0 = expmat_sym(sv_M->etot);
+                                        mat V1 = expmat_sym(sv_M->etot+Dtinc*sptr_meca->mecas(inc,k));
+                                        //mat F0 = v2t_strain(0.5*expmat_sym(sv_M->etot));
+                                        //mat F1 = v2t_strain(0.5*expmat_sym(sv_M->etot+sv_M->Detot));
+                                        cout << "error , Eulerian strain measures (log strains) is not yet implemented, stay tuned" << endl;
+                                        exit(0);
+                                    }
+                                    else {
+                                        sv_M->F1 = sv_M->F0 + Dtinc*v2t(sptr_meca->mecas.row(inc).t());
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
                                         
-                                        run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                        mat D = zeros(3,3);
+                                        mat Omega = zeros(3,3);
+                                        mat Omega2 = zeros(3,3);
+                                        mat Omega3 = zeros(3,3);
+                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        
+                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+
+                                        cout << "sv_M->Detot2 = " << rotate_strain(sv_M->Detot,-DR) << endl;
+                                        cout << "sv_M->Detot = " << sv_M->Detot  << endl;
+
+                                        cout << "etot + Detot = \n" << t2v_strain(sv_M->DR*v2t_strain(sv_M->etot)*sv_M->DR.t()) + sv_M->Detot << endl;
+                                        cout << "e_tot_log = \n" << t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1))) << endl;
+                                        
                                     }
+                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -247,17 +304,40 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                     error = 1.;
                                     
-                                    sv_M->DEtot = zeros(6);
+                                    if (blocks[i].control_type == 1) {
                                     
-                                    for(int k = 0 ; k < 6 ; k++)
-                                    {
-                                        if (sptr_meca->cBC_meca(k)) {
-                                            residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                        }
-                                        else {
-                                            residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                        sv_M->DEtot = zeros(6);
+                                        for(int k = 0 ; k < 6 ; k++)
+                                        {
+                                            if (sptr_meca->cBC_meca(k)) {
+                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                            }
+                                            else {
+                                                residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                            }
                                         }
                                     }
+                                    else if (blocks[i].control_type == 2) {
+                                        sv_M->DEtot = zeros(6);
+                                        for(int k = 0 ; k < 6 ; k++)
+                                        {
+                                            if (sptr_meca->cBC_meca(k)) {
+                                                residual(k) = sv_M->PKII(k) - sv_M->PKII_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                            }
+                                            else {
+                                                residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                            }
+                                        }
+                                    }
+                                    else if (blocks[i].control_type == 3) {
+                                        cout << "error , Eulerian strain measures (log strains) is not yet implemented, stay tuned" << endl;
+                                        exit(0);
+                                    }
+                                    else {
+                                        cout << "error , Those control types are inteded for use in strain-controlled loading only" << endl;
+                                        exit(0);
+                                    }
+
                                     
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
@@ -265,7 +345,17 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
-                                            Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
+                                            if (blocks[i].control_type == 1) {
+                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
+                                            }
+                                            else if (blocks[i].control_type == 2) {
+                                                mat B = get_BBBB(sv_M->F1);
+                                                C = DtauDe_2_DSDE(sv_M->Lt, B, sv_M->F1, sv_M->sigma);
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                            }
+                                            else if (blocks[i].control_type == 3) {
+                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
+                                            }
                                             
                                             ///jacobian inversion
                                             invK = inv(K);
@@ -288,23 +378,63 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             Delta = -invK * residual;
                                         }
                                         
-                                        sv_M->DEtot += Delta;
-                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
-                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        if (blocks[i].control_type == 1) {
+                                            sv_M->DR = eye(3,3);
+                                            DR = eye(3,3);
+                                            sv_M->DEtot += Delta;
+                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                            DTime = Dtinc*sptr_meca->times(inc);
+                                        }
+                                        else if (blocks[i].control_type == 2) {
+                                        
+                                            sv_M->DEtot += Delta;
+                                            sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
+                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                            //Application of the Hughes-Winget (1980) algorithm
+                                            DTime = Dtinc*sptr_meca->times(inc);
+                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                            
+                                            sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
+                                            sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
+                                            
+                                            mat D = zeros(3,3);
+                                            mat Omega = zeros(3,3);
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        }
+                                        
                                         
                                         rve.to_start();
                                         
                                         run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                         
-                                        for(int k = 0 ; k < 6 ; k++)
-                                        {
-                                            if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                            }
-                                            else {
-                                                residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                        if (blocks[i].control_type == 1) {
+                                        
+                                            //sv_M->DEtot = zeros(6);
+                                            for(int k = 0 ; k < 6 ; k++)
+                                            {
+                                                if (sptr_meca->cBC_meca(k)) {
+                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                }
+                                                else {
+                                                    residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                                }
                                             }
                                         }
+                                        else if (blocks[i].control_type == 2) {
+                                            //sv_M->DEtot = zeros(6);
+                                            for(int k = 0 ; k < 6 ; k++)
+                                            {
+                                                if (sptr_meca->cBC_meca(k)) {
+                                                    residual(k) = sv_M->PKII(k) - sv_M->PKII_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                }
+                                                else {
+                                                    residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                                }
+                                            }
+                                        }
+                                        
                                         
                                         compteur++;
                                         error = norm(residual, 2.);
@@ -374,7 +504,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 }
                                 compteur = 0;
                                 
-                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime);
+                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR);
                                 //start variables ready for the next increment
                                 
                             }
@@ -422,7 +552,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {
@@ -454,7 +584,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 if(solver_type == 1) {
                     //RNL
                     sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[0].steps[0]);
-                    sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T, sv_T->R);
+                    sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
                     
                     Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
                     
@@ -486,7 +616,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                         
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
-                        sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T, sv_T->R);
+                        sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
                         
                         nK = sum(sptr_thermomeca->cBC_meca);
                         
@@ -520,7 +650,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     DTime = Dtinc*sptr_thermomeca->times(inc);
                                     
                                     run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-                                    
                                     sv_T->Q = -1.*sv_T->r;
                                     
                                 }
@@ -704,7 +833,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 }
                                 compteur = 0;
                                 
-                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime);
+                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR);
                                 //start variables ready for the next increment
                                 
                             }
