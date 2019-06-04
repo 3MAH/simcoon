@@ -40,28 +40,45 @@ arma::vec t2v_stress (const arma::mat &);
 //This function transforms a symmetric 3x3 stress matrix into vector (6 components 11,22,33,12,13,23)
 arma::vec t2v_sym (const arma::mat &);
 
+//This function transforms a vector (6 components 11,22,33,12,13,23) into a symmetric 3x3 stress matrix
+arma::mat v2t_sym (const arma::vec &);
+
+//This function transforms a vector (6 components 11,22,33,12,13,23) into a skew-symmetric 3x3 stress matrix
+arma::mat v2t_skewsym (const arma::vec &);
+
+//This function transforms a 9 component vector into a 3x3 matrix
+arma::mat v2t (const arma::vec &);
+
+//This function transforms an armadillo 3 colvec to a FTensor Tensor of the 1st rank
+FTensor::Tensor1<double,3> vec_FTensor1(const arma::vec &);
+
 //This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
-FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &X);
+FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &);
 
 //This function transforms a strain Voigt vector to a FTensor Tensor of the 2nd rank
-FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &v);
+FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &);
 
 //This function transforms a stress Voigt vector to a FTensor Tensor of the 2nd rank
-FTensor::Tensor2<double,3,3> v_FTensor2_stress(const arma::vec &v);
+FTensor::Tensor2<double,3,3> v_FTensor2_stress(const arma::vec &);
 
 //This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
-arma::mat FTensor_mat(const FTensor::Tensor2<double,3,3> &T);
+arma::vec FTensor1_vec(const FTensor::Tensor1<double,3> &);
+
+//This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
+arma::mat FTensor2_mat(const FTensor::Tensor2<double,3,3> &);
 
 //This function transforms a FTensor Tensor of the 2nd rank to a strain Voigt vector
-arma::vec FTensor2_v_strain(const FTensor::Tensor2<double,3,3> &T);
+arma::vec FTensor2_v_strain(const FTensor::Tensor2<double,3,3> &);
     
 //This function transforms a FTensor Tensor of the 2nd rank to a stress Voigt vector
-arma::vec FTensor2_v_stress(const FTensor::Tensor2<double,3,3> &T);
+arma::vec FTensor2_v_stress(const FTensor::Tensor2<double,3,3> &);
 
 //This function transforms a FTensor Tensor of the 4nd rank to a stiffness symmetric matrix 6x6
-arma::mat FTensor4_mat(const FTensor::Tensor4<double,3,3,3,3> &C);
+arma::mat FTensor4_mat(const FTensor::Tensor4<double,3,3,3,3> &);
 
 //This function transforms a stiffness symmetric matrix 6x6 to a FTensor Tensor of the 4nd rank
 FTensor::Tensor4<double,3,3,3,3> mat_FTensor4(const arma::mat &);
+
+arma::mat B_klmn(const arma::vec &b_i, const arma::vec &b_j);
     
 } //namespace simcoon
