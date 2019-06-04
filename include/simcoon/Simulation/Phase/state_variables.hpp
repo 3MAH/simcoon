@@ -35,11 +35,17 @@ class state_variables
 	protected:
 
 	public :
-		
-		arma::vec Etot;
-		arma::vec DEtot;
-		arma::vec sigma;
-		arma::vec sigma_start;
+
+		arma::vec Etot; // Green-Lagrange strain
+		arma::vec DEtot; // increment of Green-Lagrange strain
+		arma::vec etot; // logarithmic strain
+		arma::vec Detot; // increment of logarithmic strain
+		arma::vec PKII; //2nd Piola Kirchoff stress
+		arma::vec PKII_start; //2nd Piola Kirchoff stress
+		arma::vec tau; //Kirchoff stress
+		arma::vec tau_start; //Kirchoff stress
+		arma::vec sigma; //Cauchy stress
+		arma::vec sigma_start; //Cauchy stress
         arma::mat F0;
         arma::mat F1;
         arma::mat R;
@@ -53,7 +59,7 @@ class state_variables
     
 		state_variables(); 	//default constructor
 		state_variables(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for statev
-    state_variables(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Constructor with parameters
+        state_variables(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Constructor with parameters
 		state_variables(const state_variables &);	//Copy constructor
 		virtual ~state_variables();
 		
@@ -63,7 +69,7 @@ class state_variables
 
 		virtual void resize();	//constructor - allocates memory for statev
 		virtual void resize(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for statev
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Initialize with parameters
+        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Initialize with parameters
 		virtual int dimstatev () const {return nstatev;}       // returns the number of statev, nstatev    
         virtual void to_start(); //sigma goes to sigma_start
         virtual void set_start(); //sigma_start goes to sigma
