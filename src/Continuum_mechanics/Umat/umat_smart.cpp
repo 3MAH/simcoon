@@ -194,6 +194,8 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
 }
 
 void run_umat_M_aba(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt, const string &path_external) {
+
+    UNUSED(solver_type);
     
 	///@brief Macroscopic state variables and control increments
 	double stress[6];
@@ -426,6 +428,8 @@ void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const d
 
 void abaqus2smart_M_full(double *stress, double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
+    
+    UNUSED(Wm);
     
     if(ndi == 1){						// 1D
         sigma(0) = stress[0];
