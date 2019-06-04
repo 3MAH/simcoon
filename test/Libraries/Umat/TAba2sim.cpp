@@ -48,9 +48,9 @@ BOOST_AUTO_TEST_CASE( read_write )
     string path_data = "data";
     string materialfile = "material.dat";    
     
-    double psi_rve = 0.;
-    double theta_rve = 0.;
-    double phi_rve = 0.;
+    //double psi_rve = 0.;
+    //double theta_rve = 0.;
+    //double phi_rve = 0.;
     
     unsigned int nstatev = 0;
     
@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE( read_write )
     
     //Characterisitcs for the statecv test
     double *statev = new double[nstatev];
-    for (int i=0; i<nstatev; i++) {
+    for (unsigned int i=0; i<nstatev; i++) {
         statev[i] = alead(0.,100.);
     }
     double *stress = new double[6];
