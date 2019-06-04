@@ -89,8 +89,11 @@ then
 		
 	fi
 
-	make test
-	Test_OK=$?
+    if [ "$1" != "notest" ]
+    then
+        make test
+    fi
+    Test_OK=$?
 
 	#Create the list of the file to copy after compilation
 	executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
