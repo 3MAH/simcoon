@@ -48,7 +48,7 @@ protected:
     double max_temp;
         
     aba_step_thermomeca(); 	//default constructor
-    aba_step_thermomeca(const std::string &, const bool &, const int &, const double &, const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
+    aba_step_thermomeca(const std::string &, const bool &, const int &, const double &, const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&,  const arma::mat&, const arma::mat&); //Constructor with parameters
     
     aba_step_thermomeca(const aba_step_thermomeca&);	//Copy constructor
     virtual ~aba_step_thermomeca();

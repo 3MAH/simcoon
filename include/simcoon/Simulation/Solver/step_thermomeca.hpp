@@ -41,22 +41,22 @@ protected:
     arma::Col<int> cBC_meca; //True is for stress (flux), false if for strain (state)
     arma::vec BC_meca;
     arma::mat mecas;
+    arma::mat BC_w;
     arma::mat BC_R;    
-    arma::mat Rs;
     double BC_T;
     int cBC_T;         //True (1) is for a heat flux entering in a material point, 0 is for fixed temperature
     arma::vec Ts;
     
     step_thermomeca(); 	//default constructor
     step_thermomeca(const unsigned int &); 	//constructor that allocates BC_meca and cBC_meca
-    step_thermomeca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&); //Constructor with parameters
+    step_thermomeca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
     step_thermomeca(const step_thermomeca&);	//Copy constructor
     virtual ~step_thermomeca();
     
     using step::generate;
-    virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&, const arma::mat&);
+    virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&);
     virtual void generate_kin(const double&, const arma::mat&m, const double &);    
-    virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &);    
+    virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &);
     
     virtual step_thermomeca& operator = (const step_thermomeca&);
         
