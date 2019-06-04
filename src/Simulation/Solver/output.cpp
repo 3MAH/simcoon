@@ -44,6 +44,9 @@ solver_output::solver_output()
     o_nb_meca = 0;
     o_nb_T = 0;
     o_nw_statev = 0;
+    
+    o_strain_type = 0;
+    o_stress_type = 0;
 }
 
 /*!
@@ -58,6 +61,9 @@ solver_output::solver_output(const int &nblock)
     o_nb_meca = 0;
     o_nb_T = 0;
     o_nw_statev = 0;
+
+    o_strain_type = 0;
+    o_stress_type = 0;
     
     o_type.zeros(nblock);
     o_nfreq.zeros(nblock);
@@ -77,6 +83,8 @@ solver_output::solver_output(const solver_output& so)
     o_nb_meca = so.o_nb_meca;
     o_meca = so.o_meca;
     o_nb_T = so.o_nb_T;
+    o_strain_type = so.o_strain_type;
+    o_stress_type = so.o_stress_type;
     o_nw_statev = so.o_nw_statev;
 	o_wanted_statev = so.o_wanted_statev;
 	o_range_statev = so.o_range_statev;
@@ -103,6 +111,8 @@ solver_output& solver_output::operator = (const solver_output& so)
     o_nb_meca = so.o_nb_meca;
     o_meca = so.o_meca;
     o_nb_T = so.o_nb_T;
+    o_strain_type = so.o_strain_type;
+    o_stress_type = so.o_stress_type;
     o_nw_statev = so.o_nw_statev;
 	o_wanted_statev = so.o_wanted_statev;
 	o_range_statev = so.o_range_statev;
@@ -121,6 +131,13 @@ ostream& operator << (ostream& s, const solver_output& so)
 	s << "Number of meca: " << so.o_nb_meca << "\t heat" << so.o_nb_T << " \n";
 	s << "meca\n" << so.o_meca << "\n";
     
+    /*std::map<string, int> list_strain_type;
+    list_strain_type = {{"Green-Lagrange",0},{"logarithmic",1}};
+    std::map<string, int> list_stress_type;
+    list_stress_type = {{"Piola-Kirchoff II",0},{"Kirchoff",1},{"logarithmic",2}};*/
+
+	s << "strain type\n" << so.o_strain_type << "\n";
+	s << "stress type\n" << so.o_stress_type << "\n";    
     s << "statev:\n";
     s << "number wanted statev = " << so.o_nw_statev << "\n";
     s << "standalone statev\n" << so.o_wanted_statev << "\n";
