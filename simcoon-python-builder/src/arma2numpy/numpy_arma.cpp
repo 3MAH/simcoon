@@ -30,8 +30,7 @@ namespace arma2numpy {
 
 vec array2vec(bn::ndarray const &array) {
     
-    int n_dim = array.get_nd();
-    assert(n_dim == 1);
+    assert(array.get_nd() == 1);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
     vec v = zeros(n_rows);
@@ -59,8 +58,7 @@ bn::ndarray vec2array(const vec &v) {
 
 mat array2mat(bn::ndarray const &array) {
     
-    int n_dim = array.get_nd();
-    assert(n_dim == 2);
+    assert(array.get_nd() == 2);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
     int n_cols = shape[1];
@@ -96,8 +94,7 @@ bn::ndarray mat2array(const mat &m) {
 
 Col<int> array2Col_int(bn::ndarray const &array) {
     
-    int n_dim = array.get_nd();
-    assert(n_dim == 1);
+    assert(array.get_nd(); == 1);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
     Col<int> v(n_rows);
@@ -125,8 +122,7 @@ bn::ndarray Col_int2array(const Col<int> &v) {
 
 Mat<int> array2Mat_int(bn::ndarray const &array) {
     
-    int n_dim = array.get_nd();
-    assert(n_dim == 2);
+    assert(array.get_nd(); == 2);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
     int n_cols = shape[1];
