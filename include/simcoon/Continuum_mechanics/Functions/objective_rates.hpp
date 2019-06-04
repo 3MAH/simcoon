@@ -25,10 +25,21 @@
 namespace simcoon{
 
 //This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin W depending on F_0 and F_1 (F at the beginning and end of an increment) using the Jauman corotational framework
-void Jaumann(arma::mat &, arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+void Jaumann(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
     
 //This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin W depending on F_0 and F_1 (F at the beginning and end of an increment) using the Green-Naghdi corotational framework
-void Green_Naghdi(arma::mat &, arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+void Green_Naghdi(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+
+//This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin Omega depending on F_0 and F_1 (F at the beginning and end of an increment) using the Logarithmic corotational framework
+void logarithmic(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+
+//This function computes the relation between the part of the spin that depends on the Left Cauchy-Green strain B, such that N^log = BBBB * D
+arma::mat get_BBBB(const arma::mat &);
+
+arma::mat Delta_log_strain(const arma::mat &, const arma::mat &, const double &);
+
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+arma::mat DtauDe_2_DSDE(const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
 arma::mat DSDE_2_Dtau_LieDD(const arma::mat &, const arma::mat &);
@@ -36,8 +47,11 @@ arma::mat DSDE_2_Dtau_LieDD(const arma::mat &, const arma::mat &);
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
 arma::mat DSDE_2_Dtau_JaumannDD(const arma::mat &, const arma::mat &, const arma::mat &);
 
-//This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
 arma::mat Dtau_LieDD_Dtau_JaumannDD(const arma::mat &, const arma::mat &);
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+arma::mat Dtau_LieDD_Dtau_logarithmicDD(const arma::mat &, const arma::mat &, const arma::mat &);
 
 //This function computes the tangent modulus that computes the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, weighted by J (the determinant of F), from the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D
 //Note : This is the tangent modulus utilized by Abaqus
