@@ -61,7 +61,7 @@ aba_step_thermomeca::aba_step_thermomeca() : step_thermomeca()
  */    
     
 //-------------------------------------------------------------
-aba_step_thermomeca::aba_step_thermomeca(const std::string &mname, const bool &mnlgeom, const int &mtype, const double &mmax_temp, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs) : step_thermomeca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs)
+aba_step_thermomeca::aba_step_thermomeca(const std::string &mname, const bool &mnlgeom, const int &mtype, const double &mmax_temp, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const mat &mBC_w, const mat &mBC_R) : step_thermomeca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs, mBC_w, mBC_R)
 //-------------------------------------------------------------
 {
     name = mname;
@@ -108,6 +108,8 @@ void aba_step_thermomeca::update(const step_thermomeca& stm, const string &mname
     BC_meca = stm.BC_meca;
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
+    BC_w = stm.BC_w;
+    BC_R = stm.BC_R;
     
     step::generate();
 }
@@ -151,6 +153,8 @@ aba_step_thermomeca& aba_step_thermomeca::operator = (const aba_step_thermomeca&
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
+    BC_w = stm.BC_w;
+    BC_R = stm.BC_R;
     
 	return *this;
 }

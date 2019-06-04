@@ -408,11 +408,48 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
     
         //output
         if (so.o_nb_meca) {
-            for (int z=0; z<so.o_nb_meca; z++) {
-                *sptr_out_global << sptr_sv_global->Etot(so.o_meca(z)) << "\t";
+            switch (so.o_strain_type) {
+                case 0: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_global << sptr_sv_global->Etot(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 1: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_global << sptr_sv_global->etot(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                default: {
+                    cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
+                    exit(0);
+                }
+                
             }
-            for (int z=0; z<so.o_nb_meca; z++) {
-                *sptr_out_global << sptr_sv_global->sigma(so.o_meca(z)) << "\t";
+            switch (so.o_stress_type) {
+                case 0: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_global << sptr_sv_global->PKII(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 1: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_global << sptr_sv_global->tau(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 2: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_global << sptr_sv_global->sigma(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                default: {
+                    cout << "Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : " << so.o_stress_type << endl;
+                    exit(0);
+                }
             }
         }
 
@@ -500,11 +537,47 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
     
         //output
         if (so.o_nb_meca) {
-            for (int z=0; z<so.o_nb_meca; z++) {
-                *sptr_out_local << sptr_sv_local->Etot(so.o_meca(z)) << "\t";
+            switch (so.o_strain_type) {
+                case 0: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_local << sptr_sv_local->Etot(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 1: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_local << sptr_sv_local->etot(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                default: {
+                    cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
+                    exit(0);
+                }
             }
-            for (int z=0; z<so.o_nb_meca; z++) {
-                *sptr_out_local << sptr_sv_local->sigma(so.o_meca(z)) << "\t";
+            switch (so.o_stress_type) {
+                case 0: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_local << sptr_sv_local->PKII(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 1: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_local << sptr_sv_local->tau(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                case 2: {
+                    for (int z=0; z<so.o_nb_meca; z++) {
+                        *sptr_out_local << sptr_sv_local->sigma(so.o_meca(z)) << "\t";
+                    }
+                    break;
+                }
+                default: {
+                    cout << "Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : " << so.o_stress_type << endl;
+                    exit(0);
+                }
             }
         }
         
