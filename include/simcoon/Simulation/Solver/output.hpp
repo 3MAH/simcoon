@@ -41,6 +41,9 @@ public :
     arma::Col<int> o_meca;
     int o_nb_T;
     
+    int o_strain_type; //0 for Green-Lagrange, 1 for logarithmic
+    int o_stress_type;  //0 for PKII, 1 for Kirchoff, 2 for Cauchy
+    
 	int o_nw_statev;
 	arma::Col<int> o_wanted_statev;
 	arma::Col<int> o_range_statev;
