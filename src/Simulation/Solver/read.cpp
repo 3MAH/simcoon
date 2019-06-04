@@ -178,6 +178,8 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
 	if(cyclic_output)
 	{
         cyclic_output >> buffer;
+        cyclic_output >> buffer >> so.o_strain_type;
+        cyclic_output >> buffer >> so.o_stress_type;
         cyclic_output >> buffer >> so.o_nb_meca;
         so.o_meca.zeros(so.o_nb_meca);
         for (int i=0; i<so.o_nb_meca; i++) {
@@ -232,6 +234,8 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
     }
     else {
 //        cout << "The file data/output.dat is not present, so default output is selected\n";
+        so.o_strain_type = 0;
+        so.o_stress_type = 2;
         so.o_nb_meca = 6;
         so.o_meca.zeros(so.o_nb_meca);
         so.o_meca = {0,1,2,3,4,5};
@@ -367,6 +371,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
                         
                         shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
+                        sptr_meca->control_type = blocks[i].control_type;
                         unsigned int size_meca = sptr_meca->BC_meca.n_elem;
                         
                         path >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer >> sptr_meca->Dn_inc >> buffer >> sptr_meca->BC_Time >> buffer;
@@ -398,8 +403,10 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         //Add the rotation for control_type 2 and 3
                         if ((sptr_meca->control_type == 2)||(sptr_meca->control_type == 3)) {
                             path >> buffer;
-                            for(unsigned int k = 0 ; k < 9 ; k++) {
-                                path >> sptr_meca->BC_R(k);
+                            for(unsigned int i = 0 ; i < 3 ; i++) {
+                                for(unsigned int j = 0 ; j < 3 ; j++) {
+                                    path >> sptr_meca->BC_w(i,j);
+                                }
                             }
                         }
                         
@@ -490,6 +497,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
                         
                         shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
+                        sptr_thermomeca->control_type = blocks[i].control_type;
                         unsigned int size_meca = sptr_thermomeca->BC_meca.n_elem;
                         
                         path >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer >> sptr_thermomeca->Dn_inc >> buffer >> sptr_thermomeca->BC_Time >> buffer;
@@ -512,6 +520,16 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 sptr_thermomeca->cBC_meca(k) = 0;
                                 path >> sptr_thermomeca->BC_meca(k);
+                            }
+                        }
+
+                        //Add the rotation for control_type 2 and 3
+                        if ((sptr_thermomeca->control_type == 2)||(sptr_thermomeca->control_type == 3)) {
+                            path >> buffer;
+                            for(unsigned int i = 0 ; i < 3 ; i++) {
+                                for(unsigned int j = 0 ; j < 3 ; j++) {
+                                    path >> sptr_thermomeca->BC_w(i,j);
+                                }
                             }
                         }
                         
