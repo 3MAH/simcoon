@@ -33,6 +33,7 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -269,8 +270,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     else if (blocks[i].control_type == 3) {
                                         sv_M->Detot = Dtinc*sptr_meca->mecas.row(inc).t();
-                                        mat V0 = expmat_sym(sv_M->etot);
-                                        mat V1 = expmat_sym(sv_M->etot+Dtinc*sptr_meca->mecas(inc,k));
+                                        //mat V0 = expmat_sym(sv_M->etot);
+                                        //mat V1 = expmat_sym(sv_M->etot+Dtinc*sptr_meca->mecas(inc,k));
                                         //mat F0 = v2t_strain(0.5*expmat_sym(sv_M->etot));
                                         //mat F1 = v2t_strain(0.5*expmat_sym(sv_M->etot+sv_M->Detot));
                                         cout << "error , Eulerian strain measures (log strains) is not yet implemented, stay tuned" << endl;
