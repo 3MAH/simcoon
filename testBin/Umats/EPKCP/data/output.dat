@@ -1,4 +1,6 @@
 #Outpout_values
+strain_type	0
+stress_type	2
 Meca   6
 0   1   2   3   4   5
 T   1
