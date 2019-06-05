@@ -26,7 +26,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
-#include <simcoon/Continuum_Mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 
 using namespace std;
 using namespace arma;
