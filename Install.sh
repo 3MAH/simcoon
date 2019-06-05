@@ -1,7 +1,37 @@
 #!/bin/bash
-echo "\n----------------------------"
+
+helpFunction()
+{
+   echo ""
+   echo "Usage: $0 -t test -n ncpus"
+   echo "\t-t run the script and execute tests"
+   echo "\t-n Number of cpus for the compilation"
+   exit 1 # Exit script after printing help
+}
+
+test=0
+ncpus=1
+while getopts "tn:" opt
+do
+   case $opt in
+      t ) test=1 ;;
+      n ) ncpus="$OPTARG" ;;
+      ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
+   esac
+done
+
+# Print helpFunction in case parameters are empty
+if [ -z "$test" ] || [ -z $ncpus ]
+then
+   echo "Some or all of the parameters are empty";
+   helpFunction
+fi
+
+# Begin script in case all parameters are correct
+
+echo "\n-----------------------------"
 echo "Start of Simcoon compilation."
-echo "---------------------------\n"
+echo "-----------------------------\n"
 
 blue=`tput setaf 4`
 red=`tput setaf 1`
@@ -34,7 +64,7 @@ echo 'No equivalent function known to be equivalent to "find or gfind" : Please 
 esac
 
 #Number of procs used to compil (+1 because if nproc=1 => 1/2=0)
-nproc_used=$(( ($(nprocs)+1)/2 ))
+#nproc_used=$(( ($(nprocs)+1)/2 ))
 
 if [ ! -d "exec" ]
 then
@@ -77,7 +107,7 @@ echo ""
 cd ${current_dir}/build
 cmake ..
 echo ""
-make -j${nproc_used}
+make -j${ncpus}
 Install_OK=$?
 echo ""
 if [ $Install_OK -eq 0 ]
@@ -89,7 +119,7 @@ then
 		
 	fi
 
-    if [ "$1" != "notest" ]
+    if [ $test == 1 ]
     then
         make test
     fi
