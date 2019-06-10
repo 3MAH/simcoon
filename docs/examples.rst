@@ -1,12 +1,20 @@
 Examples
 ========
 
-Run a simulation
-----------------
+Elastic-plastic thermomechanical response
+-----------------------------------------
 
-Here is a simple example to run your first simulation using simcoon.
-Open the file Path.txt in the folder Control
-You should find something that look like that
+The first example is the simulation of the elastic-plastic behavior of a material.
+From a terminal you can reach the elastic-plastic_tension folder
+
+.. code-block:: none
+    cd ${simcoon_installation_folder}/examples/elastic-plastic_tension
+
+Under this folder you will find the 'solver' executable, a python script ('plot-simple'.py') utilized to plot data with the 'matplotlib' library and two folders: 'data' and 'results'.
+You can already run on a terminal the executable 'solver' and then launch the python script to visualize the simulation of a tension test.
+If you navigate into the 'data' folder, you shall find the following files:
+
+#. path.txt, which is structured as this:
 
 .. code-block:: none
 
@@ -48,7 +56,7 @@ The next part is to define the first block:
 #Loading_type defines the physical problem to solve, which is:
 1 for mechanical; 2 for thermomechanical
 #Control_type defines if the mechanical part of the problem to solve is controlled from infinitesimal strains/stress, or if a finite deformation framework is utilized.
-1 for infinitesimal strains/stress; 2 for finite deformation
+1 for infinitesimal strains/stress; 2 for finite deformation using Lagrangian control (Green-Lagrange strain / Piola-Kirchoff II stress); 3 for finite deformation using logarithmic strain / Kirchoff stress
 #Repeat is the number of time the block is repeated
 #Steps is the number of steps of the block
 
