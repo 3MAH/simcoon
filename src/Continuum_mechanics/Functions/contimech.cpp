@@ -35,17 +35,15 @@ namespace simcoon{
 
 //This function returns the deviatoric part of m
 mat dev(const mat &m) {
-	assert(m.n_rows()==3);
-	assert(m.n_cols()==3);
+    assert((m.n_cols==3)&&(m.n_rows==3));
 
     return m - sph(m);
 }
 
 //This function returns the spherical part of m
 mat sph(const mat &m) {
-	assert(m.n_rows()==3);
-	assert(m.n_cols()==3);
-
+    assert((m.n_cols==3)&&(m.n_rows==3));
+    
     return (1./3.)*(trace(m))*eye(3,3);
 }
 
