@@ -337,7 +337,6 @@ void state_variables::set_start()
     PKII_start = PKII;
     tau_start = rotate_stress(tau,DR);
     sigma_start = rotate_stress(sigma, DR);
-//    sigma_start = Kirchoff2Cauchy(tau_start, F1);
     statev_start = statev;
     Etot += DEtot;
     etot = rotate_strain(etot,DR) + Detot;
@@ -345,7 +344,6 @@ void state_variables::set_start()
     F0 = F1;
     R = R*DR;
 }
-    
     
 //----------------------------------------------------------------------
 state_variables& state_variables::rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi)
@@ -429,7 +427,6 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 state_variables& state_variables::rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
-
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
