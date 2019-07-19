@@ -27,6 +27,9 @@ namespace simcoon{
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
 arma::mat ER_to_F(const arma::mat&, const arma::mat&);
 
+//This function returns F (in a vectorized), from e (logarithmic strain) and R (Rotation matrix), according to a VR decomposition
+arma::mat eR_to_F(const arma::mat&, const arma::mat&);
+
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
 arma::mat G_UdX(const arma::mat &);
 
