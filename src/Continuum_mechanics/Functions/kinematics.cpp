@@ -55,6 +55,19 @@ mat ER_to_F(const mat &E, const mat &R) {
     }*/
     return (R*sqrtmat_sympd(C));
 }
+
+mat eR_to_F(const mat &e, const mat &R) {
+
+    assert(e.ncols == 3);
+    assert(e.nrows == 3);
+    assert(R.ncols == 3);
+    assert(R.nrows == 3);
+
+    //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
+    mat V = expmat_sym(0.5*e);
+
+    return (V*R);
+}
     
 //This function computes the gradient of displacement (Lagrangian) from the deformation gradient tensor
 mat G_UdX(const mat &F) {
