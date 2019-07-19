@@ -4,17 +4,17 @@ helpFunction()
 {
    echo ""
    echo "Usage: $0 -t test -n ncpus"
-   echo "\t-t run the script and execute tests"
+   echo "\t-t run the script without executing tests"
    echo "\t-n Number of cpus for the compilation"
    exit 1 # Exit script after printing help
 }
 
-test=0
+test=1
 ncpus=1
 while getopts "tn:" opt
 do
    case $opt in
-      t ) test=1 ;;
+      t ) test=0 ;;
       n ) ncpus="$OPTARG" ;;
       ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
    esac
@@ -164,7 +164,11 @@ then
 			cp ${current_dir}/build/bin/${file} ${current_dir}/exec/
 			echo "${blue}${file}${reset} copied in ${blue}${current_dir}/exec${reset}"
 		done
-		
+
+        cp ${current_dir}/build/bin/solver ${current_dir}/examples/elastic-plastic_tension
+        cp ${current_dir}/build/bin/solver ${current_dir}/examples/micromechanics
+        cp ${current_dir}/build/bin/identification ${current_dir}/examples/multi-layer_identification
+
 		if [ "${Install_check}" = "OK" ]
 		then
 			echo "${blue}libsimcoon.so${reset} installed in ${blue}${current_dir}/lib${reset}"
