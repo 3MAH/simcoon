@@ -31,6 +31,7 @@ int main() {
     string points_out = "node_perio0.inp";
     string el_file = "element.inp";
     string uc_essentials = "unit_cell_essentials.inp";
+    string postproc = "postproc_info.dat";
     
     //copy the original node file
     string src_file = path_data + "/" + pointsfile;
@@ -41,6 +42,8 @@ int main() {
     src_file = path_data + "/" + el_file;
     dst_file = path_run + "/" + el_file;
     boost::filesystem::copy_file(src_file,dst_file,boost::filesystem::copy_option::overwrite_if_exists);
+    
+    string postproc_file = path_run + "/" + postproc;
     
     string buffer;
     
@@ -117,6 +120,11 @@ int main() {
     aba_head << "*INCLUDE, INPUT= " << PBC_file_name << "\n";
     aba_head << "*INCLUDE, INPUT= " << CDN_file_name << "\n";
     aba_head << "*INCLUDE, INPUT= " << steps_file_name << "\n";
-        
+    aba_head.close();
+
+    aba_head.open(postproc_file, ios::out);
+    aba_head << "volume\t" << cm.volume << "\n";
+    aba_head.close();
+    
     return 0;
 }
