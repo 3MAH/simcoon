@@ -40,5 +40,9 @@ std::vector<std::string> split(const std::string &, const char & = ',');
 void read_sections(std::vector<section_characteristics> &, const unsigned int &, const std::string & = "data", const std::string & = "Nsections0.dat");
 
 void read_mesh(std::vector<Node> &, const std::string & = "data", const std::string & = "nodes0.inp");
+
+void read_results(arma::vec &, arma::vec &, const std::string &, const std::string &);
+
+void read_subphases_results(arma::vec &, arma::vec &, const unsigned int &, const std::string &, const std::string &);
     
 } //namespace simcoon
