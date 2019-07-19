@@ -96,10 +96,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //Read the loading path
     read_path(blocks, T_init, path_data, pathfile);
     
-/*    for(auto b : blocks) {
-        cout << "blocks = " << b << "\n";
-    }*/
-    
     ///Material properties reading, use "material.dat" to specify parameters values
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
     
@@ -111,7 +107,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     
     //Check output and step files
     check_path_output(blocks, so);
-    
+
     double error = 0.;
     vec residual;
     vec Delta;
@@ -234,7 +230,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             while (tinc<1.) {
                                 
-                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);                                
+                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
+                                                             
                                 if(nK == 0){
                                     
                                     if (blocks[i].control_type == 1) {
@@ -270,12 +267,25 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     else if (blocks[i].control_type == 3) {
                                         sv_M->Detot = Dtinc*sptr_meca->mecas.row(inc).t();
-                                        //mat V0 = expmat_sym(sv_M->etot);
-                                        //mat V1 = expmat_sym(sv_M->etot+Dtinc*sptr_meca->mecas(inc,k));
-                                        //mat F0 = v2t_strain(0.5*expmat_sym(sv_M->etot));
-                                        //mat F1 = v2t_strain(0.5*expmat_sym(sv_M->etot+sv_M->Detot));
-                                        cout << "error , Eulerian strain measures (log strains) is not yet implemented, stay tuned" << endl;
-                                        exit(0);
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        //Application of the Hughes-Winget (1980) algorithm
+                                        DTime = Dtinc*sptr_meca->times(inc);
+
+                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                        
+                                        sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
+                                        sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->DEtot), sptr_meca->BC_R*DR);
+
+                                        mat D = zeros(3,3);
+                                        mat Omega = zeros(3,3);
+                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+
+                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
+                                        
+                                        if (DTime > sim_iota)
+                                            D = sv_M->Detot/DTime;
+                                        else
+                                            D = zeros(3,3);
                                     }
                                     else {
                                         sv_M->F1 = sv_M->F0 + Dtinc*v2t(sptr_meca->mecas.row(inc).t());
@@ -289,13 +299,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         
                                         sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-
-                                        cout << "sv_M->Detot2 = " << rotate_strain(sv_M->Detot,-DR) << endl;
-                                        cout << "sv_M->Detot = " << sv_M->Detot  << endl;
-
-                                        cout << "etot + Detot = \n" << t2v_strain(sv_M->DR*v2t_strain(sv_M->etot)*sv_M->DR.t()) + sv_M->Detot << endl;
-                                        cout << "e_tot_log = \n" << t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1))) << endl;
-                                        
+                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                 }
@@ -331,8 +335,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                     }
                                     else if (blocks[i].control_type == 3) {
-                                        cout << "error , Eulerian strain measures (log strains) is not yet implemented, stay tuned" << endl;
-                                        exit(0);
+                                        sv_M->DEtot = zeros(6);
+                                        for(int k = 0 ; k < 6 ; k++)
+                                        {
+                                            if (sptr_meca->cBC_meca(k)) {
+                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                            }
+                                            else {
+                                                residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                            }
+                                        }
                                     }
                                     else {
                                         cout << "error , Those control types are inteded for use in strain-controlled loading only" << endl;
@@ -351,7 +363,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                             else if (blocks[i].control_type == 2) {
                                                 mat B = get_BBBB(sv_M->F1);
-                                                C = DtauDe_2_DSDE(sv_M->Lt, B, sv_M->F1, sv_M->sigma);
+                                                C = DtauDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->tau));
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 3) {
@@ -381,7 +393,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         
                                         if (blocks[i].control_type == 1) {
                                             sv_M->DR = eye(3,3);
-                                            DR = eye(3,3);
                                             sv_M->DEtot += Delta;
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             DTime = Dtinc*sptr_meca->times(inc);
@@ -389,7 +400,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         else if (blocks[i].control_type == 2) {
                                         
                                             sv_M->DEtot += Delta;
-                                            sv_M->DEtot = Dtinc*sptr_meca->mecas.row(inc).t();
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
                                             DTime = Dtinc*sptr_meca->times(inc);
@@ -404,11 +414,29 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
+                                        else if (blocks[i].control_type == 3) {
                                         
+                                            sv_M->Detot += Delta;
+                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                            //Application of the Hughes-Winget (1980) algorithm
+                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                            
+                                            sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
+                                            sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->etot), sptr_meca->BC_R*DR);
+
+                                            sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
+
+                                            mat D = zeros(3,3);
+                                            mat Omega = zeros(3,3);
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            if (DTime > sim_iota)
+                                                D = sv_M->Detot/DTime;
+                                            else
+                                                D = zeros(3,3);
+                                        }
                                         
                                         rve.to_start();
-                                        
-                                        run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                                         
                                         if (blocks[i].control_type == 1) {
                                         
@@ -435,7 +463,18 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
-                                        
+                                        else if (blocks[i].control_type == 3) {
+                                            //sv_M->DEtot = zeros(6);
+                                            for(int k = 0 ; k < 6 ; k++)
+                                            {
+                                                if (sptr_meca->cBC_meca(k)) {
+                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                }
+                                                else {
+                                                    residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                                }
+                                            }
+                                        }
                                         
                                         compteur++;
                                         error = norm(residual, 2.);
