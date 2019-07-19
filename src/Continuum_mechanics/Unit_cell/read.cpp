@@ -193,6 +193,57 @@ void read_mesh(std::vector<Node> &nodes, const string &path_data, const string &
     }
     paramphases.close();
 }
+
+void read_results(vec &E, vec &S, const string &path_data, const string &resultslfile) {
+  string buffer;
+  ifstream res;
+  string path_res = path_data + "/" + resultslfile;
+  res.open(path_res, ios::in);
+  E = zeros(6);
+  S = zeros(6);
+  if (res) {
+    res >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
+    for (unsigned int i=0;i<6;i++) {
+      res >> E(i);
+    }
+    for (unsigned int i=0;i<105;i++) {
+      res >> buffer;
+    }
+    for (unsigned int i=0;i<6;i++) {
+      res >> S(i);
+    }
+  }
+  else {
+    cout << "Error: cannot open the file " << resultslfile << " in the folder :" << path_data << endl;
+  }
+  res.close();
+}
     
+void read_subphases_results(vec &E, vec &S, const unsigned int &ph, const string &path_data, const string &resultslfile) {
+  string buffer;
+  ifstream res;
+  string path_res = path_data + "/" + resultslfile;
+  res.open(path_res, ios::in);
+  E = zeros(6);
+  S = zeros(6);
+  if (res) {
+    for (unsigned int i=0;i<17+ph*8;i++) {
+      res >> buffer;
+    }
+    for (unsigned int i=0;i<6;i++) {
+      res >> E(i);
+    }
+    for (unsigned int i=0;i<105;i++) {
+      res >> buffer;
+    }
+    for (unsigned int i=0;i<6;i++) {
+      res >> S(i);
+    }
+  }
+  else {
+    cout << "Error: cannot open the file " << resultslfile << " in the folder :" << path_data << endl;
+  }
+  res.close();
+}
 
 } //namespace simcoon
