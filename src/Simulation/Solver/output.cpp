@@ -134,7 +134,7 @@ ostream& operator << (ostream& s, const solver_output& so)
     /*std::map<string, int> list_strain_type;
     list_strain_type = {{"Green-Lagrange",0},{"logarithmic",1}};
     std::map<string, int> list_stress_type;
-    list_stress_type = {{"Piola-Kirchoff II",0},{"Kirchoff",1},{"logarithmic",2}};*/
+    list_stress_type = {{"Piola-Kirchoff II",0},{"Kirchoff",1},{"Cauchy",2}};*/
 
 	s << "strain type\n" << so.o_strain_type << "\n";
 	s << "stress type\n" << so.o_stress_type << "\n";    
