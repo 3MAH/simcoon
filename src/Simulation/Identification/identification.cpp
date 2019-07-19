@@ -301,6 +301,12 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         //Run the identified simulation and store results in the results folder
         run_simulation(simul_type, gen[g].pop[0], nfiles, params, consts, data_num, path_results, data_num_name, path_data, path_keys, materialfile);
         
+        for (int i = 0; i<nfiles; i++) {
+            string simulfile = path_results + "/" + data_num_name_root + "_" + to_string(gen[g].pop[0].id)  + "_" + to_string(i+1) + data_num_ext;
+            string finalfile = path_results + "/" + data_num_name_root + "_" + to_string(i+1) + data_num_ext;
+            boost::filesystem::rename(simulfile, finalfile);
+        }
+        
         copy_parameters(params, path_keys, path_results);
         apply_parameters(params, path_results);
     }
