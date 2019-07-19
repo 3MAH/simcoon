@@ -8,4 +8,4 @@ Simcoon Continuum Mechanics Libraries
     Micromechanics/index.rst    
     Material/index.rst
     Umat/index.rst
-    Unit_cell/index.rs
+    Unit_cell/index.rst
