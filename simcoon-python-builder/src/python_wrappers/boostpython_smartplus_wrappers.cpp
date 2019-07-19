@@ -2,7 +2,11 @@
 #include <armadillo>
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
+#include <CGAL/Simple_cartesian.h>
+
 #include <simcoon/arma2numpy/numpy_arma.hpp>
+#include <simcoon/arma2numpy/numpy_cgal.hpp>
+
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
@@ -12,9 +16,7 @@
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
-
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
-
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
@@ -25,8 +27,12 @@
 #include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
 #include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
 
+#include <simcoon/python_wrappers/Libraries/Unit_cell/unit_cell.hpp>
 
 //#include <simcoon/python_wrappers/Libraries/Abaqus/write.hpp>
+
+typedef CGAL::Simple_cartesian<double> Kernel;
+typedef Kernel::Point_3 Point;
 
 namespace bp = boost::python;
 namespace bn = boost::python::numpy;
@@ -34,7 +40,7 @@ using namespace std;
 using namespace arma;
 using namespace simpy;
 
-BOOST_PYTHON_MODULE(simcoon) {
+BOOST_PYTHON_MODULE(simmit) {
 
     Py_Initialize();
     bn::initialize();
@@ -209,5 +215,30 @@ BOOST_PYTHON_MODULE(simcoon) {
     
     // Register the function specific for the solver
     bp::def("cost_solver", cost_solver);
+    
+
+    ///////##### Module for Unit_cell ############///////////////////////////////
+    // Generation of the Node class
+
+    bp::class_<simcoon::Node>("Node")
+    .def("__init__", build_node)
+    .def_readwrite("number", &simcoon::Node::number)
+    .def_readwrite("coords", readwrite_coords)
+    ;
+    
+    // Generation of the cubic_mesh class
+    bp::class_<simcoon::cubic_mesh>("cubic_mesh")
+//    .def("__init__", build_cubic_mesh)
+    .def_readwrite("is_perio", &simcoon::cubic_mesh::is_perio)
+    .def_readwrite("Node_list", &simcoon::cubic_mesh::Node_list)
+    .def_readwrite("Node_list_name", &simcoon::cubic_mesh::Node_list_name)
+    .def_readwrite("volume", &simcoon::cubic_mesh::volume)
+    .def_readwrite("Dx", &simcoon::cubic_mesh::Dx)
+    .def_readwrite("Dy", &simcoon::cubic_mesh::Dy)
+    .def_readwrite("Dz", &simcoon::cubic_mesh::Dz)
+    .def_readwrite("size_box", &simcoon::cubic_mesh::size_box)
+    .def("get_domain", get_domain)
+    .def("construct_lists", construct_lists)
+    ;
     
 }
