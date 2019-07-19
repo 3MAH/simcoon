@@ -88,7 +88,10 @@ mat get_BBBB(const mat &F1) {
 
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L = zeros(3,3);
+    
+    if(DTime > sim_iota)
+        L = (1./DTime)*(F1-F0)*inv(F1);
     
     //decomposition of L
     D = 0.5*(L+L.t());
@@ -114,7 +117,6 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
         }
     }
     Omega = W + N;
-    cout << "N = \n" << N << endl;
     DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
 }
 
