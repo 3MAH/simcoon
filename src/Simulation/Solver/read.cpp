@@ -263,9 +263,11 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                     shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
                     
                     if (sptr_meca->mode == 3) {
-                        if((so.o_type(i) == 2)||(sptr_meca->ninc%so.o_nfreq(i))) {
+                        if((so.o_type(i) == 2)||((so.o_type(i) == 1)&&(so.o_nfreq(i) != 1))) {
                             cout << "The output nfreq is not compatible with the number of increments of the step)" << endl;
                             break;
+                            
+                        cout << "I am getting out of da stuf" << endl;
                         }
                     }
                     else {
@@ -423,6 +425,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                     else if (blocks[i].steps[j]->mode == 3) {
                         
                         shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
+                        sptr_meca->control_type = blocks[i].control_type;
                         unsigned int size_meca = sptr_meca->BC_meca.n_elem;
                         
                         path >> buffer >> pathfile_inc >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer;
