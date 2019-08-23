@@ -43,7 +43,7 @@ using namespace arma;
 
 namespace simcoon{
         
-void run_identification(const std::string &simul_type, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, int &apop, int &spop, const int &ngboys, const int &maxpop, const int &stationnarity_nb, const std::string &path_data, const std::string &path_keys, const std::string &path_results, const std::string &materialfile, const std::string &outputfile, const std::string &data_num_name, const double &probaMut, const double &pertu, const double &c, const double &p0, const double &lambdaLM) {
+void run_identification(const std::string &simul_type, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, int &apop, int &spop, const int &ngboys, const int &maxpop, const int &stationnarity_nb, const double &stationnarity_lim, const std::string &path_data, const std::string &path_keys, const std::string &path_results, const std::string &materialfile, const std::string &outputfile, const std::string &data_num_name, const double &probaMut, const double &pertu, const double &c, const double &p0, const double &lambdaLM) {
 
     std::string data_num_ext = data_num_name.substr(data_num_name.length()-4,data_num_name.length());
     std::string data_num_name_root = data_num_name.substr(0,data_num_name.length()-4); //to remove the extension
@@ -167,7 +167,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         cout << "The folder for the numerical data, " << data_num_folder << ", is not present and has been created" << endl;
         boost::filesystem::create_directory(data_num_folder);
     }
-        
+    
     /// Run the simulations corresponding to each individual
     /// The simulation input files should be ready!
     for(int i=0; i<geninit.size(); i++) {
@@ -211,7 +211,6 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     }
     
     double costnm1 = 0.;
-    double stationnarity = 1.E-12;		/// Stationnary stopping criteria (no more evolution of the cost function)
     
     std::vector<double> cost_gb_cost_n(ngboys);
     std::vector<vec> Dp_gb_n(ngboys);
@@ -279,11 +278,15 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         find_best(gen[g], gboys[g], gen[g-1], gboys[g-1], gensons, maxpop, n_param, id0);
         write_results(result, outputfile, gen[g], g, maxpop, n_param);
         
-        if(fabs(costnm1 - gen[g].pop[0].cout) < stationnarity) {
+        if(fabs(costnm1 - gen[g].pop[0].cout) < sim_iota) {
             compt_des++;
         }
         else
             compt_des = 0;
+        
+        if(gen[g].pop[0].cout < stationnarity_lim) {
+           compt_des = stationnarity_nb;
+        }
         
         cout << "Cost function (Best set of parameters) = " << gen[g].pop[0].cout << "\n";
         

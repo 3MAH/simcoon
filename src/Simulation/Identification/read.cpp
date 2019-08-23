@@ -294,7 +294,7 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     
 }
     
-void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {
+void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &station_lim, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {
     
     string pathfile = path + "/" + filename;
     ifstream param_control;
@@ -322,7 +322,8 @@ void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys,
     param_control >> buffer >> ngboys;
     param_control >> buffer >> maxpop;
     
-    param_control >> buffer >> station_nb;    
+    param_control >> buffer >> station_nb;
+    param_control >> buffer >> station_lim;
     param_control >> buffer >> probaMut;
     param_control >> buffer >> pertu;
     
