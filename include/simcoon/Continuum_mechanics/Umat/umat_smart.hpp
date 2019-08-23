@@ -66,6 +66,8 @@ void abaqus2smart_T(double *, double *, double *, double *, double &, const doub
 void run_umat_M_aba(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &, const std::string &);
     
 void select_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
+
+void select_umat_M_finite(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
     
 void select_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
     
