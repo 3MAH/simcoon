@@ -7,7 +7,11 @@ Space_Population
 Golden_boys
 1
 Max_population_per_subgeneration
+10
+Station_condition
 5
+Station_lim
+1.E-8
 Mutation_probability_pourcentage
 5
 Perturbation
@@ -15,6 +19,4 @@ Perturbation
 Lagrange_parameters
 0.001	10
 Lambda_LM
-0.01
-phiEps
 1.
