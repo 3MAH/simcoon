@@ -2,3 +2,5 @@ Identification
 ==============
 
 .. toctree::
+
+    identification.rst
