@@ -45,7 +45,7 @@ void read_data_num(const int &, const std::vector<opti_data> &, std::vector<opti
 void ident_essentials(int &, int &, int &, const std::string &, const std::string &);
     
 //Read the control parameters of the optimization algorithm
-void ident_control(int &, int &, int &, int &, int &, int &, int &, double &, double &, double &, double &, double &, const std::string &, const std::string &);
+void ident_control(int &, int &, int &, int &, int &, int &, int &, double &, double &, double &, double &, double &, double &, const std::string &, const std::string &);
 
 void read_gen(int &, arma::mat &, const int &);
     

@@ -29,6 +29,6 @@
 
 namespace simcoon{
     
-void run_identification(const std::string &, const int &, const int &, const int &, const int &, const int &, int &, int &, const int &, const int &, const int & = 6, const std::string & = "data/", const std::string & = "keys/", const std::string & = "results/", const std::string & = "material.dat", const std::string & = "id_params.txt", const std::string & = "simul.txt", const double & = 5, const double & = 0.01, const double & = 0.001, const double & = 10, const double & = 0.01);
+void run_identification(const std::string &, const int &, const int &, const int &, const int &, const int &, int &, int &, const int &, const int &, const int & = 6, const double & = 1.E-12, const std::string & = "data/", const std::string & = "keys/", const std::string & = "results/", const std::string & = "material.dat", const std::string & = "id_params.txt", const std::string & = "simul.txt", const double & = 5, const double & = 0.01, const double & = 0.001, const double & = 10, const double & = 0.01);
 
 } //namespace simcoon
