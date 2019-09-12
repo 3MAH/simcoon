@@ -22,7 +22,7 @@ namespace bn = boost::python::numpy;
 namespace simpy {
     
 //This function computes the identifcation of materials parameters for one/multiple homogeneous mixed thermomechanical loading experiment
-void identification(const bp::str &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const int &stationnary_cond, const double & station_lim, const bp::str &path_data_py, const bp::str &path_keys_py, const bp::str &path_results_py, const bp::str &materialfile_py, const bp::str &outputfile_py) {
+void identification(const bp::str &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const int &station_nb, const double & station_lim, const bp::str &path_data_py, const bp::str &path_keys_py, const bp::str &path_results_py, const bp::str &materialfile_py, const bp::str &outputfile_py) {
     
     int apop = 0;
     int spop = 0;
