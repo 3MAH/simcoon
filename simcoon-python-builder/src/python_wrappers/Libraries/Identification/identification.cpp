@@ -22,7 +22,7 @@ namespace bn = boost::python::numpy;
 namespace simpy {
     
 //This function computes the identifcation of materials parameters for one/multiple homogeneous mixed thermomechanical loading experiment
-void identification(const bp::str &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const int &stationnary_cond, const bp::str &path_data_py, const bp::str &path_keys_py, const bp::str &path_results_py, const bp::str &materialfile_py, const bp::str &outputfile_py) {
+void identification(const bp::str &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const int &stationnary_cond, const double & station_lim, const bp::str &path_data_py, const bp::str &path_keys_py, const bp::str &path_results_py, const bp::str &materialfile_py, const bp::str &outputfile_py) {
     
     int apop = 0;
     int spop = 0;
@@ -38,7 +38,7 @@ void identification(const bp::str &simul_type_py, const int &n_param, const int 
     std::string path_results = bp::extract<std::string>(path_results_py);
     std::string materialfile = bp::extract<std::string>(materialfile_py);
     std::string outputfile = bp::extract<std::string>(outputfile_py);
-    simcoon::run_identification(simul_type, n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, stationnary_cond, path_data, path_keys, path_results, materialfile, outputfile);
+    simcoon::run_identification(simul_type,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data, path_keys, path_results, materialfile, outputfile);
 }
 
 bp::list read_constants_py(const int &nconstants, const int &nfiles) {
