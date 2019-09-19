@@ -79,9 +79,7 @@ BOOST_AUTO_TEST_CASE( TLOG_int_solver )
     read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);
     solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
     
-    string path_comparison = "comparison/results_job_global-0.txt";
     string path_outputfile = path_results + "/" + "results_job_global-0.txt";
-    
     mat R;
     R.load(path_outputfile);
     
@@ -89,28 +87,33 @@ BOOST_AUTO_TEST_CASE( TLOG_int_solver )
     mat F_test = zeros(3,3);
     
 	F_test(0,0) = 1.;
-	F_test(0,1) = 5.;
-	F_test(0,2) = 2.;
+	F_test(0,1) = 0.5;
+	F_test(0,2) = 0.2;
 	F_test(1,0) = 0.;
-	F_test(1,1) = 2.;
+	F_test(1,1) = 0.8;
 	F_test(1,2) = 0.;
 	F_test(2,0) = 0.;
 	F_test(2,1) = 0.;
-	F_test(2,2) = 0.;
+	F_test(2,2) = 1.;
     
     vec e_tot_log_test = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(F_test)));
-    double n_rows_results = R.n_rows;
+    unsigned int n_rows_results = R.n_rows;
     vec e_tot_log = zeros(6);
+
+    cout << "F_test = " << F_test << endl;
+    cout << "e_tot_log_test = " << e_tot_log_test.t() << endl;
+    cout << "e_tot_log = " << e_tot_log.t() << endl;
     
-    e_tot_log(0) = R(8,n_rows_results-1);
-    e_tot_log(1) = R(9,n_rows_results-1);
-    e_tot_log(2) = R(10,n_rows_results-1);
-    e_tot_log(2) = R(11,n_rows_results-1);
-    e_tot_log(4) = R(12,n_rows_results-1);
-    e_tot_log(5) = R(13,n_rows_results-1);
+    e_tot_log(0) = R(n_rows_results-1,8);
+    e_tot_log(1) = R(n_rows_results-1,9);
+    e_tot_log(2) = R(n_rows_results-1,10);
+    e_tot_log(3) = R(n_rows_results-1,11);
+    e_tot_log(4) = R(n_rows_results-1,12);
+    e_tot_log(5) = R(n_rows_results-1,13);
 
     cout << "e_tot_log_test = " << e_tot_log_test.t();
-    cout << "e_tot_log = " << e_tot_log_test.t();
-    BOOST_CHECK( norm(e_tot_log_test - e_tot_log,2) < 1.E-9 );
+    cout << "e_tot_log = " << e_tot_log.t();
+    cout << "diif = " << norm(e_tot_log_test - e_tot_log,2) << endl;
+    BOOST_CHECK( norm(e_tot_log_test - e_tot_log,2) < 1.E-3 );
     
 }
