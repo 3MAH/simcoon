@@ -219,7 +219,7 @@ BOOST_PYTHON_MODULE(simmit) {
 
     ///////##### Module for Unit_cell ############///////////////////////////////
     // Generation of the Node class
-
+/*
     bp::class_<simcoon::Node>("Node")
     .def("__init__", build_node)
     .def_readwrite("number", &simcoon::Node::number)
@@ -240,5 +240,5 @@ BOOST_PYTHON_MODULE(simmit) {
     .def("get_domain", get_domain)
     .def("construct_lists", construct_lists)
     ;
-    
+    */
 }
