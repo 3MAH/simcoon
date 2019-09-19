@@ -281,8 +281,9 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         if(fabs(costnm1 - gen[g].pop[0].cout) < sim_iota) {
             compt_des++;
         }
-        else
+        else{
             compt_des = 0;
+        }
         
         if(gen[g].pop[0].cout < stationnarity_lim) {
            compt_des = stationnarity_nb;
