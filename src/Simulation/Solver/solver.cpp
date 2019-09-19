@@ -159,7 +159,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 sv_M->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
@@ -301,7 +301,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
-                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -436,7 +436,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                         
                                         rve.to_start();
-                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                         
                                         if (blocks[i].control_type == 1) {
                                         
@@ -615,7 +615,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 sv_T->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                 
                 sv_T->Q = -1.*sv_T->r;    //Since DTime=0;
                 dQdT = lambda_solver;  //To avoid any singularity in the system                
@@ -689,7 +689,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     sv_T->DT = Dtinc*sptr_thermomeca->Ts(inc);
                                     DTime = Dtinc*sptr_thermomeca->times(inc);
                                     
-                                    run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                    run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                     sv_T->Q = -1.*sv_T->r;
                                     
                                 }
@@ -764,7 +764,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         DTime = Dtinc*sptr_thermomeca->times(inc);
                                         
                                         rve.to_start();
-                                        run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                                        run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                         
                                         if (DTime < 1.E-12) {
                                             sv_T->Q = -1.*sv_T->r;    //Since DTime=0;

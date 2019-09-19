@@ -71,9 +71,9 @@ void select_umat_M_finite(phase_characteristics &, const arma::mat &, const doub
     
 void select_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
     
-void run_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
+void run_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, double &);
 
-void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
+void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, double &);
     
 void smart2abaqus_M(double *, double *, double *, const int &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &);
    

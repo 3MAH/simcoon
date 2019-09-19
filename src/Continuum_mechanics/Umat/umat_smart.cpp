@@ -846,14 +846,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
 
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"EPCHA",6},{"SMAUT",7},{"LLDM0",8},{"ZENER",10},{"ZENNK",11},{"PRONK",12},{"EPHIC",17},{"EPHIN",18},{"SMAMO",19},{"SMAMC",20},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
+    list_umat = {{"UMEXT",0},{"ELISO",1}};
     
-        rve.global2local();
-        auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-    
-        cout << "rve.sptr_matprops->umat_name = " << rve.sptr_matprops->umat_name << endl;
-    
-        switch (list_umat[rve.sptr_matprops->umat_name]) {
+    rve.global2local();
+    auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+        
+    switch (list_umat[rve.sptr_matprops->umat_name]) {
 
             case 0: {
 //                umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
@@ -878,8 +876,6 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
     
         rve.global2local();
         auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-    
-        cout << "rve.sptr_matprops->umat_name = " << rve.sptr_matprops->umat_name << endl;
     
         switch (list_umat[rve.sptr_matprops->umat_name]) {
 
@@ -959,7 +955,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
         rve.local2global();
 }
     
-void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt)
 {
     
     tnew_dt = 1.;
@@ -967,10 +963,24 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     if (Time > sim_limit) {
         start = false;
     }
+        switch (control_type) {
+            case 1: {
+                select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }
+//            case 2: case 3: case 4: case 5: {
+//                select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+//                break;
+//            }
+            default: {
+                cout << "Error: The control type of the block does not correspond" << endl;
+                exit(0);
+            }
+        }
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 }
 
-void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt)
 {
     
     tnew_dt = 1.;
@@ -980,7 +990,20 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
         if (Time > sim_limit) {
             start = false;
         }
-        select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+        switch (control_type) {
+            case 1: {
+                select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }
+            case 2: case 3: case 4: case 5: {
+                select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }
+            default: {
+                cout << "Error: The control type of the block does not correspond" << endl;
+                exit(0);
+            }
+        }
     }
     else if(solver_type == 2) {
         run_umat_M_aba(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, path_external);
