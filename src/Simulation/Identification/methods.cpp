@@ -63,17 +63,18 @@ void genetic(generation &gen_g, generation &gensons, int &idnumber, const double
             if(chromosome==0) {
                 gensons.pop[i].p(j)=dad.p(j)*alead(1.-pertu,1.+pertu);
             }
-            else
+            else {
                 gensons.pop[i].p(j)=mom.p(j)*alead(1.-pertu,1.+pertu);
+            }
                 
-                if (gensons.pop[i].p(j) > params[j].max_value)
-                    gensons.pop[i].p(j) = params[j].max_value;
-                    if (gensons.pop[i].p(j) < params[j].min_value)
-                        gensons.pop[i].p(j) = params[j].min_value;
-                        
-                        ///Apply a mutation
-                        if (alea(99)<probaMut)
-                            gensons.pop[i].p(j) = alead(params[j].min_value, params[j].max_value);
+            if (gensons.pop[i].p(j) > params[j].max_value)
+                gensons.pop[i].p(j) = params[j].max_value;
+            if (gensons.pop[i].p(j) < params[j].min_value)
+                gensons.pop[i].p(j) = params[j].min_value;
+            
+            ///Apply a mutation
+            if (alea(99)<probaMut)
+                gensons.pop[i].p(j) = alead(params[j].min_value, params[j].max_value);
         }
     }
     
