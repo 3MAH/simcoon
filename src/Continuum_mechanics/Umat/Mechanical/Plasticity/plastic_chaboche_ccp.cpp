@@ -103,39 +103,47 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     EP(5) = statev(7);
     
     ///@brief a is the internal variable associated with kinematical hardening
-    vec a = zeros(6);
-    a(0) = statev(8);
-    a(1) = statev(9);
-    a(2) = statev(10);
-    a(3) = statev(11);
-    a(4) = statev(12);
-    a(5) = statev(13);
+    vec a_1 = zeros(6);
+    a_1(0) = statev(8);
+    a_1(1) = statev(9);
+    a_1(2) = statev(10);
+    a_1(3) = statev(11);
+    a_1(4) = statev(12);
+    a_1(5) = statev(13);
+
+    vec a_2 = zeros(6);
+    a_2(0) = statev(14);
+    a_2(1) = statev(15);
+    a_2(2) = statev(16);
+    a_2(3) = statev(17);
+    a_2(4) = statev(18);
+    a_2(5) = statev(19);
     
     vec X_1 = zeros(6);
-    X_1(0) = statev(14);
-    X_1(1) = statev(15);
-    X_1(2) = statev(16);
-    X_1(3) = statev(17);
-    X_1(4) = statev(18);
-    X_1(5) = statev(19);
+    X_1(0) = statev(20);
+    X_1(1) = statev(21);
+    X_1(2) = statev(22);
+    X_1(3) = statev(23);
+    X_1(4) = statev(24);
+    X_1(5) = statev(25);
 
     vec X_2 = zeros(6);
-    X_2(0) = statev(20);
-    X_2(1) = statev(21);
-    X_2(2) = statev(22);
-    X_2(3) = statev(23);
-    X_2(4) = statev(24);
-    X_2(5) = statev(25);
+    X_2(0) = statev(26);
+    X_2(1) = statev(27);
+    X_2(2) = statev(28);
+    X_2(3) = statev(29);
+    X_2(4) = statev(30);
+    X_2(5) = statev(31);
     
     vec X = X_1 + X_2;
     
     //Rotation of internal variables (tensors)
     EP = rotate_strain(EP, DR);
-    a = rotate_strain(a, DR);
-
+    a_1 = rotate_strain(a_1, DR);
+    a_2 = rotate_strain(a_2, DR);
+    
     //Elstic stiffness tensor
     L = L_iso(E, nu, "Enu");
-    double mu = E/(2*(1+nu));
         
     ///@brief Initialization
     if(start)
@@ -144,7 +152,8 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         vec vide = zeros(6);
         sigma = vide;
         EP = vide;
-        a = vide;
+        a_1 = vide;
+        a_2 = vide;
         p = 0.;
         
         Wm = 0.;
@@ -159,8 +168,9 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     double dHpdp=0.;
     
     if (p > sim_iota)	{
-        dHpdp = Q*b*exp(-1.*b*p);
-        Hp = Q*(1.-exp(-1.*b*p));
+        Hp = Q*(1.-exp(-1.*b*p))*p;
+        dHpdp = Q*b*exp(-1.*b*p)*p+Q*(1.-exp(-1.*b*p));
+
     }
     else {
         dHpdp = 0.;
@@ -170,12 +180,14 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     //Variables values at the start of the increment
     vec sigma_start = sigma;
     vec EP_start = EP;
-    vec a_start = a;
+    vec a_1start = a_1;
+    vec a_2start = a_2;
     vec X_1start = X_1;
     vec X_2start = X_2;
     
     double A_p_start = -Hp;
-    vec A_a_start = -X_1start -X_2start;
+    vec A_a1_start = -X_1start;
+    vec A_a2_start = -X_2start;
     
     //Variables required for the loop
     vec s_j = zeros(1);
@@ -193,13 +205,15 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     vec Y_crit = zeros(1);
     
     double dPhidp=0.;
-    vec dPhida = zeros(6);
+    vec dPhida_1 = zeros(6);
+    vec dPhida_2 = zeros(6);
     vec dPhidsigma = zeros(6);
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
     vec Lambdap = eta_stress(sigma-X);
-    vec Lambdaa = eta_stress(sigma-X);
+    vec Lambdaa_1 = eta_stress(sigma-X) - D_1*a_1;
+    vec Lambdaa_2 = eta_stress(sigma-X) - D_2*a_2;
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -213,27 +227,29 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         
         p = s_j(0);
         if (p > sim_iota)	{
-            dHpdp = Q*b*exp(-1.*b*p);
-            Hp = Q*(1.-exp(-1.*b*p));
+            Hp = Q*(1.-exp(-1.*b*p))*p;
+            dHpdp = Q*b*exp(-1.*b*p)*p+Q*(1.-exp(-1.*b*p));
         }
         else {
             dHpdp = 0.;
             Hp = 0.;
         }
         dPhidsigma = eta_stress(sigma-X);
-        dPhidp = sum((mu/D_1*X_1+mu/D_2*X_2)%eta_stress(sigma - X))-1.*dHpdp;
+        dPhidp = -1.*dHpdp;
 //        dPhidp = -1.*dHpdp;
-        dPhida = -1.*(C_1 + C_2)*(eta_stress(sigma - X)%Ir05());
+        dPhida_1 = -1.*(2./3.)*C_1*(eta_stress(sigma-X)%Ir05());
+        dPhida_2 = -1.*(2./3.)*C_2*(eta_stress(sigma-X)%Ir05());
 //        dPhida = 0.*(eta_stress(sigma - X)%Ir05());
         
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(sigma-X) - Hp - sigmaY;
         
         Lambdap = eta_stress(sigma-X);
-        Lambdaa = eta_stress(sigma-X);
+        Lambdaa_1 = eta_stress(sigma-X) - D_1*a_1;
+        Lambdaa_2 = eta_stress(sigma-X) - D_2*a_2;
         kappa_j[0] = L*Lambdap;
         
-        K(0,0) = dPhidp + sum(dPhida%Lambdaa);
+        K(0,0) = dPhidp + sum(dPhida_1%Lambdaa_1) + sum(dPhida_2%Lambdaa_2);
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
         Y_crit(0) = sigmaY;
         
@@ -241,9 +257,10 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         
         s_j(0) += ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
-        a = a + ds_j(0)*Lambdaa;
-        X_1 += ds_j(0)*(C_1*(Lambdaa%Ir05()) - mu/D_1*X_1);
-        X_2 += ds_j(0)*(C_2*(Lambdaa%Ir05()) - mu/D_2*X_2);
+        a_1 = a_1 + ds_j(0)*Lambdaa_1;
+        a_2 = a_2 + ds_j(0)*Lambdaa_2;
+        X_1 += ds_j(0)*(2./3.)*C_1*(Lambdaa_1%Ir05());
+        X_2 += ds_j(0)*(2./3.)*C_2*(Lambdaa_2%Ir05());
         X = X_1 + X_2;
         
         //the stress is now computed using the relationship sigma = L(E-Ep)
@@ -255,8 +272,9 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     vec Dsigma = sigma - sigma_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
-    vec Da = a - a_start;
-    
+    vec Da_1 = a_1 - a_1start;
+    vec Da_2 = a_2 - a_2start;
+        
     if((solver_type == 0)||(solver_type==2)) {
     
 		//Computation of the tangent modulus
@@ -299,13 +317,14 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     }
     
     double A_p = -Hp;
-    vec A_a = -X_1 - X_2;
+    vec A_a1 = -X_1;
+    vec A_a2 = -X_2;
     
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a_start + A_a)%Da);
+    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a1_start + A_a1)%Da_1)+0.5*sum((A_a2_start + A_a2)%Da_2);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP)) - 0.5*sum((A_a_start + A_a)%Da);
+    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP)) - 0.5*sum((A_a1_start + A_a1)%Da_1) - 0.5*sum((A_a2_start + A_a2)%Da_2);
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
             
@@ -321,26 +340,33 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     statev(6) = EP(4);
     statev(7) = EP(5);
     
-    statev(8) = a(0);
-    statev(9) = a(1);
-    statev(10) = a(2);
-    statev(11) = a(3);
-    statev(12) = a(4);
-    statev(13) = a(5);
+    statev(8) = a_1(0);
+    statev(9) = a_1(1);
+    statev(10) = a_1(2);
+    statev(11) = a_1(3);
+    statev(12) = a_1(4);
+    statev(13) = a_1(5);
     
-    statev(14) = X_1(0);
-    statev(15) = X_1(1);
-    statev(16) = X_1(2);
-    statev(17) = X_1(3);
-    statev(18) = X_1(4);
-    statev(19) = X_1(5);
+    statev(14) = a_2(0);
+    statev(15) = a_2(1);
+    statev(16) = a_2(2);
+    statev(17) = a_2(3);
+    statev(18) = a_2(4);
+    statev(19) = a_2(5);
     
-    statev(20) = X_2(0);
-    statev(21) = X_2(1);
-    statev(22) = X_2(2);
-    statev(23) = X_2(3);
-    statev(24) = X_2(4);
-    statev(25) = X_2(5);
+    statev(20) = X_1(0);
+    statev(21) = X_1(1);
+    statev(22) = X_1(2);
+    statev(23) = X_1(3);
+    statev(24) = X_1(4);
+    statev(25) = X_1(5);
+    
+    statev(26) = X_2(0);
+    statev(27) = X_2(1);
+    statev(28) = X_2(2);
+    statev(29) = X_2(3);
+    statev(30) = X_2(4);
+    statev(31) = X_2(5);
 }
     
 } //namespace simcoon
