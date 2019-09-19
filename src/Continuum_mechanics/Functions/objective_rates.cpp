@@ -123,10 +123,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
 mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
     mat I = eye(3,3);
     mat DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    mat DR_05 = (inv(I-0.3334*DTime*Omega))*(I+0.3334*DTime*Omega);
-    //return (DR*(DR_05.t()*D*DR_05)*DR.t())*DTime;
-    return DR_05*D*DR_05.t()*DTime;
-    //return D*DTime;
+    return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
