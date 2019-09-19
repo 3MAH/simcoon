@@ -132,11 +132,12 @@ mat fillR(const double &psi, const double &theta, const double &phi, const bool 
 mat fillQS(const double &alpha, const int &axis, const bool &active) {
 
     double act = 0;
-    if (active)
+    if (active) {
         act = 1.;
-    else
+    }
+    else {
         act = -1.;
-    
+    }
     
 	mat QS = zeros(6,6);
 	double c = cos(alpha);
@@ -350,10 +351,12 @@ mat fillQS(const mat &DR, const bool &active) {
 mat fillQE(const double &alpha, const int &axis, const bool &active) {
 
     double act = 0;
-    if (active)
+    if (active) {
         act = 1.;
-    else
+    }
+    else {
         act = -1.;
+    }
     
 	mat QE = zeros(6,6);
     double c = cos(alpha);
