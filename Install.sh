@@ -119,7 +119,7 @@ then
 		
 	fi
 
-    if [ $test == 1 ]
+    if [ $test -eq 1 ]
     then
         make test
     fi
