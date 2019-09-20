@@ -33,10 +33,10 @@ namespace simcoon{
 //This function returns F (in a vectorized), from E (Green-Lagrange strain) and R (Rotation matrix), according to a RU decomposition
 mat ER_to_F(const mat &E, const mat &R) {
 
-    assert(E.ncols == 3);
-    assert(E.nrows == 3);
-    assert(R.ncols == 3);
-    assert(R.nrows == 3);
+    assert(E.n_cols == 3);
+    assert(E.n_rows == 3);
+    assert(R.n_cols == 3);
+    assert(R.n_rows == 3);
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
     mat C = 2.*E+eye(3,3);
@@ -58,10 +58,10 @@ mat ER_to_F(const mat &E, const mat &R) {
 
 mat eR_to_F(const mat &e, const mat &R) {
 
-    assert(e.ncols == 3);
-    assert(e.nrows == 3);
-    assert(R.ncols == 3);
-    assert(R.nrows == 3);
+    assert(e.n_cols == 3);
+    assert(e.n_rows == 3);
+    assert(R.n_cols == 3);
+    assert(R.n_rows == 3);
 
     //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
     mat V = expmat_sym(0.5*e);
