@@ -196,74 +196,106 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
     
 }
 
-void run_umat_M_aba(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt, const string &path_external) {
-
-    UNUSED(solver_type);
+void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int &nstatev, double *statev, const int &ndi, const int &nshr, vec &sigma, mat &Lt, vec &Wm, vec &statev_smart)
+{
     
-	///@brief Macroscopic state variables and control increments
-	double stress[6];
-	double stran[6];
-	double dstran[6];
-	double temperature;
-	double Dtemperature;
-	
-	///@brief Umat variable list unused here
-	double sse = 0.;
-	double spd = 0.;
-	double scd = 0.;
-	double rpl = 0.;
-	double drpldt = 0.;
-	double predef = 0.;
-	double dpred = 0.;
-	int layer = 0;
-	int kspt = 0;
-	double celent = 0.;
-	double dfgrd0[9];
-	double dfgrd1[3];
-	double drplde[6];
-	double coords = 0;
-	double drot[9];
-		
-	///@brief Usefull UMAT variables
-	int ntens = 6;
-	int noel = 1;
-	int npt = 1;
-	int kstep = 0;
-	int kinc = 0;
-	double ddsdde[36];
-	double ddsddt[6];
-	char cmname[5];
-    strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
-	int nprops = rve.sptr_matprops->nprops;
-	double props[nprops];
-	int nstatev = rve.sptr_sv_global->nstatev;
-	double statev[nstatev];
-	double pnewdt = tnew_dt;
-	double time[2];
-	double dtime;
+    if(ndi == 1){						// 1D
+        sigma(0) = stress[0];
+        Lt(0,0) = ddsdde[0];
+    }
+    else if(ndi == 2){					// 2D Plane Stress
+        sigma(0) = stress[0];
+        sigma(1) = stress[1];
+        sigma(3) = stress[2];
+        
+        for(int i=0 ; i<3 ; i++)
+        {
+            for(int j=0 ; j<3 ; j++)
+                Lt(j,i) = ddsdde[i*3+j];
+        }
+    }
+    else if(ndi == 3){
+        if(nshr == 1) {
+            sigma(0) = stress[0];		// 2D Generalized Plane Strain (Plane Strain, Axisymetric)
+            sigma(1) = stress[1];
+            sigma(2) = stress[2];
+            sigma(3) = stress[3];
+            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[4];
+            Lt(0,2) = ddsdde[8];
+            Lt(0,3) = ddsdde[3];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[5];
+            Lt(1,2) = ddsdde[9];
+            Lt(1,3) = ddsdde[7];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[6];
+            Lt(2,2) = ddsdde[10];
+            Lt(2,3) = ddsdde[11];
+            Lt(3,0) = ddsdde[12];
+            Lt(3,1) = ddsdde[13];
+            Lt(3,2) = ddsdde[14];
+            Lt(3,3) = ddsdde[15];
+        }
+        else {							// 3D
+            sigma(0) = stress[0];
+            sigma(1) = stress[1];
+            sigma(2) = stress[2];
+            sigma(3) = stress[3];
+            sigma(4) = stress[4];
+            sigma(5) = stress[5];
+            
+            Lt(0,0) = ddsdde[0];
+            Lt(0,1) = ddsdde[6];
+            Lt(0,2) = ddsdde[12];
+            Lt(0,3) = ddsdde[18];
+            Lt(0,4) = ddsdde[24];
+            Lt(0,5) = ddsdde[30];
+            Lt(1,0) = ddsdde[1];
+            Lt(1,1) = ddsdde[7];
+            Lt(1,2) = ddsdde[13];
+            Lt(1,3) = ddsdde[19];
+            Lt(1,4) = ddsdde[25];
+            Lt(1,5) = ddsdde[31];
+            Lt(2,0) = ddsdde[2];
+            Lt(2,1) = ddsdde[8];
+            Lt(2,2) = ddsdde[14];
+            Lt(2,3) = ddsdde[20];
+            Lt(2,4) = ddsdde[26];
+            Lt(2,5) = ddsdde[32];
+            Lt(3,0) = ddsdde[3];
+            Lt(3,1) = ddsdde[9];
+            Lt(3,2) = ddsdde[15];
+            Lt(3,3) = ddsdde[21];
+            Lt(3,4) = ddsdde[27];
+            Lt(3,5) = ddsdde[33];
+            Lt(4,0) = ddsdde[4];
+            Lt(4,1) = ddsdde[10];
+            Lt(4,2) = ddsdde[16];
+            Lt(4,3) = ddsdde[22];
+            Lt(4,4) = ddsdde[28];
+            Lt(4,5) = ddsdde[34];
+            Lt(5,0) = ddsdde[5];
+            Lt(5,1) = ddsdde[11];
+            Lt(5,2) = ddsdde[17];
+            Lt(5,3) = ddsdde[23];
+            Lt(5,4) = ddsdde[29];
+            Lt(5,5) = ddsdde[35];
+        }
+    }
     
-    auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-
-    //temporary variables (unused) that should not be updated (but need to be passed in for abaqus2smart_M declaration)
-    mat DR_temp = zeros(3,3);
-    double Time_temp = 0.;
-    double DTime_temp = 0.;
-
-    //
-    boost::filesystem::path lib_path(path_external);          // path_external contains path to directory with our external umat
-    boost::shared_ptr<umat_plugin_api> external_umat;            // variable to hold a pointer to plugin variable
-
-    external_umat = dll::import<umat_plugin_api>(lib_path / "umat_plugin_aba", "external_umat", dll::load_mode::append_decorations);
-
-    //the smart variables are converted to Abaqus format
+    for (int i=0; i<4; i++) {
+        Wm(i) = statev[i];
+    }
+    for (int i=0; i<nstatev-4; i++) {
+        statev_smart(i) = statev[i+4];
+    }
     
-    smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, rve_sv_M->nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
-    external_umat->umat_(stress, statev, ddsdde, sse, spd, scd, rpl, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, predef, dpred, cmname, ndi, nshr, ntens, nstatev, props, nprops, coords, drot, pnewdt, celent, dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
-    abaqus2smart_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, rve_sv_M->statev.size(), statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time_temp, DTime_temp, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR_temp, start);
 }
-    
 
-void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
+
+void abaqus2smart_M(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
     
     if(ndi == 1){						// 1D
@@ -429,7 +461,7 @@ void abaqus2smart_M(double *stress, double *ddsdde, const double *stran, const d
     
 }
 
-void abaqus2smart_M_full(double *stress, double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
+void abaqus2smart_M_full(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
     
     UNUSED(Wm);
@@ -594,7 +626,7 @@ void abaqus2smart_M_full(double *stress, double *ddsdde, const double *stran, co
     
 }
 
-void abaqus2smart_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
+void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
     
     if(ndi == 1){						// 1D
         sigma(0) = stress[0];
@@ -782,7 +814,7 @@ void abaqus2smart_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     
 }
     
-void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
     std::map<string, int> list_umat;
@@ -841,7 +873,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
     
 }
 
-void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
     std::map<string, int> list_umat;
@@ -850,11 +882,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
     
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-        
+    
     switch (list_umat[rve.sptr_matprops->umat_name]) {
 
             case 0: {
-//                umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+/*                umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+*/
                 break;
             }
             case 1: {
@@ -867,12 +900,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
                 
 }
     
-void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-	
+
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"EPCHA",6},{"SMAUT",7},{"LLDM0",8},{"ZENER",10},{"ZENNK",11},{"PRONK",12},{"EPHIC",17},{"EPHIN",18},{"SMAMO",19},{"SMAMC",20},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"LLDM0",9},{"ZENER",10},{"ZENNK",11},{"PRONK",12},{"EPHIC",17},{"EPHIN",18},{"SMAMO",19},{"SMAMC",20},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
     
         rve.global2local();
         auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
@@ -881,37 +914,57 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
             case 0: {
 //                umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+
+                boost::filesystem::path lib_path("external");          // argv[1] contains path to directory with our plugin library
+                boost::shared_ptr<umat_plugin_ext_api> external_umat;            // variable to hold a pointer to plugin variable
+                external_umat = dll::import<umat_plugin_ext_api>(          // type of imported symbol is located between `<` and `>`
+                    lib_path / "umat_plugin_ext",                     // path to the library and library name
+                    "external_umat",                                       // name of the symbol to import
+                dll::load_mode::append_decorations              // makes `libmy_plugin_sum.so` or `my_plugin_sum.dll` from `my_plugin_sum`
+                );
+                
+                external_umat->umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+
                 break;
             }
             case 1: {
+                //
+                boost::filesystem::path lib_path("external");
+                boost::shared_ptr<umat_plugin_aba_api> abaqus_umat;            // variable to hold a pointer to plugin variable
+
+                abaqus_umat = dll::import<umat_plugin_aba_api>(lib_path / "umat_plugin_aba", "abaqus_umat", dll::load_mode::append_decorations);
+                abaqus_umat->umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }
+            case 2: {
                 umat_elasticity_iso(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-             case 2: {
+             case 3: {
                 umat_elasticity_trans_iso(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-             case 3: {
+             case 4: {
                 umat_elasticity_ortho(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-             case 4: {
+             case 5: {
                 umat_plasticity_iso_CCP(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-             case 5: {
+             case 6: {
                 umat_plasticity_kin_iso_CCP(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-             case 6: {
+             case 7: {
                 umat_plasticity_chaboche_CCP(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
-            case 7: {
+            case 8: {
                 umat_sma_unified_T(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
                 break;
             }
-            case 8: {
+            case 9: {
                 umat_damage_LLD_0(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                 break;
             }
@@ -963,20 +1016,20 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     if (Time > sim_limit) {
         start = false;
     }
-        switch (control_type) {
-            case 1: {
-                select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-                break;
-            }
-//            case 2: case 3: case 4: case 5: {
-//                select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-//                break;
-//            }
-            default: {
-                cout << "Error: The control type of the block does not correspond" << endl;
-                exit(0);
-            }
+    switch (control_type) {
+        case 1: {
+            select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            break;
         }
+//        case 2: case 3: case 4: case 5: {
+//        select_umat_T_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+//        break;
+//        }
+        default: {
+            cout << "Error: The control type of the block does not correspond" << endl;
+            exit(0);
+        }
+    }
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 }
 
@@ -984,29 +1037,22 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
 {
     
     tnew_dt = 1.;
-    string path_external = "external";
-    
-    if (solver_type < 2) {
-        if (Time > sim_limit) {
-            start = false;
-        }
-        switch (control_type) {
-            case 1: {
-                select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-                break;
-            }
-            case 2: case 3: case 4: case 5: {
-                select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-                break;
-            }
-            default: {
-                cout << "Error: The control type of the block does not correspond" << endl;
-                exit(0);
-            }
-        }
+    if (Time > sim_limit) {
+        start = false;
     }
-    else if(solver_type == 2) {
-        run_umat_M_aba(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, path_external);
+    switch (control_type) {
+        case 1: {
+            select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            break;
+        }
+        case 2: case 3: case 4: case 5: {
+            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            break;
+        }
+        default: {
+            cout << "Error: The control type of the block does not correspond" << endl;
+            exit(0);
+        }
     }
 }
     
@@ -1115,8 +1161,6 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &n
 
 void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *dstran, double *time, double &dtime, double &temperature, double &Dtemperature, int &nprops, double *props,  int &nstatev, double *statev, const int &ndi, const int &nshr, double *drot, const vec &sigma, const mat &Lt, const vec &Etot, const vec &DEtot, const double &T, const double &DT, const double &Time, const double &DTime, const vec &props_smart, const vec &Wm, const vec &statev_smart, const mat &DR, bool &start)
 {
-
-    UNUSED(Wm);
     
     if(ndi == 1) {							// 1D
         stress[0] = sigma(0);
@@ -1257,8 +1301,12 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     for (int i=0; i<nprops; i++) {
         props[i] = props_smart(i);
     }
-    for (int i=0; i<nstatev; i++) {
-        statev[i] = statev_smart(i);
+    ///@brief : Pass the state variables
+    for (int i=0; i<4; i++) {
+        statev[i] = Wm(i);
+    }
+    for (unsigned int i=0; i<statev_smart.n_elem; i++) {
+        statev[i+4] = statev_smart(i);
     }
 }
     
