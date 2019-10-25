@@ -57,19 +57,21 @@ void statev_2_phases(phase_characteristics &, unsigned int &, const arma::vec &)
 
 void phases_2_statev(arma::vec &, unsigned int &, const phase_characteristics &);
     
-void abaqus2smart_M(double *, double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
+void abaqus2smart_M_light(const double *, const double *, const int &, double *, const int &, const int &, arma::vec &, arma::mat &, arma::vec &, arma::vec &);
+    
+void abaqus2smart_M(const double *, const double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
 
-void abaqus2smart_M_full(double *, double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
+void abaqus2smart_M_full(const double *, const double *, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
 
-void abaqus2smart_T(double *, double *, double *, double *, double &, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
+void abaqus2smart_T(const double *, const double *, const double *, const double *, const double &, const double *, const double *, const double *, const double &, const double &, const double &, const int &,const double *, const int &, double *, const int &, const int &, const double *, arma::vec &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::vec &, arma::vec &, double &, double &, double &, double &, arma::vec &, arma::vec &, arma::vec &, arma::vec &, arma::mat &, bool &);
 
 void run_umat_M_aba(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &, const std::string &);
     
-void select_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
+void select_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
 
-void select_umat_M_finite(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
+void select_umat_M_finite(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
     
-void select_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, const bool &, const int &, double &);
+void select_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &);
     
 void run_umat_T(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, double &);
 
