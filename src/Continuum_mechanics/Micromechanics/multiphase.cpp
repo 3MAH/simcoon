@@ -48,7 +48,7 @@ namespace simcoon{
 
 ///@brief The table Nphases.dat will store the necessary informations about the geometry of the phases and the material properties
 
-void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, const bool &start, const unsigned int &solver_type, double &tnew_dt, const int &method)
+void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const unsigned int &solver_type, double &tnew_dt, const int &method)
 {
 
     int nphases = phase.sptr_matprops->props(0); // Number of phases
@@ -92,7 +92,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
             select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
         }
     }
-
+    
     // Preliminaries of the convergence loop
     int nbiter = 0;
     double error = 1.;

@@ -17,11 +17,27 @@
 
 #pragma once
 #include <string>
+#include <armadillo>
+#include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 
-class umat_plugin_api {
+class BOOST_SYMBOL_VISIBLE umat_plugin_aba_api {
 public:
-    virtual std::string name() const = 0;
-    virtual void umat_(double *, double *, double *, double &, double &, double &, double &, double *, double *, double &, const double *, const double *, const double *, const double &, const double &, const double &, const double &, const double &, char *, const int &, const int &, const int &, const int &, const double *, const int &, const double &, const double *, double &, const double &, const double *, const double *, const int &, const int &, const double &, const int &, const int &, const int &) = 0;
 
-   virtual ~umat_plugin_api() {}
+//    umat_plugin_aba_api();
+    virtual std::string name() const = 0;
+    
+    virtual void umat_abaqus(simcoon::phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, double &) = 0;
+    
+    virtual ~umat_plugin_aba_api() {}
+};
+
+class BOOST_SYMBOL_VISIBLE umat_plugin_ext_api {
+public:
+
+//    umat_plugin_ext_api();
+    virtual std::string name() const = 0;
+    
+    virtual void umat_external_M(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &) = 0;
+    
+    virtual ~umat_plugin_ext_api() {}
 };
