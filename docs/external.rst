@@ -7,6 +7,15 @@ Compile an external plugin
 Simcoon offers the possibility to develop your own User Material plugin. Note that you can devlop such external plugin using the Simcoon API, but this is not of course mandatory. You can utilize other libraries or API.
 Two examples are provided in the folder 'External'.
 
+There is two formats to define your User Material plugin. The first one is based on Armadillo vectors and matrices, and correspond to the classical parameters
+
+
+.. code-block:: none
+
+void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc)
+
+
+
 The format of the external User Material plugin is similar to that of the Finite Element Analysis software Abaqus. It accepts the following arguments:
 
 .. code-block:: none
