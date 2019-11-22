@@ -212,7 +212,7 @@ done
 fi
 
 cd ${current_dir}/simcoon-python-builder/build
-cmake ..
+cmake .. -D Boost_NO_BOOST_CMAKE:BOOL=ON
 echo ""
 make
 make install
