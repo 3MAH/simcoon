@@ -219,16 +219,15 @@ BOOST_PYTHON_MODULE(simmit) {
 
     ///////##### Module for Unit_cell ############///////////////////////////////
     // Generation of the Node class
-/*
     bp::class_<simcoon::Node>("Node")
     .def("__init__", build_node)
     .def_readwrite("number", &simcoon::Node::number)
-    .def_readwrite("coords", readwrite_coords)
+    .add_property("coords", Node_get_input_coords, Node_set_input_coords)
     ;
     
     // Generation of the cubic_mesh class
     bp::class_<simcoon::cubic_mesh>("cubic_mesh")
-//    .def("__init__", build_cubic_mesh)
+    .def("__init__", build_cubic_mesh)
     .def_readwrite("is_perio", &simcoon::cubic_mesh::is_perio)
     .def_readwrite("Node_list", &simcoon::cubic_mesh::Node_list)
     .def_readwrite("Node_list_name", &simcoon::cubic_mesh::Node_list_name)
@@ -240,5 +239,6 @@ BOOST_PYTHON_MODULE(simmit) {
     .def("get_domain", get_domain)
     .def("construct_lists", construct_lists)
     ;
-    */
+    
+    
 }
