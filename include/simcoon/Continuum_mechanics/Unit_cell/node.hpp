@@ -15,7 +15,7 @@
  
  */
 
-///@file node.cpp
+///@file node.hpp
 ///@brief Declaration of a node object (in the Finite Element sense)
 ///@version 1.0
 
@@ -48,7 +48,7 @@ class Node
         Node(); 	//default constructor
         Node(const unsigned int &, const Point &);	//Constructor with parameters
         Node(const Node&);	//Copy constructor
-        ~Node();
+        virtual ~Node();
         
         void initialize(const unsigned int &, const Point &); // Construct from the default constructor
         
@@ -57,7 +57,7 @@ class Node
         friend std::ostream& operator << (std::ostream&, const Node&);
 };
 
-inline bool operator==(const Node& lhs, const Node& rhs){return ((lhs.number == rhs.number)&&(lhs.coords == rhs.coords)); }
+inline bool operator==(const Node& lhs, const Node& rhs){return (lhs.number == rhs.number); }
 inline bool operator!=(const Node& lhs, const Node& rhs){return !operator==(lhs,rhs);}
 inline bool operator< (const Node& lhs, const Node& rhs){return (lhs.number < rhs.number); }
 inline bool operator> (const Node& lhs, const Node& rhs){return  operator< (rhs,lhs);}
