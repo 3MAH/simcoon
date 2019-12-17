@@ -91,7 +91,8 @@ void update_sections(section_characteristics &section_rve, const int &nsections,
     }
     
     int id = 99999;
-    section_rve.update(umat_name_macro, id, rve);
+    
+    section_rve.update_from_pc(umat_name_macro, id, rve);
 }
 
 void write_section(section_characteristics &section_rve, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
@@ -362,15 +363,51 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
     param_mats.close();
 }
 
-void write_nodes_file(const std::vector<Node> &nodes, std::ofstream &out_set){
+void write_nodes_file(const std::vector<Node> &nodes, const string &path_data, const string &output_nodes){
     
+    std::string filename = path_data + "/" + output_nodes;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);
     out_set << "*Node\n";
     for (auto n : nodes) {
         out_set << n;
     }
 }
+
+void write_elements_file(const std::vector<Element> &elements, const string &path_data, const string &output_elements) {
     
-void write_node_set(const std::string &name, const Node &node, std::ofstream &out_set){
+    std::string filename = path_data + "/" + output_elements;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);    
+    out_set << "*Element, type=C" << elements[0].type.front() << "D" << stoi(elements[0].type.substr(1,elements[0].type.length())) << endl;
+    for (auto e : elements) {
+        write_aba_format(out_set, e);
+    }
+}
+
+void write_sets_file(const std::vector<section_characteristics> &sections, const std::vector<Node> &nodes_full, const string &path_data, const string &output_sets) {
+
+    std::string filename = path_data + "/" + output_sets;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);
+    out_set << "************************************\n";
+    out_set << "** ALL NODES SET FOR OUTPUT RESULT *\n";
+    out_set << "************************************\n";
+    out_set << "*Nset, nset=Allnodes, generate\n";
+    out_set << "1, " << nodes_full.size() << ", 1" << endl;
+
+    for(auto sc : sections) {
+        write_nodes_set(sc.elset_name, sc.nodes, out_set);
+        write_elements_set(sc.elset_name, sc.elements, out_set);
+    }
+    out_set.close();
+}
+
+
+void write_node_set(const std::string &name, const Node &node, std::ofstream &out_set) {
     
     out_set << "*Nset, nset=" << name << ", unsorted\n";
     out_set << node.number << endl;
@@ -380,17 +417,44 @@ void write_nodes_set(const std::string &name, const std::vector<Node> &set, std:
 
     unsigned int compteur = 0;
     out_set << "*Nset, nset=" << name << ", unsorted\n";
-    for (auto it = set.begin(); it != set.end()-1; ++it) {
-        out_set << it->number << ", ";
+    for (auto it = set.begin(); it != set.end(); it++) {
+        out_set << it->number;
         if(compteur == 15) {
-            out_set << "\n";
+            out_set << endl;
             compteur = 0;
         }
-        compteur++;
+        else {
+           out_set << (std::next(it) != set.end() ? ", " : "");
+           compteur++;
+        }
     }
-    out_set << set.back().number << endl;
+    out_set << endl;
 }
 
+void write_element_set(const std::string &name, const Element &element, std::ofstream &out_set) {
+ 
+    out_set << "*Elset, elset=" << name << ", unsorted\n";
+    out_set << element.number << endl;
+}
+                                                                             
+void write_elements_set(const std::string &name, const std::vector<Element> &set, std::ofstream &out_set){
+
+    unsigned int compteur = 0;
+    out_set << "*Elset, elset=" << name << ", unsorted\n";
+    for (auto it = set.begin(); it != set.end(); it++) {
+        out_set << it->number;
+        if(compteur == 15) {
+            out_set << endl;
+            compteur = 0;
+        }
+        else {
+           out_set << (std::next(it) != set.end() ? ", " : "");
+           compteur++;
+        }
+    }
+    out_set << endl;
+}
+    
 void append_perio_nodes(const cubic_mesh &cm_perio, const string &path_data, const string &outputfile) {
 
     
@@ -480,7 +544,7 @@ void write_eq(ostream& s, const equation &eq) {
     }
 }
     
-void write_PBC(const cubic_mesh &cm, const unsigned int &nb_nodes, const string &path_data, const string &outputfile){
+void write_PBC(const cubic_mesh &cm, const string &path_data, const string &outputfile){
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
@@ -506,13 +570,6 @@ void write_PBC(const cubic_mesh &cm, const unsigned int &nb_nodes, const string 
             write_nodes_set(cm.set_name_faces[i], *cm.list_of_faces[i], out_set);
         }
     }
-
-    out_set << "************************************\n";
-    out_set << "** ALL NODES SET FOR OUTPUT RESULT *\n";
-    out_set << "************************************\n";
-    out_set << "*Nset, nset=Allnodes, generate\n";
-    out_set << "1, " << nb_nodes << ", 1";
-    out_set.close();
 }
 
 void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &path_data, const string &outputfile){
