@@ -50,7 +50,7 @@ class component
         component(const Node &, const unsigned int &, const double &);	//constructor with parameters
         
         component(const component &);	//Copy constructor
-        ~component();
+        virtual ~component();
         
         virtual component& operator = (const component&);
         friend std::ostream& operator << (std::ostream&, const component&);
