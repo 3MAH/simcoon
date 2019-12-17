@@ -47,7 +47,8 @@ namespace simcoon{
 section_characteristics::section_characteristics()
 //-------------------------------------------------------------
 {
-
+    elset_name = "";
+    id = 0;
 }
 
 /*!
@@ -56,10 +57,12 @@ section_characteristics::section_characteristics()
 */
 
 //-------------------------------------------------------------
-section_characteristics::section_characteristics(const std::string &melset_name, const int &mid, const aba_material &mabamat, const std::string &msub_sections_file)
+section_characteristics::section_characteristics(const std::string &melset_name, const std::vector<Node> &mnodes, const std::vector<Element> &melements, const int &mid, const aba_material &mabamat, const std::string &msub_sections_file)
 //-------------------------------------------------------------
 {
     elset_name = melset_name;
+    nodes = mnodes;
+    elements = melements;
     id = mid;
     abamat = mabamat;
     sub_sections_file = msub_sections_file;
@@ -75,6 +78,8 @@ section_characteristics::section_characteristics(const section_characteristics& 
 //------------------------------------------------------
 {
     elset_name = sc.elset_name;
+    nodes = sc.nodes;
+    elements = sc.elements;
     id = sc.id;
     abamat = sc.abamat;
     
@@ -95,10 +100,47 @@ section_characteristics::~section_characteristics() {}
 /*!
   \brief Standard operator = for section_characteristics
 */
-  
-    
+
 //-------------------------------------------------------------
-void section_characteristics::update(const std::string &melset_name, const int &mid, const phase_characteristics &pc)
+void section_characteristics::construct_subsections(const unsigned int& mnsections)
+//-------------------------------------------------------------
+{
+    sub_sections.resize(mnsections);
+}
+
+
+//-------------------------------------------------------------
+void section_characteristics::update(const std::string &melset_name, const std::vector<Node> &mnodes, const std::vector<Element> &melements, const int &mid, const aba_material &mabamat)
+//-------------------------------------------------------------
+{
+    elset_name = melset_name;
+    nodes = mnodes;
+    elements = melements;
+    id = mid;
+    abamat = mabamat;
+}
+  
+//-------------------------------------------------------------
+void section_characteristics::update_mesh(const std::vector<Node> &mnodes, const std::vector<Element> &melements)
+//-------------------------------------------------------------
+{
+    nodes = mnodes;
+    elements = melements;
+}
+
+//-------------------------------------------------------------
+void section_characteristics::update_nomesh(const std::string &melset_name, const int &mid, const aba_material &mabamat)
+//-------------------------------------------------------------
+{
+    elset_name = melset_name;
+    id = mid;
+    abamat = mabamat;
+    //Note : there is no density nor conductivity here since here section_characteristics inheritates from phases characteristics
+    //abamat.update(*pc.sptr_matprops, 0., 0., *pc.sptr_sv_global, mid);
+}
+
+//-------------------------------------------------------------
+void section_characteristics::update_from_pc(const std::string &melset_name, const int &mid, const phase_characteristics &pc)
 //-------------------------------------------------------------
 {
     elset_name = melset_name;
@@ -112,7 +154,7 @@ void section_characteristics::update(const std::string &melset_name, const int &
     for (int i=0; i<nphases; i++) {
         string melset_name_sub = melset_name + to_string(i);
         int mid = 100000 + pc.sptr_matprops->props(1)*1000 + pc.sub_phases[i].sptr_matprops->number;
-        sub_sections[i].update(melset_name_sub, mid, pc.sub_phases[i]);
+        sub_sections[i].update_from_pc(melset_name_sub, mid, pc.sub_phases[i]);
     }
     sub_sections_file = pc.sub_phases_file;
 }
