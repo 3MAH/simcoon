@@ -48,13 +48,19 @@ void update_steps(std::vector<std::shared_ptr<step> > &, const std::vector<block
 
 void write_steps(const std::vector<std::shared_ptr<step> > &, const int &, const double &, const std::string & = "data", const std::string & = "Nstep_0.inp");
     
-void write_nodes_file(const Node &, std::ofstream &);
+void write_nodes_file(const std::vector<Node> &, const std::string &, const std::string &);
+void write_elements_file(const std::vector<Element> &, const std::string &, const std::string &);
+void write_sets_file(const std::vector<section_characteristics> &, const std::vector<Node> &, const std::string &, const std::string &);
+
 void write_node_set(const std::string &, const Node &, std::ofstream &);
 void write_nodes_set(const std::string &, const std::vector<Node> &, std::ofstream &);
 
+void write_element_set(const std::string &, const Element &, std::ofstream &);
+void write_elements_set(const std::string &, const std::vector<Element> &, std::ofstream &);
+
 void append_perio_nodes(const cubic_mesh &, const std::string &, const std::string &);
     
-void write_PBC(const cubic_mesh &, const unsigned int &, const std::string & = "data", const std::string & = "PBC_0.inp");
+void write_PBC(const cubic_mesh &, const std::string & = "data", const std::string & = "PBC_0.inp");
 
 void write_TIE(const cubic_mesh &, const cubic_mesh &, const std::string &, const std::string &);
     
