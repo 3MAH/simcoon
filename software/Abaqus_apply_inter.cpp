@@ -55,7 +55,7 @@ int main() {
     //unit_cell_essentials(BC_type, max_temp, path_data, uc_essentials); //Unused
     
     std::vector<Node> nodes;
-    read_mesh(nodes, path_data, pointsfile);
+    read_nodes_file(nodes, path_data, pointsfile);
     nb_nodes = nodes.size();
     unsigned int nb_nodes_init = nb_nodes;
     cubic_mesh cm(nodes, pointsfile);
@@ -99,7 +99,7 @@ int main() {
     string TIE_file_name = "TIE_file_name.inp";
     string CDN_file_name = "CDN_file_name.inp";
 //    write_PBC(cm, nb_nodes, path_run, PBC_file_name);
-    write_PBC(cm, nb_nodes_init, path_run, PBC_file_name);
+    write_PBC(cm, path_run, PBC_file_name);
 //    write_TIE(cm, cm_perio, path_run, TIE_file_name);
     write_NonPerio_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
 //    write_CDN(cm, path_run, CDN_file_name);
