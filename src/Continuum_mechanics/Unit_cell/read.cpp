@@ -26,9 +26,9 @@
 #include <CGAL/Simple_cartesian.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/element.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/section_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/read.hpp>
-
 
 typedef CGAL::Simple_cartesian<double> Kernel;
 typedef Kernel::Point_3 Point;
@@ -146,7 +146,152 @@ void read_sections(std::vector<section_characteristics> &sections, const unsigne
     paramphases.close();
 }
 
-void read_mesh(std::vector<Node> &nodes, const string &path_data, const string &inputfile) {
+void read_salome_full_mesh(std::vector<section_characteristics> &sc, std::vector<Col<int> > &sc_mesh, const unsigned int &loading_type, const string &path_data, const string &inputfile_sections, const string &inputfile_sc_def, const string &inputfile_mesh) {
+   
+    std::string buffer;
+    std::ifstream para_mesh;
+    
+    //Read the sections first
+    read_sections(sc, loading_type, path_data, inputfile_sections);
+    
+    //Read the sc_vector next
+    std::string path_sc_mesh = path_data + "/" + inputfile_sc_def;
+    std::ifstream paramphases;
+    vector<string> strings;
+    paramphases.open(path_sc_mesh, ios::in);
+    if(paramphases) {
+        while (!paramphases.eof())
+        {
+            getline (paramphases,buffer);
+            if (buffer != "") {
+                strings = split(buffer, ',');
+                Col<int> temp(strings.size());
+                for (unsigned int i=0; i<strings.size(); i++) {
+                    temp(i) = stoi(strings[i]);
+                }
+            sc_mesh.push_back(temp);
+            }
+        }
+    }
+    assert(sc_mesh.size() == sc.size());
+
+    //Read the vector of nodes
+    std::vector<Node> nodes_temp;
+    std::vector<Element> elements_temp;
+    
+    for(unsigned int i=0; i<sc_mesh.size(); i++) {
+        for(unsigned int j=0; j<sc_mesh[i].n_elem; j++) {
+            std::string inputfile_mesh_ext = inputfile_mesh.substr(inputfile_mesh.length()-4,inputfile_mesh.length());
+            std::string inputfile_mesh_name_root = inputfile_mesh.substr(0,inputfile_mesh.length()-4); //to remove the extension
+            std::string inputfile_ij = inputfile_mesh_name_root + '_' + to_string(sc_mesh[i](j)) + inputfile_mesh_ext;
+
+            if (nodes_temp.size()>0) {
+                nodes_temp.clear();
+            }
+            if (elements_temp.size()>0) {
+                elements_temp.clear();
+            }
+            read_salome_mesh(nodes_temp, elements_temp, path_data, inputfile_ij);
+
+            for(auto n: nodes_temp) {
+                sc[i].nodes.push_back(n);
+            }
+            for(auto e: elements_temp) {
+                sc[i].elements.push_back(e);
+            }
+        }
+    }
+}
+
+void read_salome_mesh(std::vector<Node> &nodes, std::vector<Element> &elements, const string &path_data, const string &inputfile) {
+
+    unsigned int number_nodes = 0;
+    unsigned int number_elements = 0;
+
+    std::string buffer;
+    std::string path_inputfile = path_data + "/" + inputfile;
+
+    std::ifstream para_mesh;
+    para_mesh.open(path_inputfile, ios::in);
+    vector<string> strings;
+    if(para_mesh) {
+        getline (para_mesh,buffer);
+        if (buffer != "") {
+            strings = split(buffer, ' ');
+            number_nodes = stoi(strings[0]);
+            number_elements = stoi(strings[1]);
+        }
+    }
+    else {
+        cout << "Error: cannot open the file " << inputfile << " that details the node list in the folder :" << path_data << endl;
+        return;
+    }
+    para_mesh.close();
+
+    //open the reading file
+    para_mesh.open(path_inputfile, ios::in);
+    vec coords = zeros(3);
+    if(para_mesh) {
+        getline (para_mesh,buffer);
+        for(unsigned int i=0; i<number_nodes; i++) {
+            getline(para_mesh,buffer);
+            if (buffer != "") {
+                strings = split(buffer, ' ');
+                coords(0) = stod(strings[1]);
+                coords(1) = stod(strings[2]);
+                coords(2) = stod(strings[3]);
+                Node temp_node(stoi(strings[0]), Point(coords(0),coords(1),coords(2)));
+                nodes.push_back(temp_node);
+            }
+        }
+        for(unsigned int i=0; i<number_elements; i++) {
+            getline(para_mesh,buffer);
+            if (buffer != "") {
+                strings = split(buffer, ' ');
+                //edges
+/*                if(strings[1].front() == '1') {
+                   elements[i].number = stoi(strings[0]);
+                   elements[i].type = strings[1];
+                   unsigned int number_nodes_per_el = stoi(strings[1].substr(1,strings[1].length()));
+                   for(unsigned int j=0; j<number_nodes_per_el; j++) {
+                      auto it_node_inlist = std::find(nodes.begin(), nodes.end(), Node(stoi(strings[j+2]),Point(0.,0.,0.)));
+                      Node node_inlist = *it_node_inlist;
+                      elements[i].nodes.push_back(node_inlist);
+                   }
+                
+                //faces
+                if(strings[1].front() == '2') {
+                   elements[i].number = stoi(strings[0]);
+                   elements[i].type = strings[1];
+                   unsigned int number_nodes_per_el = stoi(strings[1].substr(1,strings[1].length()));
+                   for(unsigned int j=0; j<number_nodes_per_el; j++) {
+                      auto it_node_inlist = std::find(nodes.begin(), nodes.end(), Node(stoi(strings[j+2]),Point(0.,0.,0.)));
+                      Node node_inlist = *it_node_inlist;
+                      elements[i].nodes.push_back(node_inlist);
+                   }*/
+                
+                //volumes
+                if(strings[1].front() == '3') {
+                   Element temp_el;
+                   temp_el.number = stoi(strings[0]);
+                   temp_el.type = strings[1];
+                   unsigned int number_nodes_per_el = stoi(strings[1].substr(1,strings[1].length()));
+                   for(unsigned int j=0; j<number_nodes_per_el; j++) {
+                      auto it_node_inlist = std::find(nodes.begin(), nodes.end(), Node(stoi(strings[j+2]),Point(0.,0.,0.)));
+                      Node node_inlist = *it_node_inlist;
+                      temp_el.nodes.push_back(node_inlist);
+                   }
+                   elements.push_back(temp_el);
+                }
+                
+            }
+        }
+    //end of reading
+    }
+    para_mesh.close();
+}
+
+void read_nodes_file(std::vector<Node> &nodes, const string &path_data, const string &inputfile) {
     
     unsigned int nnodes = 0;
     std::string buffer;
