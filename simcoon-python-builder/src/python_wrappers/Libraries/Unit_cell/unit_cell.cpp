@@ -84,12 +84,12 @@ void construct_lists(simcoon::cubic_mesh &self)
     self.construct_lists();
 }
 
-bp::list read_mesh(const bp::str &path_data_py, const bp::str &inputfile_py)
+bp::list read_nodes_file(const bp::str &path_data_py, const bp::str &inputfile_py)
 {
   std::vector<simcoon::Node> nd;
   std::string path_data= bp::extract<std::string>(path_data_py);
   std::string inputfile= bp::extract<std::string>(inputfile_py);
-  simcoon::read_mesh(nd,path_data,inputfile);
+  simcoon::read_nodes_file(nd,path_data,inputfile);
   return std_vector_to_py_list_Node(nd);
 }
 
