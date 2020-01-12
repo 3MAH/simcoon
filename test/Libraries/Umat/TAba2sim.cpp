@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
+#include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 
 
@@ -47,21 +48,16 @@ BOOST_AUTO_TEST_CASE( read_write )
     
     string path_data = "data";
     string materialfile = "material.dat";    
+    string inputfile = "Nellipsoids0.dat";
     
     //double psi_rve = 0.;
     //double theta_rve = 0.;
     //double phi_rve = 0.;
     
-    unsigned int nstatev = 0;
-    
     phase_characteristics rve;
-    rve.construct(0,1);
+    rve.construct(2,1);
     
-    //Characterisitcs for the statecv test
-    double *statev = new double[nstatev];
-    for (unsigned int i=0; i<nstatev; i++) {
-        statev[i] = alead(0.,100.);
-    }
+    //Characterisitcs for the statev test
     double *stress = new double[6];
     double *stran = new double[6];
     double *dstran = new double[6];
@@ -71,19 +67,21 @@ BOOST_AUTO_TEST_CASE( read_write )
     double temperature = 273.15;
     double Dtemperature = 0.;
     unsigned int nprops = 3;
-    double *props = new double[3];
-    props[0] = 70000.;
-    props[1] = 0.3;
-    props[2] = 1.E-5;
+    double *props = new double[5];
+    props[0] = 2;
+    props[1] = 0;
+    props[2] = 20;
+    props[3] = 20;
+    props[4] = 0;
     int ndi = 3;
     int nshr = 3;
     double *drot = new double[9];
     char *cmname = new char[5];
-    cmname[0] = 'E';
-    cmname[1] = 'L';
-    cmname[2] = 'I';
-    cmname[3] = 'S';
-    cmname[4] = 'O';
+    cmname[0] = 'M';
+    cmname[1] = 'I';
+    cmname[2] = 'M';
+    cmname[3] = 'T';
+    cmname[4] = 'N';
     double pnewdt = 1.;
     
     bool start = false;
@@ -109,26 +107,33 @@ BOOST_AUTO_TEST_CASE( read_write )
     string umat_name(cmname);
     umat_name = umat_name.substr(0, 5);
     
+    rve.sptr_matprops->update(0, umat_name, 1, 0., 0., 0., nprops, props_smart);
+
+    read_ellipsoid(rve, path_data, inputfile);
     size_statev(rve, nstatev_multi);
-    cout << "nstatev_multi = " << nstatev_multi << endl;
+
+    rve.sptr_matprops->umat_name = umat_name;
     
-    nstatev = nstatev_multi + nstatev_macro + 4;
-    cout << "nstatev = " << nstatev << endl;
+    unsigned int nstatev = nstatev_multi + nstatev_macro + 4;
+    double *statev = new double[nstatev];
+    for (unsigned int i=0; i<nstatev; i++) {
+        statev[i] = alead(0.,100.);
+    }
     
     auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
     rve_sv_M->resize(nstatev_macro);
-    rve.sptr_matprops->resize(nprops);
 
     vec statev_macro = zeros(nstatev_macro);
     vec statev_multi(&statev[nstatev_macro+4], nstatev_multi, false, false);
     vec statev_multi_n = statev_multi;
-    
+
     unsigned int pos = 0;
     statev_2_phases(rve, pos, statev_multi);
     
     abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev_macro, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_smart, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
     smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
-    select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
+    
+    pos = 0;
     phases_2_statev(statev_multi, pos, rve);
     
     BOOST_CHECK_EQUAL_COLLECTIONS(statev_multi.begin(), statev_multi.end(), statev_multi_n.begin(), statev_multi_n.end());
