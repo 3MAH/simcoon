@@ -17,7 +17,7 @@ void get_domain(simcoon::cubic_mesh &);
 
 void construct_lists(simcoon::cubic_mesh &);
     
-boost::python::list read_mesh(const boost::python::str &, const boost::python::str &);
+boost::python::list read_nodes_file(const boost::python::str &, const boost::python::str &);
 
 boost::python::list read_sections(const int &, const boost::python::str &, const boost::python::str &);
 
