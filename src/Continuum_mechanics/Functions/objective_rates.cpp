@@ -90,9 +90,10 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat I = eye(3,3);
     mat L = zeros(3,3);
     
-    if(DTime > sim_iota)
+    if(DTime > sim_iota) {
         L = (1./DTime)*(F1-F0)*inv(F1);
-    
+    }
+        
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
@@ -154,6 +155,11 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
     DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
+}
+
+mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
+    
+    return (1./J)*Lt;
 }
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
