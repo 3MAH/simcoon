@@ -62,6 +62,6 @@ boost::python::list std_vector_to_py_list_Node(const std::vector<simcoon::Node> 
 
 boost::python::list std_vector_to_py_list_section_characteristics(const std::vector<simcoon::section_characteristics> &);
 
-boost::python::list std_vector_to_py_list_block(const std::vector<simcoon::block> &);
+//boost::python::list std_vector_to_py_list_block(const std::vector<simcoon::block> &);
     
 } //end of namespace arma2numpy
