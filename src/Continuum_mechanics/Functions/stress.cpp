@@ -75,6 +75,13 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
     return (1./J)*tau;
 }
 
+//This function returns the first Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+mat Kirchoff2PKI(const mat &tau, const mat &F, const double &mJ) {
+
+    UNUSED(mJ);
+    return tau*inv(F.t());
+}
+
 //This function returns the second Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 mat Kirchoff2PKII(const mat &tau, const mat &F, const double &mJ) {
 
@@ -82,11 +89,29 @@ mat Kirchoff2PKII(const mat &tau, const mat &F, const double &mJ) {
     return inv(F)*tau*inv(F.t());
 }
 
+//This function returns the Kirchoff stress tensor from the first Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+mat PKI2Kirchoff(const mat &P, const mat &F, const double &mJ) {
+
+    UNUSED(mJ);
+    return P*F.t();
+}
+
 //This function returns the Kirchoff stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 mat PKII2Kirchoff(const mat &S, const mat &F, const double &mJ) {
 
     UNUSED(mJ);
     return F*S*F.t();
+}
+
+//This function returns the Cauchy stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+mat PKI2Cauchy(const mat &P, const mat &F, const double &mJ) {
+
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = det(F);
+    }
+    assert(J > sim_iota);
+    return (1./J)*P*F.t();
 }
 
 //This function returns the Cauchy stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -99,6 +124,5 @@ mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
     assert(J > sim_iota);
     return (1./J)*F*S*F.t();
 }
-    
     
 } //namespace simcoon
