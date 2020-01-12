@@ -103,7 +103,7 @@ namespace simcoon{
 void size_statev(phase_characteristics &rve, unsigned int &size) {
 
     for (auto r:rve.sub_phases) {
-        size = size + rve.sptr_sv_local->nstatev + 57;
+        size = size + r.sptr_sv_local->nstatev + 57;
         size_statev(r,size);
     }
 }
@@ -141,11 +141,12 @@ void statev_2_phases(phase_characteristics &rve, unsigned int &pos, const vec &s
         umat_phase_M->sigma = statev.subvec(pos+12,size(vide));
         umat_phase_M->T = statev(pos+19);
         umat_phase_M->DT = statev(pos+20);
+
         for (int i=0; i<6; i++) {
             umat_phase_M->Lt.col(i) = statev.subvec(pos+21+i*6,size(vide));
         }
+        
         umat_phase_M->statev = statev.subvec(pos+57,size(umat_phase_M->statev));
-    
         pos+=57+nstatev;
         statev_2_phases(r,pos,statev);
     }
@@ -875,11 +876,9 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"ELISO",1}};
-    
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6}};
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     
@@ -890,14 +889,31 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
 */
                 break;
             }
-            case 1: {
-                umat_elasticity_iso(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+            case 2: {
+                umat_elasticity_iso(umat_M->etot, umat_M->Detot, umat_M->tau, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+                 break;
+             }
+            case 3: {
+                umat_elasticity_trans_iso(umat_M->etot, umat_M->Detot, umat_M->tau, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+                 break;
+             }
+            case 4: {
+                umat_elasticity_ortho(umat_M->etot, umat_M->Detot, umat_M->tau, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+                 break;
+             }
+             case 5: {
+                umat_plasticity_iso_CCP(umat_M->etot, umat_M->Detot, umat_M->tau, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+                 break;
+             }
+             case 6: {
+                umat_plasticity_kin_iso_CCP(umat_M->etot, umat_M->Detot, umat_M->tau, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                  break;
              }
         }
-        umat_M->PKII = t2v_strain(Kirchoff2PKII(v2t_strain(umat_M->sigma), umat_M->F1));
+    
+        umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
+        umat_M->sigma = t2v_stress(Kirchoff2Cauchy(v2t_stress(umat_M->tau), umat_M->F1));
         rve.local2global();
-                
 }
     
 void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
