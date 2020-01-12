@@ -258,6 +258,7 @@ void read_ellipsoid(phase_characteristics &rve, const string &path_data, const s
         
         r.sptr_matprops->resize(nprops);
         r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
