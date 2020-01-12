@@ -215,7 +215,6 @@ BOOST_PYTHON_MODULE(simmit) {
     
     // Register the function specific for the solver
     bp::def("cost_solver", cost_solver);
-    
 
     ///////##### Module for Unit_cell ############///////////////////////////////
     // Generation of the Node class
