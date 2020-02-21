@@ -37,8 +37,12 @@ protected:
 public :
 
     //output values
-    int o_nb_meca;
-    arma::Col<int> o_meca;
+//    int o_nb_meca;
+//    arma::Col<int> o_meca;
+    int o_nb_strain;
+    arma::Col<int> o_strain;
+    int o_nb_stress;
+    arma::Col<int> o_stress;
     int o_nb_T;
     
     int o_strain_type; //0 for Green-Lagrange, 1 for logarithmic
