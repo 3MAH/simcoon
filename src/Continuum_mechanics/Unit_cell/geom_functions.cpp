@@ -58,7 +58,7 @@ std::vector<Node> copy_list_nodes(const std::vector<Node> &nodes) {
     }
     
     if (copied_list.size() == 0) {
-        cout << "There is no node on the list to copy" << endl;
+        cout << "Warning : There is no node on the list to copy" << endl;
     }
     return copied_list;
 }
@@ -116,10 +116,10 @@ Node find_corner(const std::vector<Node> &nodes, const Point &corner, const doub
         }
     }
     if (count == 0) {
-        cout << "There is no node close to the selected corner of coordinates : " << corner.x() << ",\t" << corner.y() << ",\t" << corner.z() << endl;
+        cout << "Warning : There is no node close to the selected corner of coordinates : " << corner.x() << ",\t" << corner.y() << ",\t" << corner.z() << endl;
     }
     if (count > 1) {
-        cout << "There are duplicate nodes close to the selected corner, the last one in the list has been selected" << endl;
+        cout << "Warning : There are duplicate nodes close to the selected corner (" << corner.x() << ",\t" << corner.y() << ",\t" << corner.z() << ", the last one in the list has been selected" << endl;
     }
     return clos_Node;
         
