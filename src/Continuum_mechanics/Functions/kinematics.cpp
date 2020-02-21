@@ -64,7 +64,7 @@ mat eR_to_F(const mat &e, const mat &R) {
     assert(R.n_rows == 3);
 
     //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat V = expmat_sym(0.5*e);
+    mat V = expmat_sym(e);
 
     return (V*R);
 }
