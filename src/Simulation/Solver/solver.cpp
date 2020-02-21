@@ -36,6 +36,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
@@ -102,6 +103,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //Output
     int o_ncount = 0;
     double o_tcount = 0.;
+    
     solver_output so(blocks.size());
     read_output(so, blocks.size(), nstatev, path_data, output_info_file);
     
@@ -134,10 +136,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 K = zeros(6,6);
                 invK = zeros(6,6);
 
-                if((blocks[i].control_type == 1)||(blocks[i].control_type == 2))
+                if(blocks[i].control_type <= 3) {
                     size_meca = 6;
-                else if(blocks[i].control_type == 3)
+                }
+                else {
                     size_meca = 9;
+                }
+//                if((blocks[i].control_type == 1)||(blocks[i].control_type == 2))
+//                    size_meca = 6;
+//                else if(blocks[i].control_type == 3)
+//                    size_meca = 9;
                 
                 shared_ptr<state_variables_M> sv_M;
                 
@@ -205,6 +213,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                         }
                         else if (blocks[i].control_type == 3) {
                             sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
+//                            sptr_meca->generate(Time, sv_M->etot, sv_M->tau, sv_M->T);
+ 
                         }
                         else if((blocks[i].control_type == 4)||(blocks[i].control_type == 5)) {
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
@@ -255,15 +265,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         
                                         sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                        //sv_M->Detot = t2v_strain(Delta_log_strain(D, W, DTime));
-
-                                        //sv_M->Detot = t2v_strain(D*DTime);
-                                        
-                                        mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
+                                        //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
                                         //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
-                                        cout << "etot + Detot = \n" << t2v_strain(sv_M->DR*v2t_strain(sv_M->etot)*sv_M->DR.t()) + sv_M->Detot << endl;
-                                        cout << "e_tot_log = \n" << e_tot_log << endl;
-                                        
                                     }
                                     else if (blocks[i].control_type == 3) {
                                         sv_M->Detot = Dtinc*sptr_meca->mecas.row(inc).t();
@@ -274,7 +277,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
                                         
                                         sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                        sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->DEtot), sptr_meca->BC_R*DR);
+                                        sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
@@ -339,7 +342,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+//                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -367,7 +371,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 3) {
-                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
+//                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
+
+                                                C = DtauDe_2_DsigmaDe(sv_M->Lt, det(sv_M->F1));
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             
                                             ///jacobian inversion
@@ -411,7 +418,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
                                             logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
                                         else if (blocks[i].control_type == 3) {
@@ -419,10 +425,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->Detot += Delta;
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
+                                            DTime = Dtinc*sptr_meca->times(inc);                                            
                                             DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
                                             
                                             sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                            sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->etot), sptr_meca->BC_R*DR);
+                                            sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
 
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
@@ -434,7 +441,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             else
                                                 D = zeros(3,3);
                                         }
-                                        
                                         rve.to_start();
                                         run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                         
@@ -468,14 +474,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+//                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
                                                 }
                                             }
                                         }
-                                        
                                         compteur++;
                                         error = norm(residual, 2.);
                                         
@@ -488,7 +494,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     
                                 }
-                                
 /*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
 //                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
@@ -559,7 +564,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             //Write the results
                             if (((so.o_type(i) == 1)&&(o_ncount == so.o_nfreq(i)))||(((so.o_type(i) == 2)&&(fabs(o_tcount - so.o_tfreq(i)) < 1.E-12)))) {
-                                
+
                                 rve.output(so, i, n, j, inc, Time, "global");
                                 rve.output(so, i, n, j, inc, Time, "local");
                                 
