@@ -179,12 +179,19 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
 	{
         cyclic_output >> buffer;
         cyclic_output >> buffer >> so.o_strain_type;
-        cyclic_output >> buffer >> so.o_stress_type;
-        cyclic_output >> buffer >> so.o_nb_meca;
-        so.o_meca.zeros(so.o_nb_meca);
-        for (int i=0; i<so.o_nb_meca; i++) {
-            cyclic_output >> so.o_meca(i);
+        cyclic_output >> buffer >> so.o_nb_strain;
+        so.o_strain.zeros(so.o_nb_strain);
+        for (int i=0; i<so.o_nb_strain; i++) {
+            cyclic_output >> so.o_strain(i);
         }
+        
+        cyclic_output >> buffer >> so.o_stress_type;
+        cyclic_output >> buffer >> so.o_nb_stress;
+        so.o_stress.zeros(so.o_nb_stress);
+        for (int i=0; i<so.o_nb_stress; i++) {
+            cyclic_output >> so.o_stress(i);
+        }
+
         cyclic_output >> buffer >> so.o_nb_T;
         
         ///Selection of the wanted umat statev, use "cyclic.dat" to specify wanted internal variables
@@ -234,11 +241,14 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
     }
     else {
 //        cout << "The file data/output.dat is not present, so default output is selected\n";
-        so.o_strain_type = 0;
-        so.o_stress_type = 2;
-        so.o_nb_meca = 6;
-        so.o_meca.zeros(so.o_nb_meca);
-        so.o_meca = {0,1,2,3,4,5};
+        so.o_strain_type = 3;
+        so.o_stress_type = 4;
+        so.o_nb_strain = 6;
+        so.o_nb_stress = 6;
+        so.o_strain.zeros(so.o_nb_strain);
+        so.o_stress.zeros(so.o_nb_stress);
+        so.o_strain = {0,1,2,3,4,5};
+        so.o_stress = {0,1,2,3,4,5};
         so.o_nb_T = 1;
         so.o_nw_statev = 0;
         
@@ -266,8 +276,6 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                         if((so.o_type(i) == 2)||((so.o_type(i) == 1)&&(so.o_nfreq(i) != 1))) {
                             cout << "The output nfreq is not compatible with the number of increments of the step)" << endl;
                             break;
-                            
-                        cout << "I am getting out of da stuf" << endl;
                         }
                     }
                     else {
