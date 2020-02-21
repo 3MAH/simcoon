@@ -91,7 +91,8 @@ void update_sections(section_characteristics &section_rve, const int &nsections,
     }
     
     int id = 99999;
-    section_rve.update(umat_name_macro, id, rve);
+    
+    section_rve.update_from_pc(umat_name_macro, id, rve);
 }
 
 void write_section(section_characteristics &section_rve, const unsigned int &loading_type, const string &path_data, const string &outputfile) {
@@ -362,15 +363,50 @@ void write_steps(const std::vector<std::shared_ptr<step> > &aba_steps, const int
     param_mats.close();
 }
 
-void write_nodes_file(const std::vector<Node> &nodes, std::ofstream &out_set){
+void write_nodes_file(const std::vector<Node> &nodes, const string &path_data, const string &output_nodes){
     
+    std::string filename = path_data + "/" + output_nodes;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);
     out_set << "*Node\n";
     for (auto n : nodes) {
         out_set << n;
     }
 }
+
+void write_elements_file(const std::vector<Element> &elements, const string &path_data, const string &output_elements) {
     
-void write_node_set(const std::string &name, const Node &node, std::ofstream &out_set){
+    std::string filename = path_data + "/" + output_elements;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);    
+    out_set << "*Element, type=" << elements[0].type << endl;
+    for (auto e : elements) {
+        write_aba_format(out_set, e);
+    }
+}
+
+void write_sets_file(const std::vector<section_characteristics> &sections, const std::vector<Node> &nodes_full, const string &path_data, const string &output_sets) {
+
+    std::string filename = path_data + "/" + output_sets;
+    std::ofstream out_set;
+    
+    out_set.open(filename, ios::out);
+    out_set << "************************************\n";
+    out_set << "** ALL NODES SET FOR OUTPUT RESULT *\n";
+    out_set << "************************************\n";
+    write_nodes_set("AllNodes", nodes_full, out_set);
+
+    for(auto sc : sections) {
+        write_nodes_set(sc.elset_name, sc.nodes, out_set);
+        write_elements_set(sc.elset_name, sc.elements, out_set);
+    }
+    out_set.close();
+}
+
+
+void write_node_set(const std::string &name, const Node &node, std::ofstream &out_set) {
     
     out_set << "*Nset, nset=" << name << ", unsorted\n";
     out_set << node.number << endl;
@@ -380,17 +416,44 @@ void write_nodes_set(const std::string &name, const std::vector<Node> &set, std:
 
     unsigned int compteur = 0;
     out_set << "*Nset, nset=" << name << ", unsorted\n";
-    for (auto it = set.begin(); it != set.end()-1; ++it) {
-        out_set << it->number << ", ";
-        if(compteur == 15) {
-            out_set << "\n";
+    for (auto it = set.begin(); it != set.end(); it++) {
+        out_set << it->number;
+        if((compteur == 15)&&(it != set.end()-1)) {
+            out_set << endl;
             compteur = 0;
         }
-        compteur++;
+        else {
+           out_set << (std::next(it) != set.end() ? ", " : "");
+           compteur++;
+        }
     }
-    out_set << set.back().number << endl;
+    out_set << endl;
 }
 
+void write_element_set(const std::string &name, const Element &element, std::ofstream &out_set) {
+ 
+    out_set << "*Elset, elset=" << name << ", unsorted\n";
+    out_set << element.number << endl;
+}
+                                                                             
+void write_elements_set(const std::string &name, const std::vector<Element> &set, std::ofstream &out_set){
+
+    unsigned int compteur = 0;
+    out_set << "*Elset, elset=" << name << ", unsorted\n";
+    for (auto it = set.begin(); it != set.end(); it++) {
+        out_set << it->number;
+        if((compteur == 15)&&(it != set.end()-1)) {
+            out_set << endl;
+            compteur = 0;
+        }
+        else {
+           out_set << (std::next(it) != set.end() ? ", " : "");
+           compteur++;
+        }
+    }
+    out_set << endl;
+}
+    
 void append_perio_nodes(const cubic_mesh &cm_perio, const string &path_data, const string &outputfile) {
 
     
@@ -480,7 +543,7 @@ void write_eq(ostream& s, const equation &eq) {
     }
 }
     
-void write_PBC(const cubic_mesh &cm, const unsigned int &nb_nodes, const string &path_data, const string &outputfile){
+void write_PBC(const cubic_mesh &cm, const string &path_data, const string &outputfile){
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
@@ -506,13 +569,6 @@ void write_PBC(const cubic_mesh &cm, const unsigned int &nb_nodes, const string 
             write_nodes_set(cm.set_name_faces[i], *cm.list_of_faces[i], out_set);
         }
     }
-
-    out_set << "************************************\n";
-    out_set << "** ALL NODES SET FOR OUTPUT RESULT *\n";
-    out_set << "************************************\n";
-    out_set << "*Nset, nset=Allnodes, generate\n";
-    out_set << "1, " << nb_nodes << ", 1";
-    out_set.close();
 }
 
 void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &path_data, const string &outputfile){
@@ -1321,6 +1377,62 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
             write_eq(out_set, eq);
         }
     }
+}
+
+//-------------------------------------------------------------
+void write_run_perturbation_file(const std::string &path_run, const std::string &pertu_out)
+//-------------------------------------------------------------
+{
+    string run_out = path_run + "/" + pertu_out;
+    std::ofstream aba_head;
+    
+    aba_head.open(run_out, ios::out);
+
+    aba_head << "*******************" << "\n";
+    aba_head << "*** CREATE STEP ***\n";
+    aba_head << "*******************\n";
+    aba_head << "*Step, Name=Isothermal linear perturbation step, perturbation\n";
+    aba_head << "Elastic material property computation\n";
+    aba_head << "*Static\n";
+    aba_head << "0.01 ,1\n";
+    aba_head << "******************\n";
+    aba_head << "*** LOAD CASES ***\n";
+    aba_head << "******************\n";
+    aba_head << "**\n";
+    aba_head << "**\n";
+    
+    Col<int> components = {11, 22, 33, 12, 13, 23};
+    for (int i=0; i<6; i++) {
+        vec pertu = zeros(6);
+        pertu(i) = 1.0;
+        aba_head << "*Load Case, name=Load_E" << components(i) << "\n";
+        aba_head << "*Boundary, op=NEW\n";
+        aba_head << "CentreNode, 1, 1\n";
+        aba_head << "CentreNode, 2, 2\n";
+        aba_head << "CentreNode, 3, 3\n";
+        aba_head << "**\n";
+        for (int j=0; j<6; j++) {
+            aba_head << "CD" << components(i) << ", 1, 1, " << pertu(i) << "\n";
+        }
+        aba_head << "*End Load Case\n";
+        aba_head << "**\n";
+    }
+
+    aba_head << "***********************\n";
+    aba_head << "*** OUTPUT REQUESTS ***\n";
+    aba_head << "***********************\n";
+    aba_head << "*Output, field\n";
+    aba_head << "*Element Output, directions=YES\n";
+    aba_head << "S, E, EVOL, IVOL\n";
+    aba_head << "*Node Output, nset=AllNodes\n";
+    aba_head << "U,\n";
+    aba_head << "*Node Output, nset=CD_nodes\n";
+    aba_head << "RF, CF, U, NT\n";
+    aba_head << "*Node print, nset=CD_nodes, summary=no\n";
+    aba_head << "RF1, CF1, U1,\n";
+    aba_head << "*End Step" << endl;
+    
+    aba_head.close();
 }
     
 } //namespace simcoon
