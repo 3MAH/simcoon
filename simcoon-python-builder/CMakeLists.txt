@@ -129,11 +129,11 @@ add_test(NAME Tarma2numpy WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/arm
 ################################################################################
 # SIMCOON modules
 #Add the files to the lib
-add_library(simcoon MODULE ${source_files_smart})
+add_library(simmit MODULE ${source_files_smart})
 #Wrapper library set_target properties
-set_target_properties(simcoon PROPERTIES PREFIX "" SUFFIX ".so")
+set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simcoon ${Boost_LIBRARIES} ${CGAL_LIBRARIES} ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY} arma2numpy)
+target_link_libraries(simmit ${Boost_LIBRARIES} ${CGAL_LIBRARIES} ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY} arma2numpy)
 
 
 ################################################################################

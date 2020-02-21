@@ -48,7 +48,12 @@ A build folder will be automatically created. At some point you can decide wethe
 You can set up, in the CMakeLists.txt file, the location where the library be installed. 
 Once the installation is done, the executables can be found in the build/bin folder
 
-Make sure that you have access to /usr/local folder for both MacOS and Linux operating systems. There is currently no installation guide for Windows OS, although the installation has been successful with use of Visual Studio.
+Make sure that you have access to /usr/local folder for both MacOS and Linux operating systems.
 
+On Windows platforms
+----------------
+
+The first thing is to download Visual Studio 2019. You can get if here_
+_here : https://visualstudio.microsoft.com/downloads/
 
 

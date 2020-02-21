@@ -38,8 +38,11 @@ arma::mat get_BBBB(const arma::mat &);
 
 arma::mat Delta_log_strain(const arma::mat &, const arma::mat &, const double &);
 
-//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E from the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 arma::mat DtauDe_2_DSDE(const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
+
+//This function computes the tangent modulus that links the Cauchy stress sigma to the to the rate of deformation D, from the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+arma::mat DtauDe_2_DsigmaDe(const arma::mat &, const double &);
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
 arma::mat DSDE_2_Dtau_LieDD(const arma::mat &, const arma::mat &);

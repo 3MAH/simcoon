@@ -49,7 +49,7 @@ class equation
         equation(const std::vector<component> &);	//constructor with parameters
         
         equation(const equation &);	//Copy constructor
-        ~equation();
+        virtual ~equation();
         
         virtual equation& operator = (const equation&);
         friend std::ostream& operator << (std::ostream&, const equation&);

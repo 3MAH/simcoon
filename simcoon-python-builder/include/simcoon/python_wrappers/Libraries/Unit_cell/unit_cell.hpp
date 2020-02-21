@@ -7,12 +7,20 @@ namespace simpy{
     
 simcoon::Node build_node(const int &, const boost::python::numpy::ndarray &);
 
-boost::python::numpy::ndarray readwrite_coords(simcoon::Node &);
+boost::python::numpy::ndarray Node_get_input_coords(simcoon::Node &);
+
+void Node_set_input_coords(simcoon::Node &, const boost::python::numpy::ndarray &);
     
-void get_domain(simcoon::cubic_mesh);
+simcoon::cubic_mesh build_cubic_mesh(const boost::python::str &, const boost::python::list &);
+
+void get_domain(simcoon::cubic_mesh &);
 
 void construct_lists(simcoon::cubic_mesh &);
     
-//simcoon::cubic_mesh build_cubic_mesh(const boost::python::list &, const boost::python::list &);
+boost::python::list read_nodes_file(const boost::python::str &, const boost::python::str &);
+
+boost::python::list read_sections(const int &, const boost::python::str &, const boost::python::str &);
+
+//boost::python::list read_path(double &T, const boost::python::str &, const boost::python::str &);
     
 } //namespace simpy

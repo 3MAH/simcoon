@@ -47,7 +47,7 @@ class block
 		block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&);	//constructor - allocates memory for the step vector
         block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const std::vector<std::shared_ptr<step> > &); //Constructor with parameters
 		block(const block&);	//Copy constructor
-		~block();
+		virtual ~block();
 		
 		void generate();
 //		void initialize();

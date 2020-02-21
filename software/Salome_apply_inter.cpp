@@ -1,5 +1,5 @@
-///@file Abaqus_apply_all.cpp
-///@brief Abaqus_apply_all : Apply Materials, Steps and periodic Boundary Conditions to a periodic box
+///@file Salome_apply_inter.cpp
+///@brief Salome_apply_inter : Apply Materials, Steps and periodic Boundary Conditions to a periodic box from a Salome model
 ///@version 1.0
 
 #include <fstream>
@@ -25,60 +25,67 @@ using namespace simcoon;
 
 int main() {
     
-    string path_data = "data_aba";
+    string path_data = "data_salome";
     string path_run = "run_aba";
-    string pointsfile = "node_nperio.inp";
-    string points_out = "node_perio0.inp";
-    string el_file = "element.inp";
+    string mesh_file = "mesh.dat";
+    string nodes_file = "nodes.inp";
+    string elements_file = "elements.inp";
+    string sets_file = "sets.inp";
     string uc_essentials = "unit_cell_essentials.inp";
+    string sc_mesh_file = "sc_mesh.dat";
     string postproc = "postproc_info.dat";
     
-    //copy the original node file
-    string src_file = path_data + "/" + pointsfile;
-    string dst_file = path_run + "/" + points_out;
-    boost::filesystem::copy_file(src_file,dst_file,boost::filesystem::copy_option::overwrite_if_exists);
-
-    //copy the original element file
-    src_file = path_data + "/" + el_file;
-    dst_file = path_run + "/" + el_file;
-    boost::filesystem::copy_file(src_file,dst_file,boost::filesystem::copy_option::overwrite_if_exists);
+    string sections_file = "Nsections.dat";
     
+    //copy the original node file
+    string src_file = path_data + "/" + mesh_file;
     string postproc_file = path_run + "/" + postproc;
     
     string buffer;
     
-    //Action 0 : Defining the mesh and the periodic mesh
-    
-    unsigned int nb_nodes = 0;
+    //Read the loading path - to get the loading_path informations
+    std::vector<block> blocks;  //loading blocks
+    double T_init = 0.;
+    string pathfile = "path.txt";
+    bool nlgeom = false;
+    read_path(blocks, T_init, path_data, pathfile);
+    unsigned int loading_type = blocks[0].type;
+
     int max_temp = 0;
     
-    //unit_cell_essentials(BC_type, max_temp, path_data, uc_essentials); //Unused
+    std::vector<section_characteristics> sections;
     
-    std::vector<Node> nodes;
-    read_nodes_file(nodes, path_data, pointsfile);
-    nb_nodes = nodes.size();
-    unsigned int nb_nodes_init = nb_nodes;
-    cubic_mesh cm(nodes, pointsfile);
+    //read or provide sc_mesh!
+    std::vector<Col<int> > sc_mesh;
+    
+    read_salome_full_mesh(sections, sc_mesh, loading_type, path_data, sections_file, sc_mesh_file, mesh_file);
+    
+    std::vector<Node> nodes_full;
+    std::vector<Element> elements_full;
+    for(auto sc : sections) {
+        nodes_full.insert(nodes_full.end(), sc.nodes.begin(), sc.nodes.end());
+        elements_full.insert(elements_full.end(), sc.elements.begin(), sc.elements.end());
+    }
+    
+    unsigned int nb_nodes_full = nodes_full.size();
+    unsigned int nb_nodes_init = nb_nodes_full;
+    
+    cubic_mesh cm(nodes_full, "nodes_full");
     cm.get_domain();
     //cm.find_pairs();
     cm.construct_lists();
     
-    cubic_mesh cm_perio = perio_RVE(cm, nb_nodes);
+    cubic_mesh cm_perio = perio_RVE(cm, nb_nodes_full);
     cm_perio.construct_lists();
+    
+    //Action_0 : The node and element file
+    write_nodes_file(nodes_full, path_run, nodes_file);
+    write_elements_file(elements_full, path_run, elements_file);
+    write_sets_file(sections, nodes_full, path_run, sets_file);
     
     //Action 1 : The materials and sections
     string umat_name;
-    string sections_file = "Nsections.dat";
     string sections_out = "mat_sec.inp";
-    
-    //Action 2 : The steps
-    string pathfile = "path.txt";
-    bool nlgeom = false;
-    double T_init = 0.;
-    std::vector<block> blocks;  //loading blocks
-    //Read the loading path
-    read_path(blocks, T_init, path_data, pathfile);
-    unsigned int loading_type = blocks[0].type;
     
     //Phases
     string steps_file_name = "steps_file_name.inp";
@@ -87,9 +94,8 @@ int main() {
     update_steps(aba_steps, blocks, nlgeom, loading_type, max_temp);
     write_steps(aba_steps, loading_type, T_init, path_run, steps_file_name);
     
-    
     //Action 3 : Sections and materials
-    std::vector<section_characteristics> sections;
+
     read_sections(sections, loading_type, path_data, sections_file);
     write_sections(sections, loading_type, path_run, sections_out);
     
@@ -114,8 +120,9 @@ int main() {
     aba_head << "*Heading" << "\n";
     aba_head << "**" << "\n";
     
-    aba_head << "*INCLUDE, INPUT= " << points_out << "\n";
-    aba_head << "*INCLUDE, INPUT= " << el_file << "\n";
+    aba_head << "*INCLUDE, INPUT= " << nodes_file << "\n";
+    aba_head << "*INCLUDE, INPUT= " << elements_file << "\n";
+    aba_head << "*INCLUDE, INPUT= " << sets_file << "\n";
     aba_head << "*INCLUDE, INPUT= " << sections_out << "\n";
     aba_head << "*INCLUDE, INPUT= " << PBC_file_name << "\n";
     aba_head << "*INCLUDE, INPUT= " << CDN_file_name << "\n";

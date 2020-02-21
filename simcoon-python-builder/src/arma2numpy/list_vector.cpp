@@ -154,9 +154,9 @@ boost::python::list std_vector_to_py_list_Node(const std::vector<simcoon::Node> 
     return std_vector_to_py_list_class<std::shared_ptr<simcoon::step>>(vector);
 }*/
 
-/*boost::python::list std_vector_to_py_list_section_characteristics(const std::vector<simcoon::section_characteristics> &vector)
+boost::python::list std_vector_to_py_list_section_characteristics(const std::vector<simcoon::section_characteristics> &vector)
 {
     return std_vector_to_py_list_class<simcoon::section_characteristics>(vector);
-}*/
+}
 
 } //end of namespace arma2numpy

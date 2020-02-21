@@ -59,7 +59,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     unsigned int loading_type = 1;
     
     std::vector<Node> nodes;
-    read_mesh(nodes, path_data, pointsfile);
+    read_nodes_file(nodes, path_data, pointsfile);
     nb_nodes = nodes.size();
     cubic_mesh cm(nodes, pointsfile);
     cm.get_domain();
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     cubic_mesh cm_perio = perio_RVE(cm, nb_nodes);
     cm_perio.construct_lists();
     
-    write_PBC(cm, nb_nodes, path_data, PBC_file_name);
+    write_PBC(cm, path_data, PBC_file_name);
     write_NonPerio_CDN(cm, cm_perio, loading_type, path_data, CDN_file_name);
 }
 
@@ -87,7 +87,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {
     unsigned int nb_nodes = 0;
     
     std::vector<Node> nodes;
-    read_mesh(nodes, path_data, pointsfile);
+    read_nodes_file(nodes, path_data, pointsfile);
     nb_nodes = nodes.size();
     cubic_mesh cm(nodes, pointsfile);
     cm.get_domain();

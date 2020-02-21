@@ -18,8 +18,11 @@
 #pragma once
 #include <vector>
 #include <boost/python.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/section_characteristics.hpp>
 #include <simcoon/Simulation/Identification/constants.hpp>
 #include <simcoon/Simulation/Identification/parameters.hpp>
+#include <simcoon/Simulation/Solver/block.hpp>
 
 namespace arma2numpy {
 
@@ -34,6 +37,10 @@ std::vector<std::string> py_list_to_std_vector_string(const boost::python::objec
 std::vector<simcoon::constants> py_list_to_std_vector_constants(const boost::python::object &);
     
 std::vector<simcoon::parameters> py_list_to_std_vector_parameters(const boost::python::object &);
+
+std::vector<simcoon::Node> py_list_to_std_vector_Node(const boost::python::object &);
+
+std::vector<simcoon::block> py_list_to_std_vector_block(const boost::python::object &);
 
 template <typename T> boost::python::object transfer_to_python(T* t);    
     
@@ -50,5 +57,11 @@ boost::python::list std_vector_to_py_list_string(const std::vector<std::string> 
 boost::python::list std_vector_to_py_list_constants(const std::vector<simcoon::constants> &);
     
 boost::python::list std_vector_to_py_list_parameters(const std::vector<simcoon::parameters> &);
+
+boost::python::list std_vector_to_py_list_Node(const std::vector<simcoon::Node> &);
+
+boost::python::list std_vector_to_py_list_section_characteristics(const std::vector<simcoon::section_characteristics> &);
+
+//boost::python::list std_vector_to_py_list_block(const std::vector<simcoon::block> &);
     
 } //end of namespace arma2numpy

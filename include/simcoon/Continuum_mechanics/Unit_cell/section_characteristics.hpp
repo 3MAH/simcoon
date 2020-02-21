@@ -27,7 +27,10 @@
 #include <memory>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/element.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/materials.hpp>
+
 
 namespace simcoon{
 
@@ -42,21 +45,31 @@ class section_characteristics
 	public :
 
         std::string elset_name;
+        std::vector<Node> nodes;
+        std::vector<Element> elements;
         int id;
     
         aba_material abamat;
+
+//        bool local_csys;
+//        std::vector<arma::vec> local_orientations;
+
         std::vector<section_characteristics> sub_sections;
         std::string sub_sections_file;
     
 		section_characteristics(); 	//default constructor
     
-        section_characteristics(const std::string &, const int &, const aba_material &, const std::string &);
+        section_characteristics(const std::string &, const std::vector<Node> &, const std::vector<Element> &, const int &, const aba_material &, const std::string &);
     
 		section_characteristics(const section_characteristics&);	//Copy constructor
         virtual ~section_characteristics();
     
-        virtual void update(const std::string &, const int &, const phase_characteristics &);
-
+        virtual void construct_subsections(const unsigned int&);
+        virtual void update(const std::string &, const std::vector<Node> &, const std::vector<Element> &, const int &, const aba_material &);
+        virtual void update_mesh(const std::vector<Node> &, const std::vector<Element> &);
+        virtual void update_nomesh(const std::string &, const int &, const aba_material &);
+        virtual void update_from_pc(const std::string &, const int &, const phase_characteristics &);
+    
 		virtual section_characteristics& operator = (const section_characteristics&);
         friend std::ostream& operator << (std::ostream&, const section_characteristics&);
 };

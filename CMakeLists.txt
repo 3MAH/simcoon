@@ -126,7 +126,7 @@ add_library(simcoon SHARED ${source_files})
 target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
 
 #Define lists of executables for compilation
-set (All_exe_to_compile Abaqus_apply_inter extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
+set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter  extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
 
 #Compile public executable
 foreach (Exe_to_compile ${All_exe_to_compile})
