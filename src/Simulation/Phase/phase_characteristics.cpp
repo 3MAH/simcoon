@@ -31,6 +31,8 @@
 #include <simcoon/Simulation/Geometry/layer.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Simulation/Geometry/cylinder.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/layer_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
@@ -407,17 +409,31 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
         }
     
         //output
-        if (so.o_nb_meca) {
+        if (so.o_nb_strain) {
             switch (so.o_strain_type) {
                 case 0: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_global << sptr_sv_global->Etot(so.o_meca(z)) << "\t";
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_global << sptr_sv_global->Etot(so.o_strain(z)) << "\t";
                     }
                     break;
                 }
                 case 1: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_global << sptr_sv_global->etot(so.o_meca(z)) << "\t";
+                        vec E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_global->Etot)+eye(3,3)) - eye(3,3));
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_global << E_biot(so.o_strain(z)) << "\t";
+                    }
+                    break;
+                }
+                case 2: {
+                    vec F_vec = vectorise(sptr_sv_global->F1.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_global << F_vec(so.o_strain(z)) << "\t";
+                    }
+                    break;
+                }
+                case 3: {
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_global << sptr_sv_global->etot(so.o_strain(z)) << "\t";
                     }
                     break;
                 }
@@ -427,22 +443,41 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                 }
                 
             }
+        }
+        if (so.o_nb_stress) {
             switch (so.o_stress_type) {
                 case 0: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_global << sptr_sv_global->PKII(so.o_meca(z)) << "\t";
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_global << sptr_sv_global->PKII(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
                 case 1: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_global << sptr_sv_global->tau(so.o_meca(z)) << "\t";
+                    mat PKI = Kirchoff2PKI(v2t_stress(sptr_sv_global->tau), sptr_sv_global->F1);
+                    mat Nominal_stress = PKI.t();
+                    vec Nominal_stress_vec = vectorise(Nominal_stress.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_global << Nominal_stress_vec(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
                 case 2: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_global << sptr_sv_global->sigma(so.o_meca(z)) << "\t";
+                    mat PKI = Kirchoff2PKI(v2t_stress(sptr_sv_global->tau), sptr_sv_global->F1);
+                    vec PK1_vec = vectorise(PKI.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_global << PK1_vec(so.o_stress(z)) << "\t";
+                    }
+                    break;
+                }
+                case 3: {
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_global << sptr_sv_global->tau(so.o_stress(z)) << "\t";
+                    }
+                    break;
+                }
+                case 4: {
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_global << sptr_sv_global->sigma(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
@@ -536,17 +571,31 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
         }
     
         //output
-        if (so.o_nb_meca) {
+        if (so.o_nb_strain) {
             switch (so.o_strain_type) {
                 case 0: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_local << sptr_sv_local->Etot(so.o_meca(z)) << "\t";
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_local << sptr_sv_local->Etot(so.o_strain(z)) << "\t";
                     }
                     break;
                 }
                 case 1: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_local << sptr_sv_local->etot(so.o_meca(z)) << "\t";
+                        vec E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_local->Etot)+eye(3,3)) - eye(3,3));
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_local << E_biot(so.o_strain(z)) << "\t";
+                    }
+                    break;
+                }
+                case 2: {
+                    vec F_vec = vectorise(sptr_sv_local->F1.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_local << F_vec(so.o_strain(z)) << "\t";
+                    }
+                    break;
+                }
+                case 3: {
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_local << sptr_sv_local->etot(so.o_strain(z)) << "\t";
                     }
                     break;
                 }
@@ -554,23 +603,43 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
                     exit(0);
                 }
+                
             }
+        }
+        if (so.o_nb_stress) {
             switch (so.o_stress_type) {
                 case 0: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_local << sptr_sv_local->PKII(so.o_meca(z)) << "\t";
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_local << sptr_sv_local->PKII(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
                 case 1: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_local << sptr_sv_local->tau(so.o_meca(z)) << "\t";
+                    mat PKI = Kirchoff2PKI(v2t_stress(sptr_sv_local->tau), sptr_sv_local->F1);
+                    mat Nominal_stress = PKI.t();
+                    vec Nominal_stress_vec = vectorise(Nominal_stress.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_local << Nominal_stress_vec(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
                 case 2: {
-                    for (int z=0; z<so.o_nb_meca; z++) {
-                        *sptr_out_local << sptr_sv_local->sigma(so.o_meca(z)) << "\t";
+                    mat PKI = Kirchoff2PKI(v2t_stress(sptr_sv_local->tau), sptr_sv_global->F1);
+                    vec PK1_vec = vectorise(PKI.t()); //The transpose is to obtain a vec with row-wise concatenation
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_local << PK1_vec(so.o_stress(z)) << "\t";
+                    }
+                    break;
+                }
+                case 3: {
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_local << sptr_sv_local->tau(so.o_stress(z)) << "\t";
+                    }
+                    break;
+                }
+                case 4: {
+                    for (int z=0; z<so.o_nb_stress; z++) {
+                        *sptr_out_local << sptr_sv_local->sigma(so.o_stress(z)) << "\t";
                     }
                     break;
                 }
@@ -583,7 +652,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
         
         switch (sv_type) {
             case 1: {
-                std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
+                std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
                 *sptr_out_local << sv_M->Wm(0)  << "\t";
                 *sptr_out_local << sv_M->Wm(1)  << "\t";
                 *sptr_out_local << sv_M->Wm(2)  << "\t";
@@ -592,7 +661,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
             }
             case 2: {
                 //We need to cast sv
-                std::shared_ptr<state_variables_T> sv_T = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
+                std::shared_ptr<state_variables_T> sv_T = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
                 *sptr_out_local << sv_T->Wm(0)  << "\t";
                 *sptr_out_local << sv_T->Wm(1)  << "\t";
                 *sptr_out_local << sv_T->Wm(2)  << "\t";
