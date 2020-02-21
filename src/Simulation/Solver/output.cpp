@@ -41,7 +41,8 @@ namespace simcoon{
 solver_output::solver_output()
 //-------------------------------------------------------------
 {
-    o_nb_meca = 0;
+    o_nb_strain = 0;
+    o_nb_stress = 0;
     o_nb_T = 0;
     o_nw_statev = 0;
     
@@ -58,7 +59,8 @@ solver_output::solver_output()
 solver_output::solver_output(const int &nblock)
 //-------------------------------------------------------------
 {
-    o_nb_meca = 0;
+    o_nb_strain = 0;
+    o_nb_stress = 0;
     o_nb_T = 0;
     o_nw_statev = 0;
 
@@ -79,9 +81,10 @@ solver_output::solver_output(const int &nblock)
 solver_output::solver_output(const solver_output& so)
 //------------------------------------------------------
 {
-    
-    o_nb_meca = so.o_nb_meca;
-    o_meca = so.o_meca;
+    o_nb_strain = so.o_nb_strain;
+    o_nb_stress = so.o_nb_stress;
+    o_strain = so.o_strain;
+    o_stress = so.o_stress;
     o_nb_T = so.o_nb_T;
     o_strain_type = so.o_strain_type;
     o_stress_type = so.o_stress_type;
@@ -107,9 +110,10 @@ solver_output::~solver_output() {}
 solver_output& solver_output::operator = (const solver_output& so)
 //----------------------------------------------------------------------
 {
-
-    o_nb_meca = so.o_nb_meca;
-    o_meca = so.o_meca;
+    o_nb_strain = so.o_nb_strain;
+    o_nb_stress = so.o_nb_stress;
+    o_strain = so.o_strain;
+    o_stress = so.o_stress;
     o_nb_T = so.o_nb_T;
     o_strain_type = so.o_strain_type;
     o_stress_type = so.o_stress_type;
@@ -128,8 +132,9 @@ ostream& operator << (ostream& s, const solver_output& so)
 //--------------------------------------------------------------------------
 {    
 	s << "Display info on the output:\n ";
-	s << "Number of meca: " << so.o_nb_meca << "\t heat" << so.o_nb_T << " \n";
-	s << "meca\n" << so.o_meca << "\n";
+	s << "Number of strain/stress: " << so.o_nb_strain << "/" << so.o_nb_stress << "\t heat" << so.o_nb_T << " \n";
+	s << "strain\n" << so.o_strain << "\n";
+	s << "stress\n" << so.o_stress << "\n";
     
     /*std::map<string, int> list_strain_type;
     list_strain_type = {{"Green-Lagrange",0},{"logarithmic",1}};
