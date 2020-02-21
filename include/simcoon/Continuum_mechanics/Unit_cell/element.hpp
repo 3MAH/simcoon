@@ -60,7 +60,7 @@ class Element
         friend std::ostream& operator << (std::ostream&, const Element&);
 };
 
-inline bool operator==(const Element& lhs, const Element& rhs){return ((lhs.number == rhs.number)&&(lhs.type == rhs.type)); }
+inline bool operator==(const Element& lhs, const Element& rhs){return (lhs.number == rhs.number); }
 inline bool operator!=(const Element& lhs, const Element& rhs){return !operator==(lhs,rhs);}
 inline bool operator< (const Element& lhs, const Element& rhs){return (lhs.number < rhs.number); }
 inline bool operator> (const Element& lhs, const Element& rhs){return  operator< (rhs,lhs);}
