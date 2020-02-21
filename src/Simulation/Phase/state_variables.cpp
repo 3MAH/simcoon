@@ -336,7 +336,7 @@ void state_variables::set_start()
 {
     PKII_start = PKII;
     tau_start = rotate_stress(tau,DR);
-    sigma_start = rotate_stress(sigma, DR);
+    sigma_start = rotate_stress(sigma,DR);
     statev_start = statev;
     Etot += DEtot;
     etot = rotate_strain(etot,DR) + Detot;
