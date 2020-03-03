@@ -391,21 +391,6 @@ void write_sets_file(const std::vector<section_characteristics> &sections, const
 
     std::string filename = path_data + "/" + output_sets;
     std::ofstream out_set;
-        
-    std::string filename = path_data + "/" + output_elements;
-    std::ofstream out_set;
-    
-    out_set.open(filename, ios::out);    
-    out_set << "*Element, type=C" << elements[0].type.front() << "D" << stoi(elements[0].type.substr(1,elements[0].type.length())) << endl;
-    for (auto e : elements) {
-        write_aba_format(out_set, e);
-    }
-}
-
-void write_sets_file(const std::vector<section_characteristics> &sections, const std::vector<Node> &nodes_full, const string &path_data, const string &output_sets) {
-
-    std::string filename = path_data + "/" + output_sets;
-    std::ofstream out_set;
     
     out_set.open(filename, ios::out);
     out_set << "************************************\n";
