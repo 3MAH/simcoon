@@ -212,7 +212,8 @@ done
 fi
 
 cd ${current_dir}/simcoon-python-builder/build
-cmake .. -D Boost_NO_BOOST_CMAKE:BOOL=ON
+PYTHON_PATH = $(python -c "import sys; print(sys.prefix)")
+cmake .. -DCMAKE_PREFIX_PATH=${PYTHON_PATH}
 echo ""
 make
 make install
@@ -225,4 +226,5 @@ cd ${current_dir}/python-setup
 #Change the current dir and install python library
 current_dir=$(pwd)
 
-python ${current_dir}/setup.py install
+python setup.py install
+pip install .
