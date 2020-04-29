@@ -50,7 +50,7 @@ class phase_multi
 		phase_multi(); 	//default constructor
         phase_multi(const arma::mat&, const arma::mat&, const arma::mat&, const arma::mat&, const arma::vec&); //Constructor with parameters
 		phase_multi(const phase_multi&);	//Copy constructor
-        ~phase_multi();
+        virtual ~phase_multi();
 		
         void to_start();
         void set_start();

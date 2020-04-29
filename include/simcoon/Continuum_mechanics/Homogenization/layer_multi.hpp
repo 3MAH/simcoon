@@ -57,7 +57,7 @@ class layer_multi : public phase_multi
         layer_multi(); 	//default constructor
         layer_multi(const arma::mat&, const arma::mat&, const arma::mat&, const arma::mat&, const arma::vec&, const arma::mat&, const arma::mat&, const arma::mat&, const arma::mat&, const arma::vec&, const arma::vec&); //Constructor with parameters
         layer_multi(const layer_multi&);	//Copy constructor
-            ~layer_multi();
+        ~layer_multi();
     
         virtual layer_multi& operator = (const layer_multi&);
         

@@ -21,7 +21,7 @@
 
 #pragma once
 #include <armadillo>
-#include <FTensor.hpp>
+#include <simcoon/FTensor.hpp>
 
 namespace simcoon{
 
