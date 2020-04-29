@@ -23,13 +23,14 @@ include(GNUInstallDirs)
 
 # We default to debugging mode for developers.
 option(DEBUG "Compile with debugging information" OFF)
+# Build type
+if(NOT CMAKE_BUILD_TYPE)  # Debug by default
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
+        FORCE)
+endif()
+message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
 
-# configure a header file to pass some CMake settings
-# to the source code
-#configure_file (
-#  "${PROJECT_SOURCE_DIR}/configuration.hpp.in"
-#  "${PROJECT_BINARY_DIR}/configuration.hpp"
-#)
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -42,13 +43,6 @@ enable_testing()
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
-message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}"     )
-message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
-message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
-message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
-
 #Inclusion of Armadillo
 include(FindArmadillo)
 find_package(Armadillo 5.2 REQUIRED)
@@ -59,8 +53,8 @@ find_package(FTensor)
 include_directories(SYSTEM ${FTENSOR_INCLUDE_DIRS})
 
 #Find CGAL
-find_package(CGAL REQUIRED COMPONENTS Core) 
-include( ${CGAL_USE_FILE} )
+find_package(CGAL COMPONENTS Core REQUIRED)
+#include_directories(SYSTEM ${CGAL_INCLUDE_DIRS})
 
 #Inclusion of Boost
 find_package(Boost 1.57.0 COMPONENTS system filesystem unit_test_framework REQUIRED)
@@ -70,39 +64,43 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 #include(FindOpenMP)
 #find_package(OpenMP)
 
-# Build type
-if(NOT CMAKE_BUILD_TYPE)  # Debug by default
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING
-        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
-        FORCE)
-endif()
-
-message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-# Debugging CFLAGS.  Turn optimizations off; turn debugging symbols on.
-if(DEBUG)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
+if (UNIX AND NOT APPLE)
+  if (DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
+  else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
+  endif()
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Drestrict=")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
-endif(DEBUG)
-
-#if Apple OS, set the -framework Accelerate
-if(APPLE)
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_CXX_FLAGS} -framework Accelerate")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -framework Accelerate")
+  if (DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -O0 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+  else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -O3 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+  endif()
 endif()
 
 if(OPENMP_FOUND)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
+
+message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
+message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}"     )
+message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "CMAKE_CXX_FLAGS            = ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
+message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
+message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 
 #Inclusion of public headers
 include_directories(include)
@@ -123,7 +121,7 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES})
+target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
 
 #Define lists of executables for compilation
 set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter  extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
@@ -135,7 +133,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES} -ldl)
+	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core -ldl)
 
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
@@ -158,7 +156,7 @@ foreach(testSrc ${TEST_SRCS})
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} ${CGAL_LIBRARIES} -ldl)
+        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core -ldl)
 
         #I like to move testing binaries into a testBin directory
         set_target_properties(${testName} PROPERTIES 
