@@ -13,7 +13,9 @@ Simcoon is a free, open-source library for the simulation of multiphysics system
 
 Simcoon is a C++ library with emphasis on speed and ease-of-use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, SMART+ provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver, a software to predict effective properties of composites, and a built-in identification software (using a combined genetic-gradient based algorithm)
 
-Simcoon is mainly developed by contributors the staff and members of several institutions: The University of Bordeaux and the I2M Laboratory (Institut de d'Ingénierie et de Mécanique), the LEM3 laboratory in Metz, France, TU Bergakademie Freiberg in Germany and the TIMC-IMAG laboratory in Grenoble, France. It is released under the GNU General Public License: GPL, version 3.
+Simcoon is mainly developed by faculty and researchers from University of Bordeaux and the I2M Laboratory (Institut de d'Ingénierie et de Mécanique). Fruitful contribution came from the LEM3 laboratory in Metz, France, TU Bergakademie Freiberg in Germany and the TIMC-IMAG laboratory in Grenoble, France. It is released under the GNU General Public License: GPL, version 3.
+
+Simcoon make use and therefore include the FTensor library (http://www.wlandry.net/Projects/FTensor) for convenience. FTensor is a library that handle complex tensor computations. FTensor is released under the GNU General Public License: GPL, version 2. You can get it there (but is is already included in simcoon): (https://bitbucket.org/wlandry/ftensor)
 
 Documentation
 --------------
@@ -26,13 +28,13 @@ Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoo
 Installation
 ------------
 
-How to install Simcoon :
+How to install Simcoon (In most UNIX-based systems):
 
-1 - Make sure you have Boost (1.66 at least) installed and Armadillo (latest version is best) installed to use smartplus. Make also sure you have installed FTensor (https://bitbucket.org/wlandry/ftensor)
+1 - Make sure you have Boost (1.66 at least) installed and Armadillo (latest version is best) installed to use smartplus. Make sure that you have Boost.Python compiled against Python3 (Since Python 2 will be outdated). Using Homebrew and Pyenv for MacOS is a good idea to correctly handle the Python version to use!
 
-2 - Unzip the file in a source location, and rename it 'simcoon'.
+2 - Unzip the file in a source location.
 
-3 - Go to such folder "simcoon"
+3 - Go to such folder "simcoon (i.e. using cd)"
 
 4 - Execute the installation bash file : 
 
@@ -45,23 +47,23 @@ sh Install.sh
 Alternative
 --------------------
 
-If you start from an Ubuntu 16.04, you can also use the script "install-simcoon.sh"
-It contains all the commands to install the smartplus dependancies
-Just run 
+You can also Cmake to compile the simcoon library, and then navigate to "simcoon-python-builder" to build the simmit library, which is the Python binding of Simcoon. You can run the tests using 'make test'.
+
+If your OS is Ubuntu 18.04, you will soon be able to use a script "install-simcoon.sh" that contains all the commands to install the simcoon dependancies and simcoon. Stay tuned! You will then just have to navigate to the simcoon folder downloaded and run:
 
 ```bash
-sh install-simcoon.sh
+sudo sh install-simcoon.sh
 ```
-on a terminal, with the su privileges
+on a terminal, with the sudo admin privileges
 
-How to use smartplus
+How to use simcoon
 --------------------
 
 Several possibilities 
 
-1 - Use the python wrapper for smartplus
+1 - Use the python wrapper for simcoon
 
-By doing, so, you can utilize simcoon in Ipython (jupyter) notebooks
+By doing, so, you can utilize simcoon in Ipython (jupyter) notebooks. Several examples are provided
 
 2 - Use the executables provided by simcoon
 
@@ -86,4 +88,3 @@ Have fun :)
 Authors
 -------
 * [Yves Chemisky](https://github.com/chemiskyy)
-* [Kevin Bonnay](https://github.com/kbonnay)
