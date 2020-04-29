@@ -19,6 +19,7 @@
 #include <vector>
 #include <memory>
 #include <boost/python.hpp>
+#include <boost/python/list.hpp>
 #include <boost/python/stl_iterator.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -28,59 +29,66 @@
 #include <simcoon/arma2numpy/list_vector.hpp>
 
 namespace bp = boost::python;
+using namespace std;
 
 namespace arma2numpy {
 
-template<typename T> std::vector<T> py_list_to_std_vector(const bp::object& iterable)
+template<typename T> std::vector<T> py_list_to_std_vector(const boost::python::list& l)
 {
-    return std::vector<T>( bp::stl_input_iterator<T>( iterable ),
-                            bp::stl_input_iterator<T>() );
+    std::vector<T> v;    
+    for(int i = 0; i < len(l); ++i){
+      v.push_back(boost::python::extract<T>(l[i]));
+    }
+    return v;
+    
+//    return std::vector<T>( bp::stl_input_iterator<T>( iterable ),
+//                            bp::stl_input_iterator<T>() );
 }
 
-std::vector<double> py_list_to_std_vector_double(const bp::object& iterable)
+std::vector<double> py_list_to_std_vector_double(const boost::python::list& l)
 {
-    return py_list_to_std_vector<double>(iterable);
+    return py_list_to_std_vector<double>(l);
 }
 
-std::vector<int> py_list_to_std_vector_int(const bp::object& iterable)
+std::vector<int> py_list_to_std_vector_int(const boost::python::list& l)
 {
-    return py_list_to_std_vector<int>(iterable);
+    return py_list_to_std_vector<int>(l);
 }
 
-std::vector<std::string> py_list_to_std_vector_string(const bp::object& iterable)
+std::vector<std::string> py_list_to_std_vector_string(const boost::python::list& l)
 {
-    return py_list_to_std_vector<std::string>(iterable);
+    return py_list_to_std_vector<std::string>(l);
 }
 
-std::vector<simcoon::constants> py_list_to_std_vector_constants(const bp::object& iterable)
+std::vector<simcoon::constants> py_list_to_std_vector_constants(const boost::python::list& l)
 {
-    return py_list_to_std_vector<simcoon::constants>(iterable);
+    return py_list_to_std_vector<simcoon::constants>(l);
 }
 
-std::vector<simcoon::parameters> py_list_to_std_vector_parameters(const bp::object& iterable)
+std::vector<simcoon::parameters> py_list_to_std_vector_parameters(const boost::python::list& l)
 {
-    return py_list_to_std_vector<simcoon::parameters>(iterable);
+    return py_list_to_std_vector<simcoon::parameters>(l);
 }
 
-std::vector<simcoon::Node> py_list_to_std_vector_Node(const bp::object& iterable)
+std::vector<simcoon::Node> py_list_to_std_vector_Node(const boost::python::list& l)
 {
-    return py_list_to_std_vector<simcoon::Node>(iterable);
+    return py_list_to_std_vector<simcoon::Node>(l);
 }
 
-std::vector<simcoon::block> py_list_to_std_vector_block(const bp::object& iterable)
+std::vector<simcoon::block> py_list_to_std_vector_block(const boost::python::list& l)
 {
-    return py_list_to_std_vector<simcoon::block>(iterable);
+    return py_list_to_std_vector<simcoon::block>(l);
 }
 
-std::vector<std::shared_ptr<simcoon::step>> py_list_to_std_vector_shptr_step(const bp::object& iterable)
+std::vector<std::shared_ptr<simcoon::step>> py_list_to_std_vector_shptr_step(const boost::python::list& l)
 {
-    return py_list_to_std_vector<std::shared_ptr<simcoon::step>>(iterable);
+    return py_list_to_std_vector<std::shared_ptr<simcoon::step>>(l);
 }
 
-/*std::vector<simcoon::section_characteristics> py_list_to_std_vector_section_characteristics(const bp::object& iterable)
+std::vector<simcoon::section_characteristics> py_list_to_std_vector_section_characteristics(const boost::python::list& l)
 {
-    return py_list_to_std_vector<simcoon::section_characteristics>(iterable);
-}*/
+    return py_list_to_std_vector<simcoon::section_characteristics>(l);
+}
 
 /// @brief Transfer ownership to a Python object.  If the transfer fails,
 ///        then object will be destroyed and an exception is thrown.
@@ -103,8 +111,9 @@ template <typename T> boost::python::object transfer_to_python(T* t)
 }
 
 template <class T> bp::list std_vector_to_py_list(const std::vector<T> &vector) {
+
     bp::list list;
-    for (auto const & x : vector) {
+    for (auto x : vector) {
         list.append(x);
     }
     return list;
