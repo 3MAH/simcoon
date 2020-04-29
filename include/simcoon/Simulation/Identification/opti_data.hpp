@@ -48,7 +48,7 @@ class opti_data
 		opti_data(int, int);	//constructor - allocates memory for statev
         opti_data(std::string, int, int, int, int, int); //Constructor with parameters
 		opti_data(const opti_data &);	//Copy constructor
-		~opti_data();
+		virtual ~opti_data();
 		
 		int dimdata () const {return ndata;}       // returns the number of data points
 		int diminfo () const {return ninfo;}       // returns the number of informations at each datapoint
