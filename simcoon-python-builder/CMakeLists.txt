@@ -32,21 +32,54 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-# Find necessary packages
-find_package(PythonInterp REQUIRED)
-find_package(PythonLibsNew REQUIRED)
-find_package(NumPy REQUIRED)
+FIND_PACKAGE(PythonInterp)
+
+if (PYTHONINTERP_FOUND)
+  if (UNIX AND NOT APPLE)
+    if (PYTHON_VERSION_MAJOR EQUAL 3)
+        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
+        FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
+        FIND_PACKAGE(PythonInterp 3)
+        FIND_PACKAGE(PythonLibs 3 REQUIRED)
+        FIND_PACKAGE(NumPy REQUIRED)
+    else()
+        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
+        FIND_PACKAGE(Boost COMPONENTS python numpy REQUIRED)
+        FIND_PACKAGE(PythonInterp)
+        FIND_PACKAGE(PythonLibs REQUIRED)
+        FIND_PACKAGE(NumPy REQUIRED)
+    endif()
+  else()
+    set(CMAKE_FIND_FRAMEWORK NEVER)
+    if (PYTHON_VERSION_MAJOR EQUAL 3)
+        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
+        FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
+        FIND_PACKAGE(PythonInterp 3)
+        FIND_PACKAGE(PythonLibs 3 REQUIRED)
+        FIND_PACKAGE(NumPy REQUIRED)
+    else()
+        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
+        FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
+        FIND_PACKAGE(PythonInterp)
+        FIND_PACKAGE(PythonLibs REQUIRED)
+        FIND_PACKAGE(NumPy REQUIRED)
+    endif()
+  endif()
+else()
+    message("Python not found")
+endif()
+
+#${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
+
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
 
-#message("status: ${PYTHON_LIBRARIES}")
-
-# Find CGAL
-find_package(CGAL REQUIRED COMPONENTS Core) 
-include( ${CGAL_USE_FILE} )
-
-#include(FindBoost)
-find_package(Boost COMPONENTS python numpy REQUIRED )
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
+message(STATUS "BOOST_INCLUDE_DIRS = ${BOOST_INCLUDE_DIRS}")
+message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
+message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
+message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
+message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
+message(STATUS "Boost_INCLUDE_DIRS = ${Boost_INCLUDE_DIRS}")
 
 find_package(simcoon) 
 if(SIMCOON_FOUND)
@@ -62,30 +95,39 @@ if(NOT CMAKE_BUILD_TYPE)  # Debug by default
         FORCE)
 endif()
 
-message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-# Debugging CFLAGS.  Turn optimizations off; turn debugging symbols on.
-if(DEBUG)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++11")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
-  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14")
 
+if (UNIX AND NOT APPLE)
+  if (DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
+  else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
+  endif()
 else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O3 -Drestrict=")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -v -std=c++14")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
-  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14")
-endif(DEBUG)
+  if (DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -O0 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+  else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -O3 -Drestrict=")
+      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
+  endif()
+endif()
 
-if(APPLE)
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_CXX_FLAGS} -framework Accelerate")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -framework Accelerate")
-  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -framework Accelerate")
+if(OPENMP_FOUND)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
 #Inclusion of public headers
@@ -101,7 +143,7 @@ file(GLOB_RECURSE source_files_arma2numpy src/arma2numpy/* include/arma2numpy/*)
 add_library(arma2numpy SHARED ${source_files_arma2numpy})
 
 #link against simcoon and Armadillo, and Boost for the numpy
-target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY})
+target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY})
 
 #Setup CMake to run tests
 enable_testing()
@@ -111,7 +153,8 @@ enable_testing()
 file(GLOB_RECURSE test_files test/*.cpp)
 
 #Add the files to the lib
-add_library(Tarma2numpy MODULE ${test_files})
+#add_library(Tarma2numpy MODULE ${test_files})
+PYTHON_ADD_MODULE(Tarma2numpy ${test_files})
 #Move testing binaries into a testBin directory
 #Set executable files and library files
 set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
@@ -119,7 +162,7 @@ set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
 set_target_properties(Tarma2numpy PROPERTIES PREFIX "" SUFFIX ".so" LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR}/test/arma2numpy)
 
 #link against simcoon and arma2numpy, and Boost for the wrappers
-target_link_libraries(Tarma2numpy ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} arma2numpy)
+target_link_libraries(Tarma2numpy ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} arma2numpy)
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
@@ -133,7 +176,7 @@ add_library(simmit MODULE ${source_files_smart})
 #Wrapper library set_target properties
 set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit ${Boost_LIBRARIES} ${CGAL_LIBRARIES} ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY} arma2numpy)
+target_link_libraries(simmit ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARY} arma2numpy)
 
 
 ################################################################################
