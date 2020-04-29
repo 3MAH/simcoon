@@ -18,6 +18,7 @@
 #pragma once
 #include <vector>
 #include <boost/python.hpp>
+#include <boost/python/list.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/section_characteristics.hpp>
 #include <simcoon/Simulation/Identification/constants.hpp>
@@ -26,21 +27,21 @@
 
 namespace arma2numpy {
 
-template<typename T> std::vector<T> py_list_to_std_vector(const boost::python::object &);
+template<typename T> std::vector<T> py_list_to_std_vector(const boost::python::list &);
     
-std::vector<double> py_list_to_std_vector_double(const boost::python::object &);
+std::vector<double> py_list_to_std_vector_double(const boost::python::list &);
     
-std::vector<int> py_list_to_std_vector_int(const boost::python::object &);
+std::vector<int> py_list_to_std_vector_int(const boost::python::list &);
     
-std::vector<std::string> py_list_to_std_vector_string(const boost::python::object &);
+std::vector<std::string> py_list_to_std_vector_string(const boost::python::list &);
     
-std::vector<simcoon::constants> py_list_to_std_vector_constants(const boost::python::object &);
+std::vector<simcoon::constants> py_list_to_std_vector_constants(const boost::python::list &);
     
-std::vector<simcoon::parameters> py_list_to_std_vector_parameters(const boost::python::object &);
+std::vector<simcoon::parameters> py_list_to_std_vector_parameters(const boost::python::list &);
 
-std::vector<simcoon::Node> py_list_to_std_vector_Node(const boost::python::object &);
+std::vector<simcoon::Node> py_list_to_std_vector_Node(const boost::python::list &);
 
-std::vector<simcoon::block> py_list_to_std_vector_block(const boost::python::object &);
+std::vector<simcoon::block> py_list_to_std_vector_block(const boost::python::list &);
 
 template <typename T> boost::python::object transfer_to_python(T* t);    
     
