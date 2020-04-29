@@ -25,22 +25,22 @@
 
 namespace arma2numpy {
 
-boost::python::numpy::ndarray test_vec_int(boost::python::numpy::ndarray const &y);
+boost::python::numpy::ndarray test_vec_int(boost::python::numpy::ndarray const &);
 
-boost::python::numpy::ndarray test_mat_int(boost::python::numpy::ndarray const &y);
+boost::python::numpy::ndarray test_mat_int(boost::python::numpy::ndarray const &);
     
-boost::python::numpy::ndarray test_vec_double(boost::python::numpy::ndarray const &y);
+boost::python::numpy::ndarray test_vec_double(boost::python::numpy::ndarray const &);
 
-boost::python::numpy::ndarray test_mat_double(boost::python::numpy::ndarray const &y);
+boost::python::numpy::ndarray test_mat_double(boost::python::numpy::ndarray const &);
 
-boost::python::list test_vector_list_double(boost::python::list const &y);
+boost::python::list test_vector_list_double(boost::python::object const &);
     
-boost::python::list test_vector_list_int(boost::python::list const &y);
+boost::python::list test_vector_list_int(boost::python::object const &);
 
-boost::python::list test_vector_list_string(boost::python::list const &y);
+boost::python::list test_vector_list_string(boost::python::object const &);
 
-boost::python::list test_vector_list_constants(boost::python::list const &y);
+boost::python::list test_vector_list_constants(boost::python::object const &);
     
-boost::python::list test_vector_list_parameters(boost::python::list const &y);
+boost::python::list test_vector_list_parameters(boost::python::object const &);
     
 } //end of namespace arma2numpy

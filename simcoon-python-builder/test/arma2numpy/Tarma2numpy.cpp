@@ -21,6 +21,8 @@
 
 #include <armadillo>
 #include <boost/python.hpp>
+#include <boost/python/list.hpp>
+#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 #include <boost/python/numpy.hpp>
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/arma2numpy/list_vector.hpp>
@@ -52,28 +54,33 @@ bn::ndarray test_mat_double(bn::ndarray const &y) {
     mat m = array2mat(y);
     return mat2array(m);
 }
-    
-bp::list test_vector_list_double(bp::list const &y) {
- std::vector<double> v = py_list_to_std_vector_double(y);
- return std_vector_to_py_list_double(v);
+
+bp::list test_vector_list_double(bp::object const &l) {
+    bp::list y = bp::list(l);
+    std::vector<double> v = py_list_to_std_vector_double(y);
+    return std_vector_to_py_list_double(v);
 }
     
-bp::list test_vector_list_int(bp::list const &y) {
+bp::list test_vector_list_int(bp::object const &l) {
+    bp::list y = bp::list(l);
     std::vector<int> v = py_list_to_std_vector_int(y);
     return std_vector_to_py_list_int(v);
 }
 
-bp::list test_vector_list_string(bp::list const &y) {
+bp::list test_vector_list_string(bp::object const &l) {
+    bp::list y = bp::list(l);
     std::vector<std::string> v = py_list_to_std_vector_string(y);
     return std_vector_to_py_list_string(v);
 }
 
-bp::list test_vector_list_constants(bp::list const &y) {
+bp::list test_vector_list_constants(bp::object const &l) {
+    bp::list y = bp::list(l);
     std::vector<simcoon::constants> v = py_list_to_std_vector_constants(y);
     return std_vector_to_py_list_constants(v);
 }
     
-bp::list test_vector_list_parameters(bp::list const &y) {
+bp::list test_vector_list_parameters(bp::object const &l) {
+    bp::list y = bp::list(l);
     std::vector<simcoon::constants> v = py_list_to_std_vector_constants(y);
     return std_vector_to_py_list_constants(v);
 }
