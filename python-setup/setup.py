@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-
-#from setuptools import setup
-from distutils.core import setup
+from setuptools import setup
+#from distutils.core import setup
 
 setup(name='simcoon',
       version='1.0',
@@ -12,6 +10,6 @@ setup(name='simcoon',
       packages=['simcoon',],
       package_data={'simcoon': ['simmit.so']},
       
-      #include_package_data=True,
+      include_package_data=True,
       license='GPL'
       )
