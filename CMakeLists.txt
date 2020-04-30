@@ -48,10 +48,6 @@ include(FindArmadillo)
 find_package(Armadillo 5.2 REQUIRED)
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
-#Find FTensor
-find_package(FTensor)
-include_directories(SYSTEM ${FTENSOR_INCLUDE_DIRS})
-
 #Find CGAL
 find_package(CGAL COMPONENTS Core REQUIRED)
 #include_directories(SYSTEM ${CGAL_INCLUDE_DIRS})
