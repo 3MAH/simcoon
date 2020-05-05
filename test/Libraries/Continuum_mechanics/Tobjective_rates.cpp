@@ -24,7 +24,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include <armadillo>
-#include <FTensor.hpp>
+#include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
