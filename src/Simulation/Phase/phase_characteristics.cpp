@@ -55,7 +55,6 @@ namespace simcoon{
 /*!
   \brief default constructor
 */
-
 //-------------------------------------------------------------
 phase_characteristics::phase_characteristics()
 //-------------------------------------------------------------
@@ -118,7 +117,6 @@ phase_characteristics::phase_characteristics(const phase_characteristics& pc)
 
   Deletes phase_characteristics, the shared ptr related object will be detroyed automatically if they is no pointer to it.
 */
-
 //-------------------------------------
 phase_characteristics::~phase_characteristics() {}
 //-------------------------------------
