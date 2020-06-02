@@ -1,7 +1,9 @@
-#Outpout_values
-strain_type	0
-stress_type	2
-Meca   6
+#Output_values
+strain_type 0
+nb_strain   6
+0   1   2   3   4   5
+stress_type	4
+nb_stress   6
 0   1   2   3   4   5
 T   1
 

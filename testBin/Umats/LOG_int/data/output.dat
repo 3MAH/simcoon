@@ -1,7 +1,9 @@
-#Outpout_values
-#strain_type 1
-#strain_type 1
-Meca   6
+#Output_values
+strain_type 3
+nb_strain   6
+0   1   2   3   4   5
+stress_type	4
+nb_stress   6
 0   1   2   3   4   5
 T   1
 
@@ -9,5 +11,3 @@ Number_of_wanted_internal_variables	0
 
 #Block #type_1_N_2_T    #every
 1      1                1
-2      1                1
-3      0                0
