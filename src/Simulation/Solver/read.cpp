@@ -241,7 +241,7 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
     }
     else {
 //        cout << "The file data/output.dat is not present, so default output is selected\n";
-        so.o_strain_type = 3;
+        so.o_strain_type = 0;
         so.o_stress_type = 4;
         so.o_nb_strain = 6;
         so.o_nb_stress = 6;
@@ -257,7 +257,6 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
             so.o_nfreq(i) = 1;
         }
     }
-    
 }
 
 void check_path_output(const std::vector<block> &blocks, const solver_output &so) {
