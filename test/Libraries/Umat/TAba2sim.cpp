@@ -95,6 +95,9 @@ BOOST_AUTO_TEST_CASE( read_write )
     unsigned int nstatev_multi = 0;
     unsigned int nstatev_macro = 0;
     vec props_smart = zeros(nprops);
+    for (unsigned int i=0; i<nprops; i++) {
+        props_smart(i) = props[i];
+    }
     int solver_type = 0;
     
     vec sigma = zeros(6);
