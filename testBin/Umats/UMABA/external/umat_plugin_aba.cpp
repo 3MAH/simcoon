@@ -49,10 +49,7 @@ public:
     }
     
     void umat_abaqus(simcoon::phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
-    
-
-        cout << "IN" << endl;
-    
+        
         ///@brief Macroscopic state variables and control increments
         double stress[6];
         double stran[6];
