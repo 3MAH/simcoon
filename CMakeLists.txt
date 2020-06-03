@@ -60,6 +60,9 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 #include(FindOpenMP)
 #find_package(OpenMP)
 
+#enable Fortran
+enable_language(Fortran)
+
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
@@ -137,6 +140,14 @@ endforeach (Exe_to_compile ${All_exe_to_compile})
 #Test files are in a separate source directory called test
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 
+add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+
+add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
+set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+target_link_libraries(umat_plugin_ext simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
 
@@ -165,6 +176,9 @@ foreach(testSrc ${TEST_SRCS})
                  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName} )
 endforeach(testSrc)
 
+#set_property(TARGET FOR PROPERTY)
+#add_library(ABA OBJECT testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+#set_property(TARGET ABA PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC o umat_plugin_aba -lsimcoon -larmadillo -lgfortran")
 
 #add_library(umat OBJECT software/umat_single.cpp)
 #set_property(TARGET umat PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++14 -DARMA_DONT_USE_WRAPPER")
