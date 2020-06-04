@@ -31,7 +31,7 @@
 # See the License for more information.
 #=============================================================================
 
-#Look into classical UNIX and MAC paths, what follows is for Windows users
+# UNIX paths are standard, no need to write.
 find_library(SIMCOON_LIBRARY
   NAMES simcoon
   PATHS "$ENV{ProgramFiles}/simcoon/lib"  "$ENV{ProgramFiles}/simcoon/lib64" "$ENV{ProgramFiles}/simcoon"
@@ -40,17 +40,19 @@ find_path(SIMCOON_INCLUDE_DIR
   NAMES simcoon
   PATHS "$ENV{ProgramFiles}/simcoon/include"
   )
-#======================
+
+#include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+#find_package_handle_standard_args(simcoon
+#  REQUIRED_VARS SIMCOON_LIBRARY SIMCOON_INCLUDE_DIR)
+#  VERSION_VAR ARMADILLO_VERSION_STRING)
+# version_var fails with cmake < 2.8.4.
 
 if (SIMCOON_FOUND)
   set(SIMCOON_INCLUDE_DIRS ${SIMCOON_INCLUDE_DIR})
-  set(SIMCOON_LIBRARIES ${SIMCOON_LIBRARY})
+  set(SIMCOON ${SIMCOON_LIBRARY})
 endif ()
-
 
 # Hide internal variables
 mark_as_advanced(
   SIMCOON_INCLUDE_DIR
   SIMCOON_LIBRARY)
-
-#======================

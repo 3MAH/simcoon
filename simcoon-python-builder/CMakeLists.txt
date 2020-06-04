@@ -81,12 +81,9 @@ message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
 message(STATUS "Boost_INCLUDE_DIRS = ${Boost_INCLUDE_DIRS}")
 
-find_package(simcoon) 
-if(SIMCOON_FOUND)
-	include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
-else()	
-	FIND_LIBRARY(SIMCOON_LIBRARY NAMES  simcoon PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib/)
-endif(SIMCOON_FOUND)
+find_package(simcoon REQUIRED) 
+
+message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
