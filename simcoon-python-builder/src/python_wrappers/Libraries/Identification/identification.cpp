@@ -22,7 +22,7 @@ namespace bn = boost::python::numpy;
 namespace simpy {
     
 //This function computes the identifcation of materials parameters for one/multiple homogeneous mixed thermomechanical loading experiment
-void identification(const bp::str &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const bp::str &path_data_py, const bp::str &path_keys_py, const bp::str &path_results_py, const bp::str &materialfile_py, const bp::str &outputfile_py) {
+void identification(const std::string &simul_type_py, const int &n_param, const int &n_consts, const int &nfiles, const int &ngen, const int &aleaspace, const int &pop_py, const int &ngboys, const int &maxpop, const std::string &path_data_py, const std::string &path_keys_py, const std::string &path_results_py, const std::string &materialfile_py, const std::string &outputfile_py) {
     
     int apop = 0;
     int spop = 0;
@@ -34,13 +34,13 @@ void identification(const bp::str &simul_type_py, const int &n_param, const int 
 
     int station_nb = 6;
     double station_lim = 1.E-12;
-    std::string simul_type = bp::extract<std::string>(simul_type_py);
-    std::string path_data = bp::extract<std::string>(path_data_py);
-    std::string path_keys = bp::extract<std::string>(path_keys_py);
-    std::string path_results = bp::extract<std::string>(path_results_py);
-    std::string materialfile = bp::extract<std::string>(materialfile_py);
-    std::string outputfile = bp::extract<std::string>(outputfile_py);
-    simcoon::run_identification(simul_type,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data, path_keys, path_results, materialfile, outputfile);
+//    std::string simul_type = bp::extract<std::string>(simul_type_py);
+//    std::string path_data = bp::extract<std::string>(path_data_py);
+//    std::string path_keys = bp::extract<std::string>(path_keys_py);
+//    std::string path_results = bp::extract<std::string>(path_results_py);
+//    std::string materialfile = bp::extract<std::string>(materialfile_py);
+//    std::string outputfile = bp::extract<std::string>(outputfile_py);
+    simcoon::run_identification(simul_type_py,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data_py, path_keys_py, path_results_py, materialfile_py, outputfile_py);
 }
 
 bp::list read_constants_py(const int &nconstants, const int &nfiles) {

@@ -60,13 +60,13 @@ void Node_set_input_coords(simcoon::Node &self, const bn::ndarray &mcoords_py) {
 //------------------------------------------------------
 
 //-------------------------------------------------------------
-simcoon::cubic_mesh build_cubic_mesh(const bp::str &Node_list_name_py, const bp::list &pynodes)
+simcoon::cubic_mesh build_cubic_mesh(const std::string &Node_list_name_py, const bp::list &pynodes)
 //-------------------------------------------------------------
 {
     std::vector<simcoon::Node> Node_list;
     Node_list = py_list_to_std_vector_Node(pynodes);
-    std::string Node_list_name = bp::extract<std::string>(Node_list_name_py);
-    simcoon::cubic_mesh cm(Node_list, Node_list_name);
+//    std::string Node_list_name = bp::extract<std::string>(Node_list_name_py);
+    simcoon::cubic_mesh cm(Node_list, Node_list_name_py);
     return cm;
 }
 
@@ -84,30 +84,30 @@ void construct_lists(simcoon::cubic_mesh &self)
     self.construct_lists();
 }
 
-bp::list read_nodes_file(const bp::str &path_data_py, const bp::str &inputfile_py)
+bp::list read_nodes_file(const std::string &path_data_py, const std::string &inputfile_py)
 {
   std::vector<simcoon::Node> nd;
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string inputfile= bp::extract<std::string>(inputfile_py);
-  simcoon::read_nodes_file(nd,path_data,inputfile);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string inputfile= bp::extract<std::string>(inputfile_py);
+  simcoon::read_nodes_file(nd,path_data_py,inputfile_py);
   return std_vector_to_py_list_Node(nd);
 }
 
-bp::list read_sections(const int &loading_type, const bp::str &path_data_py, const bp::str &inputfile_py)
+bp::list read_sections(const int &loading_type, const std::string &path_data_py, const std::string &inputfile_py)
 {
   std::vector<simcoon::section_characteristics> sections;
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string inputfile= bp::extract<std::string>(inputfile_py);
-  simcoon::read_sections(sections,loading_type,path_data,inputfile);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string inputfile= bp::extract<std::string>(inputfile_py);
+  simcoon::read_sections(sections,loading_type,path_data_py,inputfile_py);
   return std_vector_to_py_list_section_characteristics(sections);
 }
 
-/*bp::list read_path(double &T, const bp::str &path_data_py, const bp::str &pathfile_py)
+/*bp::list read_path(double &T, const std::string &path_data_py, const std::string &pathfile_py)
 {
   std::vector<simcoon::block> blocks;
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string pathfile= bp::extract<std::string>(pathfile_py);
-  simcoon::read_path(blocks,T,path_data,pathfile);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string pathfile= bp::extract<std::string>(pathfile_py);
+  simcoon::read_path(blocks,T,path_data_py,pathfile_py);
   return std_vector_to_py_list_block(blocks);
 }*/
 
@@ -126,57 +126,57 @@ bp::list update_steps(const bp::list &blocks_py, const bool &nlgeom, const int &
   return std_vector_to_py_list_shptr_step(aba_steps);
 }
 
-void write_steps(bp::list &aba_steps_py, const int &ldg_type, const double &temp_ini, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_steps(bp::list &aba_steps_py, const int &ldg_type, const double &temp_ini, const std::string &path_data_py, const std::string &outputfile_py)
 {
   std::vector<std::shared_ptr<simcoon::step> > aba_steps= py_list_to_std_vector_shptr_step(aba_steps_py);
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string outputfile= bp::extract<std::string>(outputfile_py);
-  simcoon::write_steps(aba_steps,ldg_type,temp_ini,path_data,outputfile);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string outputfile= bp::extract<std::string>(outputfile_py);
+  simcoon::write_steps(aba_steps,ldg_type,temp_ini,path_data_py,outputfile_py);
 }
 
-void write_sections(bp::section_characteristics &section_rve_py, const bp::int &loading_type_py, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_sections(bp::section_characteristics &section_rve_py, const bp::int &loading_type_py, const std::string &path_data_py, const std::string &outputfile_py)
 {
   simcoon::section_characteristics section_rve= bp::extract<simcoon::section_characteristics>(section_rve_py);
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string outputfile= bp::extract<std::string>(outputfile_py);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string outputfile= bp::extract<std::string>(outputfile_py);
   unsigned int loading_type= bp::extract<unsigned int>(loading_type_py);
-  simcoon::write_sections(section_rve,loading_type,path_data,outputfile);
+  simcoon::write_sections(section_rve,loading_type,path_data_py,outputfile_py);
 }
 
-void write_PBC(const bp::cubic_mesh &cm_py, const bp::int &nb_nodes_py, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_PBC(const bp::cubic_mesh &cm_py, const bp::int &nb_nodes_py, const std::string &path_data_py, const std::string &outputfile_py)
 {
   simcoon::cubic_mesh cm= bp::extract<simcoon::cubic_mesh>(cm_py);
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string outputfile= bp::extract<std::string>(outputfile_py);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string outputfile= bp::extract<std::string>(outputfile_py);
   unsigned int nb_nodes= bp::extract<unsigned int>(nb_nodes_py);
-  simcoon::write_PBC(cm,nb_nodes,path_data,outputfile);
+  simcoon::write_PBC(cm,nb_nodes,path_data_py,outputfile_py);
 }
 
-void write_NonPerio_CDN(const bp::cubic_mesh &cm_y, const bp::cubic_mesh &cm_perio_py, const bp::int &loading_type_py, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_NonPerio_CDN(const bp::cubic_mesh &cm_y, const bp::cubic_mesh &cm_perio_py, const bp::int &loading_type_py, const std::string &path_data_py, const std::string &outputfile_py)
 {
   simcoon::cubic_mesh cm= bp::extract<simcoon::cubic_mesh>(cm_py);
   simcoon::cubic_mesh cm_perio= bp::extract<simcoon::cubic_mesh>(cm_perio_py);
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string outputfile= bp::extract<std::string>(outputfile_py);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string outputfile= bp::extract<std::string>(outputfile_py);
   unsigned int loading_type= bp::extract<unsigned int>(loading_type_py);
-  simcoon::write_NonPerio_CDN(cm,cm_perio,loading_type,path_data,outputfile);
+  simcoon::write_NonPerio_CDN(cm,cm_perio,loading_type,path_data_py,outputfile_py);
 }
 
-void write_TIE(const bp::cubic_mesh &cm_py, const bp::cubic_mesh &cm_perio_py, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_TIE(const bp::cubic_mesh &cm_py, const bp::cubic_mesh &cm_perio_py, const std::string &path_data_py, const std::string &outputfile_py)
 {
   simcoon::cubic_mesh cm= bp::extract<simcoon::cubic_mesh>(cm_py);
   simcoon::cubic_mesh cm_perio= bp::extract<simcoon::cubic_mesh>(cm_perio_py);
-  std::string path_data= bp::extract<std::string>(path_data_py);
-  std::string outputfile= bp::extract<std::string>(outputfile_py);
-  simcoon::write_TIE(cm,cm_perio,loading_type,path_data,outputfile);
+//  std::string path_data= bp::extract<std::string>(path_data_py);
+//  std::string outputfile= bp::extract<std::string>(outputfile_py);
+  simcoon::write_TIE(cm,cm_perio,loading_type,path_data_py,outputfile_py);
 }
 
-void write_CDN(const bp::cubic_mesh &cm_py, const bp::str &path_data_py, const bp::str &outputfile_py)
+void write_CDN(const bp::cubic_mesh &cm_py, const std::string &path_data_py, const std::string &outputfile_py)
 {
 simcoon::cubic_mesh cm= bp::extract<simcoon::cubic_mesh>(cm_py);
-std::string path_data= bp::extract<std::string>(path_data_py);
-std::string outputfile= bp::extract<std::string>(outputfile_py);
-simcoon::write_CDN(cm,path_data,outputfile);
+//std::string path_data= bp::extract<std::string>(path_data_py);
+//std::string outputfile= bp::extract<std::string>(outputfile_py);
+simcoon::write_CDN(cm,path_data_py,outputfile_py);
 }
 */
 
