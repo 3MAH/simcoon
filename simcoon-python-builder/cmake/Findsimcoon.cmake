@@ -41,15 +41,15 @@ find_path(SIMCOON_INCLUDE_DIR
   PATHS "$ENV{ProgramFiles}/simcoon/include"
   )
 
-#include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
-#find_package_handle_standard_args(simcoon
-#  REQUIRED_VARS SIMCOON_LIBRARY SIMCOON_INCLUDE_DIR)
-#  VERSION_VAR ARMADILLO_VERSION_STRING)
+include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
+find_package_handle_standard_args(simcoon
+  REQUIRED_VARS SIMCOON_LIBRARY SIMCOON_INCLUDE_DIR)
+#  VERSION_VAR SIMCOON_VERSION_STRING)
 # version_var fails with cmake < 2.8.4.
 
 if (SIMCOON_FOUND)
   set(SIMCOON_INCLUDE_DIRS ${SIMCOON_INCLUDE_DIR})
-  set(SIMCOON ${SIMCOON_LIBRARY})
+  set(SIMCOON_LIBRARIES ${SIMCOON_LIBRARY})
 endif ()
 
 # Hide internal variables
