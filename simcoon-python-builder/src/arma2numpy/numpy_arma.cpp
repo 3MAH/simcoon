@@ -31,9 +31,6 @@ namespace arma2numpy {
 
 vec array2vec(bn::ndarray const &array) {
     
-    Py_Initialize();
-    bn::initialize();
-    
     assert(array.get_nd() == 1);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
@@ -45,9 +42,6 @@ vec array2vec(bn::ndarray const &array) {
 }
 
 bn::ndarray vec2array(const vec &v) {
-
-    Py_Initialize();
-    bn::initialize();
     
     //create a tuple with the size of v
     bp::tuple shape = bp::make_tuple(v.n_elem);
@@ -66,9 +60,6 @@ bn::ndarray vec2array(const vec &v) {
 
 
 mat array2mat(bn::ndarray const &array) {
-
-    Py_Initialize();
-    bn::initialize();
     
     assert(array.get_nd() == 2);
     Py_intptr_t const *shape = array.get_shape();
@@ -85,10 +76,7 @@ mat array2mat(bn::ndarray const &array) {
 }
 
 bn::ndarray mat2array(const mat &m) {
-    
-    Py_Initialize();
-    bn::initialize();
-    
+        
     //create a tuple with the size of m
     bp::tuple shape = bp::make_tuple(m.n_rows, m.n_cols);
     bp::tuple stride = bp::make_tuple(sizeof(double)*m.n_rows, sizeof(double));
@@ -108,9 +96,6 @@ bn::ndarray mat2array(const mat &m) {
     
 Col<int> array2Col_int(bn::ndarray const &array) {
     
-    Py_Initialize();
-    bn::initialize();
-    
     assert(array.get_nd() == 1);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
@@ -122,9 +107,6 @@ Col<int> array2Col_int(bn::ndarray const &array) {
 }
 
 bn::ndarray Col_int2array(const Col<int> &v) {
-        
-    Py_Initialize();
-    bn::initialize();
     
     //create a tuple with the size of v
     bp::tuple shape = bp::make_tuple(v.n_elem);
@@ -144,9 +126,6 @@ bn::ndarray Col_int2array(const Col<int> &v) {
 
 Mat<int> array2Mat_int(bn::ndarray const &array) {
     
-    Py_Initialize();
-    bn::initialize();
-    
     assert(array.get_nd() == 2);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
@@ -163,9 +142,6 @@ Mat<int> array2Mat_int(bn::ndarray const &array) {
 }
 
 bn::ndarray Mat_int2array(const Mat<int> &m) {
-    
-    Py_Initialize();
-    bn::initialize();
     
     //create a tuple with the size of m
     bp::tuple shape = bp::make_tuple(m.n_rows, m.n_cols);
