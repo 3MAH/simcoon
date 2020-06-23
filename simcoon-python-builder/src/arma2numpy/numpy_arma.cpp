@@ -34,10 +34,7 @@ vec array2vec(bn::ndarray const &array) {
     assert(array.get_nd() == 1);
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
-    vec v = zeros(n_rows);
-    for (int i = 0; i < n_rows; ++i) {
-        v(i) = atof(bp::extract<char const *>(bp::str(array[i])));
-    }
+    vec v(reinterpret_cast<double*>(array.get_data()), n_rows, false);
     return v;
 }
 
@@ -50,11 +47,7 @@ bn::ndarray vec2array(const vec &v) {
     //as well as a type for C++ double
     bn::dtype dtype = bn::dtype::get_builtin<double>();
     //Construct an array with the above shape and type
-    double data[v.n_elem];
-    for (unsigned int i = 0; i < v.n_elem; ++i) {
-        data[i] = v(i);
-    }
-    bn::ndarray py_array = bn::from_data(data,dtype,shape,stride,own);
+    bn::ndarray py_array = bn::from_data(v.memptr(),dtype,shape,stride,own);
     return py_array.copy();
 }
 
@@ -65,14 +58,8 @@ mat array2mat(bn::ndarray const &array) {
     Py_intptr_t const *shape = array.get_shape();
     int n_rows = shape[0];
     int n_cols = shape[1];
-    mat m = zeros(n_rows, n_cols);
-    for (int i = 0; i < n_rows; ++i) {
-        for (int j = 0; j < n_cols; ++j) {
-            m(i,j) = atof(bp::extract<char const *>(bp::str(array[i][j])));
-            
-        }
-    }
-    return m;
+    mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
+    return m.t();
 }
 
 bn::ndarray mat2array(const mat &m) {
@@ -83,14 +70,8 @@ bn::ndarray mat2array(const mat &m) {
     bp::object own;
     //as well as a type for C++ double
     bn::dtype dtype = bn::dtype::get_builtin<double>();
-    //Construct an array with the above shape and type
-    double data[m.n_rows][m.n_cols];
-    for (unsigned int i = 0; i < m.n_rows; ++i) {
-        for (unsigned int j = 0; j < m.n_cols; ++j) {
-            data[i][j] = m(i,j);
-        }
-    }
-    bn::ndarray py_array = bn::from_data(data,dtype,shape,stride,own);
+    mat m_t = m.t();
+    bn::ndarray py_array = bn::from_data(m_t.memptr(),dtype,shape,stride,own);
     return py_array.copy();
 }
     
@@ -115,11 +96,7 @@ bn::ndarray Col_int2array(const Col<int> &v) {
     //as well as a type for C++ int
     bn::dtype dtype = bn::dtype::get_builtin<int>();
     //Construct an array with the above shape and type
-    int data[v.n_elem];
-    for (unsigned int i = 0; i < v.n_elem; ++i) {
-        data[i] = v(i);
-    }
-    bn::ndarray py_array = bn::from_data(data,dtype,shape,stride,own);
+    bn::ndarray py_array = bn::from_data(v.memptr(),dtype,shape,stride,own);
     return py_array.copy();
 }
 
@@ -150,13 +127,8 @@ bn::ndarray Mat_int2array(const Mat<int> &m) {
     //as well as a type for C++ double
     bn::dtype dtype = bn::dtype::get_builtin<int>();
     //Construct an array with the above shape and type
-    int data[m.n_rows][m.n_cols];
-    for (unsigned int i = 0; i < m.n_rows; ++i) {
-        for (unsigned int j = 0; j < m.n_cols; ++j) {
-            data[i][j] = m(i,j);
-        }
-    }
-    bn::ndarray py_array = bn::from_data(data,dtype,shape,stride,own);
+    Mat<int> m_t = m.t();
+    bn::ndarray py_array = bn::from_data(m_t.memptr(),dtype,shape,stride,own);
     return py_array.copy();
 }
     
