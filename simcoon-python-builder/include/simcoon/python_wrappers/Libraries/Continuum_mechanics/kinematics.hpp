@@ -28,6 +28,9 @@ boost::python::numpy::ndarray Green_Lagrange(const boost::python::numpy::ndarray
 //This function computes the Euler-Almansi finite strain tensor A
 boost::python::numpy::ndarray Euler_Almansi(const boost::python::numpy::ndarray &);
 
+//This function computes the logarithmic strain ln[V] = 1/2 ln[b] (b is the left Cauchy-Green Tensor)
+boost::python::numpy::ndarray Log_strain(const boost::python::numpy::ndarray &);
+
 //This function computes the velocity difference (F,DF,DTime)
 boost::python::numpy::ndarray finite_L(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
 
