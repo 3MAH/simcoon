@@ -62,6 +62,13 @@ bn::ndarray Euler_Almansi(const bn::ndarray &nd) {
     return mat2array(simcoon::Euler_Almansi(F));
 }
 
+//This function computes the logarithmic strain ln[V] = 1/2 ln[b] (b is the left Cauchy-Green Tensor)
+bn::ndarray Log_strain(const bn::ndarray &nd) {
+    mat F = array2mat(nd);
+    //e_log = ln[V] = 1/2 ln[b]
+    return mat2array(0.5*logmat_sympd(simcoon::L_Cauchy_Green(F)));
+}
+
 //This function computes the velocity difference
 bn::ndarray finite_L(const bn::ndarray &ndF, const bn::ndarray &ndDF, const double &DTime) {
     mat F = array2mat(ndF);
@@ -97,5 +104,5 @@ bn::ndarray finite_DQ(const bn::ndarray &ndOmega0, const bn::ndarray &ndOmega1, 
     mat Omega1 = array2mat(ndOmega1);
     return mat2array(simcoon::finite_DQ(Omega0,Omega1,DTime));
 }
-    
+
 } //namepsace simpy
