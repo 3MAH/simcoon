@@ -13,6 +13,8 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -108,7 +110,27 @@ BOOST_PYTHON_MODULE(simmit) {
     
     // Register the L_eff for composites
     bp::def("L_eff", L_eff);
-
+    
+    //register the kinematics library
+    bp::def("G_UdX", G_UdX);
+    bp::def("G_Udx", G_Udx);
+    bp::def("R_Cauchy_Green", R_Cauchy_Green);
+    bp::def("L_Cauchy_Green", L_Cauchy_Green);
+    bp::def("Inv_X", Inv_X);
+    bp::def("Cauchy", Cauchy);
+    bp::def("Green_Lagrange", Green_Lagrange);
+    bp::def("Euler_Almansi", Euler_Almansi);
+    bp::def("Log_strain", Log_strain);
+    bp::def("finite_L", finite_L);
+    bp::def("finite_W", finite_W);
+    bp::def("finite_Omega", finite_Omega);
+    bp::def("finite_D", finite_D);
+    bp::def("finite_DQ", finite_DQ);
+    
+    //register the objective rates library
+    bp::def("logarithmic", logarithmic);
+    bp::def("Delta_log_strain", Delta_log_strain);
+    
     // Register the from-python converters for eshelby
     bp::def("Eshelby_sphere", Eshelby_sphere);
     bp::def("Eshelby_cylinder", Eshelby_cylinder);
