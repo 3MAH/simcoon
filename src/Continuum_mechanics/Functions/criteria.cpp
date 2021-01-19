@@ -104,8 +104,9 @@ double Tresca_stress(const vec &v)
 {
     mat sigma = v2t_stress(v);
     vec lambda = eig_sym(sigma);
-    
-    return lambda(0) - lambda(2);
+
+    //eig_sym is in ascending order
+    return lambda(2) - lambda(0);
 }
 
 //This function returns the Tresca equivalent stress.
