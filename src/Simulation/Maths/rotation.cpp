@@ -34,6 +34,7 @@ vec rotate_vec(const vec &v, const mat &DR) {
 }
     
 vec rotate_vec(const vec &v, const double &alpha, const int &axis) {
+    assert(axis>0);
     mat DR = fillR(alpha, axis);
     return rotate_vec(v, DR);
 }
