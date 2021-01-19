@@ -402,7 +402,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
      */
     
     //----------------------------------------------------------------------
-void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime, const mat &DR) {
+void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dtinc, phase_characteristics &rve, double &Time, const double &DTime, const mat &DR, const int &corate_type) {
     
     if(tnew_dt < 1.){
         rve.to_start();
@@ -411,7 +411,7 @@ void step_meca::assess_inc(const double &tnew_dt, double &tinc, const double &Dt
         tinc += Dtinc;
         Time += DTime;
         BC_R = BC_R*DR;
-        rve.set_start();
+        rve.set_start(corate_type);
     }
 }
     
