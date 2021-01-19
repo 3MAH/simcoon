@@ -239,22 +239,22 @@ void phase_characteristics::to_start()
 }
     
 //----------------------------------------------------------------------
-void phase_characteristics::set_start()
+void phase_characteristics::set_start(const int &corate_type)
 //----------------------------------------------------------------------
 {
     switch (sv_type) {
         case 1: {
             auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
             auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->set_start();
-            sv_M_l->set_start();
+            sv_M_g->set_start(corate_type);
+            sv_M_l->set_start(corate_type);
             break;
         }
         case 2: {
             auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
             auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->set_start();
-            sv_T_l->set_start();
+            sv_T_g->set_start(corate_type);
+            sv_T_l->set_start(corate_type);
             break;
         }
         default: {
@@ -265,7 +265,7 @@ void phase_characteristics::set_start()
     }
     sptr_multi->set_start();
     for(auto r : sub_phases) {
-        r.set_start();
+        r.set_start(corate_type);
     }
 }
 
@@ -486,6 +486,42 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
             }
         }
 
+        switch (so.o_rotation_type) {
+            case 1: {
+                vec R_vec = vectorise(sptr_sv_global->R.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_global << R_vec(z) << "\t";
+                }
+                for (int i=0; i<3; i++) {
+                    for (int j=0; j<3; j++) {
+                        *sptr_out_global << sptr_sv_global->nb.g_i[i](j) << "\t";
+                    }
+                }
+                break;
+            }
+            case 2: {
+                vec DR_vec = vectorise(sptr_sv_global->DR.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_global << DR_vec(z) << "\t";
+                }
+                break;
+            }
+            case 3: {
+                vec R_vec = vectorise(sptr_sv_global->R.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_global << R_vec(z) << "\t";
+                }
+                vec DR_vec = vectorise(sptr_sv_global->DR.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_global << DR_vec(z) << "\t";
+                }
+                break;
+            }
+            default: {
+                break;
+            }
+        }
+
         switch (sv_type) {
             case 1: {
                 std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
@@ -648,6 +684,37 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
             }
         }
         
+        switch (so.o_rotation_type) {
+            case 1: {
+                vec R_vec = vectorise(sptr_sv_local->R.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_local << R_vec(z) << "\t";
+                }
+                break;
+            }
+            case 2: {
+                vec DR_vec = vectorise(sptr_sv_local->DR.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_local << DR_vec(z) << "\t";
+                }
+                break;
+            }
+            case 3: {
+                vec R_vec = vectorise(sptr_sv_local->R.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_local << R_vec(z) << "\t";
+                }
+                vec DR_vec = vectorise(sptr_sv_local->DR.t()); //The transpose is to obtain a vec with row-wise concatenation
+                for (int z=0; z<9; z++) {
+                    *sptr_out_local << DR_vec(z) << "\t";
+                }
+                break;
+            }
+            default: {
+                break;
+            }
+        }
+
         switch (sv_type) {
             case 1: {
                 std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
