@@ -48,6 +48,7 @@ class natural_basis
 		virtual ~natural_basis();
     
         virtual void update(const std::vector<arma::vec> &); //update with a new set of covariant vectors
+        virtual void from_F(const arma::mat &F); //update using the transformation gradient
     
 		virtual natural_basis& operator = (const natural_basis&);
         
