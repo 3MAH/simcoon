@@ -34,6 +34,7 @@
 #include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
@@ -118,7 +119,8 @@ void read_phase(phase_characteristics &rve, const string &path_data, const strin
         paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> nprops >> nstatev;
         
         r.sptr_matprops->resize(nprops);
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
+        natural_basis nb;
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -185,7 +187,8 @@ void read_layer(phase_characteristics &rve, const string &path_data, const strin
         paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> nprops >> nstatev;
         
         r.sptr_matprops->resize(nprops);
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
+        natural_basis nb;
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -257,8 +260,9 @@ void read_ellipsoid(phase_characteristics &rve, const string &path_data, const s
         paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> nprops >> nstatev;
         
         r.sptr_matprops->resize(nprops);
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
-        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
+        natural_basis nb;
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -339,7 +343,8 @@ void read_cylinder(phase_characteristics &rve, const string &path_data, const st
         paramphases >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> nprops >> nstatev;
         
         r.sptr_matprops->resize(nprops);
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev));
+        natural_basis nb;
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
