@@ -5,7 +5,11 @@ nb_strain   6
 stress_type	4
 nb_stress   6
 0   1   2   3   4   5
+
+Rotation_type	0
 T   1
+
+
 
 Number_of_wanted_internal_variables	0
 
