@@ -82,7 +82,7 @@ void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col
     }
 }
 
-void solver_essentials(int &solver_type, const string &path, const string &filename) {
+void solver_essentials(int &solver_type, int &corate_type, const string &path, const string &filename) {
         
     string pathfile = path + "/" + filename;
     ifstream solver_essentials;
@@ -95,7 +95,7 @@ void solver_essentials(int &solver_type, const string &path, const string &filen
     }
     
     ///Get the control values for the solver
-    solver_essentials >> buffer >> solver_type;
+    solver_essentials >> buffer >> solver_type >> buffer >> corate_type;
     solver_essentials.close();
 }
 
@@ -192,6 +192,7 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
             cyclic_output >> so.o_stress(i);
         }
 
+        cyclic_output >> buffer >> so.o_rotation_type;
         cyclic_output >> buffer >> so.o_nb_T;
         
         ///Selection of the wanted umat statev, use "cyclic.dat" to specify wanted internal variables
@@ -249,6 +250,7 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
         so.o_stress.zeros(so.o_nb_stress);
         so.o_strain = {0,1,2,3,4,5};
         so.o_stress = {0,1,2,3,4,5};
+        so.o_rotation_type = 0;
         so.o_nb_T = 1;
         so.o_nw_statev = 0;
         
