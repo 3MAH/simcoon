@@ -62,6 +62,7 @@ BOOST_AUTO_TEST_CASE( TUMABA_solver )
     double phi_rve = 0.;
     
     int solver_type = 0;
+    int corate_type = 0;
     double div_tnew_dt_solver = 0.;
     double mul_tnew_dt_solver = 0.;
     int miniter_solver = 0;
@@ -70,14 +71,11 @@ BOOST_AUTO_TEST_CASE( TUMABA_solver )
     double precision_solver = 0.;
     double lambda_solver = 0.;
     
-    solver_essentials(solver_type, path_data, sol_essentials);
+    solver_essentials(solver_type, corate_type, path_data, sol_essentials);
     solver_control(div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, sol_control);
     
-    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);
-    
-    cout << "props = " << props << endl;
-    
-    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
+    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);        
+    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
     
     string path_comparison = "comparison/results_job_global-0.txt";
     string path_outputfile = path_results + "/" + "results_job_global-0.txt";
