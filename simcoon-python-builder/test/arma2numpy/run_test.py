@@ -2,6 +2,9 @@ import numpy as np
 import Tarma2numpy
 import unittest
 
+print(np.__version__)
+print(np.__path__)
+
 x = np.random.randint(20, size=6)
 y = Tarma2numpy.test_vec_int(x)
 a = np.testing.assert_array_equal(x,y)
