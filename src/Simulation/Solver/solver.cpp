@@ -329,6 +329,32 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
+                                        mat N_1 = zeros(3,3);
+                                        mat N_2 = zeros(3,3);
+                                        if(corate_type == 3) {
+                                            log_modified(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            mat I = eye(3,3);
+                                            mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
+                                            
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+                                        }
+                                        if(corate_type == 4) {
+                                            Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+//                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 5) {
+                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            mat I = eye(3,3);
+                                            mat DR_N = (inv(I-0.5*DTime*(N_1-D)))*(I+0.5*DTime*(N_1-D));
+                                            
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+                                        }
+
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
