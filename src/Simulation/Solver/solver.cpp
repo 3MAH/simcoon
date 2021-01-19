@@ -38,6 +38,7 @@
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -50,7 +51,7 @@ using namespace arma;
 
 namespace simcoon{
 
-void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile) {
+void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile) {
 
     //Check if the required directories exist:
     if(!boost::filesystem::is_directory(path_data)) {
@@ -151,7 +152,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    natural_basis nb;
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
@@ -195,7 +197,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 //                    rve.output(so, -1, -1, -1, -1, Time, "local");
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
+                rve.set_start(corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -262,8 +264,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        
+                                        if(corate_type == 0) {
+                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 1) {
+                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 2) {
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+
                                         sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
                                         //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
@@ -281,7 +291,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        if(corate_type == 0) {
+                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 1) {
+                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 2) {
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
 
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                         
@@ -299,9 +317,44 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         mat Omega = zeros(3,3);
                                         mat Omega2 = zeros(3,3);
                                         mat Omega3 = zeros(3,3);
-                                        logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        
-                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        if(corate_type == 0) {
+                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        }
+                                        if(corate_type == 1) {
+                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        }
+                                        if(corate_type == 2) {
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        }
+                                        mat N_1 = zeros(3,3);
+                                        mat N_2 = zeros(3,3);
+                                        if(corate_type == 3) {
+                                            log_modified(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            mat I = eye(3,3);
+                                            mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
+                                            
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+                                        }
+                                        if(corate_type == 4) {
+                                            Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+//                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 5) {
+                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            mat I = eye(3,3);
+                                            mat DR_N = (inv(I-0.5*DTime*(N_1-D)))*(I+0.5*DTime*(N_1-D));
+                                            
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+                                        }
+
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
@@ -417,7 +470,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            if(corate_type == 0) {
+                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 1) {
+                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 2) {
+                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
                                         else if (blocks[i].control_type == 3) {
@@ -435,7 +496,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            if(corate_type == 0) {
+                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 1) {
+                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 2) {
+                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
                                             if (DTime > sim_iota)
                                                 D = sv_M->Detot/DTime;
                                             else
@@ -549,7 +618,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 }
                                 compteur = 0;
                                 
-                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR);
+                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
                             }
@@ -597,7 +666,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+                    natural_basis nb;
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {
@@ -650,7 +720,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 //                    rve.output(so, -1, -1, -1, -1, Time, "local");
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(); //DEtot = 0 and DT = 0 so we can use it safely here
+                rve.set_start(corate_type); //DEtot = 0 and DT = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -878,7 +948,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 }
                                 compteur = 0;
                                 
-                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR);
+                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
                             }
