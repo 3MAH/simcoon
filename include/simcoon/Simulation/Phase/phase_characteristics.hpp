@@ -67,7 +67,7 @@ class phase_characteristics
         virtual void construct(const int &, const int &);
         virtual void sub_phases_construct(const int &, const int &, const int &);
         virtual void to_start();
-        virtual void set_start();
+        virtual void set_start(const int &);
         virtual void local2global();
         virtual void global2local();
         virtual void copy(const phase_characteristics&);   //Be warned that the ofstreams are NOT copied
