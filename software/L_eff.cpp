@@ -27,6 +27,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_L_elastic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -58,8 +59,9 @@ int main() {
     phase_characteristics rve;
     
     rve.construct(0,1);
+    natural_basis nb;
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
-    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
     
     auto sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
 
