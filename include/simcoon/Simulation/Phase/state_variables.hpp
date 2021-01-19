@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 namespace simcoon{
 
@@ -57,9 +58,11 @@ class state_variables
         arma::vec statev;
         arma::vec statev_start;
     
+        natural_basis nb;
+    
 		state_variables(); 	//default constructor
 		state_variables(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for statev
-        state_variables(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Constructor with parameters
+        state_variables(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &); //Constructor with parameters
 		state_variables(const state_variables &);	//Copy constructor
 		virtual ~state_variables();
 		
@@ -69,10 +72,10 @@ class state_variables
 
 		virtual void resize();	//constructor - allocates memory for statev
 		virtual void resize(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for statev
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &); //Initialize with parameters
+        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &); //Initialize with parameters
 		virtual int dimstatev () const {return nstatev;}       // returns the number of statev, nstatev    
         virtual void to_start(); //sigma goes to sigma_start
-        virtual void set_start(); //sigma_start goes to sigma
+        virtual void set_start(const int &); //sigma_start goes to sigma
     
         virtual state_variables& rotate_l2g(const state_variables&, const double&, const double&, const double&);
         virtual state_variables& rotate_g2l(const state_variables&, const double&, const double&, const double&);

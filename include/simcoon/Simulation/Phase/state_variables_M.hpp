@@ -24,6 +24,8 @@
 #include <iostream>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
+
 
 namespace simcoon{
 
@@ -47,7 +49,7 @@ class state_variables_M : public state_variables
 		arma::mat Lt;
 		
 		state_variables_M(); 	//default constructor
-        state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters
+        state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters
     
 		state_variables_M(const state_variables_M &);	//Copy constructor
 		virtual ~state_variables_M();
@@ -57,9 +59,9 @@ class state_variables_M : public state_variables
 		virtual state_variables_M& copy_fields_M (const state_variables_M&);
 		
         using state_variables::update;
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
+        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
         virtual void to_start(); //Wm goes to Wm_start
-        virtual void set_start(); //Wm_start goes to Wm
+        virtual void set_start(const int &); //Wm_start goes to Wm
     
         using state_variables::rotate_l2g;
         virtual state_variables_M& rotate_l2g(const state_variables_M&, const double&, const double&, const double&);
