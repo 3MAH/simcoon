@@ -45,8 +45,9 @@ public :
     arma::Col<int> o_stress;
     int o_nb_T;
     
-    int o_strain_type; //0 for Green-Lagrange, 1 for logarithmic
-    int o_stress_type;  //0 for PKII, 1 for Kirchoff, 2 for Cauchy
+    int o_strain_type; //0 for Green-Lagrange, 1 for Biot, 2 for logarithmic
+    int o_stress_type;  //0 for PKII, 1 for Nominal, 2 for PKI, 3 for Kirchoff, 4 for Cauchy
+    int o_rotation_type;  //0 for nothing, 1 for rotation, 2 for spin, 3 for both
     
 	int o_nw_statev;
 	arma::Col<int> o_wanted_statev;
