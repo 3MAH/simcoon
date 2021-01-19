@@ -18,7 +18,7 @@ namespace simpy {
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 bp::tuple logarithmic(const bn::ndarray &nF0, const bn::ndarray &nF1, const double &DTime) {
     mat F0 = array2mat(nF0);
-    mat F1 = array2mat(nF0);
+    mat F1 = array2mat(nF1);
     mat DR = zeros(3,3);
     mat D = zeros(3,3);
     mat Omega = zeros(3,3);
