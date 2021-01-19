@@ -30,6 +30,7 @@ using namespace arma;
 
 namespace simcoon{
 
+//Fonctions that utilise natural basis objects
 //=====Private methods for state_variables===================================
 
 //=====Public methods for state_variables============================================
@@ -148,6 +149,33 @@ void natural_basis::update(const std::vector<arma::vec> &mg_i)
 {
     for (unsigned int i=0; i < 3; i++) {
         g_i[i] = mg_i[i];
+    }
+
+    //
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            g_ij(i,j) = sum(g_i[i]%g_i[j]);
+        }
+    }
+    
+    g0ij = inv(g_ij);
+    
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            g0i[i] = g0ij(i,j)*g_i[j];
+        }
+    }
+}
+
+//-------------------------------------------------------------
+void natural_basis::from_F(const arma::mat &F)
+//-------------------------------------------------------------
+{
+
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            g_i[i](j) = F(j,i); //each transform/image of the basis vector are the columns of F
+        }
     }
 
     //
