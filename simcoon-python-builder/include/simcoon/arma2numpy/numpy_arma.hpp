@@ -26,9 +26,21 @@ arma::vec array2vec(const boost::python::numpy::ndarray&);
 
 arma::mat array2mat(const boost::python::numpy::ndarray&);
 
+arma::mat array2mat_inplace(const boost::python::numpy::ndarray&);
+
+arma::cube array2cube_inplace(const boost::python::numpy::ndarray&);
+
 boost::python::numpy::ndarray vec2array(const arma::vec&);
 
+boost::python::numpy::ndarray vec2array_inplace(const arma::vec&);
+
 boost::python::numpy::ndarray mat2array(const arma::mat&);
+
+boost::python::numpy::ndarray mat2array_inplace(const arma::mat&);
+
+boost::python::numpy::ndarray cube2array(const arma::cube&);
+
+boost::python::numpy::ndarray cube2array_inplace(const arma::cube&);
 
 arma::Col<int> array2Col_int(const boost::python::numpy::ndarray&);
 
