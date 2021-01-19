@@ -27,6 +27,8 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
@@ -107,7 +109,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -146,6 +148,8 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     nstatev = mnstatev;
     statev = mstatev;
     statev_start = mstatev_start;
+    
+    nb = mnb;
 }
 
 /*!
@@ -177,6 +181,8 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
+    
+    nb = sv.nb;
 }
 
 /*!
@@ -220,6 +226,8 @@ state_variables& state_variables::operator = (const state_variables& sv)
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
+    
+    nb = sv.nb;
     
 	return *this;
 }
@@ -278,7 +286,7 @@ void state_variables::resize(const int &m, const bool &init, const double &value
     
     
 //-------------------------------------------------------------
-void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
+void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb)
 //-------------------------------------------------------------
 {
     assert (mEtot.size() == 6);
@@ -317,6 +325,8 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &met
     nstatev = mnstatev;
     statev = mstatev;
     statev_start = mstatev_start;
+    
+    nb = mnb;
 }
     
 //-------------------------------------------------------------
@@ -331,7 +341,7 @@ void state_variables::to_start()
 }
     
 //-------------------------------------------------------------
-void state_variables::set_start()
+void state_variables::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
     PKII_start = PKII;
@@ -342,7 +352,9 @@ void state_variables::set_start()
     etot = rotate_strain(etot,DR) + Detot;
     T += DT;
     F0 = F1;
-    R = R*DR;
+//    R = R*DR;
+    R = DR*R;
+    nb.from_F(F1);
 }
     
 //----------------------------------------------------------------------
@@ -531,6 +543,8 @@ ostream& operator << (ostream& s, const state_variables& sv)
         s << "\n";
     }
 
+    s << "natural_basis: \n" << sv.nb << "\n";
+    
 	return s;
 }
 
