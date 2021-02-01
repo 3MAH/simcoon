@@ -40,13 +40,24 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 enable_testing()
 
 #Set executable files and library files
-set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
-set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
+if (MSVC)
+  set(EXECUTABLE_OUTPUT_PATH bin)
+  set(LIBRARY_OUTPUT_PATH lib)
+else()
+  set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
+  set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
+endif()
 
 #Inclusion of Armadillo
-include(FindArmadillo)
-find_package(Armadillo 5.2 REQUIRED)
-include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+if (MSVC)
+  set(ARMADILLO_INCLUDE_DIRS armadillo/include/)
+  set(ARMADILLO_LIBRARIES ../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../armadillo/examples/lib_win64/libopenblas)
+  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+else()
+  include(FindArmadillo)
+  find_package(Armadillo 5.2 REQUIRED)
+  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+endif()
 
 #Find CGAL
 find_package(CGAL COMPONENTS Core REQUIRED)
@@ -60,14 +71,20 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 #include(FindOpenMP)
 #find_package(OpenMP)
 
-#enable Fortran
-enable_language(Fortran)
-
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-if (UNIX AND NOT APPLE)
+if (MSVC) #if windows using visual c++
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+elseif (UNIX AND NOT APPLE)
+  #enable Fortran
+  enable_language(Fortran)
+
   if (DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
@@ -78,6 +95,9 @@ if (UNIX AND NOT APPLE)
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++14")
   endif()
 else()
+  #enable Fortran
+  enable_language(Fortran)
+
   if (DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++ -O0 -Drestrict=")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14 -stdlib=libc++")
