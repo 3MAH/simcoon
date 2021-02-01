@@ -126,7 +126,12 @@ mat Green_Lagrange(const mat &F) {
 mat Euler_Almansi(const mat &F) {
     return 0.5*(eye(3,3) - Cauchy(F));
 }
-    
+
+//This function computes the Euler-Almansi finite strain tensor A
+mat Log_strain(const mat &F) {
+    return  0.5*logmat_sympd(L_Cauchy_Green(F));
+}
+
 //This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     
