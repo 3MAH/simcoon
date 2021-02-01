@@ -18,6 +18,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
+#include <armadillo> 
 #include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/stl_iterator.hpp>
