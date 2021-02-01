@@ -65,8 +65,7 @@ bn::ndarray Euler_Almansi(const bn::ndarray &nd) {
 //This function computes the logarithmic strain ln[V] = 1/2 ln[b] (b is the left Cauchy-Green Tensor)
 bn::ndarray Log_strain(const bn::ndarray &nd) {
     mat F = array2mat(nd);
-    //e_log = ln[V] = 1/2 ln[b]
-    return mat2array(0.5*logmat_sympd(simcoon::L_Cauchy_Green(F)));
+    return mat2array(simcoon::Log_strain(F));
 }
 
 //This function computes the velocity difference
@@ -80,7 +79,7 @@ bn::ndarray finite_L(const bn::ndarray &ndF, const bn::ndarray &ndDF, const doub
 bn::ndarray finite_W(const bn::ndarray &ndF, const bn::ndarray &ndDF, const double &DTime) {
     mat F = array2mat(ndF);
     mat DF = array2mat(ndDF);
-    return mat2array(simcoon::finite_L(F,DF,DTime));
+    return mat2array(simcoon::finite_W(F,DF,DTime));
 }
 
 //This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)
