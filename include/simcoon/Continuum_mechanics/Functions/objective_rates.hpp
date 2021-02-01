@@ -30,6 +30,9 @@ void Jaumann(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::
 //This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin W depending on F_0 and F_1 (F at the beginning and end of an increment) using the Green-Naghdi corotational framework
 void Green_Naghdi(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
 
+//This function computes the "flot" L, the increment of the "flot", the rate of deformation D and the spin W depending on F_0 and F_1 (F at the beginning and end of an increment) using the Green-Naghdi corotational framework
+void Truesdell(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+
 //This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin Omega depending on F_0 and F_1 (F at the beginning and end of an increment) using the Logarithmic corotational framework
 void logarithmic(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
 
