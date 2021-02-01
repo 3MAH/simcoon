@@ -47,8 +47,9 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
 }
     
-void Green_Naghdi(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
+void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     //Green-Naghdi
+    mat I = eye(3,3);
     mat U0;
     mat R0;
     mat U1;
@@ -60,11 +61,26 @@ void Green_Naghdi(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, c
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    W = 0.5*(L-L.t());
+    mat W = 0.5*(L-L.t());
+    Omega = (1./DTime)*(R1-R0)*R1.t();
 
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
     //alternative ... to test
-    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
+
+void Truesdell(mat &DL, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    mat I = eye(3,3);
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    D = 0.5*(L+L.t());
+    
+    //The "rotation" is actually L
+    Omega = L;
+    
+    //Truesdell
+    DL = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+}
+
 
 mat get_BBBB(const mat &F1) {
     mat B = L_Cauchy_Green(F1);
