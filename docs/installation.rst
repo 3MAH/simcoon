@@ -53,7 +53,14 @@ Make sure that you have access to /usr/local folder for both MacOS and Linux ope
 On Windows platforms
 ----------------
 
-The first thing is to download Visual Studio 2019. You can get if here_
+The following procedure has been tested on Windows 10 64 bits:
+
+The first thing is to download Visual Studio 2019.
+
+1. Install Anaconda using windows 64bits installer
+2. download and execute the CMake Win64 Installer (https://cmake.org/download/). Make sure to set the PATH variable during installation
+3. download and install Visual studio (tested with VS 2019). You can get if here_
 _here : https://visualstudio.microsoft.com/downloads/
+4. Download simcoon from Github : https://github.com/simcoon/simcoon/
 
 
