@@ -60,6 +60,9 @@ arma::mat Green_Lagrange(const arma::mat &);
 //This function computes the Euler-Almansi finite strain tensor A
 arma::mat Euler_Almansi(const arma::mat &);
     
+//This function computes the logarithmic finite strain tensor A
+arma::mat Log_strain(const arma::mat &);
+
 //This function computes the velocity difference (F,DF,DTime)
 arma::mat finite_L(const arma::mat &, const arma::mat &, const double &);
 
