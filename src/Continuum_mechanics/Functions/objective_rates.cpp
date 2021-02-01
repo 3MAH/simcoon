@@ -69,6 +69,109 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
 
+void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    //Green-Naghdi
+    mat I = eye(3,3);
+    mat U0;
+    mat R0;
+    mat U1;
+    mat R1;
+    RU_decomposition(R0,U0,F0);
+    RU_decomposition(R1,U1,F1);
+    
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+    Omega = (1./DTime)*(R1-R0)*R1.t();
+
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    //alternative ... to test
+    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    N_1 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+
+    N_2 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+}
+
+void logarithmic_F(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    //Green-Naghdi
+    mat I = eye(3,3);
+    mat U0;
+    mat R0;
+    mat U1;
+    mat R1;
+    RU_decomposition(R0,U0,F0);
+    RU_decomposition(R1,U1,F1);
+    
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+
+    //alternative ... to test
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    N_1 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+
+    N_2 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+    
+    Omega = D+W;
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    
+}
+
 void Truesdell(mat &DL, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
     mat L = (1./DTime)*(F1-F0)*inv(F1);
