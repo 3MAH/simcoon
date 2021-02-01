@@ -4,9 +4,71 @@ CentreNode, 2, 2
 CentreNode, 3, 3
 **
 *Initial Conditions, type=TEMPERATURE
-AllNodes, 0
+AllNodes, 290
 **
 ** ==================
 ** STEPS
 ** ==================
+**
+*Step, name=Step111, inc=100
+*Static, direct
+0.01 ,1
+**
+*Temperature
+ AllNodes, 290
+**Strain - BC
+*Boundary, op=NEW
+CentreNode, 1, 1
+CentreNode, 2, 2
+CentreNode, 3, 3
+CD11, 1, 1, 0.02
+**Stress - BC
+*Cload, op=NEW
+CD22, 1, 0
+CD33, 1, 0
+CD12, 1, 0
+CD13, 1, 0
+CD23, 1, 0
+**
+*Output, field, time interval=0.01
+*Element Output, directions=YES
+S, E, SDV, TEMP
+*Node Output, nset=AllNodes
+U,
+*Node Output, nset=CD_nodes
+RF, CF, U, NT
+*Node print, nset=CD_nodes, summary=no
+RF1, CF1, U1,
+*End Step
+**
+*Step, name=Step112, inc=100
+*Static, direct
+0.01 ,1
+**
+*Temperature
+ AllNodes, 290
+**Strain - BC
+*Boundary, op=NEW
+CentreNode, 1, 1
+CentreNode, 2, 2
+CentreNode, 3, 3
+CD11, 1, 1, 0
+**Stress - BC
+*Cload, op=NEW
+CD22, 1, 0
+CD33, 1, 0
+CD12, 1, 0
+CD13, 1, 0
+CD23, 1, 0
+**
+*Output, field, time interval=0.01
+*Element Output, directions=YES
+S, E, SDV, TEMP
+*Node Output, nset=AllNodes
+U,
+*Node Output, nset=CD_nodes
+RF, CF, U, NT
+*Node print, nset=CD_nodes, summary=no
+RF1, CF1, U1,
+*End Step
 **
