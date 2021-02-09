@@ -15,6 +15,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -142,7 +143,8 @@ BOOST_PYTHON_MODULE(simmit) {
     // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
     bp::def("solver", solver);
-    
+	bp::def("RunUmat_fedoo", RunUmat_fedoo);
+
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
     bp::def("ODF_discretization", ODF_discretization);
