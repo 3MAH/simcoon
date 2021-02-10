@@ -67,10 +67,10 @@ cubic_equation::cubic_equation()
  */
 
 //-------------------------------------------------------------
-cubic_equation::cubic_equation(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type)
+cubic_equation::cubic_equation(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type)
 //-------------------------------------------------------------
 {
-    construct(cm,cm_perio,loading_type);
+    construct(cm,cm_perio,loading_type, control_type);
 }
 
 /*!
@@ -116,18 +116,27 @@ cubic_equation::~cubic_equation() {}
 //-------------------------------------
     
 //-------------------------------------------------------------
-void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type)
+void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type)
 //-------------------------------------------------------------
 {
     mat Dxyz;
     Mat<int> CD_num;
     //Mechanical
     if((loading_type == 1) || (loading_type == 2)){
-        CD_num = {{0,3,4},{3,1,5},{4,5,2}};
-        Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz}};
-        CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
-        list_dofs = {1,2,3};
-        CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
+        if(control_type == 1){
+            CD_num = {{0,3,4},{3,1,5},{4,5,2}};
+            Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz}};
+            CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
+            list_dofs = {1,2,3};
+            CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
+        }
+        else if(control_type > 1) {
+            CD_num = {{0,1,2},{3,4,5},{6,7,8}};
+            Dxyz = {{-1.*cm.Dx,-1.*cm.Dx,-1.*cm.Dx},{-1.*cm.Dy,-1.*cm.Dy,-1.*cm.Dy},{-1.*cm.Dz,-1.*cm.Dz,-1.*cm.Dz}};
+            CD = {1010011, 1010012, 1010013, 1020021, 1010022, 1030023, 1040031, 1050032, 1060033};
+            list_dofs = {1,2,3};
+            CD_set_name = {"CD11", "CD12", "CD13", "CD21", "CD22", "CD23", "CD31", "CD32", "CD33"};
+        }
     }
     //Thermal
     else if(loading_type == 3) {

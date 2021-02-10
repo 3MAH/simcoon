@@ -988,7 +988,7 @@ void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &p
     out_set.close();
 }*/
     
-void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const string &path_data, const string &outputfile){
+void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type, const string &path_data, const string &outputfile){
 
     //Find the neighbours
     std::vector<std::vector<Node> > neigh;
@@ -1003,7 +1003,7 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     double min_dis = 1.E-6;
     
     //Construct all the equations
-    cubic_equation cubic_eq(cm, cm_perio, loading_type);
+    cubic_equation cubic_eq(cm, cm_perio, loading_type, control_type);
     equation eq;
     
     std::vector<int> list_dofs;

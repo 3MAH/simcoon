@@ -57,6 +57,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
 
     unsigned int nb_nodes = 0;
     unsigned int loading_type = 1;
+    unsigned int control_type = 1;
     
     std::vector<Node> nodes;
     read_nodes_file(nodes, path_data, pointsfile);
@@ -69,7 +70,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     cm_perio.construct_lists();
     
     write_PBC(cm, path_data, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, loading_type, path_data, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, loading_type, control_type, path_data, CDN_file_name);
 }
 
 BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {

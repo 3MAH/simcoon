@@ -44,6 +44,7 @@ int main() {
     bool nlgeom = false;
     read_path(blocks, T_init, path_data, pathfile);
     unsigned int loading_type = blocks[0].type;
+    unsigned int control_type = blocks[0].control_type;
 
     int max_temp = 0;
     
@@ -126,7 +127,7 @@ int main() {
     string PBC_file_name = "PBC_file_name.inp";
     string CDN_file_name = "CDN_file_name.inp";
     write_PBC(cm, path_run, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, loading_type, control_type, path_run, CDN_file_name);
     
     //Finally
     string run_file = "run_aba.inp";
