@@ -79,6 +79,7 @@ int main() {
     //Read the loading path
     read_path(blocks, T_init, path_data, pathfile);
     unsigned int loading_type = blocks[0].type;
+    unsigned int control_type = blocks[0].control_type;
     
     //Phases
     string steps_file_name = "steps_file_name.inp";
@@ -101,7 +102,7 @@ int main() {
 //    write_PBC(cm, nb_nodes, path_run, PBC_file_name);
     write_PBC(cm, path_run, PBC_file_name);
 //    write_TIE(cm, cm_perio, path_run, TIE_file_name);
-    write_NonPerio_CDN(cm, cm_perio, loading_type, path_run, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, loading_type, control_type, path_run, CDN_file_name);
 //    write_CDN(cm, path_run, CDN_file_name);
     
     //Finally
