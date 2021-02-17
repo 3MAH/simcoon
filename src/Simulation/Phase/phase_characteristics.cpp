@@ -522,6 +522,41 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
             }
         }
 
+        switch (so.o_tangent_modulus) {
+            case 1: {
+                switch (sv_type) {
+                    case 1: {
+                        std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
+                        vec Lt_vec = vectorise(sv_M->Lt.t()); //The transpose is to obtain a vec with row-wise concatenation
+                        for (int z=0; z<36; z++)
+                            *sptr_out_global << Lt_vec(z) << "\t";
+                        break;
+                    }
+                    case 2: {
+                        //We need to cast sv
+                        std::shared_ptr<state_variables_T> sv_T = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
+                        vec dSdE_vec = vectorise(sv_T->dSdE.t()); //The transpose is to obtain a vec with row-wise concatenation
+                        for (int z=0; z<36; z++)
+                            *sptr_out_global << dSdE_vec(z) << "\t";
+                        for (int z=0; z<6; z++)
+                            *sptr_out_global << sv_T->dSdT(0,z) << "\t";
+                        for (int z=0; z<6; z++)
+                            *sptr_out_global << sv_T->drdE(z,0) << "\t";
+                        *sptr_out_global << sv_T->drdT(0,0) << "\t";
+                        break;
+                    }
+                    default: {
+                        cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
+                        exit(0);
+                        break;
+                    }
+                }
+            }
+            default: {
+                break;
+            }
+        }
+        
         switch (sv_type) {
             case 1: {
                 std::shared_ptr<state_variables_M> sv_M = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);

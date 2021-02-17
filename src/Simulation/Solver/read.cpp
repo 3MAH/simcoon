@@ -193,6 +193,7 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
         }
 
         cyclic_output >> buffer >> so.o_rotation_type;
+        cyclic_output >> buffer >> so.o_tangent_modulus;
         cyclic_output >> buffer >> so.o_nb_T;
         
         ///Selection of the wanted umat statev, use "cyclic.dat" to specify wanted internal variables
@@ -251,6 +252,7 @@ void read_output(solver_output &so, const int &nblock, const int &nstatev, const
         so.o_strain = {0,1,2,3,4,5};
         so.o_stress = {0,1,2,3,4,5};
         so.o_rotation_type = 0;
+        so.o_tangent_modulus = 0;
         so.o_nb_T = 1;
         so.o_nw_statev = 0;
         

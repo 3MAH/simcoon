@@ -49,6 +49,7 @@ solver_output::solver_output()
     o_strain_type = 0;
     o_stress_type = 0;
     o_rotation_type = 0;
+    o_tangent_modulus = 0;
 }
 
 /*!
@@ -68,6 +69,7 @@ solver_output::solver_output(const int &nblock)
     o_strain_type = 0;
     o_stress_type = 0;
     o_rotation_type = 0;
+    o_tangent_modulus = 0;
     
     o_type.zeros(nblock);
     o_nfreq.zeros(nblock);
@@ -91,6 +93,7 @@ solver_output::solver_output(const solver_output& so)
     o_strain_type = so.o_strain_type;
     o_stress_type = so.o_stress_type;
     o_rotation_type = so.o_rotation_type;
+    o_tangent_modulus = so.o_tangent_modulus;
     o_nw_statev = so.o_nw_statev;
 	o_wanted_statev = so.o_wanted_statev;
 	o_range_statev = so.o_range_statev;
@@ -121,6 +124,7 @@ solver_output& solver_output::operator = (const solver_output& so)
     o_strain_type = so.o_strain_type;
     o_stress_type = so.o_stress_type;
     o_rotation_type = so.o_rotation_type;
+    o_tangent_modulus = so.o_tangent_modulus;
     o_nw_statev = so.o_nw_statev;
 	o_wanted_statev = so.o_wanted_statev;
 	o_range_statev = so.o_range_statev;
@@ -148,6 +152,7 @@ ostream& operator << (ostream& s, const solver_output& so)
 	s << "strain type\n" << so.o_strain_type << "\n";
 	s << "stress type\n" << so.o_stress_type << "\n";
     s << "rotation type\n" << so.o_rotation_type << "\n";
+    s << "tangent modulus type\n" << so.o_tangent_modulus << "\n";
     s << "statev:\n";
     s << "number wanted statev = " << so.o_nw_statev << "\n";
     s << "standalone statev\n" << so.o_wanted_statev << "\n";
