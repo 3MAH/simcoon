@@ -38,8 +38,13 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return J*sigma*inv(F.t());
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return J*sigma*inv(F.t());
+    }
 }
 
 //This function returns the second Piola-Kirchoff stress tensor from the Cauchy stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -49,8 +54,13 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return J*inv(F)*sigma*inv(F.t());
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return J*inv(F)*sigma*inv(F.t());
+    }
 }
 
 //This function returns the Kirchoff stress tensor from the Cauchy stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -60,8 +70,31 @@ mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return J*sigma;
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return J*sigma;
+    }
+
+}
+
+//This function returns the Kirchoff stress tensor from the Cauchy stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
+
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = det(F);
+    }
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return J*sigma;
+    }
+
 }
 
 //This function returns the Cauchy stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -71,8 +104,13 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return (1./J)*tau;
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return (1./J)*tau;
+    }
 }
 
 //This function returns the first Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -88,6 +126,13 @@ mat Kirchoff2PKII(const mat &tau, const mat &F, const double &mJ) {
     UNUSED(mJ);
     return inv(F)*tau*inv(F.t());
 }
+
+vec Kirchoff2PKII(const vec &tau, const mat &F, const double &mJ) {
+
+    UNUSED(mJ);
+    return t2v_stress(inv(F)*v2t_stress(tau)*inv(F.t()));
+}
+
 
 //This function returns the Kirchoff stress tensor from the first Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 mat PKI2Kirchoff(const mat &P, const mat &F, const double &mJ) {
@@ -110,8 +155,13 @@ mat PKI2Cauchy(const mat &P, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return (1./J)*P*F.t();
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return (1./J)*P*F.t();
+    }
 }
 
 //This function returns the Cauchy stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -121,8 +171,13 @@ mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(F);
     }
-    assert(J > sim_iota);
-    return (1./J)*F*S*F.t();
+    //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+    if (fabs(mJ) < sim_iota) {
+        return zeros(3,3);
+    }
+    else {
+        return (1./J)*F*S*F.t();
+    }
 }
     
 } //namespace simcoon
