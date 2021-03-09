@@ -51,85 +51,114 @@ using namespace arma2numpy;
 
 namespace simpy {
 
-	bp::tuple RunUmat_fedoo(const std::string& umat_name_py, bn::ndarray& etot_py, const bn::ndarray& F0_py, const bn::ndarray& F1_py, bn::ndarray& sigma_py, bn::ndarray& Lt_py, bn::ndarray& L_py, const bn::ndarray& props_py, bn::ndarray& statev_py, const double T, const double DT, const double Time, const double DTime, const int ndi, const int corate) {
-		
-		mat list_etot = array2mat_inplace(etot_py); //total strain cumulated
+	bp::tuple get_Detot_fedoo(const bn::ndarray& F0_py, const bn::ndarray& F1_py, const double DTime, const int corate) {
+		//check if this work in 2D
+		// Variable containing list for all pg values
 		cube listF0 = array2cube_inplace(F0_py);
 		cube listF1 = array2cube_inplace(F1_py);
-		cube list_Lt = array2cube_inplace(Lt_py);
-		cube list_L = array2cube_inplace(L_py);
+		mat listDetot(6, listF1.n_slices); //Strain increment (eulerian) 
+		cube listDR(3, 3, listF1.n_slices);
 
+		// Variable for only one pg 
+		mat F0(3,3); mat F1(3,3);
+		mat DR(3, 3);
+		mat D(3, 3);
+		mat Omega(3, 3);
+
+		for (int pg = 0; pg < listF1.n_slices; pg++) {
+			if (pg < listF0.n_slices) F0 = listF0.slice(pg); //if listF0 has only one element, we keep only this one			
+			F1 = listF1.slice(pg);
+
+			if (corate == -1) {
+				//Green-Lagrange Strain
+				//etot = simcoon::t2v_strain(simcoon::Green_Lagrange(F0));
+				listDetot.col(pg) = simcoon::t2v_strain(simcoon::Green_Lagrange(F1)) - simcoon::t2v_strain(simcoon::Green_Lagrange(F0));
+			}
+			else if (corate == 0) {
+				//Jaumann
+				simcoon::Jaumann(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
+				listDetot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
+			}
+			else if (corate == 1) {
+				//Green Naghdi
+				simcoon::Green_Naghdi(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
+				listDetot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
+			}
+			else if (corate >= 2) {
+				//Log Strain 
+				simcoon::logarithmic(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
+				listDetot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
+			}
+			listDR.slice(pg) = DR;
+			
+		}
+
+		return bp::make_tuple(mat2array_inplace(listDetot), cube2array_inplace(listDR));
+	}
+
+
+	bp::tuple RunUmat_fedoo(const std::string& umat_name_py, const bn::ndarray& etot_py, const bn::ndarray& Detot_py, const bn::ndarray& DR_py, const bn::ndarray& props_py, bn::ndarray& statev_py, const double T, const double DT, const double Time, const double DTime, const int ndi, const int corate, bn::ndarray & Wm_py) {		
+
+		//convert numpy array to armadillo objects
+		const mat list_etot = array2mat_inplace(etot_py); //total strain cumulated
+		const mat list_Detot = array2mat_inplace(etot_py); //total strain increment
+		const cube list_DR = array2cube_inplace(DR_py); //rotation increment
+		const mat list_props = array2mat_inplace(props_py); //each col is prop for one pg
+		mat listWm = array2mat_inplace(Wm_py); //energy
+		mat list_statev = array2mat_inplace(statev_py); //should be mat
+
+		//usefull scalar
+		const int& nshr = ndi;
+		const int nb_pg = list_etot.n_cols;
+		const int nprops = list_props.n_rows;
+		const int nstatev = list_statev.n_rows;
 		const int solver_type = 0;
 		const bool start = false;
+		double tnew_dt = 0;//usefull ?		
 
-		double tnew_dt = 0;//usefull ?
-		//put Wm, Wm_r, Wm_ir, Wm_d in an array
-		double Wm = 0.;
-		double Wm_r = 0.;
-		double Wm_ir = 0.;
-		double Wm_d = 0.;
-		const int& nshr = ndi;
+		// array that will be returned
+		//bn::ndarray& Lt_py = bn::empty(tuple const& shape, dtype const& dt)
+		bn::dtype dtype = bn::dtype::get_builtin<double>();
+		bn::ndarray& Lt_py = bn::empty(bp::make_tuple(ndi + nshr, ndi + nshr, nb_pg), dtype);
+		cube list_Lt = array2cube_inplace(Lt_py);
+
+		//cube list_Lt(ndi + nshr, ndi + nshr, nb_pg);
+		cube list_L(ndi + nshr, ndi + nshr, nb_pg);
+		mat list_sigma(ndi+nshr, nb_pg); ////each col is sigma for one pg
 
 		// convert array to armdillo vec
-		const mat list_props = array2mat_inplace(props_py); //each col is prop for one pg
-		const int nprops = list_props.n_rows;
-		mat list_statev = array2mat_inplace(statev_py); //should be mat
-		const int nstatev = list_statev.n_rows;
-
-		mat list_sigma = array2mat_inplace(sigma_py); ////each col is sigma for one pg
-		vec sigma = zeros(ndi + nshr);
+		vec sigma(ndi + nshr);
 		vec sigma_in = zeros(1); //not used
-		
-		vec statev; //vec sigma; //mat Lt; mat L; 
+		vec statev; 
 		mat F0; mat F1; vec props;
-		//vec Etot; vec DEtot; //Lagrangian strain
 		vec etot; vec Detot; //Eulerian strain
-		mat DR = eye(3, 3);
-		mat D = zeros(3, 3);
-		mat Omega = zeros(3, 3);
+		mat L(ndi + nshr, ndi + nshr);
+		mat Lt(ndi + nshr, ndi + nshr);
+
+		double Wm;
+		double Wm_r;
+		double Wm_ir;
+		double Wm_d;
+
+
+		
 
 		std::map<string, int> list_umat;
 		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"LLDM0",9},{"ZENER",10},{"ZENNK",11},{"PRONK",12},{"EPHIC",17},{"EPHIN",18},{"SMAMO",19},{"SMAMC",20},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 
-		for (int pg = 0; pg < listF1.n_slices; pg++) {
+		for (int pg = 0; pg < list_etot.n_cols; pg++) {
 			if (pg < list_props.n_cols) props = list_props.col(pg); //if list_props has only one element, we keep only this one			
-			statev = list_statev.col(pg);			
-			sigma = list_sigma.col(pg);			
+			statev = list_statev.col(pg);
+			sigma = list_sigma.col(pg);
+			mat DR = list_DR.slice(pg);
 
-			if (pg < listF0.n_slices) F0 = listF0.slice(pg); //if listF0 has only one element, we keep only this one			
-			F1 = listF1.slice(pg);
-			mat Lt = list_Lt.slice(pg);
-			mat L = list_L.slice(pg);
-			
-			if (corate == -1) {
-				//Green-Lagrange Strain
-				etot = simcoon::t2v_strain(simcoon::Green_Lagrange(F0));
-				Detot = simcoon::t2v_strain(simcoon::Green_Lagrange(F1)) - etot;
-				}
-			else if (corate == 0) {
-				//Jaumann
-				etot = list_etot.col(pg);
-				simcoon::Jaumann(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
-				Detot = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
-				}	
-			else if (corate == 1) {
-				//Green Naghdi
-				etot = list_etot.col(pg);
-				simcoon::Green_Naghdi(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
-				Detot = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
-				}
-			else if (corate == 2) {
-				//Log Strain with etot cumulated
-				etot = list_etot.col(pg);
-				simcoon::logarithmic(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
-				Detot = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
-				}
-			else if (corate == 3) {
-				//Log Strain with etot = ln(V)
-				etot = simcoon::t2v_strain(0.5 * logmat_sympd(simcoon::L_Cauchy_Green(F0))); //etot : VR decomposition, then ln(V) equals the logarithmic strain
-				simcoon::logarithmic(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
-				Detot = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
-				}		
+			etot = list_etot.col(pg); //if listF0 has only one element, we keep only this one			
+			Detot = list_Detot.col(pg);
+
+			Wm = listWm(0, pg);
+			Wm_r = listWm(1, pg);
+			Wm_ir = listWm(2, pg);
+			Wm_d = listWm(3, pg);
 
 			//Launch the simcoon umat
 			switch (list_umat[umat_name_py]) {
@@ -219,55 +248,50 @@ namespace simpy {
 					simcoon::umat_sma_mono_cubic(etot, Detot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
 					break;
 				}
-							/*case 100: case 101: case 103: case 104: {
-								umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, list_umat[rve.sptr_matprops->umat_name]);
-								break;
-							}*/
+						 /*case 100: case 101: case 103: case 104: {
+							 umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, list_umat[rve.sptr_matprops->umat_name]);
+							 break;
+						 }*/
 				default: {
 					cout << "Error: The choice of Umat could not be found in the umat library :" << umat_name_py << "\n";
 					exit(0);
 				}
 			}			
+			
+			//return bp::make_tuple(mat2array_inplace(L), mat2array(Lt), mat2array_inplace(list_etot), mat2array_inplace(list_Detot), mat2array_inplace(listWm));
 
 			list_statev.col(pg) = statev;
+			listWm(0, pg) = Wm;
+			listWm(1, pg) = Wm_r;
+			listWm(2, pg) = Wm_ir;
+			listWm(3, pg) = Wm_d;
 
 			if (corate == -1) {
 				//without conversion: constitutive eq assumed expressed in GL/PK2
 				list_sigma.col(pg) = sigma;
 				list_Lt.slice(pg) = Lt;
 				list_L.slice(pg) = L;
-				list_etot.col(pg) = etot;
-				}
-			else if ((corate == 0) || (corate == 1) || (corate == 2)) {
-				//Constitutive eq assumed expressed in Kirchoff/Logstrain
-				//Convert kirkoff/Logstrain to PKII/GLstrain
-				const mat sigma_t = simcoon::v2t_stress(sigma);
-				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
-				list_L.slice(pg) = simcoon::DtauDe_2_DSDE(L, simcoon::get_BBBB(F1), F1, sigma_t); //transform the elastic matrix into pkII/green lagrange
-				list_sigma.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
-				list_etot.col(pg) = simcoon::rotate_strain(etot, DR) + Detot;
-				}
-			else if (corate == 3) {
-				//Constitutive eq assumed expressed in Kirchoff/Logstrain
-				//Convert kirkoff/Logstrain to PKII/GLstrain
-				const mat sigma_t = simcoon::v2t_stress(sigma);
-				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
-				list_L.slice(pg) = simcoon::DtauDe_2_DSDE(L, simcoon::get_BBBB(F1), F1, sigma_t); //transform the elastic matrix into pkII/green lagrange
-				list_sigma.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
-				list_etot.col(pg) = simcoon::t2v_strain(0.5 * logmat_sympd(simcoon::L_Cauchy_Green(F1)));
-				//list_etot.col(pg) = simcoon::rotate_strain(etot, DR) + Detot;
 			}
-
-			/*else if ((corate == 0) || (corate == 1) || (corate == 2)) {
-				//Constitutive eq assumed expressed in Cauchy/Logstrain. 
-				//Convert Cauchy/Logstrain to PKII/GLstrain the tangent matrix is not well defined (possibility of convergence problem)
+			else if ((corate == 0) || (corate == 1)) {
+				//Constitutive eq assumed expressed in Kirchoff/Logstrain
+				//Convert kirkoff/Logstrain to PKII/GLstrain
 				const mat sigma_t = simcoon::v2t_stress(sigma);
 				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
 				list_L.slice(pg) = simcoon::DtauDe_2_DSDE(L, simcoon::get_BBBB(F1), F1, sigma_t); //transform the elastic matrix into pkII/green lagrange
-				list_sigma.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1, 0));
-				}*/
+				list_sigma.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
+			}
+			else if (corate >= 2) {
+				//Constitutive eq assumed expressed in Kirchoff/Logstrain
+				//Convert kirkoff/Logstrain to PKII/GLstrain
+				const mat sigma_t = simcoon::v2t_stress(sigma);
+				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
+				list_L.slice(pg) = simcoon::DtauDe_2_DSDE(L, simcoon::get_BBBB(F1), F1, sigma_t); //transform the elastic matrix into pkII/green lagrange
+				list_sigma.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
+				//list_etot.col(pg) = simcoon::Log_strain(F1); 
+			}
 		}
 
+		
 		//convert modified vec 2 numpy array
 		//sigma_py = vec2array(sigma); //not required in principle
 		//Lt_py = mat2array(Lt);
@@ -276,9 +300,22 @@ namespace simpy {
 		//statev_py = vec2array(statev);
 
 		//return bp::make_tuple(cube2array_inplace(etot), cube2array_inplace(Detot));
-		return bp::make_tuple(mat2array(F0), mat2array(F1), vec2array(etot), vec2array(Detot), cube2array(list_Lt), cube2array(list_L), vec2array(statev), vec2array(props), mat2array_inplace(list_sigma));
+		return bp::make_tuple(mat2array_inplace(list_sigma), Lt_py, cube2array_inplace(list_L));
 	}
 
 
+	bp::tuple Log_strain_fedoo(const bn::ndarray& F_py) {
+		cube listF = array2cube_inplace(F_py);
+		mat list_etot(6,listF.n_slices); //work for 2D problem ?
 
+		// convert array to armdillo vec
+		mat F;
+
+		for (int pg = 0; pg < listF.n_slices; pg++) {
+			F = listF.slice(pg);
+			list_etot.col(pg) = simcoon::Log_strain(F);
+		}
+
+		return bp::make_tuple(mat2array_inplace(list_etot));
+	}
 }

@@ -15,7 +15,8 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
+//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -143,7 +144,36 @@ BOOST_PYTHON_MODULE(simmit) {
     // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
     bp::def("solver", solver);
-	bp::def("RunUmat_fedoo", RunUmat_fedoo);
+	
+	//Wrapper fedoo
+	//bp::def("get_Detot_fedoo", get_Detot_fedoo);
+	//bp::def("RunUmat_fedoo", RunUmat_fedoo);
+	//bp::def("Log_strain_fedoo", Log_strain_fedoo);
+	//bp::class_<Umat_fedoo>("Umat_fedoo", bp::init<std::string, bn::ndarray, bn::ndarray, int, int, int, double>())
+	bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
+		.def("compute_Detot", &Umat_fedoo::compute_Detot)
+		.def("Run", &Umat_fedoo::Run)
+		.def("Initialize", &Umat_fedoo::Initialize)
+		.def("to_start", &Umat_fedoo::to_start)
+		.def("set_start", &Umat_fedoo::set_start)
+		.def_readwrite("corate", &Umat_fedoo::corate)
+		.def_readonly("Time", &Umat_fedoo::Time)
+		.def_readonly("DTime", &Umat_fedoo::DTime)
+		.def_readonly("nb_points", &Umat_fedoo::nb_points)	
+		.add_property("props", &Umat_fedoo::Get_props)
+		.add_property("sigma", &Umat_fedoo::Get_sigma)
+		.add_property("PKII", &Umat_fedoo::Get_PKII)
+		.add_property("etot", &Umat_fedoo::Get_etot)
+		.add_property("Detot", &Umat_fedoo::Get_Detot)
+		.add_property("statev", &Umat_fedoo::Get_statev)
+		.add_property("L", &Umat_fedoo::Get_L)
+		.add_property("Lt", &Umat_fedoo::Get_Lt)
+		.add_property("DR", &Umat_fedoo::Get_DR)
+		.add_property("Wm", &Umat_fedoo::Get_Wm)
+		.add_property("F0", &Umat_fedoo::Get_F0)
+		.add_property("F1", &Umat_fedoo::Get_F1)
+		;
+
 
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);

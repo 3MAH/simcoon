@@ -98,6 +98,18 @@ mat array2mat_inplace(bn::ndarray const& array) {
 	return m;
 }
 
+mat arrayT2mat_inplace(bn::ndarray const& array) {
+	//without copy, the original array should be defined along the default numpy indexation (ie order='C').
+	//ie in python: arr = np.empty((n_rows,n_cols)) 
+	//the resulting armadillo mat will be the transposition fo the numpy array
+	assert(array.get_nd() == 2);
+	Py_intptr_t const* shape = array.get_shape();
+	int n_rows = shape[1]; 
+	int n_cols = shape[0];
+	mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
+	return m;
+}
+
 bn::ndarray mat2array_inplace(const mat& m) {
 
 	//create a tuple with the size of m
@@ -109,7 +121,19 @@ bn::ndarray mat2array_inplace(const mat& m) {
 	bn::ndarray py_array = bn::from_data(m.memptr(), dtype, shape, stride, own);
 	return py_array;
 }
-   
+
+bn::ndarray matT2array_inplace(const mat& m) {
+	//return a view of the transpose of an armadillo mat on an array format
+	//create a tuple with the size of m
+	bp::tuple shape = bp::make_tuple(m.n_cols, m.n_rows);
+	bp::tuple stride = bp::make_tuple(sizeof(double) * m.n_rows, sizeof(double));
+	bp::object own;
+	//as well as a type for C++ double
+	bn::dtype dtype = bn::dtype::get_builtin<double>();
+	bn::ndarray py_array = bn::from_data(m.memptr(), dtype, shape, stride, own);
+	return py_array;
+}
+
 cube array2cube_inplace(bn::ndarray const& array) {
 	//without copy, the original array should be defined according to the armadillo memory.
 	//ie in python: arr = np.empty((n_rows,n_cols,n_slices),order='F').tranpose(2,0,1) or arr = np.empty((n_slices, n_cols, n_rows)).transpose(0,2,1)
