@@ -40,7 +40,7 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
@@ -56,7 +56,7 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
@@ -72,7 +72,7 @@ mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
@@ -89,7 +89,7 @@ vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(6);
     }
     else {
@@ -106,7 +106,7 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
@@ -122,7 +122,7 @@ vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
 		J = det(F);
 	}
 	//If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-	if (fabs(mJ) < sim_iota) {
+	if (fabs(J) < sim_iota) {
 		return zeros(6);
 	}
 	else {
@@ -174,7 +174,7 @@ mat PKI2Cauchy(const mat &P, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
@@ -190,7 +190,7 @@ mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(J) < sim_iota) {
         return zeros(3,3);
     }
     else {
