@@ -90,7 +90,7 @@ vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(mJ) < sim_iota) {
-        return zeros(3,3);
+        return zeros(6);
     }
     else {
         return J*sigma;
@@ -113,6 +113,23 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
         return (1./J)*tau;
     }
 }
+
+//This function returns the Cauchy stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
+
+	double J = mJ;
+	if (fabs(mJ) < sim_iota) {
+		J = det(F);
+	}
+	//If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
+	if (fabs(mJ) < sim_iota) {
+		return zeros(6);
+	}
+	else {
+		return (1. / J) * tau;
+	}
+}
+
 
 //This function returns the first Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 mat Kirchoff2PKI(const mat &tau, const mat &F, const double &mJ) {

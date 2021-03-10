@@ -15,7 +15,6 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
-//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
@@ -146,10 +145,6 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("solver", solver);
 	
 	//Wrapper fedoo
-	//bp::def("get_Detot_fedoo", get_Detot_fedoo);
-	//bp::def("RunUmat_fedoo", RunUmat_fedoo);
-	//bp::def("Log_strain_fedoo", Log_strain_fedoo);
-	//bp::class_<Umat_fedoo>("Umat_fedoo", bp::init<std::string, bn::ndarray, bn::ndarray, int, int, int, double>())
 	bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
 		.def("compute_Detot", &Umat_fedoo::compute_Detot)
 		.def("Run", &Umat_fedoo::Run)
@@ -159,9 +154,11 @@ BOOST_PYTHON_MODULE(simmit) {
 		.def_readwrite("corate", &Umat_fedoo::corate)
 		.def_readonly("Time", &Umat_fedoo::Time)
 		.def_readonly("DTime", &Umat_fedoo::DTime)
-		.def_readonly("nb_points", &Umat_fedoo::nb_points)	
+		.def_readonly("nb_points", &Umat_fedoo::nb_points)
+		.def_readonly("nlgeom", &Umat_fedoo::nlgeom)
 		.add_property("props", &Umat_fedoo::Get_props)
-		.add_property("sigma", &Umat_fedoo::Get_sigma)
+		.add_property("Kirchhoff", &Umat_fedoo::Get_Kirchhoff)
+		.add_property("Cauchy", &Umat_fedoo::Get_Cauchy)
 		.add_property("PKII", &Umat_fedoo::Get_PKII)
 		.add_property("etot", &Umat_fedoo::Get_etot)
 		.add_property("Detot", &Umat_fedoo::Get_Detot)
