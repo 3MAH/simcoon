@@ -29,16 +29,22 @@ using namespace arma;
 
 namespace arma2numpy {
 
-vec array2vec(bn::ndarray const &array) {
+vec array2vec(bn::ndarray const &array, const bool &copy) {
     
     assert(array.get_nd() == 1);
     Py_intptr_t const *shape = array.get_shape();
+    Py_intptr_t const *strides = array.get_strides();
+    bool strides_ok = copy;
     int n_rows = shape[0];
-    vec v(reinterpret_cast<double*>(array.get_data()), n_rows, false);
+    if ((strides[0] != sizeof(double)) && (copy == false)) {
+        cout << "error, the stride does not correspond to an array of doubles";
+        exit(0);
+    }
+    vec v(reinterpret_cast<double*>(array.get_data()), n_rows, copy);
     return v;
 }
 
-bn::ndarray vec2array(const vec &v) {
+bn::ndarray vec2array(const vec &v, const bool &copy) {
     
     //create a tuple with the size of v
     bp::tuple shape = bp::make_tuple(v.n_elem);
@@ -48,33 +54,69 @@ bn::ndarray vec2array(const vec &v) {
     bn::dtype dtype = bn::dtype::get_builtin<double>();
     //Construct an array with the above shape and type
     bn::ndarray py_array = bn::from_data(v.memptr(),dtype,shape,stride,own);
-    return py_array.copy();
+    if (copy == true) {
+        return py_array.copy();
+    } else {
+        return py_array;
+    }
 }
 
-bn::ndarray vec2array_inplace(const vec& v) {
-
-	//create a tuple with the size of v
-	bp::tuple shape = bp::make_tuple(v.n_elem);
-	bp::tuple stride = bp::make_tuple(sizeof(double));
-	bp::object own;
-	//as well as a type for C++ double
-	bn::dtype dtype = bn::dtype::get_builtin<double>();
-	//Construct an array with the above shape and type
-	bn::ndarray py_array = bn::from_data(v.memptr(), dtype, shape, stride, own);
-	return py_array;
-}
-
-mat array2mat(bn::ndarray const &array) {
+mat array2mat(bn::ndarray const &array, const bool &copy) {
     
     assert(array.get_nd() == 2);
     Py_intptr_t const *shape = array.get_shape();
-    int n_rows = shape[0]; //should be inversed ???
-    int n_cols = shape[1];
-    mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
-    return m.t();
+    Py_intptr_t const *strides = array.get_strides();
+    int n_rows;
+    int n_cols;
+    bool is_C_contiguous = !(array.get_flags() & bn::ndarray::C_CONTIGUOUS);
+    bool is_F_contiguous = !(array.get_flags() & bn::ndarray::F_CONTIGUOUS);
+    if (is_C_contiguous) {
+        n_rows = shape[1];
+        n_cols = shape[0];
+    }
+    else if (is_F_contiguous) {
+        n_rows = shape[0];
+        n_cols = shape[1];
+    }
+    else {
+        PyErr_SetString(PyExc_TypeError, "Array must be contiguous (C or F)");
+        bp::throw_error_already_set();
+    }
+    if (copy == true) {
+        if(is_C_contiguous) {
+            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
+            return m.t();
+        }
+        else {
+            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, true);
+            return m;
+        }
+    }
+    else {
+        mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
+        return m;
+    }
+
 }
 
-bn::ndarray mat2array(const mat &m) {
+bn::ndarray mat2array(const mat &m, const bool &copy) {
+        
+    //create a tuple with the size of m
+    bp::tuple shape = bp::make_tuple(m.n_rows, m.n_cols);
+    bp::tuple stride = bp::make_tuple(sizeof(double)*m.n_rows, sizeof(double));
+    bp::object own;
+    //as well as a type for C++ double
+    bn::dtype dtype = bn::dtype::get_builtin<double>();
+    bn::ndarray py_array = bn::from_data(m.memptr(),dtype,shape,stride,own);
+    if (copy == true) {
+        return py_array.copy();
+    } else {
+        return py_array;
+    }
+
+}
+
+bn::ndarray matT2array(const mat &m) {
         
     //create a tuple with the size of m
     bp::tuple shape = bp::make_tuple(m.n_rows, m.n_cols);
@@ -132,6 +174,18 @@ bn::ndarray matT2array_inplace(const mat& m) {
 	bn::dtype dtype = bn::dtype::get_builtin<double>();
 	bn::ndarray py_array = bn::from_data(m.memptr(), dtype, shape, stride, own);
 	return py_array;
+}
+
+cube array2cube(bn::ndarray const& array) {
+    //without copy, the original array should be defined according to the armadillo memory.
+    //ie in python: arr = np.empty((n_rows,n_cols,n_slices),order='F').tranpose(2,0,1) or arr = np.empty((n_slices, n_cols, n_rows)).transpose(0,2,1)
+    assert(array.get_nd() == 3);
+    Py_intptr_t const* shape = array.get_shape();
+    int n_rows = shape[1]; //should be inversed ???
+    int n_cols = shape[2];
+    int n_slices = shape[0];
+    cube c(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, n_slices, true);
+    return c;
 }
 
 cube array2cube_inplace(bn::ndarray const& array) {
