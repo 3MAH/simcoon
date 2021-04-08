@@ -148,14 +148,15 @@ bn::ndarray state_variables_py::Get_DR() {
 }
 
 //----------------------------------------------------------------------
-void state_variables_py::rotate_l2g_py(const double &psi, const double &theta, const double &phi)
+state_variables_py& state_variables_py::rotate_l2g(const state_variables_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
-    rotate_l2g(sv, psi, theta, phi);
+    simcoon::state_variables::rotate_l2g(sv, psi, theta, phi);
+    return *this;
 }
 
 //----------------------------------------------------------------------
-void state_variables_py::rotate_g2l_py(const double &psi, const double &theta, const double &phi)
+state_variables_py& state_variables_py::rotate_g2l(const state_variables_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
     simcoon::state_variables::rotate_g2l(sv, psi, theta, phi);
