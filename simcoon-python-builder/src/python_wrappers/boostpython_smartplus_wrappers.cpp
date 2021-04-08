@@ -7,6 +7,8 @@
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/arma2numpy/numpy_cgal.hpp>
 
+#include <simcoon/Simulation/Phase/state_variables.hpp>
+
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
@@ -15,6 +17,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
+//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
@@ -31,6 +34,10 @@
 #include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Unit_cell/unit_cell.hpp>
+
+#include <simcoon/python_wrappers/Libraries/Phase/state_variables.hpp>
+#include <simcoon/python_wrappers/Libraries/Phase/state_variables_M.hpp>
+#include <simcoon/python_wrappers/Libraries/Phase/state_variables_T.hpp>
 
 //#include <simcoon/python_wrappers/Libraries/Abaqus/write.hpp>
 
@@ -144,34 +151,115 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("read_matprops", read_matprops);
     bp::def("solver", solver);
 	
-	//Wrapper fedoo
-	bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
-		.def("compute_Detot", &Umat_fedoo::compute_Detot)
-		.def("Run", &Umat_fedoo::Run)
-		.def("Initialize", &Umat_fedoo::Initialize)
-		.def("to_start", &Umat_fedoo::to_start)
-		.def("set_start", &Umat_fedoo::set_start)
-		.def_readwrite("corate", &Umat_fedoo::corate)
-		.def_readonly("Time", &Umat_fedoo::Time)
-		.def_readonly("DTime", &Umat_fedoo::DTime)
-		.def_readonly("nb_points", &Umat_fedoo::nb_points)
-		.def_readonly("nlgeom", &Umat_fedoo::nlgeom)
-		.add_property("props", &Umat_fedoo::Get_props)
-		.add_property("Kirchhoff", &Umat_fedoo::Get_Kirchhoff)
-		.add_property("Cauchy", &Umat_fedoo::Get_Cauchy)
-		.add_property("PKII", &Umat_fedoo::Get_PKII)
-		.add_property("etot", &Umat_fedoo::Get_etot)
-		.add_property("Detot", &Umat_fedoo::Get_Detot)
-		.add_property("statev", &Umat_fedoo::Get_statev)
-		.add_property("L", &Umat_fedoo::Get_L)
-		.add_property("Lt", &Umat_fedoo::Get_Lt)
-		.add_property("DR", &Umat_fedoo::Get_DR)
-		.add_property("Wm", &Umat_fedoo::Get_Wm)
-		.add_property("F0", &Umat_fedoo::Get_F0)
-		.add_property("F1", &Umat_fedoo::Get_F1)
-		;
-
-
+    //Wrapper fedoo
+    bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
+        .def("compute_Detot", &Umat_fedoo::compute_Detot)
+        .def("Run", &Umat_fedoo::Run)
+        .def("Initialize", &Umat_fedoo::Initialize)
+        .def("to_start", &Umat_fedoo::to_start)
+        .def("set_start", &Umat_fedoo::set_start)
+        .def_readwrite("corate", &Umat_fedoo::corate)
+        .def_readonly("Time", &Umat_fedoo::Time)
+        .def_readonly("DTime", &Umat_fedoo::DTime)
+        .def_readonly("nb_points", &Umat_fedoo::nb_points)
+        .def_readonly("nlgeom", &Umat_fedoo::nlgeom)
+        .add_property("props", &Umat_fedoo::Get_props)
+        .add_property("Kirchhoff", &Umat_fedoo::Get_Kirchhoff)
+        .add_property("Cauchy", &Umat_fedoo::Get_Cauchy)
+        .add_property("PKII", &Umat_fedoo::Get_PKII)
+        .add_property("etot", &Umat_fedoo::Get_etot)
+        .add_property("Detot", &Umat_fedoo::Get_Detot)
+        .add_property("statev", &Umat_fedoo::Get_statev)
+        .add_property("L", &Umat_fedoo::Get_L)
+        .add_property("Lt", &Umat_fedoo::Get_Lt)
+        .add_property("DR", &Umat_fedoo::Get_DR)
+        .add_property("Wm", &Umat_fedoo::Get_Wm)
+        .add_property("F0", &Umat_fedoo::Get_F0)
+        .add_property("F1", &Umat_fedoo::Get_F1)
+        ;
+        
+    bp::class_<state_variables_py>("state_variables", bp::init <>())
+        .def(bp::init <const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const double&> ())
+        .def_readwrite("T", &state_variables_py::T)
+        .def_readwrite("DT", &state_variables_py::DT)
+        .def_readwrite("nstatev", &state_variables_py::nstatev)
+        .add_property("F0", &state_variables_py::Get_F0, &state_variables_py::Set_F0)
+        .add_property("F1", &state_variables_py::Get_F1, &state_variables_py::Set_F1)
+        .add_property("etot", &state_variables_py::Get_etot)
+        .add_property("Detot", &state_variables_py::Get_Detot)
+        .add_property("Etot", &state_variables_py::Get_Etot)
+        .add_property("DEtot", &state_variables_py::Get_DEtot)
+        .add_property("statev", &state_variables_py::Get_statev)
+        .add_property("R", &state_variables_py::Get_R)
+        .add_property("DR", &state_variables_py::Get_DR)
+        .def("to_start", &state_variables_py::to_start)
+        .def("set_start", &state_variables_py::set_start)
+//        .def("rotate_l2g", &state_variables_py::rotate_l2g)
+//        .def("rotate_g2l", &state_variables_py::rotate_g2l)
+        ;
+    
+    bp::class_<state_variables_M_py>("state_variables_M", bp::init <>())
+        .def(bp::init <const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const double&> ())
+        .def_readwrite("T", &state_variables_M_py::T)
+        .def_readwrite("DT", &state_variables_M_py::DT)
+        .def_readwrite("nstatev", &state_variables_M_py::nstatev)
+        .add_property("F0", &state_variables_M_py::Get_F0, &state_variables_M_py::Set_F0)
+        .add_property("F1", &state_variables_M_py::Get_F1, &state_variables_M_py::Set_F1)
+        .add_property("etot", &state_variables_M_py::Get_etot)
+        .add_property("Detot", &state_variables_M_py::Get_Detot)
+        .add_property("Etot", &state_variables_M_py::Get_Etot)
+        .add_property("DEtot", &state_variables_M_py::Get_DEtot)
+        .add_property("statev", &state_variables_M_py::Get_statev)
+        .add_property("R", &state_variables_M_py::Get_R)
+        .add_property("DR", &state_variables_M_py::Get_DR)
+        .add_property("Wm", &state_variables_M_py::Get_Wm)
+        .add_property("L", &state_variables_M_py::Get_L)
+        .add_property("Lt", &state_variables_M_py::Get_Lt)
+        .def("to_start", &state_variables_M_py::to_start)
+        .def("set_start", &state_variables_M_py::set_start)
+//        .def("rotate_l2g", &state_variables_M_py::rotate_l2g)
+//        .def("rotate_g2l", &state_variables_M_py::rotate_g2l)
+        ;
+    
+    bp::class_<state_variables_T_py>("state_variables_T", bp::init <>())
+        .def(bp::init <const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const double&> ())
+        .def_readwrite("T", &state_variables_T_py::T)
+        .def_readwrite("DT", &state_variables_T_py::DT)
+        .def_readwrite("nstatev", &state_variables_T_py::nstatev)
+        .add_property("F0", &state_variables_T_py::Get_F0, &state_variables_T_py::Set_F0)
+        .add_property("F1", &state_variables_T_py::Get_F1, &state_variables_T_py::Set_F1)
+        .add_property("etot", &state_variables_T_py::Get_etot)
+        .add_property("Detot", &state_variables_T_py::Get_Detot)
+        .add_property("Etot", &state_variables_T_py::Get_Etot)
+        .add_property("DEtot", &state_variables_T_py::Get_DEtot)
+        .add_property("statev", &state_variables_T_py::Get_statev)
+        .add_property("R", &state_variables_T_py::Get_R)
+        .add_property("DR", &state_variables_T_py::Get_DR)
+        .add_property("Wm", &state_variables_T_py::Get_Wm)
+        .add_property("Wt", &state_variables_T_py::Get_Wt)
+        .add_property("dSdE", &state_variables_T_py::Get_dSdE)
+        .add_property("dSdEt", &state_variables_T_py::Get_dSdEt)
+        .add_property("dSdT", &state_variables_T_py::Get_dSdT)
+        .add_property("drdE", &state_variables_T_py::Get_drdE)
+        .add_property("drdT", &state_variables_T_py::Get_drdT)
+        .def("to_start", &state_variables_T_py::to_start)
+        .def("set_start", &state_variables_T_py::set_start)
+//        .def("rotate_l2g", &state_variables_T_py::rotate_l2g)
+//        .def("rotate_g2l", &state_variables_T_py::rotate_g2l)
+        ;
+    
+    //We shall add a way to integrate natural basis ...
+    //    natural_basis nb;
+    // + update / Initialize ?
+    
+    
+//    .def("__init__", build_sv_full)
+//    bp::class_<simcoon::state_variables_M, bases<simcoon::state_variables> >("state_variables_M", no_init);
+//    .def("__init__", build_sv_M_full)
+    
+//    bp::class_<simcoon::state_variables_T, bases<simcoon::state_variables> >("state_variables_T", no_init);
+//    .def("__init__", build_sv_T_full)
+    
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
     bp::def("ODF_discretization", ODF_discretization);
