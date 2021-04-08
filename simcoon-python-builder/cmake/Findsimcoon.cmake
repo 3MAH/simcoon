@@ -34,11 +34,11 @@
 # UNIX paths are standard, no need to write.
 find_library(SIMCOON_LIBRARY
   NAMES simcoon
-  PATHS "$ENV{ProgramFiles}/simcoon/lib"  "$ENV{ProgramFiles}/simcoon/lib64" "$ENV{ProgramFiles}/simcoon"
+#  PATHS "$ENV{ProgramFiles}/simcoon/lib"  "$ENV{ProgramFiles}/simcoon/lib64" "$ENV{ProgramFiles}/simcoon"
   )
 find_path(SIMCOON_INCLUDE_DIR
   NAMES simcoon
-  PATHS "$ENV{ProgramFiles}/simcoon/include"
+#  PATHS "$ENV{ProgramFiles}/simcoon/include"
   )
 
 include(${CMAKE_CURRENT_LIST_DIR}/FindPackageHandleStandardArgs.cmake)
