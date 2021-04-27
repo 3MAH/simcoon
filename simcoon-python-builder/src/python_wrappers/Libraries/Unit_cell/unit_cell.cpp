@@ -37,6 +37,56 @@ namespace bn = boost::python::numpy;
 namespace simpy {
 
 //-------------------------------------------------------------
+bp::list build_MPC_from_cubic_mesh(const boost::python::numpy::ndarray &nodes_coords_py)
+//-------------------------------------------------------------
+{
+    
+    mat nodes_coords = array2mat(nodes_coords_py, false);
+    cout << nodes_coords << endl;
+    std::vector<simcoon::Node> nodes_full;
+
+    for (unsigned int i=0; i <nodes_coords.n_cols; i++) {
+        vec coords = nodes_coords.col(i);
+        simcoon::Node node_temp(i+1,Point(coords(0),coords(1),coords(2)));
+        nodes_full.push_back(node_temp);
+        cout << node_temp << endl;
+    }
+    unsigned int nb_nodes_full = nodes_full.size();
+    
+    simcoon::cubic_mesh cm(nodes_full, "nodes_full");
+    cm.get_domain();
+    cm.construct_lists();
+    
+    simcoon::cubic_mesh cm_perio = perio_RVE(cm, nb_nodes_full);
+    cm_perio.construct_lists();
+
+    //MEchanical only for now
+    unsigned int loading_type = 1;
+    unsigned int control_type = 1;
+    
+    simcoon::cubic_equation cubic_eq(cm, cm_perio, loading_type, control_type);
+    std::vector<simcoon::equation> MPC_equations = simcoon::MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type);
+    
+    bp::list MPC_equations_list;
+    for(auto eq_it : MPC_equations) {
+        cout << eq_it << endl;
+        bp::list MPC_equation_temp;
+        for(auto comp_it : eq_it.components) {
+            simcoon::Node node_comp_it = comp_it.node;
+            MPC_equation_temp.append(node_comp_it.number);
+            MPC_equation_temp.append(comp_it.dof);
+            MPC_equation_temp.append(comp_it.coef);
+        }
+        MPC_equations_list.append(MPC_equation_temp);
+    }
+    
+    
+//    = py_list_to_std_vector<simcoon::equation>(MPC_equations);
+    
+    return MPC_equations_list;
+}
+
+//-------------------------------------------------------------
 simcoon::Node build_node(const int &pynumber, const bn::ndarray &pycoords)
 //-------------------------------------------------------------
 {
