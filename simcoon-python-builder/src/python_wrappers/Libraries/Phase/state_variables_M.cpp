@@ -13,7 +13,7 @@
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Phase/state_variables.hpp>
+#include <simcoon/python_wrappers/Libraries/Phase/state_variables_M.hpp>
 
 typedef CGAL::Simple_cartesian<double> Kernel;
 typedef Kernel::Point_3 Point;
@@ -150,7 +150,7 @@ bn::ndarray state_variables_M_py::Get_DR() {
 //-------------------------------------------------------------
 bn::ndarray state_variables_M_py::Get_Wm() {
 //-------------------------------------------------------------
-    return vec2array(Wm, false)
+    return vec2array(Wm, false);
 }
 
 //-------------------------------------------------------------
