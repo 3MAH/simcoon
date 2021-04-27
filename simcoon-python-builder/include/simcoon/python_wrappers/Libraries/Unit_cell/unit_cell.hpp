@@ -4,7 +4,9 @@
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_mesh.hpp>
 
 namespace simpy{
-    
+
+boost::python::numpy::ndarray build_MPC_from_cubic_mesh(const boost::python::numpy::ndarray &);
+
 simcoon::Node build_node(const int &, const boost::python::numpy::ndarray &);
 
 boost::python::numpy::ndarray Node_get_input_coords(simcoon::Node &);
