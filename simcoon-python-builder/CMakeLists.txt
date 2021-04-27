@@ -183,8 +183,8 @@ add_test(NAME TCM_func WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_fun
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
-add_test(NAME identification WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/identification
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/identification/run_test.py)
+add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
+		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 
 
