@@ -35,6 +35,7 @@
 #include <simcoon/Continuum_mechanics/Unit_cell/equation.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_mesh.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_equation.hpp>
+#include <simcoon/Continuum_mechanics/Unit_cell/interpolate.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/geom_functions.hpp>
 
 typedef CGAL::Simple_cartesian<double> Kernel;
@@ -1114,6 +1115,371 @@ void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &w
     }
 }
     
+
+std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_mesh &cm_perio, const cubic_equation &cubic_eq, const unsigned int &loading_type, const unsigned int &control_type) {
+
+    std::vector<equation> list_MPC_equations;
     
+    //Find the neighbours
+    std::vector<std::vector<Node> > neigh;
+    std::vector<mat> neigh_dist;
+    unsigned int N=6;
+    std::vector<mat> weights;
+    std::string name_set;
+    std::vector<Node> set;
+    std::vector<Node> neigh_temp;
+    mat weight_temp;
+    std::vector<std::string> name_in(N);
+    double min_dis = 1.E-6;
+    
+    //Construct all the equations
+    equation eq;
+    
+    std::vector<int> list_dofs;
+    //Mechanical
+    if (loading_type == 1) {
+        list_dofs = {1,2,3};
+    }
+    //Thermomechanical
+    else if (loading_type == 2) {
+        list_dofs = {1,2,3};
+    }
+    //Thermal
+    else if (loading_type == 3) {
+        list_dofs = {11};
+    }
+    else
+        cout << "error in Continuum_mechanics/Unit_cell/write.cpp : loading type should take values in the range (1,3)" << endl;
+        
+    //Face Xp
+    set_faceXp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listXp, N);
+    
+    weights.resize(cm.Face_listXp->size());
+    for (unsigned int i=0; i<cm.Face_listXp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Face_listXp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listXp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i]; //extract a matrix
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 1, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[1], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //Face Yp
+    set_faceYp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listYp, N);
+    weights.resize(cm.Face_listYp->size());
+    for (unsigned int i=0; i<cm.Face_listYp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Face_listYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listYp->size(), min_dis);
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 2, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[3], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //Face Zp
+    set_faceZp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listZp, N);
+    weights.resize(cm.Face_listZp->size());
+    for (unsigned int i=0; i<cm.Face_listZp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Face_listZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listZp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 3, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_faces[5], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    /////////Edges////
+    N=2;
+    //EdgeXpYm
+    set_EdgeXpYm(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYm, N);
+    weights.resize(cm.Edge_listXpYm->size());
+    for (unsigned int i=0; i<cm.Edge_listXpYm->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXpYm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpYm->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[1], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeXpYp
+    set_EdgeXpYp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYp, N);
+    weights.resize(cm.Edge_listXpYp->size());
+    for (unsigned int i=0; i<cm.Edge_listXpYp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXpYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpYp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[2], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeXmYp
+    set_EdgeXmYp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmYp, N);
+    weights.resize(cm.Edge_listXmYp->size());
+    for (unsigned int i=0; i<cm.Edge_listXmYp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXmYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXmYp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[3], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeXpZm
+    set_EdgeXpZm(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZm, N);
+    weights.resize(cm.Edge_listXpZm->size());
+    for (unsigned int i=0; i<cm.Edge_listXpZm->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXpZm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpZm->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[5], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeXpZp
+    set_EdgeXpZp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZp, N);
+    weights.resize(cm.Edge_listXpZp->size());
+    for (unsigned int i=0; i<cm.Edge_listXpZp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXpZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpZp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[6], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeXmZp
+    set_EdgeXmZp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmZp, N);
+    weights.resize(cm.Edge_listXmZp->size());
+    for (unsigned int i=0; i<cm.Edge_listXmZp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listXmZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXmZp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[7], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeYpZm
+    set_EdgeYpZm(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZm, N);
+    weights.resize(cm.Edge_listYpZm->size());
+    for (unsigned int i=0; i<cm.Edge_listYpZm->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listYpZm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYpZm->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[9], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeYpZp
+    set_EdgeYpZp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZp, N);
+    weights.resize(cm.Edge_listYpZp->size());
+    for (unsigned int i=0; i<cm.Edge_listYpZp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listYpZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYpZp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[10], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //EdgeYmZp
+    set_EdgeYmZp(set, cm_perio);
+    //Find the neighbours
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYmZp, N);
+    weights.resize(cm.Edge_listYmZp->size());
+    for (unsigned int i=0; i<cm.Edge_listYmZp->size(); i++) {
+        weights[i] = zeros(neigh[i].size()-1,4);
+    }
+    //set_weights(weights, neigh_dist, cm.Edge_listYmZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYmZp->size(), min_dis);
+    
+    for (unsigned int i=0; i<neigh.size(); i++) {
+        
+        neigh_temp = neigh[i]; // extract a vector
+        weight_temp = weights[i];
+        for (auto j:list_dofs) {
+            eq = set_equation(neigh_temp, weight_temp, 0, loading_type, j);
+            //Replace in equation the nodes with the equations from cubic_equation
+            replace_perio_eq(eq, cubic_eq, weight_temp, cm, cm.set_name_edges[11], loading_type, j);
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    
+    //Corner_listXpYmZm
+    if(cm.Corner_listXpYmZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYmZm[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXpYpZm
+    if(cm.Corner_listXpYpZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYpZm[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXmYpZm
+    if(cm.Corner_listXmYpZm->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYpZm[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXmYmZp
+    if(cm.Corner_listXmYmZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYmZp[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXpYmZp
+    if(cm.Corner_listXpYmZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYmZp[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXpYpZp
+    if(cm.Corner_listXpYpZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXpYpZp[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    //Corner_listXmYpZp
+    if(cm.Corner_listXmYpZp->number > 0) {
+        for (auto j:list_dofs) {
+            eq = cubic_eq.Corner_listXmYpZp[index_from_dof(j, loading_type)];
+            list_MPC_equations.push_back(eq);
+        }
+    }
+    return list_MPC_equations;
+}
+
 
 } //namespace simcoon
