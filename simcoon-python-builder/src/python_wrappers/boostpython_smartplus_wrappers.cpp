@@ -194,8 +194,8 @@ BOOST_PYTHON_MODULE(simmit) {
         .add_property("DR", &state_variables_py::Get_DR)
         .def("to_start", &state_variables_py::to_start)
         .def("set_start", &state_variables_py::set_start)
-//        .def("rotate_l2g", &state_variables_py::rotate_l2g)
-//        .def("rotate_g2l", &state_variables_py::rotate_g2l)
+        .def("rotate_l2g", &state_variables_py::rotate_l2g)
+        .def("rotate_g2l", &state_variables_py::rotate_g2l)
         ;
     
     bp::class_<state_variables_M_py>("state_variables_M", bp::init <>())
@@ -362,6 +362,8 @@ BOOST_PYTHON_MODULE(simmit) {
     .def_readwrite("number", &simcoon::Node::number)
     .add_property("coords", Node_get_input_coords, Node_set_input_coords)
     ;
+    
+    bp::def("nonperioMPC", build_MPC_from_cubic_mesh);
     
     // Generation of the cubic_mesh class
     bp::class_<simcoon::cubic_mesh>("cubic_mesh")
