@@ -29,3 +29,7 @@ sv_1 = sim.state_variables()
 sv_2 = sim.state_variables(etot, F0, F1, sigma, statev, T, DT)
 
 print(sv_2.etot)
+
+coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
+list_nodes = sim.nonperioMPC(coords_nodes)
+print(list_nodes)
