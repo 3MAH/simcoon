@@ -25,7 +25,7 @@ include(GNUInstallDirs)
 option(DEBUG "Compile with debugging information" OFF)
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
         FORCE)
 endif()
@@ -210,18 +210,13 @@ endforeach(testSrc)
 ################################################################################
 # INSTALL CONFIGURATION
 
-if(NOT INSTALL_INCLUDE_DIR)
-  set(INSTALL_INCLUDE_DIR "include")
-endif()
-
-if(NOT INSTALL_LIB_DIR)
-  set(INSTALL_LIB_DIR "lib")
-endif()
+set(INSTALL_INCLUDE_DIR include)
+set(INSTALL_LIB_DIR lib)
 
 # executables destination
-if(NOT INSTALL_BIN_DIR)
-  set(INSTALL_BIN_DIR "bin")
-endif()
+#if(NOT INSTALL_BIN_DIR)
+#  set(INSTALL_BIN_DIR "bin")
+#endif()
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
