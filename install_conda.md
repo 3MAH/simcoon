@@ -16,6 +16,14 @@ conda install -c conda-forge cgal
 conda install -c conda-forge numpy
 
 
+Installation of simcoon (easy)
+-----------------------
+
+Open Install.sh, fill the anaconda path at the beginning of the file (full path) and run:
+sh Install.sh
+
+Then just follow the instructions
+
 Installation of simcoon
 -----------------------
 cd build (or mkdir build and then cd build if not already there)
