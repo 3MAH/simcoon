@@ -10,7 +10,9 @@ helpFunction()
 }
 
 test=1
-ncpus=1
+ncpus=4
+anacondaloc=/Users/ychemisky/opt/anaconda3/envs/test
+
 while getopts "tn:" opt
 do
    case $opt in
@@ -105,7 +107,7 @@ done
 #Build SMART+
 echo ""
 cd ${current_dir}/build
-cmake ..
+cmake .. -DCMAKE_INCLUDE_PATH=${anacondaloc}/include -DCMAKE_LIBRARY_PATH=${anacondaloc}/lib -DCMAKE_INSTALL_PREFIX=${anacondaloc} -Wno-dev
 echo ""
 make -j${ncpus}
 Install_OK=$?
@@ -127,7 +129,7 @@ then
 
 	#Create the list of the file to copy after compilation
 	executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
-	objectToCopy="umat_single umat_singleT"
+#	objectToCopy="umat_single umat_singleT"
 
 	# Copy all important files (+ final message)
 	if [ $Test_OK -eq 0 ]
@@ -135,15 +137,15 @@ then
 		echo "\n---------------------------"
 		
 		#Treatement of object files
-		for object in ${objectToCopy}
-		do
-			#Copy of the "object".o from build/CMakeFiles/umat.dir/software to build/bin
-			if [ -f ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ]
-			then 
-				cp ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ${current_dir}/build/bin/${object}.o
-				echo "${blue}${object}.o${reset} copied in ${blue}${current_dir}/build/bin${reset}"
-			fi
-		done
+#		for object in ${objectToCopy}
+#		do
+#			#Copy of the "object".o from build/CMakeFiles/umat.dir/software to build/bin
+#			if [ -f ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ]
+#			then
+#				cp ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ${current_dir}/build/bin/${object}.o
+#				echo "${blue}${object}.o${reset} copied in ${blue}${current_dir}/build/bin${reset}"
+#			fi
+#		done
 		
 		#Treatement of executable files
 		for file in ${executableToCopy}
@@ -177,54 +179,58 @@ then
 		fi
 		
 		echo "---------------------------"
-		echo "SMART+ compilation done.\n"
+		echo "Simcoon compilation done.\n"
 	else
 		echo "\n---------------------------"
-		echo "${red} SMART+ tests failed.\n${reset}"
+		echo "${red} Simcoon tests failed.\n${reset}"
 	fi
 
 else
 
 	echo "\n---------------------------"
-	echo "${red} SMART+ compilation failed.\n${reset}"
+	echo "${red} Simcoon compilation failed.\n${reset}"
 
 fi
 
-
-cd ${current_dir}/simcoon-python-builder
-
-#Test if build exist and if it's necessary to erase it
-if [ ! -d "build" ]
+if [ "${Install_check}" = "OK" ]
 then
-mkdir ${current_dir}/simcoon-python-builder/build
-echo "Folder created.\n"
-else
-echo "Build directory already exists."
+    cd ${current_dir}/simcoon-python-builder
 
-while true; do
-read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
-case $yn in
-[YyOo]* ) rm -r ${current_dir}/simcoon-python-builder/build/*; break;;
-[Nn]* ) break;;
-* ) echo "Please answer yes (y) or no (n).";;
-esac
-done
+    #Test if build exist and if it's necessary to erase it
+    if [ ! -d "build" ]
+    then
+    mkdir ${current_dir}/simcoon-python-builder/build
+    echo "Folder created.\n"
+    else
+    echo "Build directory already exists."
+
+    while true; do
+    read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
+    case $yn in
+    [YyOo]* ) rm -r ${current_dir}/simcoon-python-builder/build/*; break;;
+    [Nn]* ) break;;
+    * ) echo "Please answer yes (y) or no (n).";;
+    esac
+    done
+    fi
+
+    cd ${current_dir}/simcoon-python-builder/build
+    cmake .. -DCMAKE_INCLUDE_PATH=${anacondaloc}/include -DCMAKE_LIBRARY_PATH=${anacondaloc}/lib -DCMAKE_INSTALL_PREFIX=${anacondaloc} -Wno-dev
+    echo ""
+    make
+    make install
+
+    cd ..
+    cd ..
+    cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
+    cd ${current_dir}/python-setup
+
+    #Change the current dir and install python library
+    #current_dir=$(pwd)
+
+    python setup.py install
+    pip install .
+    
+    cd ${current_dir}/simcoon-python-builder/build
+    make test
 fi
-
-cd ${current_dir}/simcoon-python-builder/build
-PYTHON_PATH = $(python -c "import sys; print(sys.prefix)")
-cmake .. -DCMAKE_PREFIX_PATH=${PYTHON_PATH}
-echo ""
-make
-make install
-make test
-cd ..
-cd ..
-cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
-cd ${current_dir}/python-setup
-
-#Change the current dir and install python library
-current_dir=$(pwd)
-
-python setup.py install
-pip install .
