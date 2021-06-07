@@ -171,14 +171,11 @@ namespace simpy {
 	//-------------------------------------------------------------
 	void Umat_fedoo::to_start() {
 	//-------------------------------------------------------------
-		// Replace the tangent matrix with the elastic matrix for a prediction
-		mat F0, sigma_t;
-
+		// Replace the tangent matrix with the elastic matrix for a prediction		
 		list_Lt = list_Lt_start;
 		list_PKII = list_PKII_start;
 		// list_statev = list_statev_start;
 		// list_Wm = list_Wm_start;
-		// need sigma_start ???
 	}
 
 
