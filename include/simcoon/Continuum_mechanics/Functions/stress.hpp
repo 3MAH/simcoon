@@ -40,7 +40,7 @@ arma::vec Cauchy2Kirchoff(const arma::vec &, const arma::mat &, const double & =
 arma::mat Kirchoff2Cauchy(const arma::mat &, const arma::mat &, const double & = 0.);
 
 //This function returns the Cauchy stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
-arma::vec Kirchoff2Cauchy(const arma::vec&, const arma::mat&, const double& = 0.);
+arma::vec Kirchoff2Cauchy(const arma::vec &, const arma::mat &, const double & = 0.);
 
 //This function returns the second Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 arma::mat Kirchoff2PKI(const arma::mat &, const arma::mat &, const double & = 0.);

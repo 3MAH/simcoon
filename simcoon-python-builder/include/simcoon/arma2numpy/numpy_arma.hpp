@@ -22,27 +22,27 @@
 
 namespace arma2numpy {
 
-arma::vec array2vec(const boost::python::numpy::ndarray&);
+arma::vec array2vec(const boost::python::numpy::ndarray&, const bool &copy = true);
 
-arma::mat array2mat(const boost::python::numpy::ndarray&);
+boost::python::numpy::ndarray vec2array(const arma::vec&, const bool &copy = true);
 
-arma::mat array2mat_inplace(const boost::python::numpy::ndarray&);
+arma::mat array2mat(const boost::python::numpy::ndarray&, const bool &copy = true);
 
 arma::mat arrayT2mat_inplace(const boost::python::numpy::ndarray&);
 
+arma::cube array2cube(const boost::python::numpy::ndarray&, const bool &copy = true);
+
 arma::cube array2cube_inplace(const boost::python::numpy::ndarray&);
 
-boost::python::numpy::ndarray vec2array(const arma::vec&);
+boost::python::numpy::ndarray mat2array(const arma::mat&, const bool &copy = true, const std::string & = "C");
 
-boost::python::numpy::ndarray vec2array_inplace(const arma::vec&);
-
-boost::python::numpy::ndarray mat2array(const arma::mat&);
+boost::python::numpy::ndarray matT2array(const arma::mat&);
 
 boost::python::numpy::ndarray mat2array_inplace(const arma::mat&);
 
 boost::python::numpy::ndarray matT2array_inplace(const arma::mat&);
 
-boost::python::numpy::ndarray cube2array(const arma::cube&);
+boost::python::numpy::ndarray cube2array(const arma::cube&, const bool &copy = true);
 
 boost::python::numpy::ndarray cube2array_inplace(const arma::cube&);
 

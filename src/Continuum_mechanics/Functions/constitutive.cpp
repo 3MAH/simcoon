@@ -398,18 +398,18 @@ mat M_ortho(const double &C11, const double &C12, const double &C13, const doubl
 		double G13 = C55;
 		double G23 = C66;
         
-		M(0,0) = 1/E1;
+		M(0,0) = 1./E1;
 		M(0,1) = -nu12/E1;
 		M(0,2) = -nu13/E1;
 		M(1,0) = -nu12/E1;
-		M(1,1) = 1/E2;
+		M(1,1) = 1./E2;
 		M(1,2) = -nu23/E2;
 		M(2,0) = -nu13/E1;
 		M(2,1) = -nu23/E2;
-		M(2,2) = 1/E3;
-		M(3,3) = 1/G12;
-		M(4,4) = 1/G13;
-		M(5,5) = 1/G23;
+		M(2,2) = 1./E3;
+		M(3,3) = 1./G12;
+		M(4,4) = 1./G13;
+		M(5,5) = 1./G23;
 	}
     else {
         cout << "ERROR : Please use a valid couple of elastic constants";
@@ -499,8 +499,8 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 			M(2,0) = -nuTL/ET;
 			M(2,1) = -nuTT/ET;
 			M(2,2) = 1./ET;
-			M(3,3) = 1/GLT;
-			M(4,4) = 1/GLT;
+			M(3,3) = 1./GLT;
+			M(4,4) = 1./GLT;
 			M(5,5) = (2.*(1.+nuTT))/ET;
 			break;
 		}
@@ -514,9 +514,9 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 			M(2,0) = -nuTT/ET;
 			M(2,1) = -nuTL/ET;
 			M(2,2) = 1./ET;
-			M(3,3) = 1/GLT;
+			M(3,3) = 1./GLT;
 			M(4,4) = (2.*(1.+nuTT))/ET;
-			M(5,5) = 1/GLT;
+			M(5,5) = 1./GLT;
 			break;
 		}
 		case 3: {	
@@ -530,8 +530,8 @@ mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const dou
 			M(2,1) = -nuTL/ET;
 			M(2,2) = 1./EL;
 			M(3,3) = (2.*(1.+nuTT))/ET;
-			M(4,4) = 1/GLT;
-			M(5,5) = 1/GLT;
+			M(4,4) = 1./GLT;
+			M(5,5) = 1./GLT;
 			break;
 		}
         default : {
