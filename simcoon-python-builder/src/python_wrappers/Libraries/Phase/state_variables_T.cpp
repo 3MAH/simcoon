@@ -47,8 +47,10 @@ state_variables_T_py::state_variables_T_py() : simcoon::state_variables_T() {}
     self.PKII = zeros(6);
     self.PKII_start = zeros(6);
     
-    self.F0 = arrayT2mat_inplace(F0_py);
-    self.F1 = arrayT2mat_inplace(F1_py);
+    //self.F0 = arrayT2mat_inplace(F0_py);
+    //self.F1 = arrayT2mat_inplace(F1_py);
+	self.F0 = array2mat(F0_py, false);
+	self.F1 = array2mat(F1_py, false);
 
     self.R = zeros(3,3);
     self.DR = zeros(3,3);
@@ -71,8 +73,10 @@ state_variables_T_py::state_variables_T_py(const bn::ndarray& etot_py, const bn:
     sigma_start = array2vec(sigma_py, false);
     sigma = sigma_start;
 
-    F0 = arrayT2mat_inplace(F0_py);
-    F1 = arrayT2mat_inplace(F1_py);
+    //F0 = arrayT2mat_inplace(F0_py);
+    //F1 = arrayT2mat_inplace(F1_py);
+	F0 = array2mat(F0_py, false);
+	F1 = array2mat(F1_py, false);
 
     T = T_py;
     DT = DT_py;
@@ -86,23 +90,28 @@ state_variables_T_py::state_variables_T_py(const bn::ndarray& etot_py, const bn:
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_F0() {
 //-------------------------------------------------------------
-    return matT2array_inplace(F0);
+    //return matT2array_inplace(F0);
+	return mat2array(F0, false);
 }
 
 //------------------------------------------------------
 void state_variables_T_py::Set_F0(const bn::ndarray &F0_py) {
-    F0 = arrayT2mat_inplace(F0_py);
+    //F0 = arrayT2mat_inplace(F0_py);
+	F0 = array2mat(F0_py, false);
+
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_F1() {
 //-------------------------------------------------------------
-    return matT2array_inplace(F1);
+    //return matT2array_inplace(F1);
+	return mat2array(F1, false);
 }
 
 //------------------------------------------------------
 void state_variables_T_py::Set_F1(const bn::ndarray &F1_py) {
-    F1 = arrayT2mat_inplace(F1_py);
+    //F1 = arrayT2mat_inplace(F1_py);
+	F1 = array2mat(F1_py, false);
 }
 
 //-------------------------------------------------------------
@@ -138,13 +147,15 @@ bn::ndarray state_variables_T_py::Get_statev() {
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_R() {
 //-------------------------------------------------------------
-    return mat2array_inplace(R);
+    //return mat2array_inplace(R);
+	return mat2array(R, false, "F");
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_DR() {
 //-------------------------------------------------------------
-    return mat2array_inplace(DR);
+	//return mat2array_inplace(DR);
+	return mat2array(DR, false, "F");
 }
 
 //-------------------------------------------------------------
@@ -162,31 +173,36 @@ bn::ndarray state_variables_T_py::Get_Wt() {
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_dSdE() {
 //-------------------------------------------------------------
-    return matT2array_inplace(dSdE);
+    //return matT2array_inplace(dSdE);
+	return mat2array(dSdE, false);
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_dSdEt() {
 //-------------------------------------------------------------
-    return matT2array_inplace(dSdEt);
+    //return matT2array_inplace(dSdEt);
+	return mat2array(dSdEt, false);
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_dSdT() {
 //-------------------------------------------------------------
-    return matT2array_inplace(dSdT);
+    //return matT2array_inplace(dSdT);
+	return mat2array(dSdT, false);
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_drdE() {
 //-------------------------------------------------------------
-    return matT2array_inplace(drdE);
+    //return matT2array_inplace(drdE);
+	return mat2array(drdE, false);
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_T_py::Get_drdT() {
 //-------------------------------------------------------------
-    return matT2array_inplace(drdT);
+    //return matT2array_inplace(drdT);
+	return mat2array(drdT, false);
 }
 
 //----------------------------------------------------------------------
@@ -202,7 +218,7 @@ state_variables_T_py& state_variables_T_py::rotate_g2l(const state_variables_T_p
 //----------------------------------------------------------------------
 {
     simcoon::state_variables_T::rotate_g2l(sv, psi, theta, phi);
-    return *this;
+	return *this;
 }
 
 }

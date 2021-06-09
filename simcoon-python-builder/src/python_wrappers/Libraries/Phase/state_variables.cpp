@@ -48,8 +48,10 @@ state_variables_py::state_variables_py() : simcoon::state_variables() {}
     self.PKII = zeros(6);
     self.PKII_start = zeros(6);
     
-    self.F0 = arrayT2mat_inplace(F0_py);
-    self.F1 = arrayT2mat_inplace(F1_py);
+    //self.F0 = arrayT2mat_inplace(F0_py);
+    //self.F1 = arrayT2mat_inplace(F1_py);
+	self.F0 = array2mat(F0_py, false); //without copy 
+	self.F1 = array2mat(F1_py, false); //without copy 
 
     self.R = zeros(3,3);
     self.DR = zeros(3,3);
@@ -72,10 +74,12 @@ state_variables_py::state_variables_py(const bn::ndarray& etot_py, const bn::nda
     sigma_start = array2vec(sigma_py, false);
     sigma = sigma_start;
 
-    F0 = arrayT2mat_inplace(F0_py);
-    F1 = arrayT2mat_inplace(F1_py);
-
-    T = T_py;
+    //F0 = arrayT2mat_inplace(F0_py);
+    //F1 = arrayT2mat_inplace(F1_py);
+	F0 = array2mat(F0_py, false); //without copy
+	F1 = array2mat(F1_py, false); //without copy
+    
+	T = T_py;
     DT = DT_py;
         
     statev = array2vec(statev_py, false);
@@ -87,23 +91,27 @@ state_variables_py::state_variables_py(const bn::ndarray& etot_py, const bn::nda
 //-------------------------------------------------------------
 bn::ndarray state_variables_py::Get_F0() {
 //-------------------------------------------------------------
-    return matT2array_inplace(F0);
+    //return matT2array_inplace(F0);
+	return mat2array(F0, false); //without copy
 }
 
 //------------------------------------------------------
 void state_variables_py::Set_F0(const bn::ndarray &F0_py) {
-    F0 = arrayT2mat_inplace(F0_py);
+    //F0 = arrayT2mat_inplace(F0_py);
+	F0 = array2mat(F0_py, false); //without copy
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_py::Get_F1() {
 //-------------------------------------------------------------
-    return matT2array_inplace(F1);
+    //return matT2array_inplace(F1);
+	return mat2array(F1, false); //without copy
 }
 
 //------------------------------------------------------
 void state_variables_py::Set_F1(const bn::ndarray &F1_py) {
-    F1 = arrayT2mat_inplace(F1_py);
+    //F1 = arrayT2mat_inplace(F1_py);
+	F1 = array2mat(F1_py, false); //without copy
 }
 
 //-------------------------------------------------------------
@@ -139,13 +147,15 @@ bn::ndarray state_variables_py::Get_statev() {
 //-------------------------------------------------------------
 bn::ndarray state_variables_py::Get_R() {
 //-------------------------------------------------------------
-    return mat2array_inplace(R);
+    //return mat2array_inplace(R);
+	return mat2array(R, false, "F");
 }
 
 //-------------------------------------------------------------
 bn::ndarray state_variables_py::Get_DR() {
 //-------------------------------------------------------------
-    return mat2array_inplace(DR);
+    //return mat2array_inplace(DR);
+	return mat2array(DR, false, "F");
 }
 
 //----------------------------------------------------------------------

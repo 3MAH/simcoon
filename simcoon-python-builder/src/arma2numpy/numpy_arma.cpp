@@ -71,16 +71,16 @@ mat array2mat(bn::ndarray const &array, const bool &copy) {
     bool is_C_contiguous = (array.get_flags() & bn::ndarray::C_CONTIGUOUS);
     bool is_F_contiguous = (array.get_flags() & bn::ndarray::F_CONTIGUOUS);
 
-    n_rows = shape[1];
-    n_cols = shape[0];
+    n_rows = shape[0];
+    n_cols = shape[1];
     
     if (copy == true) {
         if(is_C_contiguous) {
-            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false); //the transpose makes the copy
+            mat m(reinterpret_cast<double*>(array.get_data()), n_cols, n_rows, false); //the transpose makes the copy 
             return m.t();
         }
         else if (is_F_contiguous) {
-            mat m(reinterpret_cast<double*>(array.get_data()), n_cols, n_rows, true);
+            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, true);
             return m;
         }
         else {
@@ -91,13 +91,12 @@ mat array2mat(bn::ndarray const &array, const bool &copy) {
 
     }
     else {
-        if(is_C_contiguous) {
-            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false); //the transpose makes the copy
-//            inplace_trans(m);
+        if(is_C_contiguous) { //return the transpose of the original array, because armadillo is F_contiguous only
+            mat m(reinterpret_cast<double*>(array.get_data()), n_cols, n_rows, false); 
             return m;
         }
         else if (is_F_contiguous) {
-            mat m(reinterpret_cast<double*>(array.get_data()), n_cols, n_rows, true);
+            mat m(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, false);
             return m;
         }
         else {
@@ -128,7 +127,7 @@ bn::ndarray mat2array(const mat &m, const bool &copy, const std::string& contigu
             return bn::from_object(py_array.copy(), bn::matrix::F_CONTIGUOUS);
         }
     } else {
-        if (contiguous == "C") {
+        if (contiguous == "C") {//return the transpose of the original array, because armadillo is F_contiguous only
             bp::tuple shape = bp::make_tuple(m.n_cols, m.n_rows);
             bp::tuple stride = bp::make_tuple(sizeof(double) * m.n_rows, sizeof(double));
             bn::ndarray py_array = bn::from_data(m.memptr(),dtype,shape,stride,own);
@@ -151,7 +150,7 @@ bn::ndarray mat2array(const mat &m, const bool &copy, const std::string& contigu
     }
 }
 
-bn::ndarray matT2array(const mat &m) {
+/*bn::ndarray matT2array(const mat &m) {
         
     //create a tuple with the size of m
     bp::tuple shape = bp::make_tuple(m.n_rows, m.n_cols);
@@ -209,14 +208,14 @@ bn::ndarray matT2array_inplace(const mat& m) {
 	bn::dtype dtype = bn::dtype::get_builtin<double>();
 	bn::ndarray py_array = bn::from_data(m.memptr(), dtype, shape, stride, own);
 	return py_array;
-}
+}*/
 
 cube array2cube(bn::ndarray const& array, const bool &copy) {
     //without copy, the original array should be defined according to the armadillo memory.
     //ie in python: arr = np.empty((n_rows,n_cols,n_slices),order='F').tranpose(2,0,1) or arr = np.empty((n_slices, n_cols, n_rows)).transpose(0,2,1)
     assert(array.get_nd() == 3);
     Py_intptr_t const* shape = array.get_shape();
-    int n_rows = shape[1]; //should be inversed ???
+    int n_rows = shape[1]; 
     int n_cols = shape[2];
     int n_slices = shape[0];
     if (copy == true) {
@@ -229,19 +228,19 @@ cube array2cube(bn::ndarray const& array, const bool &copy) {
 
 }
 
-cube array2cube_inplace(bn::ndarray const& array) {
+/*cube array2cube_inplace(bn::ndarray const& array) {
 	//without copy, the original array should be defined according to the armadillo memory.
 	//ie in python: arr = np.empty((n_rows,n_cols,n_slices),order='F').tranpose(2,0,1) or arr = np.empty((n_slices, n_cols, n_rows)).transpose(0,2,1)
 	assert(array.get_nd() == 3);
 	Py_intptr_t const* shape = array.get_shape();
-	int n_rows = shape[1]; //should be inversed ???
+	int n_rows = shape[1]; 
 	int n_cols = shape[2];
 	int n_slices = shape[0];
 	cube c(reinterpret_cast<double*>(array.get_data()), n_rows, n_cols, n_slices, false, true);
 	return c;
-}
+}*/
 
-bn::ndarray cube2array_inplace(const cube& c) {
+/*bn::ndarray cube2array_inplace(const cube& c) {
 	//return an array without copying data (same object in memory)
 	//create a tuple with the size of c
 	bp::tuple shape = bp::make_tuple(c.n_slices, c.n_rows, c.n_cols);
@@ -251,7 +250,7 @@ bn::ndarray cube2array_inplace(const cube& c) {
 	bn::dtype dtype = bn::dtype::get_builtin<double>();
 	bn::ndarray py_array = bn::from_data(c.memptr(), dtype, shape, stride, own);
 	return py_array;
-}
+}*/
 
 bn::ndarray cube2array(const cube& c, const bool &copy) {
 	//return an array without copying data (same object in memory)
