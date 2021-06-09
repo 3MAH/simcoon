@@ -67,8 +67,8 @@ namespace simpy {
 		id_umat = list_umat[umat_name_py];
 
 		//Get the list of propertie
-		list_props = arrayT2mat_inplace(props_py);  //each col is prop for one pg
-		
+		//list_props = arrayT2mat_inplace(props_py);  //each col is prop for one pg
+		list_props = array2mat(props_py, false);  //each col is prop for one pg
 
 		nprops = list_props.n_rows;
 		nstatev = list_statev.n_rows;
@@ -185,7 +185,7 @@ namespace simpy {
 	{
 		//check if this work in 2D
 		// Variable containing list for all pg values
-		listF1 = array2cube_inplace(F1_py);
+		listF1 = array2cube(F1_py, false); //inplace (without copy).
 		
 		//mat listDetot(6, listF1.n_slices); //Strain increment (eulerian) 
 		//cube listDR(3, 3, listF1.n_slices);
@@ -233,8 +233,6 @@ namespace simpy {
 			list_DR.slice(pg) = DR;
 
 		}
-
-		//return bp::make_tuple(mat2array_inplace(listDetot), cube2array_inplace(listDR));
 	}
 
 	//-------------------------------------------------------------
@@ -417,25 +415,26 @@ namespace simpy {
 		}
 		if (DTime == 0.) { list_Lt_start = list_Lt; }
 
-		return bp::make_tuple(mat2array(DR), cube2array_inplace(list_DR), vec2array(Detot), vec2array(statev));
+		//return bp::make_tuple(mat2array(DR), cube2array(list_DR, false), vec2array(Detot), vec2array(statev));
+		return bp::make_tuple();
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_props() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_props);
+		return mat2array(list_props, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_PKII() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_PKII);
+		return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Cauchy() {
 	//-------------------------------------------------------------
-		if (!nlgeom) return matT2array_inplace(list_PKII);
+		if (!nlgeom) return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		
 		if (list_cauchy.is_empty()) {
 			list_cauchy.set_size(ncomp, nb_points);
@@ -449,7 +448,7 @@ namespace simpy {
 			kirchoff = list_kirchoff.col(pg);
 			list_cauchy.col(pg) = simcoon::Kirchoff2Cauchy(kirchoff, F1);
 		}
-		return matT2array_inplace(list_cauchy);
+		return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
@@ -457,71 +456,71 @@ namespace simpy {
 	//-------------------------------------------------------------
 		
 		if (nlgeom) {
-			return matT2array_inplace(list_kirchoff);
+			return mat2array(list_kirchoff, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		}
 		else {
-			return matT2array_inplace(list_PKII);
+			return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		}
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_etot() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_etot);
+		return mat2array(list_etot, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Detot() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_Detot);
+		return mat2array(list_Detot, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_statev() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_statev);
+		return mat2array(list_statev, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_L() {
 	//-------------------------------------------------------------
 		//L is expressed according to the choosen strain and stress mesure (mainly kirkoff/Logstrain)
-		return cube2array_inplace(list_L);
+		return cube2array(list_L, false); //inplace (without copy).
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Lt() {
 	//-------------------------------------------------------------
 		// Lt is expressed PKII/GLstrain
-		return cube2array_inplace(list_Lt);
+		return cube2array(list_Lt, false); //inplace (without copy).
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_DR() {
 	//-------------------------------------------------------------
-		return cube2array_inplace(list_DR);
+		return cube2array(list_DR, false); //inplace (without copy).
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Wm() {
 	//-------------------------------------------------------------
-		return matT2array_inplace(list_Wm);
+		return mat2array(list_Wm, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_F0() {
 	//-------------------------------------------------------------
-		return cube2array_inplace(listF0);
+		return cube2array(listF0, false); //inplace (without copy).
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_F1() {
 	//-------------------------------------------------------------
-		return cube2array_inplace(listF1);
+		return cube2array(listF1, false);//inplace (without copy).
 	}
 
 	/*bp::tuple Log_strain_fedoo(const bn::ndarray& F_py) {
-		cube listF = array2cube_inplace(F_py);
+		cube listF = array2cube(F_py, false); //inplace (without copy).
 		mat list_etot(6,listF.n_slices); //work for 2D problem ?
 
 		// convert array to armdillo vec
@@ -532,6 +531,6 @@ namespace simpy {
 			list_etot.col(pg) = simcoon::Log_strain(F);
 		}
 
-		return bp::make_tuple(mat2array_inplace(list_etot));
+		return bp::make_tuple(mat2array(list_etot, false, "F"));
 	}*/
 }
