@@ -27,6 +27,7 @@
 
 #include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver.hpp>
+#include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Identification/identification.hpp>
 #include <simcoon/python_wrappers/Libraries/Identification/constants.hpp>
@@ -149,6 +150,7 @@ BOOST_PYTHON_MODULE(simmit) {
     
     // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
+    bp::def("read_path", read_path);
     bp::def("solver", solver);
 	
     //Wrapper fedoo
@@ -194,8 +196,8 @@ BOOST_PYTHON_MODULE(simmit) {
         .add_property("DR", &state_variables_py::Get_DR)
         .def("to_start", &state_variables_py::to_start)
         .def("set_start", &state_variables_py::set_start)
-        .def("rotate_l2g", &state_variables_py::rotate_l2g)
-        .def("rotate_g2l", &state_variables_py::rotate_g2l)
+        .def("rotate_l2g", &state_variables_py::rotate_l2g_py)
+        .def("rotate_g2l", &state_variables_py::rotate_g2l_py)
         ;
     
     bp::class_<state_variables_M_py>("state_variables_M", bp::init <>())
@@ -248,17 +250,27 @@ BOOST_PYTHON_MODULE(simmit) {
 //        .def("rotate_g2l", &state_variables_T_py::rotate_g2l)
         ;
     
-    //We shall add a way to integrate natural basis ...
-    //    natural_basis nb;
-    // + update / Initialize ?
-    
-    
-//    .def("__init__", build_sv_full)
-//    bp::class_<simcoon::state_variables_M, bases<simcoon::state_variables> >("state_variables_M", no_init);
-//    .def("__init__", build_sv_M_full)
-    
-//    bp::class_<simcoon::state_variables_T, bases<simcoon::state_variables> >("state_variables_T", no_init);
-//    .def("__init__", build_sv_T_full)
+    bp::class_<step_meca_py>("step_meca", bp::init <>())
+        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&> ())
+        .def_readwrite("number", &step_meca_py::number)
+        .def_readwrite("Dn_init",&step_meca_py::Dn_init)
+        .def_readwrite("Dn_mini", &step_meca_py::Dn_mini)
+        .def_readwrite("Dn_inc", &step_meca_py::Dn_inc)
+        .def_readwrite("mode", &step_meca_py::mode)
+        .def_readwrite("control_type", &step_meca_py::control_type)
+        .add_property("times", &step_meca_py::Get_times)
+        .def_readwrite("BC_Time", &step_meca_py::BC_Time)
+        .def_readwrite("file", &step_meca_py::file)
+        .add_property("cBC_meca", &step_meca_py::Get_cBC_meca, &step_meca_py::Set_cBC_meca)
+        .add_property("BC_meca", &step_meca_py::Get_BC_meca, &step_meca_py::Set_BC_meca)
+        .add_property("mecas", &step_meca_py::Get_mecas)
+        .add_property("BC_w", &step_meca_py::Get_BC_w, &step_meca_py::Set_BC_w)
+        .add_property("BC_R", &step_meca_py::Get_BC_R, &step_meca_py::Set_BC_R)
+        .add_property("Ts", &step_meca_py::Get_Ts)
+        .def("generate", &step_meca_py::generate)
+        .def("generate_kin", &step_meca_py::generate_kin)
+        ;
+
     
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
