@@ -159,8 +159,7 @@ bn::ndarray state_variables_py::Get_DR() {
 }
 
 //----------------------------------------------------------------------
-void state_variables_py::rotate_l2g(const double &psi, const double &theta, const double &phi)
-//----------------------------------------------------------------------
+/*void state_variables_py::rotate_l2g(const double &psi, const double &theta, const double &phi)
 {
       if(fabs(phi) > sim_iota) {
         Etot = simcoon::rotate_strain(Etot, -phi, axis_phi);
@@ -264,6 +263,24 @@ void state_variables_py::rotate_g2l(const double &psi, const double &theta, cons
         R = simcoon::rotate_mat(R, -psi, axis_psi);
         DR = simcoon::rotate_mat(DR, -psi, axis_psi);
     }
+}*/
+
+//----------------------------------------------------------------------
+state_variables_py state_variables_py::rotate_l2g_py(const state_variables_py& sv, const double &psi, const double &theta, const double &phi)
+//----------------------------------------------------------------------
+{
+    state_variables_py sv_py;
+    sv_py.rotate_l2g(sv, psi, theta, phi);
+    return sv_py;
+}
+
+//----------------------------------------------------------------------
+state_variables_py state_variables_py::rotate_g2l_py(const state_variables_py& sv, const double &psi, const double &theta, const double &phi)
+//----------------------------------------------------------------------
+{
+    state_variables_py sv_py;
+    sv_py.rotate_g2l(sv, psi, theta, phi);
+    return sv_py;
 }
 
 }

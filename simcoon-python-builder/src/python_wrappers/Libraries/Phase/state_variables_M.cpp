@@ -178,19 +178,21 @@ bn::ndarray state_variables_M_py::Get_Lt() {
 }
 
 //----------------------------------------------------------------------
-state_variables_M_py& state_variables_M_py::rotate_l2g(const state_variables_M_py& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M_py state_variables_M_py::rotate_l2g_py(const state_variables_M_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
-    simcoon::state_variables_M::rotate_l2g(sv, psi, theta, phi);
-    return *this;
+    state_variables_M_py sv_py;
+    sv_py.rotate_l2g(sv, psi, theta, phi);
+    return sv_py;
 }
 
 //----------------------------------------------------------------------
-state_variables_M_py& state_variables_M_py::rotate_g2l(const state_variables_M_py& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M_py state_variables_M_py::rotate_g2l_py(const state_variables_M_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
-    simcoon::state_variables_M::rotate_g2l(sv, psi, theta, phi);
-    return *this;
+    state_variables_M_py sv_py;
+    sv_py.rotate_g2l(sv, psi, theta, phi);
+    return sv_py;
 }
 
 }

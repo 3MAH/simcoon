@@ -48,11 +48,9 @@ class state_variables_M_py : public simcoon::state_variables_M
     
         boost::python::numpy::ndarray Get_Lt();
     
-//        using simcoon::state_variables_M::rotate_l2g;
-        virtual state_variables_M_py& rotate_l2g(const state_variables_M_py&, const double&, const double&, const double&);
-   
-//        using simcoon::state_variables_M::rotate_g2l;
-        virtual state_variables_M_py& rotate_g2l(const state_variables_M_py&, const double&, const double&, const double&);
+        state_variables_M_py rotate_l2g_py(const state_variables_M_py&, const double&, const double&, const double&);
+
+        state_variables_M_py rotate_g2l_py(const state_variables_M_py&, const double&, const double&, const double&);
 };
 
 } //namespace simpy

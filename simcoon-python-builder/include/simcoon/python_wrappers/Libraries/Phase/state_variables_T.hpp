@@ -56,11 +56,9 @@ class state_variables_T_py : public simcoon::state_variables_T
     
         boost::python::numpy::ndarray Get_drdT();
     
-//        using simcoon::state_variables_T::rotate_l2g;
-        virtual state_variables_T_py& rotate_l2g(const state_variables_T_py&, const double&, const double&, const double&);
-    
-//        using simcoon::state_variables_T::rotate_g2l;
-        virtual state_variables_T_py& rotate_g2l(const state_variables_T_py&, const double&, const double&, const double&);
+        state_variables_T_py rotate_l2g_py(const state_variables_T_py&, const double&, const double&, const double&);
+
+        state_variables_T_py rotate_g2l_py(const state_variables_T_py&, const double&, const double&, const double&);
 
 };
 
