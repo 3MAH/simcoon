@@ -22,11 +22,11 @@ class state_variables_py : public simcoon::state_variables
 
         boost::python::numpy::ndarray Get_F0();
 
-        void Set_F0(const boost::python::numpy::ndarray &F0_py);
+        void Set_F0(const boost::python::numpy::ndarray &);
 
         boost::python::numpy::ndarray Get_F1();
 
-        void Set_F1(const boost::python::numpy::ndarray &F1_py);
+        void Set_F1(const boost::python::numpy::ndarray &);
 
         boost::python::numpy::ndarray Get_etot();
 
@@ -42,9 +42,9 @@ class state_variables_py : public simcoon::state_variables
 
         boost::python::numpy::ndarray Get_DR();
 
-        void rotate_l2g(const double&, const double&, const double&);
+        state_variables_py rotate_l2g_py(const state_variables_py&, const double&, const double&, const double&);
     
-        void rotate_g2l(const double&, const double&, const double&);
+        state_variables_py rotate_g2l_py(const state_variables_py&, const double&, const double&, const double&);
 };
 
 } //namespace simpy
