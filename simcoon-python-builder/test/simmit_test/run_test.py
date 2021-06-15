@@ -30,6 +30,31 @@ sv_2 = sim.state_variables(etot, F0, F1, sigma, statev, T, DT)
 
 print(sv_2.etot)
 
-coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
-list_nodes = sim.nonperioMPC(coords_nodes)
-print(list_nodes)
+sm_1 = sim.step_meca()
+
+testa = sim.read_matprops('data','material.dat')
+print(testa)
+
+testb = sim.read_path('data','path.txt')
+print(testb)
+
+step1 = testb[1][0][0]
+Etot = np.zeros(6)
+sigma = np.zeros(6)
+
+Time = 0
+T = testb[0]
+step1.generate(Time, Etot, sigma, T)
+print(step1.number)
+print(step1.Dn_init)
+print(step1.Dn_mini)
+print(step1.Dn_inc)
+print(step1.mode)
+print(step1.control_type)
+print(step1.times)
+
+
+
+#coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
+#list_nodes = sim.nonperioMPC(coords_nodes)
+#print(list_nodes)
