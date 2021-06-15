@@ -31,7 +31,11 @@ boost::python::numpy::ndarray test_mat_int(boost::python::numpy::ndarray const &
     
 boost::python::numpy::ndarray test_vec_double(boost::python::numpy::ndarray const &);
 
+boost::python::numpy::ndarray test_vec_inplace_double(boost::python::numpy::ndarray const &);
+
 boost::python::numpy::ndarray test_mat_double(boost::python::numpy::ndarray const &);
+
+boost::python::numpy::ndarray test_mat_inplace_double(boost::python::numpy::ndarray const &);
 
 boost::python::list test_vector_list_double(boost::python::object const &);
     

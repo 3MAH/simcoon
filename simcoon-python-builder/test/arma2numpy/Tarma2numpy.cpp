@@ -37,11 +37,13 @@ namespace arma2numpy {
 
 bn::ndarray test_vec_int(bn::ndarray const &y) {
     Col<int> v = array2Col_int(y);
+    cout << v << endl;
     return Col_int2array(v);
 }
 
 bn::ndarray test_mat_int(bn::ndarray const &y) {
     Mat<int> m = array2Mat_int(y);
+    cout << m << endl;
     return Mat_int2array(m);
 }
     
@@ -50,9 +52,54 @@ bn::ndarray test_vec_double(bn::ndarray const &y) {
     return vec2array(v);
 }
 
+bn::ndarray test_vec_inplace_double(bn::ndarray const &y) {
+    vec v = array2vec(y, false);
+    return vec2array(v);
+}
+
 bn::ndarray test_mat_double(bn::ndarray const &y) {
     mat m = array2mat(y);
-    return mat2array(m);
+    cout << m << endl;
+    
+    bool is_C_contiguous = (y.get_flags() & bn::ndarray::C_CONTIGUOUS);
+    bool is_F_contiguous = (y.get_flags() & bn::ndarray::F_CONTIGUOUS);
+
+    if (is_C_contiguous) {
+        return mat2array(m);
+    }
+    else if (is_F_contiguous) {
+        return mat2array(m, true, "F");
+    }
+    else {
+        cout << "Array produced using the auxiliary memory must be contiguous (C or F), the array has been copied" << endl;
+        return mat2array(m);
+    }
+}
+
+bn::ndarray test_mat_inplace_double(bn::ndarray const &y) {
+    mat m = array2mat(y, false);
+    
+    bool is_C_contiguous = (y.get_flags() & bn::ndarray::C_CONTIGUOUS);
+    bool is_F_contiguous = (y.get_flags() & bn::ndarray::F_CONTIGUOUS);
+    
+    cout << "is_C_contiguous = " << is_C_contiguous << "\t" << "is_F_contiguous = " << is_F_contiguous << endl;
+    
+    if (is_C_contiguous) {
+        inplace_trans(m);
+        //If you do not copy you shall transpose m to be able to use it in you computations. But you can also use it as is, depending on what you want to do!
+        cout << m << endl;
+        //If you do not copy you shall transpose back m to obtain the correct numpy shape
+        inplace_trans(m);
+        return mat2array(m, false);
+    }
+    else if (is_F_contiguous) {
+        cout << m << endl;
+        return mat2array(m, false, "F");
+    }
+    else {
+        cout << "Array produced using the auxiliary memory must be contiguous (C or F), the array has been copied" << endl;
+        return mat2array(m, true);
+    }
 }
 
 bp::list test_vector_list_double(bp::object const &l) {
