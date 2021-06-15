@@ -22,11 +22,11 @@ class state_variables_T_py : public simcoon::state_variables_T
 
         boost::python::numpy::ndarray Get_F0();
 
-        void Set_F0(const boost::python::numpy::ndarray &F0_py);
+        void Set_F0(const boost::python::numpy::ndarray &);
 
         boost::python::numpy::ndarray Get_F1();
 
-        void Set_F1(const boost::python::numpy::ndarray &F1_py);
+        void Set_F1(const boost::python::numpy::ndarray &);
 
         boost::python::numpy::ndarray Get_etot();
 
@@ -56,10 +56,10 @@ class state_variables_T_py : public simcoon::state_variables_T
     
         boost::python::numpy::ndarray Get_drdT();
     
-        using simcoon::state_variables_T::rotate_l2g;
+//        using simcoon::state_variables_T::rotate_l2g;
         virtual state_variables_T_py& rotate_l2g(const state_variables_T_py&, const double&, const double&, const double&);
     
-        using simcoon::state_variables_T::rotate_g2l;
+//        using simcoon::state_variables_T::rotate_g2l;
         virtual state_variables_T_py& rotate_g2l(const state_variables_T_py&, const double&, const double&, const double&);
 
 };
