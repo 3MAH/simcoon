@@ -219,8 +219,8 @@ BOOST_PYTHON_MODULE(simmit) {
         .add_property("Lt", &state_variables_M_py::Get_Lt)
         .def("to_start", &state_variables_M_py::to_start)
         .def("set_start", &state_variables_M_py::set_start)
-//        .def("rotate_l2g", &state_variables_M_py::rotate_l2g)
-//        .def("rotate_g2l", &state_variables_M_py::rotate_g2l)
+        .def("rotate_l2g", &state_variables_M_py::rotate_l2g_py)
+        .def("rotate_g2l", &state_variables_M_py::rotate_l2g_py)
         ;
     
     bp::class_<state_variables_T_py>("state_variables_T", bp::init <>())
@@ -246,8 +246,8 @@ BOOST_PYTHON_MODULE(simmit) {
         .add_property("drdT", &state_variables_T_py::Get_drdT)
         .def("to_start", &state_variables_T_py::to_start)
         .def("set_start", &state_variables_T_py::set_start)
-//        .def("rotate_l2g", &state_variables_T_py::rotate_l2g)
-//        .def("rotate_g2l", &state_variables_T_py::rotate_g2l)
+        .def("rotate_l2g", &state_variables_T_py::rotate_l2g_py)
+        .def("rotate_g2l", &state_variables_T_py::rotate_l2g_py)
         ;
     
     bp::class_<step_meca_py>("step_meca", bp::init <>())

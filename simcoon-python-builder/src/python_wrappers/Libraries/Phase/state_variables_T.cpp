@@ -206,7 +206,7 @@ bn::ndarray state_variables_T_py::Get_drdT() {
 }
 
 //----------------------------------------------------------------------
-state_variables_T_py state_variables_T_py::rotate_l2g(const state_variables_T_py& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T_py state_variables_T_py::rotate_l2g_py(const state_variables_T_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
     state_variables_T_py sv_py;
@@ -215,7 +215,7 @@ state_variables_T_py state_variables_T_py::rotate_l2g(const state_variables_T_py
 }
 
 //----------------------------------------------------------------------
-state_variables_T_py state_variables_T_py::rotate_g2l(const state_variables_T_py& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T_py state_variables_T_py::rotate_g2l_py(const state_variables_T_py& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
     state_variables_T_py sv_py;
