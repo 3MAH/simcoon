@@ -174,7 +174,7 @@ bn::ndarray state_variables_M_py::Get_L() {
 bn::ndarray state_variables_M_py::Get_Lt() {
 //-------------------------------------------------------------
     //return matT2array_inplace(L);
-	return mat2array(L, false);
+	return mat2array(Lt, false);
 }
 
 //----------------------------------------------------------------------
