@@ -55,8 +55,8 @@ protected:
     virtual ~step_meca();
     
     using step::generate;
-    virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&);
-    virtual void generate_kin(const double&, const arma::mat&m, const double &);
+    virtual void generate(const double&, const arma::vec &, const arma::vec&, const double&);
+    virtual void generate_kin(const double&, const arma::mat &, const double &);
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &, const int &);
     
     virtual step_meca& operator = (const step_meca&);
