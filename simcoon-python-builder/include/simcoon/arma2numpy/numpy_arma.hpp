@@ -46,12 +46,12 @@ boost::python::numpy::ndarray cube2array(const arma::cube&, const bool &copy = t
 
 boost::python::numpy::ndarray cube2array_inplace(const arma::cube&);
 
-arma::Col<int> array2Col_int(const boost::python::numpy::ndarray&);
+arma::Col<int> array2Col_int(const boost::python::numpy::ndarray&, const bool &copy = true);
 
-boost::python::numpy::ndarray Col_int2array(const arma::Col<int>&);
+boost::python::numpy::ndarray Col_int2array(const arma::Col<int>&, const bool &copy = true);
 
-arma::Mat<int> array2Mat_int(const boost::python::numpy::ndarray&);
+arma::Mat<int> array2Mat_int(const boost::python::numpy::ndarray&, const bool &copy = true);
 
-boost::python::numpy::ndarray Mat_int2array(const arma::Mat<int>&);
-    
+boost::python::numpy::ndarray Mat_int2array(const arma::Mat<int>&, const bool &copy = true, const std::string & = "C");
+
 } //end of namespace arma2numpy
