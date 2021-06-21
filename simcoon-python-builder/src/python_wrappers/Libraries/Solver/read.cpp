@@ -44,16 +44,41 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
     //blocks loop
     for(unsigned int i = 0 ; i < blocks.size() ; i++) {
         bp::list ith_block_py;
-        //cycle loop
-        for(unsigned int n = 0; n < blocks[i].ncycle; n++) {
-            // Step loop
-            for(unsigned int j = 0; j < blocks[i].nstep; j++) {
-                shared_ptr<simcoon::step_meca> sptr_meca = std::dynamic_pointer_cast<simcoon::step_meca>(blocks[i].steps[j]);
-                step_meca_py stm_py(*sptr_meca);
-                ith_block_py.append(stm_py);
+        switch(blocks[i].type) {
+            case 1: { //Mechanical
+
+                //cycle loop
+                for(unsigned int n = 0; n < blocks[i].ncycle; n++) {
+                    // Step loop
+                    for(unsigned int j = 0; j < blocks[i].nstep; j++) {
+                        shared_ptr<simcoon::step_meca> sptr_meca = std::dynamic_pointer_cast<simcoon::step_meca>(blocks[i].steps[j]);
+                        step_meca_py stm_py(*sptr_meca);
+                        ith_block_py.append(stm_py);
+                    }
+                }
+                blocks_py.append(ith_block_py);
+                break;
+            }
+            case 2: { //Thermomechanical
+
+                //cycle loop
+                for(unsigned int n = 0; n < blocks[i].ncycle; n++) {
+                    // Step loop
+                    for(unsigned int j = 0; j < blocks[i].nstep; j++) {
+                        shared_ptr<simcoon::step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<simcoon::step_thermomeca>(blocks[i].steps[j]);
+                        step_thermomeca_py sttm_py(*sptr_thermomeca);
+                        ith_block_py.append(sttm_py);
+                    }
+                }
+                blocks_py.append(ith_block_py);
+                break;
+            }
+            default: {
+                cout << "the block type is not defined!\n";
+                break;
             }
         }
-        blocks_py.append(ith_block_py);
+
     }
     return bp::make_tuple(T, blocks_py);
 }
