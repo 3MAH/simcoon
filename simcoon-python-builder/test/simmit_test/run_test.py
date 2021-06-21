@@ -52,9 +52,8 @@ print(step1.Dn_inc)
 print(step1.mode)
 print(step1.control_type)
 print(step1.times)
+print(step1.mecas)
 
-
-
-#coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
-#list_nodes = sim.nonperioMPC(coords_nodes)
-#print(list_nodes)
+coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
+list_nodes = sim.nonperioMPC(coords_nodes)
+print(list_nodes)
