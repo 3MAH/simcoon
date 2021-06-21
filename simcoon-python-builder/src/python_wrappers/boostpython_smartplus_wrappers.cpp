@@ -270,7 +270,27 @@ BOOST_PYTHON_MODULE(simmit) {
         .def("generate", &step_meca_py::generate)
         .def("generate_kin", &step_meca_py::generate_kin)
         ;
-
+    
+    bp::class_<step_thermomeca_py>("step_thermomeca", bp::init <>())
+        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&> ())
+        .def_readwrite("number", &step_thermomeca_py::number)
+        .def_readwrite("Dn_init",&step_thermomeca_py::Dn_init)
+        .def_readwrite("Dn_mini", &step_thermomeca_py::Dn_mini)
+        .def_readwrite("Dn_inc", &step_thermomeca_py::Dn_inc)
+        .def_readwrite("mode", &step_thermomeca_py::mode)
+        .def_readwrite("control_type", &step_thermomeca_py::control_type)
+        .add_property("times", &step_thermomeca_py::Get_times)
+        .def_readwrite("BC_Time", &step_thermomeca_py::BC_Time)
+        .def_readwrite("file", &step_thermomeca_py::file)
+        .add_property("cBC_meca", &step_thermomeca_py::Get_cBC_meca, &step_thermomeca_py::Set_cBC_meca)
+        .add_property("BC_meca", &step_thermomeca_py::Get_BC_meca, &step_thermomeca_py::Set_BC_meca)
+        .add_property("mecas", &step_thermomeca_py::Get_mecas)
+        .add_property("BC_w", &step_thermomeca_py::Get_BC_w, &step_thermomeca_py::Set_BC_w)
+        .add_property("BC_R", &step_thermomeca_py::Get_BC_R, &step_thermomeca_py::Set_BC_R)
+        .add_property("Ts", &step_thermomeca_py::Get_Ts)
+        .def("generate", &step_thermomeca_py::generate)
+        .def("generate_kin", &step_thermomeca_py::generate_kin)
+        ;
     
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
