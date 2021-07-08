@@ -146,6 +146,8 @@ cubic_mesh::cubic_mesh(const cubic_mesh& cm)
     Corner_listXmYpZp = cm.Corner_listXmYpZp;
     Corner_listXpYmZp = cm.Corner_listXpYmZp;
     Corner_listXpYpZp = cm.Corner_listXpYpZp;
+    
+    Faces = cm.Faces;
 }
 
 /*!
@@ -258,6 +260,18 @@ void cubic_mesh::get_domain()
     Line EdgeYpZp(cuboid[4],cuboid[7]);
     Line EdgeYmZp(cuboid[5],cuboid[6]);
     
+    Edges.push_back(EdgeXmYm);
+    Edges.push_back(EdgeXpYm);
+    Edges.push_back(EdgeXpYp);
+    Edges.push_back(EdgeXmYp);
+    Edges.push_back(EdgeXmZm);
+    Edges.push_back(EdgeXpZm);
+    Edges.push_back(EdgeXpZp);
+    Edges.push_back(EdgeXmZp);
+    Edges.push_back(EdgeYmZm);
+    Edges.push_back(EdgeYpZm);
+    Edges.push_back(EdgeYpZp);
+    Edges.push_back(EdgeYmZp);
     
     *Edge_listXmYm = find_edge(Node_list, EdgeXmYm, size_box);
     *Edge_listXpYm = find_edge(Node_list, EdgeXpYm, size_box);
@@ -279,13 +293,20 @@ void cubic_mesh::get_domain()
     Plane FaceZm(Corner_listXmYmZm->coords, Corner_listXpYmZm->coords, Corner_listXmYpZm->coords);
     Plane FaceZp(Corner_listXmYmZp->coords, Corner_listXpYmZp->coords, Corner_listXpYpZp->coords);*/
     
-    Plane FaceXm(cuboid[0], cuboid[5], cuboid[3]);
-    Plane FaceXp(cuboid[1], cuboid[6], cuboid[2]);
-    Plane FaceYm(cuboid[0], cuboid[5], cuboid[1]);
-    Plane FaceYp(cuboid[3], cuboid[4], cuboid[2]);
+    Plane FaceXm(cuboid[0], cuboid[3], cuboid[5]);
+    Plane FaceXp(cuboid[1], cuboid[2], cuboid[6]);
+    Plane FaceYm(cuboid[0], cuboid[1], cuboid[5]);
+    Plane FaceYp(cuboid[3], cuboid[2], cuboid[4]);
     Plane FaceZm(cuboid[0], cuboid[1], cuboid[3]);
-    Plane FaceZp(cuboid[5], cuboid[6], cuboid[7]);
-    
+    Plane FaceZp(cuboid[5], cuboid[6], cuboid[4]);
+        
+    Faces.push_back(FaceXm);
+    Faces.push_back(FaceXp);
+    Faces.push_back(FaceYm);
+    Faces.push_back(FaceYp);
+    Faces.push_back(FaceZm);
+    Faces.push_back(FaceZp);
+            
     *Face_listXm = find_face(Node_list, FaceXm, size_box);
     *Face_listXp = find_face(Node_list, FaceXp, size_box);
     *Face_listYm = find_face(Node_list, FaceYm, size_box);
@@ -381,24 +402,35 @@ void cubic_mesh::get_domain()
 }
     
 //-------------------------------------------------------------
-void cubic_mesh::find_pairs()
+void cubic_mesh::find_pairs(const double &min_dist, const double &dist_replace)
 //-------------------------------------------------------------
 {
-
-    bool perio = true;
-    perio = find_face_pair(*Face_listXm, *Face_listXp, size_box);
-    if (perio == true)
-        perio = find_face_pair(*Face_listYm, *Face_listYp, size_box);
-    if (perio == true)
-        perio = find_face_pair(*Face_listZm, *Face_listZp, size_box);
-    
-    if (perio == true)
-        perio = find_edge_pair(*Edge_listXmYm, *Edge_listXpYm, *Edge_listXpYp, *Edge_listXmYp, size_box);
-    if (perio == true)
-        perio = find_edge_pair(*Edge_listXmZm, *Edge_listXpZm, *Edge_listXpZp, *Edge_listXmZp, size_box);
-    if (perio == true)
-        perio = find_edge_pair(*Edge_listYmZm, *Edge_listYpZm, *Edge_listYpZp, *Edge_listYmZp, size_box);
-    
+    bool perio_test = true;
+    is_perio = true;
+    cout << "faces Xm Xp" << endl;
+    perio_test = find_face_pair(*Face_listXm, *Face_listXp, Faces[0], Faces[1], size_box, min_dist, dist_replace);
+    if (perio_test == false)
+        is_perio = false;
+    cout << "faces Ym Yp" << endl;
+    perio_test = find_face_pair(*Face_listYm, *Face_listYp, Faces[2], Faces[3], size_box, min_dist, dist_replace);
+    if (perio_test == false)
+        is_perio = false;
+    cout << "faces Zm Zp" << endl;
+    perio_test = find_face_pair(*Face_listZm, *Face_listZp, Faces[4], Faces[5], size_box, min_dist, dist_replace);
+   if (perio_test == false)
+       is_perio = false;
+    cout << "edges XY" << endl;
+    perio_test = find_edge_pair(*Edge_listXmYm, *Edge_listXpYm, *Edge_listXpYp, *Edge_listXmYp, Edges[0], Edges[1], Edges[2], Edges[3], size_box, min_dist, dist_replace);
+    if (perio_test == false)
+        is_perio = false;
+    cout << "edges XZ" << endl;
+    perio_test = find_edge_pair(*Edge_listXmZm, *Edge_listXpZm, *Edge_listXpZp, *Edge_listXmZp, Edges[4], Edges[5], Edges[6], Edges[7], size_box, min_dist, dist_replace);
+    if (perio_test == false)
+        is_perio = false;
+    cout << "edges YZ" << endl;
+    perio_test = find_edge_pair(*Edge_listYmZm, *Edge_listYpZm, *Edge_listYpZp, *Edge_listYmZp, Edges[8], Edges[9], Edges[10], Edges[11], size_box, min_dist, dist_replace);
+    if (perio_test == false)
+        is_perio = false;
 }
 
 //-------------------------------------------------------------
