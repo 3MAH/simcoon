@@ -38,6 +38,8 @@ print(testa)
 testb = sim.read_path('data','path.txt')
 print(testb)
 
+print([0])
+
 step1 = testb[1][0][0]
 Etot = np.zeros(6)
 sigma = np.zeros(6)
@@ -54,6 +56,10 @@ print(step1.control_type)
 print(step1.times)
 print(step1.mecas)
 
-coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
-list_nodes = sim.nonperioMPC(coords_nodes)
-print(list_nodes)
+print(step1.cBC_meca)
+print(step1.BC_meca)
+
+
+#coords_nodes = np.array([(0.,0.,0.), (1.,0.,0.,), (0.,1.,0.,), (1.,1.,0.,), (0.,0.,1.), (1.,0.,1.,), (0.,1.,1.,), (1.,1.,1.,)], dtype = float)
+#list_nodes = sim.nonperioMPC(coords_nodes)
+#print(list_nodes)
