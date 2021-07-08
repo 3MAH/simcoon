@@ -24,6 +24,8 @@
 #include <simcoon/Continuum_mechanics/Unit_cell/component.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/cubic_equation.hpp>
 
+#include <simcoon/python_wrappers/Libraries/Unit_cell/unit_cell.hpp>
+
 typedef CGAL::Simple_cartesian<double> Kernel;
 typedef Kernel::Point_3 Point;
 
@@ -37,19 +39,80 @@ namespace bn = boost::python::numpy;
 namespace simpy {
 
 //-------------------------------------------------------------
-bp::list build_MPC_from_cubic_mesh(const boost::python::numpy::ndarray &nodes_coords_py)
+bp::tuple test_mesh(const bn::ndarray &nodes_coords_py, const double &min_dist, const double &dist_replace)
 //-------------------------------------------------------------
 {
-    
     mat nodes_coords = array2mat(nodes_coords_py, false);
-    cout << nodes_coords << endl;
     std::vector<simcoon::Node> nodes_full;
 
     for (unsigned int i=0; i <nodes_coords.n_cols; i++) {
         vec coords = nodes_coords.col(i);
         simcoon::Node node_temp(i+1,Point(coords(0),coords(1),coords(2)));
         nodes_full.push_back(node_temp);
-        cout << node_temp << endl;
+    }
+    unsigned int nb_nodes_full = nodes_full.size();
+    
+    simcoon::cubic_mesh cm(nodes_full, "nodes_full");
+    cm.get_domain();
+    cm.construct_lists();
+    cm.find_pairs(1.E-6, 1.E-4);
+    
+    std::vector<simcoon::Node> nodes_all_modified = *cm.Face_listXm;
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Face_listXp->begin(), cm.Face_listXp->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Face_listYm->begin(), cm.Face_listYm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Face_listYp->begin(), cm.Face_listYp->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Face_listZm->begin(), cm.Face_listZm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Face_listZp->begin(), cm.Face_listZp->end());
+
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXmYm->begin(), cm.Edge_listXmYm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXpYm->begin(), cm.Edge_listXpYm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXpYp->begin(), cm.Edge_listXpYp->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXmYp->begin(), cm.Edge_listXmYp->end());
+
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXmZm->begin(), cm.Edge_listXmZm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXpZm->begin(), cm.Edge_listXpZm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXpZp->begin(), cm.Edge_listXpZp->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listXmZp->begin(), cm.Edge_listXmZp->end());
+
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listYmZm->begin(), cm.Edge_listYmZm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listYpZm->begin(), cm.Edge_listYpZm->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listYpZp->begin(), cm.Edge_listYpZp->end());
+    nodes_all_modified.insert(nodes_all_modified.end(), cm.Edge_listYmZp->begin(), cm.Edge_listYmZp->end());
+    
+    nodes_all_modified.push_back(*cm.Corner_listXmYmZm);
+    nodes_all_modified.push_back(*cm.Corner_listXpYmZm);
+    nodes_all_modified.push_back(*cm.Corner_listXmYpZm);
+    nodes_all_modified.push_back(*cm.Corner_listXpYpZm);
+    nodes_all_modified.push_back(*cm.Corner_listXmYmZp);
+    nodes_all_modified.push_back(*cm.Corner_listXpYmZp);
+    nodes_all_modified.push_back(*cm.Corner_listXmYpZp);
+    nodes_all_modified.push_back(*cm.Corner_listXpYpZp);
+    
+    std::sort(nodes_all_modified.begin(), nodes_all_modified.end());
+
+    mat nodes_coords_modified(nodes_all_modified.size(), 3);
+    int i = 0;
+    for (auto n:nodes_all_modified) {
+        nodes_coords_modified(i,0) = nodes_all_modified[i].coords.x();
+        nodes_coords_modified(i,1) = nodes_all_modified[i].coords.y();
+        nodes_coords_modified(i,2) = nodes_all_modified[i].coords.z();
+        ++i;
+    }
+    return bp::make_tuple(cm.is_perio, mat2array(nodes_coords_modified, true, "C"));
+}
+
+//-------------------------------------------------------------
+bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py)
+//-------------------------------------------------------------
+{
+    
+    mat nodes_coords = array2mat(nodes_coords_py, false);
+    std::vector<simcoon::Node> nodes_full;
+
+    for (unsigned int i=0; i <nodes_coords.n_cols; i++) {
+        vec coords = nodes_coords.col(i);
+        simcoon::Node node_temp(i+1,Point(coords(0),coords(1),coords(2)));
+        nodes_full.push_back(node_temp);
     }
     unsigned int nb_nodes_full = nodes_full.size();
     
