@@ -12,6 +12,7 @@ helpFunction()
 test=1
 ncpus=4
 anacondaloc=/Users/ychemisky/opt/anaconda3/envs/test
+python_version=`python -c 'import sys; print(str(sys.version_info[0])+"."+str(sys.version_info[1]))'`
 
 while getopts "tn:" opt
 do
@@ -224,12 +225,25 @@ then
     cd ..
     cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
     cd ${current_dir}/python-setup
-
+        
     #Change the current dir and install python library
     #current_dir=$(pwd)
 
     python setup.py install
     pip install .
+    
+    if [ $OS = "Mac" ]
+    then
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/simcoon-python-builder/test/arma2numpy/Tarma2numpy.so
+        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/arma2numpy/Tarma2numpy.so
+
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
+        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
+    
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${anacondaloc}/lib/libarma2numpy.dylib
+        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${anacondaloc}/lib/python${python_version}/site-packages/simcoon/simmit.so
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${anacondaloc}/lib/python${python_version}/site-packages/simcoon/simmit.so
+    fi
     
     cd ${current_dir}/simcoon-python-builder/build
     make test
