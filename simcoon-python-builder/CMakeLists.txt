@@ -207,6 +207,11 @@ target_link_libraries(TCM_func ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${P
 add_test(NAME TCM_func WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func/run_test.py)
 
+#Finally add it to test execution -
+#Notice the WORKING_DIRECTORY and COMMAND
+add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
+		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
+
 
 ################################################################################
 # SIMCOON modules
