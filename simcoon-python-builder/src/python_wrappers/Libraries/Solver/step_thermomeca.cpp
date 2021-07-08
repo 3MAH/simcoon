@@ -21,7 +21,7 @@ namespace bn = boost::python::numpy;
 
 namespace simpy {
 
-step_meca_py::step_thermomeca_py() : simcoon::step_thermomeca() {}
+step_thermomeca_py::step_thermomeca_py() : simcoon::step_thermomeca() {}
 
 //-------------------------------------------------------------
 step_thermomeca_py::step_thermomeca_py(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const bn::ndarray &mcBC_meca, const bn::ndarray &mBC_meca, const bn::ndarray &mmecas, const double &mBC_T, const int &mcBC_T, const bn::ndarray &mTs, const bn::ndarray &mBC_w, const bn::ndarray &mBC_R)
@@ -56,7 +56,7 @@ step_thermomeca_py::step_thermomeca_py(const int &mnumber, const double &mDn_ini
     BC_R = array2mat(mBC_R, false);
 }
 
-step_thermomeca_py::step_thermomeca_py(const simcoon::step_thermomeca_py &sttm) : simcoon::step_thermomeca_py(sttm) { }
+step_thermomeca_py::step_thermomeca_py(const simcoon::step_thermomeca &sttm) : simcoon::step_thermomeca(sttm) { }
 
 //----------------------------------------------------------------------
 void step_thermomeca_py::generate(const double& mTime, const bn::ndarray& mEtot_py, const bn::ndarray& msigma_py, const double& mT)
@@ -64,7 +64,7 @@ void step_thermomeca_py::generate(const double& mTime, const bn::ndarray& mEtot_
 {
     vec mEtot = array2vec(mEtot_py, true);
     vec msigma = array2vec(msigma_py, true);
-    simcoon::step_thermomeca_py::generate(mTime, mEtot, msigma, mT);
+    simcoon::step_thermomeca::generate(mTime, mEtot, msigma, mT);
 }
 
 //----------------------------------------------------------------------
@@ -72,7 +72,7 @@ void step_thermomeca_py::generate_kin(const double& mTime, const bn::ndarray& mF
 //----------------------------------------------------------------------
 {
     mat mF = array2mat(mF_py, true);
-    simcoon::step_thermomeca_py::generate_kin(mTime, mF, mT);
+    simcoon::step_thermomeca::generate_kin(mTime, mF, mT);
 }
 
 //-------------------------------------------------------------
