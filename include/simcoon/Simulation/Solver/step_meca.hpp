@@ -38,7 +38,7 @@ protected:
     
 	public :
 
-    arma::Col<int> cBC_meca; //True is for stress (flux), false if for strain (state)
+    arma::Col<int> cBC_meca; //1 is for stress (flux), 0 if for strain (state)
     arma::vec BC_meca;
     arma::mat mecas;
     arma::mat BC_w;
