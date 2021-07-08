@@ -53,11 +53,11 @@ Node find_corner(const std::vector<Node> &, const Point &, const double &, const
 
 std::vector<Node> find_edge(const std::vector<Node> &, const Line &, const double &, const double & = 1.E-6);
     
-bool find_edge_pair(std::vector<Node> &, std::vector<Node> &, std::vector<Node> &, std::vector<Node> &, const double &, const double & = 1.E-6, const double & = 1.E-4);
+bool find_edge_pair(std::vector<Node> &, std::vector<Node> &, std::vector<Node> &, std::vector<Node> &, const Line &, const Line &, const Line &, const Line &, const double &, const double & = 1.E-6, const double & = 1.E-4);
     
 std::vector<Node> find_face(const std::vector<Node> &, const Plane &, const double &, const double & = 1.E-6);
     
-bool find_face_pair(std::vector<Node> &, std::vector<Node> &, const double &, const double & = 1.E-6, const double & = 1.E-4);
+bool find_face_pair(std::vector<Node> &, std::vector<Node> &, const Plane &, const Plane &, const double &, const double & = 1.E-6, const double & = 1.E-4);
 
 Node duplicate_node(const Node &, unsigned int &);
     
