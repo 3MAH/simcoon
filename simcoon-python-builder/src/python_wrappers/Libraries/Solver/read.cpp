@@ -7,6 +7,7 @@
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
+#include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
 
 namespace bp = boost::python;
 namespace bn = boost::python::numpy;
