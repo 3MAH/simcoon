@@ -2,7 +2,7 @@
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
-#include <simcoon/Simulation/Solver/step_meca.hpp>
+#include <simcoon/Simulation/Solver/step_thermomeca.hpp>
 
 namespace simpy{
 
@@ -19,7 +19,7 @@ class step_thermomeca_py : public simcoon::step_thermomeca
     step_thermomeca_py();
     step_thermomeca_py(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const double&, const int&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&); //Constructor with parameters
         
-    step_meca_py(const simcoon::step_meca &);
+    step_thermomeca_py(const simcoon::step_thermomeca &);
     
     //using simcoon::step_meca::generate;
     virtual void generate(const double&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const double&);
