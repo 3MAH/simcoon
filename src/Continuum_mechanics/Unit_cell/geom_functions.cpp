@@ -207,7 +207,12 @@ std::vector<Node> find_edge(const std::vector<Node> &nodes, const Line &edge, co
     }
 }*/
     
-bool find_edge_pair(std::vector<Node> &edge1, std::vector<Node> &edge2, std::vector<Node> &edge3, std::vector<Node> &edge4, const double &sizebox, const double &min_dist, const double &dist_replace) {
+bool find_edge_pair(std::vector<Node> &edge1, std::vector<Node> &edge2, std::vector<Node> &edge3, std::vector<Node> &edge4, const Line &edge, const Line &edge2_inter, const Line &edge3_inter, const Line &edge4_inter, const double &sizebox, const double &min_dist, const double &dist_replace) {
+    
+    cout << "edge1 has : " << edge1.size() << "nodes" << endl;
+    cout << "edge2 has : " << edge2.size() << "nodes" << endl;
+    cout << "edge3 has : " << edge3.size() << "nodes" << endl;
+    cout << "edge4 has : " << edge4.size() << "nodes" << endl;
     
     Col<int> len(4);
     len(0) = edge1.size();
@@ -215,11 +220,10 @@ bool find_edge_pair(std::vector<Node> &edge1, std::vector<Node> &edge2, std::vec
     len(2) = edge3.size();
     len(3) = edge4.size();
         
-    Line edge(edge1[0].coords, edge1.back().coords);
-        
-    Line edge2_inter(edge2[0].coords, edge2.back().coords);
-    Line edge3_inter(edge2[0].coords, edge2.back().coords);
-    Line edge4_inter(edge2[0].coords, edge2.back().coords);
+//    Line edge(edge1[0].coords, edge1.back().coords);
+//    Line edge2_inter(edge2[0].coords, edge2.back().coords);
+//    Line edge3_inter(edge2[0].coords, edge2.back().coords);
+//    Line edge4_inter(edge2[0].coords, edge2.back().coords);
         
     if(abs(max(len) - min(len)) != 0)
         return false;
@@ -367,19 +371,26 @@ std::vector<Node> find_face(const std::vector<Node> &nodes, const Plane &face, c
     return on_face;
 }
 
-bool find_face_pair(std::vector<Node> &face1, std::vector<Node> &face2, const double &sizebox, const double &min_dist, const double &dist_replace)
+bool find_face_pair(std::vector<Node> &face1, std::vector<Node> &face2, const Plane &plane1, const Plane &plane2_inter, const double &sizebox, const double &min_dist, const double &dist_replace)
 {
-    Plane face(face1[0].coords, face1[1].coords, face1.back().coords);
-    Plane face2_inter(face2[0].coords, face2[1].coords, face2.back().coords);
     
-    if(face1.size() - face2.size() != 0)
-        return false;
+//    Plane plane1(face1[0].coords, face1[1].coords, face1.back().coords);
+//    Plane plane2_inter(face2[0].coords, face2[1].coords, face2.back().coords);
+    bool perio = true;
+
+    cout << "face1 has : " << face1.size() << "nodes" << endl;
+    cout << "face2 has : " << face2.size() << "nodes" << endl;
+    
+    if(face1.size() - face2.size() != 0) {
+        cout << "The number of nodes is different on each face:" << endl;
+        perio = false;
+    }
     
     std::vector<Node> face2_temp;
     unsigned int count=0;
     
     for(unsigned int i=0; i<face1.size(); i++) {
-        Line temp = face.perpendicular_line(face1[i].coords);
+        Line temp = plane1.perpendicular_line(face1[i].coords);
         count = 0;
         for(auto n : face2) {
             if (squared_distance(n.coords, temp) < min_dist/sizebox) {
@@ -389,37 +400,39 @@ bool find_face_pair(std::vector<Node> &face1, std::vector<Node> &face2, const do
         }
         if (count > 1 ) {
             cout << "There are duplicate nodes on the face";
-            return false;
+            perio = false;
         }
         if (count == 0) {
-            auto result = intersection(temp, face2_inter);
+            auto result = intersection(temp, plane2_inter);
             if (result) {
                 if (const Point *p = boost::get<Point>(&*result)) {
                     Node temp_point = closest_node(face2, *p);
                     if (squared_distance(temp_point.coords, *p) < dist_replace) {
                         temp_point.coords = *p;
                         face2_temp.push_back(temp_point);
+                        cout << "The closest point has been replaced" << endl;
                     }
                     else {
                         cout << "The closest point is too far for a replace" << endl;
-                        return false;
+                        perio = false;
                     }
                 }
                 else {
-                    cout << "The intersection between edge and constructing plane is not a Point" << endl;
-                    return false;
-                    
+                    cout << "The intersection between line and constructing plane is not a Point" << endl;
+                    perio = false;
                 }
             }
             else {
-                cout << "There are no pair node on this part of the edge, and intersection between edge and constructing plane is null" << endl;
-                return false;
+                cout << "There are no pair node on this part of the plane, and intersection between edge and constructing plane is null" << endl;
+                cout << "plane1 = " << plane1 << endl;
+                cout << "line = " << temp << endl;
+                perio = false;
             }
         }
     }
     
     face2 = face2_temp;
-    return true;
+    return perio;
 }
 
 Node duplicate_node(const Node &node, unsigned int &nb_nodes) {
@@ -610,7 +623,7 @@ cubic_mesh perio_RVE(cubic_mesh &RVE, unsigned int &nb_nodes) {
     trans_vec = Vector_3(0.0,0.0,perio_mesh.Dz);
     translate_nodes(*perio_mesh.Edge_listXmZp, trans_vec, nb_nodes);
 
-    //Edge 3 : colinear to Y
+    //Edge 3 : colinear to X
     *perio_mesh.Edge_listYmZm = copy_list_nodes(*RVE.Edge_listYmZm);
     
     *perio_mesh.Edge_listYpZm = copy_list_nodes(*RVE.Edge_listYmZm);
