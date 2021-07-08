@@ -30,6 +30,8 @@
 
 typedef CGAL::Simple_cartesian<double> Kernel;
 typedef Kernel::Point_3 Point;
+typedef Kernel::Line_3 Line;
+typedef Kernel::Plane_3 Plane;
 
 namespace simcoon{
     
@@ -85,6 +87,8 @@ class cubic_mesh
         std::shared_ptr<std::vector<Node> > Edge_listYpZm;
         std::shared_ptr<std::vector<Node> > Edge_listYpZp;
         std::shared_ptr<std::vector<Node> > Edge_listYmZp;
+    
+        std::vector<Line> Edges;
 
         std::shared_ptr<std::vector<Node> > Face_listXm;
         std::shared_ptr<std::vector<Node> > Face_listYm;
@@ -92,6 +96,8 @@ class cubic_mesh
         std::shared_ptr<std::vector<Node> > Face_listXp;
         std::shared_ptr<std::vector<Node> > Face_listYp;
         std::shared_ptr<std::vector<Node> > Face_listZp;
+    
+        std::vector<Plane> Faces;
 
         std::vector< std::shared_ptr<Node> > list_of_corners;
         std::vector< std::shared_ptr<std::vector<Node> > > list_of_edges;
@@ -108,7 +114,7 @@ class cubic_mesh
 
         //    void check_duplicates(const double &);
         void get_domain();
-        void find_pairs();
+        void find_pairs(const double & = 1.E-6, const double & = 1.E-4);
         void construct_lists();
 
         //    virtual cubic_mesh& operator = (const cubic_mesh&);
