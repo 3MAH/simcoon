@@ -131,7 +131,7 @@ bn::ndarray mat2array(const mat &m, const bool &copy, const std::string& contigu
             bp::tuple shape = bp::make_tuple(m.n_cols, m.n_rows);
             bp::tuple stride = bp::make_tuple(sizeof(double) * m.n_rows, sizeof(double));
             bn::ndarray py_array = bn::from_data(m.memptr(),dtype,shape,stride,own);
-            return py_array;
+            return bn::from_object(py_array, bn::matrix::C_CONTIGUOUS);
         }
         else if (contiguous == "F") {
             bp::tuple shape = bp::make_tuple(m.n_cols, m.n_rows);
