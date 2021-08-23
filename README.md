@@ -2,7 +2,9 @@ Simcoon
 =========
 
 
-[![Simcoon Logo](https://github.com/3MAH/3mah.github.io/blob/master/assets/images/logo_simcoon/simcoon_logo_text_original.png?raw=true)](https://github.com/3MAH/simcoon)
+[![Simcoon Logo](https://github.com/3MAH/3mah.github.io/blob/master/assets/images/logo_simcoon/simcoon_logo_text.png?raw=true)](https://github.com/3MAH/simcoon)
+
+/assets/images/logo_simcoon/
 
 About
 -----
