@@ -2,15 +2,19 @@ Simcoon
 =========
 
 
-[![Simcoon Logo](https://github.com/simcoon/simcoon/blob/master/docs/_static/simcoon_logo_small.png?raw=true)](https://github.com/simcoon/simcoon)
+[![Simcoon Logo](https://github.com/3MAH/simcoon/blob/master/docs/_static/simcoon_logo_small.png?raw=true)](https://github.com/3MAH/simcoon)
 
 About
 -----
 
-Simcoon is a free, open-source library for the simulation of multiphysics systems. Its primarily objective was the simulation of heterogeneous materials, but now goes beyhond with the simulation of other physics, e.g. biological systems. It is developed with the aim to be a high-quality scientific library to facilitate the analysis of the complex, non-linear behavior of systems.
-    It integrates tools to simulate the response of composite material response and thus integrates several algorithms for the analysis of heterogeneous materials.
+Simcoon is a free, open-source library for the simulation of multiphysics systems. Its primarily objective was the developement of constitutive models for the simulation of heterogeneous materials, but now goes beyond with tools to facilitate their full-field simulation. Together with [microgen](https://github.com/3MAH/microgen) for the CAD and meshing of heterogeneous materials and [fedoo](https://github.com/3MAH/fedoo) our Finite Element solver, we offer a comprehensive simulation set for the in-depth analysis of heterogeneous materials.
 
-Simcoon is a C++ library with emphasis on speed and ease-of-use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, SMART+ provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver, a software to predict effective properties of composites, and a built-in identification software (using a combined genetic-gradient based algorithm)
+Simcoon is developed with the aim to be a high-quality scientific library to facilitate the analysis of the complex, non-linear behavior of systems. It integrates tools to simulate the response of composite material response and thus integrates several algorithms for the analysis of heterogeneous materials.
+
+Simcoon integrates 
+- a easy way to handle geometrical non-linearities : Use of Lagrangian measures, Eulerian measures and cumulative strains considering several spins : Jauman, Green-Maghdi, Xi-Meyers-Bruhns logarithmic. With this last measure, cumulative strain correspond to a logarithmic strain measure and is the standard measure utilized for our constitutive laws. 
+
+Simcoon is a C++ library with emphasis on speed and ease-of-use, that offers a python interface to facilitate its use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, Simconnn provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver, a software to predict effective properties of composites, and a built-in identification software (using a combined genetic-gradient based algorithm)
 
 Simcoon is mainly developed by faculty and researchers from University of Bordeaux and the I2M Laboratory (Institut de d'Ingénierie et de Mécanique). Fruitful contribution came from the LEM3 laboratory in Metz, France, TU Bergakademie Freiberg in Germany and the TIMC-IMAG laboratory in Grenoble, France. It is released under the GNU General Public License: GPL, version 3.
 
@@ -29,62 +33,34 @@ Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoo
 Installation
 ------------
 
-How to install Simcoon (In most UNIX-based systems):
+The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
+(for the installation of an environment called "scientific")
 
-1 - Make sure you have Boost (1.66 at least) installed and Armadillo (latest version is best) installed to use smartplus. Make sure that you have Boost.Python compiled against Python3 (Since Python 2 will be outdated). Using Homebrew and Pyenv for MacOS is a good idea to correctly handle the Python version to use!
+```bash
+conda create --name scientific
+```
 
-2 - Unzip the file in a source location.
+To activate the environment: 
 
-3 - Go to such folder "simcoon (i.e. using cd)"
+```bash
+conda activate scientific
+```
 
-4 - Execute the installation bash file : 
+The next step is to install the required packages:
+
+```bash
+conda install -c conda-forge armadillo conda install -c conda-forge boost conda install -c conda-forge cgal conda install -c conda-forge numpy
+```
+
+Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder and modify the Install.sh source file to look after you conda environnement path:
+
+anacondaloc=/path/to/anaconda/anaconda3/envs/scientific
+
+The last step is to run the installation script:
 
 ```bash
 sh Install.sh
 ```
-
-5 - Enjoy
-
-Alternative
---------------------
-
-You can also Cmake to compile the simcoon library, and then navigate to "simcoon-python-builder" to build the simmit library, which is the Python binding of Simcoon. You can run the tests using 'make test'.
-
-If your OS is Ubuntu 18.04, you will soon be able to use a script "install-simcoon.sh" that contains all the commands to install the simcoon dependancies and simcoon. Stay tuned! You will then just have to navigate to the simcoon folder downloaded and run:
-
-```bash
-sudo sh install-simcoon.sh
-```
-on a terminal, with the sudo admin privileges
-
-How to use simcoon
---------------------
-
-Several possibilities 
-
-1 - Use the python wrapper for simcoon
-
-By doing, so, you can utilize simcoon in Ipython (jupyter) notebooks. Several examples are provided
-
-2 - Use the executables provided by simcoon
-
-For instance, a solver, an identification software, etc..
-
-3 - Link simcoon with FEA Packages
-
-An example is provided on how to use simcoon constitutive models as Umat libraries:
-
-You can directly copy-paste "umat_singleM.cpp" (mechanical) or "umat_singleT.cpp" (thermomechanical) from 'pathtothefile'/simcoon/software to your Abaqus work directory and use it like a classical Umat.
-
-Example : 
-```bash
-abaqus make library=umat_singleM.cpp
-```
-
-4- Build your own projects using the Simcoon library
-
-Link with -lsimcoon
-Have fun :)
 
 Authors
 -------
