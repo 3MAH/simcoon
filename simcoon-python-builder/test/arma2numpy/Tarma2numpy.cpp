@@ -85,11 +85,11 @@ bn::ndarray test_mat_inplace_double(bn::ndarray const &y) {
     cout << "is_C_contiguous = " << is_C_contiguous << "\t" << "is_F_contiguous = " << is_F_contiguous << endl;
     
     if (is_C_contiguous) {
-        inplace_trans(m);
         //If you do not copy you shall transpose m to be able to use it in you computations. But you can also use it as is, depending on what you want to do!
+        //Be carefull, if you do not copy you shall NOT use inplace_trans(m) since the pointer to the memory of m should not be valid anymore (i.e. do not do : inplace_trans(m);)
         cout << m << endl;
         //If you do not copy you shall transpose back m to obtain the correct numpy shape
-        inplace_trans(m);
+        //again, do not use inplace_trans(m);
         return mat2array(m, false);
     }
     else if (is_F_contiguous) {
