@@ -1,6 +1,87 @@
 Examples
 ========
 
+Elastic tensile test
+--------------------
+
+Proabbly the first thing you would like to do with Simcoon is to simulate the mechanical response corresponding of a simple tension test, considering an elastic isotropic material:
+
+We first import *simmit* (the python simulation module of simcoon) and *numpy* 
+
+.. code-block:: python
+
+	import numpy as np
+	from simcoon import simmit as sim
+
+Next we shall define the material constitutive law to be utilized and the associated material properties. We will pass them as a numpy array:
+
+.. code-block:: python
+
+	umat_name = 'ELISO' #This is the 5 character code for the elastic-isotropic subroutine
+	nstatev = 1 #The number of scalar variables required, only the initial temperature is stored here to consider the thermal expansion if temperature changes.
+
+	E = 700000. #The Young modulus
+	nu = 0.2 #The Poisson coefficient
+	alpha = 1.E-5 #The coefficient of thermal expansion
+
+	#Three Euler angles to represent the material orientation with respect to the reference basis (in which the loading is expressed)
+	psi_rve = 0.
+	theta_rve = 0.
+	phi_rve = 0.
+
+	#Solver_type define the solver strategy (only a classical newton scheme is actually implemeted for now), and the corate_type define the type of corotational spin rate (0 for Jauman, 1 for Green-Naghdi, 2 for logarithmic)
+	solver_type = 0
+	corate_type = 2
+
+	props = np.array([E, nu, alpha])
+
+The last part of the script is to define, if wanted, the location of the data input files (i.e., to define the loading path), and the results outut file and location:
+
+.. code-block:: python
+
+	path_data = 'data'
+	path_results = 'results'
+	pathfile = 'path.txt'
+	outputfile = 'results_ELISO.txt'
+
+The last part is to define the loading path. Further details about this file is given in the example just below but for this first example you could just create a folder 'data' and create a text file named 'path.txt' with the following inside:
+
+.. code-block:: none
+
+	#Initial_temperature
+	293.5
+	#Number_of_blocks
+	1
+
+	#Block
+	1
+	#Loading_type
+	1
+	#Control_type(NLGEOM)
+	1    
+	#Repeat
+	1
+	#Steps
+	1
+
+	#Mode
+	1
+	#Dn_init 1.
+	#Dn_mini 0.1
+	#Dn_inc 0.01
+	#time
+	30.
+	#mechanical_state
+	E 0.01 
+	S 0 S 0
+	S 0 S 0 S 0
+	#temperature_state
+	T 293.5
+
+The latter correspond to a pure strain-controlled tension test in the direction *1* up to 1% strain, at the temperature 293.5K.
+
+You can now run your just created python file (you could also create a jupyter notebook, or run the notebook ELISO.ipynb that you can find in the examples). You will now find in the 'results' folder a file named *results_ELISO.txt*. Have a look at the existing notebook or in the documentation to know how to analyse the result file.
+
 Elastic-plastic thermomechanical response
 -----------------------------------------
 
