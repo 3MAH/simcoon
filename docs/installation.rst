@@ -4,7 +4,44 @@ Installation
 On MacOS/Linux platforms
 ----------------
 
-You need to have CMake installed
+The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
+(for the installation of an environment called "scientific")
+
+.. code-block:: none
+
+    conda create --name scientific
+
+To activate the environment: 
+
+.. code-block:: none
+
+    conda activate scientific
+
+The next step is to install the required packages:
+
+.. code-block:: none
+
+    conda install -c conda-forge armadillo 
+    conda install -c conda-forge boost 
+    conda install -c conda-forge cgal 
+    conda install -c conda-forge numpy
+
+Next, download the Simcoon sources in the github repository of Simcoon_
+.. _Simcoon : https://github.com/3MAH/simcoon
+Unzip the content in a folder and modify the Install.sh source file to look after you conda environnement path:
+
+anacondaloc=/path/to/anaconda/anaconda3/envs/scientific
+
+The last step is to run the installation script:
+
+.. code-block:: none
+
+sh Install.sh
+
+A build folder will be automatically created in the Simcoon folder. At some point you can decide wether you will install or not the Simcoon library. Make sure you have carefully added thje path to your anaconda environnement.
+Once the installation is done, the executables can be found in the build/bin folder. The use of python wrappers to those executables are however now easier to handle.
+
+Note: You shall make sure that you have CMake installed
 
 .. image:: _static/CMake.png
 
@@ -21,7 +58,7 @@ And for Mac OS user, you can use brew:
    brew update
    brew install cmake
 
-The following dependencies are required to install simcoon: 
+If you do no want to install Simcoon using a conda environnement, the following dependencies are required to install simcoon: 
 
 - Boost_ (at least 1.63), including Boost Python
 .. _Boost : https://www.boost.org
@@ -29,38 +66,29 @@ The following dependencies are required to install simcoon:
 .. _Armadillo : http://arma.sourceforge.net
 - CGAL_
 .. _CGAL : https://www.cgal.org
-- FTensor_
-.. _FTensor : https://bitbucket.org/wlandry/ftensor
 
 .. image:: _static/boost_logo.png
 .. image:: _static/Armadillo_logo.png
 .. image:: _static/CGAL_logo.png
 
-Download simcoon from Github : https://github.com/simcoon/simcoon/
+Note that FTensor_ is also utilized by Simcoon but it is integrated to facilitate the installation. You can get the sources and docs here
+.. _FTensor : https://bitbucket.org/wlandry/ftensor
 
-Copy the files in a folder. Using a terminal, navitate to such folder and run the installation script:
-
-.. code-block:: none
-
-    sh Install.sh
-    
-A build folder will be automatically created. At some point you can decide wether you will install or not the Simcoon library (by default in usr/local/)
-You can set up, in the CMakeLists.txt file, the location where the library be installed. 
-Once the installation is done, the executables can be found in the build/bin folder
-
-Make sure that you have access to /usr/local folder for both MacOS and Linux operating systems.
+Make sure that you have access to the folder selected for the installation with Cmake (by default /usr/local on most Unix-based systems).
 
 On Windows platforms
 ----------------
 
 The following procedure has been tested on Windows 10 64 bits:
 
-The first thing is to download Visual Studio 2019.
+The first thing is to download the last version of Visual Studio.
 
 1. Install Anaconda using windows 64bits installer
 2. download and execute the CMake Win64 Installer (https://cmake.org/download/). Make sure to set the PATH variable during installation
 3. download and install Visual studio (tested with VS 2019). You can get if here_
 _here : https://visualstudio.microsoft.com/downloads/
-4. Download simcoon from Github : https://github.com/simcoon/simcoon/
+4. Download simcoon from Github : https://github.com/3MAH/simcoon/
+
+*To be completed*
 
 
