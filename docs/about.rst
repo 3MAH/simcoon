@@ -11,7 +11,7 @@ simcoon is a C++ library with emphasis on speed and ease-of-use. Its principle f
 Simcoon is mainly developed by contributors from the staff and students of University of Bordeaux and I2M (Institut de Mécanique et d'Ingénierie). It is released under the GNU General Public License: GPL, version 3.
 Several institutions have contributed to the development of simcoon:
 
-* **LEM3 Laboratory**: University of Bordeaux, France.
+* **University of Bordeaux**: University of Bordeaux, France.
 * **I2M Laboratory**: Institut de Mécanique et d'Ingénierie, Bordeaux, France.
 * **LEM3 Laboratory**: Laboratory for the study of Materials, Microstructures and Mechanics, Metz, Germany.
 * **TU Bergakademie Freiberg**: School of Mines and Technical University in Freiberg, Germany.
