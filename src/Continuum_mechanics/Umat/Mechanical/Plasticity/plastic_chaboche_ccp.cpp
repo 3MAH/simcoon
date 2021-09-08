@@ -135,6 +135,8 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     X_2(4) = statev(30);
     X_2(5) = statev(31);
     
+    double Hp = statev(32);
+    
     vec X = X_1 + X_2;
     
     //Rotation of internal variables (tensors)
@@ -155,6 +157,7 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         a_1 = vide;
         a_2 = vide;
         p = 0.;
+        Hp = 0.;
         
         Wm = 0.;
         Wm_r = 0.;
@@ -163,18 +166,13 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     }
     
     //Additional parameters and variables
-    
-    double Hp=0.;
     double dHpdp=0.;
     
     if (p > sim_iota)	{
-        Hp = Q*(1.-exp(-1.*b*p))*p;
-        dHpdp = Q*b*exp(-1.*b*p)*p+Q*(1.-exp(-1.*b*p));
-
+        dHpdp = b*(Q-Hp);
     }
     else {
         dHpdp = 0.;
-        Hp = 0.;
     }
     
     //Variables values at the start of the increment
@@ -227,12 +225,10 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         
         p = s_j(0);
         if (p > sim_iota)	{
-            Hp = Q*(1.-exp(-1.*b*p))*p;
-            dHpdp = Q*b*exp(-1.*b*p)*p+Q*(1.-exp(-1.*b*p));
+            dHpdp = b*(Q-Hp);
         }
         else {
             dHpdp = 0.;
-            Hp = 0.;
         }
         dPhidsigma = eta_stress(sigma-X);
         dPhidp = -1.*dHpdp;
@@ -256,6 +252,7 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
         
         s_j(0) += ds_j(0);
+        Hp += b*(Q-Hp)*ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
         a_1 = a_1 + ds_j(0)*Lambdaa_1;
         a_2 = a_2 + ds_j(0)*Lambdaa_2;
@@ -367,6 +364,9 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     statev(29) = X_2(3);
     statev(30) = X_2(4);
     statev(31) = X_2(5);
+
+    statev(32) = Hp;
 }
+
     
 } //namespace simcoon
