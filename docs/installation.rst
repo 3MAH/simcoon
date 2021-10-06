@@ -36,7 +36,7 @@ The last step is to run the installation script:
 
 .. code-block:: none
 
-sh Install.sh
+    sh Install.sh
 
 A build folder will be automatically created in the Simcoon folder. At some point you can decide wether you will install or not the Simcoon library. Make sure you have carefully added thje path to your anaconda environnement.
 Once the installation is done, the executables can be found in the build/bin folder. The use of python wrappers to those executables are however now easier to handle.
@@ -71,8 +71,8 @@ If you do no want to install Simcoon using a conda environnement, the following 
 .. image:: _static/Armadillo_logo.png
 .. image:: _static/CGAL_logo.png
 
-Note that FTensor_ is also utilized by Simcoon but it is integrated to facilitate the installation. You can get the sources and docs here
-.. _FTensor : https://bitbucket.org/wlandry/ftensor
+Note that FTensor_ .. _FTensor : https://bitbucket.org/wlandry/ftensor
+is also utilized by Simcoon but it is integrated to facilitate the installation. You can get the sources and docs here
 
 Make sure that you have access to the folder selected for the installation with Cmake (by default /usr/local on most Unix-based systems).
 
@@ -85,7 +85,7 @@ The first thing is to download the last version of Visual Studio.
 
 1. Install Anaconda using windows 64bits installer
 2. download and execute the CMake Win64 Installer (https://cmake.org/download/). Make sure to set the PATH variable during installation
-3. download and install Visual studio (tested with VS 2019). You can get if here_
+3. download and install Visual studio (tested with VS 2019). You can get it here_
 _here : https://visualstudio.microsoft.com/downloads/
 4. Download simcoon from Github : https://github.com/3MAH/simcoon/
 
