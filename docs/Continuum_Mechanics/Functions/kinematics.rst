@@ -30,3 +30,29 @@ The Kinematics Library
         mat e = randu(3,3);
         mat R = eye(3,3);
         mat F = eR_to_F(e, R);
+        
+.. function:: G_UdX(const mat &F) {
+
+    Provides the gradient of the displacement (Lagrangian) from the transformation gradient :math:`\mathbf{F}`:
+
+    .. math::
+
+        \nabla_X \mathbf{U} = \mathbf{F} - \mathbf{I}
+
+    .. code-block:: cpp
+
+        mat F = randu(3,3);
+        mat GradU = G_UdX(F);
+
+.. function:: G_Udx(const mat &F) {
+
+    Provides the gradient of the displacement (Eulerian) from the transformation gradient :math:`\mathbf{F}`:
+
+    .. math::
+
+        \nabla_x \mathbf{U} =  \mathbf{I} - \mathbf{F}^{-1}
+
+    .. code-block:: cpp
+
+        mat F = randu(3,3);
+        mat GradU = G_UdX(F);
