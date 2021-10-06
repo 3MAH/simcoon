@@ -9,7 +9,7 @@ The Kinematics Library
 
     .. math::
 
-        \mathbf{F} = \mathbf{R} \cdot \mathbf{U} \quad E= \frac{1}{2} \left( \sqrt{U^2} - \mathbf{I} \right)
+        \mathbf{F} = \mathbf{R} \cdot \mathbf{U} \quad \mathbf{E} = \frac{1}{2} \left( \sqrt{\mathbf{U}^2} - \mathbf{I} \right)
 
     .. code-block:: cpp
 
@@ -23,7 +23,7 @@ The Kinematics Library
 
     .. math::
 
-        \mathbf{F} = \mathbf{V} \cdot \mathbf{R} \quad e = \textrm{ln} \mathbf{V}
+        \mathbf{F} = \mathbf{V} \cdot \mathbf{R} \quad \mathbf{e} = \textrm{ln} \mathbf{V}
 
     .. code-block:: cpp
 
