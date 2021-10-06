@@ -55,4 +55,4 @@ The Kinematics Library
     .. code-block:: cpp
 
         mat F = randu(3,3);
-        mat GradU = G_UdX(F);
+        mat gradU = G_UdX(F);
