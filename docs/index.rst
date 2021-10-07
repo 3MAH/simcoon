@@ -10,8 +10,8 @@ Contents:
    installation.rst
    examples.rst
    external.rst
-   Continuum_Mechanics/index.rst   
-   Simulation/index.rst
+   Cpp/index.rst
+   Python/index.rst
 
 * :ref:`genindex`
 * :ref:`search`

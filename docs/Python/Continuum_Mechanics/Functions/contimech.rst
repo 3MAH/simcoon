@@ -1,43 +1,47 @@
 The Continuum Mechanics Library
 ===============================
 
-.. default-domain:: cpp
+.. default-domain:: python
 
-.. function:: double tr(const vec &v)
+    .. code-block:: python
+
+        from simcoon import simmit as sim
+
+.. function:: float tr(np.ndarray v)
 
     Provides the trace of a second order tensor written as a vector v in the 'simcoon' formalism.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec v = randu(6);
-        double trace = tr(v);
-
-.. function:: vec dev(const vec &v)
+        v = np.random.rand(6)
+        trace = sim.tr(v)
+        
+.. function:: np.ndarray dev(np.ndarray v)
 
     Provides the deviatoric part of a second order tensor written as a vector v in the 'simcoon' formalism.
+    
+    .. code-block:: python
 
-    .. code-block:: cpp
+        v = np.random.rand(6)
+        deviatoric = sim.dev(v)
 
-        vec v = randu(6);
-        vec deviatoric = dev(v);
-
-.. function:: double Mises_stress(const vec &v)
+.. function:: float Mises_stress(np.ndarray v)
 
     Provides the Von Mises stress :math:`\sigma^{Mises}` of a second order stress tensor written as a vector v in the 'simcoon' formalism.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec v = randu(6);
-        double Mises_sig = Mises_stress(v);
+        v = np.random.rand(6)
+        Mises_sig = sim.Mises_stress(v)
 
-.. function:: vec eta_stress(const vec &v)
+.. function:: np.ndarray eta_stress(np.ndarray v)
 
     Provides the stress flow :math:`\eta_{stress}=\frac{3/2\sigma_{dev}}{\sigma_{Mises}}` from a second order stress tensor written as a vector v in the 'simcoon' formalism (i.e. the shear terms are multiplied by 2, providing shear angles).
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec v = randu(6);
-        vec sigma_f = eta_stress(v);
+        v = np.random.rand(6)
+        sigma_f = sim.eta_stress(v)
 
 .. function:: double Mises_strain(const vec &v)
 

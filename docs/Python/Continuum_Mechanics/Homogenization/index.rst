@@ -1,0 +1,6 @@
+Homogenization
+==============
+
+.. toctree::
+
+    eshelby.rst
