@@ -76,25 +76,25 @@ bn::ndarray finite_L(const bn::ndarray &ndF, const bn::ndarray &ndDF, const doub
 }
 
 //This function computes the spin tensor W (correspond to Jaumann rate)
-bn::ndarray finite_W(const bn::ndarray &ndF, const bn::ndarray &ndDF, const double &DTime) {
-    mat F = array2mat(ndF);
-    mat DF = array2mat(ndDF);
-    return mat2array(simcoon::finite_W(F,DF,DTime));
+bn::ndarray finite_W(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
+    mat F0 = array2mat(ndF0);
+    mat F1 = array2mat(ndF1);
+    return mat2array(simcoon::finite_W(F0,F1,DTime));
 }
 
 //This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)
 // Note : here R is the is the rigid body rotation in the polar decomposition of the deformation gradient F
-bn::ndarray finite_Omega(const bn::ndarray &ndR, const bn::ndarray &ndDR, const double &DTime) {
-    mat R = array2mat(ndR);
-    mat DR = array2mat(ndDR);
-    return mat2array(simcoon::finite_Omega(R,DR,DTime));
+bn::ndarray finite_Omega(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
+    mat F0 = array2mat(ndF0);
+    mat F1 = array2mat(ndF1);
+    return mat2array(simcoon::finite_Omega(F0,F1,DTime));
 }
 
 //This function computes the deformation rate D
-bn::ndarray finite_D(const bn::ndarray &ndF, const bn::ndarray &ndDF, const double &DTime) {
-    mat F = array2mat(ndF);
-    mat DF = array2mat(ndDF);
-    return mat2array(simcoon::finite_D(F,DF,DTime));
+bn::ndarray finite_D(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
+    mat F0 = array2mat(ndF0);
+    mat F1 = array2mat(ndF1);
+    return mat2array(simcoon::finite_D(F0,F1,DTime));
 }
 
 //This function computes the increment of finite rotation
