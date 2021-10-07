@@ -66,15 +66,15 @@ arma::mat Log_strain(const arma::mat &);
 //This function computes the velocity difference (F,DF,DTime)
 arma::mat finite_L(const arma::mat &, const arma::mat &, const double &);
 
-//This function computes the spin tensor W (correspond to Jaumann rate) (F,DF,DTime)
+//This function computes the deformation rate D (F,DF,DTime)
+arma::mat finite_D(const arma::mat &, const arma::mat &, const double &);
+
+//This function computes the spin tensor W (correspond to Jaumann rate) (F0,F1,DTime)
 arma::mat finite_W(const arma::mat &, const arma::mat &, const double &);
     
 //This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)
-// Note : here R is the is the rigid body rotation in the RU or VR polar decomposition of the deformation gradient F (R,DR,DTime)
+// Note : here R is the is the rigid body rotation in the RU or VR polar decomposition of the deformation gradient F (F0,F1,DTime)
 arma::mat finite_Omega(const arma::mat &, const arma::mat &, const double &);
-
-//This function computes the deformation rate D (F,DF,DTime)
-arma::mat finite_D(const arma::mat &, const arma::mat &, const double &);
     
 //This function computes the increment of finite rotation (Omega0, Omega1, DTime)
 arma::mat finite_DQ(const arma::mat &, const arma::mat &, const double &);

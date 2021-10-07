@@ -138,7 +138,18 @@ mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     //Definition of L = dot(F)*F^-1
     return (1./DTime)*(F1-F0)*inv(F1);
 }
+
+//This function computes the deformation rate D
+mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
     
+    //Definition of L = dot(F)*F^-1
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //Definition of the deformation rate D
+    return 0.5*(L+L.t());
+    
+}
+
 //This function computes the spin tensor W (correspond to Jaumann rate)
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
@@ -162,17 +173,6 @@ mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
     RU_decomposition(mat &R0, mat &U0, const mat &F0);
     RU_decomposition(mat &R1, mat &U1, const mat &F1);
     return (1./DTime)*(R1-R0)*R1.t();
-}    
-
-//This function computes the deformation rate D
-mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
-    
-    //Definition of L = dot(F)*F^-1
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
-    
-    //Definition of the deformation rate D
-    return 0.5*(L+L.t());
-    
 }
 
 //This function computes the increment of finite rotation

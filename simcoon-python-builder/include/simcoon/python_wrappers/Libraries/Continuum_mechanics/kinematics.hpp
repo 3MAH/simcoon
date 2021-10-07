@@ -34,15 +34,15 @@ boost::python::numpy::ndarray Log_strain(const boost::python::numpy::ndarray &);
 //This function computes the velocity difference (F0,F1,DTime)
 boost::python::numpy::ndarray finite_L(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
 
+//This function computes the deformation rate D (F0,F1,DTime)
+boost::python::numpy::ndarray finite_D(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
+
 //This function computes the spin tensor W (correspond to Jaumann rate) (F0,F1,DTime)
 boost::python::numpy::ndarray finite_W(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
 
 //This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)
 // Note : here R is the is the rigid body rotation in the RU or VR polar decomposition of the deformation gradient F (F0,F1,DTime)
 boost::python::numpy::ndarray finite_Omega(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
-
-//This function computes the deformation rate D (F0,F1,DTime)
-boost::python::numpy::ndarray finite_D(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);
 
 //This function computes the increment of finite rotation (Omega0, Omega1, DTime)
 boost::python::numpy::ndarray finite_DQ(const boost::python::numpy::ndarray &, const boost::python::numpy::ndarray &, const double &);

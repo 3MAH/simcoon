@@ -75,6 +75,13 @@ bn::ndarray finite_L(const bn::ndarray &ndF, const bn::ndarray &ndDF, const doub
     return mat2array(simcoon::finite_L(F,DF,DTime));
 }
 
+//This function computes the deformation rate D
+bn::ndarray finite_D(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
+    mat F0 = array2mat(ndF0);
+    mat F1 = array2mat(ndF1);
+    return mat2array(simcoon::finite_D(F0,F1,DTime));
+}
+
 //This function computes the spin tensor W (correspond to Jaumann rate)
 bn::ndarray finite_W(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
     mat F0 = array2mat(ndF0);
@@ -88,13 +95,6 @@ bn::ndarray finite_Omega(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const
     mat F0 = array2mat(ndF0);
     mat F1 = array2mat(ndF1);
     return mat2array(simcoon::finite_Omega(F0,F1,DTime));
-}
-
-//This function computes the deformation rate D
-bn::ndarray finite_D(const bn::ndarray &ndF0, const bn::ndarray &ndF1, const double &DTime) {
-    mat F0 = array2mat(ndF0);
-    mat F1 = array2mat(ndF1);
-    return mat2array(simcoon::finite_D(F0,F1,DTime));
 }
 
 //This function computes the increment of finite rotation

@@ -132,9 +132,9 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("Euler_Almansi", Euler_Almansi);
     bp::def("Log_strain", Log_strain);
     bp::def("finite_L", finite_L);
+    bp::def("finite_D", finite_D);
     bp::def("finite_W", finite_W);
     bp::def("finite_Omega", finite_Omega);
-    bp::def("finite_D", finite_D);
     bp::def("finite_DQ", finite_DQ);
     
     //register the objective rates library
