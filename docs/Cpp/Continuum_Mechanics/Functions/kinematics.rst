@@ -208,7 +208,7 @@ Provides the approximation of the Eulerian symmetric rate tensor :math:`\mathbf{
     mat F0 = randu(3,3);
     mat F1 = randu(3,3);
     mat DTime = 0.1;
-    mat W = finite_W(F0, F1, DTime);
+    mat D = finite_D(F0, F1, DTime);
 
 .. function:: mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
