@@ -1,4 +1,4 @@
-Simcoon Continuum Mechanics Libraries
+Simcoon Simulation Libraries
 ===================
 
 .. toctree::
