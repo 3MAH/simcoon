@@ -195,9 +195,9 @@ Provides the approximation of the Eulerian velocity tensor :math:`\mathbf{L}`: f
     mat DTime = 0.1;
     mat L = finite_L(F0, F1, DTime);
 
-.. function:: mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
+.. function:: mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
 
-Provides the approximation of the Eulerian antisymmetric spin tensor :math:`\mathbf{W}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`: . This correspond to the Jaumann corotationnal rate:
+Provides the approximation of the Eulerian symmetric rate tensor :math:`\mathbf{D}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`: This is commonly referred as the rate of deformation (this necessitates although a specific discussion)
 
 .. math::
 
