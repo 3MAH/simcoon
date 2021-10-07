@@ -107,12 +107,12 @@ vec Inv_X(const mat &X) {
     vec lambda = eig_sym(X);
     vec I = zeros(3);
     I(0) = trace(X);
-    I(1) = pow(trace(X),2.) + trace(X*X);
+    I(1) = 0.5*(pow(trace(X),2.) - trace(X*X));
     I(2) = det(X);
     return I;
 }
 
-//This function computes the Cauchy deformation tensor c
+//This function computes the Cauchy deformation tensor b
 mat Cauchy(const mat &F) {
     return inv(L_Cauchy_Green(F));
 }
@@ -122,12 +122,12 @@ mat Green_Lagrange(const mat &F) {
     return 0.5*(R_Cauchy_Green(F) - eye(3,3));
 }
 
-//This function computes the Euler-Almansi finite strain tensor A
+//This function computes the Euler-Almansi finite strain tensor e
 mat Euler_Almansi(const mat &F) {
     return 0.5*(eye(3,3) - Cauchy(F));
 }
 
-//This function computes the Euler-Almansi finite strain tensor A
+//This function computes the Euler-Almansi finite strain tensor h
 mat Log_strain(const mat &F) {
     return  0.5*logmat_sympd(L_Cauchy_Green(F));
 }
@@ -152,10 +152,16 @@ mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
     
 //This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
 // Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
-mat finite_Omega(const mat &R, const mat &DR, const double &DTime) {
+mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
     
     //Definition of Omega = dot(R)*R^-1 (or R.t() since R is a rotation matrix)
-    return (1./DTime)*(DR)*R.t();
+    mat R0 = zeros(3,3);
+    mat U0 = zeros(3,3);
+    mat R1 = zeros(3,3);
+    mat U1 = zeros(3,3);
+    RU_decomposition(mat &R0, mat &U0, const mat &F0);
+    RU_decomposition(mat &R1, mat &U1, const mat &F1);
+    return (1./DTime)*(R1-R0)*R1.t();
 }    
 
 //This function computes the deformation rate D
