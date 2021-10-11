@@ -127,3 +127,38 @@ Returns a vector containing the material properties :math:`\left(E_1, E_1, E_3, 
     double G_23 = 2400;
     mat L = L_ortho(E_1, E_2, E_3, nu_12, nu_13, nu_23, G_12, G_13, G_23);
     vec ortho_props = L_ortho_props(L);
+    
+.. function:: vec M_aniso_props(const mat &M)
+
+Returns a vector containing the material properties :math:`\left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \eta_{14}, \eta_{15}, \eta_{16}, \eta_{24}, \eta_{25}, \eta_{26}, \eta_{34}, \eta_{35}, \eta_{36}, \eta_{45}, \eta_{46}, \eta_{56} \right)` of a linear elastic fully anisotropic material, providing the stiffness matrix :math:`\mathbf{L}` and the axis of symmetry. Note that an averaging over the component is operated (usefull when the provided matrix do not exactly correspond to a transversely isotropic material)
+
+.. code-block:: cpp
+
+    string umat_name;
+    string path_data = "data";
+    string materialfile = "material.dat";
+    
+    unsigned int nprops = 0;
+    unsigned int nstatev = 0;
+    vec props;
+    
+    double psi_rve = 0.;
+    double theta_rve = 0.;
+    double phi_rve = 0.;
+    
+    double T_init = 273.15;
+
+    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);
+    phase_characteristics rve;
+    
+    rve.construct(0,1);
+    natural_basis nb;
+    rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+    
+    auto sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
+
+    //Second we call a recursive method that find all the elastic moduli iof the phases
+    get_L_elastic(rve);
+    mat M = arma::inv(sv_M->Lt);
+    vec aniso_props = M_aniso_props(M);
