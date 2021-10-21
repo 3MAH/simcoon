@@ -73,15 +73,17 @@ step_thermomeca::step_thermomeca(const unsigned int &control_type) : step()
  */
 
 //-------------------------------------------------------------
-step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const mat &mBC_w, const mat &mBC_R) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
+step_thermomeca::step_thermomeca(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const mat &mBC_mecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const vec &mBC_Ts, const mat &mBC_w, const mat &mBC_R) : step(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type)
 //-------------------------------------------------------------
 {
     cBC_meca = mcBC_meca;
     BC_meca = mBC_meca;
     mecas = mmecas;
+    BC_mecas = mBC_mecas;
     BC_T = mBC_T;
     cBC_T = mcBC_T;
     Ts = mTs;
+    BC_Ts = mBC_Ts;
     BC_w = mBC_w;
     BC_R = mBC_R;
 }
@@ -98,9 +100,11 @@ step_thermomeca::step_thermomeca(const step_thermomeca& stm) : step(stm)
     cBC_meca = stm.cBC_meca;
     BC_meca = stm.BC_meca;
     mecas = stm.mecas;
+    BC_mecas = stm.mecas;
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
+    BC_Ts = stm.BC_Ts;
     BC_w = stm.BC_w;
     BC_R = stm.BC_R;
 }
@@ -142,8 +146,10 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
     step::generate();
     
     Ts = zeros(ninc);
+    BC_Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
     mecas = zeros(ninc, size_meca);
+    BC_mecas = zeros(ninc, size_meca);
     
     vec inc_coef = ones(ninc);
     if (mode == 2) {
@@ -162,17 +168,21 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) == 1){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-msigma(k))/ninc;
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - msigma(k);
                 }
                 else if (cBC_meca(k) == 0){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mEtot(k))/ninc;
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mEtot(k);
                 }
             }
             
             if (cBC_T == 1) {
                 Ts(i) = BC_T;                   //Note that here it is the flux that is imposed
+                BC_Ts(i) = BC_T;
             }
             else if(cBC_T == 0) {
                 Ts(i) = inc_coef(i)*(BC_T - mT)/ninc;
+                BC_Ts(i) = inc_coef(i)*(BC_T/ninc) - mT;
             }
             
         }
@@ -230,23 +240,28 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);
+                BC_Ts(i) = BC_file(kT+1);
                 kT++;
             }
             else if (cBC_T == 1) {
                 Ts(i) = BC_file(kT+1);  //Case of Heat, direct quantity
+                BC_Ts(i) = BC_file(kT+1);
                 kT++;
             }
             else if(cBC_T == 2) {
                 Ts(i) = 0.;
+                BC_Ts(i) = 0.;
             }
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
                     mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
+                    BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
                 }
                 else if (cBC_meca(k) == 2){
                     mecas(i,k) = 0.;
+                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
@@ -323,19 +338,23 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
     if (mode < 3) {
         for (int i=0; i<ninc; i++) {
             Ts(i) = (BC_T - mT)/ninc;
+            BC_Ts(i) = BC_T/ninc - mT;
             times(i) = (BC_Time)/ninc;
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (control_type == 4) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mF(k/3,k%3);
                 }
                 else if (control_type == 5) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mF(k/3,k%3) - I2(k/3,k%3);
                 }
                 else {
                     cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
                 }
                 Ts(i) = inc_coef(i)*(BC_T - mT)/ninc;
+                BC_Ts(i) = inc_coef(i)*(BC_T/ninc) - mT;
             }
         }
     }
@@ -390,19 +409,23 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);
+                BC_Ts(i) = BC_file(kT+1);
                 kT++;
             }
             else if(cBC_T == 2) {
                 Ts(i) = 0.;
+                BC_Ts(i) = 0.;
             }
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) < 2){
                     mecas(i,k) = BC_file(kT+1) - BC_file_n(kT+1);
+                    BC_mecas(i,k) = BC_file(kT+1);
                     kT++;
                 }
                 else if (cBC_meca(k) == 2){
                     mecas(i,k) = 0.;
+                    BC_mecas(i,k) = 0.;
                 }
             }
             BC_file_n = BC_file;
