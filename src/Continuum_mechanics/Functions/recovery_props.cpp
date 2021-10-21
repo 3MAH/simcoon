@@ -407,29 +407,29 @@ vec M_aniso_props(const mat &Mt) {
 	double E2 = 1/Mt(1,1);
 	double E3 = 1/Mt(2,2);
 	
-	double nu12 = -E1*Mt(0,1);
-	double nu13 = -E1*Mt(0,2);
-	double nu23 = -E2*Mt(1,2);
-	
+    double nu12 = -E1*( Mt(0,1) + Mt(1,0) )/2.;
+    double nu13 = -E1*( Mt(0,2) + Mt(2,0) )/2.;
+    double nu23 = -E2*( Mt(1,2) + Mt(2,1) )/2.;
+    
 	double G23 = 1/Mt(5,5);
 	double G13 = 1/Mt(4,4);
 	double G12 = 1/Mt(3,3);
     
-	double eta14 = E1*Mt(0,3);
-	double eta15 = E1*Mt(0,4);
-	double eta16 = E1*Mt(0,5);
+	double eta14 = E1*( Mt(0,3) + Mt(3,0) )/2.;
+	double eta15 = E1*( Mt(0,4) + Mt(4,0) )/2.;
+	double eta16 = E1*( Mt(0,5) + Mt(5,0) )/2.;
 	
-	double eta24 = E2*Mt(1,3);
-	double eta25 = E2*Mt(1,4);
-	double eta26 = E2*Mt(1,5);
+	double eta24 = E2*( Mt(1,3) + Mt(3,1) )/2.;
+	double eta25 = E2*( Mt(1,4) + Mt(4,1) )/2.;
+	double eta26 = E2*( Mt(1,5) + Mt(5,1) )/2.;
 	
-	double eta34 = E3*Mt(2,3);
-	double eta35 = E3*Mt(2,4);
-	double eta36 = E3*Mt(2,5);
+	double eta34 = E3*( Mt(2,3) + Mt(3,2) )/2.;
+	double eta35 = E3*( Mt(2,4) + Mt(4,2) )/2.;
+	double eta36 = E3*( Mt(2,5) + Mt(5,2) )/2.;
 	
-    double eta45 = G12*Mt(3,4);
-    double eta46 = G12*Mt(3,5);
-    double eta56 = G13*Mt(4,5);
+    double eta45 = G12*( Mt(3,4) + Mt(4,3) )/2.;
+    double eta46 = G12*( Mt(3,5) + Mt(5,3) )/2.;
+    double eta56 = G13*( Mt(4,5) + Mt(5,4) )/2.;
     
 	vec props = zeros(21);
     props = {E1,E2,E3,nu12,nu13,nu23,G12,G13,G23,eta14,eta15,eta16,eta24,eta25,eta26,eta34,eta35,eta36,eta45,eta46,eta56};
