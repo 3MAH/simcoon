@@ -93,7 +93,7 @@ vec t2v_stress (const mat &stress) {
     return v;
 }
 
-//This function transforms a 9 component vector into a 3x3 matrix
+//This function transforms a 3x3 symmetric matrix into a vector (6 components 11,22,33,12,13,23)
 vec t2v_sym (const mat &m) {
     return t2v_stress(m);
 }
@@ -103,7 +103,7 @@ mat v2t_sym (const vec &v) {
     return v2t_stress(v);
 }
 
-//This function transforms a vector (6 components 11,22,33,12,13,23) into a symmetric 3x3 stress matrix
+//This function transforms a vector (6 components 11,22,33,12,13,23) into a skew-symmetric 3x3 stress matrix
 mat v2t_skewsym (const vec &v) {
     assert(v.size()==6);
     mat w(3,3);
