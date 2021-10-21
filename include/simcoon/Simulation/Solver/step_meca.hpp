@@ -41,15 +41,17 @@ protected:
     arma::Col<int> cBC_meca; //1 is for stress (flux), 0 if for strain (state)
     arma::vec BC_meca;
     arma::mat mecas;
+    arma::mat BC_mecas;
     arma::mat BC_w;
     arma::mat BC_R;
     double BC_T;
     int cBC_T;
     arma::vec Ts;
+    arma::vec BC_Ts;
     
     step_meca(); 	//default constructor
     step_meca(const unsigned int &); 	//constructor that allocates BC_meca and cBC_meca
-    step_meca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
+    step_meca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
     
     step_meca(const step_meca&);	//Copy constructor
     virtual ~step_meca();
