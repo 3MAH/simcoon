@@ -130,7 +130,7 @@ namespace simpy {
 
 		if (nlgeom) {
 			for (int pg = 0; pg < nb_points; pg++) {
-				if (corate >= 2) {
+				if (corate > 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
 				else {

@@ -170,8 +170,8 @@ mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
     mat U0 = zeros(3,3);
     mat R1 = zeros(3,3);
     mat U1 = zeros(3,3);
-    RU_decomposition(mat &R0, mat &U0, const mat &F0);
-    RU_decomposition(mat &R1, mat &U1, const mat &F1);
+    RU_decomposition(R0, U0, F0);
+    RU_decomposition(R1, U1, F1);
     return (1./DTime)*(R1-R0)*R1.t();
 }
 
