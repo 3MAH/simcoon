@@ -60,7 +60,7 @@ aba_step_meca::aba_step_meca() : step_meca()
  */    
     
 //-------------------------------------------------------------
-aba_step_meca::aba_step_meca(const std::string &mname, const bool &mnlgeom, const int &mtype, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const mat &mBC_w, const mat &mBC_R) : step_meca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_T, mcBC_T, mTs, mBC_w, mBC_R)
+aba_step_meca::aba_step_meca(const std::string &mname, const bool &mnlgeom, const int &mtype, const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const Col<int> &mcBC_meca, const vec &mBC_meca, const mat &mmecas, const mat &mBC_mecas, const double &mBC_T, const int &mcBC_T, const vec &mTs, const vec &mBC_Ts, const mat &mBC_w, const mat &mBC_R) : step_meca(mnumber, mDn_init, mDn_mini, mDn_inc, mmode, mcontrol_type, mcBC_meca, mBC_meca, mmecas, mBC_mecas, mBC_T, mcBC_T, mTs, mBC_Ts, mBC_w, mBC_R)
 //-------------------------------------------------------------
 {
     name = mname;
@@ -108,7 +108,7 @@ void aba_step_meca::update(const step_meca& stm, const string &mname, const bool
     BC_w = stm.BC_w;
     BC_R = stm.BC_R;
     
-    step::generate();
+    step_meca::generate();
 }
     
 
@@ -147,9 +147,11 @@ aba_step_meca& aba_step_meca::operator = (const aba_step_meca& stm)
     cBC_meca = stm.cBC_meca;
     BC_meca = stm.BC_meca;
     mecas = stm.mecas;
+    BC_mecas = stm.BC_mecas;
     BC_T = stm.BC_T;
     cBC_T = stm.cBC_T;
     Ts = stm.Ts;
+    BC_Ts = stm.BC_Ts;
     BC_w = stm.BC_w;
     BC_R = stm.BC_R;
         
