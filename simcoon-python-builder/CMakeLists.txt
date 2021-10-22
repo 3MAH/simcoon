@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 2.6)
 
 project(simcoon)
 
+#set(CMAKE_VERBOSE_MAKEFILE ON)
+
 # The version number
 set(VERSION_MAJOR 0)
 set(VERSION_MINOR 9)
@@ -14,6 +16,14 @@ if(VERSION_PATCH MATCHES "0")
 else()
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 endif()
+
+##### RPATH HANDLING ####
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+################
+
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -29,20 +39,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     CACHE PATH "Output directory for executables and DLL's.")
 
 #Set executable files and library files
-if (MSVC)
-  set(EXECUTABLE_OUTPUT_PATH bin)
-  set(LIBRARY_OUTPUT_PATH lib)
-else()
-  set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
-  set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
-endif()
-
-# Build type
-if(NOT CMAKE_BUILD_TYPE)  # Debug by default
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING
-        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
-        FORCE)
-endif()
+set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
+set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
 FIND_PACKAGE(PythonInterp)
 
@@ -83,8 +81,8 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  set(ARMADILLO_INCLUDE_DIRS ../armadillo/include/)
-  set(ARMADILLO_LIBRARIES ../../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../../armadillo/examples/lib_win64/libopenblas)
+  set(ARMADILLO_INCLUDE_DIRS armadillo/include/)
+  set(ARMADILLO_LIBRARIES ../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../armadillo/examples/lib_win64/libopenblas)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)
@@ -92,13 +90,7 @@ else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 endif()
 
-
-if (MSVC)
-  set(SIMCOON_INCLUDE_DIRS ../include)
-  set(SIMCOON_LIBRARIES ../../build/lib/${CMAKE_BUILD_TYPE}/simcoon) 
-else()  
-  find_package(simcoon REQUIRED)
-endif()
+find_package(simcoon REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -115,18 +107,19 @@ message(STATUS "Boost_INCLUDE_DIRS = ${Boost_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 
+# Build type
+if(NOT CMAKE_BUILD_TYPE)  # Debug by default
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
+        FORCE)
+endif()
+
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-if (MSVC)
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
-  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
-elseif (UNIX AND NOT APPLE)
+
+if (UNIX AND NOT APPLE)
   if (DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
@@ -169,7 +162,10 @@ file(GLOB_RECURSE source_files_arma2numpy src/arma2numpy/* include/arma2numpy/*)
 add_library(arma2numpy SHARED ${source_files_arma2numpy})
 
 #link against simcoon and Armadillo, and Boost for the numpy
-target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARIES})
+target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_INCLUDE_LIBRARIES} ${SIMCOON_LIBRARIES})
+if (UNIX AND APPLE)
+    set_target_properties(arma2numpy PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+endif()
 
 #Setup CMake to run tests
 enable_testing()
@@ -213,21 +209,19 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 
+
 ################################################################################
 # SIMCOON modules
 #Add the files to the lib
 #add_library(simmit MODULE ${source_files_smart})
 PYTHON_ADD_MODULE(simmit ${source_files_smart})
 #Wrapper library set_target properties
-if (MSVC)
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
-else()
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
-endif()
-
+set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${SIMCOON_LIBRARIES} arma2numpy)
-
+target_link_libraries(simmit ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} arma2numpy)
+if (UNIX AND APPLE)
+	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+endif()
 
 ################################################################################
 # INSTALL CONFIGURATION OF ARMA2NUMPY
@@ -249,6 +243,9 @@ message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
 message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
 message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
+message(STATUS "CMAKE_INSTALL_RPATH      = ${CMAKE_INSTALL_RPATH}"    )
+
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
 install(TARGETS arma2numpy DESTINATION ${INSTALL_LIB_DIR})
+
