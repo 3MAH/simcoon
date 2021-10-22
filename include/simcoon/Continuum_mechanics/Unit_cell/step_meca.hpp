@@ -47,7 +47,7 @@ protected:
     int type; //Automatic or fixed
         
     aba_step_meca(); 	//default constructor
-    aba_step_meca(const std::string &, const bool &, const int &, const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
+    aba_step_meca(const std::string &, const bool &, const int &, const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
     
     aba_step_meca(const aba_step_meca&);	//Copy constructor
     virtual ~aba_step_meca();
