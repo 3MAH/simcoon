@@ -17,7 +17,7 @@ class step_meca_py : public simcoon::step_meca
     public :
 
     step_meca_py();
-    step_meca_py(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const double&, const int&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&); //Constructor with parameters
+    step_meca_py(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const double&, const int&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&, const boost::python::numpy::ndarray&); //Constructor with parameters
         
     step_meca_py(const simcoon::step_meca &);
     
@@ -37,6 +37,7 @@ class step_meca_py : public simcoon::step_meca
     void Set_BC_meca(const boost::python::numpy::ndarray &BC_meca);
     
     boost::python::numpy::ndarray Get_mecas();
+    boost::python::numpy::ndarray Get_BC_mecas();
     boost::python::numpy::ndarray Get_BC_w();
     void Set_BC_w(const boost::python::numpy::ndarray &BC_w);
     
@@ -44,6 +45,7 @@ class step_meca_py : public simcoon::step_meca
     void Set_BC_R(const boost::python::numpy::ndarray &BC_R);
     
     boost::python::numpy::ndarray Get_Ts();
+    boost::python::numpy::ndarray Get_BC_Ts();
 };
 
 } //namespace simpy
