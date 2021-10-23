@@ -40,7 +40,7 @@ print(testb)
 
 print([0])
 
-step1 = testb[1][0][0]
+step1 = testb[2][0][0]
 Etot = np.zeros(6)
 sigma = np.zeros(6)
 

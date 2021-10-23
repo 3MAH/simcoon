@@ -36,6 +36,7 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
 
     double T;
     bp::list blocks_py;
+    bp::list cycles_per_blocks_py;
     std::vector<simcoon::block> blocks;
     
 //    string path_data = bp::extract<std::string>(path_data_py);
@@ -58,6 +59,7 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
                     }
                 }
                 blocks_py.append(ith_block_py);
+                cycles_per_blocks_py.append(blocks[i].ncycle);
                 break;
             }
             case 2: { //Thermomechanical
@@ -72,6 +74,7 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
                     }
                 }
                 blocks_py.append(ith_block_py);
+                cycles_per_blocks_py.append(blocks[i].ncycle);
                 break;
             }
             default: {
@@ -81,7 +84,7 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
         }
 
     }
-    return bp::make_tuple(T, blocks_py);
+    return bp::make_tuple(T, cycles_per_blocks_py, blocks_py);
 }
 
         
