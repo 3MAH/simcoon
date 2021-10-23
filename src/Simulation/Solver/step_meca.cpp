@@ -166,17 +166,17 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     if (mode < 3) {
         for (int i=0; i<ninc; i++) {
             Ts(i) = (BC_T - mT)/ninc;
-            BC_Ts(i) = BC_T/ninc - mT;
+            BC_Ts(i) = (i+1)*((BC_T - mT)/ninc) + mT;
             times(i) = (BC_Time)/ninc;
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) == 1){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-msigma(k))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - msigma(k);
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-msigma(k))/ninc) + msigma(k);
                 }
                 else if (cBC_meca(k) == 0){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mEtot(k))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mEtot(k);
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mEtot(k))/ninc) + mEtot(k);
                 }
             }
         }
@@ -299,7 +299,9 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     
     step::generate();
     Ts = zeros(ninc);
+    BC_Ts = zeros(ninc);
     mecas = zeros(ninc, size_meca);
+    BC_mecas = zeros(ninc, size_meca);
     
     vec inc_coef = ones(ninc);          //If the mode is equal to 2, this is a sinuasoidal load control mode
     if (mode == 2) {
@@ -318,11 +320,11 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (control_type == 4) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mF(k/3,k%3);
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3))/ninc) + mF(k/3,k%3);
                 }
                 else if (control_type == 5) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*(BC_meca(k)/ninc) - mF(k/3,k%3) - I2(k/3,k%3);
+                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3)-I2(k/3,k%3))/ninc) + mF(k/3,k%3) + I2(k/3,k%3);
                 }
                 else {
                     cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
