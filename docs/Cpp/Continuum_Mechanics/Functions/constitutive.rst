@@ -276,13 +276,14 @@ The Constitutive Library
         double etaS = (double)rand();
         mat Hiso = H_iso(etaB, etaS);
 
-.. function:: void el_pred
+.. function:: void el_pred(see below)
 
     Provides the stress tensor from an elastic prediction
     There are two possible ways:
 
     1. From the elastic stiffness tensor and the trial elastic strain:
     parameters : L : Stiffness matrix; Eel ; elastic strain vector, ndi (optional, default = 3): number of dimensions
+    (const mat &L, const vec &E_el, const int &ndi)
 
     .. code-block:: cpp
         
@@ -294,6 +295,7 @@ The Constitutive Library
 
     2. From the previous stress increment, providing the elastic stiffness tensor and the trial elastic strain increment:
     parameters : sigma_start: The previous stress, L : Stiffness matrix; Eel : elastic strain vector, ndi (optional, default = 3): number of dimensions
+    (const vec &sigma_start, const mat &L, const vec &DE_el, const int &ndi)
 
     .. code-block:: cpp
         
@@ -305,7 +307,7 @@ The Constitutive Library
         int ndi = 3;
         vec sigma =  el_pred(sigma_start,L, Eel, ndi);
 
-.. function:: mat Isotropize(const mat &Lt) {
+.. function:: mat Isotropize(const mat &Lt)
 
     Provides an isotropized version of an anisotropic stiffness tensor. Such isotropic tensor is called consistent since for any given strain it return the same stress as the anisotropic version.
 
