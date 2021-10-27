@@ -80,4 +80,4 @@ destructor
 
     Update using the transformation gradient :math:`\mathbf{F}`.
 
-    .. warning::Note that each transform/image of the basis vectors, initially orthogonal, are the columns of F. So do not use if your initial base is not orthogonal
+.. warning::Note that each transform/image of the basis vectors, initially orthogonal, are the columns of F. So do not use if your initial base is not orthogonal
