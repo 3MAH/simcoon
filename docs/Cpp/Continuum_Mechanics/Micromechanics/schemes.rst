@@ -1,5 +1,5 @@
 The Micromechanics schemes
-===================
+===========================
 
 The Eshelby Library provides various estimations of the Eshelby tensor and the Hill interaction tensor (also called polarisation tensor in some references). In particular, this library offers an analytical expression for special cases, in the framework on linear elasticity. Also, it provides an numerical estimation of the Eshelby tensor in the framework of an anisotropic linear behavior, for a general ellipsoidal inclusion shape.
 
