@@ -17,7 +17,7 @@ The Kinematics Library
         mat R = eye(3,3);
         mat F = ER_to_F(E, R);
 
-.. function:: mat eR_to_F(const mat &e, const mat &R) {
+.. function:: mat eR_to_F(const mat &e, const mat &R)
 
     Provides the transformation gradient :math:`\mathbf{F}`, from the logarithmic strain :math:`\mathbf{e}` and the rotation :math:`\mathbf{R}`:
 
@@ -31,7 +31,7 @@ The Kinematics Library
         mat R = eye(3,3);
         mat F = eR_to_F(e, R);
         
-.. function:: mat G_UdX(const mat &F) {
+.. function:: mat G_UdX(const mat &F)
 
     Provides the gradient of the displacement (Lagrangian) from the transformation gradient :math:`\mathbf{F}`:
 
@@ -44,7 +44,7 @@ The Kinematics Library
         mat F = randu(3,3);
         mat GradU = G_UdX(F);
 
-.. function:: mat G_Udx(const mat &F) {
+.. function:: mat G_Udx(const mat &F)
 
     Provides the gradient of the displacement (Eulerian) from the transformation gradient :math:`\mathbf{F}`:
 
@@ -57,7 +57,7 @@ The Kinematics Library
         mat F = randu(3,3);
         mat gradU = G_UdX(F);
 
-.. function:: mat R_Cauchy_Green(const mat &F) {
+.. function:: mat R_Cauchy_Green(const mat &F)
 
     Provides the Right Cauchy-Green tensor :math:`\mathbf{C}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -70,7 +70,7 @@ The Kinematics Library
         mat F = randu(3,3);
         mat C = R_Cauchy_Green(F);
 
-.. function:: mat L_Cauchy_Green(const mat &F) {
+.. function:: mat L_Cauchy_Green(const mat &F)
 
     Provides the Left Cauchy-Green tensor :math:`\mathbf{B}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -83,7 +83,7 @@ The Kinematics Library
         mat F = randu(3,3);
         mat B = L_Cauchy_Green(F);
 
-.. function:: RU_decomposition(mat &R, mat &U, const mat &F) {
+.. function:: RU_decomposition(mat &R, mat &U, const mat &F)
 
     Provides the RU decomposition of the transformation gradient :math:`\mathbf{F}`:
 
@@ -98,7 +98,7 @@ The Kinematics Library
         mat U = zeros(3,3);
         RU_decomposition(R, U, F);
 
-.. function:: VR_decomposition(mat &R, mat &V, const mat &F) {
+.. function:: VR_decomposition(mat &R, mat &V, const mat &F)
 
 Provides the VR decomposition of the transformation gradient :math:`\mathbf{F}`:
 
@@ -113,7 +113,7 @@ Provides the VR decomposition of the transformation gradient :math:`\mathbf{F}`:
     mat V = zeros(3,3);
     VR_decomposition(R, V, F);
 
-.. function:: vec Inv_X(const mat &X) {
+.. function:: vec Inv_X(const mat &X)
 
 Provides the invariants of a symmetric tensor :math:`\mathbf{X}`:
 
@@ -128,7 +128,7 @@ Provides the invariants of a symmetric tensor :math:`\mathbf{X}`:
         vec I = Inv_X(F);
         
 
-.. function:: mat Cauchy(const mat &F) {
+.. function:: mat Cauchy(const mat &F)
 
 Provides the Cauchy tensor :math:`\mathbf{b}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -141,7 +141,7 @@ Provides the Cauchy tensor :math:`\mathbf{b}`: from the transformation gradient 
         mat F = randu(3,3);
         mat b = Cauchy(F);
 
-.. function:: mat Green_Lagrange(const mat &F) {
+.. function:: mat Green_Lagrange(const mat &F)
 
 Provides the Green-Lagrange tensor :math:`\mathbf{E}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -154,7 +154,7 @@ Provides the Green-Lagrange tensor :math:`\mathbf{E}`: from the transformation g
         mat F = randu(3,3);
         mat E = Green_Lagrange(F);
 
-.. function:: mat Euler_Almansi(const mat &F) {
+.. function:: mat Euler_Almansi(const mat &F)
 
 Provides the Euler_Almansi tensor :math:`\mathbf{e}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -167,7 +167,7 @@ Provides the Euler_Almansi tensor :math:`\mathbf{e}`: from the transformation gr
         mat F = randu(3,3);
         mat e = Euler_Almansi(F);
 
-.. function:: mat Log_strain(const mat &F) {
+.. function:: mat Log_strain(const mat &F)
 
 Provides the logarithmic strain tensor :math:`\mathbf{h}`: from the transformation gradient :math:`\mathbf{F}`:
 
@@ -180,7 +180,7 @@ Provides the logarithmic strain tensor :math:`\mathbf{h}`: from the transformati
     mat F = randu(3,3);
     mat h = Log_strain(F);
 
-.. function:: mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
+.. function:: mat finite_L(const mat &F0, const mat &F1, const double &DTime)
 
 Provides the approximation of the Eulerian velocity tensor :math:`\mathbf{L}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`:
 
@@ -195,7 +195,7 @@ Provides the approximation of the Eulerian velocity tensor :math:`\mathbf{L}`: f
     mat DTime = 0.1;
     mat L = finite_L(F0, F1, DTime);
 
-.. function:: mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
+.. function:: mat finite_D(const mat &F0, const mat &F1, const double &DTime)
 
 Provides the approximation of the Eulerian symmetric rate tensor :math:`\mathbf{D}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`: This is commonly referred as the rate of deformation (this necessitates although a specific discussion)
 
@@ -210,7 +210,7 @@ Provides the approximation of the Eulerian symmetric rate tensor :math:`\mathbf{
     mat DTime = 0.1;
     mat D = finite_D(F0, F1, DTime);
 
-.. function:: mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
+.. function:: mat finite_W(const mat &F0, const mat &F1, const double &DTime)
 
 Provides the approximation of the Eulerian antisymmetric spin tensor :math:`\mathbf{W}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`: . This correspond to the Jaumann corotationnal rate:
 
@@ -225,7 +225,7 @@ Provides the approximation of the Eulerian antisymmetric spin tensor :math:`\mat
     mat DTime = 0.1;
     mat W = finite_W(F0, F1, DTime);
 
-.. function:: mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
+.. function:: mat finite_Omega(const mat &F0, const mat &F1, const double &DTime)
 
 Provides the approximation of the Eulerian rigid-body rotation spin tensor :math:`\mathbf{\Omega}`: from the transformation gradient :math:`\mathbf{F}_0`: at time :math:`t_0`:, :math:`\mathbf{F}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`: . This correspond to the Green-Naghdi corotationnal rate:
 
@@ -242,7 +242,7 @@ Note that the rotation matrix is obtained from a RU decomposition of the transfo
     mat DTime = 0.1;
     mat Omega = finite_Omega(F0, F1, DTime);
 
-.. function:: mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
+.. function:: mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime)
 
 Provides the Hughes-Winget approximation of a increment of rotation or transformation from the spin/velocity :math:`\mathbf{\Omega}_0`: at time :math:`t_0`:, :math:`\mathbf{\Omega}_1`: at time :math:`t_1`: and the time difference :math:`\Delta t = t_1 - t_0`:
 
