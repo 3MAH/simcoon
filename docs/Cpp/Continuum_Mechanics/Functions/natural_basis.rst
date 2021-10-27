@@ -1,5 +1,5 @@
 Natural Basis
-====================
+=============
 
 .. default-domain:: cpp
 
@@ -42,4 +42,4 @@ The natural basis class provides the objects that allows to work within a materi
 
 .. cpp:member:: std::vector<arma::vec> g_i
 
-The three *covariant* vectors
+The three *covariant* vectors :math:`\mathbf{g}_i`
