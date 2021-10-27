@@ -64,6 +64,20 @@ Default constructor, The size of list (std::vector) vectors :code:`g_i` and :cod
 
 Constructor with parameters. The natural basis is initialized based on the covariant vectors input :code:`mg_i`.
 
-.. cpp:function:: natural_basis(const natural_basis &nb);
+.. cpp:function:: natural_basis(const natural_basis &nb)
 
 Copy constructor from another basis :code:`nb`
+
+.. cpp:function:: ~natural_basis(const natural_basis &nb)
+
+destructor
+
+.. cpp:function:: update(const std::vector<arma::vec> & mg_i)
+
+    Update with a new set of covariant vectors :code:`mg_i`
+
+.. cpp:function:: from_F(const arma::mat &F)
+
+    Update using the transformation gradient :math:`\mathbf{F}`.
+
+    .. warning::Note that each transform/image of the basis vectors, initially orthogonal, are the columns of F. So do not use if your initial base is not orthogonal
