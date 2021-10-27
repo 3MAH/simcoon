@@ -5,9 +5,9 @@ The Eshelby Library provides various estimations of the Eshelby tensor and the H
 
 .. default-domain:: cpp
 
-    .. code-block:: cpp
+.. code-block:: cpp
 
-        #include <simcoon/Continuum_Mechanics/Homogenization/schemes.hpp>
+    #include <simcoon/Continuum_Mechanics/Homogenization/schemes.hpp>
 
 .. function:: void umat_multi(phase_characteristics &, const mat &, const double &, const double &, const int &, const int &, const bool &, double &, const int &)
 
