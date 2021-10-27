@@ -64,6 +64,6 @@ Default constructor, The size of list (std::vector) vectors :code:`g_i` and :cod
 
 Constructor with parameters. The natural basis is initialized based on the covariant vectors input :code:`mg_i`.
 
-.. cpp:function:: natural_basis(const natural_basis &nb);
+.. cpp:function:: natural_basis(const natural_basis &nb)
 
 Copy constructor from another basis :code:`nb`
