@@ -5,9 +5,9 @@ The Eshelby Library provides various estimations of the Eshelby tensor and the H
 
 .. default-domain:: cpp
 
-    .. code-block:: cpp
+.. code-block:: cpp
 
-        #include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
+    #include <simcoon/Continuum_Mechanics/Homogenization/eshelby.hpp>
 
 .. function:: mat Eshelby_sphere(double)
 
