@@ -59,7 +59,7 @@ The Criteria Library
         double m = 0.5;
         vec dsigma_Pragerdsigma = dPrager_stress(sigma, b, n);
 
-.. function:: mat P_Ani(const vec &params);
+.. function:: mat P_Ani(const vec &params)
 
     Returns an anisotropic configurational tensor in the Voigt format (6x6 matrix)
 
@@ -71,7 +71,7 @@ The Criteria Library
         vec P_params = {1.,1.2,1.3,-0.2,-0.2,-0.33,1.,1.,1.4};
         mat P = P_Ani(P_params);
 
-.. function:: mat P_Hill(const vec &params);
+.. function:: mat P_Hill(const vec &params)
 
     Returns an anisotropic configurational tensor considering the quadratic Hill yield criterion [Hill48].
 
@@ -116,7 +116,6 @@ The Criteria Library
         mat P = P_Hill(P_params);
         vec sigma = randu(6);
         vec dsigma_anidsigma = dAni_stress(sigma,P_params);
-}
 
 .. function:: double Hill_stress(const vec &v, const vec &params)
 
