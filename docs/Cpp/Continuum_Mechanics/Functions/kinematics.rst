@@ -3,7 +3,7 @@ The Kinematics Library
 
 .. default-domain:: cpp
 
-.. function:: mat ER_to_F(const mat &E, const mat &R) {
+.. function:: mat ER_to_F(const mat &E, const mat &R)
 
     Provides the transformation gradient :math:`\mathbf{F}`, from the Green-Lagrange strain :math:`\mathbf{E}` and the rotation :math:`\mathbf{R}`:
 
