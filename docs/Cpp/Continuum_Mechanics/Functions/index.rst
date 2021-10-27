@@ -8,6 +8,5 @@ Functions
     kinematics.rst
     criteria.rst
     damage.rst
-    natural_basis.rst
     recovery_props.rst
     transfer.rst
