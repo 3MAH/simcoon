@@ -24,7 +24,7 @@ namespace simpy {
 step_thermomeca_py::step_thermomeca_py() : simcoon::step_thermomeca() {}
 
 //-------------------------------------------------------------
-step_thermomeca_py::step_thermomeca_py(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const bn::ndarray &mcBC_meca, const bn::ndarray &mBC_meca, const bn::ndarray &mmecas, const bn::ndarray &mBC_mecas, const double &mBC_T, const int &mcBC_T, const bn::ndarray &mTs, const bn::ndarray &mBC_Ts, const bn::ndarray &mBC_w, const bn::ndarray &mBC_R)
+step_thermomeca_py::step_thermomeca_py(const int &mnumber, const double &mDn_init, const double &mDn_mini, const double &mDn_inc, const int &mmode, const unsigned int &mcontrol_type, const bn::ndarray &mcBC_meca, const bn::ndarray &mBC_meca, const double &mBC_T, const int &mcBC_T, const bn::ndarray &mBC_w, const bn::ndarray &mBC_R)
 //-------------------------------------------------------------
 {
     assert(mnumber>=0);
@@ -48,12 +48,8 @@ step_thermomeca_py::step_thermomeca_py(const int &mnumber, const double &mDn_ini
         
     cBC_meca = array2Col_int(mcBC_meca, false);
     BC_meca = array2vec(mBC_meca, false);
-    mecas = array2mat(mmecas, false);
-    BC_mecas = array2mat(mBC_mecas, false);
     BC_T = mBC_T;
     cBC_T = mcBC_T;
-    Ts = array2vec(mTs, false);
-    BC_Ts = array2vec(mBC_Ts, false);
     BC_w = array2mat(mBC_w, false);
     BC_R = array2mat(mBC_R, false);
 }
@@ -113,6 +109,13 @@ bn::ndarray step_thermomeca_py::Get_mecas() {
 }
 
 //-------------------------------------------------------------
+bn::ndarray step_thermomeca_py::Get_BC_mecas() {
+//-------------------------------------------------------------
+    return mat2array(BC_mecas, false);
+}
+
+
+//-------------------------------------------------------------
 bn::ndarray step_thermomeca_py::Get_BC_w() {
 //-------------------------------------------------------------
     return mat2array(BC_w, false);
@@ -138,6 +141,12 @@ void step_thermomeca_py::Set_BC_R(const bn::ndarray &BC_R_py) {
 bn::ndarray step_thermomeca_py::Get_Ts() {
 //-------------------------------------------------------------
     return vec2array(Ts, false);
+}
+
+//-------------------------------------------------------------
+bn::ndarray step_thermomeca_py::Get_BC_Ts() {
+//-------------------------------------------------------------
+    return vec2array(BC_Ts, false);
 }
 
 }
