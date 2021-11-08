@@ -252,7 +252,7 @@ BOOST_PYTHON_MODULE(simmit) {
         ;
     
     bp::class_<step_meca_py>("step_meca", bp::init <>())
-        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&> ())
+        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&> ())
         .def_readwrite("number", &step_meca_py::number)
         .def_readwrite("Dn_init",&step_meca_py::Dn_init)
         .def_readwrite("Dn_mini", &step_meca_py::Dn_mini)
@@ -265,7 +265,7 @@ BOOST_PYTHON_MODULE(simmit) {
         .add_property("cBC_meca", &step_meca_py::Get_cBC_meca, &step_meca_py::Set_cBC_meca)
         .add_property("BC_meca", &step_meca_py::Get_BC_meca, &step_meca_py::Set_BC_meca)
         .add_property("mecas", &step_meca_py::Get_mecas)
-        .add_property("BC_mecas", &step_thermomeca_py::Get_BC_mecas)
+        .add_property("BC_mecas", &step_meca_py::Get_BC_mecas)
         .add_property("BC_w", &step_meca_py::Get_BC_w, &step_meca_py::Set_BC_w)
         .add_property("BC_R", &step_meca_py::Get_BC_R, &step_meca_py::Set_BC_R)
         .add_property("Ts", &step_meca_py::Get_Ts)
@@ -275,7 +275,7 @@ BOOST_PYTHON_MODULE(simmit) {
         ;
     
     bp::class_<step_thermomeca_py>("step_thermomeca", bp::init <>())
-        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&> ())
+        .def(bp::init <const int &, const double &, const double &, const double &, const int &, const unsigned int &, const bn::ndarray&, const bn::ndarray&, const double&, const int&, const bn::ndarray&, const bn::ndarray&> ())
         .def_readwrite("number", &step_thermomeca_py::number)
         .def_readwrite("Dn_init",&step_thermomeca_py::Dn_init)
         .def_readwrite("Dn_mini", &step_thermomeca_py::Dn_mini)
