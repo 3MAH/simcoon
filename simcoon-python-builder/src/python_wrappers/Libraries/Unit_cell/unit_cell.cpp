@@ -102,19 +102,25 @@ bp::tuple test_mesh(const bn::ndarray &nodes_coords_py, const double &min_dist, 
 }
 
 //-------------------------------------------------------------
-bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py)
+bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py, const bp::list &NodeCD_py)
 //-------------------------------------------------------------
 {
     
     mat nodes_coords = array2mat(nodes_coords_py, false);
     std::vector<simcoon::Node> nodes_full;
-
+    
+    std::vector<int> NodeCD = py_list_to_std_vector_int(NodeCD_py);
+    
+    for (auto n:NodeCD) {
+        cout << n << endl;
+    }
+    
     for (unsigned int i=0; i <nodes_coords.n_cols; i++) {
         vec coords = nodes_coords.col(i);
-        simcoon::Node node_temp(i+1,Point(coords(0),coords(1),coords(2)));
+        simcoon::Node node_temp(i,Point(coords(0),coords(1),coords(2)));
         nodes_full.push_back(node_temp);
     }
-    unsigned int nb_nodes_full = nodes_full.size();
+    int nb_nodes_full = nodes_full.size();
     
     simcoon::cubic_mesh cm(nodes_full, "nodes_full");
     cm.get_domain();
@@ -127,12 +133,11 @@ bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py)
     unsigned int loading_type = 1;
     unsigned int control_type = 1;
     
-    simcoon::cubic_equation cubic_eq(cm, cm_perio, loading_type, control_type);
+    simcoon::cubic_equation cubic_eq(cm, cm_perio, NodeCD, loading_type, control_type);
     std::vector<simcoon::equation> MPC_equations = simcoon::MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type);
     
     bp::list MPC_equations_list;
     for(auto eq_it : MPC_equations) {
-        cout << eq_it << endl;
         bp::list MPC_equation_temp;
         for(auto comp_it : eq_it.components) {
             simcoon::Node node_comp_it = comp_it.node;
