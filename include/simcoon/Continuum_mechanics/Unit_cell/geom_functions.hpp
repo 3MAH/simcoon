@@ -67,11 +67,11 @@ void translate_node(Node &, const Kernel::FT &, const int &, unsigned int &);
 
 void translate_node(Node &, const Vector_3 &, unsigned int &);
     
-void translate_nodes(std::vector<Node> &, const Kernel::FT &, const int &, unsigned int &);
+void translate_nodes(std::vector<Node> &, const Kernel::FT &, const int &, int &);
     
-void translate_nodes(std::vector<Node> &, const Vector_3 &, unsigned int &);
+void translate_nodes(std::vector<Node> &, const Vector_3 &, int &);
     
-cubic_mesh perio_RVE(cubic_mesh &RVE, unsigned int &);
+cubic_mesh perio_RVE(cubic_mesh &RVE, int &);
     
 void set_faceXp(std::vector<Node> &, const cubic_mesh &);
 void set_faceYp(std::vector<Node> &, const cubic_mesh &);

@@ -506,7 +506,7 @@ void translate_node(Node &node, const Vector_3 &trans_vec, unsigned int &nb_node
     }
 }
     
-void translate_nodes(std::vector<Node> &nodes, const Kernel::FT &Dp, const int &axis, unsigned int &nb_nodes) {
+void translate_nodes(std::vector<Node> &nodes, const Kernel::FT &Dp, const int &axis, int &nb_nodes) {
         
     Vector_3 trans_vec;//(0,0,0);
     
@@ -541,7 +541,7 @@ void translate_nodes(std::vector<Node> &nodes, const Kernel::FT &Dp, const int &
     }
 }
     
-void translate_nodes(std::vector<Node> &nodes, const Vector_3 &trans_vec, unsigned int &nb_nodes) {
+void translate_nodes(std::vector<Node> &nodes, const Vector_3 &trans_vec, int &nb_nodes) {
     
     Aff_transformation_3 translate(CGAL::TRANSLATION, trans_vec);
     Point translated;
@@ -555,7 +555,7 @@ void translate_nodes(std::vector<Node> &nodes, const Vector_3 &trans_vec, unsign
     }
 }
     
-cubic_mesh perio_RVE(cubic_mesh &RVE, unsigned int &nb_nodes) {
+cubic_mesh perio_RVE(cubic_mesh &RVE, int &nb_nodes) {
     
     cubic_mesh perio_mesh;
     

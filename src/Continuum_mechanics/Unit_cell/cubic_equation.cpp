@@ -67,10 +67,10 @@ cubic_equation::cubic_equation()
  */
 
 //-------------------------------------------------------------
-cubic_equation::cubic_equation(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type)
+cubic_equation::cubic_equation(const cubic_mesh &cm, const cubic_mesh &cm_perio, const std::vector<int> &NodeCD, const unsigned int &loading_type, const unsigned int &control_type)
 //-------------------------------------------------------------
 {
-    construct(cm,cm_perio,loading_type, control_type);
+    construct(cm, cm_perio, NodeCD, loading_type, control_type);
 }
 
 /*!
@@ -116,27 +116,28 @@ cubic_equation::~cubic_equation() {}
 //-------------------------------------
     
 //-------------------------------------------------------------
-void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type)
+void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio, const std::vector<int> &NodeCD, const unsigned int &loading_type, const unsigned int &control_type)
 //-------------------------------------------------------------
 {
     mat Dxyz;
     Mat<int> CD_num;
+    std::vector<Node> CD_nodes;
+    int nbDOF = 0;
     //Mechanical
     if((loading_type == 1) || (loading_type == 2)){
         if(control_type == 1){
             CD_num = {{0,3,4},{3,1,5},{4,5,2}};
             Dxyz = {{-1.*cm.Dx,-0.5*cm.Dx,-0.5*cm.Dx},{-0.5*cm.Dy,-1.*cm.Dy,-0.5*cm.Dy},{-0.5*cm.Dz,-0.5*cm.Dz,-1.*cm.Dz}};
-            CD = {1010011, 1020022, 1030033, 1040012, 1050013, 1060023};
-            list_dofs = {1,2,3};
+            list_dofs = {1,2,3,1,2,3};
             CD_set_name = {"CD11", "CD22", "CD33", "CD12", "CD13", "CD23"};
         }
         else if(control_type > 1) {
             CD_num = {{0,1,2},{3,4,5},{6,7,8}};
             Dxyz = {{-1.*cm.Dx,-1.*cm.Dx,-1.*cm.Dx},{-1.*cm.Dy,-1.*cm.Dy,-1.*cm.Dy},{-1.*cm.Dz,-1.*cm.Dz,-1.*cm.Dz}};
-            CD = {1010011, 1010012, 1010013, 1020021, 1010022, 1030023, 1040031, 1050032, 1060033};
-            list_dofs = {1,2,3};
+            list_dofs = {1,2,3,1,2,3,1,2,3};
             CD_set_name = {"CD11", "CD12", "CD13", "CD21", "CD22", "CD23", "CD31", "CD32", "CD33"};
         }
+        nbDOF = 3;
     }
     //Thermal
     else if(loading_type == 3) {
@@ -148,18 +149,17 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Dxyz(0,0) = -1.0*cm.Dx;
         Dxyz(1,0) = -1.0*cm.Dy;
         Dxyz(2,0) = -1.0*cm.Dz;
-        CD = {1010111, 1020211, 1030311};
         list_dofs = {11};
         CD_set_name = {"CDT1", "CDT2", "CDT3"};
+        nbDOF = 1;
     }
     else{
         cout << "Error in Continuum_mechanics/Unit_cell/cubic_equation.cpp : loading_type should take the following values : 1 for mechanical loading, 2 for thermomechanical loading and 3 for pure thermal (heat transfer) analysis" << endl;
     }
-    Col<int> CD_dof = {1,1,11};
     
     //construct the constrain drivers
     Point null(0.,0.,0.);
-    for (auto n:CD) {
+    for (auto n:NodeCD) {
         Node node;
         node.number = n;
         node.coords = null;
@@ -193,7 +193,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
     unsigned int p3=0;
     component temp;
     
-    for (unsigned int i=0; i<list_dofs.size(); i++) {
+    for (unsigned int i=0; i<nbDOF; i++) {
         //Corner_listXpYmZm
         p1 = 0;
         temp.node = *cm.Corner_listXpYmZm;
@@ -207,7 +207,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXpYmZm[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXpYmZm[i].components.push_back(temp);
         
@@ -224,9 +224,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXmYpZm[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
-
-
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXmYpZm[i].components.push_back(temp);
         
@@ -243,7 +241,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXmYmZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXmYmZp[i].components.push_back(temp);
     
@@ -261,12 +259,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXpYpZm[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXpYpZm[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p2,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p2,i)];
         temp.coef = Dxyz(p2,i);
         Corner_listXpYpZm[i].components.push_back(temp);
         
@@ -284,12 +282,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXpYmZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXpYmZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p2,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p2,i)];
         temp.coef = Dxyz(p2,i);
         Corner_listXpYmZp[i].components.push_back(temp);
     
@@ -307,12 +305,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXmYpZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXmYpZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p2,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p2,i)];
         temp.coef = Dxyz(p2,i);
         Corner_listXmYpZp[i].components.push_back(temp);
     
@@ -331,17 +329,17 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         Corner_listXpYpZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p1,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p1,i)];
         temp.coef = Dxyz(p1,i);
         Corner_listXpYpZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p2,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p2,i)];
         temp.coef = Dxyz(p2,i);
         Corner_listXpYpZp[i].components.push_back(temp);
         
         temp.node = CD_nodes[CD_num(p3,i)];
-        temp.dof = CD_dof(loading_type-1);
+        temp.dof = list_dofs[CD_num(p3,i)];
         temp.coef = Dxyz(p3,i);
         Corner_listXpYpZp[i].components.push_back(temp);
         
@@ -360,7 +358,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXpYm[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXpYm[i][j].components.push_back(temp);
         }
@@ -381,12 +379,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXpYp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXpYp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p2,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p2,i)];
             temp.coef = Dxyz(p2,i);
             Edge_listXpYp[i][j].components.push_back(temp);
         }
@@ -406,7 +404,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXmYp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXmYp[i][j].components.push_back(temp);
         }
@@ -426,7 +424,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXpZm[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXpZm[i][j].components.push_back(temp);
         }
@@ -447,12 +445,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXpZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXpZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p2,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p2,i)];
             temp.coef = Dxyz(p2,i);
             Edge_listXpZp[i][j].components.push_back(temp);
         }
@@ -472,7 +470,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listXmZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listXmZp[i][j].components.push_back(temp);
         }
@@ -492,7 +490,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listYpZm[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listYpZm[i][j].components.push_back(temp);
         }
@@ -513,12 +511,12 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listYpZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listYpZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p2,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p2,i)];
             temp.coef = Dxyz(p2,i);
             Edge_listYpZp[i][j].components.push_back(temp);
         }
@@ -538,7 +536,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Edge_listYmZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Edge_listYmZp[i][j].components.push_back(temp);
         }
@@ -558,7 +556,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Face_listXp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Face_listXp[i][j].components.push_back(temp);
         }
@@ -578,7 +576,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Face_listYp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Face_listYp[i][j].components.push_back(temp);
         }
@@ -598,7 +596,7 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
             Face_listZp[i][j].components.push_back(temp);
             
             temp.node = CD_nodes[CD_num(p1,i)];
-            temp.dof = CD_dof(loading_type-1);
+            temp.dof = list_dofs[CD_num(p1,i)];
             temp.coef = Dxyz(p1,i);
             Face_listZp[i][j].components.push_back(temp);
         }

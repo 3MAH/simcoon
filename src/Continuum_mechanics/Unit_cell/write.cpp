@@ -988,7 +988,7 @@ void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &p
     out_set.close();
 }*/
     
-void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const unsigned int &loading_type, const unsigned int &control_type, const string &path_data, const string &outputfile){
+void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const std::vector<int> &NodeCD, const unsigned int &loading_type, const unsigned int &control_type, const string &path_data, const string &outputfile){
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
@@ -1006,11 +1006,11 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     out_set << "************************************\n";
     out_set << "**\n";
     
-    cubic_equation cubic_eq(cm, cm_perio, loading_type, control_type);
+    cubic_equation cubic_eq(cm, cm_perio, NodeCD, loading_type, control_type);
     for(unsigned int i=0; i<cubic_eq.CD.size();i++) {
         out_set << "*Node\n";
         out_set << cubic_eq.CD_nodes[i];
-        write_node_set(cubic_eq.CD_set_name[i],  cubic_eq.CD_nodes[i], out_set);
+        write_node_set(cubic_eq.CD_set_name[i], cubic_eq.CD_nodes[i], out_set);
     }
     write_nodes_set("CD_nodes", cubic_eq.CD_nodes, out_set);
     
