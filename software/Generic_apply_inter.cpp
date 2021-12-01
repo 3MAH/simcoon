@@ -90,8 +90,25 @@ int main() {
         elements_full.insert(elements_full.end(), sc.elements.begin(), sc.elements.end());
     }*/
     
-    unsigned int nb_nodes_full = nodes_full.size();
-    unsigned int nb_nodes_init = nb_nodes_full;
+    int nb_nodes_full = nodes_full.size();
+    int nb_nodes_init = nb_nodes_full;
+    
+    std::vector<int> NodeCD;
+    if((loading_type == 1) || (loading_type == 2)){
+        if(control_type == 1){
+            NodeCD = {nb_nodes_full+1, nb_nodes_full+1, nb_nodes_full+1, nb_nodes_full+2, nb_nodes_full+2, nb_nodes_full+2};
+        }
+        else if(control_type > 1) {
+            NodeCD = {nb_nodes_full+1, nb_nodes_full+1, nb_nodes_full+1, nb_nodes_full+2, nb_nodes_full+2, nb_nodes_full+2, nb_nodes_full+3, nb_nodes_full+3, nb_nodes_full+3};
+        }
+    }
+    //Thermal
+    else if(loading_type == 3) {
+        NodeCD = {nb_nodes_full+1, nb_nodes_full+2, nb_nodes_full+3};
+    }
+    else{
+        cout << "Error in software/Salome_apply_inter.cpp : loading_type should take the following values : 1 for mechanical loading, 2 for thermomechanical loading and 3 for pure thermal (heat transfer) analysis" << endl;
+    }
     
     cubic_mesh cm(nodes_full, "nodes_full");
     cm.get_domain();
@@ -127,7 +144,7 @@ int main() {
     string PBC_file_name = "PBC_file_name.inp";
     string CDN_file_name = "CDN_file_name.inp";
     write_PBC(cm, path_run, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, loading_type, control_type, path_run, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, path_run, CDN_file_name);
     
     //Finally
     string run_file = "run_aba.inp";
