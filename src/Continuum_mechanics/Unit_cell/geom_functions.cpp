@@ -555,7 +555,7 @@ void translate_nodes(std::vector<Node> &nodes, const Vector_3 &trans_vec, int &n
     }
 }
     
-cubic_mesh perio_RVE(cubic_mesh &RVE, const int &nb_nodes) {
+cubic_mesh perio_RVE(cubic_mesh &RVE, int &nb_nodes) {
     
     cubic_mesh perio_mesh;
     
