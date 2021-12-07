@@ -55,7 +55,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     string inputfile = path_data + "/" + pointsfile;
     string buffer;
 
-    unsigned int nb_nodes = 0;
+    int nb_nodes = 0;
     unsigned int loading_type = 1;
     unsigned int control_type = 1;
     
@@ -69,8 +69,25 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     cubic_mesh cm_perio = perio_RVE(cm, nb_nodes);
     cm_perio.construct_lists();
     
+    std::vector<int> NodeCD;
+    if((loading_type == 1) || (loading_type == 2)){
+        if(control_type == 1){
+            NodeCD = {nb_nodes+1, nb_nodes+1, nb_nodes+1, nb_nodes+2, nb_nodes+2, nb_nodes+2};
+        }
+        else if(control_type > 1) {
+            NodeCD = {nb_nodes+1, nb_nodes+1, nb_nodes+1, nb_nodes+2, nb_nodes+2, nb_nodes+2, nb_nodes+3, nb_nodes+3, nb_nodes+3};
+        }
+    }
+    //Thermal
+    else if(loading_type == 3) {
+        NodeCD = {nb_nodes+1, nb_nodes+2, nb_nodes+3};
+    }
+    else{
+        cout << "Error in software/Salome_apply_inter.cpp : loading_type should take the following values : 1 for mechanical loading, 2 for thermomechanical loading and 3 for pure thermal (heat transfer) analysis" << endl;
+    }
+    
     write_PBC(cm, path_data, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, loading_type, control_type, path_data, CDN_file_name);
+    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, path_data, CDN_file_name);
 }
 
 BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {
@@ -85,7 +102,7 @@ BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {
     
     string buffer;
     
-    unsigned int nb_nodes = 0;
+    int nb_nodes = 0;
     
     std::vector<Node> nodes;
     read_nodes_file(nodes, path_data, pointsfile);
