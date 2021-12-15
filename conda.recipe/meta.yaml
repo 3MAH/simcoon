@@ -1,0 +1,36 @@
+package:
+  name: simcoon
+  version: 1.0.0
+
+source:
+  git_url: https://github.com/3MAH/simcoon.git
+
+build:
+  noarch: python
+
+requirements:
+  build:
+    - make
+    - cmake
+    - {{ compiler('cxx') }}
+    - {{ compiler('fortran') }}
+    - armadillo=10.7.4
+    - gmp=6.2.1
+    - mpfr=4.1.0
+    - numpy=1.21.4
+  host:
+    - python=3.9
+    - setuptools=59.4.0
+    - numpy=1.21.4
+    - cgal=5.0.1
+    - boost=1.72.0
+  run:
+    - python=3.9
+    - armadillo=10.7.4
+    - cgal=5.0.1
+    - boost=1.72.0
+    - {{ pin_compatible('numpy') }}
+
+test:
+  imports:
+    - simcoon
