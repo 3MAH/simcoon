@@ -11,7 +11,6 @@ helpFunction()
 
 test=1
 ncpus=4
-anacondaloc=/Users/ychemisky/opt/anaconda3/envs/test
 python_version=`python -c 'import sys; print(str(sys.version_info[0])+"."+str(sys.version_info[1]))'`
 
 while getopts "tn:" opt
@@ -108,7 +107,7 @@ done
 #Build SMART+
 echo ""
 cd ${current_dir}/build
-cmake .. -DCMAKE_INCLUDE_PATH=${anacondaloc}/include -DCMAKE_LIBRARY_PATH=${anacondaloc}/lib -DCMAKE_INSTALL_PREFIX=${anacondaloc} -Wno-dev
+cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
 echo ""
 make -j${ncpus}
 Install_OK=$?
@@ -216,7 +215,7 @@ then
     fi
 
     cd ${current_dir}/simcoon-python-builder/build
-    cmake .. -DCMAKE_INCLUDE_PATH=${anacondaloc}/include -DCMAKE_LIBRARY_PATH=${anacondaloc}/lib -DCMAKE_INSTALL_PREFIX=${anacondaloc} -Wno-dev
+    cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
     echo ""
     make
     make install

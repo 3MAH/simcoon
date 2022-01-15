@@ -35,6 +35,18 @@ Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoo
 Installation
 ------------
 
+For Linux and Windows, it is now possible to install simcoon directly with conda :
+```bash
+conda install -c conda-forge -c set3mah simcoon
+```
+In case there are any conflicts, it is preferable to do it in a new conda environment :
+```bash
+conda create --name scientific
+```
+MacOS version is coming soon...
+
+OR
+
 The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
 (for the installation of an environment called "scientific")
 
@@ -51,18 +63,18 @@ conda activate scientific
 The next step is to install the required packages:
 
 ```bash
-conda install -c conda-forge armadillo conda install -c conda-forge boost conda install -c conda-forge cgal conda install -c conda-forge numpy
+conda install -c conda-forge armadillo boost cgal numpy
 ```
 
-Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder and modify the Install.sh source file to look after you conda environnement path:
-
-anacondaloc=/path/to/anaconda/anaconda3/envs/scientific
+Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder.
 
 The last step is to run the installation script:
 
 ```bash
 sh Install.sh
 ```
+
+
 
 Authors
 -------
