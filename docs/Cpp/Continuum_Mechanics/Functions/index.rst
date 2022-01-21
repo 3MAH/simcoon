@@ -6,6 +6,7 @@ Functions
     contimech.rst
     constitutive.rst
     kinematics.rst
+    derivatives.rst
     criteria.rst
     damage.rst
     natural_basis.rst
