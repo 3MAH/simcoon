@@ -43,6 +43,4 @@ arma::mat ddetSdS(const arma::mat &);
 //This function returns the derivative of the inverse of a symmetric tensor
 arma::mat dinvSdS(const arma::mat &);
 
-//This function returns the dyadic product of 2 symmetric tensors A and B, in a 6*6 matrix format
-arma::mat sym_dyadic(const arma::mat &, const arma::mat &);
 } //namespace simcoon
