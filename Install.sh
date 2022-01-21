@@ -239,9 +239,9 @@ then
         install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
         install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
     
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${anacondaloc}/lib/libarma2numpy.dylib
-        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${anacondaloc}/lib/python${python_version}/site-packages/simcoon/simmit.so
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${anacondaloc}/lib/python${python_version}/site-packages/simcoon/simmit.so
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
+        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
     fi
     
     cd ${current_dir}/simcoon-python-builder/build
