@@ -350,4 +350,18 @@ mat p_ikjl(const vec &a) {
 	return F;
 }
 
+mat sym_dyadic(const mat &A, const mat &B) {
+
+    vec A_v = t2v_sym(A);
+    vec B_v = t2v_sym(B);
+    mat C = zeros(6,6);
+
+    for (unsigned int i=0; i<6; i++) {
+        for (unsigned int j=0; j<6; i++) {
+            C(i,j) = A_v(i)*A_v(j);
+        }
+    }
+    return C;
+}
+
 } //namespace simcoon
