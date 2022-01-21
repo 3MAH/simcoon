@@ -158,3 +158,14 @@ The Continuum Mechanics Library
 
         vec v = randu(6);
         mat H = p_ikjl(v);
+
+.. function:: mat sym_dyadic(const mat &A, const mat &B)
+
+Provides the dyadic product (in Voigt Notation) of two 2nd order tensors converted. The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
+
+.. code-block:: cpp
+
+    mat A = randu(3,3);
+    mat B = randu(3,3);
+    mat C = sym_dyadic(A,B);
+        
