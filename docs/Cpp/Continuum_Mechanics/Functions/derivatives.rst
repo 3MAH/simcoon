@@ -1,4 +1,4 @@
-The Kinematics Library
+The Derivatives Library
 ========================
 
 .. default-domain:: cpp
