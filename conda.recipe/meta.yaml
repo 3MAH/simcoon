@@ -16,15 +16,13 @@ requirements:
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
-    - python=3.9
     - setuptools
     - pip
-    - numpy=1.21
+    - numpy=1.22
     - cgal
     - boost=1.72
     - armadillo # [unix]
   run:
-    - python=3.9
     - boost=1.72
 
 test:
