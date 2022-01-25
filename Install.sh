@@ -1,7 +1,6 @@
 #!/bin/bash
 
-helpFunction()
-{
+display_help() {
    echo ""
    echo "Usage: $0 -t test -n ncpus"
    echo "\t-t run the script without executing tests"
@@ -79,29 +78,29 @@ fi
 #Test if build exist and if it's necessary to erase it
 if [ ! -d "build" ]
 then
-	mkdir ${current_dir}/build
-	echo "Build folder created.\n"
+    mkdir ${current_dir}/build
+    echo "Build folder created.\n"
 else
-	echo "Build directory already exists."
-	
-	while true; do
-		read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
-		case $yn in
-			[YyOo]* ) rm -r ${current_dir}/build/*; break;;
-			[Nn]* ) break;;
-			* ) echo "Please answer yes (y) or no (n).";;
-		esac
-	done
+    echo "Build directory already exists."
+    
+    while true; do
+        read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
+        case $yn in
+            [YyOo]* ) rm -r ${current_dir}/build/*; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes (y) or no (n).";;
+        esac
+    done
 fi
 
 #Ask for installation of the simcoon library
 while true; do
-	read -p "Do you want to install simcoon library (necessary to use libsimcoon.so and simmit) ? " yn
-	case $yn in
-		[YyOo]* ) Install_check='OK'; break;;
-		[Nn]* ) Install_check='NO'; break;;
-		* ) echo "Please answer yes (y) or no (n).";;
-	esac
+    read -p "Do you want to install simcoon library (necessary to use libsimcoon.so and simmit) ? " yn
+    case $yn in
+        [YyOo]* ) Install_check='OK'; break;;
+        [Nn]* ) Install_check='NO'; break;;
+        * ) echo "Please answer yes (y) or no (n).";;
+    esac
 done
 
 #Build SMART+
@@ -115,11 +114,11 @@ echo ""
 if [ $Install_OK -eq 0 ]
 then
 
-	if [ "${Install_check}" = "OK" ]
-	then
-		make install
-		
-	fi
+    if [ "${Install_check}" = "OK" ]
+    then
+        make install
+        
+    fi
 
     if [ $test -eq 1 ]
     then
@@ -127,73 +126,101 @@ then
     fi
     Test_OK=$?
 
-	#Create the list of the file to copy after compilation
-	executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
-#	objectToCopy="umat_single umat_singleT"
+    #Create the list of the file to copy after compilation
+    executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
+#    objectToCopy="umat_single umat_singleT"
 
-	# Copy all important files (+ final message)
-	if [ $Test_OK -eq 0 ]
-	then
-		echo "\n---------------------------"
-		
-		#Treatement of object files
-#		for object in ${objectToCopy}
-#		do
-#			#Copy of the "object".o from build/CMakeFiles/umat.dir/software to build/bin
-#			if [ -f ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ]
-#			then
-#				cp ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ${current_dir}/build/bin/${object}.o
-#				echo "${blue}${object}.o${reset} copied in ${blue}${current_dir}/build/bin${reset}"
-#			fi
-#		done
-		
-		#Treatement of executable files
-		for file in ${executableToCopy}
-		do
-			#if debug exists, copy of the file from build/bin/Debug to build/bin
-			if [ -f ${current_dir}/build/bin/Debug/${file} ]
-			then
-				cp ${current_dir}/build/bin/Debug/${file} ${current_dir}/build/bin
-			fi
+    # Copy all important files (+ final message)
+    if [ $Test_OK -eq 0 ]
+    then
+        echo "\n---------------------------"
+        
+        #Treatement of object files
+#        for object in ${objectToCopy}
+#        do
+#            #Copy of the "object".o from build/CMakeFiles/umat.dir/software to build/bin
+#            if [ -f ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ]
+#            then
+#                cp ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ${current_dir}/build/bin/${object}.o
+#                echo "${blue}${object}.o${reset} copied in ${blue}${current_dir}/build/bin${reset}"
+#            fi
+#        done
+        
+        #Treatement of executable files
+        for file in ${executableToCopy}
+        do
+            #if debug exists, copy of the file from build/bin/Debug to build/bin
+            if [ -f ${current_dir}/build/bin/Debug/${file} ]
+            then
+                cp ${current_dir}/build/bin/Debug/${file} ${current_dir}/build/bin
+            fi
 
-			#if Release exists, copy of the file from build/bin/Debug to build/bin
-			if [ -f ${current_dir}/build/bin/Release/${file} ]
-			then
-				cp ${current_dir}/build/bin/Release/${file} ${current_dir}/build/bin
-			fi
-			
-			#Copy the file from build/bin to exec
-			cp ${current_dir}/build/bin/${file} ${current_dir}/exec/
-			echo "${blue}${file}${reset} copied in ${blue}${current_dir}/exec${reset}"
-		done
+            #if Release exists, copy of the file from build/bin/Debug to build/bin
+            if [ -f ${current_dir}/build/bin/Release/${file} ]
+            then
+                cp ${current_dir}/build/bin/Release/${file} ${current_dir}/build/bin
+            fi
+            
+            #Copy the file from build/bin to exec
+            cp ${current_dir}/build/bin/${file} ${current_dir}/exec/
+            echo "${blue}${file}${reset} copied in ${blue}${current_dir}/exec${reset}"
+        done
 
         cp ${current_dir}/build/bin/solver ${current_dir}/examples/elastic-plastic_tension
         cp ${current_dir}/build/bin/solver ${current_dir}/examples/micromechanics
         cp ${current_dir}/build/bin/identification ${current_dir}/examples/multi-layer_identification
 
-		if [ "${Install_check}" = "OK" ]
-		then
-			echo "${blue}libsimcoon.so${reset} installed in ${blue}${current_dir}/lib${reset}"
-		else
-			echo "${blue}libsimcoon.so${reset} not installed."
-		fi
-		
-		echo "---------------------------"
-		echo "Simcoon compilation done.\n"
-	else
-		echo "\n---------------------------"
-		echo "${red} Simcoon tests failed.\n${reset}"
-	fi
+        if [ "${Install_check}" = "OK" ]
+        then
+            echo "${blue}libsimcoon.so${reset} installed in ${blue}${current_dir}/lib${reset}"
+        else
+            echo "${blue}libsimcoon.so${reset} not installed."
+        fi
+        
+        echo "---------------------------"
+        echo "Simcoon compilation done.\n"
+    else
+        echo "\n---------------------------"
+        echo "${red} Simcoon tests failed.\n${reset}"
+    fi
 
 else
 
-	echo "\n---------------------------"
-	echo "${red} Simcoon compilation failed.\n${reset}"
+    echo "\n---------------------------"
+    echo "${red} Simcoon compilation failed.\n${reset}"
 
 fi
 
 if [ "${Install_check}" = "OK" ]
 then
+    cd ${current_dir}/arma2numpy-builder
+
+    #Test if build exist and if it's necessary to erase it
+    if [ ! -d "build" ]
+    then
+    mkdir ${current_dir}/arma2numpy-builder/build
+    echo "Folder created.\n"
+    else
+    echo "Build directory already exists."
+
+    while true; do
+    read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
+    case $yn in
+    [YyOo]* ) rm -r ${current_dir}/arma2numpy-builder/build/*; break;;
+    [Nn]* ) break;;
+    * ) echo "Please answer yes (y) or no (n).";;
+    esac
+    done
+    fi
+
+    cd ${current_dir}/arma2numpy-builder/build
+    cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+    echo ""
+    make
+    make install
+    cd ..
+    cd ..
+
     cd ${current_dir}/simcoon-python-builder
 
     #Test if build exist and if it's necessary to erase it
@@ -240,10 +267,11 @@ then
         install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
     
         install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
-        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
         install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
     fi
     
     cd ${current_dir}/simcoon-python-builder/build
     make test
 fi
+
