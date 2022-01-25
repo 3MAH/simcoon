@@ -18,9 +18,8 @@ else()
 endif()
 
 ##### RPATH HANDLING ####
+#set(CMAKE_MACOSX_RPATH 1)
 #set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-#set(CMAKE_SKIP_BUILD_RPATH FALSE)
-#set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 #set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 ################
 
@@ -91,6 +90,7 @@ else()
 endif()
 
 find_package(simcoon REQUIRED)
+find_package(arma2numpy REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -106,6 +106,7 @@ message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
 message(STATUS "Boost_INCLUDE_DIRS = ${Boost_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
+message(STATUS "arma2numpy_LIBRARIES = ${arma2numpy_LIBRARIES}")
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
@@ -153,55 +154,10 @@ endif()
 include_directories(include)
 
 #Command file to get all the files in the src/ and include/
-file(GLOB_RECURSE source_files_smart src/python_wrappers/* include/simcoon/python_wrappers/*)
-
-#Command file to get all the files in the src/ and include/
-file(GLOB_RECURSE source_files_arma2numpy src/arma2numpy/* include/arma2numpy/*)
-
-#Add the files to the lib
-add_library(arma2numpy SHARED ${source_files_arma2numpy})
-
-#link against simcoon and Armadillo, and Boost for the numpy
-target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_INCLUDE_LIBRARIES} ${SIMCOON_LIBRARIES})
-if (UNIX AND APPLE)
-    set_target_properties(arma2numpy PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-endif()
+file(GLOB_RECURSE source_files_simmit src/python_wrappers/* include/simcoon/python_wrappers/*)
 
 #Setup CMake to run tests
 enable_testing()
-
-##Testing
-#Test files are in a separate source directory called test
-file(GLOB_RECURSE test_files_arma2numpy test/arma2numpy/*.cpp test/arma2numpy/*.hpp)
-file(GLOB_RECURSE test_files_CM_func test/CM_func/*.cpp test/CM_func/*.hpp)
-
-#Add the files to the lib
-#add_library(Tarma2numpy MODULE ${test_files_arma2numpy})
-#add_library(TCM_func MODULE ${test_files_CM_func})
-PYTHON_ADD_MODULE(Tarma2numpy ${test_files_arma2numpy})
-PYTHON_ADD_MODULE(TCM_func ${test_files_CM_func})
-#Move testing binaries into a testBin directory
-#Set executable files and library files
-set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
-
-set_target_properties(Tarma2numpy PROPERTIES PREFIX "" SUFFIX ".so" LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR}/test/arma2numpy)
-set_target_properties(TCM_func PROPERTIES PREFIX "" SUFFIX ".so" LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func)
-
-#link against simcoon and arma2numpy, and Boost for the wrappers
-target_link_libraries(Tarma2numpy ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} arma2numpy)
-
-#Finally add it to test execution -
-#Notice the WORKING_DIRECTORY and COMMAND
-add_test(NAME Tarma2numpy WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/arma2numpy
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/arma2numpy/run_test.py)
-
-#link against simcoon and arma2numpy, and Boost for the wrappers
-target_link_libraries(TCM_func ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} arma2numpy)
-
-#Finally add it to test execution -
-#Notice the WORKING_DIRECTORY and COMMAND
-add_test(NAME TCM_func WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func/run_test.py)
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
@@ -209,42 +165,23 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 ################################################################################
-find_library(arma2numpy)
 # SIMCOON modules
 #Add the files to the lib
-#add_library(simmit MODULE ${source_files_smart})
-PYTHON_ADD_MODULE(simmit ${source_files_smart})
+#add_library(simmit MODULE ${source_files_simmit})
+PYTHON_ADD_MODULE(simmit ${source_files_simmit})
 #Wrapper library set_target properties
 set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} ${ARMA2NUMPY_LIBRARIES})
+target_link_libraries(simmit ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
 if (UNIX AND APPLE)
 	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif()
 
 ################################################################################
-# INSTALL CONFIGURATION OF ARMA2NUMPY
 
 if(NOT INSTALL_INCLUDE_DIR)
   set(INSTALL_INCLUDE_DIR "include")
 endif()
 
-if(NOT INSTALL_LIB_DIR)
-  set(INSTALL_LIB_DIR "lib")
-endif()
-
-# executables destination
-if(NOT INSTALL_BIN_DIR)
-  set(INSTALL_BIN_DIR "bin")
-endif()
-
-message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
-message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
-message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
-message(STATUS "CMAKE_INSTALL_RPATH      = ${CMAKE_INSTALL_RPATH}"    )
-
-
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-install(TARGETS arma2numpy DESTINATION ${INSTALL_LIB_DIR})
 
