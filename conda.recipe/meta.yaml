@@ -16,6 +16,7 @@ requirements:
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
+    - python=3.8
     - setuptools
     - pip
     - numpy=1.22
@@ -23,6 +24,7 @@ requirements:
     - boost=1.72
     - armadillo # [unix]
   run:
+    - python=3.8
     - boost=1.72
 
 test:
