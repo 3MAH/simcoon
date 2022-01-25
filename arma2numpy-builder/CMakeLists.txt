@@ -81,8 +81,8 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  set(ARMADILLO_INCLUDE_DIRS armadillo/include/)
-  set(ARMADILLO_LIBRARIES ../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../armadillo/examples/lib_win64/libopenblas)
+  set(ARMADILLO_INCLUDE_DIRS ../armadillo/include/)
+  set(ARMADILLO_LIBRARIES ../../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../../armadillo/examples/lib_win64/libopenblas)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)
@@ -90,7 +90,12 @@ else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 endif()
 
-find_package(simcoon REQUIRED)
+if (MSVC)
+  set(SIMCOON_INCLUDE_DIRS ../include)
+  set(SIMCOON_LIBRARIES ../../build/lib/${CMAKE_BUILD_TYPE}/simcoon) 
+else()  
+  find_package(simcoon REQUIRED)
+endif()
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -118,8 +123,14 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-
-if (UNIX AND NOT APPLE)
+if (MSVC)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+elseif (UNIX AND NOT APPLE)
   if (DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
@@ -159,7 +170,7 @@ file(GLOB_RECURSE source_files_arma2numpy src/arma2numpy/* include/arma2numpy/*)
 add_library(arma2numpy SHARED ${source_files_arma2numpy})
 
 #link against simcoon and Armadillo, and Boost for the numpy
-target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_INCLUDE_LIBRARIES} ${SIMCOON_LIBRARIES})
+target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${PYTHON_INCLUDE_LIBRARIES} ${SIMCOON_LIBRARIES})
 if (UNIX AND APPLE)
     set_target_properties(arma2numpy PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif()

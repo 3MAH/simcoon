@@ -80,8 +80,8 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  set(ARMADILLO_INCLUDE_DIRS armadillo/include/)
-  set(ARMADILLO_LIBRARIES ../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../armadillo/examples/lib_win64/libopenblas)
+  set(ARMADILLO_INCLUDE_DIRS ../armadillo/include/)
+  set(ARMADILLO_LIBRARIES ../../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../../armadillo/examples/lib_win64/libopenblas)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)
@@ -89,7 +89,13 @@ else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 endif()
 
-find_package(simcoon REQUIRED)
+if (MSVC)
+  set(SIMCOON_INCLUDE_DIRS ../include)
+  set(SIMCOON_LIBRARIES ../../build/lib/${CMAKE_BUILD_TYPE}/simcoon) 
+else()  
+  find_package(simcoon REQUIRED)
+endif()
+
 find_package(arma2numpy REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
@@ -120,7 +126,14 @@ endif()
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
 
-if (UNIX AND NOT APPLE)
+if (MSVC)
+  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
+elseif (UNIX AND NOT APPLE)
   if (DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -O0 -Drestrict=")
       set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++14")
@@ -170,9 +183,13 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 #add_library(simmit MODULE ${source_files_simmit})
 PYTHON_ADD_MODULE(simmit ${source_files_simmit})
 #Wrapper library set_target properties
-set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
+if (MSVC)
+  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
+else()
+  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
+endif()
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
+target_link_libraries(simmit ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
 if (UNIX AND APPLE)
 	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 endif()

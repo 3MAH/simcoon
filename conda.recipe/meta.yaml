@@ -4,7 +4,6 @@ package:
 
 source:
   git_url: https://github.com/3MAH/simcoon.git
-
 build:
   number: 0
 
@@ -16,15 +15,14 @@ requirements:
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
-    - python=3.8
+    - python {{ python }}
     - setuptools
     - pip
-    - numpy=1.22
     - cgal
     - boost=1.72
     - armadillo # [unix]
   run:
-    - python=3.8
+    - python {{ python }}
     - boost=1.72
 
 test:
