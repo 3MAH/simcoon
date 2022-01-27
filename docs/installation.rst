@@ -28,9 +28,7 @@ The next step is to install the required packages:
 
 Next, download the Simcoon sources in the github repository of Simcoon_
 .. _Simcoon : https://github.com/3MAH/simcoon
-Unzip the content in a folder and modify the Install.sh source file to look after you conda environnement path:
-
-anacondaloc=/path/to/anaconda/anaconda3/envs/scientific
+Unzip the content in a folder
 
 The last step is to run the installation script:
 

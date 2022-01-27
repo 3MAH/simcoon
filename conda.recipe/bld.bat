@@ -1,17 +1,11 @@
-:: gmp for windows with channel -c salilab
-:: conda install ninja
-:: conda install -c conda-forge m2w64-gcc
-:: conda install -c conda-forge fortran-compiler 
-:: conda install -c conda-forge vs2019_win-64
-
 :: Armadillo
 git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
 cd armadillo
 cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config RELEASE
-cd ..
 if errorlevel 1 exit 1
 
+cd %SRC_DIR%
 cmake -S . -B build ^
       -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% ^
@@ -31,7 +25,7 @@ cmake --build build --target ALL_BUILD --config Release
 cmake --install build
 if errorlevel 1 exit 1
 
-cd ..\simcoon-python-builder
+cd %SRC_DIR%\simcoon-python-builder
 cmake -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^

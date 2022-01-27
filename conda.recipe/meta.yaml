@@ -11,19 +11,19 @@ requirements:
   build:
     - git # [win]
     - make # [unix]
-    - cmake=3.21
+    - cmake
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
     - python {{ python }}
-    - setuptools
     - pip
     - cgal
-    - boost=1.72
+    - boost
     - armadillo # [unix]
   run:
     - python {{ python }}
-    - boost=1.72
+    - cgal # [linux]
+    - boost
 
 test:
   imports:
