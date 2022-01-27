@@ -22,8 +22,7 @@ requirements:
     - armadillo # [unix]
   run:
     - python {{ python }}
-    - cgal # [linux]
-    - boost
+    - boost=1.72
 
 test:
   imports:
