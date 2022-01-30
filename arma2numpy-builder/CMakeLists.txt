@@ -1,6 +1,6 @@
 # CMakeLists.txt
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.15)
 
 project(simcoon)
 
@@ -42,38 +42,22 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-FIND_PACKAGE(PythonInterp)
+find_package(Python3 COMPONENTS Interpreter Development)
 
-if (PYTHONINTERP_FOUND)
+if (Python3_FOUND)
   if (UNIX AND NOT APPLE)
-    if (PYTHON_VERSION_MAJOR EQUAL 3)
         FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
         FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
         FIND_PACKAGE(PythonInterp 3)
         FIND_PACKAGE(PythonLibs 3 REQUIRED)
         FIND_PACKAGE(NumPy REQUIRED)
-    else()
-        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
-        FIND_PACKAGE(Boost COMPONENTS python numpy REQUIRED)
-        FIND_PACKAGE(PythonInterp)
-        FIND_PACKAGE(PythonLibs REQUIRED)
-        FIND_PACKAGE(NumPy REQUIRED)
-    endif()
   else()
     set(CMAKE_FIND_FRAMEWORK NEVER)
-    if (PYTHON_VERSION_MAJOR EQUAL 3)
         FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
         FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
         FIND_PACKAGE(PythonInterp 3)
         FIND_PACKAGE(PythonLibs 3 REQUIRED)
         FIND_PACKAGE(NumPy REQUIRED)
-    else()
-        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
-        FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
-        FIND_PACKAGE(PythonInterp REQUIRED)
-        FIND_PACKAGE(PythonLibs REQUIRED)
-        FIND_PACKAGE(NumPy REQUIRED)
-    endif()
   endif()
 else()
     message("Python not found")
@@ -170,10 +154,10 @@ file(GLOB_RECURSE source_files_arma2numpy src/arma2numpy/* include/arma2numpy/*)
 add_library(arma2numpy SHARED ${source_files_arma2numpy})
 
 #link against simcoon and Armadillo, and Boost for the numpy
-target_link_libraries(arma2numpy ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${PYTHON_INCLUDE_LIBRARIES} ${SIMCOON_LIBRARIES})
-if (UNIX AND APPLE)
-    set_target_properties(arma2numpy PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-endif()
+target_link_libraries(arma2numpy PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} Python3::Module)
+#if (UNIX AND APPLE)
+#    set_target_properties(arma2numpy PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+#endif()
 
 #Setup CMake to run tests
 enable_testing()
@@ -186,8 +170,8 @@ file(GLOB_RECURSE test_files_CM_func test/CM_func/*.cpp test/CM_func/*.hpp)
 #Add the files to the lib
 #add_library(Tarma2numpy MODULE ${test_files_arma2numpy})
 #add_library(TCM_func MODULE ${test_files_CM_func})
-PYTHON_ADD_MODULE(Tarma2numpy ${test_files_arma2numpy})
-PYTHON_ADD_MODULE(TCM_func ${test_files_CM_func})
+Python3_add_library(Tarma2numpy MODULE ${test_files_arma2numpy})
+Python3_add_library(TCM_func MODULE ${test_files_CM_func})
 #Move testing binaries into a testBin directory
 #Set executable files and library files
 set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
@@ -196,7 +180,7 @@ set_target_properties(Tarma2numpy PROPERTIES PREFIX "" SUFFIX ".so" LIBRARY_OUTP
 set_target_properties(TCM_func PROPERTIES PREFIX "" SUFFIX ".so" LIBRARY_OUTPUT_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func)
 
 #link against simcoon and arma2numpy, and Boost for the wrappers
-target_link_libraries(Tarma2numpy ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} arma2numpy)
+target_link_libraries(Tarma2numpy PRIVATE ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} Python3::Module arma2numpy)
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
@@ -204,17 +188,12 @@ add_test(NAME Tarma2numpy WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/arm
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/arma2numpy/run_test.py)
 
 #link against simcoon and arma2numpy, and Boost for the wrappers
-target_link_libraries(TCM_func ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} arma2numpy)
+target_link_libraries(TCM_func PRIVATE ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${ARMADILLO_LIBRARIES} ${SIMCOON_LIBRARIES} Python3::Module arma2numpy)
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
 add_test(NAME TCM_func WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/CM_func/run_test.py)
-
-#Finally add it to test execution -
-#Notice the WORKING_DIRECTORY and COMMAND
-add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 # INSTALL CONFIGURATION OF ARMA2NUMPY
 
