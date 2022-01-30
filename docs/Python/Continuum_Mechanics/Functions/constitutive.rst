@@ -3,9 +3,11 @@ The Constitutive Library
 
 .. default-domain:: python
 
-.. code-block:: python
+.. function:: Import of the simmit module
 
-    from simcoon import simmit as sim
+    .. code-block:: python
+    
+        from simcoon import simmit as sim
 
 .. function:: np.ndarray Ireal()
 
