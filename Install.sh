@@ -221,6 +221,17 @@ then
     cd ..
     cd ..
 
+    if [ $OS = "Mac" ]
+    then
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
+        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
+
+        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
+        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
+    fi
+    make test
+
+
     cd ${current_dir}/simcoon-python-builder
 
     #Test if build exist and if it's necessary to erase it
@@ -260,12 +271,6 @@ then
     
     if [ $OS = "Mac" ]
     then
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/simcoon-python-builder/test/arma2numpy/Tarma2numpy.so
-        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/arma2numpy/Tarma2numpy.so
-
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
-        install_name_tool -change ${current_dir}/simcoon-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/simcoon-python-builder/test/CM_func/TCM_func.so
-    
         install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
         install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
         install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
