@@ -1,6 +1,6 @@
 # CMakeLists.txt
 
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.15)
 
 project(simcoon)
 
@@ -41,38 +41,22 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-FIND_PACKAGE(PythonInterp)
+find_package(Python3 COMPONENTS Interpreter Development)
 
-if (PYTHONINTERP_FOUND)
+if (Python3_FOUND)
   if (UNIX AND NOT APPLE)
-    if (PYTHON_VERSION_MAJOR EQUAL 3)
         FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
         FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
         FIND_PACKAGE(PythonInterp 3)
         FIND_PACKAGE(PythonLibs 3 REQUIRED)
         FIND_PACKAGE(NumPy REQUIRED)
-    else()
-        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
-        FIND_PACKAGE(Boost COMPONENTS python numpy REQUIRED)
-        FIND_PACKAGE(PythonInterp)
-        FIND_PACKAGE(PythonLibs REQUIRED)
-        FIND_PACKAGE(NumPy REQUIRED)
-    endif()
   else()
     set(CMAKE_FIND_FRAMEWORK NEVER)
-    if (PYTHON_VERSION_MAJOR EQUAL 3)
         FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
         FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
         FIND_PACKAGE(PythonInterp 3)
         FIND_PACKAGE(PythonLibs 3 REQUIRED)
         FIND_PACKAGE(NumPy REQUIRED)
-    else()
-        FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
-        FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
-        FIND_PACKAGE(PythonInterp REQUIRED)
-        FIND_PACKAGE(PythonLibs REQUIRED)
-        FIND_PACKAGE(NumPy REQUIRED)
-    endif()
   endif()
 else()
     message("Python not found")
@@ -181,7 +165,7 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 # SIMCOON modules
 #Add the files to the lib
 #add_library(simmit MODULE ${source_files_simmit})
-PYTHON_ADD_MODULE(simmit ${source_files_simmit})
+Python3_add_library(simmit MODULE ${source_files_simmit})
 #Wrapper library set_target properties
 if (MSVC)
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
@@ -189,10 +173,10 @@ else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit ${PYTHON_LIBRARIES} ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
-if (UNIX AND APPLE)
-	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-endif()
+target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
+#if (UNIX AND APPLE)
+#	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+#endif()
 
 ################################################################################
 
