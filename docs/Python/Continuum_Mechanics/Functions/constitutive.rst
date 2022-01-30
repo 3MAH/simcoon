@@ -1,9 +1,13 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: cpp
+.. default-domain:: python
 
-.. function:: mat Ireal()
+.. code-block:: python
+
+    from simcoon import simmit as sim
+
+.. function:: np.ndarray Ireal()
 
     Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
 
@@ -17,9 +21,9 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        mat Ir = Ireal();
+        Ir = sim.Ireal()
 
 .. function:: mat Ivol()
 
@@ -35,9 +39,9 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0 \end{array} \right)
 
-   .. code-block:: cpp
+   .. code-block:: python
 
-       mat Iv = Ivol();
+       Iv = sim.Ivol()
 
 .. function:: mat Idev()
 
@@ -52,7 +56,11 @@ The Constitutive Library
         0 & 0 & 0 & 0.5 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
-        
+
+    .. code-block:: python
+
+        Id = sim.Idev()
+
 .. function:: mat Ireal2()
 
     Provides the fourth order identity tensor :math:`\widehat{I}` written in the form. So :
@@ -69,9 +77,9 @@ The Constitutive Library
 
    For example, this tensor allows to obtain : :math:`L*\widehat{M}=I` or :math:`\widehat{L}*M=I`, where a matrix :math:`\widehat{A}` is set by :math:`\widehat{A}=\widehat{I}A\widehat{I}`
 
-   .. code-block:: cpp
+   .. code-block:: python
 
-        mat Ir2 = Ireal2();
+        Ir2 = sim.Ireal2()
 
 .. function:: mat Idev2()
 
@@ -87,9 +95,9 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 2 & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        mat Id2 = Idev2();
+        Id2 = sim.Idev2()
 
 .. function:: vec Ith()
 
@@ -101,9 +109,9 @@ The Constitutive Library
     0 \\
     0 \end{array} \right)`
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec It = Ith();
+        It = sim.Ith()
 
 .. function:: vec Ir2()
 
@@ -115,9 +123,9 @@ The Constitutive Library
     2 \\
     2 \end{array} \right)`
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec I2 = Ir2();
+        I2 = sim.Ir2()
 
 .. function:: vec Ir05()
 
@@ -129,9 +137,9 @@ The Constitutive Library
     0.5 \\
     0.5 \end{array} \right)`
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        vec I05 = Ir05();
+        I05 = sim.Ir05()
 
 .. function:: mat L_iso(const double &C1, const double &C2, const std::string &conv)
 
@@ -140,11 +148,11 @@ The Constitutive Library
     Exhaustive list of possible third argument :
     ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double E = 210000;
-        double nu = 0.3;
-        mat Liso = L_iso(E, nu, "Enu");
+        E = 210000.0
+        nu = 0.3;
+        Liso = sim.L_iso(E, nu, "Enu")
 
 .. function:: mat M_iso(const double &C1, const double &C2, const string &conv)
 
@@ -153,35 +161,46 @@ The Constitutive Library
     Exhaustive list of possible third argument :
     ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double E = 210000;
-        double nu = 0.3;
-        mat Miso = M_iso(E, nu, "Enu");
+        E = 210000.0
+        nu = 0.3
+        Miso = sim.M_iso(E, nu, "Enu")
 
 .. function:: mat L_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
 
     Provides the elastic stiffness tensor for a cubic material.
-    Arguments are the stiffness coefficients C11, C12 and C44.
+    The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        doubel C44 = (double)rand();
-        mat Liso = L_cubic(C11,C12,C44);
+        E = 70000.0
+        nu = 0.3
+        G = 23000.0
+        Lcubic = sim.L_cubic(E, nu, G, "EnuG")
+
+        import numpy as np
+        C11 = np.random.uniform(10000., 100000.)
+        C12 = np.random.uniform(10000., 100000.)
+        C44 = np.random.uniform(10000., 100000.)
+        Lcubic = sim.L_cubic(C11, C12, C44, "Cii")
 
 .. function:: mat M_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
 
     Provides the elastic compliance tensor for a cubic material.
-    Arguments are the stiffness coefficients C11, C12 and C44.
+    The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        double C44 = (double)rand();
-        mat Miso = M_cubic(C11,C12,C44);
+        E = 70000.0
+        nu = 0.3
+        G = 23000.0
+        Lcubic = sim.L_cubic(E, nu, G, "EnuG")
+
+        C11 = np.random.uniform(10000., 100000.)
+        C12 = np.random.uniform(10000., 100000.)
+        C44 = np.random.uniform(10000., 100000.)
+        Mcubic = M_cubic(C11, C12, C44, "Cii")
 
 .. function:: mat L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
 
@@ -190,18 +209,18 @@ The Constitutive Library
 
     The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        double C13 = (double)rand();
-        double C22 = (double)rand();
-        double C23 = (double)rand();
-        double C33 = (double)rand();
-        double C44 = (double)rand();
-        double C55 = (double)rand();
-        double C66 = (double)rand();
-        mat Lortho = L_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
+        C11 = np.random.uniform(10000., 100000.)
+        C12 = np.random.uniform(10000., 100000.)
+        C13 = np.random.uniform(10000., 100000.)
+        C22 = np.random.uniform(10000., 100000.)
+        C23 = np.random.uniform(10000., 100000.)
+        C33 = np.random.uniform(10000., 100000.)
+        C44 = np.random.uniform(10000., 100000.)
+        C55 = np.random.uniform(10000., 100000.)
+        C66 = np.random.uniform(10000., 100000.)
+        Lortho = sim.L_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66, "Cii")
 
 .. function:: mat M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
 
@@ -211,48 +230,48 @@ The Constitutive Library
 
     The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
 
-   .. code-block:: cpp
+   .. code-block:: python
 
-       double C11 = (double)rand();
-       double C12 = (double)rand();
-       double C13 = (double)rand();
-       double C22 = (double)rand();
-       double C23 = (double)rand();
-       double C33 = (double)rand();
-       double C44 = (double)rand();
-       double C55 = (double)rand();
-       double C66 = (double)rand();
-       mat Mortho = M_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
+       C11 = np.random.uniform(10000., 100000.)
+       C12 = np.random.uniform(10000., 100000.)
+       C13 = np.random.uniform(10000., 100000.)
+       C22 = np.random.uniform(10000., 100000.)
+       C23 = np.random.uniform(10000., 100000.)
+       C33 = np.random.uniform(10000., 100000.)
+       C44 = np.random.uniform(10000., 100000.)
+       C55 = np.random.uniform(10000., 100000.)
+       C66 = np.random.uniform(10000., 100000.)
+       Mortho = sim.M_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66, "Cii")
 
 .. function:: mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
 
     Provides the elastic stiffness tensor for an isotropic transverse material.
     Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double EL = (double)rand();
-        double ET = (double)rand();
-        double nuTL = (double)rand();
-        double nuTT = (double)rand();
-        double GLT = (double)rand();
-        double axis = 1;
-        mat Lisotrans = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
+        EL = np.random.uniform(10000., 100000.)
+        ET = np.random.uniform(10000., 100000.)
+        nuTL = np.random.uniform(0., 0.5)
+        nuTT = np.random.uniform(0., 0.5)
+        GLT = np.random.uniform(10000., 100000.)
+        axis = 1
+        Lisotrans = sim.L_isotrans(EL, ET, nuTL, nuTT, GLT, axis)
 
 .. function:: mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
 
     Provides the elastic compliance tensor for an isotropic transverse material.
     Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double EL = (double)rand();
-        double ET = (double)rand();
-        double nuTL = (double)rand();
-        double nuTT = (double)rand();
-        double GLT = (double)rand();
-        double axis = 1;
-        mat Misotrans = M_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
+        EL = np.random.uniform(10000., 100000.)
+        ET = np.random.uniform(10000., 100000.)
+        nuTL = np.random.uniform(0., 0.5)
+        nuTT = np.random.uniform(0., 0.5)
+        GLT = np.random.uniform(10000., 100000.)
+        axis = 1
+        Misotrans = sim.M_isotrans(EL, ET, nuTL, nuTT, GLT, axis)
 
 .. function:: mat H_iso(const double &etaB, const double &etaS)
 
@@ -270,52 +289,8 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
     
     
-    .. code-block:: cpp
+    .. code-block:: python
 
-        double etaB = (double)rand();
-        double etaS = (double)rand();
-        mat Hiso = H_iso(etaB, etaS);
-
-.. function:: void el_pred
-
-    Provides the stress tensor from an elastic prediction
-    There are two possible ways:
-
-    1. From the elastic stiffness tensor and the trial elastic strain:
-    parameters : L : Stiffness matrix; Eel ; elastic strain vector, ndi (optional, default = 3): number of dimensions
-
-    .. code-block:: cpp
-        
-        mat L = L_iso(70000, 0.3,"Enu");
-        vec Eel;
-        Eel.randu(6);
-        int ndi = 3;
-        vec sigma =  el_pred(L, Eel, ndi);
-
-    2. From the previous stress increment, providing the elastic stiffness tensor and the trial elastic strain increment:
-    parameters : sigma_start: The previous stress, L : Stiffness matrix; Eel : elastic strain vector, ndi (optional, default = 3): number of dimensions
-
-    .. code-block:: cpp
-        
-        vec sigma_start = zeros(6);
-        sigma_start.randu(6);
-        mat L = L_iso(70000, 0.3,"Enu");
-        vec Eel;
-        Eel.randu(6);
-        int ndi = 3;
-        vec sigma =  el_pred(sigma_start,L, Eel, ndi);
-
-.. function:: mat Isotropize(const mat &Lt) {
-
-    Provides an isotropized version of an anisotropic stiffness tensor. Such isotropic tensor is called consistent since for any given strain it return the same stress as the anisotropic version.
-
-    .. code-block:: cpp
-
-        double EL = (double)rand();
-        double ET = (double)rand();
-        double nuTL = (double)rand();
-        double nuTT = (double)rand();
-        double GLT = (double)rand();
-        double axis = 1;
-        mat L_isotrans = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
-        mat L_iso = Isotropize(Lisotrans);
+        etaB = np.random.uniform(0., 1.)
+        etaS = np.random.uniform(0., 1.)
+        Hiso = sim.H_iso(etaB, etaS)
