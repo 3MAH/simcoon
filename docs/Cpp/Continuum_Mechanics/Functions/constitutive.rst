@@ -52,7 +52,11 @@ The Constitutive Library
         0 & 0 & 0 & 0.5 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
-        
+
+    .. code-block:: cpp
+
+        mat Id = Idev();
+
 .. function:: mat Ireal2()
 
     Provides the fourth order identity tensor :math:`\widehat{I}` written in the form. So :
@@ -67,7 +71,7 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 2 & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
 
-   For example, this tensor allows to obtain : :math:`L*\widehat{M}=I` or :math:`\widehat{L}*M=I`, where a matrix :math:`\widehat{A}` is set by :math:`\widehat{A}=\widehat{I}A\widehat{I}`
+   For example, this tensor allows to obtain : :math:`L*\widehat{M}=I` or :math:`\widehat{L}*M=I`, where a matrix :math:`\widehat{A}` is set by :math:`\widehat{A}=\widehat{I}\,A\,\widehat{I}`
 
    .. code-block:: cpp
 
@@ -166,10 +170,10 @@ The Constitutive Library
 
     .. code-block:: cpp
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        doubel C44 = (double)rand();
-        mat Liso = L_cubic(C11,C12,C44);
+        double C11 = alead(10000., 100000.);
+        double C12 = alead(10000., 100000.);
+        double C44 = alead(10000., 100000.);
+        mat Lcubic = L_cubic(C11, C12, C44, "Cii");
 
 .. function:: mat M_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
 
@@ -178,10 +182,10 @@ The Constitutive Library
 
     .. code-block:: cpp
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        double C44 = (double)rand();
-        mat Miso = M_cubic(C11,C12,C44);
+        double C11 = alead(10000., 100000.);
+        double C12 = alead(10000., 100000.);
+        double C44 = alead(10000., 100000.);
+        mat Mcubic = M_cubic(C11,C12,C44);
 
 .. function:: mat L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
 
@@ -192,15 +196,15 @@ The Constitutive Library
 
     .. code-block:: cpp
 
-        double C11 = (double)rand();
-        double C12 = (double)rand();
-        double C13 = (double)rand();
-        double C22 = (double)rand();
-        double C23 = (double)rand();
-        double C33 = (double)rand();
-        double C44 = (double)rand();
-        double C55 = (double)rand();
-        double C66 = (double)rand();
+        double C11 = alead(10000., 100000.);
+        double C12 = alead(10000., 100000.);
+        double C13 = alead(10000., 100000.);
+        double C22 = alead(10000., 100000.);
+        double C23 = alead(10000., 100000.);
+        double C33 = alead(10000., 100000.);
+        double C44 = alead(10000., 100000.);
+        double C55 = alead(10000., 100000.);
+        double C66 = alead(10000., 100000.);
         mat Lortho = L_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
 
 .. function:: mat M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
@@ -213,15 +217,15 @@ The Constitutive Library
 
    .. code-block:: cpp
 
-       double C11 = (double)rand();
-       double C12 = (double)rand();
-       double C13 = (double)rand();
-       double C22 = (double)rand();
-       double C23 = (double)rand();
-       double C33 = (double)rand();
-       double C44 = (double)rand();
-       double C55 = (double)rand();
-       double C66 = (double)rand();
+       double C11 = alead(10000., 100000.);
+       double C12 = alead(10000., 100000.);
+       double C13 = alead(10000., 100000.);
+       double C22 = alead(10000., 100000.);
+       double C23 = alead(10000., 100000.);
+       double C33 = alead(10000., 100000.);
+       double C44 = alead(10000., 100000.);
+       double C55 = alead(10000., 100000.);
+       double C66 = alead(10000., 100000.);
        mat Mortho = M_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66,"Cii");
 
 .. function:: mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
@@ -231,11 +235,11 @@ The Constitutive Library
 
     .. code-block:: cpp
 
-        double EL = (double)rand();
-        double ET = (double)rand();
-        double nuTL = (double)rand();
-        double nuTT = (double)rand();
-        double GLT = (double)rand();
+        double EL = alead(10000., 100000.);
+        double ET = alead(10000., 100000.);
+        double nuTL = alead(0., 0.5);
+        double nuTT = alead(0.5, 0.5);
+        double GLT = alead(10000., 100000.);
         double axis = 1;
         mat Lisotrans = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
 
@@ -246,11 +250,11 @@ The Constitutive Library
 
     .. code-block:: cpp
 
-        double EL = (double)rand();
-        double ET = (double)rand();
-        double nuTL = (double)rand();
-        double nuTT = (double)rand();
-        double GLT = (double)rand();
+        double EL = alead(10000., 100000.);
+        double ET = alead(10000., 100000.);
+        double nuTL = alead(0., 0.5);
+        double nuTT = alead(0., 0.5);
+        double GLT = alead(10000., 100000.);
         double axis = 1;
         mat Misotrans = M_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
 
@@ -272,8 +276,8 @@ The Constitutive Library
     
     .. code-block:: cpp
 
-        double etaB = (double)rand();
-        double etaS = (double)rand();
+        double etaB = alead(0., 0.1);
+        double etaS = alead(0., 0.1);
         mat Hiso = H_iso(etaB, etaS);
 
 .. function:: void el_pred(see below)
