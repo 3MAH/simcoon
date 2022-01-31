@@ -1,8 +1,6 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: python
-
 .. function:: mat Ireal()
 
     Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
@@ -17,7 +15,7 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
 
-    .. code-block:: cpp
+    .. code-block:: python
 
         mat Ir = Ireal();
 
