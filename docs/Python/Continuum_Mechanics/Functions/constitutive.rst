@@ -1,7 +1,7 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: cpp
+.. default-domain:: python
 
 .. function:: mat Ireal()
 
