@@ -3,6 +3,12 @@ The Constitutive Library
 
 .. default-domain:: python
 
+Import of the simmit module
+
+    .. code-block:: python
+    
+        from simcoon import simmit as sim
+
 .. function:: np.ndarray Ireal()
 
     Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
@@ -20,3 +26,4 @@ The Constitutive Library
     .. code-block:: python
 
         Ir = sim.Ireal()
+
