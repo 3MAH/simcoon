@@ -9,7 +9,7 @@ Import of the simmit module
     
         from simcoon import simmit as sim
 
-.. function:: np.ndarray Ireal()
+.. function:: ndarray Ireal()
 
     Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
 
@@ -26,4 +26,4 @@ Import of the simmit module
     .. code-block:: python
 
         Ir = sim.Ireal()
-
+        
