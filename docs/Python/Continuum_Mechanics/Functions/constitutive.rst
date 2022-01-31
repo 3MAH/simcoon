@@ -1,14 +1,6 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: python
-
-Import of the simmit module
-
-.. code-block:: python
-
-    from simcoon import simmit as sim
-
 .. function:: mat Ireal()
 
     Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
