@@ -1,9 +1,11 @@
 The Continuum Mechanics Library
 ===============================
 
-.. default-domain:: python
+Import of the simmit module
 
-Import of the simmit module : from simcoon import simmit as sim
+.. code-block:: python
+
+    from simcoon import simmit as sim
 
 .. function:: float tr(np.ndarray v)
 
