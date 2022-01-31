@@ -5,13 +5,13 @@ The Constitutive Library
 
 Import of the simmit module
 
-    .. code-block:: python
-    
-        from simcoon import simmit as sim
+.. code-block:: python
+
+    from simcoon import simmit as sim
 
 .. function:: mat Ireal()
 
-Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
+    Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
 
     .. math::
 
@@ -25,6 +25,6 @@ Provides the fourth order identity tensor written in Voigt notation :math:`I_{re
 
     .. code-block:: cpp
 
-    mat Ir = Ireal();
+        mat Ir = Ireal();
 
         
