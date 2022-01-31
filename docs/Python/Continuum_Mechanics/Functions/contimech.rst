@@ -3,6 +3,8 @@ The Continuum Mechanics Library
 
 .. default-domain:: python
 
+.. function:: Import of the simmit module
+
     .. code-block:: python
 
         from simcoon import simmit as sim
