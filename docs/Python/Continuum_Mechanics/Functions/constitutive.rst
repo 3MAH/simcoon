@@ -1,7 +1,7 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: python
+.. default-domain:: cpp
 
 .. function:: mat Ireal()
 
@@ -20,3 +20,4 @@ The Constitutive Library
     .. code-block:: cpp
 
         mat Ir = Ireal();
+
