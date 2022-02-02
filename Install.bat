@@ -9,12 +9,9 @@ git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
 cd armadillo
 cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config RELEASE
-cd ..
-
 if errorlevel 1 exit 1
 
-:: -DCMAKE_CXX_FLAGS="-DARMA_DONT_USE_WRAPPER"
-
+cd %SRC_DIR%
 cmake -S . -B build ^
       -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% ^
@@ -29,20 +26,20 @@ cmake -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
-      -Wno-dev
+      -DPython3_ROOT_DIR=%PREFIX% ^
+      -Wno-dev 
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
 if errorlevel 1 exit 1
 
-cd ..\simcoon-python-builder
+cd %SRC_DIR%\simcoon-python-builder
 cmake -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
+      -DPython3_ROOT_DIR=%PREFIX% ^
       -Wno-dev
-if errorlevel 1 exit 1
 cmake --build build --target ALL_BUILD --config Release
-if errorlevel 1 exit 1
 cmake --install build
 if errorlevel 1 exit 1
 
