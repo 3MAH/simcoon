@@ -1,11 +1,7 @@
 The Constitutive Library
 ========================
 
-.. default-domain:: python
-
-.. function:: Import of the simmit module
-
-    To import the simmit module as *sim*
+Import of the simmit module
 
     .. code-block:: python
     
@@ -29,7 +25,7 @@ The Constitutive Library
 
         Ir = sim.Ireal()
 
-.. function:: mat Ivol()
+.. function:: np.ndarray Ivol()
 
     Provides the volumic of the identity tensor :math:`I_{vol}` written in the Simcoon formalism. So :
 
@@ -47,13 +43,13 @@ The Constitutive Library
 
        Iv = sim.Ivol()
 
-.. function:: mat Idev()
+.. function:: np.ndarray Idev()
 
     Provides the deviatoric of the identity tensor :math:`I_{dev}` written in the Simcoon formalism. So :
     
-     .. math:: 
+     .. math::
      
-     	I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{ccc}
+         I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{ccc}
         2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
         -1/3 & 2/3 & -1/3 & 0 & 0 & 0 \\
         -1/3 & -1/3 & 2/3 & 0 & 0 & 0 \\
@@ -65,7 +61,7 @@ The Constitutive Library
 
         Id = sim.Idev()
 
-.. function:: mat Ireal2()
+.. function:: np.ndarray Ireal2()
 
     Provides the fourth order identity tensor :math:`\widehat{I}` written in the form. So :
 
@@ -85,7 +81,7 @@ The Constitutive Library
 
         Ir2 = sim.Ireal2()
 
-.. function:: mat Idev2()
+.. function:: np.ndarray Idev2()
 
     Provides the deviatoric of the identity tensor :math:`\widehat{I}` written in the Simcoon formalism. So :
 
@@ -103,7 +99,7 @@ The Constitutive Library
 
         Id2 = sim.Idev2()
 
-.. function:: vec Ith()
+.. function:: np.ndarray Ith()
 
     Provide the vector :math:`I_{th} = \left( \begin{array}{ccc}
     1 \\
@@ -117,7 +113,7 @@ The Constitutive Library
 
         It = sim.Ith()
 
-.. function:: vec Ir2()
+.. function:: np.ndarray Ir2()
 
     Provide the vector :math:`I_{r2} = \left( \begin{array}{ccc}
     1 \\
@@ -131,7 +127,7 @@ The Constitutive Library
 
         I2 = sim.Ir2()
 
-.. function:: vec Ir05()
+.. function:: np.ndarray Ir05()
 
     Provide the vector :math:`I_{r05} = \left( \begin{array}{ccc}
     1 \\
@@ -145,7 +141,7 @@ The Constitutive Library
 
         I05 = sim.Ir05()
 
-.. function:: mat L_iso(const double &C1, const double &C2, const std::string &conv)
+.. function:: np.ndarray L_iso(const double &C1, const double &C2, const std::string &conv)
 
     Provides the elastic stiffness tensor for an isotropic material.
     The two first arguments are a couple of elastic properties. The third argument specifies which couple has been provided and the nature and order of coefficients.
@@ -158,7 +154,7 @@ The Constitutive Library
         nu = 0.3;
         Liso = sim.L_iso(E, nu, "Enu")
 
-.. function:: mat M_iso(const double &C1, const double &C2, const string &conv)
+.. function:: np.ndarray M_iso(const double &C1, const double &C2, const string &conv)
 
     Provides the elastic compliance tensor for an isotropic material.
     The two first arguments are a couple of elastic properties. The third argument specify which couple has been provided and the nature and order of coefficients.
@@ -171,7 +167,7 @@ The Constitutive Library
         nu = 0.3
         Miso = sim.M_iso(E, nu, "Enu")
 
-.. function:: mat L_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
+.. function:: np.ndarray L_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
 
     Provides the elastic stiffness tensor for a cubic material.
     The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
@@ -189,7 +185,7 @@ The Constitutive Library
         C44 = np.random.uniform(10000., 100000.)
         Lcubic = sim.L_cubic(C11, C12, C44, "Cii")
 
-.. function:: mat M_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
+.. function:: np.ndarray M_cubic(const double &C1, const double &C2, const double &C4, const string &conv)
 
     Provides the elastic compliance tensor for a cubic material.
     The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
@@ -206,7 +202,7 @@ The Constitutive Library
         C44 = np.random.uniform(10000., 100000.)
         Mcubic = M_cubic(C11, C12, C44, "Cii")
 
-.. function:: mat L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
+.. function:: np.ndarray L_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
 
     Provides the elastic stiffness tensor for an orthotropic material.
     Arguments could be all the stiffness coefficients or the material parameter. For an orthotropic material the material parameters should be : Ex,Ey,Ez,nuxy,nuyz,nxz,Gxy,Gyz,Gxz.
@@ -226,7 +222,7 @@ The Constitutive Library
         C66 = np.random.uniform(10000., 100000.)
         Lortho = sim.L_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66, "Cii")
 
-.. function:: mat M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
+.. function:: np.ndarray M_ortho(const double &C11, const double &C12, const double &C13, const double &C22, const double &C23, const double &C33, const double &C44, const double &C55, const double &C66, const string &conv)
 
 
     Provides the elastic compliance tensor for an orthotropic material.
@@ -247,7 +243,7 @@ The Constitutive Library
        C66 = np.random.uniform(10000., 100000.)
        Mortho = sim.M_ortho(C11, C12, C13, C22, C23, C33, C44, C55, C66, "Cii")
 
-.. function:: mat L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
+.. function:: np.ndarray L_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
 
     Provides the elastic stiffness tensor for an isotropic transverse material.
     Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
@@ -262,7 +258,7 @@ The Constitutive Library
         axis = 1
         Lisotrans = sim.L_isotrans(EL, ET, nuTL, nuTT, GLT, axis)
 
-.. function:: mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
+.. function:: np.ndarray M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis)
 
     Provides the elastic compliance tensor for an isotropic transverse material.
     Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
@@ -277,9 +273,9 @@ The Constitutive Library
         axis = 1
         Misotrans = sim.M_isotrans(EL, ET, nuTL, nuTT, GLT, axis)
 
-.. function:: mat H_iso(const double &etaB, const double &etaS)
+.. function:: np.ndarray H_iso(const double &etaB, const double &etaS)
 
-    Provides the viscoelastic tensor H, providing Bulk viscosity etaB and shear viscosity etaS. 
+    Provides the viscoelastic tensor H, providing Bulk viscosity etaB and shear viscosity etaS.
     It actually returns :
     
     .. math::
@@ -298,3 +294,4 @@ The Constitutive Library
         etaB = np.random.uniform(0., 1.)
         etaS = np.random.uniform(0., 1.)
         Hiso = sim.H_iso(etaB, etaS)
+

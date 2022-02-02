@@ -1,11 +1,11 @@
 The Continuum Mechanics Library
 ===============================
 
-.. default-domain:: python
+Import of the simmit module
 
-    .. code-block:: python
+.. code-block:: python
 
-        from simcoon import simmit as sim
+    from simcoon import simmit as sim
 
 .. function:: float tr(np.ndarray v)
 
@@ -162,3 +162,4 @@ The Continuum Mechanics Library
 
         vec v = randu(6);
         mat H = p_ikjl(v);
+
