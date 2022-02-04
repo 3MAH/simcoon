@@ -105,15 +105,14 @@ namespace simpy {
 		for (int pg = 0; pg < nb_points; pg++) listF1.slice(pg).eye(ndi, ndi);
 
 		// allow memory for variable that will computed in the Umat
-		//list_kirchoff.set_size(ncomp, nb_points);
-		if (nlgeom) list_kirchoff.zeros(ncomp, nb_points);
+		if (nlgeom) list_cauchy.zeros(ncomp, nb_points);
 		list_PKII.zeros(ncomp, nb_points); list_PKII_start.zeros(ncomp, nb_points);
 
 		list_DR.set_size(ndi, ndi, nb_points); 
 		for (int pg = 0; pg < nb_points; pg++) list_DR.slice(pg).eye(ndi,ndi);
 
 		list_Lt.set_size(ncomp, ncomp, nb_points); //tangent rigitidy matrix in PKII/GL
-		list_L.set_size(ncomp, ncomp, nb_points); //elastic rigidity matrix in Kirchhoff/logstrain
+		list_L.set_size(ncomp, ncomp, nb_points); //elastic rigidity matrix in Cauchy/logstrain
 
 
 		list_statev_start = list_statev;
@@ -141,18 +140,18 @@ namespace simpy {
 				if ((corate == 0) || (corate == 1)) {
 					//approximation. need to be modified
 
-					//Constitutive eq assumed expressed in Kirchoff/Logstrain
-					//Convert kirkoff/Logstrain to PKII/GLstrain
+					//Constitutive eq assumed expressed in Cauchy/Logstrain
+					//Convert cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
-					sigma_t = simcoon::v2t_stress(list_kirchoff.col(pg));
-					list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange				
+					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange				
 				}
 				else if (corate >= 2) {
-					//Constitutive eq assumed expressed in Kirchoff/Logstrain
+					//Constitutive eq assumed expressed in Cauchy/Logstrain
 					//Convert kirkoff/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
-					sigma_t = simcoon::v2t_stress(list_kirchoff.col(pg));
-					list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange				
+					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange				
 				}
 			}
 		}
@@ -268,7 +267,7 @@ namespace simpy {
 		for (int pg = 0; pg < nb_points; pg++) {
 			if (pg < list_props.n_cols) props = list_props.col(pg); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
 			statev = list_statev_start.col(pg);
-			//sigma = list_kirchoff.col(pg);
+			//sigma = list_cauchy.col(pg);
 			DR = list_DR.slice(pg);
 
 			etot = list_etot.col(pg);
@@ -395,22 +394,22 @@ namespace simpy {
 				list_Lt.slice(pg) = Lt;
 			}
 			else if ((corate == 0) || (corate == 1)) {
-				//Constitutive eq assumed expressed in Kirchoff/Logstrain
+				//Constitutive eq assumed expressed in Cauchy/Logstrain
 				//Convert kirkoff/Logstrain to PKII/GLstrain
-				list_kirchoff.col(pg) = sigma;
+				list_cauchy.col(pg) = sigma;
 				F1 = listF1.slice(pg);
 				sigma_t = simcoon::v2t_stress(sigma);
-				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
-				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
+				list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
+				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 			}
 			else if (corate >= 2) {
-				//Constitutive eq assumed expressed in Kirchoff/Logstrain
-				//Convert kirkoff/Logstrain to PKII/GLstrain
-				list_kirchoff.col(pg) = sigma;
+				//Constitutive eq assumed expressed in Cauchy/Logstrain
+				//Convert cauchy/Logstrain to PKII/GLstrain
+				list_cauchy.col(pg) = sigma;
 				F1 = listF1.slice(pg);
 				sigma_t = simcoon::v2t_stress(sigma);
-				list_Lt.slice(pg) = simcoon::DtauDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
-				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Kirchoff2PKII(sigma_t, F1));
+				list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
+				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 			}
 		}
 		if (DTime == 0.) { list_Lt_start = list_Lt; }
@@ -433,34 +432,34 @@ namespace simpy {
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Cauchy() {
-	//-------------------------------------------------------------
-		if (!nlgeom) return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
-		
-		if (list_cauchy.is_empty()) {
-			list_cauchy.set_size(ncomp, nb_points);
-		}
+		//-------------------------------------------------------------
 
-		mat F1(ndi, ndi);
-		vec kirchoff;
-
-		for (int pg = 0; pg < nb_points; pg++) {			
-			F1 = listF1.slice(pg);
-			kirchoff = list_kirchoff.col(pg);
-			list_cauchy.col(pg) = simcoon::Kirchoff2Cauchy(kirchoff, F1);
+		if (nlgeom) {
+			return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		}
-		return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		else {
+			return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		}
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Kirchhoff() {
 	//-------------------------------------------------------------
+		if (!nlgeom) return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		
-		if (nlgeom) {
-			return mat2array(list_kirchoff, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		if (list_kirchoff.is_empty()) {
+			list_kirchoff.set_size(ncomp, nb_points);
 		}
-		else {
-			return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+
+		mat F1(ndi, ndi);
+		vec cauchy;
+
+		for (int pg = 0; pg < nb_points; pg++) {			
+			F1 = listF1.slice(pg);
+			cauchy = list_cauchy.col(pg);
+			list_kirchoff.col(pg) = simcoon::Cauchy2Kirchoff(cauchy, F1);
 		}
+		return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
