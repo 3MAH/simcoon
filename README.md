@@ -35,7 +35,7 @@ Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoo
 Installation
 ------------
 
-For Linux and Windows, it is now possible to install simcoon directly with conda :
+It is now possible to install simcoon directly with conda :
 ```bash
 conda install -c conda-forge -c set3mah simcoon
 ```
@@ -43,7 +43,6 @@ In case there are any conflicts, it is preferable to do it in a new conda enviro
 ```bash
 conda create --name scientific
 ```
-MacOS version is coming soon...
 
 OR
 
