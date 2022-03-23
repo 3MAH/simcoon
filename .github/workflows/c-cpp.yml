@@ -16,6 +16,7 @@ jobs:
     
     - name: Dependencies
       run: | 
+        $CONDA/bin/conda init bash
         $CONDA/bin/conda create -n test -y
         $CONDA/bin/conda activate test
         $CONDA/bin/conda install -c conda-forge cmake make cgal armadillo boost
