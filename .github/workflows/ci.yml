@@ -29,9 +29,11 @@ jobs:
     - name: Dependencies
       shell: bash -l {0}
       run: | 
-        sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev libboost-filesystem-dev
+        sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
         cmake --build ${{github.workspace}}/build
+        cmake --install ${{github.workspace}}/build
+        cd build && make test
   
   # build:
   #   runs-on: ubuntu-latest
