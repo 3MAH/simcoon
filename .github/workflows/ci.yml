@@ -20,4 +20,4 @@ jobs:
         sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
         cmake --build ${{github.workspace}}/build
-        cd build && make test
+        ctest --test-dir ${{github.workspace}}/build
