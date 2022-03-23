@@ -13,24 +13,25 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - uses: conda-incubator/setup-miniconda@v2
-      with:
-        miniconda-version: "latest"
-        activate-environment: foo
-        environment-file: environment.yml
-        python-version: 3.9
-        auto-activate-base: false
+#    - uses: conda-incubator/setup-miniconda@v2
+#      with:
+#        miniconda-version: "latest"
+#        activate-environment: foo
+#        environment-file: environment.yml
+#        python-version: 3.9
+#        auto-activate-base: false
         
-    - shell: bash -l {0}
-      run: |
-        conda info
-        conda list
+#    - shell: bash -l {0}
+#      run: |
+#        conda info
+#        conda list
     
     - name: Dependencies
       shell: bash -l {0}
       run: | 
         sudo apt-get install libarmadillo-dev libboost-dev libcgal-dev libmpfr-dev 
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+        cmake --build ${{github.workspace}}/build
   
   # build:
   #   runs-on: ubuntu-latest
