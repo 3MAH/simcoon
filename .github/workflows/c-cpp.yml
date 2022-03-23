@@ -15,12 +15,17 @@ jobs:
     - uses: actions/checkout@v2
     
     - name: Dependencies
-      run: $CONDA/bin/conda install -c conda-forge cgal armadillo boost
+      run: | 
+        $CONDA/bin/conda create -n test -y
+        $CONDA/bin/conda activate test
+        $CONDA/bin/conda install -c conda-forge cmake make cgal armadillo boost
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+        cmake --build ${{github.workspace}}/build
     
-    - name: CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+    # - name: CMake
+    #   run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
       
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build
+    # - name: Build
+    #   run: cmake --build ${{github.workspace}}/build
     # - name: Tests
-    #  run: make test
+    #   run: make test
