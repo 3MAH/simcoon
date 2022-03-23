@@ -13,6 +13,7 @@ jobs:
 
     steps:
     - uses: conda-incubator/setup-miniconda@v2
+    - uses: actions/checkout@v2
       with:
         miniconda-version: "latest"
         activate-environment: foo
@@ -20,8 +21,8 @@ jobs:
     - name: Dependencies
       shell: bash -l {0}
       run: | 
-        conda info
-        conda list
+        conda install -c conda-forge cgal armadillo boost
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
   
   # build:
   #   runs-on: ubuntu-latest
