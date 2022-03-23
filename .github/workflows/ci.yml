@@ -29,7 +29,7 @@ jobs:
     - name: Dependencies
       shell: bash -l {0}
       run: | 
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DARMADILLO_INCLUDE_DIR=/usr/share/miniconda3/envs/test/include/armadillo_bits -DARMADILLO_LIBRARY=/usr/share/miniconda3/envs/test/lib/libarmadillo.so
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DARMADILLO_INCLUDE_DIR=/usr/share/miniconda3/envs/test/include -DARMADILLO_LIBRARY_DIRS=/usr/share/miniconda3/envs/test/lib
   
   # build:
   #   runs-on: ubuntu-latest
