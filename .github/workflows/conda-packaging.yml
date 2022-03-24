@@ -27,3 +27,4 @@ jobs:
         subDir: 'conda.recipe'
         channels: 'conda-forge'
         AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
+        publish: 'true'
