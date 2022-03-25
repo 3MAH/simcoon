@@ -144,7 +144,9 @@ int main() {
     string PBC_file_name = "PBC_file_name.inp";
     string CDN_file_name = "CDN_file_name.inp";
     write_PBC(cm, path_run, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, path_run, CDN_file_name);
+    int n_neigh = 4;
+    double pow_int = 1.0;
+    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, n_neigh, pow_int, path_run, CDN_file_name);
     
     //Finally
     string run_file = "run_aba.inp";

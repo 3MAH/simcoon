@@ -125,7 +125,9 @@ int main() {
 //    write_PBC(cm, nb_nodes, path_run, PBC_file_name);
     write_PBC(cm, path_run, PBC_file_name);
 //    write_TIE(cm, cm_perio, path_run, TIE_file_name);
-    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, path_run, CDN_file_name);
+    int n_neigh = 4;
+    double pow_int = 1.0;
+    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, n_neigh, pow_int, path_run, CDN_file_name);
 //    write_CDN(cm, path_run, CDN_file_name);
     
     //Finally

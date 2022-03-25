@@ -7,7 +7,7 @@ namespace simpy{
 
 boost::python::tuple test_mesh(const boost::python::numpy::ndarray &nodes_coords_py, const double & = 1.E-6, const double & = 1.E-4);
 
-boost::python::list build_MPC_from_cubic_mesh(const boost::python::numpy::ndarray &, const boost::python::list &);
+boost::python::list build_MPC_from_cubic_mesh(const boost::python::numpy::ndarray &, const boost::python::list &, const int & = 4, const double & = 1.0);
 
 simcoon::Node build_node(const int &, const boost::python::numpy::ndarray &);
 

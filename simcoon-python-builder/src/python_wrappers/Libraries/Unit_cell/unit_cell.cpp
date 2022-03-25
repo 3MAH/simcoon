@@ -102,7 +102,7 @@ bp::tuple test_mesh(const bn::ndarray &nodes_coords_py, const double &min_dist, 
 }
 
 //-------------------------------------------------------------
-bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py, const bp::list &NodeCD_py)
+bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py, const bp::list &NodeCD_py, const int &n_neigh, const double &pow_int)
 //-------------------------------------------------------------
 {
     
@@ -134,7 +134,7 @@ bp::list build_MPC_from_cubic_mesh(const bn::ndarray &nodes_coords_py, const bp:
     unsigned int control_type = 1;
     
     simcoon::cubic_equation cubic_eq(cm, cm_perio, NodeCD, loading_type, control_type);
-    std::vector<simcoon::equation> MPC_equations = simcoon::MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type);
+    std::vector<simcoon::equation> MPC_equations = simcoon::MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type, n_neigh, pow_int);
     
     bp::list MPC_equations_list;
     for(auto eq_it : MPC_equations) {
