@@ -20,7 +20,8 @@ cmake -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
-      -Wno-dev
+      -DPython3_ROOT_DIR=%PREFIX% ^
+      -Wno-dev 
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
 if errorlevel 1 exit 1
@@ -30,6 +31,7 @@ cmake -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
+      -DPython3_ROOT_DIR=%PREFIX% ^
       -Wno-dev
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
