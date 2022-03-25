@@ -1129,20 +1129,19 @@ void replace_perio_eq(equation &eq, const cubic_equation &cubic_eq, const mat &w
 }
     
 
-std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_mesh &cm_perio, const cubic_equation &cubic_eq, const unsigned int &loading_type, const unsigned int &control_type) {
+std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_mesh &cm_perio, const cubic_equation &cubic_eq, const unsigned int &loading_type, const unsigned int &control_type, const int & n_neigh, const double &pow_int) {
 
     std::vector<equation> list_MPC_equations;
     
     //Find the neighbours
     std::vector<std::vector<Node> > neigh;
     std::vector<mat> neigh_dist;
-    unsigned int N=6;
     std::vector<mat> weights;
     std::string name_set;
     std::vector<Node> set;
     std::vector<Node> neigh_temp;
     mat weight_temp;
-    std::vector<std::string> name_in(N);
+    std::vector<std::string> name_in(n_neigh);
     double min_dis = 1.E-6;
     
     //Construct all the equations
@@ -1167,14 +1166,14 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //Face Xp
     set_faceXp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listXp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listXp, n_neigh, min_dis);
     
     weights.resize(cm.Face_listXp->size());
     for (unsigned int i=0; i<cm.Face_listXp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Face_listXp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Face_listXp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listXp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1191,13 +1190,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //Face Yp
     set_faceYp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listYp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listYp, n_neigh, min_dis);
     weights.resize(cm.Face_listYp->size());
     for (unsigned int i=0; i<cm.Face_listYp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Face_listYp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Face_listYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listYp->size(), pow_int, min_dis);
     for (unsigned int i=0; i<neigh.size(); i++) {
         
         neigh_temp = neigh[i]; // extract a vector
@@ -1213,13 +1212,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //Face Zp
     set_faceZp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listZp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Face_listZp, n_neigh, min_dis);
     weights.resize(cm.Face_listZp->size());
     for (unsigned int i=0; i<cm.Face_listZp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Face_listZp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Face_listZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Face_listZp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1234,17 +1233,17 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     }
     
     /////////Edges////
-    N=2;
+    int n_neigh_edges=2;
     //EdgeXpYm
     set_EdgeXpYm(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYm, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYm, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXpYm->size());
     for (unsigned int i=0; i<cm.Edge_listXpYm->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXpYm->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXpYm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpYm->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1261,13 +1260,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeXpYp
     set_EdgeXpYp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpYp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXpYp->size());
     for (unsigned int i=0; i<cm.Edge_listXpYp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXpYp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXpYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpYp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1284,13 +1283,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeXmYp
     set_EdgeXmYp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmYp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmYp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXmYp->size());
     for (unsigned int i=0; i<cm.Edge_listXmYp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXmYp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXmYp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXmYp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1307,13 +1306,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeXpZm
     set_EdgeXpZm(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZm, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZm, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXpZm->size());
     for (unsigned int i=0; i<cm.Edge_listXpZm->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXpZm->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXpZm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpZm->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1330,13 +1329,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeXpZp
     set_EdgeXpZp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXpZp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXpZp->size());
     for (unsigned int i=0; i<cm.Edge_listXpZp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXpZp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXpZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXpZp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1353,13 +1352,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeXmZp
     set_EdgeXmZp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmZp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listXmZp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listXmZp->size());
     for (unsigned int i=0; i<cm.Edge_listXmZp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listXmZp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listXmZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listXmZp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1376,13 +1375,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeYpZm
     set_EdgeYpZm(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZm, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZm, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listYpZm->size());
     for (unsigned int i=0; i<cm.Edge_listYpZm->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listYpZm->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listYpZm->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYpZm->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1399,13 +1398,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeYpZp
     set_EdgeYpZp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYpZp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listYpZp->size());
     for (unsigned int i=0; i<cm.Edge_listYpZp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listYpZp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listYpZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYpZp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         
@@ -1422,13 +1421,13 @@ std::vector<equation> MPC_equations_non_perio(const cubic_mesh &cm, const cubic_
     //EdgeYmZp
     set_EdgeYmZp(set, cm_perio);
     //Find the neighbours
-    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYmZp, N);
+    find_neighbours_set(neigh, neigh_dist, set, *cm.Edge_listYmZp, n_neigh_edges, min_dis);
     weights.resize(cm.Edge_listYmZp->size());
     for (unsigned int i=0; i<cm.Edge_listYmZp->size(); i++) {
         weights[i] = zeros(neigh[i].size()-1,4);
     }
     //set_weights(weights, neigh_dist, cm.Edge_listYmZp->size(), min_dis);
-    set_weights(weights, neigh_dist, cm.Edge_listYmZp->size(), min_dis);
+    set_weights(weights, neigh_dist, cm.Edge_listYmZp->size(), pow_int, min_dis);
     
     for (unsigned int i=0; i<neigh.size(); i++) {
         

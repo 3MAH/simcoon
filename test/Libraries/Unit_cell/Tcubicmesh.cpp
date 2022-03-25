@@ -87,7 +87,9 @@ BOOST_AUTO_TEST_CASE( aba_construct_mesh )
     }
     
     write_PBC(cm, path_data, PBC_file_name);
-    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, path_data, CDN_file_name);
+    int n_neigh = 4;
+    double pow_int = 1.0;
+    write_NonPerio_CDN(cm, cm_perio, NodeCD, loading_type, control_type, n_neigh, pow_int, path_data, CDN_file_name);
 }
 
 BOOST_AUTO_TEST_CASE( aba_construct_perio_mesh ) {

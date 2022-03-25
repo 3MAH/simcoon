@@ -988,7 +988,7 @@ void write_TIE(const cubic_mesh &cm, const cubic_mesh &cm_perio, const string &p
     out_set.close();
 }*/
     
-void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const std::vector<int> &NodeCD, const unsigned int &loading_type, const unsigned int &control_type, const string &path_data, const string &outputfile){
+void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const std::vector<int> &NodeCD, const unsigned int &loading_type, const unsigned int &control_type, const int &n_neigh, const double &pow_int, const string &path_data, const string &outputfile){
     
     std::string filename = path_data + "/" + outputfile;
     std::ofstream out_set;
@@ -1019,7 +1019,7 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     out_set << "********** MPC EQUATIONS ***********\n";
     out_set << "************************************\n";
     
-    std::vector<equation> list_MPC_non_perio = MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type);
+    std::vector<equation> list_MPC_non_perio = MPC_equations_non_perio(cm, cm_perio, cubic_eq, loading_type, control_type, n_neigh, pow_int);
     for (auto eq:list_MPC_non_perio) {
         write_eq(out_set, eq);
     }

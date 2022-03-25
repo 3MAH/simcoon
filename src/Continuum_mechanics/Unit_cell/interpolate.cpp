@@ -50,7 +50,7 @@ using namespace arma;
 
 namespace simcoon{
 
-void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbours_dist, const vector<Node> &inpoints, const vector<Node> &interpoints, const unsigned int &N){
+void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbours_dist, const vector<Node> &inpoints, const vector<Node> &interpoints, const int &n_neighb, const double &min_dis){
 
     unsigned int n_inter = interpoints.size();
     double min_dist = 1.E-6;
@@ -62,8 +62,8 @@ void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbo
     neighbours.resize(n_inter);
     neighbours_dist.resize(n_inter);
     for (unsigned int i=0; i<n_inter; i++) {
-        neighbours[i].resize(N+2);
-        neighbours_dist[i] = zeros(N+1,4);
+        neighbours[i].resize(n_neighb+2);
+        neighbours_dist[i] = zeros(n_neighb+1,4);
     }
     
     Tree tree(points.begin(), points.end());
@@ -71,7 +71,7 @@ void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbo
     for (unsigned int i=0; i<n_inter; i++) {
         
         Point query = interpoints[i].coords;
-        Neighbor_search search(tree, query, N+1);
+        Neighbor_search search(tree, query, n_neighb);
         // report the N nearest neighbors and their distance
         // This should sort all N points by increasing distance from origin
         neighbours[i][0] = interpoints[i];
@@ -90,27 +90,25 @@ void find_neighbours_set(vector<vector<Node> > &neighbours, vector<mat> &neighbo
             j++;
         }
         
-        for(unsigned int j=0; j<N+1; j++) {
+        for(unsigned int j=0; j<n_neighb; j++) {
             neighbours_dist[i](j,1) = fabs(CGAL::to_double(neighbours[i][j+1].coords.x()) - CGAL::to_double(neighbours[i][0].coords.x()));
             neighbours_dist[i](j,2) = fabs(CGAL::to_double(neighbours[i][j+1].coords.y()) - CGAL::to_double(neighbours[i][0].coords.y()));
             neighbours_dist[i](j,3) = fabs(CGAL::to_double(neighbours[i][j+1].coords.z()) - CGAL::to_double(neighbours[i][0].coords.z()));
         }
         
-        if((N==2)||(neighbours_dist[i](N,0) - neighbours_dist[i](N-1,0) > min_dist)){
+        if((n_neighb==2)||(neighbours_dist[i](n_neighb,0) - neighbours_dist[i](n_neighb-1,0) > min_dist)){
             neighbours[i].pop_back();
-            neighbours_dist[i].shed_row(N);
+            neighbours_dist[i].shed_row(n_neighb);
         }        
     }
 }
 
-void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsigned int &N_in, const double &min_dis) {
+void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsigned int &N_in, const double &pow_int, const double &min_dis) {
    
     double sum_weight = 0.;
-    double p = 1.;
     //define the weight
     for(unsigned int i=0;i<N_in; i++) {
         for(unsigned int k=0;k<4; k++) {
-            
             sum_weight = 0.;
             if(neigh_dist[i](0,0) < min_dis) {
                 weight[i](0,k) = 1.;
@@ -121,7 +119,7 @@ void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsig
             else {
                 for (unsigned int j=0; j<neigh_dist[i].n_rows; j++) {
                     if (neigh_dist[i](j,k) > min_dis) {
-                        weight[i](j,k) = 1./pow(neigh_dist[i](j,k),p);
+                        weight[i](j,k) = 1./pow(neigh_dist[i](j,k),pow_int);
                     }
                     else {
                         weight[i](j,k) = 1.;
@@ -134,9 +132,7 @@ void set_weights(vector<mat> &weight, const vector<mat> &neigh_dist, const unsig
             }
         }
     }
-
 }
-                                       
                                        
 equation set_equation(const std::vector<Node> &neigh, const arma::mat &weight, const unsigned int &face, const unsigned int &loading_type, const unsigned int &dof) {
     
