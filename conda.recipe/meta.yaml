@@ -19,7 +19,7 @@ requirements:
     - python {{ python }}
     - pip
     - cgal
-    - boost
+    - boost=1.72
     - armadillo # [unix]
   run:
     - python {{ python }}
