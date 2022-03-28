@@ -7,18 +7,29 @@ on:
     branches: [ master ]
 
 jobs:
-  conda-setup:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+  build-linux:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     
-    - name: Dependencies
+    - name: Build Ubuntu
       shell: bash -l {0}
       run: | 
         sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+        cmake --build ${{github.workspace}}/build
+        ctest --test-dir ${{github.workspace}}/build
+        
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Build MacOS
+      shell: bash -l {0}
+      run: | 
+        brew install armadillo boost cgal mpfr
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
         cmake --build ${{github.workspace}}/build
         ctest --test-dir ${{github.workspace}}/build
