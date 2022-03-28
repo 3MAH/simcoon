@@ -19,8 +19,7 @@ jobs:
         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
         cmake --build ${{github.workspace}}/build
         ctest --test-dir ${{github.workspace}}/build
-        
-jobs:
+      
   build-macos:
     runs-on: macos-latest
     steps:
