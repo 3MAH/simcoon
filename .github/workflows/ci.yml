@@ -20,15 +20,15 @@ jobs:
         cmake --build ${{github.workspace}}/build
         ctest --test-dir ${{github.workspace}}/build
       
-  build-macos:
-    runs-on: macos-latest
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Build MacOS
-      shell: bash -l {0}
-      run: | 
-        brew install armadillo boost cgal gfortran
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
-        cmake --build ${{github.workspace}}/build
-        ctest --test-dir ${{github.workspace}}/build
+#  build-macos:
+#    runs-on: macos-latest
+#    steps:
+#    - uses: actions/checkout@v2
+#    
+#    - name: Build MacOS
+#      shell: bash -l {0}
+#      run: | 
+#        brew install armadillo boost cgal gfortran
+#        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+#        cmake --build ${{github.workspace}}/build
+#        ctest --test-dir ${{github.workspace}}/build
