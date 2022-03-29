@@ -39,4 +39,19 @@ jobs:
         shell: bash -l {0}
         run: |
           conda install conda-build anaconda-client
-          conda-build ${{github.workspace}}/../conda.recipe -c conda-forge
+          conda-build ${{github.workspace}}/conda.recipe -c conda-forge
+        
+  macos:
+    name: Windows
+    runs-on: "windows-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          conda-build ${{github.workspace}}/conda.recipe -c conda-forge
