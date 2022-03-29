@@ -49,7 +49,7 @@ jobs:
       - name: conda-build
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo
+          conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo gfortran
           cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
