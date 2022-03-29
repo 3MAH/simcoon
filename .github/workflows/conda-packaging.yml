@@ -41,7 +41,7 @@ jobs:
           conda install conda-build anaconda-client
           conda-build ${{github.workspace}}/conda.recipe -c conda-forge
         
-  macos:
+  windows:
     name: Windows
     runs-on: "windows-latest"
     steps:
