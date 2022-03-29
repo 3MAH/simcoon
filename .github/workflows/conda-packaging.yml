@@ -14,17 +14,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
+  # build:
+  #  runs-on: ubuntu-latest
+  #   steps:
+  #  - uses: actions/checkout@v2
+  #   - name: publish-to-conda
+  #     uses: kmarchais/conda-package-publish-action@master
+  #     with:
+  #       subDir: 'conda.recipe'
+  #       channels: 'conda-forge'
+  #       AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
+  #       publish: 'true'
+        
+  macos:
+    name: MacOS
+    runs-on: "macos-latest"
     steps:
-    - uses: actions/checkout@v2
-    - name: publish-to-conda
-      uses: kmarchais/conda-package-publish-action@master
-      with:
-        subDir: 'conda.recipe'
-        channels: 'conda-forge'
-        AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-        publish: 'true'
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+      - name: Sh
+        shell: sh -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          conda-build conda.recipe -c conda-forge
