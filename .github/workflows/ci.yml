@@ -29,7 +29,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-      - name: conda-build
+      - name: Build for Linux
         shell: bash -l {0}
         run: |
           conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo
@@ -46,13 +46,38 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-      - name: conda-build
+      - name: Build for MacOS
         shell: bash -l {0}
         run: |
           conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo gfortran
           cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
+        
+  Windows:
+    name: Windows
+    runs-on: "windows-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+      - name: Build for Windows
+        shell: bash -l {0}
+        run: |
+          conda install -c conda-forge python=3.9 cgal boost=1.72 
+          
+          git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
+          cd armadillo
+          cmake -S . -B build -G "Visual Studio 17 2022"
+          cmake --build build --config RELEASE
+          cd ..
+
+          cmake -S . -B build -G"Visual Studio 17 2022" -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% -DCMAKE_BUILD_TYPE=Release -Wno-dev
+          cmake --build build --target simcoon --config Release
+          ctest --test-dir build
+          cmake --install build
       
 #  build-macos:
 #    runs-on: macos-latest
