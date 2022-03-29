@@ -14,17 +14,46 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  # build:
+  #  runs-on: ubuntu-latest
+  #   steps:
+  #  - uses: actions/checkout@v2
+  #   - name: publish-to-conda
+  #     uses: kmarchais/conda-package-publish-action@master
+  #     with:
+  #       subDir: 'conda.recipe'
+  #       channels: 'conda-forge'
+  #       AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
+  #       publish: 'true'
+        
+  macos:
+    name: MacOS
+    runs-on: "macos-latest"
     steps:
-    - uses: actions/checkout@v2
-    - name: publish-to-conda
-      uses: paskino/conda-package-publish-action@master
-      with:
-        subDir: 'conda.recipe'
-        channels: 'conda-forge'
-        AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-        publish: 'true'
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          conda-build conda.recipe -c conda-forge --output-folder  .
+          export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          anaconda upload osx-64/*.tar.bz2 --force
+        
+  windows:
+    name: Windows
+    runs-on: "windows-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          conda-build conda.recipe -c conda-forge --output-folder  .
+          export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          anaconda upload win-64/*.tar.bz2 --force
