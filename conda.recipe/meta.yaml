@@ -25,6 +25,7 @@ requirements:
   run:
     - python {{ python }}
     - boost=1.72
+    - numpy # [win]
 
 test:
   imports:
