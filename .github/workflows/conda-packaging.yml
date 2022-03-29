@@ -24,7 +24,23 @@ jobs:
   #       subDir: 'conda.recipe'
   #       channels: 'conda-forge'
   #       AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-  #       publish: 'true'
+  #       publish: 'true'macos:
+        
+  Linux:
+    name: Linux
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          conda-build conda.recipe -c conda-forge --output-folder  .
+          export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          anaconda upload linux-64/*.tar.bz2 --force
         
   macos:
     name: MacOS
@@ -53,7 +69,7 @@ jobs:
       - name: conda-build
         shell: bash -l {0}
         run: |
-          conda install conda-build anaconda-client
+          conda install conda-build anaconda-client numpy
           conda-build conda.recipe -c conda-forge --output-folder  .
           export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           anaconda upload win-64/*.tar.bz2 --force

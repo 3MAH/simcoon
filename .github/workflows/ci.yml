@@ -7,18 +7,52 @@ on:
     branches: [ master ]
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
+  # build-linux:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - uses: actions/checkout@v2
     
-    - name: Build Ubuntu
-      shell: bash -l {0}
-      run: | 
-        sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev
-        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
-        cmake --build ${{github.workspace}}/build
-        ctest --test-dir ${{github.workspace}}/build
+  #   - name: Build Ubuntu
+  #     shell: bash -l {0}
+  #     run: | 
+  #       sudo apt-get install libarmadillo-dev libboost-all-dev libcgal-dev libmpfr-dev
+  #       cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+  #       cmake --build ${{github.workspace}}/build
+  #       ctest --test-dir ${{github.workspace}}/build
+        
+  Linux:
+    name: Linux
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install python=3.9 cgal boost=1.72 armadillo
+          cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          ctest --test-dir ${{github.workspace}}/build
+        
+  MacOS:
+    name: MacOS
+    runs-on: "macos-latest"
+    steps:
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+      - name: conda-build
+        shell: bash -l {0}
+        run: |
+          conda install python=3.9 cgal boost=1.72 armadillo
+          cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          ctest --test-dir ${{github.workspace}}/build
       
 #  build-macos:
 #    runs-on: macos-latest
