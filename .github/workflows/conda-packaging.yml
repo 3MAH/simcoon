@@ -38,4 +38,4 @@ jobs:
         shell: sh -l {0}
         run: |
           conda install conda-build anaconda-client
-          conda-build ${{github.workspace}}/conda.recipe -c conda-forge
+          conda-build ${{github.workspace}}/../conda.recipe -c conda-forge
