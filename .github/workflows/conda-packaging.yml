@@ -37,6 +37,6 @@ jobs:
       - name: conda-build
         shell: sh -l {0}
         run: |
-          ls
+          ls ${{github.workspace}}
    #       conda install conda-build anaconda-client
    #       conda-build ${{github.workspace}}/../conda.recipe -c conda-forge
