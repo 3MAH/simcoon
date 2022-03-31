@@ -21,11 +21,11 @@ requirements:
     - cgal
     - boost=1.72
     - armadillo # [unix]
-    - numpy # [win]
+    - numpy=1.22 # [win]
   run:
     - python {{ python }}
     - boost=1.72
-    - numpy # [win]
+    # - numpy # [win]
 
 test:
   imports:
