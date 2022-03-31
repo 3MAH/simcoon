@@ -14,17 +14,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # build:
-  #  runs-on: ubuntu-latest
-  #   steps:
-  #  - uses: actions/checkout@v2
-  #   - name: publish-to-conda
-  #     uses: kmarchais/conda-package-publish-action@master
-  #     with:
-  #       subDir: 'conda.recipe'
-  #       channels: 'conda-forge'
-  #       AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-  #       publish: 'true'macos:
         
   # Linux:
   #   name: Linux
@@ -38,8 +27,9 @@ jobs:
   #       shell: bash -l {0}
   #       run: |
   #         conda install conda-build anaconda-client
+  #         anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
   #         conda-build conda.recipe -c conda-forge --output-folder  .
-  #         anaconda upload linux-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+  #         anaconda upload linux-64/*.tar.bz2 --force
         
   # macos:
   #   name: MacOS
@@ -53,8 +43,9 @@ jobs:
   #       shell: bash -l {0}
   #       run: |
   #         conda install conda-build anaconda-client
+  #         anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
   #         conda-build conda.recipe -c conda-forge --output-folder  .
-  #         anaconda upload osx-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+  #         anaconda upload osx-64/*.tar.bz2 --force
         
   windows:
     name: Windows
@@ -67,6 +58,7 @@ jobs:
       - name: Conda build for Windows
         shell: bash -l {0}
         run: |
-          conda install conda-build anaconda-client numpy
+          conda install conda-build anaconda-client
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           conda-build conda.recipe -c conda-forge --output-folder  .
-          anaconda upload win-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+          anaconda upload win-64/*.tar.bz2 --force
