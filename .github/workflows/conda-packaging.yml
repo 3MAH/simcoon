@@ -50,9 +50,12 @@ jobs:
         with:
           miniconda-version: "latest"
       - name: Conda build for Windows
+        env:
+          TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         shell: pwsh # bash -l {0}
         run: |
-          export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          # export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          set ANACONDA_API_TOKEN=$env:NUGET_KEY
           conda install conda-build anaconda-client
           # anaconda login --hostname windows-host --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           conda-build conda.recipe -c conda-forge --output-folder  .
