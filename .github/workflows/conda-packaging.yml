@@ -1,61 +1,55 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Conda packaging
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
-  # push:
-  #   branches: [ main ]
-  # pull_request:
-  #  branches: [ main ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
         
-  # Linux:
-  #   name: Linux
-  #   runs-on: "ubuntu-latest"
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - uses: conda-incubator/setup-miniconda@v2
-  #       with:
-  #         miniconda-version: "latest"
-  #     - name: Conda build for Linux
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda install conda-build anaconda-client
-  #         conda-build conda.recipe -c conda-forge --output-folder  .
-  #         anaconda upload linux-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+  Linux:
+    name: Linux
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+      - name: Conda build for Linux
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          conda-build conda.recipe -c conda-forge --output-folder  .
+          anaconda upload linux-64/*.tar.bz2 --force
         
-  # macos:
-  #   name: MacOS
-  #   runs-on: "macos-latest"
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - uses: conda-incubator/setup-miniconda@v2
-  #       with:
-  #         miniconda-version: "latest"
-  #     - name: Conda build for MacOS
-  #       shell: bash -l {0}
-  #       run: |
-  #         conda install conda-build anaconda-client
-  #         conda-build conda.recipe -c conda-forge --output-folder  .
-  #         anaconda upload osx-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+  macos:
+    name: MacOS
+    runs-on: "macos-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+      - name: Conda build for MacOS
+        shell: bash -l {0}
+        run: |
+          conda install conda-build anaconda-client
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          conda-build conda.recipe -c conda-forge --output-folder  .
+          anaconda upload osx-64/*.tar.bz2 --force
         
   windows:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
+          activate-environment: test
       - name: Conda build for Windows
         shell: bash -l {0}
         run: |
-          conda install conda-build anaconda-client numpy
+          conda install conda-build anaconda-client
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           conda-build conda.recipe -c conda-forge --output-folder  .
-          anaconda upload win-64/*.tar.bz2 --force --token ${{ secrets.ANACONDA_TOKEN }}
+          anaconda upload win-64/*.tar.bz2 --force
