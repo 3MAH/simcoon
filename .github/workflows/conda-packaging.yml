@@ -45,6 +45,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
+          activate-environment: test
       - name: Conda build for Windows
         shell: bash -l {0}
         run: |
