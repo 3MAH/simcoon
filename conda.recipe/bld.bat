@@ -33,6 +33,7 @@ cmake -S . -B build ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DPython3_ROOT_DIR=%PREFIX% ^
       -Wno-dev
+cat build\CMakeFiles\CMakeOutput.log
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
 if errorlevel 1 exit 1
