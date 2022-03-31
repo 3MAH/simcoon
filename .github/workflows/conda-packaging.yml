@@ -14,17 +14,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # build:
-  #  runs-on: ubuntu-latest
-  #   steps:
-  #  - uses: actions/checkout@v2
-  #   - name: publish-to-conda
-  #     uses: kmarchais/conda-package-publish-action@master
-  #     with:
-  #       subDir: 'conda.recipe'
-  #       channels: 'conda-forge'
-  #       AnacondaToken: ${{ secrets.ANACONDA_TOKEN }}
-  #       publish: 'true'macos:
         
   # Linux:
   #   name: Linux
