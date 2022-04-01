@@ -34,7 +34,7 @@ cmake -S . -B build ^
       -DPython3_ROOT_DIR=%PREFIX% ^
       -Wno-dev
 cat build\CMakeFiles\CMakeOutput.log
-dir
+dir build\CMakeFiles
 cat build\CMakeFiles\CMakeError.log
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
