@@ -52,7 +52,7 @@ jobs:
       - name: Conda build for Windows
         env:
           TOKEN: ${{ secrets.ANACONDA_TOKEN }}
-        shell: pwsh # bash -l {0}
+        shell: cmd # pwsh # bash -l {0}
         run: |
           # export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           set ANACONDA_API_TOKEN=$env:TOKEN
