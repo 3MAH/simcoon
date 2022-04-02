@@ -54,9 +54,8 @@ jobs:
           TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         shell: cmd # pwsh # bash -l {0}
         run: |
-          # export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           set ANACONDA_API_TOKEN=$env:TOKEN
           conda install conda-build anaconda-client
-          # anaconda login --hostname windows-host --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          echo %ANACONDA_API_TOKEN%
           conda-build conda.recipe -c conda-forge --output-folder  .
           anaconda upload win-64/*.tar.bz2 --force
