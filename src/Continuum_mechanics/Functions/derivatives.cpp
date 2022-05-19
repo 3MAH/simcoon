@@ -61,63 +61,20 @@ mat ddetSdS(const mat &S) {
     return det(S)*(inv(S)).t();
 }
 
-//This function returns the derivative of the inverse of a symmetric tensor
-/*mat dinvSdS(const mat &S) {
-
-    Tensor2<double,3,3> invS_ = mat_FTensor2(inv(S));
-    Tensor4<double,3,3,3,3> I_;
-
-    Index<'I', 3> I;
-    Index<'J', 3> J;
-    Index<'K', 3> K;
-    Index<'L', 3> L;
-
-    I_(I,J,K,L) = invS_(I,K)*invS_(J,L) + invS_(I,L)*invS_(J,K);
-
-    return 0.5*FTensor4_mat(I_);
-}*/
-
 mat dinvSdS(const mat &S) {
 
-	mat invS = inv(S);
-	mat F = zeros(6,6);
-
-	int ij=0;
-	int kl=0;
-	int ik=0;
-	int jl=0;
-	int il=0;
-	int jk=0;
+    mat invS = inv(S);
     
-    umat Id(3,3);
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-	
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int k=0; k<3; k++) {
-				for (int l=k; l<3; l++) {
-					kl = Id(k,l);
-					ik = Id(i,k);
-					jl = Id(j,l);
-					il = Id(i,l);
-					jk = Id(j,k);
-					
-					F(ij,kl) += -0.5*(S(ik,jl)+S(il,jk));
-				}
-			}
-		}
-	}
-	
-	return F;
+    Tensor2<double,3,3> invS_ = mat_FTensor2(invS);
+    Tensor4<double,3,3,3,3> dinvSdS_;
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+        
+    dinvSdS_(i,j,k,l) = invS_(i,k)*invS_(j,l)+invS_(i,l)*invS_(j,k);
+    return 0.5*FTensor4_mat(dinvSdS_);
 }
     
 } //namespace simcoon
