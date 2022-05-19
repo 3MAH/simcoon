@@ -205,7 +205,7 @@ void cubic_mesh::construct()
 }
     
 //-------------------------------------------------------------
-void cubic_mesh::get_domain()
+void cubic_mesh::get_domain(const double & min_dist)
 //-------------------------------------------------------------
 {
     for (auto n : Node_list) {
@@ -225,14 +225,14 @@ void cubic_mesh::get_domain()
     center_node = closest_node(Node_list, cuboid_center);
     
     //Defines the points, faces and edges
-    *Corner_listXmYmZm = find_corner(Node_list, cuboid[0], size_box);
-    *Corner_listXmYpZm = find_corner(Node_list, cuboid[3], size_box);
-    *Corner_listXpYmZm = find_corner(Node_list, cuboid[1], size_box);
-    *Corner_listXpYpZm = find_corner(Node_list, cuboid[2], size_box);
-    *Corner_listXmYmZp = find_corner(Node_list, cuboid[5], size_box);
-    *Corner_listXmYpZp = find_corner(Node_list, cuboid[4], size_box);
-    *Corner_listXpYmZp = find_corner(Node_list, cuboid[6], size_box);
-    *Corner_listXpYpZp = find_corner(Node_list, cuboid[7], size_box);
+    *Corner_listXmYmZm = find_corner(Node_list, cuboid[0], size_box, min_dist);
+    *Corner_listXmYpZm = find_corner(Node_list, cuboid[3], size_box, min_dist);
+    *Corner_listXpYmZm = find_corner(Node_list, cuboid[1], size_box, min_dist);
+    *Corner_listXpYpZm = find_corner(Node_list, cuboid[2], size_box, min_dist);
+    *Corner_listXmYmZp = find_corner(Node_list, cuboid[5], size_box, min_dist);
+    *Corner_listXmYpZp = find_corner(Node_list, cuboid[4], size_box, min_dist);
+    *Corner_listXpYmZp = find_corner(Node_list, cuboid[6], size_box, min_dist);
+    *Corner_listXpYpZp = find_corner(Node_list, cuboid[7], size_box, min_dist);
     
 /*    Line EdgeXmYm(Corner_listXmYmZm->coords,Corner_listXmYmZp->coords);
     Line EdgeXpYm(Corner_listXpYmZm->coords,Corner_listXpYmZp->coords);
@@ -273,18 +273,18 @@ void cubic_mesh::get_domain()
     Edges.push_back(EdgeYpZp);
     Edges.push_back(EdgeYmZp);
     
-    *Edge_listXmYm = find_edge(Node_list, EdgeXmYm, size_box);
-    *Edge_listXpYm = find_edge(Node_list, EdgeXpYm, size_box);
-    *Edge_listXpYp = find_edge(Node_list, EdgeXpYp, size_box);
-    *Edge_listXmYp = find_edge(Node_list, EdgeXmYp, size_box);
-    *Edge_listXmZm = find_edge(Node_list, EdgeXmZm, size_box);
-    *Edge_listXpZm = find_edge(Node_list, EdgeXpZm, size_box);
-    *Edge_listXpZp = find_edge(Node_list, EdgeXpZp, size_box);
-    *Edge_listXmZp = find_edge(Node_list, EdgeXmZp, size_box);
-    *Edge_listYmZm = find_edge(Node_list, EdgeYmZm, size_box);
-    *Edge_listYpZm = find_edge(Node_list, EdgeYpZm, size_box);
-    *Edge_listYpZp = find_edge(Node_list, EdgeYpZp, size_box);
-    *Edge_listYmZp = find_edge(Node_list, EdgeYmZp, size_box);
+    *Edge_listXmYm = find_edge(Node_list, EdgeXmYm, size_box, min_dist);
+    *Edge_listXpYm = find_edge(Node_list, EdgeXpYm, size_box, min_dist);
+    *Edge_listXpYp = find_edge(Node_list, EdgeXpYp, size_box, min_dist);
+    *Edge_listXmYp = find_edge(Node_list, EdgeXmYp, size_box, min_dist);
+    *Edge_listXmZm = find_edge(Node_list, EdgeXmZm, size_box, min_dist);
+    *Edge_listXpZm = find_edge(Node_list, EdgeXpZm, size_box, min_dist);
+    *Edge_listXpZp = find_edge(Node_list, EdgeXpZp, size_box, min_dist);
+    *Edge_listXmZp = find_edge(Node_list, EdgeXmZp, size_box, min_dist);
+    *Edge_listYmZm = find_edge(Node_list, EdgeYmZm, size_box, min_dist);
+    *Edge_listYpZm = find_edge(Node_list, EdgeYpZm, size_box, min_dist);
+    *Edge_listYpZp = find_edge(Node_list, EdgeYpZp, size_box, min_dist);
+    *Edge_listYmZp = find_edge(Node_list, EdgeYmZp, size_box, min_dist);
 
 /*    Plane FaceXm(Corner_listXmYmZm->coords, Corner_listXmYmZp->coords, Corner_listXmYpZm->coords);
     Plane FaceXp(Corner_listXpYmZm->coords, Corner_listXpYmZp->coords, Corner_listXpYpZm->coords);
@@ -307,12 +307,12 @@ void cubic_mesh::get_domain()
     Faces.push_back(FaceZm);
     Faces.push_back(FaceZp);
             
-    *Face_listXm = find_face(Node_list, FaceXm, size_box);
-    *Face_listXp = find_face(Node_list, FaceXp, size_box);
-    *Face_listYm = find_face(Node_list, FaceYm, size_box);
-    *Face_listYp = find_face(Node_list, FaceYp, size_box);
-    *Face_listZm = find_face(Node_list, FaceZm, size_box);
-    *Face_listZp = find_face(Node_list, FaceZp, size_box);
+    *Face_listXm = find_face(Node_list, FaceXm, size_box, min_dist);
+    *Face_listXp = find_face(Node_list, FaceXp, size_box, min_dist);
+    *Face_listYm = find_face(Node_list, FaceYm, size_box, min_dist);
+    *Face_listYp = find_face(Node_list, FaceYp, size_box, min_dist);
+    *Face_listZm = find_face(Node_list, FaceZm, size_box, min_dist);
+    *Face_listZp = find_face(Node_list, FaceZp, size_box, min_dist);
     
     //Now exclude the edges of the faces
     //Xm

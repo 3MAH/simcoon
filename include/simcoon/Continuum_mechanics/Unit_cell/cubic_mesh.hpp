@@ -113,7 +113,7 @@ class cubic_mesh
         void construct();                                // Construct the lists with make_shared
 
         //    void check_duplicates(const double &);
-        void get_domain();
+        void get_domain(const double & = 1.E-6);
         void find_pairs(const double & = 1.E-6, const double & = 1.E-4);
         void construct_lists();
 
