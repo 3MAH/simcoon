@@ -276,39 +276,53 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     return FTensor4_mat(DSDE_);
 }
 
-//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Cauchy elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
-mat DsigmaDe_2_DSDE(const mat& Lt, const mat& B, const mat& F, const mat& tau) {
-
-    mat invF = inv(F);
-    Tensor2<double, 3, 3> invF_ = mat_FTensor2(invF);
-    Tensor2<double, 3, 3> delta_ = mat_FTensor2(eye(3, 3));
-    Tensor2<double, 3, 3> tau_ = mat_FTensor2(tau);
-    Tensor4<double, 3, 3, 3, 3> Dtau_logarithmicDD_ = mat_FTensor4(Lt);
-    Tensor4<double, 3, 3, 3, 3> Dtau_LieDD_ = mat_FTensor4(zeros(6, 6));
-    Tensor4<double, 3, 3, 3, 3> B_ = mat_FTensor4(B);
-    Tensor4<double, 3, 3, 3, 3> I_ = mat_FTensor4(zeros(6, 6));
-    Tensor4<double, 3, 3, 3, 3> DSDE_ = mat_FTensor4(zeros(6, 6));
-
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-
-    Index<'L', 3> L;
-    Index<'J', 3> H;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-
-    I_(i, j, k, l) = 0.5 * delta_(i, k) * delta_(j, l) + 0.5 * delta_(i, l) * delta_(j, k);
-    Dtau_LieDD_(i, j, k, l) = Dtau_logarithmicDD_(i, j, k, l) + (B_(i, p, k, l) - I_(i, p, k, l)) * tau_(p, j) + tau_(i, p) * (B_(j, p, k, l) - I_(j, p, k, l));
-    DSDE_(L, H, M, N) = invF_(l, N) * (invF_(k, M) * (invF_(j, H) * (invF_(i, L) * Dtau_LieDD_(i, j, k, l))));
-    return det(F) * FTensor4_mat(DSDE_);
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
+    
+    J = det(F);
+    return J*DtauDe_2_DSDE(Lt, B, F, tau);
 }
 
 mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
     
     return (1./J)*Lt;
+}
+
+mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
+    
+    return Lt*J;
+}
+
+mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
+    
+    Tensor2<double,3,3> F_ = mat_FTensor2(F);
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_;
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> J;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    C_(i,j,k,l) = F_(i,L)*(F_(j,J)*(F_(k,M)*(F_(l,N)*DSDE_(L,J,M,N)))) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    return FTensor4_mat(C_);
+}
+
+mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
+
+    J = det(F);
+    return (1./J)*DSDE_2_DtauDe(DSDE, B, F, tau);
 }
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
