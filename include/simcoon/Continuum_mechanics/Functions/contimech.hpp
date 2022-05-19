@@ -93,7 +93,17 @@ arma::vec sigma_int(const arma::vec &, const double &, const double &, const dou
 ///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
 arma::mat p_ikjl(const arma::vec &);
 
+//This function returns the dyadic product of a symmetric tensor A in a 6*6 matrix format
+arma::mat auto_sym_dyadic(const arma::mat &);
+
 //This function returns the dyadic product of 2 symmetric tensors A and B, in a 6*6 matrix format
 arma::mat sym_dyadic(const arma::mat &, const arma::mat &);
+
+//This function returns the dyadic product of a symmetric tensors A and B, in a 6*6 matrix format
+arma::mat auto_dyadic(const arma::mat &);
+
+//This function returns the dyadic product of 2 symmetric tensors A and B, in a 6*6 matrix format
+arma::mat dyadic(const arma::mat &, const arma::mat &);
+
 
 } //namespace simcoon

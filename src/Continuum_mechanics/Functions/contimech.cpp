@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+#include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -30,6 +31,7 @@
 
 using namespace std;
 using namespace arma;
+using namespace FTensor;
 
 namespace simcoon{
 
@@ -350,6 +352,19 @@ mat p_ikjl(const vec &a) {
 	return F;
 }
 
+mat auto_sym_dyadic(const mat &A) {
+//T
+    vec A_v = t2v_sym(A);
+    mat C = zeros(6,6);
+
+    for (unsigned int i=0; i<6; i++) {
+        for (unsigned int j=0; j<6; j++) {
+            C(i,j) = A_v(i)*A_v(j);
+        }
+    }
+    return C;
+}
+
 mat sym_dyadic(const mat &A, const mat &B) {
 
     vec A_v = t2v_sym(A);
@@ -357,11 +372,41 @@ mat sym_dyadic(const mat &A, const mat &B) {
     mat C = zeros(6,6);
 
     for (unsigned int i=0; i<6; i++) {
-        for (unsigned int j=0; j<6; i++) {
-            C(i,j) = A_v(i)*A_v(j);
+        for (unsigned int j=0; j<6; j++) {
+            C(i,j) = A_v(i)*B_v(j);
         }
     }
     return C;
+}
+
+mat auto_dyadic(const mat &A) {
+
+    Tensor2<double,3,3> A_ = mat_FTensor2(A);
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+        
+    C_(i,j,k,l) = A_(i,j)*A_(k,l);
+    return FTensor4_mat(C_);
+    
+}
+
+mat dyadic(const mat &A, const mat &B) {
+            
+    Tensor2<double,3,3> A_ = mat_FTensor2(A);
+    Tensor2<double,3,3> B_ = mat_FTensor2(B);
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+        
+    C_(i,j,k,l) = A_(i,j)*B_(k,l);
+    return FTensor4_mat(C_);    
 }
 
 } //namespace simcoon
