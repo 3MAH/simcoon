@@ -420,14 +420,27 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 2) {
-                                                mat B = get_BBBB(sv_M->F1);
-                                                C = DtauDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->tau));
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+
+                                                if(corate_type == 0) {
+                                                    C = DsigmaDe_JaumannDD_2_DSDE(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
+                                                if(corate_type == 1) {
+                                                    mat B_GN = get_BBBB_GN(sv_M->F1);
+                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B_GN, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
+                                                if(corate_type == 2) {
+                                                    mat B = get_BBBB(sv_M->F1);
+                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
                                             }
                                             else if (blocks[i].control_type == 3) {
 //                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
 
-                                                C = DtauDe_2_DsigmaDe(sv_M->Lt, det(sv_M->F1));
+                                                //C = DtauDe_2_DsigmaDe(sv_M->Lt, det(sv_M->F1));
+                                                //Everything is here with Cauchy
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             
@@ -468,7 +481,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             
                                             sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
                                             sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
-                                            
+                                        
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
                                             if(corate_type == 0) {
@@ -902,7 +915,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                 }
                                 
-                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
+/*                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
                                     cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;
@@ -913,6 +926,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     //The solver has been inforced!
                                     return;
                                 }
+                                */
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_thermomeca->Dn_mini) {
