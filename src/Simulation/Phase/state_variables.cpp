@@ -337,7 +337,7 @@ void state_variables::to_start()
     tau = tau_start;
     sigma = sigma_start;
     statev = statev_start;
-    F1 = F0;
+//    F1 = F0;
 }
     
 //-------------------------------------------------------------
