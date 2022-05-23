@@ -205,6 +205,26 @@ mat get_BBBB(const mat &F1) {
     return BBBB;
 }
 
+mat get_BBBB_GN(const mat &F1) {
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    mat BBBB = zeros(6,6);
+    
+    double f_z = 0.;
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
+                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
+            }
+        }
+    }
+    return BBBB;
+}
+
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
     mat L = zeros(3,3);
@@ -276,12 +296,46 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     return FTensor4_mat(DSDE_);
 }
 
+mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+    
+    mat invF = inv(F);
+    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_JaumannDD_ = mat_FTensor4(Lt);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> H;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    Dtau_LieDD_(i,j,k,l) = Dtau_JaumannDD_(i,j,k,l) - 0.5*tau_(k,j)*delta_(i,l) - 0.5*tau_(l,j)*delta_(i,k) - 0.5*tau_(i,l)*delta_(j,k) - 0.5*tau_(i,k)*delta_(j,l);
+    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    return FTensor4_mat(DSDE_);
+}
+
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     
     double J = det(F);
     return J*DtauDe_2_DSDE(Lt, B, F, tau);
 }
+
+mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+    
+    double J = det(F);
+    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
+}
+
 
 mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
     
@@ -345,7 +399,13 @@ mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
     C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N))));
     return FTensor4_mat(C_);
 }
-    
+
+mat DSDE_2_DsigmaDe_LieDD(const mat &DSDE, const mat &F) {
+
+    double J = det(F);
+    return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
+}
+
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
 mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
     
@@ -367,6 +427,12 @@ mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
     
     C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N)))) + 0.5*tau_(p,s)*delta_(i,r) + 0.5*tau_(r,s)*delta_(i,p) + 0.5*tau_(i,r)*delta_(s,p) + 0.5*tau_(i,p)*delta_(s,r);
     return FTensor4_mat(C_);
+}
+
+mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
+    
+    double J = det(F);
+    return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
