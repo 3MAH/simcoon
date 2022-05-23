@@ -125,11 +125,11 @@ namespace simpy {
 		list_statev_start = list_statev;
 		list_PKII_start = list_PKII;
 		list_Wm_start = list_Wm;
-		mat F1, sigma_t;
+		mat F1, sigma_t, tau_t;
 
 		if (nlgeom) {
 			for (int pg = 0; pg < nb_points; pg++) {
-				if (corate > 2) {
+				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
 				else {
@@ -137,21 +137,30 @@ namespace simpy {
 				}
 
 				// Replace the tangent matrix with the elastic matrix for a prediction
-				if ((corate == 0) || (corate == 1)) {
+				if (corate == 0) {
 					//approximation. need to be modified
 
 					//Constitutive eq assumed expressed in Cauchy/Logstrain
 					//Convert cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange				
+					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
+					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange				
+				}
+				else if (corate == 1) {
+					//Constitutive eq assumed expressed in Cauchy/Logstrain
+					//Convert kirkoff/Logstrain to PKII/GLstrain
+					F1 = listF1.slice(pg);
+					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
+					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
 					//Constitutive eq assumed expressed in Cauchy/Logstrain
 					//Convert kirkoff/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
-                    mat tau_t = Cauchy2Kirchoff(sigma_t, F1);
+                    tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				}
 			}
@@ -225,7 +234,7 @@ namespace simpy {
 				simcoon::Green_Naghdi(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
 				list_Detot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
 			}
-			else if (corate >= 2) {
+			else if (corate == 2) {
 				//Log Strain 
 				simcoon::logarithmic(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
 				list_Detot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
@@ -259,6 +268,7 @@ namespace simpy {
 		mat DR(ndi, ndi);
 		mat F1(ndi, ndi);
 		mat sigma_t(ndi, ndi);
+		mat tau_t(ndi, ndi);
 
 		double Wm;
 		double Wm_r;
@@ -394,22 +404,33 @@ namespace simpy {
 				list_PKII.col(pg) = sigma;
 				list_Lt.slice(pg) = Lt;
 			}
-			else if ((corate == 0) || (corate == 1)) {
+			else if (corate == 0) {
 				//Constitutive eq assumed expressed in Cauchy/Logstrain
 				//Convert kirkoff/Logstrain to PKII/GLstrain
 				list_cauchy.col(pg) = sigma;
 				F1 = listF1.slice(pg);
 				sigma_t = simcoon::v2t_stress(sigma);
-				list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, sigma_t); //transform the tangeant matrix into pkII/green lagrange
+				tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
+				list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(Lt, F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 			}
-			else if (corate >= 2) {
+			else if (corate == 1) {
 				//Constitutive eq assumed expressed in Cauchy/Logstrain
 				//Convert cauchy/Logstrain to PKII/GLstrain
 				list_cauchy.col(pg) = sigma;
 				F1 = listF1.slice(pg);
 				sigma_t = simcoon::v2t_stress(sigma);
-                mat tau_t = Cauchy2Kirchoff(sigma_t, F1);
+				tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
+				list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
+				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
+			}
+			else if (corate == 2) {
+				//Constitutive eq assumed expressed in Cauchy/Logstrain
+				//Convert cauchy/Logstrain to PKII/GLstrain
+				list_cauchy.col(pg) = sigma;
+				F1 = listF1.slice(pg);
+				sigma_t = simcoon::v2t_stress(sigma);
+                tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 				list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 			}
