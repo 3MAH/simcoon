@@ -539,7 +539,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                         for (int z=0; z<36; z++)
                             *sptr_out_global << dSdE_vec(z) << "\t";
                         for (int z=0; z<6; z++)
-                            *sptr_out_global << sv_T->dSdT(0,z) << "\t";
+                            *sptr_out_global << sv_T->dSdT(z,0) << "\t";
                         for (int z=0; z<6; z++)
                             *sptr_out_global << sv_T->drdE(z,0) << "\t";
                         *sptr_out_global << sv_T->drdT(0,0) << "\t";
