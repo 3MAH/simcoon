@@ -255,6 +255,11 @@ namespace simpy {
 		const bool start = false;
 		double tnew_dt = 0;//usefull ?		
 		double T = 0; double DT = 0;  //modify to let the program set the actual temperature
+		bool use_temp;
+		if (list_T.n_elem == 0.) use_temp = false; 
+		else use_temp = true;
+
+
 		DTime = DTime_py; 
 								 
 		//initial temp local variable for umat
@@ -276,6 +281,7 @@ namespace simpy {
 		double Wm_d;
 
 		for (int pg = 0; pg < nb_points; pg++) {
+			if (use_temp) T = list_T(pg);
 			if (pg < list_props.n_cols) props = list_props.col(pg); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
 			statev = list_statev_start.col(pg);
 			//sigma = list_cauchy.col(pg);
@@ -439,6 +445,18 @@ namespace simpy {
 
 		//return bp::make_tuple(mat2array(DR), cube2array(list_DR, false), vec2array(Detot), vec2array(statev));
 		return bp::make_tuple();
+	}
+
+	//-------------------------------------------------------------
+	void Umat_fedoo::set_T(bn::ndarray& T_py) {
+	//-------------------------------------------------------------		
+		list_T = array2vec(T_py); //copy -> todo : check if we can do without copying ?
+	}
+
+	//-------------------------------------------------------------
+	bn::ndarray Umat_fedoo::Get_T() {
+	//-------------------------------------------------------------
+		return vec2array(list_T, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------

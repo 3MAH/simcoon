@@ -22,6 +22,7 @@ namespace simpy {
 		arma::cube list_Lt, list_L, list_Lt_start; //tangeant matrix and elastic matrix
 		arma::mat list_statev_start, list_Wm_start, list_PKII_start; 
 		arma::cube listF0, listF1;
+		arma::vec list_T; //Temp
 
 	protected:
 
@@ -40,6 +41,8 @@ namespace simpy {
 		void to_start();
 		void compute_Detot(const double&, const bn::ndarray&);
 		bp::tuple Run(const double&);
+		void set_T(bn::ndarray&);
+		bn::ndarray Get_T();
 		bn::ndarray Get_props();
 		bn::ndarray Get_PKII();
 		bn::ndarray Get_Cauchy();
