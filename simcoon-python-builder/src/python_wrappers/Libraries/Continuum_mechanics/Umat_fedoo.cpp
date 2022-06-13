@@ -237,10 +237,10 @@ namespace simpy {
 			else if (corate == 2) {
 				//Log Strain 
 				simcoon::logarithmic(DR, D, Omega, DTime, F0, F1); //to compute D, W, Omega
-				list_Detot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
+				list_Detot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)))-list_etot.col(pg);
+				//list_Detot.col(pg) = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); //etot : VR decomposition, then ln(V) equals the logarithmic strain			
 			}
 			list_DR.slice(pg) = DR;
-
 		}
 	}
 
@@ -524,7 +524,7 @@ namespace simpy {
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_L() {
 	//-------------------------------------------------------------
-		//L is expressed according to the choosen strain and stress mesure (mainly kirkoff/Logstrain)
+		//L is expressed according to the choosen strain and stress mesure (mainly cauchy/Logstrain)
 		return cube2array(list_L, false); //inplace (without copy).
 	}
 
