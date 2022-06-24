@@ -20,7 +20,7 @@ namespace simpy {
 		arma::cube list_DR;
 		arma::mat list_Wm; //Energy [Wm, Wm_r, Wm_ir, Wm_d]
 		arma::cube list_Lt, list_L, list_Lt_start; //tangeant matrix and elastic matrix
-		arma::mat list_statev_start, list_Wm_start, list_PKII_start; 
+		arma::mat list_statev_start, list_Wm_start, list_PKII_start, list_cauchy_start;
 		arma::cube listF0, listF1;
 		arma::vec list_T; //Temp
 
@@ -32,11 +32,11 @@ namespace simpy {
 		int corate; //corate (0 = Jaumann, 1 = Green Naghdi, 2 = Log strain with cumulated strain, 3 = Log strain with recomputed strain)
 		int ndi, nshr, ncomp; //number of normal strain component, and shear strain compotenent (default = 3) and total number of strain component
 		double Time,DTime;
-		bool nlgeom = false;
+		int nlgeom = 0;
 
 		Umat_fedoo(const std::string&, const bn::ndarray&, const int&, const int&, const int&); 	//default constructor
 
-		void Initialize(const double&, bn::ndarray&, const bool&);
+		void Initialize(const double&, bn::ndarray&, const int&);
 		void set_start();
 		void to_start();
 		void compute_Detot(const double&, const bn::ndarray&);

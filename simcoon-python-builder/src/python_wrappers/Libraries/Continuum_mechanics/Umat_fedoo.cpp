@@ -81,7 +81,7 @@ namespace simpy {
 	}
 
 	//-------------------------------------------------------------
-	void Umat_fedoo::Initialize(const double &Time_py, bn::ndarray& statev_py, const bool& nlgeom_py){
+	void Umat_fedoo::Initialize(const double &Time_py, bn::ndarray& statev_py, const int& nlgeom_py){
 	//-------------------------------------------------------------
 		//TODO: rajouter update_dt dans les arguments pour alleger le stockage dans le cas où on n'a pas besoin de modifier le pas de temps
 
@@ -104,16 +104,24 @@ namespace simpy {
 		listF1.set_size(ndi, ndi, nb_points);
 		for (int pg = 0; pg < nb_points; pg++) listF1.slice(pg).eye(ndi, ndi);
 
-		// allow memory for variable that will computed in the Umat
-		if (nlgeom) list_cauchy.zeros(ncomp, nb_points);
-		list_PKII.zeros(ncomp, nb_points); list_PKII_start.zeros(ncomp, nb_points);
+		// allow memory for variable that will computed in the Umat		
+		if (nlgeom == 1) {
+			//total lagrangian method based on PKII
+			list_cauchy.zeros(ncomp, nb_points);
+			list_PKII.zeros(ncomp, nb_points);
+			list_PKII_start.zeros(ncomp, nb_points);
+		}
+		else {
+			// nlgeom = false or update lagrangian method based on cauchy
+			list_cauchy.zeros(ncomp, nb_points);
+			list_cauchy_start.zeros(ncomp, nb_points);
+		}
 
 		list_DR.set_size(ndi, ndi, nb_points); 
 		for (int pg = 0; pg < nb_points; pg++) list_DR.slice(pg).eye(ndi,ndi);
 
 		list_Lt.set_size(ncomp, ncomp, nb_points); //tangent rigitidy matrix in PKII/GL
 		list_L.set_size(ncomp, ncomp, nb_points); //elastic rigidity matrix in Cauchy/logstrain
-
 
 		list_statev_start = list_statev;
 		list_Wm_start = list_Wm;
@@ -123,11 +131,11 @@ namespace simpy {
 	void Umat_fedoo::set_start() {
 	//-------------------------------------------------------------
 		list_statev_start = list_statev;
-		list_PKII_start = list_PKII;
 		list_Wm_start = list_Wm;
 		mat F1, sigma_t, tau_t;
 
-		if (nlgeom) {
+		if (nlgeom==1) {
+			list_PKII_start = list_PKII;
 			for (int pg = 0; pg < nb_points; pg++) {
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
@@ -135,12 +143,10 @@ namespace simpy {
 				else {
 					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
 				}
-
+				
 				// Replace the tangent matrix with the elastic matrix for a prediction
+				// Constitutive eq assumed expressed in Cauchy / Logstrain 		
 				if (corate == 0) {
-					//approximation. need to be modified
-
-					//Constitutive eq assumed expressed in Cauchy/Logstrain
 					//Convert cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
@@ -148,24 +154,38 @@ namespace simpy {
 					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange				
 				}
 				else if (corate == 1) {
-					//Constitutive eq assumed expressed in Cauchy/Logstrain
-					//Convert kirkoff/Logstrain to PKII/GLstrain
+					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
-					//Constitutive eq assumed expressed in Cauchy/Logstrain
-					//Convert kirkoff/Logstrain to PKII/GLstrain
+					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
-                    tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
+					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
 				}
 			}
 		}
+		else if (nlgeom == 2) {
+			list_cauchy_start = list_cauchy;
+			//to use with update lagrangian mathod. Tangeant matrix is expressed on the current configuration 
+			for (int pg = 0; pg < nb_points; pg++) {
+				if (corate == 2) {
+					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
+				}
+				else {
+					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
+				}
+			}
+			//no conversion required
+			list_Lt = list_L;
+		}
 		else {
+			//nlgeom == 0 
+			list_cauchy_start = list_cauchy;
 			list_etot = list_etot + list_Detot;
 			list_Lt = list_L;
 		}
@@ -182,11 +202,11 @@ namespace simpy {
 	//-------------------------------------------------------------
 		// Replace the tangent matrix with the elastic matrix for a prediction		
 		list_Lt = list_Lt_start;
-		list_PKII = list_PKII_start;
-		// list_statev = list_statev_start;
-		// list_Wm = list_Wm_start;
+		if (nlgeom == 1) list_PKII = list_PKII_start;
+		else list_cauchy = list_cauchy_start;
+		list_statev = list_statev_start;
+		list_Wm = list_Wm_start;
 	}
-
 
 	//-------------------------------------------------------------
 	void Umat_fedoo::compute_Detot(const double& DTime, const bn::ndarray& F1_py)
@@ -405,9 +425,9 @@ namespace simpy {
 				list_L.slice(pg) = Lt;
 			}
 			
-			if (!nlgeom) {
+			if (nlgeom== 0 || nlgeom == 2) {
 				//without conversion of stress and rigidity matrix
-				list_PKII.col(pg) = sigma;
+				list_cauchy.col(pg) = sigma;
 				list_Lt.slice(pg) = Lt;
 			}
 			else if (corate == 0) {
@@ -441,7 +461,7 @@ namespace simpy {
 				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 			}
 		}
-		if (DTime == 0.) { list_Lt_start = list_Lt; }
+		if (DTime == 0.) { list_Lt_start = list_Lt; } //1st iteration only -> inint Lt_start
 
 		//return bp::make_tuple(mat2array(DR), cube2array(list_DR, false), vec2array(Detot), vec2array(statev));
 		return bp::make_tuple();
@@ -468,25 +488,39 @@ namespace simpy {
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_PKII() {
 	//-------------------------------------------------------------
-		return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		if (nlgeom==1) {
+			return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		}
+		else if (nlgeom==0) {
+			return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		}
+		else {
+			if (list_PKII.is_empty()) {
+				list_PKII.set_size(ncomp, nb_points);
+			}
+
+			mat F1(ndi, ndi);
+			mat sigma_t;
+
+			for (int pg = 0; pg < nb_points; pg++) {
+				F1 = listF1.slice(pg);
+				sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
+				list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
+			}
+			return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		}
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Cauchy() {
 		//-------------------------------------------------------------
-
-		if (nlgeom) {
-			return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
-		}
-		else {
-			return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
-		}
+		return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 	}
 
 	//-------------------------------------------------------------
 	bn::ndarray Umat_fedoo::Get_Kirchhoff() {
 	//-------------------------------------------------------------
-		if (!nlgeom) return mat2array(list_PKII, false); //inplace (without copy). Return the transpose by default (C_contiguous)
+		if (!nlgeom) return mat2array(list_cauchy, false); //inplace (without copy). Return the transpose by default (C_contiguous)
 		
 		if (list_kirchoff.is_empty()) {
 			list_kirchoff.set_size(ncomp, nb_points);
