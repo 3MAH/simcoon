@@ -83,7 +83,7 @@ namespace simpy {
 	//-------------------------------------------------------------
 	void Umat_fedoo::Initialize(const double &Time_py, bn::ndarray& statev_py, const int& nlgeom_py){
 	//-------------------------------------------------------------
-		//TODO: rajouter update_dt dans les arguments pour alleger le stockage dans le cas où on n'a pas besoin de modifier le pas de temps
+		//TODO: rajouter update_dt dans les arguments pour alleger le stockage dans le cas oï¿½ on n'a pas besoin de modifier le pas de temps
 
 		Time = Time_py;
 		nlgeom = nlgeom_py;
@@ -117,6 +117,8 @@ namespace simpy {
 			list_cauchy_start.zeros(ncomp, nb_points);
 		}
 
+		list_R.set_size(ndi, ndi, nb_points);
+		for (int pg = 0; pg < nb_points; pg++) list_R.slice(pg).eye(ndi,ndi);		 
 		list_DR.set_size(ndi, ndi, nb_points); 
 		for (int pg = 0; pg < nb_points; pg++) list_DR.slice(pg).eye(ndi,ndi);
 
@@ -137,6 +139,7 @@ namespace simpy {
 		if (nlgeom==1) {
 			list_PKII_start = list_PKII;
 			for (int pg = 0; pg < nb_points; pg++) {
+				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg)					
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
@@ -151,37 +154,37 @@ namespace simpy {
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange				
+					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_Lt.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
 				}
 				else if (corate == 1) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_Lt.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangeant matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_Lt.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 			}
 		}
 		else if (nlgeom == 2) {
-			list_cauchy_start = list_cauchy;
-			//to use with update lagrangian mathod. Tangeant matrix is expressed on the current configuration 
+			//to use with update lagrangian mathod. Tangent matrix is expressed on the current configuration 
 			for (int pg = 0; pg < nb_points; pg++) {
+				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg)			
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
 				else {
-					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
+					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);				
 				}
+				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));
+				list_Lt.slice(pg) = simcoon::rotate_stress(list_Lt.slice(pg), list_R.slice(pg));
 			}
-			//no conversion required
-			list_Lt = list_L;
 		}
 		else {
 			//nlgeom == 0 
@@ -567,6 +570,12 @@ namespace simpy {
 	//-------------------------------------------------------------
 		// Lt is expressed PKII/GLstrain
 		return cube2array(list_Lt, false); //inplace (without copy).
+	}
+
+	//-------------------------------------------------------------
+	bn::ndarray Umat_fedoo::Get_R() {
+	//-------------------------------------------------------------
+		return cube2array(list_R, false); //inplace (without copy).
 	}
 
 	//-------------------------------------------------------------
