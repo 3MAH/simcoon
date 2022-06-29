@@ -157,21 +157,21 @@ namespace simpy {
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_Lt.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
+					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
 				}
 				else if (corate == 1) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_Lt.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_Lt.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 			}
 		}
