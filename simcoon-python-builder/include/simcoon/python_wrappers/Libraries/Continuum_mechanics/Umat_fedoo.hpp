@@ -17,6 +17,7 @@ namespace simpy {
 		arma::mat list_props; //mat where each col is prop for one pg
 		arma::mat list_statev; //mat where each col is prop for one pg		
 		arma::mat list_etot, list_Detot, list_kirchoff, list_PKII, list_cauchy;
+		arma::cube list_R;		
 		arma::cube list_DR;
 		arma::mat list_Wm; //Energy [Wm, Wm_r, Wm_ir, Wm_d]
 		arma::cube list_Lt, list_L, list_Lt_start; //tangeant matrix and elastic matrix
@@ -52,6 +53,7 @@ namespace simpy {
 		bn::ndarray Get_statev();
 		bn::ndarray Get_L();
 		bn::ndarray Get_Lt();
+		bn::ndarray Get_R();		
 		bn::ndarray Get_DR();
 		bn::ndarray Get_Wm();
 		bn::ndarray Get_F0();
