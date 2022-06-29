@@ -139,7 +139,10 @@ namespace simpy {
 		if (nlgeom==1) {
 			list_PKII_start = list_PKII;
 			for (int pg = 0; pg < nb_points; pg++) {
-				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg)					
+				list_Lt.slice(pg) = simcoon::rotate_stress(list_Lt.slice(pg), list_R.slice(pg));
+				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg);			
+				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));				
+
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
@@ -175,15 +178,16 @@ namespace simpy {
 		else if (nlgeom == 2) {
 			//to use with update lagrangian mathod. Tangent matrix is expressed on the current configuration 
 			for (int pg = 0; pg < nb_points; pg++) {
-				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg)			
+				list_Lt.slice(pg) = simcoon::rotate_stress(list_Lt.slice(pg), list_R.slice(pg));
+				list_R.slice(pg) = list_DR.slice(pg)*list_R.slice(pg);			
+				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));				
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
 				else {
 					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);				
 				}
-				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));
-				list_Lt.slice(pg) = simcoon::rotate_stress(list_Lt.slice(pg), list_R.slice(pg));
+
 			}
 		}
 		else {
@@ -307,7 +311,7 @@ namespace simpy {
 			if (use_temp) T = list_T(pg);
 			if (pg < list_props.n_cols) props = list_props.col(pg); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
 			statev = list_statev_start.col(pg);
-			//sigma = list_cauchy.col(pg);
+			sigma = list_cauchy_start.col(pg);
 			DR = list_DR.slice(pg);
 
 			etot = list_etot.col(pg);
