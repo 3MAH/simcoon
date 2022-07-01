@@ -461,23 +461,22 @@ namespace simpy {
 				else if (corate == 2) {
 					//Constitutive eq assumed expressed in Cauchy/Logstrain
 					//Convert cauchy/Logstrain to PKII/GLstrain
-					list_cauchy.col(pg) = sigma;
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(sigma);
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 					list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
 				}	
-				if (DTime == 0.) {
-					list_L.slice(pg) = List_Lt.slice(pg);
-				}
 			}
 			else if (nlgeom == 2) {
 				list_cauchy.col(pg) = sigma;
 				list_Lt.slice(pg) = Lt;
 			}
 		}
-		if (DTime == 0.) { list_Lt_start = list_Lt; } //1st iteration only -> init Lt_start
+		if (DTime == 0.) {
+			list_Lt_start = list_Lt;  //1st iteration only -> init Lt_start
+			list_L = list_Lt;
+		}			
 
 		//return bp::make_tuple(mat2array(DR), cube2array(list_DR, false), vec2array(Detot), vec2array(statev));
 		return bp::make_tuple();
