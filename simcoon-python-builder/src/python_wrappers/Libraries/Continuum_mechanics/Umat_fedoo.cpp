@@ -140,9 +140,6 @@ namespace simpy {
 			list_PKII_start = list_PKII;
 			for (int pg = 0; pg < nb_points; pg++) {
 
-				list_R.set_size(ndi, ndi, nb_points);
-				for (int pg = 0; pg < nb_points; pg++) list_R.slice(pg).eye(ndi,ndi);
-
 				if (corate == 2) {
 					list_etot.col(pg) = simcoon::t2v_strain(simcoon::Log_strain(listF1.slice(pg)));
 				}
@@ -157,29 +154,30 @@ namespace simpy {
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
+//					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
 				}
 				else if (corate == 1) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+//					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+//					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 			}
+			//no conversion required
+			list_Lt = list_L;
 		}
 		else if (nlgeom == 2) {
 			list_cauchy_start = list_cauchy;
 
-			list_R.set_size(ndi, ndi, nb_points);
-			for (int pg = 0; pg < nb_points; pg++) list_R.slice(pg).eye(ndi,ndi);
+			for (int pg = 0; pg < nb_points; pg++) {
 
 			//to use with update lagrangian mathod. tangent matrix is expressed on the current configuration 
 				if (corate == 2) {
@@ -189,8 +187,6 @@ namespace simpy {
 					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
 				}
 			}
-			//no conversion required
-			list_Lt = list_L;
 		}
 		else {
 			//nlgeom == 0 
@@ -211,8 +207,12 @@ namespace simpy {
 	//-------------------------------------------------------------
 		// Replace the tangent matrix with the elastic matrix for a prediction		
 		list_Lt = list_Lt_start;
-		if (nlgeom == 1) list_PKII = list_PKII_start;
-		else list_cauchy = list_cauchy_start;
+		if (nlgeom == 1) {
+			list_PKII = list_PKII_start;
+		}
+		else {
+			list_cauchy = list_cauchy_start;
+		}
 		list_statev = list_statev_start;
 		list_Wm = list_Wm_start;
 	}
@@ -429,10 +429,6 @@ namespace simpy {
 			list_Wm(1, pg) = Wm_r;
 			list_Wm(2, pg) = Wm_ir;
 			list_Wm(3, pg) = Wm_d;
-
-			if (DTime == 0.) { // if DTime = 0., init the elastic matrix for future use in set_start method, sigma should be = 0)
-				list_L.slice(pg) = Lt;
-			}
 			
 			if (nlgeom== 0) {
 				list_cauchy.col(pg) = sigma;
@@ -468,14 +464,17 @@ namespace simpy {
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(Lt, simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 					list_PKII.col(pg) = simcoon::t2v_stress(simcoon::Cauchy2PKII(sigma_t, F1));
-				}				
+				}	
+				if (DTime == 0.) {
+					list_L.slice(pg) = List_Lt.slice(pg);
+				}
 			}
 			else if (nlgeom == 2) {
 				list_cauchy.col(pg) = sigma;
-				list_Lt.slice(pg) = simcoon::rotate_L(list_cauchy.col(pg), list_R.slice(pg));	
+				list_Lt.slice(pg) = Lt;
 			}
 		}
-		if (DTime == 0.) { list_Lt_start = list_Lt; } //1st iteration only -> inint Lt_start
+		if (DTime == 0.) { list_Lt_start = list_Lt; } //1st iteration only -> init Lt_start
 
 		//return bp::make_tuple(mat2array(DR), cube2array(list_DR, false), vec2array(Detot), vec2array(statev));
 		return bp::make_tuple();
