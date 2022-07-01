@@ -146,37 +146,37 @@ namespace simpy {
 				else {
 					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
 				}
+				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));				
 				
-				// Replace the tangent matrix with the elastic matrix for a prediction
+/*				// Replace the tangent matrix with the elastic matrix for a prediction
 				// Constitutive eq assumed expressed in Cauchy / Logstrain 		
 				if (corate == 0) {
 					//Convert cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-//					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
+					list_Lt.slice(pg) = simcoon::DsigmaDe_JaumannDD_2_DSDE(list_L.slice(pg), F1, tau_t); //transform the tangent matrix into pkII/green lagrange				
 				}
 				else if (corate == 1) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-//					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB_GN(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 				else if (corate == 2) {
 					//Convert Cauchy/Logstrain to PKII/GLstrain
 					F1 = listF1.slice(pg);
 					sigma_t = simcoon::v2t_stress(list_cauchy.col(pg));
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
-//					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
+					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
 			}
+*/			
 			//no conversion required
 			list_Lt = list_L;
 		}
 		else if (nlgeom == 2) {
-			list_cauchy_start = list_cauchy;
-
 			for (int pg = 0; pg < nb_points; pg++) {
 
 			//to use with update lagrangian mathod. tangent matrix is expressed on the current configuration 
@@ -186,6 +186,7 @@ namespace simpy {
 				else {
 					list_etot.col(pg) = simcoon::rotate_strain(list_etot.col(pg), list_DR.slice(pg)) + list_Detot.col(pg);
 				}
+				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));				
 			}
 		}
 		else {
