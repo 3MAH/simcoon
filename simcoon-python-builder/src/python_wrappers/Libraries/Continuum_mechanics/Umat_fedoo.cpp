@@ -149,7 +149,7 @@ namespace simpy {
 				}
 				list_cauchy_start.col(pg) = simcoon::rotate_stress(list_cauchy.col(pg), list_DR.slice(pg));				
 				
-/*				// Replace the tangent matrix with the elastic matrix for a prediction
+				/*// Replace the tangent matrix with the elastic matrix for a prediction
 				// Constitutive eq assumed expressed in Cauchy / Logstrain 		
 				if (corate == 0) {
 					//Convert cauchy/Logstrain to PKII/GLstrain
@@ -172,8 +172,9 @@ namespace simpy {
 					tau_t = simcoon::Cauchy2Kirchoff(sigma_t, F1);
 					list_Lt.slice(pg) = simcoon::DsigmaDe_2_DSDE(list_L.slice(pg), simcoon::get_BBBB(F1), F1, tau_t); //transform the tangent matrix into pkII/green lagrange
 				}
+				*/
 			}
-*/			
+			
 			//no conversion required
 			list_Lt = list_L;
 		}
