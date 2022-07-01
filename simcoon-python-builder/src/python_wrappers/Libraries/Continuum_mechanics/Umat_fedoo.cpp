@@ -107,6 +107,7 @@ namespace simpy {
 		// allow memory for variable that will computed in the Umat		
 		if (nlgeom == 1) {
 			//total lagrangian method based on PKII
+			list_cauchy_start.zeros(ncomp, nb_points);
 			list_cauchy.zeros(ncomp, nb_points);
 			list_PKII.zeros(ncomp, nb_points);
 			list_PKII_start.zeros(ncomp, nb_points);
