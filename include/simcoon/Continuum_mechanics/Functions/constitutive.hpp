@@ -25,34 +25,156 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon{
 
-//Returns the fourth order identity tensor written in Voigt notation Ireal
+/**
+* @file constitutive.hpp
+* @author Yves Chemisky 
+* @section DESCRIPTION *
+* The time class represents a moment of time. 
+*/
+
+///@brief Returns the fourth order identity tensor Ireal written in Voigt notation 
+///@param None
+///@return The following 6x6 mat (arma::mat) 
+/**
+\f[
+    I_{real} = \left( \begin{array}{cccccc}
+    1 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 1 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0.5 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0.5 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
+\f]
+*/
 arma::mat Ireal();
 
 //Returns the volumic of the identity tensor Ireal written in Voigt notation
+///@brief Returns the fourth order identity tensor written in Voigt notation
+///@param None
+///@return The following 6x6 mat (arma::mat) 
+/**
+\f[
+    I_{vol} = \left( \begin{array}{cccccc}
+    1/3 & 1/3 & 1/3 & 0 & 0 & 0 \\
+    1/3 & 1/3 & 1/3 & 0 & 0 & 0 \\
+    1/3 & 1/3 & 1/3 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0 \end{array} \right)
+\f]
+*/
 arma::mat Ivol();
 
-//Returns the deviatoric of the identity tensor Ireal written in Voigt notation
+///@brief Returns the deviatoric of the identity tensor Ireal written in Voigt notation
+///@param None
+///@return The following 6x6 mat (arma::mat) 
+/**
+\f[ 
+    I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{cccccc}
+    2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
+    -1/3 & 2/3 & -1/3 & 0 & 0 & 0 \\
+    -1/3 & -1/3 & 2/3 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 0.5 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 0.5 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
+\f]
+*/
 arma::mat Idev();
 
-//Returns the fourth order identity tensor Iˆ written in Voigt notation
+///@brief Returns the fourth order identity tensor \f$ \widehat{I} \f$ written in Voigt notation
+///@param None
+///@return The following 6x6 mat (arma::mat) 
+/**
+\f[ 
+        \widehat{I} = \left( \begin{array}{cccccc}
+        1 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 1 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 1 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 2 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 2 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
+\f]
+*/
 arma::mat Ireal2();
 
-//Returns the deviatoric of the identity tensor Iˆ written in Voigt notation
+///@brief Returns the deviatoric part of the identity tensor, in the form of \f$ \widehat{I} \f$ considering the Voigt notation
+///@param None
+///@return The following 6x6 mat (arma::mat) 
+/**
+\f[ 
+    I_{dev2} = \left( \begin{array}{cccccc}
+    2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
+    -1/3 & 2/3 & -1/3 & 0 & 0 & 0 \\
+    -1/3 & -1/3 & 2/3 & 0 & 0 & 0 \\
+    0 & 0 & 0 & 2 & 0 & 0 \\
+    0 & 0 & 0 & 0 & 2 & 0 \\
+    0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
+\f]
+*/
 arma::mat Idev2();
 
-//Returns the expansion vector
+///@brief Returns the expansion vector
+///@param None
+///@return The following 6 vec (arma::vec) 
+/**
+\f[ 
+    I_{th} = \left( \begin{array}{c}
+    1 \\
+    1 \\
+    1 \\
+    0 \\
+    0 \\
+    0 \end{array} \right)
+\f]
+*/
 arma::vec Ith();
 
-//Returns the stress 2 strain operator
+///@brief Returns the stress to strain operator
+///@param None
+///@return The following 6 vec (arma::vec) 
+/**
+\f[ 
+    I_{r2} = \left( \begin{array}{ccc}
+    1 \\
+    1 \\
+    1 \\
+    2 \\
+    2 \\
+    2 \end{array} \right)
+\f]
+*/
 arma::vec Ir2();
 
-//Returns the strain 2 stress operator
+///@brief Returns the stress 2 strain operator
+///@param None
+///@return The following 6 vec (arma::vec) 
+/**
+\f[ 
+    I_{r05} = \left( \begin{array}{ccc}
+    1 \\
+    1 \\
+    1 \\
+    0.5 \\
+    0.5 \\
+    0.5 \end{array} \right)
+\f]
+*/
 arma::vec Ir05();
 
 //Provides the elastic stiffness tensor for an isotropic material.
 //The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
 //Exhaustive list of possible third argument :
 // ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
+
+///@brief Provides the elastic stiffness tensor for an isotropic material.
+/*
+* The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
+* Exhaustive list of possible third argument :
+* ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
+*/
+///@param C1, C2, conv
+///@return The 6x6 stiffness matrix considering a Voigt notation (arma::mat) 
+
 arma::mat L_iso(const double &, const double &, const std::string& = "Enu");
 
 //Provides the elastic compliance tensor for an isotropic material.
