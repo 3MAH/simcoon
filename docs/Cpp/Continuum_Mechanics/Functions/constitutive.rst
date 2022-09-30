@@ -3,9 +3,12 @@ The Constitutive Library
 
 .. default-domain:: cpp
 
-.. function:: mat Ireal()
+.. cpp:function:: mat Ireal()
 
-    Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
+    :parameter: None
+
+    :Description:
+        Provides the fourth order identity tensor written in Voigt notation :math:`I_{real}`, where :
 
     .. math::
 
@@ -17,13 +20,21 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
 
+    :return: The above 6x6 mat (arma::mat)
+
+    :example:
+
     .. code-block:: cpp
 
         mat Ir = Ireal();
 
-.. function:: mat Ivol()
+.. cpp:function:: mat Ivol()
 
-    Provides the volumic of the identity tensor :math:`I_{vol}` written in the Simcoon formalism. So :
+    :parameter: None
+
+    :Description:
+
+        Provides the volumic of the identity tensor :math:`I_{vol}` written in the Simcoon formalism. So :
 
     .. math::
 
@@ -35,15 +46,23 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0 \end{array} \right)
 
+    :return: The above 6x6 mat (arma::mat)
+
+    :example:
+
    .. code-block:: cpp
 
        mat Iv = Ivol();
 
-.. function:: mat Idev()
+.. cpp:function:: mat Idev()
 
-    Provides the deviatoric of the identity tensor :math:`I_{dev}` written in the Simcoon formalism. So :
+    :parameter: None
+
+    :Description:
     
-     .. math:: 
+        Provides the deviatoric of the identity tensor :math:`I_{dev}` written in the Simcoon formalism. So :
+    
+    .. math:: 
      
      	I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{ccc}
         2/3 & -1/3 & -1/3 & 0 & 0 & 0 \\
@@ -53,13 +72,21 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 0.5 & 0 \\
         0 & 0 & 0 & 0 & 0 & 0.5 \end{array} \right)
 
+    :return: The above 6x6 mat (arma::mat)
+
+    :example:
+
     .. code-block:: cpp
 
         mat Id = Idev();
 
-.. function:: mat Ireal2()
+.. cpp:function:: mat Ireal2()
 
-    Provides the fourth order identity tensor :math:`\widehat{I}` written in the form. So :
+    :parameter: None
+
+    :Description:
+
+        Provides the fourth order identity tensor :math:`\widehat{I}` written in the form. So :
 
     .. math::
 
@@ -71,15 +98,19 @@ The Constitutive Library
         0 & 0 & 0 & 0 & 2 & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \end{array} \right)
 
-   For example, this tensor allows to obtain : :math:`L*\widehat{M}=I` or :math:`\widehat{L}*M=I`, where a matrix :math:`\widehat{A}` is set by :math:`\widehat{A}=\widehat{I}\,A\,\widehat{I}`
+   For example, this tensor allows to obtain : :math: `L*\widehat{M}=I` or :math:`\widehat{L}*M=I`, where a matrix :math:`\widehat{A}` is set by :math:`\widehat{A}=\widehat{I}\,A\,\widehat{I}`
+
+    :return: The above 6x6 mat (arma::mat)
+
+    :example: 
 
    .. code-block:: cpp
 
         mat Ir2 = Ireal2();
 
-.. function:: mat Idev2()
+.. cpp:function:: mat Idev2()
 
-    Provides the deviatoric of the identity tensor :math:`\widehat{I}` written in the Simcoon formalism. So :
+    Provides the deviatoric of the identity tensor :math: `\widehat{I}` written in the Simcoon formalism. So :
 
     .. math::
 

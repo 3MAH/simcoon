@@ -1,2 +1,4 @@
-Sphinx==3.1.2
-Docutils==0.12
+sphinx
+sphinx-rtd-theme
+sphinxcontrib-napoleon
+mock
