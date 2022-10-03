@@ -36,6 +36,10 @@ Building doc :
 requires doxygen, sphinx, breathe
 
 ```bash
+pip install sphinx sphinx-rtd-theme breathe
+```
+
+```bash
 cd doxdocs && doxygen && make html
 ```
 
