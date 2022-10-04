@@ -106,7 +106,6 @@ arma::mat Idev();
         mat Ir2 = Ireal2();
  * @endcode
  */  
- */
 arma::mat Ireal2();
 
 /**
