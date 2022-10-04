@@ -1,0 +1,11 @@
+name: docs
+channels:
+  - conda-forge
+
+dependencies:
+  - doxygen
+  - pip
+  - pip:
+    - sphinx
+    - sphinx-rtd-theme
+    - breathe

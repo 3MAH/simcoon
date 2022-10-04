@@ -36,11 +36,11 @@ Building doc :
 requires doxygen, sphinx, breathe
 
 ```bash
-pip install sphinx sphinx-rtd-theme breathe
+conda install -c conda-forge doxygen -y && pip install sphinx sphinx-rtd-theme breathe
 ```
 
 ```bash
-cd doxdocs && doxygen && make html
+cd doxdocs && make html
 ```
 
 open _build/index.html
