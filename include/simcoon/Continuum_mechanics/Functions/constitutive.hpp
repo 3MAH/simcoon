@@ -106,8 +106,7 @@ arma::mat Idev();
         mat Ir2 = Ireal2();
  * @endcode
  */  
- */
-arma::mat Ireal2();
+ arma::mat Ireal2();
 
 /**
  * @brief Returns the deviatoric part of the identity tensor, in the form of \f$ \widehat{I} \f$ considering the Voigt notation
