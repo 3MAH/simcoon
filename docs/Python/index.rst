@@ -1,8 +1,6 @@
 Python API
 ========
 
-Contents:
-
 .. toctree::
    :maxdepth: 3
 
