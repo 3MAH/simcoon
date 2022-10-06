@@ -159,20 +159,20 @@ mat P_Hill(const vec &params) {
     return P;
 }
 
-double Ani_stress(const vec &v, const mat &H) {
+double Eq_stress_P(const vec &v, const mat &H) {
     
     if (norm(v,2) > sim_iota) {
-        return pow((3./2.)*sum(v%(H*v)),0.5);
+        return pow(sum(v%(H*v)),0.5);
     }
     else {
         return 0.;
     }
 }
                    
-vec dAni_stress(const vec &v, const mat &H) {
+vec dEq_stress_P(const vec &v, const mat &H) {
    
    if (norm(v,2) > sim_iota) {
-       return (3./2.)*(H*v)/Ani_stress(v,H);
+       return (H*v)/Ani_stress(v,H);
    }
    else {
        return zeros(6);
