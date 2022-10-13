@@ -61,7 +61,7 @@ mat ddetSdS(const mat &S) {
     return det(S)*(inv(S)).t();
 }
 
-mat dinvSdS(const mat &S) {
+mat dinvSdSsym(const mat &S) {
 
     mat invS = inv(S);
     
