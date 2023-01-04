@@ -66,15 +66,15 @@ mat dinvSdSsym(const mat &S) {
     mat invS = inv(S);
     
     Tensor2<double,3,3> invS_ = mat_FTensor2(invS);
-    Tensor4<double,3,3,3,3> dinvSdS_;
+    Tensor4<double,3,3,3,3> dinvSdSsym_;
     
     Index<'i', 3> i;
     Index<'j', 3> j;
     Index<'k', 3> k;
     Index<'l', 3> l;
         
-    dinvSdS_(i,j,k,l) = invS_(i,k)*invS_(j,l)+invS_(i,l)*invS_(j,k);
-    return 0.5*FTensor4_mat(dinvSdS_);
+    dinvSdSsym_(i,j,k,l) = invS_(i,k)*invS_(j,l)+invS_(i,l)*invS_(j,k);
+    return 0.5*FTensor4_mat(dinvSdSsym_);
 }
     
 } //namespace simcoon
