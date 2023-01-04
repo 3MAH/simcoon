@@ -145,7 +145,7 @@ mat P_Hill(const vec &params) {
     //param(5) = N
     P(0,0) = params(1) + params(2); //P_11 = G+H
     P(1,1) = params(0) + params(2); //P_22 = F+H
-    P(2,2) = params(0) + params(1)); //P_33 = F+G
+    P(2,2) = params(0) + params(1); //P_33 = F+G
     P(0,1) = -1.*params(2); //P_12 = -H
     P(1,0) = -1.*params(2); //P_12 = -H
     P(0,2) = -1.*params(1); //P_13 = -G
