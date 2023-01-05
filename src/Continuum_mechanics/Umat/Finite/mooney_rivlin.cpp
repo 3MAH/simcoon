@@ -29,7 +29,7 @@
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Finite/Neo_hookean_incomp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/mooney_rivlin.hpp>
 
 using namespace std;
 using namespace arma;

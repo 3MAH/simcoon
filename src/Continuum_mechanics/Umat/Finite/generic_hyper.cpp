@@ -31,7 +31,7 @@
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Finite/Neo_hookean_comp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper.hpp>
 
 using namespace std;
 using namespace arma;
