@@ -41,6 +41,6 @@ arma::mat dtrSdS(const arma::mat &);
 arma::mat ddetSdS(const arma::mat &);
 
 //This function returns the derivative of the inverse of a symmetric tensor
-arma::mat dinvSdS(const arma::mat &);
+arma::mat dinvSdSsym(const arma::mat &);
 
 } //namespace simcoon

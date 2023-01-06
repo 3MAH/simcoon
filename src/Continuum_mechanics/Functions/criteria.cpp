@@ -143,15 +143,15 @@ mat P_Hill(const vec &params) {
     //param(3) = L
     //param(4) = M
     //param(5) = N
-    P(0,0) = (1./3.)*(params(1) + params(2)); //P_11 = G+H
-    P(1,1) = (1./3.)*(params(0) + params(2)); //P_22 = F+H
-    P(2,2) = (1./3.)*(params(0) + params(1)); //P_33 = F+G
-    P(0,1) = -(1./3.)*params(2); //P_12 = -H
-    P(1,0) = -(1./3.)*params(2); //P_12 = -H
-    P(0,2) = -(1./3.)*params(1); //P_13 = -G
-    P(2,0) = -(1./3.)*params(1); //P_13 = -G
-    P(1,2) = -(1./3.)*params(0); //P_23 = -F
-    P(2,1) = -(1./3.)*params(0); //P_23 = -F
+    P(0,0) = params(1) + params(2); //P_11 = G+H
+    P(1,1) = params(0) + params(2); //P_22 = F+H
+    P(2,2) = params(0) + params(1); //P_33 = F+G
+    P(0,1) = -1.*params(2); //P_12 = -H
+    P(1,0) = -1.*params(2); //P_12 = -H
+    P(0,2) = -1.*params(1); //P_13 = -G
+    P(2,0) = -1.*params(1); //P_13 = -G
+    P(1,2) = -1.*params(0); //P_23 = -F
+    P(2,1) = -1.*params(0); //P_23 = -F
     P(3,3) = 2.*params(5); //P_44 = N
     P(4,4) = 2.*params(4); //P_55 = M
     P(5,5) = 2.*params(3); //P_66 = L
@@ -159,20 +159,20 @@ mat P_Hill(const vec &params) {
     return P;
 }
 
-double Ani_stress(const vec &v, const mat &H) {
+double Eq_stress_P(const vec &v, const mat &H) {
     
     if (norm(v,2) > sim_iota) {
-        return pow((3./2.)*sum(v%(H*v)),0.5);
+        return pow(sum(v%(H*v)),0.5);
     }
     else {
         return 0.;
     }
 }
                    
-vec dAni_stress(const vec &v, const mat &H) {
+vec dEq_stress_P(const vec &v, const mat &H) {
    
    if (norm(v,2) > sim_iota) {
-       return (3./2.)*(H*v)/Ani_stress(v,H);
+       return (H*v)/Ani_stress(v,H);
    }
    else {
        return zeros(6);

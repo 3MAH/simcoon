@@ -160,7 +160,7 @@ Provides the Euler_Almansi tensor :math:`\mathbf{e}`: from the transformation gr
 
     .. math::
 
-        \mathbfeE} = \frac{1}{2} \left( \mathbf{I} - \left( \mathbf{F} \cdot \mathbf{F}^T \right)^T \right)
+        \mathbf{e} = \frac{1}{2} \left( \mathbf{I} - \left( \mathbf{F} \cdot \mathbf{F}^T \right)^T \right)
 
     .. code-block:: cpp
 

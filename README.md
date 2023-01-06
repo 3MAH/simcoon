@@ -32,6 +32,20 @@ Provider      | Status
 Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoon/badge/?version=latest&style=plastic)](http://simcoon.readthedocs.io/en/latest)
 
 
+Building doc :
+requires doxygen, sphinx, breathe
+
+```bash
+conda install -c conda-forge doxygen -y && pip install sphinx sphinx-rtd-theme breathe
+```
+
+```bash
+cd doxdocs && make html
+```
+
+open _build/index.html
+
+
 Installation
 ------------
 

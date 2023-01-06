@@ -1,10 +1,10 @@
 Installation
 ========
 
-On MacOS/Linux platforms
+On All platforms (Linux/MacOS/Windows) platforms
 ----------------
 
-The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
+The easiest way to install *simcoon* is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
 (for the installation of an environment called "scientific")
 
 .. code-block:: none
@@ -16,6 +16,33 @@ To activate the environment:
 .. code-block:: none
 
     conda activate scientific
+
+Now you can install *simcoon* using 
+
+.. code-block:: none
+
+    conda install -c conda-forge -c set3mah simcoon
+
+That's it! You can start utilizing *simcoon*
+
+Developper installation:
+-------------------------
+
+On Linux/MacOS platforms:
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+We still recommand to use a specific environnement :
+
+.. code-block:: none
+
+    conda create --name simcoon-dev
+
+To activate the environment: 
+
+.. code-block:: none
+
+    conda activate simcoon-dev
+
 
 The next step is to install the required packages:
 
@@ -75,7 +102,7 @@ is also utilized by Simcoon but it is integrated to facilitate the installation.
 Make sure that you have access to the folder selected for the installation with Cmake (by default /usr/local on most Unix-based systems).
 
 On Windows platforms
-----------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following procedure has been tested on Windows 10 64 bits:
 
@@ -86,7 +113,5 @@ The first thing is to download the last version of Visual Studio.
 3. download and install Visual studio (tested with VS 2019). You can get it here_
 _here : https://visualstudio.microsoft.com/downloads/
 4. Download simcoon from Github : https://github.com/3MAH/simcoon/
-
-*To be completed*
-
+5. Execute the bld.bat executable
 

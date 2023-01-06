@@ -31,7 +31,7 @@
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Finite/Neo_hookean_comp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_comp.hpp>
 
 using namespace std;
 using namespace arma;
@@ -93,35 +93,12 @@ void umat_neo_hookean_comp(const vec &Etot, const vec &DEtot, const mat &F0, con
 
     //Compute the PKII stress and then the Cauchy stress
     mat S = mu*(I-invC) + lambda*log(J)*invC;
-
-    cout << "J = " << J;
-    cout << "invC = " << invC;
-    cout << "S = " << S;
     
     sigma = t2v_stress(PKII2Cauchy(S, F1));
-    vec sigma2 = t2v_stress(mu/J*(L_Cauchy_Green(F1) - I) + lambda*log(J)/J*I);
-  
-    cout << "sigma = " << sigma.t();
-    cout << "sigma2 = " << sigma2.t();
-    
-//    L = lambda*sym_dyadic(invC,invC)+2.0*(mu-lambda*log(J))*dinvSdS(C);
-    L = lambda*auto_dyadic(invC)+2.0*(mu-lambda*log(J))*dinvSdS(C);
-    Lt = DSDE_2_DtauDe(L, get_BBBB(F1), F1, v2t_stress(sigma));
-//    Lt = (1./J)*(DSDE_2_Dtau_LieDD(L, F1));
-    
-    
-    double lambdap = lambda/J;
-    double mup =(mu-lambda*log(J))/J;
-    
-//    mat Lt2 = lambdap*sym_dyadic(I,I)+2.0*mup*dinvSdS(I);
-    mat Lt2 = lambdap*auto_dyadic(I)+2.0*mup*dinvSdS(I);
-    
-    cout << "L = " << L << endl;
-    cout << "auto_dyadic(invC,invC)" << auto_dyadic(invC) << endl;
-    cout << "dinvSdS(C)" << dinvSdS(C) << endl;
-    cout << "Lt = " << Lt << endl;
-    cout << "Lt2 = " << Lt2 << endl;
-    cout << "Lt_iso = " << L_iso(mup, lambdap, "mulambda") << endl;
+    //sigma = t2v_stress(mu/J*(L_Cauchy_Green(F1) - I) + lambda*log(J)/J*I);
+      
+    L = lambda*auto_dyadic(invC)+2.0*(mu-lambda*log(J))*dinvSdSsym(C);
+    Lt = DSDE_2_DsigmaDe(L, get_BBBB(F1), F1, v2t_stress(sigma));
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

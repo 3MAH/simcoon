@@ -37,7 +37,7 @@ namespace simcoon{
 //This function returns damage evolution (/dt) considering a Weibull damage law
 double damage_weibull(const vec &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const string &criterion) {
 		
-	if ((criterion == "vonmises")) {
+	if ((criterion == "Mises")) {
 		return ((1.-damage)/DTime)*(1. - exp( -1.* pow( Mises_stress(stress) / beta, alpha)));
 	}
 	else if ((criterion == "hydro")) {
