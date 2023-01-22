@@ -29,11 +29,11 @@ namespace simcoon{
  * @brief Provides the Prager equivalent stress, given its vector representation
  * @param v, b, n
  * @return The Prager equivalent stress (double)
- * @details Returns the Prager equivalent stress \f$ \boldsymbol{\sigma}^{P} \f$, considering
+ * @details Returns the Prager equivalent stress \f$ \mathbf{\sigma}^{P} \f$, considering
 \f[
-    \sigma^{P} = \sigma^{VM} \left(\frac{1 + b \cdot J_3 \left(\boldsymbol{\sigma} \right)}{\left(J_2 \left(\boldsymbol{\sigma} \right) \right)^{3/2} } \right)^{m}
+    \sigma^{P} = \sigma^{VM} \left(\frac{1 + b \cdot J_3 \left(\mathbf{\sigma} \right)}{\left(J_2 \left(\mathbf{\sigma} \right) \right)^{3/2} } \right)^{m}
 \f]
-    considering the input stress \f$ \boldsymbol{\sigma} \f$, \f$ \boldsymbol{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
+    considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
     Note that if n > 10, the Prager criteria is sufficiently close to the Mises that the Mises norm is used to avoid numerical instabilities from high-power computations
  * @code 
         vec sigma = randu(6);
@@ -53,7 +53,7 @@ double Prager_stress(const arma::vec &v, const double &b, const double &n);
     \frac{\partial \sigma^{P}}{\partial \mathbf{\sigma}} = \sqrt{3} \left( \frac{1. + b * J_3}{J_2^{3/2}} \right)^{1/n-1} \, \frac{1}{2} \frac{\sqrt{J_2}}{\mathbf{\sigma}'} 
     + b \, m \left( 6 J_2^2 \right) \left( 6 J_2 \mathbf{\sigma}' \cdot \mathbf{\sigma}' - 4 J_2^2 \mathbf{I} + \frac{3}{m-9} J_3 \mathbf{\sigma}' \right)
 \f]
-    considering the input stress \f$ \boldsymbol{\sigma} \f$, \f$ \boldsymbol{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
+    considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
     Note that if n > 10, the Prager criteria is sufficiently close to the Mises that the derivative of the Mises norm is used to avoid numerical instabilities from high-power computations
  * @code 
         vec sigma = randu(6);
@@ -68,11 +68,11 @@ arma::vec dPrager_stress(const arma::vec &v, const double &b, const double &n);
  * @brief Provides the Tresca equivalent stress, given its vector representation
  * @param v
  * @return The Prager equivalent stress (double)
- * @details Returns the Tresca equivalent stress \f$ \boldsymbol{\sigma}^{T} \f$, considering
+ * @details Returns the Tresca equivalent stress \f$ \mathbf{\sigma}^{T} \f$, considering
 \f[
     \sigma^{T} = \sigma_{I} - \sigma_{III},
 \f]
-    considering the input stress \f$ \boldsymbol{\sigma} \f$.
+    considering the input stress \f$ \mathbf{\sigma} \f$.
     Note that the principal stress are classified such that \f$ \sigma_{I} \geq \sigma_{II} \geq \sigma_{III}.
  * @code 
         vec sigma = randu(6);
@@ -111,7 +111,7 @@ arma::vec dTresca_stress(const arma::vec &v);
         0 & 0 & 0 & 0 & 2 \, P_{55} & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \, P_{66} \end{array} \right)
 \f]
-    considering the input stress \f$ \boldsymbol{\sigma} \f$.
+    considering the input stress \f$ \mathbf{\sigma} \f$.
     Note that the equivalent anisotropic tensor is written as : \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
 
     It reduces to : 
@@ -161,7 +161,7 @@ arma::mat P_ani(const arma::vec &P_params);
         0 & 0 & 0 & 0 & 2 \, M & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \, N \end{array} \right)
 \f]
-    considering the input stress \f$ \boldsymbol{\sigma} \f$.
+    considering the input stress \f$ \mathbf{\sigma} \f$.
     Note that the equivalent anisotropic Hill 1948) tensor is written as : \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
     which reduces to : 
 \f[ 
@@ -212,9 +212,9 @@ double Eq_stress_P(const arma::vec &sigma, const arma::mat &H);
  * @brief Provides the derivative of the anisotropic equivalent stress, given the stress in a vector format and given a configurational tensor P
  * @param sigma, H
  * @return The derivative of the anisotropic equivalent stress (mat::vec)
- * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \boldsymbol{\sigma}^{ani}}{\partial \boldsymbol{\sigma}} \f$, considering
+ * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
-    \sigma^{eq}_{ani} = \frac{\boldsymbol{H} : \boldsymbol{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
+    \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
 \f]
  * @code 
         vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
@@ -243,9 +243,9 @@ double Hill_stress(const arma::vec &sigma, const arma::vec &P_params);
  * @brief Provides the derivative of the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
  * @param sigma, P_params
  * @return The derivative of the Hill48 anisotropic equivalent stress (arma::vec)
- * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \boldsymbol{\sigma}^{ani}}{\partial \boldsymbol{\sigma}} \f$, considering
+ * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
-    \sigma^{eq}_{ani} = \frac{\boldsymbol{H} : \boldsymbol{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
+    \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
 \f]
 see the function P_hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
  * @code 
@@ -274,9 +274,9 @@ double Ani_stress(const arma::vec &sigma, const arma::vec &P_params);
  * @brief Provides the derivative of the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
  * @param sigma, P_params
  * @return The derivative of the Hill48 anisotropic equivalent stress (arma::vec)
- * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \boldsymbol{\sigma}^{ani}}{\partial \boldsymbol{\sigma}} \f$, considering
+ * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
-    \sigma^{eq}_{ani} = \frac{\boldsymbol{H} : \boldsymbol{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
+    \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
 \f]
 see the function P_Ani() for more details to obtain the tensor P from the set of parameters.
  * @code 
