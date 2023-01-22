@@ -15,10 +15,6 @@
  
  */
 
-///@file natural_basis.cpp
-///@brief State variables of a phase, in a defined coordinate system:
-///@version 1.0
-
 #include <iostream>
 #include <fstream>
 #include <assert.h>
@@ -30,15 +26,7 @@ using namespace arma;
 
 namespace simcoon{
 
-//Fonctions that utilise natural basis objects
-//=====Private methods for state_variables===================================
-
-//=====Public methods for state_variables============================================
-
-/*!
-  \brief default constructor
-*/
-
+// default constructor
 //-------------------------------------------------------------
 natural_basis::natural_basis()
 //-------------------------------------------------------------
@@ -55,12 +43,7 @@ natural_basis::natural_basis()
     g0ij = zeros(3,3); // Contravariant components of the metric tensor
 }
 
-/*!
-  \brief Constructor with parameters
-  \n\n
-  \f$ \textbf{Examples :} \f$ \n
-*/
-
+//Constructor with parameters
 //-------------------------------------------------------------
 natural_basis::natural_basis(const std::vector<arma::vec> &mg_i)
 //-------------------------------------------------------------
@@ -96,11 +79,7 @@ natural_basis::natural_basis(const std::vector<arma::vec> &mg_i)
     }
 }
 
-/*!
-  \brief Copy constructor
-  \param s state_variables object to duplicate
-*/
-
+// copy constructor
 //------------------------------------------------------
 natural_basis::natural_basis(const natural_basis &nb)
 //------------------------------------------------------
@@ -113,12 +92,7 @@ natural_basis::natural_basis(const natural_basis &nb)
     g0ij = nb.g0ij;
 }
 
-/*!
-  \brief Destructor
-
-  Nothing to delete, classical objects
-*/
-
+// destructor
 //-------------------------------------
 natural_basis::~natural_basis()
 //-------------------------------------
@@ -126,10 +100,7 @@ natural_basis::~natural_basis()
 
 }
 
-/*!
-  \brief Standard operator = for natural_basis
-*/
-
+// affectation = operator
 //----------------------------------------------------------------------
 natural_basis& natural_basis::operator = (const natural_basis& nb)
 //----------------------------------------------------------------------
@@ -143,6 +114,7 @@ natural_basis& natural_basis::operator = (const natural_basis& nb)
 	return *this;
 }
     
+// update operator
 //-------------------------------------------------------------
 void natural_basis::update(const std::vector<arma::vec> &mg_i)
 //-------------------------------------------------------------
@@ -167,6 +139,7 @@ void natural_basis::update(const std::vector<arma::vec> &mg_i)
     }
 }
 
+// update operator from F
 //-------------------------------------------------------------
 void natural_basis::from_F(const arma::mat &F)
 //-------------------------------------------------------------
@@ -194,6 +167,7 @@ void natural_basis::from_F(const arma::mat &F)
     }
 }
 
+// stream operator
 //--------------------------------------------------------------------------
 ostream& operator << (ostream& s, const natural_basis& nb)
 //--------------------------------------------------------------------------
