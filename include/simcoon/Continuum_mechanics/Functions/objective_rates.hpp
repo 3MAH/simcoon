@@ -353,7 +353,7 @@ arma::mat DtauDe_2_DsigmaDe(const arma::mat &Lt, const double &J);
 
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ (or its approximation using an integration in an rotating frame) from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the logarithmic strain \f$ \mathbf{e} \f$ (or its approximation using an integration in an rotating frame)
- *
+ * 
  * This function takes in tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the logarithmic strain \f$ \mathbf{e} \f$ (or its approximation using an integration in an rotating frame) and 
  * the jacobian of the transformation \f$ J = \textrm{det} \mathbf{F} \f$.
  * 
@@ -488,7 +488,7 @@ arma::mat Dtau_LieDD_Dtau_JaumannDD(const arma::mat &Lt, const arma::mat &tau);
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the logarithmic spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
  *
  * \f[
- *      \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} \mathbf{\Omega}_{\textrm{log}}} (i,s,p,r) = \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} (i,s,p,r) - \frac{1}{2} \tau (p,s) \delta (i,r) - \frac{1}{2} \tau (r,s) \delta (i,p) \frac{1}{2} \tau (i,r) \delta (s,p) - \frac{1}{2} \tau(i,p) \delta(s,r)
+ *      \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} \mathbf{\Omega}_{\textrm{log}}} (i,s,p,r) = \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} (i,s,p,r) - \frac{1}{2} \tau (p,s) \delta (i,r) - \frac{1}{2} \tau (r,s) \delta (i,p) - \frac{1}{2} \tau (i,r) \delta (s,p) - \frac{1}{2} \tau(i,p) \delta(s,r)
  * \f]
  * 
  * This function takes in the tangent modulus \f$ \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis,
