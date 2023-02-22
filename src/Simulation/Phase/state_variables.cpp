@@ -344,19 +344,82 @@ void state_variables::to_start()
 void state_variables::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
-    PKII_start = PKII;
-    tau_start = rotate_stress(tau,DR);
-    sigma_start = rotate_stress(sigma,DR);
-    statev_start = statev;
-    Etot += DEtot;
-    etot = rotate_strain(etot,DR) + Detot;
-    T += DT;
-    F0 = F1;
-//    R = R*DR;
-    R = DR*R;
-    nb.from_F(F1);
+
+    if(corate_type < 4) {
+        PKII_start = PKII;
+        tau_start = rotate_stress(tau,DR);
+        sigma_start = rotate_stress(sigma,DR);
+        statev_start = statev;
+        Etot += DEtot;
+        etot = rotate_strain(etot,DR) + Detot;
+        T += DT;
+        F0 = F1;
+    //    R = R*DR;
+        R = DR*R;
+        nb.from_F(F1);
+    }
+    else {
+        PKII_start = PKII;
+        tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
+        sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));
+        statev_start = statev;
+        Etot += DEtot;
+        etot = t2v_strain(DR*v2t_strain(etot)*inv(DR)) + Detot;
+        T += DT;
+        F0 = F1;
+    //    R = R*DR;
+        R = DR*R;
+        nb.from_F(F1);        
+    }
 }
+
+/*
+//----------------------------------------------------------------------
+state_variables& state_variables::rotate_fix2natural(const state_variables& sv, const int &corate_type)
+//----------------------------------------------------------------------
+{
+	Etot = sv.Etot;
+	DEtot = sv.DEtot;
+	etot = sv.etot;
+	Detot = sv.Detot;
+	PKII = sv.PKII;
+	PKII_start = sv.PKII_start;
+	tau = sv.tau;
+	tau_start = sv.tau_start;
+	sigma = sv.sigma;
+	sigma_start = sv.sigma_start;
+    F0 = sv.F0;
+    F1 = sv.F1;
+    R = sv.R;
+    DR = sv.DR;
+    T = sv.T;
+    DT = sv.DT;
     
+    nstatev = sv.nstatev;
+    statev = sv.statev;
+    statev_start = sv.statev_start;
+
+    if (corate_type < 4) {
+        etot = rotate_strain(etot, R, true);
+        Detot = rotate_strain(Detot, R, true);
+        tau = rotate_stress(tau, R, true);
+        tau_start = rotate_stress(tau_start, R, true);
+        sigma = rotate_stress(sigma, R, true);
+        sigma_start = rotate_stress(sigma_start, R, true);
+    }
+    else if (corate_type > 4){
+        etot = rotate_strain(etot, F1, true);
+        Detot = rotate_strain(Detot, R, true);
+        tau = rotate_stress(tau, R, true);
+        tau_start = rotate_stress(tau_start, R, true);
+        sigma = rotate_stress(sigma, R, true);
+        sigma_start = rotate_stress(sigma_start, R, true);
+    }
+
+	return *this;    
+}
+*/
+
 //----------------------------------------------------------------------
 state_variables& state_variables::rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
