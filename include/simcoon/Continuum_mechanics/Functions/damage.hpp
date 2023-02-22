@@ -15,18 +15,41 @@
  
  */
 
-///@file damage.hpp
-///@brief Functions that computes damage evolution laws
-///@version 1.0
-#pragma once
 
+#pragma once
 #include <iostream>
 #include <armadillo>
 
 namespace simcoon{
 
+/**
+* @file damage.hpp
+* @author Yves Chemisky 
+* @section The damage library that computes damage evolution laws
+*/
+
 //This function returns damage evolution (/dt) considering a Weibull damage law
-double damage_weibull(const arma::vec &, const double &, const double &, const double &, const double &, const std::string& = "vonmises");
+
+/**
+ * @brief Provides the damage evolution :math:`\delta D` considering a Weibull damage law.
+ *    It is given by : :math:`\delta D = (1-D_{old})*\Big(1-exp\big(-1(\frac{crit}{\beta})^{\alpha}\big)\Big)`
+ *   Parameters of this function are: the stress vector :math:`\sigma`, the old damage :math:`D_{old}`, the shape parameter :math:`\alpha`, the scale parameter :math:`\beta`, the time increment :math:`\Delta T` and the criterion (which is a string).
+ *   The criterion possibilities are :
+ *   “vonmises” : :math:`crit = \sigma_{Mises}`
+ *   “hydro” : :math:`crit = tr(\sigma)`
+ *   “J3” : :math:`crit = J3(\sigma)`
+ *   Default value of the criterion is “vonmises”.
+ * 
+ * 
+ * @param m
+ * @return The 3x3 deviatoric part of the matrix input (arma::mat)
+ * @details Example: 
+ * @code 
+        mat m = randu(3,3;)
+        mat m_dev = dev(m);
+ * @endcode
+*/
+double damage_weibull(const arma::vec &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const std::string&criterion = "vonmises");
 
 //This function returns damage evolution (/dt) considering Kachanov's creep damage law
 double damage_kachanov(const arma::vec &, const arma::vec &, const double &, const double &, const double &, const std::string &);
