@@ -94,7 +94,7 @@ void umat_elasticity_trans_iso(const vec &Etot, const vec &DEtot, vec &sigma, ma
 
 	//Compute the elastic strain and the related stress	
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(Lt, Eel, ndi);
+    sigma = el_pred(L, Eel, ndi);
     
     if((solver_type == 0)||(solver_type==2)) {
         Lt = L;
