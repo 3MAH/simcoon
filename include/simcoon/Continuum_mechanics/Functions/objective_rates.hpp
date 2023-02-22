@@ -26,8 +26,6 @@
 
 namespace simcoon{
 
-//This function computes the Rotation matrix R, the increment of the rotation, the rate of deformation D and the spin W depending on F_0 and F_1 (F at the beginning and end of an increment) using the Jauman corotational framework
-
 /**
  * @brief Computes the increment of rotation, the rate of deformation and the spin using the Jaumann corotational framework.
  *
@@ -98,7 +96,7 @@ void Green_Naghdi(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double &
  *      logarithmic_R(DR, D, Omega, DTime, F0, F1);
  * @endcode
  */
-void logarithmic_R(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double &DTime, const arma::mat &F0, const arma::mat &F1);
+void logarithmic_R(arma::mat &DR, arma::mat &N_1,  arma::mat &N_2, arma::mat &D,  arma::mat &Omega, const double &DTime, const arma::mat &F0, const arma::mat &F1);
 
 /**
  * @brief Computes the increment of the velocity gradient, the rate of deformation and the velocity gradient using the Truesdell rate.
@@ -108,7 +106,7 @@ void logarithmic_R(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double 
  *
  * Note that this objective rate correspond to the covariant derivative
  * 
- * @param[out] DL 3x3 matrix representing the increment of transformation gradient \f$ \Delta \mathbf{F} \f$
+ * @param[out] DF 3x3 matrix representing the increment of transformation gradient \f$ \Delta \mathbf{F} \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
  * @param[out] Omega 3x3 matrix representing spin rate \mathbf{\L}
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
@@ -124,7 +122,7 @@ void logarithmic_R(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double 
  *      Truesdell(DF, D, L, DTime, F0, F1);
  * @endcode
  */
-void Truesdell(arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+void Truesdell(arma::mat &DF, arma::mat &D, arma::mat &L, const double &DTime, const arma::mat &F0, const arma::mat &F1);
 
 /**
  * @brief Computes the increment of rotation, the rate of deformation and the spin using the modified Logarithmic corotational framework using the "spin" L
@@ -148,7 +146,7 @@ void Truesdell(arma::mat &, arma::mat &, arma::mat &, const double &, const arma
  *      logarithmic_F(DR, D, Omega, DTime, F0, F1);
  * @endcode
  */
-void logarithmic_F(arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const double &, const arma::mat &, const arma::mat &);
+void logarithmic_F(arma::mat &DF, arma::mat &N_1, arma::mat &N_2, arma::mat &D, arma::mat &L, const double &DTime, const arma::mat &F0, const arma::mat &F1);
 
 /**
  * @brief Computes the increment of rotation, the rate of deformation and the spin using the Logarithmic corotational framework using the "spin" \f$ \mathbf{\Omega}_{\textrm{log}} \f$.
@@ -208,7 +206,7 @@ void logarithmic(arma::mat &, arma::mat &, arma::mat &, const double &, const ar
  *      mat BBBB = get_BBBB(F);
  * @endcode
 */
-arma::mat get_BBBB(const arma::mat &);
+arma::mat get_BBBB(const arma::mat &F);
 
 /**
  * @brief This function computes the Green-Naghdi antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{GN}} \f$ from the transformation gradient \f$ \mathbf{F} \f$.
@@ -246,7 +244,7 @@ arma::mat get_BBBB(const arma::mat &);
  *      mat BBBB = get_BBBB(F);
  * @endcode
 */
-arma::mat get_BBBB_GN(const arma::mat &);
+arma::mat get_BBBB_GN(const arma::mat &F);
 
 /**
  * @brief Computes the logarithmic strain increment
@@ -267,7 +265,7 @@ arma::mat get_BBBB_GN(const arma::mat &);
  * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time $t_1$
  * @return The matrix representing the logarithmic strain increment \f$ \Delta \mathbf{e} \f$
 */
-arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const double &DTime)
+arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const double &DTime);
 
 /**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
