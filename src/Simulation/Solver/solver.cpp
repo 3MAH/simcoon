@@ -350,9 +350,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             mat I = eye(3,3);
                                             mat DR_N = (inv(I-0.5*DTime*(N_1-D)))*(I+0.5*DTime*(N_1-D));
                                             
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+//                                            cout << "DR_N = \n"  << DR_N << endl;
+
+                                            mat Detot_nat = Delta_log_strain(D, Omega, DTime);
+                                            sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv(DR_N));
+                                            sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv(DR_N));
+                                            
+/*                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = t2v_strain()rotate_strain(sv_M->etot, DR_N);
                                             sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+*/                                            
                                         }
 
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
@@ -422,17 +429,17 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             else if (blocks[i].control_type == 2) {
 
                                                 if(corate_type == 0) {
-                                                    C = DsigmaDe_JaumannDD_2_DSDE(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    C = DsigmaDe_JaumannDD_2_DSDE(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                                 if(corate_type == 1) {
                                                     mat B_GN = get_BBBB_GN(sv_M->F1);
-                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B_GN, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B_GN, sv_M->F1, v2t_stress(sv_M->sigma));
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                                 if(corate_type == 2) {
                                                     mat B = get_BBBB(sv_M->F1);
-                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->tau));
+                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->sigma));
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                             }
