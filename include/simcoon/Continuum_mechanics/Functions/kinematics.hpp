@@ -15,20 +15,16 @@
  
  */
 
-///@file kinematics.hpp
-///@brief A set of function that allows various strain transformation (in Finite strains)
-///@version 1.0
+/**
+* @file kinematics.hpp
+* @author Yves Chemisky 
+* @section A set of function that allows various strain transformation (in Finite strains)
+*/
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
-
-/**
-* @file constitutive.hpp
-* @author Yves Chemisky 
-* @section The constitutive library contains all the function helpful to write a constitutive relation of constitutive model
-*/
 
 /**
  * @brief Provides the transformation gradient, from the Green-Lagrange strain and the rotation.
