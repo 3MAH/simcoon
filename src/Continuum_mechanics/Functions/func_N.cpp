@@ -9,10 +9,6 @@
  It is a proprietary file, copyrighted by the authors
  */
 
-///@file func_N.cpp
-///@brief Functions that computes accumulative laws
-///@version 1.0
-
 #include <iostream>
 #include <fstream>
 #include <assert.h>
@@ -28,11 +24,44 @@ using namespace arma;
 
 namespace simcoon{
     
+void read_func_N(vec &params, vec &variables, const string &path_data, const string &inputfile) {
+        
+    std::string buffer;
+    std::string path_inputfile = path_data + "/" + inputfile;
+    std::ifstream paramfunc;
+    
+    unsigned int nparams = 0;
+    unsigned int nvariables = 0;
+    
+    paramfunc.open(path_inputfile, ios::in);
+    if(paramfunc) {
+        paramfunc >> buffer >> nparams >> buffer >> nvariables;
+    }
+    else {
+        cout << "Error: cannot open the file " << inputfile << " in the folder :" << path_data << endl;
+    }
+    paramfunc.close();
+    params = zeros(nparams);
+    variables = zeros(nvariables);
+    
+    paramfunc.open(path_inputfile, ios::in);
+    paramfunc >> buffer >> buffer >> buffer >> buffer;
+    paramfunc >> buffer;
+    for(unsigned int i=0; i<nparams; i++) {
+        paramfunc >> buffer >> params(i);
+    }
+    paramfunc >> buffer;
+    for(unsigned int i=0; i<nvariables; i++) {
+        paramfunc >> buffer >> variables(i);
+    }
+    paramfunc.close();
+}  
+
 //This function returns a file with the values computed according to an implemented function (to define)
-void func_N(const vec &params, const vec &variables, const string& N_file, const string& outputfile, const string& path_data, const string& path_results) {
+void func_N(const vec &params, const vec &variables, const string& inputfile, const string& outputfile, const string& path_data, const string& path_results) {
     
     std::string buffer;
-    std::string path_inputfile = path_data + "/" + N_file;
+    std::string path_inputfile = path_data + "/" + inputfile;
     std::string path_outputfile = path_results + "/" + outputfile;
     std::ifstream cum_N;
     unsigned int nN = 0;
@@ -48,7 +77,7 @@ void func_N(const vec &params, const vec &variables, const string& N_file, const
         }
     }
     else {
-        cout << "Error: cannot open the file " << N_file << " that details the cumulative function characteristics in the folder: " << path_data << endl;
+        cout << "Error: cannot open the file " << inputfile << " that details the cumulative function characteristics in the folder: " << path_data << endl;
         return;
     }
     cum_N.close();
