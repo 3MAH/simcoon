@@ -27,6 +27,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
@@ -130,7 +131,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    L = (1./DTime)*(F1-F0)*inv(F1);
     
     //decomposition of L
     D = 0.5*(L+L.t());
@@ -171,18 +172,17 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     
 }
 
-void Truesdell(mat &DF, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    L = (1./DTime)*(F1-F0)*inv(F1);
+    //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
     
-    //The "spin" is actually L
-    Omega = L;
+
     
     //Truesdell
     DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
 }
-
 
 mat get_BBBB(const mat &F1) {
     mat B = L_Cauchy_Green(F1);
@@ -326,13 +326,13 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma){
     
     double J = det(F);
-    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma));
+    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     
     double J = det(F);
-    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma));
+    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 
@@ -375,7 +375,7 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
 mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigma) {
 
     double J = det(F);
-    return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma));
+    return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
@@ -431,7 +431,7 @@ mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
     
     double J = det(F);
-    return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma));
+    return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
