@@ -13,11 +13,7 @@
  You should have received a copy of the GNU General Public License
  along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  
- */
-
-///@file stress.cpp
-///@brief A set of functions that transforms stress measures into anothers (considering Finite strains)
-///@version 1.0
+*/
 
 #include <iostream>
 #include <assert.h>
