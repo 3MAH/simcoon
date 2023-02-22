@@ -45,7 +45,6 @@
 #include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
 #include <simcoon/Continuum_mechanics/Material/PDF2Nphases.hpp>
 #include <simcoon/Continuum_mechanics/Functions/func_N.hpp>
-#include <simcoon/Continuum_mechanics/Functions/read.hpp>
 
 using namespace std;
 using namespace arma;
@@ -461,8 +460,7 @@ void launch_func_N(const individual &ind, const int &nfiles, vector<parameters> 
         
         vec props;
         vec variables;
-        string N_file;
-        read_func_N(props, variables, N_file, path_data, materialfile);
+        read_func_N(props, variables, path_data, materialfile);
         func_N(props, variables, pathfile, outputfile, path_data, path_results);
         
         //Get the simulation files according to the proper name
