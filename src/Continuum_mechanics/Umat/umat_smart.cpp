@@ -40,6 +40,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/mooney_rivlin.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/saint_venant.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.hpp>
@@ -884,7 +885,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
 {
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"SNTVE",7},{"NEOHC",8},{"NEOHI",9}};
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"SNTVE",7},{"NEOHC",8},{"NEOHI",9},{"MOORI",10},{"HYPOO",11}};
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     
@@ -930,7 +931,11 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
             case 10: {
                 umat_mooney_rivlin(umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
                 break;
-            }                        
+            }
+            case 11: {
+                umat_hypoelasticity_ortho(umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+                break;
+            }                                    
             
         }
     
