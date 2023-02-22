@@ -15,10 +15,6 @@
  
  */
 
-///@file kinematics.cpp
-///@brief A set of function that allows various strain transformation (in Finite strains)
-///@version 1.0
-
 #include <iostream>
 #include <assert.h>
 #include <math.h>
