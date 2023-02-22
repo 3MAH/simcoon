@@ -146,19 +146,144 @@ arma::vec L_isotrans_props(const arma::mat &, const int &);
 */
 arma::vec M_isotrans_props(const arma::mat &, const int &);
 
-//This function recovers the properties of a cubic isotropic stiffness tensor
+/**
+ * @brief Provides material parameters of a cubic material from a stiffness matrix
+ *
+ * Returns a vector containing the parameters \f$ \left(E, \nu, G \right) \f$ of a linear cubic material, 
+ * providing the stiffness matrix :\f$ \mathbf{L} \f$. Note that an averaging over the component is operated (usefull when the provided matrix 
+ * do not exactly correspond to an isotropic material)
+ * 
+ * @param L (6x6 arma::mat) A stiffness tensor
+ * @return (arma::vec) the vector of parameters \f$ \left(E, \nu, G \right) \f$
+ * 
+ * @details Example: 
+ * @code
+    mat L = L_cubic(185000., 158000., 39700., 'Cii') //C11, C12, C44
+    vec cubic_props = L_cubic_props(L);
+ * @endcode
+*/
 arma::vec L_cubic_props(const arma::mat &);
 
-//This function recovers the properties of a cubic isotropic compliance tensor
+/**
+ * @brief Provides material parameters of a cubic material from a compliance matrix
+ *
+ * Returns a vector containing the parameters \f$ \left(E, \nu, G \right) \f$ of a linear cubic material, 
+ * providing the compliance matrix :\f$ \mathbf{M} \f$. Note that an averaging over the component is operated (usefull when the provided matrix 
+ * do not exactly correspond to an isotropic material)
+ * 
+ * @param M (6x6 arma::mat) A compliance tensor
+ * @return (arma::vec) the vector of parameters \f$ \left(E, \nu, G \right) \f$
+ * 
+ * @details Example: 
+ * @code
+    mat M = M_cubic(185000., 158000., 39700., 'Cii') //C11, C12, C44
+    vec cubic_props = M_cubic_props(M);
+ * @endcode
+*/
 arma::vec M_cubic_props(const arma::mat &);
     
-//This function recovers the properties of an orthotropic compliance tensor
+/**
+ * @brief Provides material parameters of an orthotropic material from a stiffness matrix
+ *
+ * Returns a vector containing the parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23} \right) \f$ of a linear orthotropic material, 
+ * providing the stiffness matrix :\f$ \mathbf{L} \f$. Note that an averaging over the component is operated (usefull when the provided matrix 
+ * do not exactly correspond to an isotropic material)
+ * 
+ * @param L (6x6 arma::mat) A stiffness tensor
+ * @return (arma::vec) the vector of parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23} \right) \f$
+ * 
+ * @details Example: 
+ * @code
+    double E_1 = 4500;
+    double E_2 = 2300;
+    double E_3 = 2700;
+    double nu_12 = 0.06;
+    double nu_13 = 0.08;
+    double nu_23 = 0.3;
+    double G_12 = 2200;
+    double G_13 = 2100;
+    double G_23 = 2400;
+    mat L = L_ortho(E_1, E_2, E_3, nu_12, nu_13, nu_23, G_12, G_13, G_23);
+    vec ortho_props = L_ortho_props(L);
+ * @endcode
+*/
 arma::vec L_ortho_props(const arma::mat &);
     
-//This function recovers the properties of an orthotropic compliance tensor
+/**
+ * @brief Provides material parameters of an orthotropic material from a compliance matrix
+ *
+ * Returns a vector containing the parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23} \right) \f$ of a linear orthotropic material, 
+ * providing the compliance matrix :\f$ \mathbf{M} \f$. Note that an averaging over the component is operated (usefull when the provided matrix 
+ * do not exactly correspond to an isotropic material)
+ * 
+ * @param M (6x6 arma::mat) A compliance tensor
+ * @return (arma::vec) the vector of parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23} \right) \f$
+ * 
+ * @details Example: 
+ * @code
+    double E_1 = 4500;
+    double E_2 = 2300;
+    double E_3 = 2700;
+    double nu_12 = 0.06;
+    double nu_13 = 0.08;
+    double nu_23 = 0.3;
+    double G_12 = 2200;
+    double G_13 = 2100;
+    double G_23 = 2400;
+    mat M = M_ortho(E_1, E_2, E_3, nu_12, nu_13, nu_23, G_12, G_13, G_23);
+    vec ortho_props = M_ortho_props(M);
+ * @endcode
+*/
 arma::vec M_ortho_props(const arma::mat &);
     
-//This function recovers the properties of a fully anisotropic compliance tensor
+/**
+ * @brief Provides material parameters of an anisotropic material from a compliance matrix
+ *
+ * Returns a vector containing the parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \eta_{14}, \eta_{15}, \eta_{16}, \eta_{24}, \eta_{25}, \eta_{26}, \eta_{34}, \eta_{35}, \eta_{36}, \eta_{45}, \eta_{46}, \eta_{56} \right) \f$ of a linear anisotropic material, 
+ * providing the compliance matrix :\f$ \mathbf{M} \f$. Note that an averaging over the component is operated (usefull when the provided matrix 
+ * do not exactly correspond to an isotropic material)
+ * 
+ * @param M (6x6 arma::mat) A compliance tensor
+ * @return (arma::vec) the vector of parameters \f$ \left(E_1, E_1, E_3, \nu_{12} \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \eta_{14}, \eta_{15}, \eta_{16}, \eta_{24}, \eta_{25}, \eta_{26}, \eta_{34}, \eta_{35}, \eta_{36}, \eta_{45}, \eta_{46}, \eta_{56} \right) \f$
+ * 
+ * \f{eqnarray*}{
+	   E_1 & = & \frac{1}{M_{11}} \\
+	   E_2 & = & \frac{1}{M_{22}} \\
+	   E_3 & = & \frac{1}{M_{33}} \\
+	
+      \nu_{12} & = & - \frac{1}{2} E_1 \left( M_{12} + M_{21} \right) \\
+      \nu_{13} & = & - \frac{1}{2} E_1 \left( M_{13} + M_{31} \right) \\
+      \nu_{23} & = & - \frac{1}{2} E_2 \left( M_{23} + M_{32} \right) \\
+    
+      G_{12} & = & \frac{1}{M_{44}} \\ 
+      G_{13} & = & \frac{1}{M_{55}} \\ 
+      G_{23} & = & \frac{1}{M_{66}} \\ 
+
+      \eta_{14} & = & \frac{1}{2} E_1 \left( M_{14} + M_{41} \right) \\
+      \eta_{25} & = & \frac{1}{2} E_1 \left( M_{15} + M_{51} \right) \\
+      \eta_{26} & = & \frac{1}{2} E_1 \left( M_{16} + M_{61} \right) \\
+
+      \eta_{24} & = & \frac{1}{2} E_2 \left( M_{24} + M_{42} \right) \\
+      \eta_{25} & = & \frac{1}{2} E_2 \left( M_{25} + M_{52} \right) \\
+      \eta_{26} & = & \frac{1}{2} E_2 \left( M_{26} + M_{62} \right) \\
+
+      \eta_{34} & = & \frac{1}{2} E_3 \left( M_{34} + M_{43} \right) \\
+      \eta_{35} & = & \frac{1}{2} E_3 \left( M_{35} + M_{53} \right) \\
+      \eta_{36} & = & \frac{1}{2} E_3 \left( M_{36} + M_{63} \right) \\
+
+      \eta_{45} & = & \frac{1}{2} G_{12} \left( M_{45} + M_{54} \right) \\
+      \eta_{46} & = & \frac{1}{2} G_{12} \left( M_{46} + M_{64} \right) \\
+      \eta_{56} & = & \frac{1}{2} G_{12} \left( M_{56} + M_{65} \right)
+
+ * \f}
+ * 
+ * @details Example: 
+ * @code
+    mat A(6, 6, fill::randu);
+    mat M = A.t() * A;
+    vec aniso_props = M_aniso_props(M);
+ * @endcode
+*/
 arma::vec M_aniso_props(const arma::mat &);
 
 } //namespace simcoon
