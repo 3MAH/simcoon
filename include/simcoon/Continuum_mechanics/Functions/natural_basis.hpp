@@ -37,7 +37,30 @@ class natural_basis
 	protected:
 
 	public :
+	    /**
+	     * @brief covariant vectors
+	     * 
+	     */
+        std::vector<arma::vec> g_i; 
+
+	    /**
+	     * @brief contravariant vectors
+	     * 
+	     */
+        std::vector<arma::vec> g0i;
     
+	    /**
+	     * @brief covariant components of the metric tensor
+	     * 
+	     */
+        arma::mat g_ij;
+
+	    /**
+	     * @brief contravariant components of the metric tensor
+	     * 
+	     */
+        arma::mat g0ij; // contravariant components of the metric tensor
+
 		/**
 		 * @brief Default constructor.
 		 * 
