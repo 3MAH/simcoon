@@ -10,9 +10,10 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2       
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
           miniconda-version: "latest"
-          activate-environment: packaging      
+          activate-environment: packaging
       - name: Conda build for Linux
         shell: bash -l {0}
         run: |
@@ -27,9 +28,10 @@ jobs:
     runs-on: "macos-latest"
     steps:
       - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2      
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
           miniconda-version: "latest"
-          activate-environment: packaging                
+          activate-environment: packaging
       - name: Conda build for MacOS
         shell: bash -l {0}
         run: |
@@ -47,7 +49,7 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
-          activate-environment: packaging      
+          activate-environment: packaging
       - name: Conda build for Windows
         shell: pwsh
         run: |
