@@ -17,6 +17,7 @@ jobs:
       - name: Conda build for Linux
         shell: bash -l {0}
         run: |
+          conda update --all
           conda install conda-build anaconda-client
           anaconda logout
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
