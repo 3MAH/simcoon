@@ -5,6 +5,7 @@ channels:
 
 dependencies:
   - pip
+  - numpy
   - cgal
   - boost
   - armadillo
