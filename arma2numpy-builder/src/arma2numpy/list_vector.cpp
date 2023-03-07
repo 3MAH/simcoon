@@ -103,7 +103,7 @@ template <typename T> boost::python::object transfer_to_python(T* t)
     // manage the new object, then invoke it.
     bp::object object = bp::make_function([t]() { return t; },
                                           bp::return_value_policy<bp::manage_new_object>(),
-                                          boost::mpl::vector<T*>())();
+                                          boost::mpl::vector1<T*>())();
 
     // As the Python object now has ownership, release ownership from
     // the smart pointer.
