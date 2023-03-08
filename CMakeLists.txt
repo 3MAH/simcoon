@@ -50,8 +50,8 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  set(ARMADILLO_INCLUDE_DIRS armadillo/include/)
-  set(ARMADILLO_LIBRARIES ../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../armadillo/examples/lib_win64/libopenblas)
+  find_package(Armadillo 5.2 REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)

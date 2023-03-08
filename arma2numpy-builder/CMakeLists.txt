@@ -24,6 +24,8 @@ endif()
 #set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 ################
 
+# Adhere to GNU filesystem layout conventions
+include(GNUInstallDirs)
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -50,7 +52,7 @@ if (Python3_FOUND)
     FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
     FIND_PACKAGE(PythonInterp 3)
     FIND_PACKAGE(PythonLibs 3 REQUIRED)
-    # FIND_PACKAGE(NumPy REQUIRED)
+    FIND_PACKAGE(NumPy REQUIRED)
   elseif (UNIX AND NOT APPLE)
     FIND_PACKAGE(CGAL REQUIRED COMPONENTS Core)
     FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
@@ -71,8 +73,8 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  set(ARMADILLO_INCLUDE_DIRS ../armadillo/include/)
-  set(ARMADILLO_LIBRARIES ../../armadillo/build/${CMAKE_BUILD_TYPE}/armadillo ../../armadillo/examples/lib_win64/libopenblas)
+  find_package(Armadillo 5.2 REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)
@@ -80,12 +82,7 @@ else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 endif()
 
-if (MSVC)
-  set(SIMCOON_INCLUDE_DIRS ../include)
-  set(SIMCOON_LIBRARIES ../../build/lib/${CMAKE_BUILD_TYPE}/simcoon) 
-else()  
-  find_package(simcoon REQUIRED)
-endif()
+find_package(simcoon REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
