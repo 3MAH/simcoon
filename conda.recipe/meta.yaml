@@ -19,13 +19,13 @@ requirements:
     - python {{ python }}
     - pip
     - cgal
-    - boost=1.72
+    - boost
     - armadillo # [unix]
-    - numpy=1.22.3 # [win]
+    - numpy
   run:
     - python {{ python }}
-    - boost=1.72
-    - numpy=1.22.3 # [win]
+    - boost
+    - numpy
 
 test:
   imports:
