@@ -2,6 +2,7 @@ name: Build & Test
 #build and test on the three OS
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
   pull_request:
