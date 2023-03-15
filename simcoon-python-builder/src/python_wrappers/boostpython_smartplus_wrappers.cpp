@@ -2,6 +2,8 @@
 #include <armadillo>
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
+#include <pybind11/pybind11.h>
+
 #include <CGAL/Simple_cartesian.h>
 
 #include <simcoon/arma2numpy/numpy_arma.hpp>
@@ -52,12 +54,38 @@ using namespace std;
 using namespace arma;
 using namespace simpy;
 
+PYBIND11_MODULE(simmitpybind, m) {
+    m.doc() = "pybind11 example plugin"; // optional module docstring
+
+
+    // Register the from-python converters for constitutive.hpp
+    m.def("Ireal", &Ireal, "Returns the fourth order identity tensor written in Voigt notation Ireal");
+    m.def("Ivol", &Ivol, "Returns the volumic of the identity tensor Ireal written in Voigt notation");
+    m.def("Idev", &Idev, "Returns the deviatoric of the identity tensor Ireal written in Voigt notation");        
+    m.def("Ireal2", &Ireal2, "Returns the fourth order identity tensor Iˆ written in Voigt notation");
+    m.def("Idev2", &Idev2, "Returns the deviatoric of the identity tensor Iˆ written in Voigt notation");    
+
+    m.def("Ith", &Ith, "Returns the expansion vector");        
+    m.def("Ir2", &Ir2, "Returns the stress 2 strain operator");
+    m.def("Ir05", &Ir05, "Returns the strain 2 stress operator");        
+    m.def("L_iso", &L_iso, "Provides the elastic stiffness tensor for an isotropic material");
+    m.def("M_iso", &M_iso, "Provides the elastic compliance tensor for an isotropic material");
+    m.def("L_cubic", &L_cubic, "Returns the elastic stiffness tensor for a cubic material");
+    m.def("M_cubic", &M_cubic, "Returns the elastic compliance tensor for an isotropic material");
+    m.def("L_ortho", &L_ortho, "Returns the elastic stiffness tensor for an orthotropic material");
+    m.def("M_ortho", &M_ortho, "Returns the elastic compliance tensor for an orthotropic material");
+    m.def("L_isotrans", &L_isotrans, "Returns the elastic stiffness tensor for an isotropic transverse material");
+    m.def("M_isotrans", &M_isotrans, "Returns the elastic compliance tensor for an isotropic transverse material");
+    m.def("H_iso", &H_iso, "Provides the viscous tensor H an isotropic material");
+}
+
+
 BOOST_PYTHON_MODULE(simmit) {
 
     Py_Initialize();
     bn::initialize();
     
-    // Register the from-python converters for constitutive
+/*    // Register the from-python converters for constitutive
     bp::def("Ireal", Ireal);
     bp::def("Ivol", Ivol);
     bp::def("Idev", Idev);
@@ -75,6 +103,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("L_isotrans", L_isotrans);
     bp::def("M_isotrans", M_isotrans);
     bp::def("H_iso", H_iso);
+*/
     
     // Register the from-python converters for contimech
     bp::def("tr", tr);
