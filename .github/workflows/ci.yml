@@ -66,18 +66,20 @@ jobs:
           miniconda-version: "latest"
           activate-environment: foo
       - name: Build for Windows
-        shell: bash -l {0}
+        shell: cmd
         run: |
           conda install -c conda-forge python=3.9 cgal boost=1.72 
 
           git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
           cd armadillo
-          cmake -S . -B build -G "Visual Studio 17 2022" 
+          copy /y .\examples\lib_win64\libopenblas.dll %CONDA_PREFIX%\Library\bin\
+          copy /y .\examples\lib_win64\libopenblas.lib %CONDA_PREFIX%\Library\lib\
+          cmake -S . -B build -G "Visual Studio 17 2022" -DBLAS_LIBRARY:FILEPATH="%CONDA_PREFIX%\Library\lib\libopenblas.lib" -DLAPACK_LIBRARY:FILEPATH="%CONDA_PREFIX%\Library\lib\libopenblas.lib" 
           cmake --build build --config RELEASE
-          cmake --install build --prefix %PREFIX%\Library
+          cmake --install build --prefix %CONDA_PREFIX%\Library
           cd ..
 
-          cmake -S . -B build -G"Visual Studio 17 2022" -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% -DCMAKE_BUILD_TYPE=Release -Wno-dev
+          cmake -S . -B build -G"Visual Studio 17 2022" -DCMAKE_INSTALL_PREFIX:PATH=%CONDA_PREFIX% -DCMAKE_BUILD_TYPE=Release -Wno-dev
           cmake --build build --target simcoon --config Release
           # ctest --test-dir build
           cmake --install build
