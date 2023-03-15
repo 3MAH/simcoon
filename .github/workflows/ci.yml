@@ -72,9 +72,7 @@ jobs:
 
           git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
           cd armadillo
-          copy /y .\examples\lib_win64\libopenblas.dll %PREFIX%\Library\bin\
-          copy /y .\examples\lib_win64\libopenblas.lib %PREFIX%\Library\lib\
-          cmake -S . -B build -G "Visual Studio 17 2022" -DBLAS_LIBRARY:FILEPATH="%PREFIX%\Library\lib\libopenblas.lib" -DLAPACK_LIBRARY:FILEPATH="%PREFIX%\Library\lib\libopenblas.lib" 
+          cmake -S . -B build -G "Visual Studio 17 2022" 
           cmake --build build --config RELEASE
           cmake --install build --prefix %PREFIX%\Library
           cd ..
