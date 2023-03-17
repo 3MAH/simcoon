@@ -50,7 +50,9 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
+  find_package(pybind11)
   find_package(Armadillo 5.2 REQUIRED)
+  find_package(carma)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
@@ -140,7 +142,12 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+if (MSVC)
+  #for windows, need to include carma to avoid bug in the pybhon-builder (https://github.com/RUrlus/carma/issues/91)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
+else()
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+endif()
 
 #Define lists of executables for compilation
 set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter  extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
