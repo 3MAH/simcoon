@@ -54,29 +54,74 @@ using namespace std;
 using namespace arma;
 using namespace simpy;
 
+using namespace pybind11::literals;
+
 PYBIND11_MODULE(simmitpybind, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
-
     // Register the from-python converters for constitutive.hpp
-    m.def("Ireal", &Ireal, "Returns the fourth order identity tensor written in Voigt notation Ireal");
-    m.def("Ivol", &Ivol, "Returns the volumic of the identity tensor Ireal written in Voigt notation");
-    m.def("Idev", &Idev, "Returns the deviatoric of the identity tensor Ireal written in Voigt notation");        
-    m.def("Ireal2", &Ireal2, "Returns the fourth order identity tensor Iˆ written in Voigt notation");
-    m.def("Idev2", &Idev2, "Returns the deviatoric of the identity tensor Iˆ written in Voigt notation");    
+    m.def("Ireal", &Ireal, "copy"_a=True, "Returns the fourth order identity tensor written in Voigt notation Ireal");
+    m.def("Ivol", &Ivol, "copy"_a=True, "Returns the volumic of the identity tensor Ireal written in Voigt notation");
+    m.def("Idev", &Idev, "copy"_a=True, "Returns the deviatoric of the identity tensor Ireal written in Voigt notation");        
+    m.def("Ireal2", &Ireal2, "copy"_a=True, "Returns the fourth order identity tensor Iˆ written in Voigt notation");
+    m.def("Idev2", &Idev2, "copy"_a=True, "Returns the deviatoric of the identity tensor Iˆ written in Voigt notation");    
+    m.def("Ith", &Ith, "copy"_a=True, "Returns the expansion vector");        
+    m.def("Ir2", &Ir2, "copy"_a=True, "Returns the stress 2 strain operator");
+    m.def("Ir05", &Ir05, "copy"_a=True, "Returns the strain 2 stress operator");        
+    m.def("L_iso", &L_iso, "copy"_a=True, "Provides the elastic stiffness tensor for an isotropic material");
+    m.def("M_iso", &M_iso, "copy"_a=True, "Provides the elastic compliance tensor for an isotropic material");
+    m.def("L_cubic", &L_cubic, "copy"_a=True, "Returns the elastic stiffness tensor for a cubic material");
+    m.def("M_cubic", &M_cubic, "copy"_a=True, "Returns the elastic compliance tensor for an isotropic material");
+    m.def("L_ortho", &L_ortho, "copy"_a=True, "Returns the elastic stiffness tensor for an orthotropic material");
+    m.def("M_ortho", &M_ortho, "copy"_a=True, "Returns the elastic compliance tensor for an orthotropic material");
+    m.def("L_isotrans", &L_isotrans, "copy"_a=True, "Returns the elastic stiffness tensor for an isotropic transverse material");
+    m.def("M_isotrans", &M_isotrans, "copy"_a=True, "Returns the elastic compliance tensor for an isotropic transverse material");
+    m.def("H_iso", &H_iso, "copy"_a=True, "Provides the viscous tensor H an isotropic material");
 
-    m.def("Ith", &Ith, "Returns the expansion vector");        
-    m.def("Ir2", &Ir2, "Returns the stress 2 strain operator");
-    m.def("Ir05", &Ir05, "Returns the strain 2 stress operator");        
-    m.def("L_iso", &L_iso, "Provides the elastic stiffness tensor for an isotropic material");
-    m.def("M_iso", &M_iso, "Provides the elastic compliance tensor for an isotropic material");
-    m.def("L_cubic", &L_cubic, "Returns the elastic stiffness tensor for a cubic material");
-    m.def("M_cubic", &M_cubic, "Returns the elastic compliance tensor for an isotropic material");
-    m.def("L_ortho", &L_ortho, "Returns the elastic stiffness tensor for an orthotropic material");
-    m.def("M_ortho", &M_ortho, "Returns the elastic compliance tensor for an orthotropic material");
-    m.def("L_isotrans", &L_isotrans, "Returns the elastic stiffness tensor for an isotropic transverse material");
-    m.def("M_isotrans", &M_isotrans, "Returns the elastic compliance tensor for an isotropic transverse material");
-    m.def("H_iso", &H_iso, "Provides the viscous tensor H an isotropic material");
+    // Register the from-python converters for contimech
+    m.def(("tr", &tr, "This function returns the trace of a tensor");
+    m.def("dev", &dev, "copy"_a=True, "This function returns the deviatoric part of a tensor");
+    m.def("Mises_stress", &Mises_stress, "This function determines the Mises equivalent of a stress tensor");
+    m.def("eta_stress", &eta_stress, "copy"_a=True, "This function determines the strain flow (direction) from a stress tensor");
+    m.def("Mises_strain", &Mises_strain, "This function determines the Mises equivalent of a strain tensor");
+    m.def("eta_strain", &eta_strain, "copy"_a=True, "This function determines the strain flow (direction) from a strain tensor");
+    m.def("J2_stress", &J2_stress, "Returns the second invariant of the deviatoric part of a second order stress tensor");
+    m.def("J2_strain", &J2_strain, "Returns the second invariant of the deviatoric part of a second order strain tensor");
+    m.def("J3_stress", &J3_stress, "Returns the third invariant of the deviatoric part of a second order stress tensor");
+    m.def("J3_strain", &J3_strain, "Returns the third invariant of the deviatoric part of a second order stress tensor");
+    m.def("Macaulay_p", &Macaulay_p, "This function returns the value if it's positive, zero if it's negative (Macaulay brackets <>+)");
+    m.def("Macaulay_n", &Macaulay_n, "This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)");
+    m.def("sign", &simpy::sign, "This function returns the sign of a double");
+    m.def("normal_ellipsoid", "copy"_a=True, &normal_ellipsoid, "Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3.");
+    m.def("sigma_int", &sigma_int, "copy"_a=True, "Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3.");
+    m.def("p_ikjl", &p_ikjl, "copy"_a=True, "This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)");
+
+    // Register the from-python converters for criteria
+    m.def("Prager_stress", &Prager_stress, "This function returns the Prager equivalent stress");
+    m.def("dPrager_stress", &dPrager_stress, "copy"_a=True, "This function returns the derivative of the Prager equivalent stress");
+    m.def("Tresca_stress", &Tresca_stress, "This function returns the Tresca equivalent stress");
+    m.def("dTresca_stress", &dTresca_stress, "copy"_a=True, "This function returns the derivative of the Tresca equivalent stress");
+    m.def("P_ani", &P_ani, "copy"_a=True, "Returns an anisotropic configurational tensor P in the Voigt format (6x6 numpy array), given its vector representation");
+    m.def("P_Hill", &P_Hill, "copy"_a=True, "Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation");
+    m.def("Hill_stress", &Hill_stress, "This function returns the Hill equivalent stress");
+    m.def("dHill_stress", &dHill_stress, "copy"_a=True, "This function returns the derivative of the Hill equivalent stress");
+    m.def("Ani_stress", &Ani_stress, "This function returns the Ani equivalent stress");
+    m.def("dAni_stress", &dAni_stress, "copy"_a=True, "This function returns the derivative of the Ani equivalent stress");
+    m.def("Eq_stress", &Eq_stress, "This function computes the selected equivalent stress function");
+    m.def("dEq_stress", &dEq_stress, "copy"_a=True, "This function computes the deriavtive of the selected equivalent stress function");
+
+    // Register the from-python converters for recovery_props
+    m.def("check_symetries", &check_symetries, "Check the material symetries and the type of elastic response for a given stiffness tensor");
+    m.def("L_iso_props", &L_iso_props, "Return a list of elastic properties for the isotropic case (E,nu) from a stiffness tensor");
+    m.def("M_iso_props", &M_iso_props, "Return a list of elastic properties for the isotropic case (E,nu) from a compliance tensor");
+    m.def("L_isotrans_props", &L_isotrans_props, "Return a list of elastic properties for the transversely isotropic case (EL,ET,nuTL,nuTT,GLT) from a stiffness tensor");
+    m.def("M_isotrans_props", &M_isotrans_props, "Return a list of elastic properties for the transversely isotropic case (EL,ET,nuTL,nuTT,GLT) from a compliance tensor");
+    m.def("L_cubic_props", &L_cubic_props, "Return a list of elastic properties for the cubic case (E,nu,G) from a stiffness tensor");
+    m.def("M_cubic_props", &M_cubic_props, "Return a list of elastic properties for the cubic case (E,nu,G) from a compliance tensor");
+    m.def("L_ortho_props", &L_ortho_props, "Return a list of elastic properties for the orthtropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23) from a stiffness tensor");
+    m.def("M_ortho_props", &M_ortho_props, "Return a list of elastic properties for the orthtropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23) from a compliance tensor");
+    m.def("M_aniso_props", &M_aniso_props, "//Return a list of elastic properties for the anisotropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23,deviations) from a compliance tensor");
+
 }
 
 
@@ -105,7 +150,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("H_iso", H_iso);
 */
     
-    // Register the from-python converters for contimech
+/*    // Register the from-python converters for contimech
     bp::def("tr", tr);
     bp::def("dev", dev);
     bp::def("Mises_stress", Mises_stress);
@@ -126,17 +171,19 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("normal_ellipsoid", normal_ellipsoid);
     bp::def("sigma_int", sigma_int);
     bp::def("p_ikjl", p_ikjl);
+*/
     
-    // Register the from-python converters for criteria
+/*    // Register the from-python converters for criteria
     bp::def("Prager_stress", Prager_stress);
     bp::def("dPrager_stress", dPrager_stress);
     bp::def("Tresca_stress", Tresca_stress);
     bp::def("dTresca_stress", dTresca_stress);
     bp::def("Eq_stress", Eq_stress);
     bp::def("dEq_stress", dEq_stress);
+*/
     
     // Register the from-python converters for recovery_props
-    bp::def("check_symetries", check_symetries);
+/*    bp::def("check_symetries", check_symetries);
     bp::def("L_iso_props", L_iso_props);
     bp::def("M_iso_props", M_iso_props);
     bp::def("L_isotrans_props", L_isotrans_props);
@@ -146,6 +193,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("L_ortho_props", L_ortho_props);
     bp::def("M_ortho_props", M_ortho_props);
     bp::def("M_aniso_props", M_aniso_props);
+    */
     
     // Register the L_eff for composites
     bp::def("L_eff", L_eff);
@@ -184,7 +232,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("solver", solver);
 	
     //Wrapper fedoo
-    bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
+ /*   bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
         .def("compute_Detot", &Umat_fedoo::compute_Detot)
         .def("Run", &Umat_fedoo::Run)
         .def("Initialize", &Umat_fedoo::Initialize)
@@ -327,6 +375,7 @@ BOOST_PYTHON_MODULE(simmit) {
         .def("generate", &step_thermomeca_py::generate)
         .def("generate_kin", &step_thermomeca_py::generate_kin)
         ;
+    */
     
     // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
