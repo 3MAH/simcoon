@@ -1,38 +1,38 @@
 #pragma once
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 namespace simpy{
     
 //This function returns the trace of the tensor v
-double tr(const boost::python::numpy::ndarray &);
+double tr(const pybind11::array_t<double> &);
 
 //This function returns the deviatoric part of v
-boost::python::numpy::ndarray dev(const boost::python::numpy::ndarray &);
+pybind11::array_t<double> dev(const pybind11::array_t<double> &, const bool &copy=true);
 
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
-double Mises_stress(const boost::python::numpy::ndarray &);
+double Mises_stress(const pybind11::array_t<double> &);
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
-boost::python::numpy::ndarray eta_stress(const boost::python::numpy::ndarray &);
+pybind11::array_t<double> eta_stress(const pybind11::array_t<double> &, const bool &copy=true);
 
 //This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
-double Mises_strain(const boost::python::numpy::ndarray &);
+double Mises_strain(const pybind11::array_t<double> &);
 
 //This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
-boost::python::numpy::ndarray eta_strain(const boost::python::numpy::ndarray &);
+pybind11::array_t<double> eta_strain(const pybind11::array_t<double> &, const bool &copy=true);
 
 //Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J2_stress(const boost::python::numpy::ndarray &);
+double J2_stress(const pybind11::array_t<double> &);
 
 //Returns the second invariant of the deviatoric part of a second order strain tensor written as a Voigt vector
-double J2_strain(const boost::python::numpy::ndarray &);
+double J2_strain(const pybind11::array_t<double> &);
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J3_stress(const boost::python::numpy::ndarray &);
+double J3_stress(const pybind11::array_t<double> &);
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J3_strain(const boost::python::numpy::ndarray &);
+double J3_strain(const pybind11::array_t<double> &);
 
 //This function returns the value if it's positive, zero if it's negative (Macaulay brackets <>+)
 double Macaulay_p(const double &);
@@ -40,16 +40,16 @@ double Macaulay_p(const double &);
 //This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
 double Macaulay_n(const double &);
 
-//This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
+//This function returns the sign of a double
 double sign(const double &);
 
 //Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u
-boost::python::numpy::ndarray normal_ellipsoid(const double &, const double &, const double &, const double &, const double &);
+pybind11::array_t<double> normal_ellipsoid(const double &, const double &, const double &, const double &, const double &, const bool &copy=true);
 
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
-boost::python::numpy::ndarray sigma_int(const boost::python::numpy::ndarray &, const double &, const double &, const double &, const double &, const double &);
+pybind11::array_t<double> sigma_int(const pybind11::array_t<double> &, const double &, const double &, const double &, const double &, const double &, const bool &copy=true);
 
 ///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
-boost::python::numpy::ndarray p_ikjl(const boost::python::numpy::ndarray &);
+pybind11::array_t<double> p_ikjl(const pybind11::array_t<double> &, const bool &copy=true);
     
 } //namespace simpy
