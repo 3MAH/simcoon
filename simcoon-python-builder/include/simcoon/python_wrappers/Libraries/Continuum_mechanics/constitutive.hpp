@@ -32,40 +32,40 @@ pybind11::array_t<double> Ir05(const bool &copy=true);
 //The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
 //Exhaustive list of possible third argument :
 // ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
-pybind11::array_t<double> L_iso(const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> L_iso(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Provides the elastic compliance tensor for an isotropic material.
 //The two first arguments are a couple of Lamé coefficients. The third argument specify which couple has been provided and the order of coefficients.
 //Exhaustive list of possible third argument :
 //‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
-pybind11::array_t<double> M_iso(const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> M_iso(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Returns the elastic stiffness tensor for a cubic material.
 //Arguments are the stiffness coefficients C11, C12 and C44.
-pybind11::array_t<double> L_cubic(const double &, const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> L_cubic(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Returns the elastic compliance tensor for an isotropic material.
 //Arguments are the stiffness coefficients C11, C12 and C44.
-pybind11::array_t<double> M_cubic(const double &, const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> M_cubic(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Returns the elastic stiffness tensor for an orthotropic material.
 //Arguments are the stiffness coefficients Cii or E and nu's
-pybind11::array_t<double> L_ortho(const double &, const double &, const double &, const double &, const double &, const double &, const double &, const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> L_ortho(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Returns the elastic compliance tensor for an orthotropic material.
 //Arguments are the stiffness coefficients Cii or E and nu's
-pybind11::array_t<double> M_ortho(const double &, const double &, const double &, const double &, const double &, const double &, const double &, const double &, const double &, const std::string &, const bool &copy=true);
+pybind11::array_t<double> M_ortho(const pybind11::array_t<double>&props, const std::string &conv, const bool &copy=true);
 
 //Returns the elastic stiffness tensor for an isotropic transverse material.
 //Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
-pybind11::array_t<double> L_isotrans(const double &, const double &, const double &, const double &, const double &, const int &, const bool &copy=true);
+pybind11::array_t<double> L_isotrans(const pybind11::array_t<double>&props, const int &axis, const bool &copy=true);
 
 //Returns the elastic compliance tensor for an isotropic transverse material.
 //Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
-pybind11::array_t<double> M_isotrans(const double &, const double &, const double &, const double &, const double &, const int &, const bool &copy=true);
+pybind11::array_t<double> M_isotrans(const pybind11::array_t<double>&props, const int &axis, const bool &copy=true);
 
 //Provides the viscous tensor H an isotropic material.
 //The two first arguments are a couple of viscous coefficients (the first is bulk, the second is shear).
-pybind11::array_t<double> H_iso(const double &, const double &, const bool &copy=true);
+pybind11::array_t<double> H_iso(const pybind11::array_t<double>&props_py, const bool &copy=true);
     
 } //namespace simpy
