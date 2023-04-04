@@ -15,65 +15,65 @@ namespace py=pybind11;
 namespace simpy {
 
 //This function returns the trace of the tensor v
-double tr(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double tr(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::tr(v);
 }
 
 //This function returns the deviatoric part of v
-py::array_t<double> dev(const py::array_t<double> &nd, const bool &copy) {
-    vec v = carma::arr_to_col(nd);
+py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
     vec t = simcoon::dev(v);
     return carma::col_to_arr(t, copy);
 }
 
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
-double Mises_stress(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double Mises_stress(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::Mises_stress(v);
 }
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
-py::array_t<double> eta_stress(const py::array_t<double> &nd, const bool &copy) {
-    vec v = carma::arr_to_col(nd);
+py::array_t<double> eta_stress(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
     vec t = simcoon::eta_stress(v);
     return carma::col_to_arr(t, copy);
 }
 
 //This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
-double Mises_strain(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double Mises_strain(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::Mises_strain(v);
 }
 
 //This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
-py::array_t<double> eta_strain(const py::array_t<double> &nd, const bool &copy) {
-    vec v = carma::arr_to_col(nd);
+py::array_t<double> eta_strain(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
     vec t = simcoon::eta_strain(v);
     return carma::col_to_arr(t, copy);
 }
 
-//Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J2_stress(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+//Returns the secoinput invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
+double J2_stress(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::J2_stress(v);
 }
 
 //Returns the second invariant of the deviatoric part of a second order strain tensor written as a Voigt vector
-double J2_strain(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double J2_strain(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::J2_strain(v);
 }
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J3_stress(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double J3_stress(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::J3_stress(v);
 }
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
-double J3_strain(const py::array_t<double> &nd) {
-    vec v = carma::arr_to_col(nd);
+double J3_strain(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
     return simcoon::J3_strain(v);
 }
 
@@ -99,15 +99,15 @@ py::array_t<double> normal_ellipsoid(const double &u, const double &v, const dou
 }
 
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
-py::array_t<double> sigma_int(const py::array_t<double> &nd, const double &a1, const double &a2, const double &a3, const double &u, const double &v, const bool &copy) {
-    vec sigma_in = carma::arr_to_col(nd);
-    vec t = simcoon::sigma_int(sigma_in,a1,a2,a3,u,v);
+py::array_t<double> sigma_int(const py::array_t<double> &input, const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy) {
+    vec sigma_in = carma::arr_to_col(input);
+    vec t = simcoon::sigma_int(sigma_in,u,v,a1,a2,a3);
     return carma::col_to_arr(t, copy);
 }
 
 ///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
-py::array_t<double> p_ikjl(const py::array_t<double> &nd, const bool &copy) {
-    vec a = carma::arr_to_col(nd);
+py::array_t<double> p_ikjl(const py::array_t<double> &normal, const bool &copy) {
+    vec a = carma::arr_to_col(normal);
     mat t = simcoon::p_ikjl(a);
     return carma::mat_to_arr(t, copy);
 }
