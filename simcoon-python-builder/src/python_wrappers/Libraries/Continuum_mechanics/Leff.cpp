@@ -1,8 +1,10 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
+
 
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -11,26 +13,21 @@
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 
-
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
-//Check the material symetries and the type of elastic response for a given stiffness tensor
-bn::ndarray L_eff(const std::string &umat_name_py, const bn::ndarray &props_py, const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve) {
+//Return the elastic stiffness tensor of a composite material
+py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double> &props, const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve) {
 
-    vec props = array2vec(props_py);
+    vec props_cpp = carma::arr_to_col(props);
     
-//    std::string umat_name = bp::extract<std::string>(umat_name_py);
-//    std::string path_data = bp::extract<std::string>(path_data_py);
     double T_init = 273.15;
     
     simcoon::phase_characteristics rve;
-    rve.sptr_matprops->update(0, umat_name_py, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
+    rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props_cpp.n_elem, props_cpp);
     rve.construct(0,1);
     simcoon::natural_basis nb;
     rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
@@ -40,7 +37,7 @@ bn::ndarray L_eff(const std::string &umat_name_py, const bn::ndarray &props_py, 
     //Second we call a recursive method that find all the elastic moduli iof the phases
     simcoon::get_L_elastic(rve);
     
-    return mat2array(sv_M->Lt);
+    return carma::mat_to_arr(sv_M->Lt);
 }
 
 } //namepsace simpy
