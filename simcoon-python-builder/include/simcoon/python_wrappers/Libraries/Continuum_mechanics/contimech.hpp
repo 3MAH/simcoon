@@ -44,7 +44,7 @@ double Macaulay_n(const double &value);
 double sign(const double &value);
 
 //Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u
-pybind11::array_t<double> normal_ellipsoid(const double &u, const double v, const double &a1, const double &a2, const double &a3, const bool &copy=true);
+pybind11::array_t<double> normal_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy=true);
 
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u and v
 pybind11::array_t<double> sigma_int(const pybind11::array_t<double> &input, const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy=true);

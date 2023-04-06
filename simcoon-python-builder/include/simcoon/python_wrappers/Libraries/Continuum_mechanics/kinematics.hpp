@@ -5,7 +5,7 @@
 namespace simpy{
 
 //Provides the transformation gradient, from the Green-Lagrange strain and the rotation.   
-pybind11::array_t<double> ER_to_F(const pybind11::array_t<double> &E, pybind11::array_t<double> &R, const bool &copy=true);
+pybind11::array_t<double> ER_to_F(const pybind11::array_t<double> &E, const pybind11::array_t<double> &R, const bool &copy=true);
 
 //Provides the transformation gradient, from the logarithmic strain and the rotation.
 pybind11::array_t<double> eR_to_F(const pybind11::array_t<double> &e, const pybind11::array_t<double> &R, const bool &copy=true);

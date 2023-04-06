@@ -35,7 +35,7 @@ double Ani_stress(const pybind11::array_t<double> &input, const pybind11::array_
 pybind11::array_t<double> dAni_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props, const bool &copy=true);
     
 //This function computes the selected equivalent stress function
-double Eq_stress(const pybind11::array_t<double> &input, const std::string &criteria, const pybind11::array_t<double> props);
+double Eq_stress(const pybind11::array_t<double> &input, const std::string &criteria, const pybind11::array_t<double> &props);
 
 //This function computes the deriavtive of the selected equivalent stress function
 pybind11::array_t<double> dEq_stress(const pybind11::array_t<double> &input, const std::string &criteria, const pybind11::array_t<double> &props, const bool &copy=true);
