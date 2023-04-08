@@ -98,6 +98,11 @@ py::array_t<double> normal_ellipsoid(const double &u, const double &v, const dou
     return carma::col_to_arr(t, copy);
 }
 
+//Provides the curvature of an ellipsoid with semi-principal axes of length a1, a2, a3 at the angle u,v.
+double  curvature_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3) {
+    return simcoon::curvature_ellipsoid(u,v,a1,a2,a3);
+}
+
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
 py::array_t<double> sigma_int(const py::array_t<double> &input, const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy) {
     vec sigma_in = carma::arr_to_col(input);
@@ -110,6 +115,32 @@ py::array_t<double> p_ikjl(const py::array_t<double> &normal, const bool &copy) 
     vec a = carma::arr_to_col(normal);
     mat t = simcoon::p_ikjl(a);
     return carma::mat_to_arr(t, copy);
+}
+
+py::array_t<double> auto_sym_dyadic(const py::array_t<double> &input, const bool &copy) {
+    mat a = carma::arr_to_mat(input);
+    mat c = simcoon::auto_sym_dyadic(a);
+    return carma::mat_to_arr(c, copy);
+}
+
+py::array_t<double> sym_dyadic(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
+    mat a_cpp = carma::arr_to_mat(a);
+    mat b_cpp = carma::arr_to_mat(b);    
+    mat c = simcoon::sym_dyadic(a_cpp, b_cpp);
+    return carma::mat_to_arr(c, copy);
+}
+
+py::array_t<double> auto_dyadic(const py::array_t<double> &input, const bool &copy) {
+    mat a = carma::arr_to_mat(input);
+    mat c = simcoon::auto_dyadic(a);
+    return carma::mat_to_arr(c, copy);
+}
+
+py::array_t<double> dyadic(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
+    mat a_cpp = carma::arr_to_mat(a);
+    mat b_cpp = carma::arr_to_mat(b);    
+    mat c = simcoon::dyadic(a_cpp, b_cpp);
+    return carma::mat_to_arr(c, copy);
 }
 
 } //namepsace simpy

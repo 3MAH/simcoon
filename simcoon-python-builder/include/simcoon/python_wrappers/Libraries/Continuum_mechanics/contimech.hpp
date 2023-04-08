@@ -46,10 +46,25 @@ double sign(const double &value);
 //Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u
 pybind11::array_t<double> normal_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy=true);
 
+//Provides the curvature of an ellipsoid with semi-principal axes of length a1, a2, a3 at the angle u,v.
+double curvature_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3);
+
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u and v
 pybind11::array_t<double> sigma_int(const pybind11::array_t<double> &input, const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy=true);
 
 ///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
 pybind11::array_t<double> p_ikjl(const pybind11::array_t<double> &normal, const bool &copy=true);
-    
+
+//Provides the dyadic product of a symmetric tensor with itself (auto dyadic product)
+pybind11::array_t<double> auto_sym_dyadic(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//Provides the dyadic product of two symmetric tensors
+pybind11::array_t<double> sym_dyadic(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const bool &copy=true);
+
+//Provides the dyadic product of a tensor with itself (auto dyadic product)
+pybind11::array_t<double> auto_dyadic(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//Provides the dyadic product of of two symmetric tensors
+pybind11::array_t<double> dyadic(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const bool &copy=true);
+
 } //namespace simpy
