@@ -92,22 +92,27 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("Macaulay_p", &Macaulay_p, "value"_a, "This function returns the value if it's positive, zero if it's negative (Macaulay brackets <>+)");
     m.def("Macaulay_n", &Macaulay_n, "value"_a, "This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)");
     m.def("sign", &simpy::sign, "value"_a, "This function returns the sign of a double");
-    m.def("normal_ellipsoid", &normal_ellipsoid, "u"_a, "v"_a, "a1"_a, "a2"_a, "a3"_a, "copy"_a=true, "Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3.");
-    m.def("sigma_int", &sigma_int, "input"_a, "u"_a, "v"_a, "a1"_a, "a2"_a, "a3"_a, "copy"_a=true, "Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3.");
+    m.def("normal_ellipsoid", &normal_ellipsoid, "u"_a, "v"_a, "a1"_a, "a2"_a, "a3"_a, "copy"_a=true, "Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3");
+    m.def("curvature_ellipsoid", &curvature_ellipsoid, "u"_a, "v"_a, "a1"_a, "a2"_a, "a3"_a, "Provides the curvature of an ellipsoid with semi-principal axes of length a1, a2, a3 at the angle u,v.");        
+    m.def("sigma_int", &sigma_int, "input"_a, "u"_a, "v"_a, "a1"_a, "a2"_a, "a3"_a, "copy"_a=true, "Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3");
     m.def("p_ikjl", &p_ikjl, "normal"_a, "copy"_a=true, "This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)");
+    m.def("auto_sym_dyadic", &auto_sym_dyadic, "input"_a, "copy"_a=true, "Provides the dyadic product of a symmetric tensor with itself (auto dyadic product)");
+    m.def("sym_dyadic", &sym_dyadic, "a"_a, "b"_a, "copy"_a=true, "Provides the dyadic product of two symmetric tensors"); 
+    m.def("auto_dyadic", &auto_dyadic, "input"_a, "copy"_a=true, "Provides the dyadic product of a tensor with itself (auto dyadic product)");
+    m.def("dyadic", &dyadic, "a"_a, "b"_a, "copy"_a=true, "Provides the dyadic product of of two symmetric tensors");
 
     // Register the from-python converters for criteria
     m.def("Prager_stress", &Prager_stress, "input"_a, "props"_a, "This function returns the Prager equivalent stress");
     m.def("dPrager_stress", &dPrager_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the Prager equivalent stress");
     m.def("Tresca_stress", &Tresca_stress, "input"_a, "This function returns the Tresca equivalent stress");
     m.def("dTresca_stress", &dTresca_stress, "input"_a, "copy"_a=true, "This function returns the derivative of the Tresca equivalent stress");
-    m.def("P_ani", &P_ani, "props"_a, "copy"_a=true, "Returns an anisotropic configurational tensor P in the Voigt format (6x6 numpy array), given its vector representation");
-    m.def("P_hill", &P_hill, "props"_a, "copy"_a=true, "Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation");
+    m.def("P_Ani", &P_Ani, "props"_a, "copy"_a=true, "Returns an anisotropic configurational tensor P in the Voigt format (6x6 numpy array), given its vector representation");
+    m.def("P_Hill", &P_Hill, "props"_a, "copy"_a=true, "Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation");
     m.def("Hill_stress", &Hill_stress, "input"_a, "props"_a, "This function returns the Hill equivalent stress");
     m.def("dHill_stress", &dHill_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the Hill equivalent stress");
     m.def("Ani_stress", &Ani_stress, "input"_a, "props"_a, "This function returns the Ani equivalent stress");
     m.def("dAni_stress", &dAni_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the Ani equivalent stress");
-    //m.def("Eq_stress", &Eq_stress, "input"_a, "criteria"_a, "props"_a, "This function computes the selected equivalent stress function");
+    m.def("Eq_stress", &Eq_stress, "input"_a, "criteria"_a, "props"_a, "This function computes the selected equivalent stress function");
     m.def("dEq_stress", &dEq_stress, "input"_a, "criteria"_a, "props"_a, "copy"_a=true, "This function computes the deriavtive of the selected equivalent stress function");
 
     // Register the from-python converters for recovery_props
@@ -145,6 +150,9 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("finite_Omega", &finite_Omega, "F0"_a, "F1"_a, "DTime"_a,  "copy"_a=true, "This function computes the spin tensor Omega (corrspond to Green-Naghdi rate)");
     m.def("finite_DQ", &finite_DQ, "Omega0"_a, "Omega0"_a, "DTime"_a,  "copy"_a=true, "This function computes the increment of finite rotation (Omega0, Omega1, DTime)");
 
+    //register the objective rates library
+    m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
+    m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
 }
 
 
@@ -238,9 +246,10 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("finite_DQ", finite_DQ);
 */
     
-    //register the objective rates library
+/*    //register the objective rates library
     bp::def("logarithmic", logarithmic);
     bp::def("Delta_log_strain", Delta_log_strain);
+*/
     
     // Register the from-python converters for eshelby
     bp::def("Eshelby_sphere", Eshelby_sphere);
