@@ -186,12 +186,12 @@ void RU_decomposition(arma::mat &R, arma::mat &U, const arma::mat &F);
  * @details Example: 
  * @code
  *      mat F = randu(3,3);
- *      mat R = zeros(3,3);
  *      mat V = zeros(3,3);
- *      VR_decomposition(R, V, F);
+ *      mat R = zeros(3,3);
+ *      VR_decomposition(V, R, F);
  * @endcode
 */
-void VR_decomposition(arma::mat &R, arma::mat &V, const arma::mat &F);
+void VR_decomposition(arma::mat &V, arma::mat &R, const arma::mat &F);
     
 /**
  * @brief Provides the invariants of a symmetric tensor.

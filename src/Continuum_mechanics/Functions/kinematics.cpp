@@ -85,13 +85,15 @@ mat L_Cauchy_Green(const mat &F) {
     return F*F.t();
 }
 
+//Provides the RU decomposition of the transformation gradient F
 void RU_decomposition(mat &R, mat &U, const mat &F) {
     mat U2 = F.t()*F;
     U = sqrtmat_sympd(U2);
     R = F*inv(U);
 }
 
-void VR_decomposition(mat &R, mat &V, const mat &F) {
+//Provides the VR decomposition of the transformation gradient F
+void VR_decomposition(mat &V, mat &R, const mat &F) {
     mat V2 = F*F.t();
     V = sqrtmat_sympd(V2);
     R = inv(V)*F;
