@@ -336,7 +336,7 @@ double curvature_ellipsoid(const double &u, const double &v, const double &a1, c
     double a1 = (double)rand();
     double a2 = (double)rand();
     double a3 = (double)rand();
-    vec sigma_i = sigma_int(sigma_in, a1, a2, a3, u, v));
+    vec sigma_i = sigma_int(sigma_in, u, v, a1, a2, a3);
  * @endcode
 */
 arma::vec sigma_int(const arma::vec &sigma_in, const double &u, const double &v, const double &a1, const double &a2, const double &a3);
