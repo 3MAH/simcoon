@@ -115,7 +115,7 @@ vec dTresca_stress(const vec &v)
     return eta_stress(v);
 }
 
-mat P_ani(const vec &params) {
+mat P_Ani(const vec &params) {
     assert(params.n_elem == 9); //P_11,P_22,P_33,P_12,P_13,P_23,P_44,P_55,P_66
     mat P = zeros(6,6);
     P(0,0) = params(0); //P_11
@@ -134,7 +134,7 @@ mat P_ani(const vec &params) {
     return P;
 }
     
-mat P_hill(const vec &params) {
+mat P_Hill(const vec &params) {
     assert(params.n_elem == 6); //F,G,H,L,M,N
     mat P = zeros(6,6);
     //param(0) = F
@@ -180,22 +180,22 @@ vec dEq_stress_P(const vec &v, const mat &H) {
 }
     
 double Hill_stress(const vec &v, const vec &params) {
-    mat P = P_hill(params);
+    mat P = P_Hill(params);
     return Ani_stress(v,P);
 }
 
 vec dHill_stress(const vec &v, const vec &params) {
-   mat P = P_hill(params);
+   mat P = P_Hill(params);
    return dAni_stress(v,P);
 }
                    
 double Ani_stress(const vec &v, const vec &params) {
-    mat P = P_ani(params);
+    mat P = P_Ani(params);
     return Ani_stress(v,P);
 }
 
 vec dAni_stress(const vec &v, const vec &params) {
-    mat P = P_ani(params);
+    mat P = P_Ani(params);
     return dAni_stress(v,P);
 }
                    

@@ -28,36 +28,67 @@ namespace simcoon{
 * @section The damage library that computes damage evolution laws
 */
 
-//This function returns damage evolution (/dt) considering a Weibull damage law
-
 /**
- * @brief Provides the damage evolution :math:`\delta D` considering a Weibull damage law.
- *    It is given by : :math:`\delta D = (1-D_{old})*\Big(1-exp\big(-1(\frac{crit}{\beta})^{\alpha}\big)\Big)`
- *   Parameters of this function are: the stress vector :math:`\sigma`, the old damage :math:`D_{old}`, the shape parameter :math:`\alpha`, the scale parameter :math:`\beta`, the time increment :math:`\Delta T` and the criterion (which is a string).
+ * @brief Provides the damage evolution \f$ \delta D \f$ considering a Weibull damage law.
+ * @param stress, damage, alpha, beta, DTime, criterion
+ * @return The damage evolution \f$ \delta D \f$
+ * @details It is given by :
+    \f$ \Delta D = (1-D_{old})*\Big(1-exp\big(-1(\frac{crit}{\beta})^{\alpha}\big)\Big) \f$
+ *   Parameters of this function are: the stress vector \f$ \sigma \f$, the old damage \f$ D_{old} \f$, the shape parameter \f$ \alpha \f$, the scale parameter \f$ \beta \f$, the time increment \f$ \Delta T \f$ and the criterion (which is a string).
  *   The criterion possibilities are :
- *   “vonmises” : :math:`crit = \sigma_{Mises}`
- *   “hydro” : :math:`crit = tr(\sigma)`
- *   “J3” : :math:`crit = J3(\sigma)`
+ *   “vonmises” : \f$ crit = \sigma_{Mises} \f$
+ *   “hydro” : \f$ crit = tr(\sigma) \f$
+ *   “J3” : \f$ crit = J3(\sigma) \f$
  *   Default value of the criterion is “vonmises”.
- * 
- * 
- * @param m
- * @return The 3x3 deviatoric part of the matrix input (arma::mat)
- * @details Example: 
  * @code 
-        mat m = randu(3,3;)
-        mat m_dev = dev(m);
+        double varD = damage_weibull(stress, damage, alpha, beta, DTime, criterion);
  * @endcode
 */
 double damage_weibull(const arma::vec &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const std::string&criterion = "vonmises");
 
-//This function returns damage evolution (/dt) considering Kachanov's creep damage law
-double damage_kachanov(const arma::vec &, const arma::vec &, const double &, const double &, const double &, const std::string &);
+/**
+ * @brief Provides the damage evolution \f$ \delta D \f$ considering a Weibull damage law.
+ * @param stress, strain, damage, A0, r, criterion
+ * @return The damage evolution \f$ \delta D \f$
+ * @details It is given by :
+ *    \f$ \delta D = \Big(\frac{crit}{A_0(1-D_{old})}\Big)^r \f$
+ *   the stress vector \f$ \sigma \f$, the strain vector \f$ \epsilon \f$, the old damage \f$ D_{old} \f$, the material properties characteristic of creep damage \f$ A_0 \f$, \f$ r \f$ and the criterion (which is a string).
+ *   The criterion possibilities are :
+ *   “vonmises” : \f$ crit = \sigma_{Mises} \f$
+ *   “hydro” : \f$ crit = tr(\sigma) \f$
+ *   “J3” : \f$ crit = J3(\sigma) \f$
+ *   Here, the criterion has no default value.
+ * @code 
+        varD = damage_kachanov(stress, strain, damage, A0, r, criterion);
+ * @endcode
+*/
+double damage_kachanov(const arma::vec &stress, const arma::vec &strain, const double &damage, const double &A0, const double &r, const std::string &criterion);
 
-//This function returns the constant damage evolution (/dN) considering Woehler- Miner's damage law
-double damage_miner(const double &, const double &, const double &, const double &, const double &, const double &, const double & =0.);
+/**
+ * @brief  Provides the constant damage evolution \f$ \Delta D \f$ considering a Woehler- Miner’s damage law.
+ * @param S_max, S_mean, S_ult, b, B0, beta, Sl_0
+ * @return The damage evolution \f$ \delta D \f$
+ * @details It is given by :
+    \f$ \Delta D = \big(\frac{S_{Max}-S_{Mean}+Sl_0*(1-b*S_{Mean})}{S_{ult}-S_{Max}}\big)*\big(\frac{S_{Max}-S_{Mean}}{B_0*(1-b*S_{Mean})}\big)^\beta \f$
+ *   Parameters of this function are: the max stress value \f$ \sigma_{Max} \f$, the mean stress value \f$\ sigma_{Mean} \f$, the “ultimate” stress value \f$ \sigma_{ult} \f$, the parameter \f$ b \f$, the parameter \f$ B_0 \f$, the parameter \f$ \beta \f$ and the parameter \f$ Sl_0 \f$.
+ *   Default value of :math:`Sl_0` is 0.0.
+ * @code 
+        double varD = damage_miner(S_max, S_mean, S_ult, b, B0, beta, Sl_0);
+ * @endcode
+*/
+double damage_miner(const double &S_max, const double &S_mean, const double &S_ult, const double &b, const double &B0, const double &beta, const double & =0.);
 
-//This function returns the constant damage evolution (/dN) considering Coffin-Manson's damage law
+/**
+ * @brief Provides the constant damage evolution \f$ \Delta D \f$ considering a Coffin-Manson’s damage law.
+ * @param S_amp, C2, gamma2
+ * @return The damage evolution \f$ \delta D \f$
+ * @details It is given by :
+    \f$ \Delta D = \big(\frac{\sigma_{Amp}}{C_{2}}\big)^{\gamma_2} \f$
+ *   Parameters of this function are: the stress amplitude \f$ \sigma_{Amp} \f$, the parameter \f$ C_2 \f$ and the parameter \f$ \gamma_2 \f$.
+ * @code 
+        double varD = damage_manson(S_amp, C2, gamma2);
+ * @endcode
+*/
 double damage_manson(const double &, const double &, const double &);
 
 } //namespace simcoon
