@@ -293,7 +293,7 @@ double curvature_ellipsoid(const double &u, const double &v, const double &a1, c
 }
 
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
-vec sigma_int(const vec &sigma_in, const double &a1, const double &a2, const double &a3, const double &u, const double &v)
+vec sigma_int(const vec &sigma_in, const double &u, const double &v, const double &a1, const double &a2, const double &a3)
 //-----------------------------------------------------------------------
 {   
 	mat s_in = v2t_stress(sigma_in);
