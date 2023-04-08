@@ -17,10 +17,10 @@ double Tresca_stress(const pybind11::array_t<double> &input);
 pybind11::array_t<double> dTresca_stress(const pybind11::array_t<double> &input, const bool &copy=true);
 
 //Returns an anisotropic configurational tensor P in the Voigt format (6x6 numpy array), given its vector representation
-pybind11::array_t<double> P_ani(const pybind11::array_t<double> &props, const bool &copy=true);
+pybind11::array_t<double> P_Ani(const pybind11::array_t<double> &props, const bool &copy=true);
 
 //Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation
-pybind11::array_t<double> P_hill(const pybind11::array_t<double> &props, const bool &copy=true);
+pybind11::array_t<double> P_Hill(const pybind11::array_t<double> &props, const bool &copy=true);
 
 //This function returns the Hill equivalent stress.
 double Hill_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props);
