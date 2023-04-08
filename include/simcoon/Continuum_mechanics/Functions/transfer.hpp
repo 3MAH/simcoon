@@ -204,6 +204,19 @@ FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &);
 FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &);
 
 //This function transforms a stress Voigt vector to a FTensor Tensor of the 2nd rank
+/**
+ * @brief Provides a strain vector in Voigt notation (arma::vec size=6) the FTensor matrix (Tensor2<double,3,3>) of armadillo column vector that correspond to a strain vector in Voigt notation (arma::vec size=6)
+ *
+ * @param v (arma::vec size=6) the strain tensor written in with Voigt notation
+ * @return (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
+ *
+ * @details Example:
+ * @code
+        mat m = randu(3,3);
+        vec v = t2v_strain(m);
+        FTensor::Tensor2<double,3,3> FT2_strain = v_FTensor2_strain(v);
+ * @endcode
+*/
 FTensor::Tensor2<double,3,3> v_FTensor2_stress(const arma::vec &);
 
 //This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
