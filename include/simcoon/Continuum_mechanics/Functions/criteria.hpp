@@ -97,7 +97,7 @@ double Tresca_stress(const arma::vec &v);
 arma::vec dTresca_stress(const arma::vec &v);
     
 /**
- * @brief an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix), given its vector representation
+ * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix), given its vector representation
  * @param P_params
  * @return The anisotropic configurational tensor (arma::mat)
  * @details The vector of parameters must be constituted of 9 values, respectively:
@@ -144,7 +144,7 @@ arma::vec dTresca_stress(const arma::vec &v);
         mat P = P_Ani(P_params);
  * @endcode
 */
-arma::mat P_ani(const arma::vec &P_params);
+arma::mat P_Ani(const arma::vec &P_params);
 
 /**
  * @brief Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion \cite Hill.48 in the Voigt format (6x6 matrix), given its vector representation
@@ -192,7 +192,7 @@ So that \f$ F = H = G = 1/2 \f$, \f$ = L = M = N = 3/2 \f$
         mat P = P_Hill(P_params);
  * @endcode
 */
-arma::mat P_hill(const arma::vec &P_params);
+arma::mat P_Hill(const arma::vec &P_params);
 
 /**
  * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and given a configurational tensor P
