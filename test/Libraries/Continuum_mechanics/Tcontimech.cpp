@@ -187,7 +187,7 @@ BOOST_AUTO_TEST_CASE( ellipsoid )
     test = { 0, 1, 0 };
     normal = normal_ellipsoid(u,v,a1,a2,a3);
     BOOST_CHECK( norm(normal-test,2) < sim_iota );
-    vec sig_int = sigma_int(sigma_in,a1,a2,a3,u,v);
+    vec sig_int = sigma_int(sigma_in,u,v,a1,a2,a3);
     BOOST_CHECK( norm(sig_int-test_sig_int,2) < sim_iota );
 }
 
