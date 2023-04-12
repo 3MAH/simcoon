@@ -15,6 +15,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
@@ -152,7 +153,27 @@ PYBIND11_MODULE(simmitpybind, m) {
 
     //register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
-    m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
+    m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
+
+    //register the damage library
+    m.def("damage_weibull", &damage_weibull, "stress"_a, "damage"_a, "alpha"_a, "beta"_a, "DTime"_a, "criterion"_a = "vonmises", "This function returns damage evolution (/dt) considering a Weibull damage law");
+    m.def("damage_kachanov", &damage_kachanov, "stress"_a, "strain"_a, "damage"_a, "A0"_a, "r"_a, "criterion"_a, "This function returns damage evolution (/dt) considering Kachanov's creep damage law");
+    m.def("damage_miner", &damage_miner, "S_max"_a, "S_mean"_a, "S_ult"_a, "b"_a, "B0"_a, "beta"_a, "Sl_0"_a = 0., "This function returns the constant damage evolution (/dN) considering Woehler- Miner's damage law");
+    m.def("damage_manson", &damage_manson, "S_amp"_a, "C2"_a, "gamma2"_a, "This function returns the constant damage evolution (/dN) considering Coffin-Manson's damage law");
+
+    //register the transfer library
+    m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a=true, "This function transforms the strain Voigt vector into a 3*3 strain matrix");
+    m.def("t2v_strain", &t2v_strain, "input"_a, "copy"_a=true, "This function transforms a 3*3 strain matrix into a strain Voigt vector");    
+    m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a=true, "This function transforms the stress Voigt vector into a 3*3 stress matrix");
+    m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a=true, "This function transforms a 3*3 stress matrix into a stress Voigt vector");
+
+    // Register the from-python converters for eshelby
+    m.def("Eshelby_sphere", &Eshelby_sphere, "nu"_a, "copy"_a=true, "Eshelby tensor for a sphere");
+    m.def("Eshelby_cylinder", &Eshelby_cylinder, "nu"_a, "copy"_a=true, "Eshelby tensor for a cylinder. The cylinder is oriented in such a way that the axis direction is the 1 direction. a2=a3 here");
+    m.def("Eshelby_prolate", &Eshelby_prolate, "nu"_a, "aspect_ratio"_a, "copy"_a=true, "Eshelby tensor for a prolate ellipsoid. The prolate shape is oriented in such a way that the axis direction is the 1 direction. a1>a2=a3 here");
+    m.def("Eshelby_oblate", &Eshelby_oblate, "nu"_a, "aspect_ratio"_a, "copy"_a=true, "Eshelby tensor for an oblate ellipsoid. The oblate shape is oriented in such a way that the axis direction is the 1 direction. a1<a2=a3 here");
+    m.def("Eshelby", &Eshelby, "L"_a, "a1"_a=1., "a2"_a=1., "a3"_a=1., "mp"_a=50, "np"_a=50, "copy"_a=true, "Numerical Eshelby tensor determination");
+    m.def("T_II", &T_II, "L"_a, "a1"_a=1., "a2"_a=1., "a3"_a=1., "mp"_a=50, "np"_a=50, "copy"_a=true, "Numerical Hill Interaction tensor determination");
 }
 
 
@@ -251,13 +272,14 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("Delta_log_strain", Delta_log_strain);
 */
     
-    // Register the from-python converters for eshelby
+/*    // Register the from-python converters for eshelby
     bp::def("Eshelby_sphere", Eshelby_sphere);
     bp::def("Eshelby_cylinder", Eshelby_cylinder);
     bp::def("Eshelby_prolate", Eshelby_prolate);
     bp::def("Eshelby_oblate", Eshelby_oblate);
     bp::def("Eshelby", Eshelby);
     bp::def("T_II", T_II);
+*/
     
     // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
