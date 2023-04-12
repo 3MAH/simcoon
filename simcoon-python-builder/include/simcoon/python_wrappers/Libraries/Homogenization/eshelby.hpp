@@ -1,25 +1,25 @@
 #pragma once
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 namespace simpy{
 
 //Eshelby tensor for a sphere
-boost::python::numpy::ndarray Eshelby_sphere(const double &);
+pybind11::array_t<double> Eshelby_sphere(const double &nu, const bool &copy=true);
 
 //	Eshelby tensor determination. The cylinder is oriented in such a way that the axis direction is the 1 direction. a2=a3 here
-boost::python::numpy::ndarray Eshelby_cylinder(const double &);
+pybind11::array_t<double> Eshelby_cylinder(const double &nu, const bool &copy=true);
 
 //	Eshelby tensor determination. The prolate shape is oriented in such a way that the axis direction is the 1 direction. a1>a2=a3 here
-boost::python::numpy::ndarray Eshelby_prolate(const double &, const double &);
+pybind11::array_t<double> Eshelby_prolate(const double &nu, const double &aspect_ratio, const bool &copy=true);
 
 //	Eshelby tensor determination. The oblate shape is oriented in such a way that the axis direction is the 1 direction. a1<a2=a3 here
-boost::python::numpy::ndarray Eshelby_oblate(const double &, const double &);
+pybind11::array_t<double> Eshelby_oblate(const double &nu, const double &aspect_ratio, const bool &copy=true);
 
 //Numerical Eshelby tensor determination
-boost::python::numpy::ndarray Eshelby(const boost::python::numpy::ndarray &, const double &, const double &, const double &, const int &, const int &);
+pybind11::array_t<double> Eshelby(const pybind11::array_t<double> &L, const double &a1=1., const double &a2=1., const double &a3=1., const int &mp=50, const int &np=50, const bool &copy=true);
 
 //Numerical Hill Interaction tensor determination
-boost::python::numpy::ndarray T_II(const boost::python::numpy::ndarray &, const double &, const double &, const double &, const int &, const int &);
+pybind11::array_t<double> T_II(const pybind11::array_t<double> &L, const double &a1=1., const double &a2=1., const double &a3=1., const int &mp=50, const int &np=50, const bool &copy=true);
 
 } //namespace simcoon

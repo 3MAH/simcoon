@@ -1,49 +1,55 @@
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
 //Eshelby tensor for a sphere
-bn::ndarray Eshelby_sphere(const double &nu) {
-    return mat2array(simcoon::Eshelby_sphere(nu));
+py::array_t<double> Eshelby_sphere(const double &nu, const bool &copy) {
+    mat m = simcoon::Eshelby_sphere(nu);
+    return carma::mat_to_arr(m, copy);
 }
 
 //This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor
-bn::ndarray Eshelby_cylinder(const double &nu) {
-    return mat2array(simcoon::Eshelby_cylinder(nu));
+py::array_t<double> Eshelby_cylinder(const double &nu, const bool &copy) {
+    return carma::mat_to_arr(simcoon::Eshelby_cylinder(nu));
 }
 
 //	Eshelby tensor determination. The prolate shape is oriented in such a way that the axis direction is the 1 direction. a1>a2=a3 here
-bn::ndarray Eshelby_prolate(const double &nu, const double &ar) {
-    return mat2array(simcoon::Eshelby_prolate(nu,ar));
+py::array_t<double> Eshelby_prolate(const double &nu, const double &ar, const bool &copy) {
+    mat m = simcoon::Eshelby_prolate(nu,ar);
+    return carma::mat_to_arr(m, copy);    
 }
 
 //	Eshelby tensor determination. The oblate shape is oriented in such a way that the axis direction is the 1 direction. a1<a2=a3 here
-bn::ndarray Eshelby_oblate(const double &nu, const double &ar) {
-    return mat2array(simcoon::Eshelby_oblate(nu,ar));
+py::array_t<double> Eshelby_oblate(const double &nu, const double &ar, const bool &copy) {
+    mat m = simcoon::Eshelby_oblate(nu,ar);
+    return carma::mat_to_arr(m, copy);    
 }
 
 //Numerical Eshelby tensor determination
-bn::ndarray Eshelby(const bn::ndarray &nd, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {
-    mat Lt = array2mat(nd);
-    return mat2array(simcoon::Eshelby(Lt, a1, a2, a3, mp, np));
+py::array_t<double> Eshelby(const py::array_t<double> &L, const double &a1, const double &a2, const double &a3, const int &mp, const int &np, const bool &copy) {
+    mat L_cpp = carma::arr_to_mat(L);
+    mat m = simcoon::Eshelby(L_cpp, a1, a2, a3, mp, np);
+    return carma::mat_to_arr(m, copy);    
 }
     
 //Numerical Hill Interaction tensor determination
-bn::ndarray T_II(const bn::ndarray &nd, const double &a1, const double &a2, const double &a3, const int &mp, const int &np) {
-    mat Lt = array2mat(nd);
-    return mat2array(simcoon::T_II(Lt, a1, a2, a3, mp, np));
+py::array_t<double> T_II(const py::array_t<double> &L, const double &a1, const double &a2, const double &a3, const int &mp, const int &np, const bool &copy) {
+    mat L_cpp = carma::arr_to_mat(L);
+    mat m = simcoon::T_II(L_cpp, a1, a2, a3, mp, np);
+    return carma::mat_to_arr(m, copy);
 }
 
 } //namepsace simpy
