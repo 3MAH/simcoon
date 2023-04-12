@@ -1,6 +1,6 @@
 #pragma once
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 namespace simpy{
 

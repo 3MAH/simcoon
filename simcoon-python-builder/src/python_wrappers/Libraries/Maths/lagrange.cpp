@@ -1,16 +1,16 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
