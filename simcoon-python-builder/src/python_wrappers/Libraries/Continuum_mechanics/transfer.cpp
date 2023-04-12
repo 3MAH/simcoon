@@ -1,41 +1,46 @@
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
 
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
 //This function transforms the strain Voigt vector into a 3*3 strain matrix
-bn::ndarray v2t_strain(const bn::ndarray &nd) {
-    vec v = array2vec(nd);
-    return mat2array(simcoon::v2t_strain(v));
+py::array_t<double> v2t_strain(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
+    mat m = simcoon::v2t_strain(v);
+    return carma::mat_to_arr(m, copy);
 }
 
 //This function transforms a 3*3 strain matrix into a strain Voigt vector
-bn::ndarray t2v_strain (const bn::ndarray &nd) {
-    mat m = array2mat(nd);
-    return vec2array(simcoon::t2v_strain(m));
+py::array_t<double> t2v_strain (const py::array_t<double> &input, const bool &copy) {
+    mat m = carma::arr_to_mat(input);
+    vec v = simcoon::t2v_strain(m);
+    return carma::col_to_arr(v, copy);
 }
 
 //This function transforms the stress Voigt vector into a 3*3 stress matrix
-bn::ndarray v2t_stress(const bn::ndarray &nd) {
-    vec v = array2vec(nd);
-    return mat2array(simcoon::v2t_stress(v));
+py::array_t<double> v2t_stress(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
+    mat m = simcoon::v2t_stress(v);
+    return carma::mat_to_arr(m, copy);    
 }
 
 //This function transforms a 3*3 stress matrix into a stress Voigt vector
-bn::ndarray t2v_stress (const bn::ndarray &nd) {
-    mat m = array2mat(nd);
-    return vec2array(simcoon::t2v_stress(m));
+py::array_t<double> t2v_stress (const py::array_t<double> &input, const bool &copy) {
+    mat m = carma::arr_to_mat(input);
+    vec v = simcoon::t2v_stress(m);
+    return carma::mat_to_arr(m, copy);    
 }
 
 } //namepsace simpy
