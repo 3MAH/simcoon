@@ -174,6 +174,44 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("Eshelby_oblate", &Eshelby_oblate, "nu"_a, "aspect_ratio"_a, "copy"_a=true, "Eshelby tensor for an oblate ellipsoid. The oblate shape is oriented in such a way that the axis direction is the 1 direction. a1<a2=a3 here");
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a=1., "a2"_a=1., "a3"_a=1., "mp"_a=50, "np"_a=50, "copy"_a=true, "Numerical Eshelby tensor determination");
     m.def("T_II", &T_II, "L"_a, "a1"_a=1., "a2"_a=1., "a3"_a=1., "mp"_a=50, "np"_a=50, "copy"_a=true, "Numerical Hill Interaction tensor determination");
+
+    //Register the rotation library
+    m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a=true, "This function returns a rotated vector (3) according to a rotation matrix");
+    m.def("rotate_vec_angle", &rotate_vec_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a=true, "This function returns a rotated vector (3) according to an angle and an axis");
+    m.def("rotate_mat_R", &rotate_mat_R, "input"_a, "R"_a, "copy"_a=true, "This function returns a rotated matrix (3x3) according to a rotation matrix");        
+    m.def("rotate_mat_angle", &rotate_mat_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a=true, "This function returns a rotated matrix (3x3) according to an angle and an axis");
+    m.def("fillR_angle", &fillR_angle, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "This function returns the 3*3 rotation matrix according to an angle, an axis and depending if it is active or passive rotation");
+    m.def("fillR_euler", &fillR_euler, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "conv"_a="zxz", "copy"_a=true, "This function returns the 3*3 rotation matrix according to the three Euler angles, depending if it is active or passive rotation and the Euler convention (ex :zxz)");
+    m.def("fillQS_angle", &fillQS_angle, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from an angle and an axis");
+    m.def("fillQS_R", &fillQS_R, "R"_a, "active"_a=true, "copy"_a=true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from a rotation matrix");
+    m.def("fillQE_angle", &fillQE_angle, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from an angle and an axis");
+    m.def("fillQE_R", &fillQE_R, "R"_a, "active"_a=true, "copy"_a=true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from a rotation matrix");
+    m.def("rotateL_angle", &rotateL_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 stiffness matrix according to an angle and an axis");
+    m.def("rotateL_R", &rotateL_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 stiffness matrix according to a rotation matrix");
+    m.def("rotate_l2g_L", &rotate_l2g_L, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stiffness matrix from local to global frame");
+    m.def("rotate_g2l_L", &rotate_g2l_L, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stiffness matrix from global to local frame");
+    m.def("rotateM_angle", &rotateM_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 compliance matrix according to an angle and an axis");
+    m.def("rotateM_R", &rotateM_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 compliance matrix according to a rotation matrix");
+    m.def("rotate_l2g_M", &rotate_l2g_M, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 compliance matrix from local to global frame");
+    m.def("rotate_g2l_M", &rotate_g2l_M, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 compliance matrix from global to local frame");
+    m.def("rotateA_angle", &rotateA_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 strain concentration matrix according to an angle and an axis");
+    m.def("rotateA_R", &rotateA_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 strain concentration matrix according to a rotation matrix");
+    m.def("rotate_l2g_A", &rotate_l2g_A, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 strain concentration matrix from local to global frame");
+    m.def("rotate_g2l_A", &rotate_g2l_A, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 strain concentration matrix from global to local frame");
+    m.def("rotateB_angle", &rotateB_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 stress concentration matrix according to an angle and an axis");
+    m.def("rotateB_R", &rotateB_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 stress concentration matrix according to a rotation matrix");
+    m.def("rotate_l2g_B", &rotate_l2g_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stress concentration matrix from local to global frame");
+    m.def("rotate_g2l_B", &rotate_g2l_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stress concentration matrix from global to local frame");
+
+    //Register the from-python converters for lagrange
+    m.def("lagrange_exp", &lagrange_exp, "This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)");
+    m.def("dlagrange_exp", &dlagrange_exp, "This function is used to determine the first derivative of an exponential Lagrange Multiplier");
+    m.def("lagrange_pow_0", &lagrange_pow_0, "This function is used to determine a power-law Lagrange Multiplier for problem such x >= 0");
+    m.def("dlagrange_pow_0", &dlagrange_pow_0, "This function is used to determine the first derivative of a power-law Lagrange Multiplier for problem such x >= 0");
+    m.def("lagrange_pow_1", &lagrange_pow_1, "This function is used to determine a power-law Lagrange Multiplier for problem such x <= 1");
+    m.def("dlagrange_pow_1", &dlagrange_pow_1, "This function is used to determine the first derivative of a power-law Lagrange Multiplier for problem such x <= 1");
+    m.def("d2lagrange_pow_1", &d2lagrange_pow_1, "This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1");
+
 }
 
 
@@ -437,7 +475,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("ODF_discretization", ODF_discretization);
     
     //Register the from-python converters for rotation
-    bp::def("rotate_vec_R", rotate_vec_R);
+/*    bp::def("rotate_vec_R", rotate_vec_R);
     bp::def("rotate_vec_angle", rotate_vec_angle);
     bp::def("rotate_mat_R", rotate_mat_R);
     bp::def("rotate_mat_angle", rotate_mat_angle);
@@ -472,8 +510,9 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("rotate_stress_R", rotate_stress_R);
     bp::def("rotate_l2g_stress", rotate_l2g_stress);
     bp::def("rotate_g2l_stress", rotate_g2l_stress);
+*/
     
-    //Register the from-python converters for lagrange
+/*    //Register the from-python converters for lagrange
     bp::def("lagrange_exp", lagrange_exp);
     bp::def("dlagrange_exp", dlagrange_exp);
     bp::def("lagrange_pow_0", lagrange_pow_0);
@@ -481,6 +520,7 @@ BOOST_PYTHON_MODULE(simmit) {
     bp::def("lagrange_pow_1", lagrange_pow_1);
     bp::def("dlagrange_pow_1", dlagrange_pow_1);
     bp::def("d2lagrange_pow_1", d2lagrange_pow_1);
+*/
     
     ///////##### Module for identification ############///////////////////
     // Generation of the constant class
