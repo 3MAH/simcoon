@@ -12,6 +12,7 @@
 using namespace std;
 using namespace arma;
 namespace py=pybind11;
+
 namespace simpy {
 
 //This function returns the Prager equivalent stress.
