@@ -1,30 +1,31 @@
 
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
 
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
 //This function returns damage evolution (/dt) considering a Weibull damage law
-double damage_weibull(const bn::ndarray &nd, const double &damage, const double &alpha, const double &beta, const double &DTime, const std::string &criterion) {
-    vec stress = array2vec(nd);
-    return simcoon::damage_weibull(stress,damage,alpha,beta,DTime,criterion);
+double damage_weibull(const py::array_t<double> &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const std::string &criterion) {
+    vec stress_cpp = carma::arr_to_col(stress);
+    return simcoon::damage_weibull(stress_cpp,damage,alpha,beta,DTime,criterion);
 }
 
 //This function returns damage evolution (/dt) considering Kachanov's creep damage law
-double damage_kachanov(const bn::ndarray &nds, const bn::ndarray &nde, const double &damage, const double &A0, const double &r, const std::string &criterion) {
-    vec stress = array2vec(nds);
-    vec strain = array2vec(nde);
-    return simcoon::damage_kachanov(stress,strain,damage,A0,r,criterion);
+double damage_kachanov(const py::array_t<double> &stress, const py::array_t<double> &strain, const double &damage, const double &A0, const double &r, const std::string &criterion) {
+    vec stress_cpp = carma::arr_to_col(stress);
+    vec strain_cpp = carma::arr_to_col(strain);
+    return simcoon::damage_kachanov(stress_cpp,strain_cpp,damage,A0,r,criterion);
 }
 
 //This function returns the constant damage evolution (/dN) considering Woehler- Miner's damage law
