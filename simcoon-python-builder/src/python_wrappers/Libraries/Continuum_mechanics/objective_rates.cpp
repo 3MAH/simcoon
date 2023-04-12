@@ -30,7 +30,7 @@ py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &
 py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::array_t<double> &Omega, const double &DTime, const bool &copy) {
     mat D_cpp = carma::arr_to_mat(D);
     mat Omega_cpp = carma::arr_to_mat(Omega);
-    mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime)
+    mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
     return carma::mat_to_arr(Delta_log_strain, copy);
 }
     
