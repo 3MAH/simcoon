@@ -14,6 +14,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/stress.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
@@ -211,6 +212,9 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("lagrange_pow_1", &lagrange_pow_1, "This function is used to determine a power-law Lagrange Multiplier for problem such x <= 1");
     m.def("dlagrange_pow_1", &dlagrange_pow_1, "This function is used to determine the first derivative of a power-law Lagrange Multiplier for problem such x <= 1");
     m.def("d2lagrange_pow_1", &d2lagrange_pow_1, "This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1");
+
+    //Register the from-python converters for stress
+    m.def("Cauchy2PKI", &Cauchy2PKI, "sigma"_a, "F"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
 }
 
