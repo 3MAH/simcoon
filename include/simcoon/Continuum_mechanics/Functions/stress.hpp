@@ -244,7 +244,7 @@ arma::vec Kirchoff2PKII(const arma::vec &tau, const arma::mat &F, const double &
  *      mat tau = PKI2Kirchoff(PKI, F);
  * @endcode
 */
-arma::mat PKI2Kirchoff(const arma::mat &S, const arma::mat &F, const double &J = 0.);
+arma::mat PKI2Kirchoff(const arma::mat &Sigma, const arma::mat &F, const double &J = 0.);
 
 /**
  * @brief Provides the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ from the second Piola-Kirchoff stress tensor \f$ \mathbf{S} \f$
@@ -266,7 +266,7 @@ arma::mat PKI2Kirchoff(const arma::mat &S, const arma::mat &F, const double &J =
  *      mat tau = PKI2Kirchoff(PKII, F);
  * @endcode
 */
-arma::mat PKII2Kirchoff(const arma::mat &, const arma::mat &, const double & = 0.);
+arma::mat PKII2Kirchoff(const arma::mat &S, const arma::mat &F, const double &J = 0.);
 
 
 /**
@@ -288,7 +288,7 @@ arma::mat PKII2Kirchoff(const arma::mat &, const arma::mat &, const double & = 0
  *      mat sigma = PKI2Cauchy(PKI, F);
  * @endcode
 */
-arma::mat PKI2Cauchy(const arma::mat &, const arma::mat &, const double & = 0.);
+arma::mat PKI2Cauchy(const arma::mat &Sigma, const arma::mat &F, const double &J = 0.);
 
 /**
  * @brief Provides the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ from the second Piola-Kirchoff stress tensor \f$ \mathbf{S} \f$

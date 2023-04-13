@@ -149,10 +149,10 @@ vec Kirchoff2PKII(const vec &tau, const mat &F, const double &mJ) {
 
 
 //This function returns the Kirchoff stress tensor from the first Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
-mat PKI2Kirchoff(const mat &P, const mat &F, const double &mJ) {
+mat PKI2Kirchoff(const mat &Sigma, const mat &F, const double &mJ) {
 
     UNUSED(mJ);
-    return P*F.t();
+    return Sigma*F.t();
 }
 
 //This function returns the Kirchoff stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
@@ -163,7 +163,7 @@ mat PKII2Kirchoff(const mat &S, const mat &F, const double &mJ) {
 }
 
 //This function returns the Cauchy stress tensor from the second Piola-Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
-mat PKI2Cauchy(const mat &P, const mat &F, const double &mJ) {
+mat PKI2Cauchy(const mat &Sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
@@ -174,7 +174,7 @@ mat PKI2Cauchy(const mat &P, const mat &F, const double &mJ) {
         return zeros(3,3);
     }
     else {
-        return (1./J)*P*F.t();
+        return (1./J)*Sigma*F.t();
     }
 }
 
