@@ -76,7 +76,7 @@ double damage_kachanov(const arma::vec &stress, const arma::vec &strain, const d
         double varD = damage_miner(S_max, S_mean, S_ult, b, B0, beta, Sl_0);
  * @endcode
 */
-double damage_miner(const double &S_max, const double &S_mean, const double &S_ult, const double &b, const double &B0, const double &beta, const double & =0.);
+double damage_miner(const double &S_max, const double &S_mean, const double &S_ult, const double &b, const double &B0, const double &beta, const double &Sl_0 = 0.);
 
 /**
  * @brief Provides the constant damage evolution \f$ \Delta D \f$ considering a Coffin-Manson’s damage law.
@@ -89,6 +89,6 @@ double damage_miner(const double &S_max, const double &S_mean, const double &S_u
         double varD = damage_manson(S_amp, C2, gamma2);
  * @endcode
 */
-double damage_manson(const double &, const double &, const double &);
+double damage_manson(const double &S_amp, const double &C2, const double &gamma2);
 
 } //namespace simcoon
