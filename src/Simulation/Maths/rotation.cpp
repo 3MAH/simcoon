@@ -110,7 +110,7 @@ mat fillR(const double &psi, const double &theta, const double &phi, const bool 
         else
             R = { {c3*c2*c1-s3*s1,c3*s1+c2*c1*s3,-c1*s2}, {-c1*s3-c3*c2*s1,c3*c1-c2*s3*s1,s2*s1}, {c3*s2,s3*s2,c2} };
     }
-    else if(conv == "") {
+    else if(conv == "user") {
             
         mat R1 = fillR(psi, axis_psi, active);
         mat R2 = fillR(theta, axis_theta, active);
