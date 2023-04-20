@@ -196,17 +196,19 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "CentreNode, 1, 1\n";
     param_aba << "CentreNode, 2, 2\n";
     param_aba << "CentreNode, 3, 3\n";
+
+    vec BC_num = {0,1,2,0,1,2};    
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 0)
-            param_aba << "CD" << CD(k) << ", 1, 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << ", " << BC_num(k) << ", " << BC_num(k) << ", " << BC_meca(k) << "\n";
     }
     param_aba << "**Stress - BC\n";
     param_aba << "*Cload, op=NEW\n";
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 1)
-            param_aba << "CD" << CD(k) << ", 1, " << BC_meca(k) << "\n";
+            param_aba << "CD" << CD(k) << ", " << BC_num(k) << ", " << BC_meca(k) << "\n";
         else if(cBC_meca(k) == 2)
-            param_aba << "CD" << CD(k) << ", 1, " << 0. << "\n";
+            param_aba << "CD" << CD(k) << ", " << BC_num(k) << ", " << 0. << "\n";
     }
     
     param_aba << "**\n";
