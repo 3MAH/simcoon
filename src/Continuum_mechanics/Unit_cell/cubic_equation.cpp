@@ -121,7 +121,6 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
 {
     mat Dxyz;
     Mat<int> CD_num;
-    std::vector<Node> CD_nodes;
     int nbDOF = 0;
     //Mechanical
     if((loading_type == 1) || (loading_type == 2)){
@@ -164,6 +163,11 @@ void cubic_equation::construct(const cubic_mesh &cm, const cubic_mesh &cm_perio,
         node.number = n;
         node.coords = null;
         CD_nodes.push_back(node);
+    }
+
+    cout << "inside cubic_equation construct\n";
+    for(auto n:CD_nodes) {
+        cout << n << endl;
     }
     
     unsigned int size_list_dofs = list_dofs.size();
@@ -608,8 +612,12 @@ ostream& operator << (ostream& s, const cubic_equation& c_eq)
 //--------------------------------------------------------------------------
 {
     s << "Display info on the cubic equations:\n";
+
+    for (auto n:c_eq.CD_nodes) {
+        s << n;
+    }
     
-    for (int i=0; i<3; i++) {
+/*    for (int i=0; i<3; i++) {
         s << "DOF : " << i+1 << "\n";
 
         for (auto n:c_eq.Face_listXp[i]) {
@@ -676,7 +684,7 @@ ostream& operator << (ostream& s, const cubic_equation& c_eq)
         s << "Equations between periodic corner XmYpZp and XmYmZm :";
         s << c_eq.Corner_listXmYpZp[i];
     }
-
+*/
     return s;
 }
     
