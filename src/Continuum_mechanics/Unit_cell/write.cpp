@@ -1005,9 +1005,9 @@ void write_NonPerio_CDN(const cubic_mesh &cm, const cubic_mesh &cm_perio, const 
     out_set << "****** CONSTRAIN DRIVER NODES ******\n";
     out_set << "************************************\n";
     out_set << "**\n";
-    
+
     cubic_equation cubic_eq(cm, cm_perio, NodeCD, loading_type, control_type);
-    for(unsigned int i=0; i<cubic_eq.CD.size();i++) {
+    for(unsigned int i=0; i<cubic_eq.CD_nodes.size();i++) {
         out_set << "*Node\n";
         out_set << cubic_eq.CD_nodes[i];
         write_node_set(cubic_eq.CD_set_name[i], cubic_eq.CD_nodes[i], out_set);
