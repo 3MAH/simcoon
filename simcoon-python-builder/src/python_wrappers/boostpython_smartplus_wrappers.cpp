@@ -21,8 +21,9 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 //#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
+//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -216,6 +217,9 @@ PYBIND11_MODULE(simmitpybind, m) {
     //Register the from-python converters for stress
     m.def("Cauchy2PKI", &Cauchy2PKI, "sigma"_a, "F"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
+    //umat
+    m.def("umat", &launch_umat);
+    //py::tuple umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py){
 }
 
 
