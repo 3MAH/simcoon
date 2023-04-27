@@ -197,7 +197,7 @@ void aba_step_meca::write(const string &path_data, const string &inputfile, cons
     param_aba << "CentreNode, 2, 2\n";
     param_aba << "CentreNode, 3, 3\n";
 
-    vec BC_num = {0,1,2,0,1,2};    
+    vec BC_num = {1,2,3,1,2,3};    
     for(int k = 0 ; k < 6 ; k++) {
         if(cBC_meca(k) == 0)
             param_aba << "CD" << CD(k) << ", " << BC_num(k) << ", " << BC_num(k) << ", " << BC_meca(k) << "\n";
