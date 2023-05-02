@@ -162,7 +162,7 @@ namespace simpy {
 				}
 			}
 		
-		py::print("id_umat ok");
+		//py::print("id_umat ok");
 
 		//scalar needed to launch umat
 		const int solver_type = 0;
@@ -225,15 +225,13 @@ namespace simpy {
 			int nprops = list_props.n_rows;
 			int nstatev = list_statev.n_rows;
 
-			vec sigma(ncomp);		
-			vec statev(ncomp);
 			vec props(ncomp);
 	
 			for (int pt = 0; pt < nb_points; pt++) {
 				//if (use_temp) T = list_T(pt);
 				if (pt < list_props.n_cols) props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
-				statev = list_statev.col(pt);
-				sigma = list_sigma.col(pt); //Do a copy to pass to the umat. Dont know how to do better
+				vec statev = list_statev.unsafe_col(pt);
+				vec sigma = list_sigma.unsafe_col(pt); //Do a copy to pass to the umat. Dont know how to do better
 
 				switch (arguments_type) {
 
@@ -250,8 +248,6 @@ namespace simpy {
 						break;
 					}
 				}
-				list_sigma.col(pt) = sigma; 
-				list_statev.col(pt) = statev;
 			}
 			return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(Wm, false), carma::cube_to_arr(Lt, false));
 		}
