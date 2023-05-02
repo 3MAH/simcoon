@@ -17,13 +17,57 @@ namespace py=pybind11;
 
 namespace simpy {
 
-py::array_t<double> Cauchy2PKI(const py::array_t<double> &sigma, const py::array_t<double> &F, const double &J, const bool & copy) {
+py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::array_t<double> &F, const string &converter_key, const double &J, const bool & copy) {
+
+    std::map<string, int> list_stress_convert;    
+    list_stress_convert = {{"Cauchy2PKI",0},{"Cauchy2PKII",1},{"Cauchy2Kirchoff",2},{"Kirchoff2Cauchy",3},{"Kirchoff2PKI",4},{"Kirchoff2PKII",5},{"PKI2Kirchoff",6},{"PKII2Kirchoff",7},{"PKI2Cauchy",8},{"PKII2Cauchy",9}};
+
+    int select = list_stress_convert[converter_key];
+
+    auto functor_stress_converter = [](const arma::mat &sigma_cpp, const arma::mat &F_cpp, const double &J, const int &select) {
+        switch (select) {
+
+            case 0: {
+                return simcoon::Cauchy2PKI(sigma_cpp, F_cpp, J);
+            }
+            case 1: {
+                return simcoon::Cauchy2PKII(sigma_cpp, F_cpp, J);
+            }
+            case 2: {
+                return simcoon::Cauchy2Kirchoff(sigma_cpp, F_cpp, J);
+            }
+            case 3: {
+                return simcoon::Kirchoff2Cauchy(sigma_cpp, F_cpp, J);
+            }  
+            case 4: {
+                return simcoon::Kirchoff2PKI(sigma_cpp, F_cpp, J);
+            }
+            case 5: {
+                return simcoon::Kirchoff2PKII(sigma_cpp, F_cpp, J);
+            }
+            case 6: {
+                return simcoon::PKI2Kirchoff(sigma_cpp, F_cpp, J);
+            }
+            case 7: {
+                return simcoon::PKII2Kirchoff(sigma_cpp, F_cpp, J);
+            }
+            case 8: {
+                return simcoon::PKI2Cauchy(sigma_cpp, F_cpp, J);
+            }
+            case 9: {
+                return simcoon::PKII2Cauchy(sigma_cpp, F_cpp, J);
+            }            
+            default: {
+                throw std::invalid_argument("Invalid input of the stress converter key: Cauchy2PKI, Cauchy2PKII, Cauchy2Kirchoff, Kirchoff2Cauchy, Kirchoff2PKI, Kirchoff2PKII, PKI2Kirchoff, PKII2Kirchoff, PKI2Cauchy or PKII2Cauchy");                
+            }
+        }
+    };
 
     if(sigma.ndim() == 1) {
         if(sigma.size() == 6) {
             mat sigma_cpp = simcoon::v2t_stress(carma::arr_to_col(sigma));
             mat F_cpp = carma::arr_to_mat(F);            
-            vec PKI = simcoon::t2v_stress(simcoon::Cauchy2PKI(sigma_cpp, F_cpp, J));
+            vec PKI = simcoon::t2v_stress(functor_stress_converter(sigma_cpp, F_cpp, J, select));
             return carma::col_to_arr(PKI, copy);
         }
         else {
@@ -34,7 +78,7 @@ py::array_t<double> Cauchy2PKI(const py::array_t<double> &sigma, const py::array
         if((sigma.shape(0) == 3)&&(sigma.shape(1) == 3)) {
             mat sigma_cpp = carma::arr_to_mat(sigma);
             mat F_cpp = carma::arr_to_mat(F);
-            mat PKI = simcoon::Cauchy2PKI(sigma_cpp, F_cpp, J);
+            mat PKI = functor_stress_converter(sigma_cpp, F_cpp, J, select);
             return carma::mat_to_arr(PKI, copy);
         }
         else if(sigma.shape(0) == 6) {
@@ -43,10 +87,6 @@ py::array_t<double> Cauchy2PKI(const py::array_t<double> &sigma, const py::array
             mat sigma_cpp_list = carma::arr_to_mat(sigma);
             cube F_cpp_list = carma::arr_to_cube(F);            
 
-            cout << sigma_cpp_list;
-            cout << F_cpp_list;            
-            cout << PKI;            
-
             for (unsigned int i=0; i < sigma_cpp_list.n_cols; i++) {
                 vec sigma_cpp = sigma_cpp_list.col(i);
                 mat F_cpp = F_cpp_list.slice(i);
@@ -54,10 +94,9 @@ py::array_t<double> Cauchy2PKI(const py::array_t<double> &sigma, const py::array
                 cout << sigma_cpp;
                 cout << F_cpp;                    
 
-                PKI.col(i) = simcoon::t2v_stress(simcoon::Cauchy2PKI(simcoon::v2t_stress(sigma_cpp), F_cpp, J));
-                cout << PKI;
+                PKI.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J, select));
             }   
-            cout << PKI;
+
             return carma::mat_to_arr(PKI, copy);            
         }
         else {

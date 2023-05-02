@@ -5,7 +5,7 @@
 namespace simpy{
     
 //Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor
-pybind11::array_t<double> Cauchy2PKI(const pybind11::array_t<double> &sigma, const pybind11::array_t<double> &F, const double &J = 0., const bool & copy=true);
+pybind11::array_t<double> stress_convert(const pybind11::array_t<double> &sigma, const pybind11::array_t<double> &F, const std::string &converter_key, const double &J = 0., const bool & copy=true);
 
 /*
 //Provides the second Piola Kirchoff stress tensor from the Cauchy stress tensor

@@ -215,7 +215,7 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("d2lagrange_pow_1", &d2lagrange_pow_1, "This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1");
 
     //Register the from-python converters for stress
-    m.def("Cauchy2PKI", &Cauchy2PKI, "sigma"_a, "F"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
+    m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
     //umat
     m.def("umat", &launch_umat);
