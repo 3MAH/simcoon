@@ -13,14 +13,14 @@ namespace py=pybind11;
 namespace simpy {
 
 //Check the material symetries and the type of elastic response for a given stiffness tensor
-py::dict check_symetries(const py::array_t<double> &input) {
+py::dict check_symetries(const py::array_t<double> &input, const double &tol) {
     
     mat L = carma::arr_to_mat(input);
     int axis = 0;
     string umat_type;
     vec props;
     int maj_sym = 0;
-    simcoon::check_symetries(L, umat_type, axis, props, maj_sym);
+    simcoon::check_symetries(L, umat_type, axis, props, maj_sym, tol);
     py::dict d;
     d["umat_type"] = umat_type;
     d["axis"] = axis;

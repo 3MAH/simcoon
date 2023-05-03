@@ -32,8 +32,13 @@ using namespace arma;
 
 namespace simcoon{
 
-void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym) {
+void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym, const double &tol) {
  
+    double max_tol_sim_limit = sim_limit;
+    if(tol > sim_limit) {
+        max_tol_sim_limit = tol;
+    }
+
     axis = 0; //Indicate no preferential axis
     //First thing to do is to check how symtric is the tensor:
     mat L_sym = 0.5*(L + trans(L));
@@ -87,14 +92,14 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     
     for (unsigned int i=0; i<check_sym.n_rows; i++) {
         for (unsigned int j=0; j<check_sym.n_cols; j++) {
-            if(check_sym(i,j) < sim_limit)
+            if(check_sym(i,j) < max_tol_sim_limit)
                 type_sym(i,j) = 1;
             else
                 type_sym(i,j) = 0;
         }
     }
         
-    if (check_L_sym_diff < sim_limit)
+    if (check_L_sym_diff < max_tol_sim_limit)
         maj_sym = 1;
     else
         maj_sym = 0;

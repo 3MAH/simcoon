@@ -119,7 +119,7 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("dEq_stress", &dEq_stress, "input"_a, "criteria"_a, "props"_a, "copy"_a=true, "This function computes the deriavtive of the selected equivalent stress function");
 
     // Register the from-python converters for recovery_props
-    m.def("check_symetries", &check_symetries, "input"_a, "Check the material symetries and the type of elastic response for a given stiffness tensor");
+    m.def("check_symetries", &check_symetries, "input"_a, "tol"_a, "Check the material symetries and the type of elastic response for a given stiffness tensor");
     m.def("L_iso_props", &L_iso_props, "input"_a, "Return a list of elastic properties for the isotropic case (E,nu) from a stiffness tensor");
     m.def("M_iso_props", &M_iso_props, "input"_a, "Return a list of elastic properties for the isotropic case (E,nu) from a compliance tensor");
     m.def("L_isotrans_props", &L_isotrans_props, "input"_a, "axis"_a, "Return a list of elastic properties for the transversely isotropic case (EL,ET,nuTL,nuTT,GLT) from a stiffness tensor");

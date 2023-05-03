@@ -38,6 +38,7 @@ namespace simcoon{
  * @param[out] axis : The axis of symmetry (if applicable)
  * @param[out] props : The material properties vector
  * @param[out] maj_sym : The major symmetry condition (L_ij = L_ji ?).
+ * @param[in] tol : The tolerance utilized to check the symetries. If less than the global sim_limit (1.E-8), sim_limit is utilized. Default is 0. (so sim_limit is utilized by default)
  *
  * Material Symmetries considered:
  *
@@ -60,7 +61,7 @@ namespace simcoon{
  *     check_symetries(L, umat_name, axis, props, maj_sym);
  *  @endcode
  */
-void check_symetries(const arma::mat &L, std::string &umat_type, int &axis, arma::vec &props, int &maj_sym);
+void check_symetries(const arma::mat &L, std::string &umat_type, int &axis, arma::vec &props, int &maj_sym, const double &tol = 0.);
 
 /**
  * @brief Provides material parameters of a linear isotropic material from a stiffness matrix

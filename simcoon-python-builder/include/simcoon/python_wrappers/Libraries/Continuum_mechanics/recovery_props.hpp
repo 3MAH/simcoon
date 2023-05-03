@@ -5,7 +5,7 @@
 namespace simpy{
 
 //Check the material symetries and the type of elastic response for a given stiffness tensor
-pybind11::dict check_symetries(const pybind11::array_t<double> &input);
+pybind11::dict check_symetries(const pybind11::array_t<double> &input, const double &tol = 0.);
 
 //Return a list of elastic properties for the isotropic case (E,nu) from a stiffness tensor
 pybind11::array_t<double> L_iso_props(const pybind11::array_t<double> &input);
