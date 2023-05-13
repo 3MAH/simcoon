@@ -71,27 +71,23 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
+  find_package(pybind11 REQUIRED)
   find_package(armadillo 5.2 REQUIRED)
+  find_package(carma CONFIG REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
+  find_package(pybind11 REQUIRED)
   include(FindArmadillo)
   find_package(Armadillo 5.2 REQUIRED)
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+  find_package(carma CONFIG REQUIRED)
 endif()
 
 find_package(simcoon REQUIRED)
 find_package(arma2numpy REQUIRED)
 
-#Find Pybind11
-find_package(pybind11 REQUIRED)
-
-#Find CArma
-find_package(carma CONFIG REQUIRED)
-
-
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
+include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
