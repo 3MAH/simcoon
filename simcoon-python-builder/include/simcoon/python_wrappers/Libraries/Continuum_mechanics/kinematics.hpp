@@ -41,7 +41,7 @@ pybind11::array_t<double> Green_Lagrange(const pybind11::array_t<double> &F, con
 pybind11::array_t<double> Euler_Almansi(const pybind11::array_t<double> &F, const bool &copy=true);
 
 //This function computes the logarithmic strain ln[V] = 1/2 ln[B] (B is the left Cauchy-Green Tensor)
-pybind11::array_t<double> Log_strain(const pybind11::array_t<double> &F, const bool &copy=true);
+pybind11::array_t<double> Log_strain(const pybind11::array_t<double> &F, const bool &voigt_form=false, const bool &copy=true);
 
 //This function computes the velocity difference (F0,F1,DTime)
 pybind11::array_t<double> finite_L(const pybind11::array_t<double> &F0, const pybind11::array_t<double> &F1, const double &DTime, const bool &copy=true);

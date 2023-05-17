@@ -7,6 +7,7 @@
 #include <armadillo>
 
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 
 using namespace std;
@@ -106,10 +107,39 @@ py::array_t<double> Euler_Almansi(const py::array_t<double> &F, const bool &copy
 }
 
 //This function computes the logarithmic strain ln[V] = 1/2 ln[b] (b is the left Cauchy-Green Tensor)
-py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &copy) {
-    mat F_cpp = carma::arr_to_mat(F);
-    mat Log_strain = simcoon::Log_strain(F_cpp);
-    return carma::mat_to_arr(Log_strain, copy);
+py::array_t<double> Log_strain(const py::array_t<double> &F, const bool &voigt_form, const bool &copy) {
+    if (F.ndim()==2){
+        mat F_cpp = carma::arr_to_mat(F);
+        if (voigt_form) {
+            vec Log_strain = simcoon::t2v_strain(simcoon::Log_strain(F_cpp));
+            return carma::col_to_arr(Log_strain, copy);
+        }
+        else{
+            mat Log_strain = simcoon::Log_strain(F_cpp);
+            return carma::mat_to_arr(Log_strain, copy);
+        }         
+    }
+    else if (F.ndim() == 3){
+        cube F_cpp = carma::arr_to_cube_view(F);
+        int nb_points = F_cpp.n_slices;
+        if (voigt_form){
+            mat Log_strain(6,nb_points); 
+            for (int pt = 0; pt < nb_points; pt++) {
+                Log_strain.col(pt) = simcoon::t2v_strain(simcoon::Log_strain(F_cpp.slice(pt)));
+            }
+            return carma::mat_to_arr(Log_strain, copy);  
+        }
+        else{
+            cube Log_strain(3,3,nb_points); 
+            for (int pt = 0; pt < nb_points; pt++) {
+                Log_strain.slice(pt) = simcoon::Log_strain(F_cpp.slice(pt));
+            }
+            return carma::cube_to_arr(Log_strain, copy);  
+        }
+    }
+    else{
+        throw std::invalid_argument("F.ndim should be 2 or 3");
+    }
 }
 
 //This function computes the velocity difference

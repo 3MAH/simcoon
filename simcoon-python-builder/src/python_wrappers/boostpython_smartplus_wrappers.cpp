@@ -146,7 +146,7 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("Cauchy", &Cauchy, "F"_a, "copy"_a=true, "This function computes the Cauchy deformation tensor c from the transformation gradient F");
     m.def("Green_Lagrange", &Green_Lagrange, "F"_a, "copy"_a=true, "This function computes the Green-Lagrange finite strain tensor E");
     m.def("Euler_Almansi", &Euler_Almansi, "F"_a, "copy"_a=true, "This function computes the Euler-Almansi finite strain tensor A");
-    m.def("Log_strain", &Log_strain, "F"_a, "copy"_a=true, "This function computes the logarithmic strain ln[V] = 1/2 ln[B] (B is the left Cauchy-Green Tensor)");
+    m.def("Log_strain", &Log_strain, "F"_a, "voigt_form"_a=false, "copy"_a=true, "This function computes the logarithmic strain ln[V] = 1/2 ln[B] (B is the left Cauchy-Green Tensor)");
     m.def("finite_L", &finite_L, "F0"_a, "F1"_a, "DTime"_a,  "copy"_a=true, "This function computes the velocity difference (F0,F1,DTime)");
     m.def("finite_D", &finite_D, "F0"_a, "F1"_a, "DTime"_a,  "copy"_a=true, "This function computes the deformation rate D (F0,F1,DTime)");
     m.def("finite_W", &finite_W, "F0"_a, "F1"_a, "DTime"_a,  "copy"_a=true, "This function computes the spin tensor W (correspond to Jaumann rate) (F0,F1,DTime)");
