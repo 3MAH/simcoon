@@ -157,6 +157,7 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a,"F0"_a, "F1"_a, "dtime"_a, "return_de"_a=false, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
+    m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
 
     //register the damage library
     m.def("damage_weibull", &damage_weibull, "stress"_a, "damage"_a, "alpha"_a, "beta"_a, "DTime"_a, "criterion"_a = "vonmises", "This function returns damage evolution (/dt) considering a Weibull damage law");
@@ -205,6 +206,14 @@ PYBIND11_MODULE(simmitpybind, m) {
     m.def("rotateB_R", &rotateB_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=true, "Return the rotated 6*6 stress concentration matrix according to a rotation matrix");
     m.def("rotate_l2g_B", &rotate_l2g_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stress concentration matrix from local to global frame");
     m.def("rotate_g2l_B", &rotate_g2l_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a=true, "Return the rotated 6*6 stress concentration matrix from global to local frame");
+    m.def("rotate_strain_angle", &rotate_strain_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=false, "Return the rotated strain matrix using voigt notations according to an angle and an axis");
+    m.def("rotate_strain_R", &rotate_strain_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=false, "Return the rotated strain matrix using voigt notations according to a rotation matrix");
+    m.def("rotate_l2g_strain", &rotate_l2g_strain, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a=true, "Return the rotated strain matrix using voigt notations from local to global frame");
+    m.def("rotate_g2l_strain", &rotate_g2l_strain, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a=true, "Return the rotated strain matrix using voigt notations from global to local frame");
+    m.def("rotate_stress_angle", &rotate_stress_angle, "input"_a, "angle"_a, "axis"_a, "active"_a=true, "copy"_a=false, "Return the rotated stress matrix using voigt notations according to an angle and an axis");
+    m.def("rotate_stress_R", &rotate_stress_R, "input"_a, "R"_a, "active"_a=true, "copy"_a=false, "Return the rotated stress matrix using voigt notations according to a rotation matrix");
+    m.def("rotate_l2g_stress", &rotate_l2g_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a=true, "Return the rotated stress matrix using voigt notations from local to global frame");
+    m.def("rotate_g2l_stress", &rotate_g2l_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a=true, "Return the rotated stress matrix using voigt notations from global to local frame");
 
     //Register the from-python converters for lagrange
     m.def("lagrange_exp", &lagrange_exp, "This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)");

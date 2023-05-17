@@ -231,7 +231,7 @@ namespace simpy {
 				//if (use_temp) T = list_T(pt);
 				if (pt < list_props.n_cols) props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
 				vec statev = list_statev.unsafe_col(pt);
-				vec sigma = list_sigma.unsafe_col(pt); //Do a copy to pass to the umat. Dont know how to do better
+				vec sigma = list_sigma.unsafe_col(pt); 
 
 				switch (arguments_type) {
 

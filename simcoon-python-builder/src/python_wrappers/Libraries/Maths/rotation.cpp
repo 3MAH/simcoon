@@ -137,34 +137,96 @@ py::array_t<double> rotateB_R(const py::array_t<double> &input, const py::array_
     return carma::mat_to_arr(rotated_B, copy);
 }
 
-//This function rotates stress vectors
+//This function rotates stress vectors - Can be used with stack of arrays (vectorized)
 py::array_t<double> rotate_stress_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    vec v = carma::arr_to_col(input);
-    vec rotated_stress = simcoon::rotate_stress(v,angle,axis,active);
-    return carma::col_to_arr(rotated_stress, copy);
+    if (input.ndim()==1){
+        vec v = carma::arr_to_col(input);
+        vec rotated_stress = simcoon::rotate_stress(v,angle,axis,active);
+        return carma::col_to_arr(rotated_stress, copy);
+    }
+    else if (input.ndim() == 2){
+        mat m = carma::arr_to_mat_view(input);
+        int nb_points = m.n_cols;
+        mat rotated_stress(6,nb_points); 
+        for (int pt = 0; pt < nb_points; pt++) {
+            vec v = m.unsafe_col(pt);
+            rotated_stress.col(pt) = simcoon::rotate_stress(v,angle,axis,active);
+        }
+        return carma::mat_to_arr(rotated_stress, copy);
+    }
+    else{
+        throw std::invalid_argument("input.ndim should be 1 or 2");
+    }
 }
                  
-//This function rotates stress vectors
+//This function rotates stress vectors - Can be used with stack of arrays (vectorized)
 py::array_t<double> rotate_stress_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    vec v = carma::arr_to_col(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    vec rotated_stress = simcoon::rotate_stress(v,R_cpp,active);
-    return carma::col_to_arr(rotated_stress, copy);
+    if (input.ndim()==1){
+        vec v = carma::arr_to_col(input);
+        mat R_cpp = carma::arr_to_mat(R);
+        vec rotated_stress = simcoon::rotate_stress(v,R_cpp,active);
+        return carma::col_to_arr(rotated_stress, copy);
+    }
+    else if (input.ndim() == 2){
+        mat m = carma::arr_to_mat_view(input);
+        cube R_cpp = carma::arr_to_cube_view(R);
+        int nb_points = m.n_cols;
+        mat rotated_stress(6,nb_points); 
+        for (int pt = 0; pt < nb_points; pt++) {
+            vec v = m.unsafe_col(pt);
+            rotated_stress.col(pt) = simcoon::rotate_stress(v,R_cpp.slice(pt),active);
+        }
+        return carma::mat_to_arr(rotated_stress, copy);
+    }
+    else{
+        throw std::invalid_argument("input.ndim should be 1 or 2");
+    }
 }
 
-//This function rotates strain vectors
+//This function rotates strain vectors - Can be used with stack of arrays (vectorized)
 py::array_t<double> rotate_strain_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    vec v = carma::arr_to_col(input);
-    vec rotated_strain = simcoon::rotate_strain(v,angle,axis,active);
-    return carma::col_to_arr(rotated_strain, copy);
+    if (input.ndim()==1){
+        vec v = carma::arr_to_col(input);
+        vec rotated_strain = simcoon::rotate_strain(v,angle,axis,active);
+        return carma::col_to_arr(rotated_strain, copy);
+    }
+    else if (input.ndim() == 2){
+        mat m = carma::arr_to_mat_view(input);
+        int nb_points = m.n_cols;
+        mat rotated_strain(6,nb_points); 
+        for (int pt = 0; pt < nb_points; pt++) {
+            vec v = m.unsafe_col(pt);
+            rotated_strain.col(pt) = simcoon::rotate_strain(v,angle,axis,active);
+        }
+        return carma::mat_to_arr(rotated_strain, copy);
+    }
+    else{
+        throw std::invalid_argument("input.ndim should be 1 or 2");
+    }
 }
 
-//This function rotates stress vectors
+//This function rotates strain vectors - Can be used with stack of arrays (vectorized)
 py::array_t<double> rotate_strain_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    vec v = carma::arr_to_col(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    vec rotated_strain = simcoon::rotate_strain(v,R_cpp,active);
-    return carma::col_to_arr(rotated_strain, copy);
+    if (input.ndim()==1){
+        vec v = carma::arr_to_col(input);
+        mat R_cpp = carma::arr_to_mat(R);
+        vec rotated_strain = simcoon::rotate_strain(v,R_cpp,active);
+        return carma::col_to_arr(rotated_strain, copy);
+    }
+    else if (input.ndim() == 2){
+        mat m = carma::arr_to_mat_view(input);
+        cube R_cpp = carma::arr_to_cube_view(R);
+        int nb_points = m.n_cols;
+        mat rotated_strain(6,nb_points); 
+        for (int pt = 0; pt < nb_points; pt++) {
+            vec v = m.unsafe_col(pt);
+            rotated_strain.col(pt) = simcoon::rotate_strain(v,R_cpp.slice(pt),active);
+        }
+        return carma::mat_to_arr(rotated_strain, copy);
+    }
+    else{
+        throw std::invalid_argument("input.ndim should be 1 or 2");
+    }
 }
 
 //This function rotates strain vectors from a local to global set of coordinates (using Euler angles)
