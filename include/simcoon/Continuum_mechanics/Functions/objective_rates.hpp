@@ -326,7 +326,22 @@ arma::mat DsigmaDe_2_DSDE(const arma::mat &Lt, const arma::mat &BBBB, const arma
  * 
  * @param[in] Lt (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
- * @param[in] tau (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
+ * @param[in] sigma (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
+ * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+*/
+arma::mat DsigmaDe_2_DSDE(const arma::mat &Lt, const arma::mat &F, const arma::mat &sigma);
+
+/**
+ * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
+ *
+ * This function takes in the tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$, 
+ * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
+ * 
+ * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ * 
+ * @param[in] Lt (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
+ * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
+ * @param[in] sigma (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
  * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
 */
 arma::mat DsigmaDe_JaumannDD_2_DSDE(const arma::mat &, const arma::mat &, const arma::mat &);

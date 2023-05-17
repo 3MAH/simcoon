@@ -329,6 +329,14 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma)
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
+
+    double J = det(F);
+    mat B = get_BBBB(F);
+    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     
     double J = det(F);
