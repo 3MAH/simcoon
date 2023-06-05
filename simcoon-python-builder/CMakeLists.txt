@@ -118,8 +118,8 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
@@ -170,8 +170,26 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 ################################################################################
 # SIMCOON modules
 #Add the files to the lib
-#add_library(simmit MODULE ${source_files_simmit})
-Python3_add_library(simmit MODULE ${source_files_simmit})
+#add_library(simmitboost MODULE ${source_files_simmit})
+Python3_add_library(simmitboost MODULE ${source_files_simmit})
+#Wrapper library set_target properties
+if (MSVC)
+  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".pyd")
+else()
+  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".so")
+endif()
+#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
+target_link_libraries(simmitboost PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
+#if (UNIX AND APPLE)
+#	set_target_properties(simmitboost PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+#endif()
+
+################################################################################
+
+################################################################################
+# SIMCOON PYBIND11 modules
+#Add the files to the lib
+pybind11_add_module(simmit ${source_files_simmit})
 #Wrapper library set_target properties
 if (MSVC)
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
@@ -180,24 +198,6 @@ else()
 endif()
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
-#if (UNIX AND APPLE)
-#	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-#endif()
-
-################################################################################
-
-################################################################################
-# SIMCOON PYBIND11 modules
-#Add the files to the lib
-pybind11_add_module(simmitpybind ${source_files_simmit})
-#Wrapper library set_target properties
-if (MSVC)
-  set_target_properties(simmitpybind PROPERTIES PREFIX "" SUFFIX ".pyd")
-else()
-  set_target_properties(simmitpybind PROPERTIES PREFIX "" SUFFIX ".so")
-endif()
-#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmitpybind PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
 #if (UNIX AND APPLE)
 #	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 #endif()

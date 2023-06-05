@@ -59,7 +59,7 @@ using namespace simpy;
 
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(simmitpybind, m) {
+PYBIND11_MODULE(simmit, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
     // Register the from-python converters for constitutive.hpp
@@ -233,7 +233,7 @@ PYBIND11_MODULE(simmitpybind, m) {
 }
 
 
-BOOST_PYTHON_MODULE(simmit) {
+BOOST_PYTHON_MODULE(simmitboost) {
 
     Py_Initialize();
     bn::initialize();
