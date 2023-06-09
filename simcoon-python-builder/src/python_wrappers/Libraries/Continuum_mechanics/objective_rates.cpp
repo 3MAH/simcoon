@@ -130,6 +130,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
     list_Lt_convert = { {"DsigmaDe_2_DSDE",0},{"DsigmaDe_JaumannDD_2_DSDE",1}, {"DtauDe_JaumannDD_2_DSDE",2}};
 	int select = list_Lt_convert [converter_key];
     mat (*convert_function)(const mat &, const mat &, const mat &); 
+    
     switch (select) {
         case 0: {
             convert_function = &simcoon::DsigmaDe_2_DSDE;
@@ -164,10 +165,13 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         int nb_points = Lt_cpp.n_slices;
         cube Lt_converted(6,6,nb_points);
 
+        mat stress_pt;
+
         for (int pt = 0; pt < nb_points; pt++) {
-            vec stress_pt = stress_cpp.unsafe_col(pt); 
+            //vec stress_pt = stress_cpp.unsafe_col(pt); 
+            stress_pt = simcoon::v2t_stress(stress_cpp.col(pt));
             Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-        }
+        }        
         return carma::cube_to_arr(Lt_converted,false);
     }
 }

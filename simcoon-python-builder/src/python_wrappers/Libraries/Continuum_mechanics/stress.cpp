@@ -23,8 +23,55 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
     list_stress_convert = {{"Cauchy2PKI",0},{"Cauchy2PKII",1},{"Cauchy2Kirchoff",2},{"Kirchoff2Cauchy",3},{"Kirchoff2PKI",4},{"Kirchoff2PKII",5},{"PKI2Kirchoff",6},{"PKII2Kirchoff",7},{"PKI2Cauchy",8},{"PKII2Cauchy",9}};
 
     int select = list_stress_convert[converter_key];
+    mat (*functor_stress_converter)(const mat &, const mat &, const double &);
 
-    auto functor_stress_converter = [](const arma::mat &sigma_cpp, const arma::mat &F_cpp, const double &J, const int &select) {
+    switch (select) {
+        case 0: {
+            functor_stress_converter = &simcoon::Cauchy2PKI;
+            break;
+        }
+        case 1: {
+            functor_stress_converter = &simcoon::Cauchy2PKII;
+            break;
+        }
+        case 2: {
+            functor_stress_converter = &simcoon::Cauchy2Kirchoff;
+            break;
+        }
+        case 3: {
+            functor_stress_converter = &simcoon::Kirchoff2Cauchy;
+            break;
+        }  
+        case 4: {
+            functor_stress_converter = &simcoon::Kirchoff2PKI;
+            break;
+        }
+        case 5: {
+            functor_stress_converter = &simcoon::Kirchoff2PKII;
+            break;
+        }
+        case 6: {
+            functor_stress_converter = &simcoon::PKI2Kirchoff;
+            break;
+        }
+        case 7: {
+            functor_stress_converter = &simcoon::PKII2Kirchoff;
+            break;
+        }
+        case 8: {
+            functor_stress_converter = &simcoon::PKI2Cauchy;
+            break;
+        }
+        case 9: {
+            functor_stress_converter = &simcoon::PKII2Cauchy;
+            break;
+        }            
+        default: {
+            throw std::invalid_argument("Invalid input of the stress converter key: Cauchy2PKI, Cauchy2PKII, Cauchy2Kirchoff, Kirchoff2Cauchy, Kirchoff2PKI, Kirchoff2PKII, PKI2Kirchoff, PKII2Kirchoff, PKI2Cauchy or PKII2Cauchy");                
+        }
+    }
+
+    /*auto functor_stress_converter = [](const arma::mat &sigma_cpp, const arma::mat &F_cpp, const double &J, const int &select) {
         switch (select) {
 
             case 0: {
@@ -61,14 +108,14 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
                 throw std::invalid_argument("Invalid input of the stress converter key: Cauchy2PKI, Cauchy2PKII, Cauchy2Kirchoff, Kirchoff2Cauchy, Kirchoff2PKI, Kirchoff2PKII, PKI2Kirchoff, PKII2Kirchoff, PKI2Cauchy or PKII2Cauchy");                
             }
         }
-    };
+    };*/
 
     if(sigma.ndim() == 1) {
         if(sigma.size() == 6) {
             mat sigma_cpp = simcoon::v2t_stress(carma::arr_to_col(sigma));
             mat F_cpp = carma::arr_to_mat(F);            
-            vec PKI = simcoon::t2v_stress(functor_stress_converter(sigma_cpp, F_cpp, J, select));
-            return carma::col_to_arr(PKI, copy);
+            vec stress = simcoon::t2v_stress(functor_stress_converter(sigma_cpp, F_cpp, J));
+            return carma::col_to_arr(stress, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6");
@@ -78,26 +125,26 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         if((sigma.shape(0) == 3)&&(sigma.shape(1) == 3)) {
             mat sigma_cpp = carma::arr_to_mat(sigma);
             mat F_cpp = carma::arr_to_mat(F);
-            mat PKI = functor_stress_converter(sigma_cpp, F_cpp, J, select);
-            return carma::mat_to_arr(PKI, copy);
+            mat stress = functor_stress_converter(sigma_cpp, F_cpp, J);
+            return carma::mat_to_arr(stress, copy);
         }
         else if(sigma.shape(0) == 6) {
             assert(sigma.shape(1) == F.shape(2));
-            mat PKI = zeros(6,sigma.shape(1));
-            mat sigma_cpp_list = carma::arr_to_mat(sigma);
-            cube F_cpp_list = carma::arr_to_cube(F);            
+            mat stress = zeros(6,sigma.shape(1));
+            mat sigma_cpp_list = carma::arr_to_mat_view(sigma);
+            cube F_cpp_list = carma::arr_to_cube_view(F);            
 
             for (unsigned int i=0; i < sigma_cpp_list.n_cols; i++) {
-                vec sigma_cpp = sigma_cpp_list.col(i);
+                vec sigma_cpp = sigma_cpp_list.unsafe_col(i);
                 mat F_cpp = F_cpp_list.slice(i);
 
-                cout << sigma_cpp;
-                cout << F_cpp;                    
+                //cout << sigma_cpp;
+                //cout << F_cpp;                    
 
-                PKI.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J, select));
+                stress.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J));
             }   
 
-            return carma::mat_to_arr(PKI, copy);            
+            return carma::mat_to_arr(stress, copy);            
         }
         else {
             throw std::invalid_argument("Invalid shape of the two-dimensional array. Expected n rows, 6 columns (1 per component of the symmetric stress tensor)");
