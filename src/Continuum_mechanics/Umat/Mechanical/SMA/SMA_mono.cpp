@@ -105,9 +105,9 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
     
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();    
-    
+    std::string data_path= std::getenv("SIMCOON_DATA_PATH") ? std::getenv("SIMCOON_DATA_PATH") : "data" ;
 	mat Hnm = zeros(nvariants, nvariants);
-	Hnm.load("data/Hnm.inp", raw_ascii);
+	Hnm.load(data_path+"/Hnm.inp", raw_ascii);
     
 	// ######################  Statev #################################
 	
@@ -118,7 +118,7 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
 	
 	///@brief Properties of the variants, use "test.dat" to specify the parameters (for now)
 	ifstream paramvariant;
-	paramvariant.open("data/variant.inp", ios::in);
+	paramvariant.open(data_path+"/variant.inp", ios::in);
 	if(paramvariant) {
 		string chaine1;
 		for(int i=0; i<nvariants; i++) {
