@@ -21,12 +21,14 @@ requirements:
     - pip
     - cgal
     - boost
+    - pybind11
     - armadillo # [unix]
     - numpy
   run:
     - python {{ python }}
     - boost
     - numpy
+    - pybind11
 
 test:
   imports:
