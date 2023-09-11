@@ -76,7 +76,9 @@ conda activate scientific
 The next step is to install the required packages:
 
 ```bash
-conda install -c conda-forge armadillo boost cgal numpy
+conda install -c conda-forge cxx-compiler
+conda install -c conda-forge fortran-compiler
+conda install -c conda-forge armadillo boost pybind11 cgal numpy
 ```
 
 Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder.
