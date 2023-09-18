@@ -17,7 +17,7 @@ requirements:
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
-    - python {{ python }}
+    - python
     - pip
     - cgal
     - boost
@@ -26,7 +26,7 @@ requirements:
     - numpy
     - carma
   run:
-    - python {{ python }}
+    - python
     - boost
     - numpy
     - pybind11
