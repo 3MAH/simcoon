@@ -24,11 +24,13 @@ requirements:
     - pybind11
     - armadillo # [unix]
     - numpy
+    - carma
   run:
     - python {{ python }}
     - boost
     - numpy
     - pybind11
+    - carma
 
 test:
   imports:
