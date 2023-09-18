@@ -21,7 +21,7 @@ jobs:
           conda install conda-build anaconda-client
           anaconda logout
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          conda-build conda.recipe -c conda-forge --output-folder  .
+          conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda upload linux-64/*.tar.bz2 --force
         
   macos:
@@ -39,7 +39,7 @@ jobs:
           conda install conda-build anaconda-client
           anaconda logout
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          conda-build conda.recipe -c conda-forge --output-folder  .
+          conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda upload osx-64/*.tar.bz2 --force
         
   windows:
