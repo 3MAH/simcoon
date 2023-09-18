@@ -17,13 +17,13 @@ requirements:
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
-    - python {{ python }}
+    - python
     - pip
     - armadillo
     - numpy
     - pybind11
   run:
-    - python {{ python }}
+    - python
     - armadillo
     - numpy
     - pybind11
