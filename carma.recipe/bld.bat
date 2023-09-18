@@ -1,7 +1,6 @@
-cmake -S . -B build ^
+cmake -DCARMA_INSTALL_LIB=ON -S . -B build ^
       -G "Visual Studio 17 2022" ^
       -DCMAKE_BUILD_TYPE:STRING=Release ^
-      -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% ^
-      -DCARMA_INSTALL_LIB=ON
+      -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX%
 cmake --build build --target ALL_BUILD --config Release
 cmake --install build
