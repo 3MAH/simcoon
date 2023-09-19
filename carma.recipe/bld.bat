@@ -4,5 +4,5 @@ cmake -G Ninja ^
       -D CARMA_INSTALL_LIB=ON ^
       -S . -B build
 
-cmake --build build --target ALL_BUILD --config Release
+cmake --build build --config Release
 cmake --install build
