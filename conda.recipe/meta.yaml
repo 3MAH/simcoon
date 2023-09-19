@@ -18,6 +18,7 @@ requirements:
     - numpy>=1.22
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
+    - ninja  # [win]
   host:
     - python
     - numpy>=1.22
