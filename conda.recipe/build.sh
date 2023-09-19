@@ -1,28 +1,31 @@
 #!/bin/bash
 
-set -x
+set -ex
 
-mkdir -p build
-cd build
-cmake .. -DCMAKE_INCLUDE_PATH=$PREFIX/include -DCMAKE_LIBRARY_PATH=$PREFIX/lib -DCMAKE_INSTALL_PREFIX=$PREFIX -Wno-dev
-make
-make install
+cd $SRC_DIR
 
-cd $SRC_DIR/arma2numpy-builder
-mkdir -p build
-cd build
-cmake .. -DCMAKE_INCLUDE_PATH=$PREFIX/include -DCMAKE_LIBRARY_PATH=$PREFIX/lib -DCMAKE_INSTALL_PREFIX=$PREFIX -Wno-dev -DCMAKE_BUILD_TYPE=Release
-make
-make install
+cmake ${CMAKE_ARGS} -S . -B build \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D CMAKE_INSTALL_PREFIX:path=$PREFIX
+  -D CMAKE_INCLUDE_PATH=$PREFIX/include
+  -D CMAKE_LIBRARY_PATH=$PREFIX/lib
+
+cmake --build build --config Release
+cmake --install build
 
 cd $SRC_DIR/simcoon-python-builder
+
+cmake ${CMAKE_ARGS} -S . -B build \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D CMAKE_INSTALL_PREFIX:path=$PREFIX
+  -D CMAKE_INCLUDE_PATH=$PREFIX/include
+  -D CMAKE_LIBRARY_PATH=$PREFIX/lib
+
+cmake --build build --config Release
+cmake --install build
+
 mkdir -p build
-cd build
-cmake .. -DCMAKE_INCLUDE_PATH=$PREFIX/include -DCMAKE_LIBRARY_PATH=$PREFIX/lib -DCMAKE_INSTALL_PREFIX=$PREFIX -Wno-dev -DCMAKE_BUILD_TYPE=Release
-make
-make install
 cp lib/simmit.so $SRC_DIR/python-setup/simcoon/
 
 cd $SRC_DIR/python-setup
 pip install .
-
