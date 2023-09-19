@@ -12,12 +12,11 @@ build:
 requirements:
   build:
     - git # [win]
-    - make # [unix]
     - cmake
     - python
     - numpy
-    - {{ compiler('cxx') }} 
-    - {{ compiler('fortran') }} # [unix]
+    - {{ compiler('cxx') }}
+    - ninja  # [win]
   host:
     - python
     - pip
