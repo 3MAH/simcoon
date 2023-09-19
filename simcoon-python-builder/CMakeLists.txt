@@ -83,7 +83,6 @@ else()
 endif()
 
 find_package(simcoon REQUIRED)
-find_package(arma2numpy REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -92,6 +91,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CGAL_INCLUDE_DIRS})
+include_directories(SYSTEM ${CARMA_INCLUDE_DIRS})
 
 message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
@@ -102,7 +102,7 @@ message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
-message(STATUS "arma2numpy_LIBRARIES = ${arma2numpy_LIBRARIES}")
+message(STATUS "CARMA_INCLUDE_DIRS = ${CARMA_INCLUDE_DIRS}")
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
@@ -166,25 +166,6 @@ enable_testing()
 #Notice the WORKING_DIRECTORY and COMMAND
 add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
-
-################################################################################
-# SIMCOON modules
-#Add the files to the lib
-#add_library(simmitboost MODULE ${source_files_simmit})
-Python3_add_library(simmitboost MODULE ${source_files_simmit})
-#Wrapper library set_target properties
-if (MSVC)
-  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".pyd")
-else()
-  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".so")
-endif()
-#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmitboost PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
-#if (UNIX AND APPLE)
-#	set_target_properties(simmitboost PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-#endif()
-
-################################################################################
 
 ################################################################################
 # SIMCOON PYBIND11 modules
