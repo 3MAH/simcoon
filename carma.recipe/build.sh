@@ -1,9 +1,13 @@
 #!/bin/bash
 
-set -x
+set -ex
 
-mkdir -p build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:path=$PREFIX -DCARMA_INSTALL_LIB=ON
-make
-make install
+cd $SRC_DIR
+
+cmake ${CMAKE_ARGS} -S . -B build \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D CMAKE_INSTALL_PREFIX:path=$PREFIX
+  -D DCARMA_INSTALL_LIB=ON \
+
+cmake --build build --target ALL_BUILD --config Release
+cmake --install build
