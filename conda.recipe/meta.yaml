@@ -14,22 +14,26 @@ requirements:
     - git # [win]
     - make # [unix]
     - cmake
+    - python
+    - numpy>=1.22
     - {{ compiler('cxx') }} 
     - {{ compiler('fortran') }} # [unix]
   host:
     - python
+    - numpy>=1.22
     - pip
     - cgal
     - boost
     - pybind11
-    - armadillo # [unix]
-    - numpy
+    - armadillo
     - carma
   run:
     - python
+    - numpy>=1.22
+    - cgal    
     - boost
-    - numpy
     - pybind11
+    - armadillo    
     - carma
 
 test:
