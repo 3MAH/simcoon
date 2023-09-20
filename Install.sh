@@ -216,19 +216,19 @@ then
     cd ${current_dir}/arma2numpy-builder/build
     cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
     echo ""
-    make -j${ncpus}
+    make
     make install
     cd ..
     cd ..
 
-    if [ $OS = "Mac" ]
-    then
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
-        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
-
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
-        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
-    fi
+#    if [ $OS = "Mac" ]
+#    then
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
+#        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
+#
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
+#        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
+#    fi
     cd ${current_dir}/arma2numpy-builder/
     make test
 
@@ -256,27 +256,27 @@ then
     cd ${current_dir}/simcoon-python-builder/build
     cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
     echo ""
-    make -j${ncpus}
+    make
     make install
 
     cd ..
     cd ..
     cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
-    cp ${current_dir}/simcoon-python-builder/build/lib/simmitpybind.so ${current_dir}/python-setup/simcoon/simmitpybind.so
+    cp ${current_dir}/simcoon-python-builder/build/lib/simmitboost.so ${current_dir}/python-setup/simcoon/simmitboost.so
     cd ${current_dir}/python-setup
         
     #Change the current dir and install python library
     #current_dir=$(pwd)
-    python setup.py install
-    pip install .
+    python -m pip install .
+#    pip install .
 #    pip install . --target=${CONDA_PREFIX}/lib/python${python_version}/site-packages --upgrade
     
-    if [ $OS = "Mac" ]
-    then
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
-        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
-        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
-    fi
+#    if [ $OS = "Mac" ]
+#    then
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
+#        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+#    fi
     
     cd ${current_dir}/simcoon-python-builder/build
     make test
