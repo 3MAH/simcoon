@@ -10,7 +10,18 @@ cmake ${CMAKE_ARGS} -S . -B build \
   -D CMAKE_INCLUDE_PATH=$PREFIX/include \
   -D CMAKE_LIBRARY_PATH=$PREFIX/lib \
 
-cmake --build build --config Release
+cmake --build build -j${CPU_COUNT} --target simcoon --config Release
+cmake --install build
+
+cd $SRC_DIR/arma2numpy-builder
+
+cmake ${CMAKE_ARGS} -S . -B build \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D CMAKE_INSTALL_PREFIX:path=$PREFIX \
+  -D CMAKE_INCLUDE_PATH=$PREFIX/include \
+  -D CMAKE_LIBRARY_PATH=$PREFIX/lib
+  
+cmake --build build -j${CPU_COUNT} --target arma2numpy --config Release
 cmake --install build
 
 cd $SRC_DIR/simcoon-python-builder
@@ -21,9 +32,9 @@ cmake ${CMAKE_ARGS} -S . -B build \
   -D CMAKE_INCLUDE_PATH=$PREFIX/include \
   -D CMAKE_LIBRARY_PATH=$PREFIX/lib
 
-cmake --build build --config Release
+cmake --build build -j${CPU_COUNT} --target simmit --config Release
 cmake --install build
-cp lib/simmit.so $SRC_DIR/python-setup/simcoon/
+cp $SRC_DIR/simcoon-python-builder/build/lib/simmit.so $SRC_DIR/python-setup/simcoon/
 
 cd $SRC_DIR/python-setup
-pip install .
+$PYTHON -m pip install .
