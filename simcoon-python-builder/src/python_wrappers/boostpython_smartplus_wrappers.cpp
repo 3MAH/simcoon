@@ -8,6 +8,7 @@
 
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/arma2numpy/numpy_cgal.hpp>
+#include <simcoon/arma2numpy/list_vector.hpp>
 
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 
