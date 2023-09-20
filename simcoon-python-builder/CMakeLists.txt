@@ -72,18 +72,19 @@ endif()
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
+  find_package(armadillo 12.6 REQUIRED)
   find_package(carma CONFIG REQUIRED)
   find_package(blas REQUIRED)
   find_package(lapack REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})  
 else()
   find_package(pybind11 REQUIRED)
-  include(FindArmadillo)
-  find_package(Armadillo 5.2 REQUIRED)
+  find_package(armadillo 12.6 REQUIRED)
   find_package(carma CONFIG REQUIRED)
 endif()
 
 find_package(simcoon REQUIRED)
+find_package(arma2numpy REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -92,7 +93,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CGAL_INCLUDE_DIRS})
-include_directories(SYSTEM ${CARMA_INCLUDE_DIRS})
+include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
 
 message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
@@ -103,7 +104,8 @@ message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
-message(STATUS "CARMA_INCLUDE_DIRS = ${CARMA_INCLUDE_DIRS}")
+message(STATUS "arma2numpy_LIBRARIES = ${arma2numpy_LIBRARIES}")
+message(STATUS "carma_INCLUDE_DIR = ${carma_INCLUDE_DIR}")
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
@@ -169,6 +171,25 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 ################################################################################
+# SIMCOON modules
+#Add the files to the lib
+#add_library(simmitboost MODULE ${source_files_simmit})
+Python3_add_library(simmitboost MODULE ${source_files_simmit})
+#Wrapper library set_target properties
+if (MSVC)
+  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".pyd")
+else()
+  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".so")
+endif()
+#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
+target_link_libraries(simmitboost PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
+#if (UNIX AND APPLE)
+#	set_target_properties(simmitboost PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
+#endif()
+
+################################################################################
+
+################################################################################
 # SIMCOON PYBIND11 modules
 #Add the files to the lib
 pybind11_add_module(simmit ${source_files_simmit})
@@ -179,7 +200,7 @@ else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
+target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
 #if (UNIX AND APPLE)
 #	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 #endif()
@@ -191,4 +212,3 @@ if(NOT INSTALL_INCLUDE_DIR)
 endif()
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-
