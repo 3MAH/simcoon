@@ -50,10 +50,11 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  find_package(pybind11)
-  find_package(Armadillo 5.2 REQUIRED)
-  find_package(carma)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
+  find_package(pybind11 REQUIRED)
+  find_package(carma CONFIG REQUIRED)
+  find_package(blas REQUIRED)
+  find_package(lapack REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})    
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   include(FindArmadillo)
@@ -122,6 +123,9 @@ message(STATUS "CMAKE_CXX_FLAGS            = ${CMAKE_CXX_FLAGS}")
 message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
 message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
 message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
+message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
+message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
+
 
 #Inclusion of public headers
 include_directories(include)
