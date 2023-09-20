@@ -3,7 +3,8 @@ package:
   version: 1.0.0
 
 source:
-  git_url: https://github.com/3MAH/simcoon.git 
+  path: /Users/ychemisky/scratch/simcoon
+  #git_url: https://github.com/3MAH/simcoon.git
   #git_tag: 1.9.0
 
 build:
@@ -14,15 +15,14 @@ requirements:
     - git # [win]
     - make # [unix]
     - cmake
-    - python
-    - numpy>=1.22
-    - {{ compiler('cxx') }} 
+    - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [unix]
     - ninja  # [win]
   host:
     - python
     - numpy>=1.22
     - pip
+    - setuptools
     - cgal
     - boost
     - pybind11
@@ -31,10 +31,10 @@ requirements:
   run:
     - python
     - numpy>=1.22
-    - cgal    
+    - cgal
     - boost
     - pybind11
-    - armadillo    
+    - armadillo
     - carma
 
 test:
