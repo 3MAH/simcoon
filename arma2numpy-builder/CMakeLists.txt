@@ -73,12 +73,13 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
-  find_package(Armadillo 5.2 REQUIRED)
-  #set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${CMAKE_INSTALL_PREFIX}/Library/lib/libopenblas.lib)
+  find_package(carma CONFIG REQUIRED)
+  find_package(blas REQUIRED)
+  find_package(lapack REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}) 
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
-  include(FindArmadillo)
-  find_package(Armadillo 5.2 REQUIRED)
+  find_package(Armadillo 12.6 REQUIRED)
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 endif()
 
