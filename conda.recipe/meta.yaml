@@ -17,6 +17,8 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [unix]
     - ninja  # [win]
+    - python # [win]
+    - numpy>=1.24 # [win]
   host:
     - libblas
     - liblapack
