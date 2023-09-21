@@ -17,9 +17,11 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [unix]
     - ninja  # [win]
-    - python
-    - numpy>=1.24
   host:
+    - libblas
+    - liblapack
+    - arpack  # [unix]
+    - superlu >=5.2.0,<6  # [unix]
     - python
     - numpy>=1.24
     - pip
@@ -30,6 +32,8 @@ requirements:
     - armadillo
     - carma
   run:
+    - arpack  # [unix]
+    - superlu >=5.2.0,<6  # [unix]
     - python
     - numpy>=1.24
     - cgal
