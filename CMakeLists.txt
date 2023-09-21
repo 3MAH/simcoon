@@ -224,9 +224,9 @@ set(INSTALL_INCLUDE_DIR include)
 set(INSTALL_LIB_DIR lib)
 
 # executables destination
-#if(NOT INSTALL_BIN_DIR)
-#  set(INSTALL_BIN_DIR "bin")
-#endif()
+if(NOT INSTALL_BIN_DIR)
+  set(INSTALL_BIN_DIR bin)
+endif()
 
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
