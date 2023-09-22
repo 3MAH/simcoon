@@ -14,19 +14,19 @@ requirements:
     - git # [win]
     - cmake
     - python
-    - numpy
+    - numpy>=1.24
     - {{ compiler('cxx') }}
     - ninja  # [win]
   host:
     - python
     - pip
     - armadillo
-    - numpy
+    - numpy>=1.24
     - pybind11
   run:
-    - libblas
-    - liblapackon
+    - libblas # [win]
+    - liblapack # [win]
     - python
     - armadillo
-    - numpy
+    - numpy>=1.24
     - pybind11
