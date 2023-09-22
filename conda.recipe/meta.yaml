@@ -15,7 +15,7 @@ requirements:
     - make # [unix]
     - cmake
     - {{ compiler('cxx') }}
-    - {{ compiler('fortran') }}
+    - {{ compiler('fortran') }} # [not win]
     - ninja  # [win]
   host:
     - libblas

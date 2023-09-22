@@ -142,8 +142,8 @@ set(objs
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
 if (MSVC)
-  #for windows, need to include carma to avoid bug in the pybhon-builder (https://github.com/RUrlus/carma/issues/91)
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
+  #for windows, need to include carma to avoid bug in the python-builder (https://github.com/RUrlus/carma/issues/91)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
 else()
   target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
 endif()
