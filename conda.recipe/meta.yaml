@@ -19,6 +19,8 @@ requirements:
     - ninja  # [win]
     - python # [win]
     - numpy>=1.24 # [win]
+    - libblas # [win]
+    - liblapack # [win]
   host:
     - libblas
     - liblapack
