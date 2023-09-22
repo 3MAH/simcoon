@@ -50,7 +50,10 @@ endif()
 
 #Inclusion of Armadillo
 if (MSVC)
+  find_package(blas REQUIRED)
+  find_package(lapack REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 else()
   find_package(Armadillo 12.6 REQUIRED)
