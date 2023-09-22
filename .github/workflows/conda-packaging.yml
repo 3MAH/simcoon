@@ -63,5 +63,6 @@ jobs:
           conda clean --all 
           anaconda logout
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          conda build purge-all
           conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda upload win-64/*.tar.bz2 --force
