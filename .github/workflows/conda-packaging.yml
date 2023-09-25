@@ -53,7 +53,6 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: packaging
-          python-version: 3.9
       - name: Conda build for Windows
         shell: pwsh
         run: |
