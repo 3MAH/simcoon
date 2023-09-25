@@ -57,8 +57,6 @@ jobs:
       - name: Conda build for Windows
         shell: pwsh
         run: |
-          conda list
-          conda info
           conda install conda-build anaconda-client
           conda clean --all 
           anaconda logout

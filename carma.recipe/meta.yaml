@@ -14,7 +14,6 @@ requirements:
     - git # [win]
     - cmake
     - python
-    - numpy>=1.24
     - {{ compiler('cxx') }}
     - ninja  # [win]
   host:
@@ -24,8 +23,6 @@ requirements:
     - numpy>=1.24
     - pybind11
   run:
-    - libblas # [win]
-    - liblapack # [win]
     - python
     - armadillo
     - numpy>=1.24

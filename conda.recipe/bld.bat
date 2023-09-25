@@ -1,6 +1,6 @@
 :: Simcoon
 cd %SRC_DIR%
-cmake -G Ninja ^
+cmake -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX:PATH=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
       -Wno-dev ^
@@ -12,7 +12,7 @@ if errorlevel 1 exit 1
 
 :: Arma2numpy binding
 cd %SRC_DIR%\arma2numpy-builder
-cmake -G Ninja ^
+cmake -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DPython3_ROOT_DIR=%PREFIX% ^
@@ -25,7 +25,7 @@ if errorlevel 1 exit 1
 
 :: Python binding
 cd %SRC_DIR%\simcoon-python-builder
-cmake -G Ninja ^
+cmake -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DPython3_ROOT_DIR=%PREFIX% ^

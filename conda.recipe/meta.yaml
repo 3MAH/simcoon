@@ -18,8 +18,6 @@ requirements:
     - {{ compiler('fortran') }} # [not win]
     - ninja  # [win]
   host:
-    - libblas
-    - liblapack
     - arpack  # [unix]
     - superlu >=5.2.0,<6  # [unix]
     - python
