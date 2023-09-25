@@ -27,6 +27,8 @@ requirements:
     - cgal
     - boost
     - pybind11
+    - liblapack * *netlib
+    - libblas * *netlib
     - armadillo
     - carma
   run:
@@ -34,6 +36,8 @@ requirements:
     - superlu >=5.2.0,<6  # [unix]
     - python
     - numpy>=1.24
+    - libblas * *mkl
+    - mkl
     - cgal
     - boost
     - pybind11

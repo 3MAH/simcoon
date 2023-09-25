@@ -37,7 +37,7 @@ cmake --install build
 if errorlevel 1 exit 1
 
 :: Install simcoon python 
-%SRC_DIR%\python-setup
+cd %SRC_DIR%\python-setup
 xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SRC_DIR%\python-setup\simcoon
 if errorlevel 1 exit 1
 
