@@ -16,6 +16,7 @@ cd %SRC_DIR%\arma2numpy-builder
 cmake -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
+      -DPython3_ROOT_DIR=%PREFIX% ^
       -DPython3_EXECUTABLE=%PREFIX%/python.exe ^      
       -Wno-dev ^
       -S . -B build
@@ -29,6 +30,7 @@ cd %SRC_DIR%\simcoon-python-builder
 cmake -G"Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
+      -DPython3_ROOT_DIR=%PREFIX% ^
       -DPython3_EXECUTABLE=%PREFIX%/python.exe ^
       -Wno-dev ^
       -S . -B build
