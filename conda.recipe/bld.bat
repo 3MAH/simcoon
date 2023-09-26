@@ -40,10 +40,10 @@ cmake --install build
 if errorlevel 1 exit 1
 
 :: Install simcoon python 
-cd%SRC_DIR%\python-setup
 xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SRC_DIR%\python-setup\simcoon
 if errorlevel 1 exit 1
 
+cd %SRC_DIR%\python-setup
 %PYTHON% -m pip install .
 
 :: xcopy /s /i %SRC_DIR%\build\lib\Release\simcoon.dll %PREFIX%\Library\bin
