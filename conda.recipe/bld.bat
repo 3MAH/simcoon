@@ -18,7 +18,7 @@ cmake -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DPython3_ROOT_DIR=%PREFIX% ^
-      -DPython3_EXECUTABLE=%PREFIX% ^
+      -DPython3_EXECUTABLE=%PREFIX%/python.exe ^
       -Wno-dev
 
 cmake --build build --target arma2numpy --config Release
@@ -32,7 +32,7 @@ cmake -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX% ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DPython3_ROOT_DIR=%PREFIX% ^
-      -DPython3_EXECUTABLE=%PREFIX% ^
+      -DPython3_EXECUTABLE=%PREFIX%/python.exe ^
       -Wno-dev
 
 cmake --build build --target simmit --config Release
