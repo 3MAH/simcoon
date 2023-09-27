@@ -39,12 +39,22 @@ cmake --build build --target simmit --config Release
 cmake --install build
 if errorlevel 1 exit 1
 
-:: Install simcoon python 
-xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SRC_DIR%\python-setup\simcoon
+cd %SP_DIR%
+mkdir simcoon
+cd simcoon
+type NUL > __init__.py
+xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SP_DIR%\simcoon
 if errorlevel 1 exit 1
 
-cd %SRC_DIR%\python-setup
-%PYTHON% -m pip install .
+xcopy /s /i %SRC_DIR%\build\lib\Release\simcoon.dll %PREFIX%\Library\bin
+xcopy /s /i %SRC_DIR%\arma2numpy-builder\build\bin\Release\arma2numpy.dll %PREFIX%\Library\bin
+if errorlevel 1 exit 1
 
-:: xcopy /s /i %SRC_DIR%\build\lib\Release\simcoon.dll %PREFIX%\Library\bin
+
+:: Install simcoon python with setup.py
+:: xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SRC_DIR%\python-setup\simcoon
 :: if errorlevel 1 exit 1
+
+:: cd %SRC_DIR%\python-setup
+:: %PYTHON% -m pip install .
+
