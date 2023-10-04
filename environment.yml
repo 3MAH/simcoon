@@ -6,16 +6,14 @@ channels:
 
 dependencies:
   - cxx-compiler
-  - fortran-compiler # [not win]
+  - fortran-compiler
   - cmake
   - python
   - numpy>=1.24
   - pip
   - setuptools
-  - mkl # [win]
-  - openblas # [not win]
-  - arpack  # [unix]
-  - superlu >=5.2.0,<6  # [unix]
+  - libblas
+  - liblapack
   - cgal
   - boost
   - pybind11
