@@ -5,8 +5,8 @@ channels:
   - set3mah
 
 dependencies:
-  - {{ compiler('cxx') }}
-  - {{ compiler('fortran') }} # [not win]
+  - cxx-compiler
+  - fortran-compiler # [not win]
   - cmake
   - python
   - numpy>=1.24
