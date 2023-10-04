@@ -31,10 +31,10 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
+          environment-file: environment.yml          
       - name: Build for Linux
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo
           cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
@@ -48,10 +48,10 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
+          environment-file: environment.yml          
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge python=3.9 cgal boost=1.72 armadillo fortran-compiler
           cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
@@ -65,21 +65,10 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
+          environment-file: environment.yml          
       - name: Build for Windows
         shell: cmd
         run: |
-          conda install -c conda-forge python=3.9 cgal boost=1.72 
-
-          git clone https://gitlab.com/conradsnicta/armadillo-code.git armadillo
-          cd armadillo
-          copy /y .\examples\lib_win64\libopenblas.dll %CONDA_PREFIX%\Library\bin\
-          copy /y .\examples\lib_win64\libopenblas.lib %CONDA_PREFIX%\Library\lib\
-          cmake -S . -B build -G "Visual Studio 17 2022" -DBLAS_LIBRARY:FILEPATH="%CONDA_PREFIX%\Library\lib\libopenblas.lib" -DLAPACK_LIBRARY:FILEPATH="%CONDA_PREFIX%\Library\lib\libopenblas.lib" 
-          cmake --build build --config RELEASE
-          cmake --install build --prefix %CONDA_PREFIX%\Library
-          cd ..
-
-          cmake -S . -B build -G"Visual Studio 17 2022" -DCMAKE_INSTALL_PREFIX:PATH=%CONDA_PREFIX% -DCMAKE_BUILD_TYPE=Release -Wno-dev
-          cmake --build build --target simcoon --config Release
-          # ctest --test-dir build
-          cmake --install build
+          cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          ctest --test-dir ${{github.workspace}}/build
