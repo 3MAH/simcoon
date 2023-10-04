@@ -12,10 +12,8 @@ dependencies:
   - numpy>=1.24
   - pip
   - setuptools
-  - libblas # [not win]
-  - liblapack # [not win]
-  - liblapack * *netlib # [win]
-  - libblas * *netlib # [win]
+  - mkl # [win]
+  - openblas # [not win]
   - arpack  # [unix]
   - superlu >=5.2.0,<6  # [unix]
   - cgal
