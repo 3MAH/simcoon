@@ -48,18 +48,13 @@ else()
   set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 endif()
 
-#Inclusion of Armadillo
-if (MSVC)
-  find_package(blas REQUIRED)
-  find_package(lapack REQUIRED)
-  find_package(Armadillo 12.6 REQUIRED)
-  find_package(carma REQUIRED)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
-else()
-  find_package(Armadillo 12.6 REQUIRED)
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
-endif()
+#Include of armadillo and carma
+find_package(blas REQUIRED)
+find_package(lapack REQUIRED)
+find_package(Armadillo 12.6 REQUIRED)
+find_package(carma REQUIRED)
+set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
+include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
 #Find CGAL
 find_package(CGAL COMPONENTS Core REQUIRED)
