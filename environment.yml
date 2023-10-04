@@ -12,8 +12,6 @@ dependencies:
   - numpy>=1.24
   - pip
   - setuptools
-  - libblas
-  - liblapack
   - cgal
   - boost
   - pybind11
