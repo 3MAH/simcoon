@@ -5,10 +5,19 @@ channels:
   - set3mah
 
 dependencies:
-  - cxx-compiler
-  - fortran-compiler
+  - {{ compiler('cxx') }}
+  - {{ compiler('fortran') }} # [not win]
+  - cmake
+  - python
+  - numpy>=1.24
   - pip
-  - numpy
+  - setuptools
+  - libblas # [not win]
+  - liblapack # [not win]
+  - liblapack * *netlib # [win]
+  - libblas * *netlib # [win]
+  - arpack  # [unix]
+  - superlu >=5.2.0,<6  # [unix]
   - cgal
   - boost
   - pybind11
