@@ -1,4 +1,4 @@
-name: Conda packaging
+name: Conda packaging linux
 
 on:
   workflow_dispatch:
