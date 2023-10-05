@@ -25,7 +25,9 @@ requirements:
     - setuptools
     - cgal
     - boost
-    - pybind11
+    - pybind11-abi
+    - libblas * *openblas #[not win]
+    - liblapack * *openblas #[not win]
     - liblapack * *netlib # [win]
     - libblas * *netlib # [win]
     - armadillo
@@ -34,9 +36,8 @@ requirements:
     - arpack  # [unix]
     - superlu >=5.2.0,<6  # [unix]
     - python
-    - numpy>=1.24
-    - libblas * *mkl # [win]
-    - liblapack * *mkl # [win]
+    - {{ pin_compatible('numpy') }}
+    - openblas   # [not win]
     - mkl # [win]
     - cgal
     - boost
