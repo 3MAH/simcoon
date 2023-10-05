@@ -14,6 +14,7 @@ jobs:
           miniconda-version: "latest"
           activate-environment: packaging-linux
       - name: Conda build for Linux
+        shell: bash -l {0}
         run: |
           conda update --all        
           conda install conda-build anaconda-client conda-verify
