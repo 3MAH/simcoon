@@ -19,3 +19,4 @@ dependencies:
   - pybind11
   - armadillo
   - carma
+  - pytest
