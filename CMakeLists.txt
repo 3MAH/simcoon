@@ -49,8 +49,8 @@ else()
 endif()
 
 #Include of armadillo and carma
-find_package(blas REQUIRED)
-find_package(lapack REQUIRED)
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 find_package(carma REQUIRED)
 set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
