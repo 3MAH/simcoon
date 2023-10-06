@@ -1,0 +1,21 @@
+name: my-env
+
+channels:
+  - conda-forge
+  - set3mah
+
+dependencies:
+  - cxx-compiler
+  - fortran-compiler
+  - blas=*=mkl
+  - lapack=*=mkl
+  - cmake
+  - python
+  - numpy>=1.24
+  - pip
+  - setuptools
+  - cgal
+  - boost
+  - pybind11
+  - armadillo
+  - carma

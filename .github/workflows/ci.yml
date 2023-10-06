@@ -65,7 +65,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment.yml          
+          environment-file: environment_win.yml          
       - name: Build for Windows
         shell: cmd
         run: |
