@@ -48,11 +48,9 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 find_package(carma REQUIRED)
-if (MSVC)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
-else()
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
-endif()
+
+#  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
+include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
 #Find CGAL
 find_package(CGAL COMPONENTS Core REQUIRED)
