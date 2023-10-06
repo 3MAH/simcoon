@@ -26,8 +26,10 @@ requirements:
     - cgal
     - boost
     - pybind11-abi
-    - liblapack * *netlib
-    - libblas * *netlib
+    - libblas * *openblas #[not win]
+    - liblapack * *openblas #[not win]
+    - libblas * *netlib # [win]
+    - liblapack * *netlib # [win]
     - armadillo
     - carma
   run:
