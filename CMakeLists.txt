@@ -40,21 +40,19 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 enable_testing()
 
 #Set executable files and library files
-if (MSVC)
-  set(EXECUTABLE_OUTPUT_PATH bin)
-  set(LIBRARY_OUTPUT_PATH lib)
-else()
-  set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
-  set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
-endif()
+set(EXECUTABLE_OUTPUT_PATH bin)
+set(LIBRARY_OUTPUT_PATH lib)
 
-#Include of armadillo and carma
+#Inclusion of Armadillo
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 find_package(carma REQUIRED)
-set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
-include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+if (MSVC)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})   
+else()
+  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+endif()
 
 #Find CGAL
 find_package(CGAL COMPONENTS Core REQUIRED)
@@ -120,7 +118,6 @@ message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 
-
 #Inclusion of public headers
 include_directories(include)
 
@@ -140,15 +137,10 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-if (MSVC)
-  #for windows, need to include carma to avoid bug in the python-builder (https://github.com/RUrlus/carma/issues/91)
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
-else()
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
-endif()
+target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
 
 #Define lists of executables for compilation
-set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter  extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
+set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
 
 #Compile public executable
 foreach (Exe_to_compile ${All_exe_to_compile})
