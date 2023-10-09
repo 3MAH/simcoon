@@ -46,12 +46,11 @@ set(LIBRARY_OUTPUT_PATH lib)
 #Inclusion of Armadillo
 if (MSVC)
   set(BLA_PKGCONFIG_BLAS True)
-else()
-  find_package(BLAS REQUIRED)
-  find_package(LAPACK REQUIRED)
-  find_package(Armadillo 12.6 REQUIRED)
-
 endif()
+
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
+find_package(Armadillo 12.6 REQUIRED)
 
 if (MSVC)
   find_package(carma CONFIG REQUIRED)
