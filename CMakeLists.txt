@@ -44,12 +44,17 @@ set(EXECUTABLE_OUTPUT_PATH bin)
 set(LIBRARY_OUTPUT_PATH lib)
 
 #Inclusion of Armadillo
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-find_package(Armadillo 12.6 REQUIRED)
-find_package(carma CONFIG REQUIRED)
+if (MSVC)
+  set(BLA_PKGCONFIG_BLAS True)
+else()
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
+  find_package(Armadillo 12.6 REQUIRED)
+
+endif()
 
 if (MSVC)
+  find_package(carma CONFIG REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 endif() 
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})

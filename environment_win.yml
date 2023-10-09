@@ -5,6 +5,7 @@ channels:
   - set3mah
 
 dependencies:
+  - pkg-config
   - cxx-compiler
   - fortran-compiler
   - libblas=*=netlib
