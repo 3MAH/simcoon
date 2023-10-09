@@ -47,11 +47,11 @@ set(LIBRARY_OUTPUT_PATH lib)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
-find_package(carma REQUIRED)
+find_package(carma CONFIG REQUIRED)
 
 if (MSVC)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-endif()
+endif() 
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
 #Find CGAL
@@ -137,7 +137,11 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
+if (MSVC)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
+else()
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+endif()
 
 #Define lists of executables for compilation
 set (All_exe_to_compile Abaqus_apply_inter Salome_apply_inter Generic_apply_inter extract_Abaqus solver identification L_eff Elastic_props ODF PDF)
@@ -163,7 +167,7 @@ target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LI
 
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-target_link_libraries(umat_plugin_ext simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
 
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
