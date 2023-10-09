@@ -7,8 +7,8 @@ channels:
 dependencies:
   - cxx-compiler
   - fortran-compiler
-  - libblas=*=netlib
-  - liblapack=*=netlib
+  - libblas * *netlib
+  - liblapack * *netlib
   - cmake
   - python
   - numpy>=1.24
