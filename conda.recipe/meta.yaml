@@ -1,6 +1,6 @@
 package:
   name: simcoon
-  version: 1.0.0
+  version: 1.9.2
 
 source:
   git_url: https://github.com/3MAH/simcoon.git
