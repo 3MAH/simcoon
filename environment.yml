@@ -16,6 +16,7 @@ dependencies:
   - setuptools
   - cgal
   - boost
+  - libboost
   - pybind11
   - armadillo
   - carma
