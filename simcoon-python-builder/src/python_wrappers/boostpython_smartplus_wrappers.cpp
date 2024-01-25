@@ -156,6 +156,7 @@ PYBIND11_MODULE(simmit, m) {
 
     //register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
+    m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");    
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a,"F0"_a, "F1"_a, "dtime"_a, "return_de"_a=false, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
@@ -231,6 +232,16 @@ PYBIND11_MODULE(simmit, m) {
     //umat
     m.def("umat", &launch_umat);
     //py::tuple umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py){
+
+    // Register the from-python converters for read and solver
+    m.def("read_matprops", &read_matprops);
+    m.def("read_path", &read_path);
+    m.def("solver", &solver);        
+
+    // Register the from-python converters for ODF functions
+    m.def("get_densities_ODF", &get_densities_ODF);
+    m.def("ODF_discretization", &ODF_discretization);
+
 }
 
 
@@ -338,10 +349,11 @@ BOOST_PYTHON_MODULE(simmitboost) {
     bp::def("T_II", T_II);
 */
     
-    // Register the from-python converters for read and solver
+/*    // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
     bp::def("read_path", read_path);
     bp::def("solver", solver);
+*/
 	
     //Wrapper fedoo
  /*   bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
@@ -489,10 +501,10 @@ BOOST_PYTHON_MODULE(simmitboost) {
         ;
     */
     
-    // Register the from-python converters for ODF functions
+/*    // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
     bp::def("ODF_discretization", ODF_discretization);
-    
+*/    
     //Register the from-python converters for rotation
 /*    bp::def("rotate_vec_R", rotate_vec_R);
     bp::def("rotate_vec_angle", rotate_vec_angle);
