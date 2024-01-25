@@ -6,6 +6,7 @@
 #include <carma>
 #include <armadillo>
 
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -27,13 +28,28 @@ py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &
     return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy));
 }
 
+//This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
+py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
+    mat F0_cpp = carma::arr_to_mat(F0);
+    mat F1_cpp = carma::arr_to_mat(F1);
+    mat DR = zeros(3,3);
+    mat D = zeros(3,3);
+    mat N_1 = zeros(3,3);
+    mat N_2 = zeros(3,3);    
+    mat Omega = zeros(3,3);
+    simcoon::logarithmic_R(DR, D, N_1, N_2, Omega, DTime, F0_cpp, F1_cpp);
+    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
+}
+
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de) {
     std::map<string, int> list_corate;
-    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2}, {"gn",1},{"log",2}};
+    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3}, {"gn",1},{"log",2},{"log_R",3}};
 	int corate = list_corate[corate_name];
+
     void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &); 
+    void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);     
     switch (corate) {
 
         case 0: {
@@ -48,6 +64,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             corate_function = &simcoon::logarithmic;
             break;
         }
+        case 3: {
+            corate_function_2 = &simcoon::logarithmic_R;
+            break;
+        }        
     }
     
     if (F1.ndim() == 2) {            
@@ -61,12 +81,40 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
 
-        corate_function(DR, D, Omega, DTime, F0_cpp, F1_cpp);
+        mat N_1 = zeros(3,3);
+        mat N_2 = zeros(3,3);
+
+		switch (corate) {
+
+            case 0: case 1: case 2: {
+                corate_function(DR, D, Omega, DTime, F0_cpp, F1_cpp);
+                break;
+            }
+            case 3: {
+                corate_function_2(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
+                break;
+            }
+        }
+
         if (return_de) {
             //also return the strain increment
-            vec de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
-            //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
-            //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime)); 
+            vec de = zeros(6);
+
+    		switch (corate) {
+                case 0: case 1: case 2: {
+                //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
+                //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime));                 
+                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
+                    break;
+                }
+                case 3: {
+                    mat I = eye(3,3);
+                    mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
+                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
+                    de = simcoon::rotate_strain(de, DR_N);
+                    break;
+                }
+            }
             return py::make_tuple(carma::col_to_arr(de,false), carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
         }
         else{
@@ -79,12 +127,24 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         int nb_points = F1_cpp.n_slices;
         cube DR(3,3,nb_points);
         cube D(3,3,nb_points);            
+        cube N_1(3,3,nb_points);
+        cube N_2(3,3,nb_points);                            
         cube Omega = zeros(3,3, nb_points); 			
 
         if (F0.ndim() == 2) {
             mat vec_F0 = carma::arr_to_mat_view(F0);
             for (int pt = 0; pt < nb_points; pt++) {
-                corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));            
+
+        		switch (corate) {
+                    case 0: case 1: case 2: {
+                        corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                        break;
+                    }
+                    case 3: {
+                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                        break;
+                    }
+                }
             }
         }
         else if (F0.ndim() == 3) {
@@ -92,12 +152,32 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
                 for (int pt = 0; pt < nb_points; pt++) {
-                    corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));                                
+
+            		switch (corate) {
+                        case 0: case 1: case 2: {
+                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                            break;
+                        }
+                        case 3: {
+                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                            break;
+                        }
+                    }
                 }
             }
             else {
                 for (int pt = 0; pt < nb_points; pt++) {
-                    corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));            
+
+            		switch (corate) {                    
+                        case 0: case 1: case 2: {
+                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
+                            break;
+                        }
+                        case 3: {
+                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -105,7 +185,22 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             //also return the strain increment
             mat de(6,nb_points);
             for (int pt = 0; pt < nb_points; pt++) {
-                de.col(pt) = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+
+        		switch (corate) {
+                    case 0: case 1: case 2: {
+                    //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
+                    //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime));                 
+                        de.col(pt) = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        break;
+                    }
+                    case 3: {
+                        mat I = eye(3,3);
+                        mat DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                        de.col(pt) = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        de.col(pt) = simcoon::rotate_strain(de.col(pt), DR_N);
+                        break;
+                    }     
+                }           
             }            
             return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
         }
@@ -122,7 +217,6 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
     mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
     return carma::mat_to_arr(Delta_log_strain, copy);
 }
-
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
