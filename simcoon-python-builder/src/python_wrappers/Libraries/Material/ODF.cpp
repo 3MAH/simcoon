@@ -1,18 +1,8 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
-
-///@file optimize.cpp
-///@brief functions for optimization
-///@version 1.0
-
-#include <iostream>
-#include <fstream>
-#include <assert.h>
-#include <math.h>
-#include <map>
+#include <carma>
 #include <armadillo>
-
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
 
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
@@ -24,28 +14,26 @@
 #include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy{
     
-bn::ndarray get_densities_ODF(const bn::ndarray &x_py, const std::string &path_data_py, const std::string &peak_file_py, const bool &radian) {
+py::array_t<double> get_densities_ODF(const py::array_t<double> &x_py, const std::string &path_data_py, const std::string &peak_file_py, const bool &radian) {
     
 //    string path_data = bp::extract<std::string>(path_data_py);
 //    string peak_file = bp::extract<std::string>(peak_file_py);
     
     //transform x in a vec
-    vec x = array2vec(x_py);
+    vec x = carma::arr_to_col(x_py);
     //Get the densities
     vec y = simcoon::get_densities_ODF(x, path_data_py, peak_file_py, radian);
     //Get the densities
-    return vec2array(y);
+    return carma::col_to_arr(y);
 }
     
-void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const double &angle_min, const double &angle_max, const std::string &umat_name_py, const bn::ndarray &props_py, const std::string &path_data_py, const std::string &peak_file_py, const std::string &rve_init_file_py, const std::string &rve_disc_file_py, const int &angle_mat) {
+void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const double &angle_min, const double &angle_max, const std::string &umat_name_py, const py::array_t<double> &props_py, const std::string &path_data_py, const std::string &peak_file_py, const std::string &rve_init_file_py, const std::string &rve_disc_file_py, const int &angle_mat) {
 
 //    string umat_name = bp::extract<std::string>(umat_name_py);
 //    string path_data = bp::extract<std::string>(path_data_py);
@@ -53,7 +41,7 @@ void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const
 //    string rve_init_file = bp::extract<std::string>(rve_init_file_py);
 //    string rve_disc_file = bp::extract<std::string>(rve_disc_file_py);
     
-    vec props = array2vec(props_py);
+    vec props = carma::arr_to_col(props_py);
         
     double psi_rve = 0.;
     double theta_rve = 0.;
