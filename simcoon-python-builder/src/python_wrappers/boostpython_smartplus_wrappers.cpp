@@ -3,6 +3,7 @@
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include <CGAL/Simple_cartesian.h>
 
@@ -230,8 +231,7 @@ PYBIND11_MODULE(simmit, m) {
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
     //umat
-    m.def("umat", &launch_umat);
-    //py::tuple umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py){
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = py::none());
 
     // Register the from-python converters for read and solver
     m.def("read_matprops", &read_matprops);
