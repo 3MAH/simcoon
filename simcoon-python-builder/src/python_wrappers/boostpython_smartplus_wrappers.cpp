@@ -25,7 +25,6 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 //#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
-//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -354,36 +353,7 @@ BOOST_PYTHON_MODULE(simmitboost) {
     bp::def("read_path", read_path);
     bp::def("solver", solver);
 */
-	
-    //Wrapper fedoo
- /*   bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
-        .def("compute_Detot", &Umat_fedoo::compute_Detot)
-        .def("Run", &Umat_fedoo::Run)
-        .def("Initialize", &Umat_fedoo::Initialize)
-        .def("to_start", &Umat_fedoo::to_start)
-        .def("set_start", &Umat_fedoo::set_start)
-        .def("set_T", &Umat_fedoo::set_T)
-        .def_readwrite("corate", &Umat_fedoo::corate)
-        .def_readonly("Time", &Umat_fedoo::Time)
-        .def_readonly("DTime", &Umat_fedoo::DTime)
-        .def_readonly("nb_points", &Umat_fedoo::nb_points)
-        .def_readonly("nlgeom", &Umat_fedoo::nlgeom)
-        .add_property("T", &Umat_fedoo::Get_T)
-        .add_property("props", &Umat_fedoo::Get_props)
-        .add_property("Kirchhoff", &Umat_fedoo::Get_Kirchhoff)
-        .add_property("Cauchy", &Umat_fedoo::Get_Cauchy)
-        .add_property("PKII", &Umat_fedoo::Get_PKII)
-        .add_property("etot", &Umat_fedoo::Get_etot)
-        .add_property("Detot", &Umat_fedoo::Get_Detot)
-        .add_property("statev", &Umat_fedoo::Get_statev)
-        .add_property("L", &Umat_fedoo::Get_L)
-        .add_property("Lt", &Umat_fedoo::Get_Lt)
-        .add_property("DR", &Umat_fedoo::Get_DR)
-        .add_property("Wm", &Umat_fedoo::Get_Wm)
-        .add_property("F0", &Umat_fedoo::Get_F0)
-        .add_property("F1", &Umat_fedoo::Get_F1)
-        ;
-        
+    /*    
     bp::class_<state_variables_py>("state_variables", bp::init <>())
         .def(bp::init <const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const double&> ())
         .def_readwrite("T", &state_variables_py::T)
