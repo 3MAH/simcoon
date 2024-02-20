@@ -13,8 +13,8 @@ Simcoon is a free, open-source library for the simulation of multiphysics system
 
 Simcoon is developed with the aim to be a high-quality scientific library to facilitate the analysis of the complex, non-linear behavior of systems. It integrates tools to simulate the response of composite material response and thus integrates several algorithms for the analysis of heterogeneous materials.
 
-Simcoon integrates 
-- a easy way to handle geometrical non-linearities : Use of Lagrangian measures, Eulerian measures and cumulative strains considering several spins : Jaumann, Green-Naghdi, Xi-Meyers-Bruhns logarithmic. With this last measure, cumulative strain correspond to a logarithmic strain measure and is the standard measure utilized for our constitutive laws. 
+Simcoon integrates
+- a easy way to handle geometrical non-linearities : Use of Lagrangian measures, Eulerian measures and cumulative strains considering several spins : Jaumann, Green-Naghdi, Xi-Meyers-Bruhns logarithmic. With this last measure, cumulative strain correspond to a logarithmic strain measure and is the standard measure utilized for our constitutive laws.
 
 Simcoon is a C++ library with emphasis on speed and ease-of-use, that offers a python interface to facilitate its use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, Simconnn provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver, a software to predict effective properties of composites, and a built-in identification software (using a combined genetic-gradient based algorithm)
 
@@ -53,6 +53,11 @@ It is now possible to install simcoon directly with conda :
 ```bash
 conda install -c conda-forge -c set3mah simcoon
 ```
+For using simcoon with Python 3.11 the installation of libboost via conda may
+be necessary :
+```bash
+conda install -c conda-forge libboost
+```
 In case there are any conflicts, it is preferable to do it in a new conda environment :
 ```bash
 conda create --name scientific
@@ -67,7 +72,7 @@ The easiest way to install simcoon is to create a *conda* environnement: You can
 conda create --name scientific
 ```
 
-To activate the environment: 
+To activate the environment:
 
 ```bash
 conda activate scientific
