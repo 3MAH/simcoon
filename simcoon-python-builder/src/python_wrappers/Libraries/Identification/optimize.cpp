@@ -1,16 +1,11 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 
-
-///@file optimize.cpp
-///@brief functions for optimization
-///@version 1.0
-
-#include <iostream>
-#include <fstream>
-#include <assert.h>
-#include <math.h>
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <assert.h>
 
 #include <simcoon/Simulation/Identification/read.hpp>
 #include <simcoon/Simulation/Identification/individual.hpp>
@@ -20,21 +15,18 @@
 #include <simcoon/Simulation/Identification/optimize.hpp>
 #include <simcoon/Simulation/Identification/script.hpp>
 
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
 
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy{
     
-double cost_solver(const bn::ndarray &p_py) {
+double cost_solver(const py::array_t<double> &p_py) {
     
     //transform p in a vec
-    vec p = array2vec(p_py);
+    vec p = carma::arr_to_col(p_py);
     
     int n_param = 0;
     int n_consts = 0;
@@ -106,10 +98,10 @@ double cost_solver(const bn::ndarray &p_py) {
     return simcoon::calcC(vexp, vnum, W);
 }
     
-double cost_odf(const bn::ndarray &p_py) {
+double cost_odf(const py::array_t<double> &p_py) {
     
     //transform p in a vec
-    vec p = array2vec(p_py);
+    vec p = carma::arr_to_col(p_py);
     
     int n_param = 0;
     int n_consts = 0;
