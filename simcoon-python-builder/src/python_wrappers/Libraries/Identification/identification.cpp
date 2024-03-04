@@ -1,9 +1,11 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
-#include <simcoon/arma2numpy/list_vector.hpp>
+#include <assert.h>
 
 #include <simcoon/Simulation/Identification/identification.hpp>
 #include <simcoon/Simulation/Identification/constants.hpp>
@@ -15,9 +17,7 @@
 
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
+namespace py=pybind11;
 
 namespace simpy {
     
@@ -34,50 +34,44 @@ void identification(const std::string &simul_type_py, const int &n_param, const 
 
     int station_nb = 6;
     double station_lim = 1.E-12;
-//    std::string simul_type = bp::extract<std::string>(simul_type_py);
-//    std::string path_data = bp::extract<std::string>(path_data_py);
-//    std::string path_keys = bp::extract<std::string>(path_keys_py);
-//    std::string path_results = bp::extract<std::string>(path_results_py);
-//    std::string materialfile = bp::extract<std::string>(materialfile_py);
-//    std::string outputfile = bp::extract<std::string>(outputfile_py);
     simcoon::run_identification(simul_type_py,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data_py, path_keys_py, path_results_py, materialfile_py, outputfile_py);
 }
 
-bp::list read_constants_py(const int &nconstants, const int &nfiles) {
+py::list read_constants_py(const int &nconstants, const int &nfiles) {
     std::vector<simcoon::constants> consts(nconstants);
-    simcoon::read_constants(nconstants, consts, nfiles);
-    return std_vector_to_py_list_constants(consts);
+    py::list list_to_return = py::cast(consts);
+    return list_to_return;
 }
     
-bp::list read_parameters_py(const int &nparams) {
+py::list read_parameters_py(const int &nparams) {
     std::vector<simcoon::parameters> params(nparams);
-    simcoon::read_parameters(nparams, params);
-    return std_vector_to_py_list_parameters(params);
+    py::list list_to_return = py::cast(params);
+    return list_to_return;
 }
     
 //This function will copy the constant files
-void copy_constants_py(const bp::list &consts_py, const string &src_path, const string &dst_path) {
+void copy_constants_py(const py::list &consts_py, const string &src_path, const string &dst_path) {
 
-    std::vector<simcoon::constants> consts = py_list_to_std_vector_constants(consts_py);
+    std::vector<simcoon::constants> consts = consts_py.cast<std::vector<simcoon::constants>>();
     simcoon::copy_constants(consts, src_path, dst_path);
 }
 
 //This function will copy the parameters files
-void copy_parameters_py(const bp::list &params_py, const string &src_path, const string &dst_path) {
+void copy_parameters_py(const py::list &params_py, const string &src_path, const string &dst_path) {
     
-    std::vector<simcoon::parameters> params = py_list_to_std_vector_parameters(params_py);
+    std::vector<simcoon::parameters> params = params_py.cast<std::vector<simcoon::parameters>>();
     simcoon::copy_parameters(params, src_path, dst_path);
 }
     
-void apply_constants_py(const bp::list &consts_py, const string &dst_path) {
+void apply_constants_py(const py::list &consts_py, const string &dst_path) {
     
-    std::vector<simcoon::constants> consts = py_list_to_std_vector_constants(consts_py);
+    std::vector<simcoon::constants> consts = consts_py.cast<std::vector<simcoon::constants>>();
     simcoon::apply_constants(consts, dst_path);
 }
 
-void apply_parameters_py(const bp::list &params_py, const string &dst_path) {
+void apply_parameters_py(const py::list &params_py, const string &dst_path) {
     
-    std::vector<simcoon::parameters> params = py_list_to_std_vector_parameters(params_py);
+    std::vector<simcoon::parameters> params = params_py.cast<std::vector<simcoon::parameters>>();
     simcoon::apply_parameters(params, dst_path);
 }
     
