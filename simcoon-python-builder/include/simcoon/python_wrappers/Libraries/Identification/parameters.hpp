@@ -1,22 +1,14 @@
-
-
-///@file constants.hpp
-///@brief Handle of input constants exposed in python
-///@version 1.0
-
 #pragma once
-
-#include <iostream>
-#include <armadillo>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 #include <simcoon/Simulation/Identification/parameters.hpp>
-#include <boost/python.hpp>
 
 namespace simpy{
 
-simcoon::parameters build_parameters_full(const int &, const double&, const double &, const std::string&, const int &, const boost::python::list &);
+simcoon::parameters build_parameters_full(const int &, const double&, const double &, const std::string&, const int &, const pybind11::list &);
 
-boost::python::list parameters_get_input_files(simcoon::parameters &);
+pybind11::list parameters_get_input_files(simcoon::parameters &);
 
-void parameters_set_input_files(simcoon::parameters &, const boost::python::list &);
+void parameters_set_input_files(simcoon::parameters &, const pybind11::list &);
     
 } //namespace simcoon

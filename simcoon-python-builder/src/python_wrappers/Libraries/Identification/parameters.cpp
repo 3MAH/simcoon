@@ -1,33 +1,23 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 
-
-///@file constants.cpp
-///@brief Handle of input constants exposed in python
-///@version 0.9
-
-#include <iostream>
-#include <fstream>
-#include <assert.h>
-#include <math.h>
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <assert.h>
 
-
-#include <simcoon/arma2numpy/list_vector.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/Simulation/Identification/parameters.hpp>
 #include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
 
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy{
     
 //-------------------------------------------------------------
-simcoon::parameters build_parameters_full(const int &mnumber, const double &mmin_value, const double &mmax_value, const std::string &mkey, const int &mninput_files, const bp::list &minput_files)
+simcoon::parameters build_parameters_full(const int &mnumber, const double &mmin_value, const double &mmax_value, const std::string &mkey, const int &mninput_files, const py::list &minput_files)
 //-------------------------------------------------------------
 {
     simcoon::parameters a;
@@ -37,22 +27,22 @@ simcoon::parameters build_parameters_full(const int &mnumber, const double &mmin
     a.value = (a.min_value+a.max_value)/2.;
     a.key = mkey;
     a.ninput_files = mninput_files;
-    a.input_files = py_list_to_std_vector_string(minput_files);
+    a.input_files = minput_files.cast<std::vector<std::string>>();
     return a;
 }
 
 //------------------------------------------------------
-boost::python::list parameters_get_input_files(simcoon::parameters &self) {
-    return arma2numpy::std_vector_to_py_list_string(self.input_files);
+py::list parameters_get_input_files(simcoon::parameters &self) {
+    py::list list_to_return = py::cast(self.input_files);
+    return list_to_return;
 }
 //------------------------------------------------------
 
 //------------------------------------------------------
-void parameters_set_input_files(simcoon::parameters &self, const bp::list &minput_values) {
-    self.input_files = py_list_to_std_vector_string(minput_values);
+void parameters_set_input_files(simcoon::parameters &self, const py::list &minput_values) {
+    self.input_files = minput_values.cast<std::vector<std::string>>();
     self.ninput_files = self.input_files.size();
 }
 //------------------------------------------------------
-    
     
 } //namespace simpy
