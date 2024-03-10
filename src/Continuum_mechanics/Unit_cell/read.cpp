@@ -23,7 +23,6 @@
 #include <armadillo>
 #include <iostream>
 #include <fstream>
-#include <boost/algorithm/string.hpp>
 #include <CGAL/Simple_cartesian.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Unit_cell/node.hpp>
@@ -216,7 +215,7 @@ void read_abaqus_full_mesh(std::vector<section_characteristics> &sc, std::vector
         while(getline(para_mesh, buffer, '\n')) {
             if (buffer[buffer.size() - 1] == '\r') {
                 buffer.resize(buffer.size() - 1);
-                boost::algorithm::to_lower(buffer);
+                std::transform(buffer.begin(), buffer.end(), buffer.begin(),[](unsigned char c){ return std::tolower(c); });
             }
             
             switch_on = false;

@@ -26,8 +26,6 @@
 #include <armadillo>
 #include <algorithm>
 #include <map>
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string/replace.hpp>
 #include <simcoon/Simulation/Identification/parameters.hpp>
 #include <simcoon/Simulation/Identification/constants.hpp>
 #include <simcoon/Simulation/Identification/generation.hpp>
@@ -48,7 +46,6 @@
 
 using namespace std;
 using namespace arma;
-using namespace arma;
 
 namespace simcoon{
     
@@ -62,7 +59,7 @@ void copy_parameters(const vector<parameters> &params, const string &src_path, c
         for(auto ifiles : pa.input_files) {
             src_files = src_path + "/" + ifiles;
             dst_files = dst_path + "/" + ifiles;
-            boost::filesystem::copy_file(src_files,dst_files,boost::filesystem::copy_option::overwrite_if_exists);
+            std::filesystem::copy_file(src_files,dst_files,std::filesystem::copy_options::overwrite_existing);
         }
     }
 }
@@ -77,7 +74,7 @@ void copy_constants(const vector<constants> &consts, const string &src_path, con
         for(auto ifiles : co.input_files) {
             src_files = src_path + "/" + ifiles;
             dst_files = dst_path + "/" + ifiles;
-            boost::filesystem::copy_file(src_files,dst_files,boost::filesystem::copy_option::overwrite_if_exists);
+            std::filesystem::copy_file(src_files,dst_files,std::filesystem::copy_options::overwrite_existing);
         }
     }
 }
@@ -107,7 +104,11 @@ void apply_parameters(const vector<parameters> &params, const string &dst_path) 
             
             ou_files.open(mod_files);
             for (auto s : str) {
-                boost::replace_all(s, pa.key, to_string(pa.value));
+                size_t pos = 0;
+                while ((pos = s.find(pa.key, pos)) != std::string::npos) {
+                    s.replace(pos, pa.key.length(), to_string(pa.value));
+                    pos += to_string(pa.value).length();
+                }
                 ou_files << s << "\n";
             }
             ou_files.close();
@@ -141,7 +142,11 @@ void apply_constants(const vector<constants> &consts, const string &dst_path) {
             
             ou_files.open(mod_files);
             for (auto s : str) {
-                boost::replace_all(s, co.key, to_string(co.value));
+                size_t pos = 0;
+                while ((pos = s.find(co.key, pos)) != std::string::npos) {
+                    s.replace(pos, co.key.length(), to_string(co.value));
+                    pos += to_string(co.value).length();
+                }
                 ou_files << s << "\n";
             }
             ou_files.close();
@@ -213,7 +218,7 @@ void launch_solver(const individual &ind, const int &nfiles, vector<parameters> 
         outputfile = path_results + "/" + name_root + "_" + to_string(ind.id) + "_" + to_string(i+1) + "_global-0" + name_ext;
         simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  + "_" + to_string(i+1) + name_ext;
         
-        boost::filesystem::copy_file(outputfile,simulfile,boost::filesystem::copy_option::overwrite_if_exists);
+        std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
     }
 }
     
@@ -316,7 +321,7 @@ void launch_odf(const individual &ind, vector<parameters> &params, const string 
     //Get the simulation files according to the proper name
     simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  +"_" + to_string(1) + name_ext;
     outputfile = path_data + "/" + outputfile;
-    boost::filesystem::copy_file(outputfile,simulfile,boost::filesystem::copy_option::overwrite_if_exists);
+    std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
 }
 
 
@@ -424,7 +429,7 @@ void launch_pdf(const individual &ind, vector<parameters> &params, const string 
     //Get the simulation files according to the proper name
     simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  +"_" + to_string(1) + name_ext;
     outputfile = path_data + "/" + outputfile;
-    boost::filesystem::copy_file(outputfile,simulfile,boost::filesystem::copy_option::overwrite_if_exists);
+    std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
 }
     
 void launch_func_N(const individual &ind, const int &nfiles, vector<parameters> &params, vector<constants> &consts, const string &path_results, const string &name, const string &path_data, const string &path_keys, const string &materialfile)
@@ -465,16 +470,16 @@ void launch_func_N(const individual &ind, const int &nfiles, vector<parameters> 
         
         //Get the simulation files according to the proper name
         //simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  + "_" + to_string(i+1) + name_ext;
-        //boost::filesystem::copy_file(outputfile,simulfile,boost::filesystem::copy_option::overwrite_if_exists);
+        //std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
     }
 }
     
 void run_simulation(const string &simul_type, const individual &ind, const int &nfiles, vector<parameters> &params, vector<constants> &consts, vector<opti_data> &data_num, const string &folder, const string &name, const string &path_data, const string &path_keys, const string &inputdatafile) {
     
     //In the simulation run, make sure that we remove all the temporary files
-    boost::filesystem::path path_to_remove(folder);
-    for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-        boost::filesystem::remove_all(it->path());
+    std::filesystem::path path_to_remove(folder);
+    for (std::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
+        std::filesystem::remove_all(it->path());
     }
     
     std::map<std::string, int> list_simul;
