@@ -338,6 +338,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                             sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);                                            
                                             sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
                                         }
                                         if(corate_type == 4) {
@@ -354,6 +355,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                             mat Detot_nat = Delta_log_strain(D, Omega, DTime);
                                             sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv(DR_N));
+                                            sv_M->sigma_start = t2v_stress(DR_N*v2t_stress(sv_M->sigma_start)*inv(DR_N));                                            
                                             sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv(DR_N));
                                             
 /*                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
@@ -365,6 +367,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
                                     }
+                                    rve.to_start();
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                 }
                                 else{
