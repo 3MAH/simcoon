@@ -221,10 +221,11 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
     std::map<string, int> list_Lt_convert;
-    list_Lt_convert = { {"DsigmaDe_2_DSDE",0},{"DsigmaDe_JaumannDD_2_DSDE",1}, {"DtauDe_JaumannDD_2_DSDE",2}};
+    list_Lt_convert = { {"DsigmaDe_2_DSDE",0},{"DsigmaDe_JaumannDD_2_DSDE",1}, {"DtauDe_JaumannDD_2_DSDE",2}, {"DsigmaDe_2_DtauDe",3}};
 	int select = list_Lt_convert [converter_key];
     mat (*convert_function)(const mat &, const mat &, const mat &); 
-    
+    mat (*convert_function2)(const mat &, const double &);     
+
     switch (select) {
         case 0: {
             convert_function = &simcoon::DsigmaDe_2_DSDE;
@@ -238,8 +239,12 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             convert_function = &simcoon::DtauDe_JaumannDD_2_DSDE;
             break;
         }
+        case 3: {
+            convert_function2 = &simcoon::DsigmaDe_2_DtauDe;            
+            break;
+        }
     }
-    
+
     if (Lt.ndim() == 2) {            
         if ((F.ndim() != 2) or (stress.ndim() != 1))  {
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
@@ -264,7 +269,16 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         for (int pt = 0; pt < nb_points; pt++) {
             //vec stress_pt = stress_cpp.unsafe_col(pt); 
             stress_pt = simcoon::v2t_stress(stress_cpp.col(pt));
-            Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
+            switch (select) {             
+                case 0: case 1: case 2: {
+                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
+                    break;
+                }
+                case 3: {
+                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), det(F_cpp.slice(pt)));
+                    break;
+                }      
+            }          
         }        
         return carma::cube_to_arr(Lt_converted,false);
     }
