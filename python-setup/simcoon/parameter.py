@@ -72,7 +72,7 @@ def apply_parameter(
     dst_path: str,
 ) -> None:
     """
-    Apply parameters, i.e. replace in file the value of the key with the value of the parameter
+    Apply parameters, i.e. replace in file the value of the key with the value of the Parameter
     :param params: List of Parameter objects
     :param src_path: Source path
     :param dst_path: Destination path
