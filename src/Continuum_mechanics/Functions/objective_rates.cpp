@@ -178,8 +178,6 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
     
-
-    
     //Truesdell
     DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
 }
