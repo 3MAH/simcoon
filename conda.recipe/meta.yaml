@@ -25,6 +25,8 @@ requirements:
     - setuptools
     - cgal
     - boost
+    - libboost
+    - gtest
     - pybind11-abi
     - libblas * *openblas #[not win]
     - liblapack * *openblas #[not win]
