@@ -62,12 +62,8 @@ if (MSVC)
 endif() 
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
-#Find CGAL
-find_package(CGAL COMPONENTS Core REQUIRED)
-#include_directories(SYSTEM ${CGAL_INCLUDE_DIRS})
-
 #Inclusion of Boost
-find_package(Boost 1.57.0 COMPONENTS system filesystem unit_test_framework REQUIRED)
+find_package(Boost 1.57.0 COMPONENTS system REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
@@ -146,9 +142,9 @@ set(objs
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
 if (MSVC)
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma CGAL::CGAL CGAL::CGAL_Core)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma)
 else()
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 endif()
 
 #Define lists of executables for compilation
@@ -161,7 +157,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core -ldl)
+	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} -ldl)
 
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
@@ -171,11 +167,11 @@ file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 
 add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
 set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core)
+target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
@@ -192,7 +188,7 @@ foreach(testSrc ${TEST_SRCS})
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} CGAL::CGAL CGAL::CGAL_Core GTest::gtest_main -ldl)
+        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main -ldl)
 
         #I like to move testing binaries into a testBin directory
         set_target_properties(${testName} PROPERTIES 
