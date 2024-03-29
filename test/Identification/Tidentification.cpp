@@ -15,20 +15,18 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file Tidentification.cpp
+///@brief Test for Identification algorithm
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "IDENTIFICATION"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Identification/read.hpp>
 #include <simcoon/Simulation/Identification/identification.hpp>
@@ -40,7 +38,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( identification_layers )
+TEST(Tidentification, identification_layers)
 {
     ofstream result;    ///Output stream, with parameters values and cost function
     
@@ -104,10 +102,10 @@ BOOST_AUTO_TEST_CASE( identification_layers )
 
     for(unsigned int i=0; i<nprops; i++) {
         if (fabs(rve_layer_0.sptr_matprops->props(i)) > sim_iota) {
-            BOOST_CHECK( pow(pow(rve_layer_0.sptr_matprops->props(i),2.) - pow(rve_layer_1.sptr_matprops->props(i),2.),0.5)/fabs(rve_layer_0.sptr_matprops->props(i)) < 1.E-6 );
+            EXPECT_LT( pow(pow(rve_layer_0.sptr_matprops->props(i),2.) - pow(rve_layer_1.sptr_matprops->props(i),2.),0.5)/fabs(rve_layer_0.sptr_matprops->props(i)),1.E-6);
         }
         else {
-            BOOST_CHECK( pow(pow(rve_layer_0.sptr_matprops->props(i),2.) - pow(rve_layer_1.sptr_matprops->props(i),2.),0.5) < 1.E-6 );
+            EXPECT_LT( pow(pow(rve_layer_0.sptr_matprops->props(i),2.) - pow(rve_layer_1.sptr_matprops->props(i),2.),0.5),1.E-6);
         }
     }
 }

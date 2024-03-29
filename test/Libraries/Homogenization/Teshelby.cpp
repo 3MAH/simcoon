@@ -15,13 +15,12 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file Teshelby.cpp
+///@brief Test for Eshelby and Interaction tensors
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "eshelby"
-#include <boost/test/unit_test.hpp>
+#include <gtest/gtest.h>
+#include <armadillo>
 
 #include <armadillo>
 #include <simcoon/parameter.hpp>
@@ -31,7 +30,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( S_TII )
+TEST(Teshelby, S_TII)
 {
     
     double a1 = 1.;
@@ -72,21 +71,21 @@ BOOST_AUTO_TEST_CASE( S_TII )
     
     S_anal = Eshelby_sphere(nu);
     S_num = Eshelby(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
-    BOOST_CHECK( norm(S_num-S_anal,2) < 1.E-9 );
+    EXPECT_LT(norm(S_num-S_anal,2),1.E-9);
 
     cout << S_num-S_anal << "\n";
     
     T_II_num = T_II(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
-    BOOST_CHECK( norm(T_II_num*Lt-S_anal,2) < 1.E-9 );
+    EXPECT_LT(norm(T_II_num*Lt-S_anal,2),1.E-9);
     
     a1 = 1.E16;
     S_anal = Eshelby_cylinder(nu);
     S_num = Eshelby(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
-    BOOST_CHECK( norm(S_num-S_anal,2) < 1.E-4 );
+    EXPECT_LT(norm(S_num-S_anal,2),1.E-4);
     
     cout << S_num-S_anal << "\n";
     
     T_II_num = T_II(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
-    BOOST_CHECK( norm(T_II_num*Lt-S_anal,2) < 1.E-4 );
+    EXPECT_LT(norm(T_II_num*Lt-S_anal,2),1.E-4);
     
 }

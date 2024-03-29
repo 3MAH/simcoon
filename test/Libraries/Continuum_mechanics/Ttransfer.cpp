@@ -15,15 +15,13 @@
  
  */
 
-///@file Tcontimech.cpp
-///@brief Test for continuum mechanics tensors in Voigt notation
+///@file Transfer.cpp
+///@brief Test for transfer between tensors, vectors in armadillo (vec, mat) and FTensor
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "transfer"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -33,7 +31,7 @@ using namespace arma;
 using namespace FTensor;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( v2t_func )
+TEST(Ttransfer, v2t_func)
 {
 	
     vec test = zeros(6);
@@ -71,31 +69,31 @@ BOOST_AUTO_TEST_CASE( v2t_func )
 	
 	//Test of v2t_strain function
 	strain = v2t_strain(zeros(6));
-    BOOST_CHECK( norm(strain,2) < sim_iota );
+    EXPECT_LT(norm(strain,2),sim_iota);
 	strain = v2t_strain(test);
-    BOOST_CHECK( norm(strain - teststrain,2) < sim_iota );
+    EXPECT_LT(norm(strain - teststrain,2),sim_iota);
 
     //Test of t2v_strain function
 	vec dev1 = t2v_strain(zeros(3,3));
     vec dev2 = t2v_strain(teststrain);
-    BOOST_CHECK( norm(dev1,2) < sim_iota );
-    BOOST_CHECK( norm(dev2 - test,2) < sim_iota );
+    EXPECT_LT(norm(dev1,2),sim_iota);
+    EXPECT_LT(norm(dev2 - test,2),sim_iota);
 
 	//Test of v2t_stress function
 	stress = v2t_stress(zeros(6));
-    BOOST_CHECK( norm(stress,2) < sim_iota );
+    EXPECT_LT(norm(stress,2),sim_iota);
 	stress = v2t_stress(test);
-    BOOST_CHECK( norm(stress - teststress,2) < sim_iota );
+    EXPECT_LT(norm(stress - teststress,2),sim_iota);
     
 	//Test of t2v_stress function
 	dev1 = t2v_stress(zeros(3,3));
 	dev2 = t2v_stress(teststress);
-    BOOST_CHECK( norm(dev1,2) < sim_iota );
-    BOOST_CHECK( norm(dev2 - test,2) < sim_iota );
+    EXPECT_LT(norm(dev1,2),sim_iota);
+    EXPECT_LT(norm(dev2 - test,2),sim_iota);
     
 }
 
-BOOST_AUTO_TEST_CASE( FTensor_transfer )
+TEST(Ttransfer, FTensor_transfer)
 {
     mat testmat = zeros(3,3);
     Tensor2<double,3,3> temp;
@@ -176,9 +174,9 @@ BOOST_AUTO_TEST_CASE( FTensor_transfer )
 	C = mat_FTensor4(L);
 	mat L2 = FTensor4_mat(C);
 
-    BOOST_CHECK( norm(testmat2 - testmat,2) < sim_iota );
-    BOOST_CHECK( norm(test_strain - test,2) < sim_iota );
-    BOOST_CHECK( norm(test_stress - test,2) < sim_iota );
-    BOOST_CHECK( norm(L2 - L,2) < sim_iota );
+    EXPECT_LT(norm(testmat2 - testmat,2),sim_iota);
+    EXPECT_LT(norm(test_strain - test,2),sim_iota);
+    EXPECT_LT(norm(test_stress - test,2),sim_iota);
+    EXPECT_LT(norm(L2 - L,2),sim_iota);
     
 }

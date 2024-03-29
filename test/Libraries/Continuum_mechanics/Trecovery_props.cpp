@@ -19,11 +19,9 @@
 ///@brief Test for Constitutive tensors in Voigt notation
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "recovery_props"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
@@ -32,7 +30,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( test_check_symetries_iso )
+TEST(Trecovery_props, test_check_symetries_iso)
 {
     double E = 70000.;
     double nu = 0.3;
@@ -46,14 +44,14 @@ BOOST_AUTO_TEST_CASE( test_check_symetries_iso )
     mat Ltest = L_iso(E, nu, "Enu");
     check_symetries(Ltest, umat_type, axis, props, sym_check);
     
-    BOOST_CHECK( umat_type == "ELISO" );
-    BOOST_CHECK( axis == 0 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELISO");
+    EXPECT_EQ(axis,0);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( test_check_symetries_cubic )
+TEST(test_check_symetries_cubic, test_check_symetries_cubic_functions)
 {
     double E = 1000;
     double nu = 0.2;
@@ -68,15 +66,15 @@ BOOST_AUTO_TEST_CASE( test_check_symetries_cubic )
     mat Ltest = L_cubic(E,nu,G,"EnuG");
     check_symetries(Ltest, umat_type, axis, props, sym_check);
     
-    BOOST_CHECK( umat_type == "ELCUB" );
-    BOOST_CHECK( axis == 0 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(G - props(2)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELCUB");
+    EXPECT_EQ(axis,0);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
+    EXPECT_LT(fabs(G - props(2)),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( test_check_symetries_isotrans )
+TEST(Trecovery_props, test_check_symetries_isotrans)
 {
     double EL = 10000.;
     double ET = 20000.;
@@ -95,45 +93,45 @@ BOOST_AUTO_TEST_CASE( test_check_symetries_isotrans )
     
     cout << "props ELIST1 = " << props.t() << "\n";
     
-    BOOST_CHECK( umat_type == "ELIST" );
-    BOOST_CHECK( axis == 1 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELIST");
+    EXPECT_EQ(axis,1);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     Ltest = L_isotrans(EL, ET, nuTL, nuTT, GLT, 2);
     check_symetries(Ltest, umat_type, axis, props, sym_check);
     
     cout << "props ELIST2 = " << props.t() << "\n";
     
-    BOOST_CHECK( umat_type == "ELIST" );
-    BOOST_CHECK( axis == 2 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELIST");
+    EXPECT_EQ(axis,2);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     Ltest = L_isotrans(EL, ET, nuTL, nuTT, GLT, 3);
     check_symetries(Ltest, umat_type, axis, props, sym_check);
     
     cout << "props ELIST3 = " << props.t() << "\n";
     
-    BOOST_CHECK( umat_type == "ELIST" );
-    BOOST_CHECK( axis == 3 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELIST");
+    EXPECT_EQ(axis,3);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( test_check_symetries_ortho )
+TEST(Trecovery_props, test_check_symetries_ortho)
 {
     double E1 = 10000.;
     double E2 = 20000.;
@@ -156,21 +154,21 @@ BOOST_AUTO_TEST_CASE( test_check_symetries_ortho )
     
     cout << "props ELORT = " << props.t() << "\n";
     
-    BOOST_CHECK( umat_type == "ELORT" );
-    BOOST_CHECK( axis == 0 );
-    BOOST_CHECK( sym_check == 1 );
-    BOOST_CHECK( fabs(E1 - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(E2 - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(E3 - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu12 - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu13 - props(4)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu23 - props(5)) < 1.E-9 );
-    BOOST_CHECK( fabs(G12 - props(6)) < 1.E-9 );
-    BOOST_CHECK( fabs(G13 - props(7)) < 1.E-9 );
-    BOOST_CHECK( fabs(G23 - props(8)) < 1.E-9 );
+    EXPECT_EQ(umat_type,"ELORT");
+    EXPECT_EQ(axis,0);
+    EXPECT_EQ(sym_check,1);
+    EXPECT_LT(fabs(E1 - props(0)),1.E-9);
+    EXPECT_LT(fabs(E2 - props(1)),1.E-9);
+    EXPECT_LT(fabs(E3 - props(2)),1.E-9);
+    EXPECT_LT(fabs(nu12 - props(3)),1.E-9);
+    EXPECT_LT(fabs(nu13 - props(4)),1.E-9);
+    EXPECT_LT(fabs(nu23 - props(5)),1.E-9);
+    EXPECT_LT(fabs(G12 - props(6)),1.E-9);
+    EXPECT_LT(fabs(G13 - props(7)),1.E-9);
+    EXPECT_LT(fabs(G23 - props(8)),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( test_Liso_Miso_props )
+TEST(Trecovery_props, test_Liso_Miso_props)
 {
     double E = 70000.;
     double nu = 0.3;
@@ -180,23 +178,23 @@ BOOST_AUTO_TEST_CASE( test_Liso_Miso_props )
 
     vec props = L_iso_props(Ltest);
     
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
     
     props = M_iso_props(Mtest);
 
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( test_L_cubic_M_cubic_props )
+TEST(Trecovery_props, test_L_cubic_M_cubic_props)
 {
     double C11 = 1000;
     double C12 = 400;
     double C44 = 500;
     
     double nu = 1 / (1 + C11/C12);
-    double E = C11*( 1 - 3*pow(nu,2) - 2*pow(nu,3) )/( 1-pow(nu,2) );
+    double E = C11*(1 - 3*pow(nu,2) - 2*pow(nu,3))/(1-pow(nu,2));
     double G = C44;
     
     //Test of L_cubic function
@@ -205,19 +203,19 @@ BOOST_AUTO_TEST_CASE( test_L_cubic_M_cubic_props )
     
     vec props = L_cubic_props(Ltest);
     
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(G - props(2)) < 1.E-9 );
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
+    EXPECT_LT(fabs(G - props(2)),1.E-9);
     
     props = M_cubic_props(Mtest);
     
-    BOOST_CHECK( fabs(E - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(nu - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(G - props(2)) < 1.E-9 );
+    EXPECT_LT(fabs(E - props(0)),1.E-9);
+    EXPECT_LT(fabs(nu - props(1)),1.E-9);
+    EXPECT_LT(fabs(G - props(2)),1.E-9);
     
 }
 
-BOOST_AUTO_TEST_CASE( test_L_isoT_M_isoT_props )
+TEST(Trecovery_props, test_L_isoT_M_isoT_props)
 {
     double EL = 10000.;
     double ET = 20000.;
@@ -231,57 +229,57 @@ BOOST_AUTO_TEST_CASE( test_L_isoT_M_isoT_props )
     
     vec props = L_isotrans_props(Ltest,1);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     props = M_isotrans_props(Mtest,1);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
 
     Ltest = L_isotrans(EL, ET, nuTL, nuTT, GLT, 2);
     Mtest = M_isotrans(EL, ET, nuTL, nuTT, GLT, 2);
     
     props = L_isotrans_props(Ltest,2);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     props = M_isotrans_props(Mtest,2);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     Ltest = L_isotrans(EL, ET, nuTL, nuTT, GLT, 3);
     Mtest = M_isotrans(EL, ET, nuTL, nuTT, GLT, 3);
     
     props = L_isotrans_props(Ltest,3);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     props = M_isotrans_props(Mtest,3);
     
-    BOOST_CHECK( fabs(EL - props(0)) < 1.E-9 );
-    BOOST_CHECK( fabs(ET - props(1)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTL - props(2)) < 1.E-9 );
-    BOOST_CHECK( fabs(nuTT - props(3)) < 1.E-9 );
-    BOOST_CHECK( fabs(GLT - props(4)) < 1.E-9 );
+    EXPECT_LT(fabs(EL - props(0)),1.E-9);
+    EXPECT_LT(fabs(ET - props(1)),1.E-9);
+    EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
+    EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
+    EXPECT_LT(fabs(GLT - props(4)),1.E-9);
 
 }
 

@@ -15,20 +15,18 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file TEPKCP.cpp
+///@brief Test for elastic-plastic user material with isotropic/kinematical hardening
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "EPKCP"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
@@ -42,7 +40,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( EPKCP_solver )
+TEST(TEPKCP, EPKCP_solver)
 {
     string path_data = "data";
     string path_results = "results";
@@ -87,7 +85,7 @@ BOOST_AUTO_TEST_CASE( EPKCP_solver )
     
     for (unsigned int i=0; i<C.n_rows; i++) {
         for (unsigned int j=0; j<C.n_cols; j++) {
-                BOOST_CHECK( fabs(C(i,j) - R(i,j)) < 1.E-6 );
+                EXPECT_LT(fabs(C(i,j) - R(i,j)),1.E-6);
         }
     }
 }

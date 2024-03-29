@@ -15,20 +15,18 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file TLOG_int.cpp
+///@brief Test for logarithmic strain versus accumulative strain
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "ELISO"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -45,7 +43,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( TLOG_int_solver )
+TEST(TLOG_int, TLOG_int_solver)
 {
     string path_data = "data";
     string path_results = "results";
@@ -116,6 +114,6 @@ BOOST_AUTO_TEST_CASE( TLOG_int_solver )
     cout << "e_tot_log_test = " << e_tot_log_test.t();
     cout << "e_tot_log = " << e_tot_log.t();
     cout << "diif = " << norm(e_tot_log_test - e_tot_log,2) << endl;
-    BOOST_CHECK( norm(e_tot_log_test - e_tot_log,2) < 1.E-3 );
+    EXPECT_LT(norm(e_tot_log_test - e_tot_log,2),1.E-3);
     
 }

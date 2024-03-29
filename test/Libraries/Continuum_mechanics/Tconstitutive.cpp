@@ -19,11 +19,9 @@
 ///@brief Test for Constitutive tensors in Voigt notation
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "constitutive"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 
@@ -31,7 +29,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( L_iso_M_iso )
+TEST(Tconstitutive, L_iso_M_iso)
 {
     double E = 70000.;
     double nu = 0.3;
@@ -69,25 +67,25 @@ BOOST_AUTO_TEST_CASE( L_iso_M_iso )
     
     //Test of L_iso function
     mat Ltest = L_iso(E, nu, "Enu");
-    BOOST_CHECK( norm(Ltest - Lt,2) < 1.E-9 );
+    EXPECT_LT(norm(Ltest - Lt,2),1.E-9);
 	Ltest = L_iso(lambda, mu, "lambdamu");
-	BOOST_CHECK( norm(Ltest - Lt,2) < 1.E-9 );
+	EXPECT_LT(norm(Ltest - Lt,2),1.E-9);
     
 	//Test of M_iso function
     mat Mtest = M_iso(E, nu, "Enu");
-	BOOST_CHECK( norm(Mtest - Mt,2) < 1.E-9 );
+	EXPECT_LT(norm(Mtest - Mt,2),1.E-9);
 	Mtest = M_iso(mu, lambda, "mulambda");
-	BOOST_CHECK( norm(Mtest - Mt,2) < 1.E-9 );
+	EXPECT_LT(norm(Mtest - Mt,2),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( L_cubic_M_cubic )
+TEST(Tconstitutive, L_cubic_M_cubic)
 {
     double C11 = 1000;
     double C12 = 400;
     double C44 = 500;
     
     double nu = 1 / (1 + C11/C12);
-    double E = C11*( 1 - 3*pow(nu,2) - 2*pow(nu,3) )/( 1-pow(nu,2) );
+    double E = C11*( 1 - 3*pow(nu,2) - 2*pow(nu,3) )/( 1-pow(nu,2));
     double G = C44;
     
     mat Lcub = zeros(6,6);
@@ -106,20 +104,20 @@ BOOST_AUTO_TEST_CASE( L_cubic_M_cubic )
     
     //Test of L_cubic function
     mat Ltest = L_cubic(C11,C12,C44, "Cii");
-    BOOST_CHECK( norm(Ltest - Lcub,2) < 1.E-9 );
+    EXPECT_LT(norm(Ltest - Lcub,2),1.E-9);
     
     Ltest = L_cubic(E,nu,G, "EnuG");
-    BOOST_CHECK( norm(Ltest - Lcub,2) < 1.E-9 );
+    EXPECT_LT(norm(Ltest - Lcub,2),1.E-9);
     
     //Test of M_cubic function
     mat Mtest = M_cubic(C11,C12,C44, "Cii");
-    BOOST_CHECK( norm(Mtest - inv(Lcub),2) < 1.E-9 );
+    EXPECT_LT(norm(Mtest - inv(Lcub),2),1.E-9);
 
     Mtest = M_cubic(E,nu,G, "EnuG");
-    BOOST_CHECK( norm(Mtest - inv(Lcub),2) < 1.E-9 );
+    EXPECT_LT(norm(Mtest - inv(Lcub),2),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( L_isotrans_M_isotrans )
+TEST(Tconstitutive, L_isotrans_M_isotrans)
 {
     double EL = 10000.;
     double ET = 20000.;
@@ -143,14 +141,14 @@ BOOST_AUTO_TEST_CASE( L_isotrans_M_isotrans )
     
 	//Test of L_isotrans function axis 1
     mat Ltest = L_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
-	BOOST_CHECK( norm(Ltest - inv(Mtrans),2) < 1.E-9 );
+	EXPECT_LT(norm(Ltest - inv(Mtrans),2),1.E-9);
     //Test of M_isotrans function axis 1
     mat Mtest = M_isotrans(EL, ET, nuTL, nuTT, GLT, 1);
-    BOOST_CHECK( norm(Mtest - Mtrans,2) < 1.E-9 );
+    EXPECT_LT(norm(Mtest - Mtrans,2),1.E-9);
     
 }
 
-BOOST_AUTO_TEST_CASE( L_ortho_M_ortho )
+TEST(Tconstitutive, L_ortho_M_ortho)
 {
     double E1 = 10000.;
     double E2 = 20000.;
@@ -178,17 +176,16 @@ BOOST_AUTO_TEST_CASE( L_ortho_M_ortho )
     
     //Test of L_ortho function
     mat Ltest = L_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
-    BOOST_CHECK( norm(Ltest - inv(Mortho),2) < 1.E-9 );
+    EXPECT_LT(norm(Ltest - inv(Mortho),2),1.E-9);
     //Test of M_ortho function
     mat Mtest = M_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
-    BOOST_CHECK( norm(Mtest - Mortho,2) < 1.E-9 );
+    EXPECT_LT(norm(Mtest - Mortho,2),1.E-9);
     
     //Test of L_ortho function
     mat Ltest2 = L_ortho(Ltest(0,0), Ltest(0,1), Ltest(0,2), Ltest(1,1), Ltest(1,2), Ltest(2,2), Ltest(3,3), Ltest(4,4), Ltest(5,5), "Cii");
-    BOOST_CHECK( norm(Ltest2 - inv(Mortho),2) < 1.E-9 );
+    EXPECT_LT(norm(Ltest2 - inv(Mortho),2),1.E-9);
     //Test of M_ortho function
     mat Mtest2 = M_ortho(Ltest(0,0), Ltest(0,1), Ltest(0,2), Ltest(1,1), Ltest(1,2), Ltest(2,2), Ltest(3,3), Ltest(4,4), Ltest(5,5), "Cii");
-    BOOST_CHECK( norm(Mtest2 - Mortho,2) < 1.E-9 );
+    EXPECT_LT(norm(Mtest2 - Mortho,2),1.E-9);
 
-    
 }

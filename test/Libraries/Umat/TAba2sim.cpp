@@ -19,13 +19,11 @@
 ///@brief Test for the transfer from Abaqus to Simcoon Umat subroutines
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "aba_2_umat"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <fstream>
 #include <iterator>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Maths/random.hpp>
@@ -40,7 +38,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( read_write )
+TEST(Taba2sim, read_write)
 {
 
     /* initialize random seed: */
@@ -139,7 +137,7 @@ BOOST_AUTO_TEST_CASE( read_write )
     pos = 0;
     phases_2_statev(statev_multi, pos, rve);
     
-    BOOST_CHECK_EQUAL_COLLECTIONS(statev_multi.begin(), statev_multi.end(), statev_multi_n.begin(), statev_multi_n.end());
+    ASSERT_TRUE(std::equal(statev_multi.begin(), statev_multi.end(), statev_multi_n.begin()));
     
     delete[] statev;
     delete[] stress;

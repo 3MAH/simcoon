@@ -15,17 +15,16 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file Tphase_characteristics.cpp
+///@brief Test for Phase characteristics objects
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "phase_characteristics"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <fstream>
 #include <iterator>
 #include <armadillo>
+
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
@@ -35,7 +34,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( read_write )
+TEST(Tphase_characteristics, read_write)
 {
     string umat_name;
     string inputfile;
@@ -68,8 +67,8 @@ BOOST_AUTO_TEST_CASE( read_write )
     
     std::istream_iterator<char> b1_phase(ifs1_phase), e1_phase;
     std::istream_iterator<char> b2_phase(ifs2_phase), e2_phase;
-        
-    BOOST_CHECK_EQUAL_COLLECTIONS(b1_phase, e1_phase, b2_phase, e2_phase);
+
+    ASSERT_TRUE(std::equal(b1_phase, e1_phase, b2_phase));
     
     //Layers
     phase_characteristics rve_layer;
@@ -91,7 +90,7 @@ BOOST_AUTO_TEST_CASE( read_write )
     std::istream_iterator<char> b1_layer(ifs1_layer), e1_layer;
     std::istream_iterator<char> b2_layer(ifs2_layer), e2_layer;
     
-    BOOST_CHECK_EQUAL_COLLECTIONS(b1_layer, e1_layer, b2_layer, e2_layer);
+    ASSERT_TRUE(std::equal(b1_layer, e1_layer, b2_layer));    
     
     //Ellipsoid
     phase_characteristics rve_ellipsoid;
@@ -113,7 +112,7 @@ BOOST_AUTO_TEST_CASE( read_write )
     std::istream_iterator<char> b1_ellipsoid(ifs1_ellipsoid), e1_ellipsoid;
     std::istream_iterator<char> b2_ellipsoid(ifs2_ellipsoid), e2_ellipsoid;
     
-    BOOST_CHECK_EQUAL_COLLECTIONS(b1_ellipsoid, e1_ellipsoid, b2_ellipsoid, e2_ellipsoid);
+    ASSERT_TRUE(std::equal(b1_ellipsoid, e1_ellipsoid, b2_ellipsoid));
     
     //Cylinder
     phase_characteristics rve_cylinder;
@@ -135,6 +134,6 @@ BOOST_AUTO_TEST_CASE( read_write )
     std::istream_iterator<char> b1_cylinder(ifs1_cylinder), e1_cylinder;
     std::istream_iterator<char> b2_cylinder(ifs2_cylinder), e2_cylinder;
     
-    BOOST_CHECK_EQUAL_COLLECTIONS(b1_cylinder, e1_cylinder, b2_cylinder, e2_cylinder);
+    ASSERT_TRUE(std::equal(b1_cylinder, e1_cylinder, b2_cylinder));
     
 }

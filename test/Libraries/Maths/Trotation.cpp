@@ -15,15 +15,13 @@
  
  */
 
-///@file Tconstitutive.cpp
-///@brief Test for Constitutive tensors in Voigt notation
+///@file Trotation.cpp
+///@brief Test for rotation of tensor and vectors
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "rotation"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
@@ -32,7 +30,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( basic_rotation )
+TEST(Trotation, basic_rotation)
 {
     //Basic rotation
     vec u = {1,1,1};
@@ -71,17 +69,17 @@ BOOST_AUTO_TEST_CASE( basic_rotation )
     upp2 = R2*upp2;
     upp2 = R3*upp2;
 
-    BOOST_CHECK( norm(R_zxz-R_zxz_a,2) < 1.E-9 );
-    BOOST_CHECK( norm(trans(R_zxz)-R_zxz_p,2) < 1.E-9 );
+    EXPECT_LT( norm(R_zxz-R_zxz_a,2),1.E-9);
+    EXPECT_LT( norm(trans(R_zxz)-R_zxz_p,2),1.E-9);
 
-    BOOST_CHECK( norm(R_zyz-R_zyz_a,2) < 1.E-9 );
-    BOOST_CHECK( norm(trans(R_zyz)-R_zyz_p,2) < 1.E-9 );
+    EXPECT_LT( norm(R_zyz-R_zyz_a,2),1.E-9);
+    EXPECT_LT( norm(trans(R_zyz)-R_zyz_p,2),1.E-9);
     
-    BOOST_CHECK( norm(upp-upp2,2) < 1.E-9 );
+    EXPECT_LT( norm(upp-upp2,2),1.E-9);
     
 }
 
-BOOST_AUTO_TEST_CASE( rotation )
+TEST(Trotation, rotation)
 {
     vec test = zeros(6);
     test(0) = 4.;
@@ -124,11 +122,11 @@ BOOST_AUTO_TEST_CASE( rotation )
     
     mat S_cRR = rotateA(S_c,R);
     
-    BOOST_CHECK( norm(S_c33-S_c3,2) < 1.E-9 );
-    BOOST_CHECK( norm(S_c22-S_c2,2) < 1.E-9 );
-    BOOST_CHECK( norm(S_c11-S_c1,2) < 1.E-9 );
+    EXPECT_LT( norm(S_c33-S_c3,2),1.E-9);
+    EXPECT_LT( norm(S_c22-S_c2,2),1.E-9);
+    EXPECT_LT( norm(S_c11-S_c1,2),1.E-9);
     
-    BOOST_CHECK( norm(S_cRR-S_cR,2) < 1.E-9 );
+    EXPECT_LT( norm(S_cRR-S_cR,2),1.E-9);
     
 /*    vec E_tot = {0.01,-0.033,-0.033,0.02,0.012,0.005}
     vec E_r = S_c*E_tot*/
@@ -146,7 +144,7 @@ BOOST_AUTO_TEST_CASE( rotation )
     mat a2 = rotate_mat(a, Rp2);
     mat a3 = rotate_mat(a, Rp3);
 
-    BOOST_CHECK( norm(a1-a2,2) < 1.E-9 );
-    BOOST_CHECK( norm(a1-a3,2) < 1.E-9 );
+    EXPECT_LT( norm(a1-a2,2),1.E-9);
+    EXPECT_LT( norm(a1-a3,2),1.E-9);
     
 }

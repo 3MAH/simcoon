@@ -19,11 +19,9 @@
 ///@brief Test for stress criteria
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "criteria"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
@@ -32,30 +30,18 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-BOOST_AUTO_TEST_CASE( Aniso )
+TEST(Tcriteria, Aniso)
 {
     double b = 0.;
     double n = 2.;
     vec sigma = {400.,0.,0.,0.,0.,0.};
 
-    //Check that Prager is equal to 400 in that case
+    //Check that Tresca is equal to 400 in that case
     double test_tresca = Tresca_stress(sigma);
-    BOOST_CHECK( test_tresca - 400. < sim_iota );
+    EXPECT_LT(test_tresca - 400.,sim_iota);
     
     //Check that Prager is equal to 400 in that case
     double test_prager = Prager_stress(sigma, b, n);
-    BOOST_CHECK( test_prager - 400. < sim_iota );
-    
-}
-
-BOOST_AUTO_TEST_CASE( Prager )
-{
-    double b = 0.;
-    double n = 2.;
-    vec sigma = {400.,0.,0.,0.,0.,0.};
-    
-    //Check that Prager is equal to 400 in that case
-    double test_prager = Prager_stress(sigma, b, n);
-    BOOST_CHECK( test_prager - 400. < sim_iota );
+    EXPECT_LT(test_prager - 400.,sim_iota);
     
 }

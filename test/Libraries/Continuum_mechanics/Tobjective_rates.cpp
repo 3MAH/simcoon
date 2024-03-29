@@ -19,11 +19,9 @@
 ///@brief Test for Constitutive tensors in Voigt notation
 ///@version 1.0
 
-#define BOOST_TEST_DYN_LINK
-#define BOOST_TEST_MODULE "objective_rates"
-#include <boost/test/unit_test.hpp>
-
+#include <gtest/gtest.h>
 #include <armadillo>
+
 #include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -37,7 +35,7 @@ using namespace arma;
 using namespace simcoon;
 using namespace FTensor;
 
-BOOST_AUTO_TEST_CASE( get_B )
+TEST(Tobjective_rates, get_B)
 {
 
     mat F = zeros(3,3);
@@ -89,10 +87,10 @@ BOOST_AUTO_TEST_CASE( get_B )
     cout << "norm(BBBB - BBBB_test,2) = " << norm(BBBB - BBBB_test,2) << endl;
     
     //Test of BBBB function
-    BOOST_CHECK( norm(BBBB - BBBB_test,2) < 1.E-9 );
+    EXPECT_LT(norm(BBBB - BBBB_test,2),1.E-9);
 }
 
-BOOST_AUTO_TEST_CASE( logarithmic_test )
+TEST(Tobjective_rates, logarithmic_functions)
 {
     mat F1 = zeros(3,3);
 	F1(0,0) = 4.;
@@ -152,7 +150,6 @@ BOOST_AUTO_TEST_CASE( logarithmic_test )
 
     mat Omega_test = W_test + FTensor2_mat(N_);
 
-
     mat BBBB = get_BBBB(F1);
     mat Omega_test2 = W_test + v2t_skewsym(BBBB*t2v_strain(D_test));
 
@@ -163,7 +160,7 @@ BOOST_AUTO_TEST_CASE( logarithmic_test )
     logarithmic(DR, D, Omega, DTime, F0, F1);
     
     //Test of logarithmic function
-    BOOST_CHECK( norm(D - D_test,2) < 1.E-9 );
-    BOOST_CHECK( norm(Omega - Omega_test,2) < 1.E-9 );
-    BOOST_CHECK( norm(Omega - Omega_test2,2) < 1.E-9 );
+    EXPECT_LT(norm(D - D_test,2),1.E-9);
+    EXPECT_LT(norm(Omega - Omega_test,2),1.E-9);
+    EXPECT_LT(norm(Omega - Omega_test2,2),1.E-9);
 }
