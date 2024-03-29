@@ -25,6 +25,7 @@
 #include <math.h>
 #include <armadillo>
 #include <algorithm>
+#include <filesystem>
 #include <map>
 #include <simcoon/Simulation/Identification/parameters.hpp>
 #include <simcoon/Simulation/Identification/constants.hpp>
