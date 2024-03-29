@@ -106,9 +106,9 @@ done
 #Build Simcoon
 echo ""
 cd ${current_dir}/build
-cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
+cmake -G Ninja -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS:FILEPATH=$CONDA_PREFIX/bin/clang-scan-deps -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev ..
 echo ""
-make -j${ncpus}
+ninja -j${ncpus}
 Install_OK=$?
 echo ""
 if [ $Install_OK -eq 0 ]
@@ -116,13 +116,13 @@ then
 
     if [ "${Install_check}" = "OK" ]
     then
-        make install
+        ninja install
         
     fi
 
     if [ $test -eq 1 ]
     then
-        make test
+        ninja test
     fi
     Test_OK=$?
 
@@ -214,10 +214,10 @@ then
     fi
 
     cd ${current_dir}/arma2numpy-builder/build
-    cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
+    cmake -G Ninja .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
     echo ""
-    make
-    make install
+    ninja
+    ninja install
     cd ..
     cd ..
 
@@ -254,10 +254,10 @@ then
     fi
 
     cd ${current_dir}/simcoon-python-builder/build
-    cmake .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
+    cmake -G Ninja .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
     echo ""
-    make
-    make install
+    ninja
+    ninja install
 
     cd ..
     cd ..
@@ -279,6 +279,6 @@ then
 #    fi
     
     cd ${current_dir}/simcoon-python-builder/build
-    make test
+    ninja test
 fi
 
