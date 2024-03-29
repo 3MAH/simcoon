@@ -17,6 +17,7 @@ dependencies:
   - cgal
   - boost
   - libboost
+  - gtest 
   - pybind11
   - armadillo
   - carma
