@@ -181,22 +181,22 @@ vec dEq_stress_P(const vec &v, const mat &H) {
     
 double Hill_stress(const vec &v, const vec &params) {
     mat P = P_Hill(params);
-    return Ani_stress(v,P);
+    return Eq_stress_P(v,P);
 }
 
 vec dHill_stress(const vec &v, const vec &params) {
    mat P = P_Hill(params);
-   return dAni_stress(v,P);
+   return dEq_stress_P(v,P);
 }
                    
 double Ani_stress(const vec &v, const vec &params) {
     mat P = P_Ani(params);
-    return Ani_stress(v,P);
+    return Eq_stress_P(v,P);
 }
 
 vec dAni_stress(const vec &v, const vec &params) {
     mat P = P_Ani(params);
-    return dAni_stress(v,P);
+    return dEq_stress_P(v,P);
 }
                    
 double Eq_stress(const vec &v, const string &eq_type, const vec &param)
