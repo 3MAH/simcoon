@@ -15,11 +15,10 @@ dependencies:
   - numpy>=1.24
   - pip
   - setuptools
-  - cgal
   - boost
-  - libboost
   - gtest
   - pybind11
   - armadillo
   - carma
   - pytest
+  - ninja
