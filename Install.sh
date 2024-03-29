@@ -127,7 +127,7 @@ then
     Test_OK=$?
 
     #Create the list of the file to copy after compilation
-    executableToCopy="solver identification L_eff Elastic_props ODF PDF Abaqus_apply_inter"
+    executableToCopy="solver identification L_eff Elastic_props ODF PDF"
 #    objectToCopy="umat_single umat_singleT"
 
     # Copy all important files (+ final message)
@@ -193,46 +193,6 @@ fi
 
 if [ "${Install_check}" = "OK" ]
 then
-    cd ${current_dir}/arma2numpy-builder
-
-    #Test if build exist and if it's necessary to erase it
-    if [ ! -d "build" ]
-    then
-    mkdir ${current_dir}/arma2numpy-builder/build
-    echo "Folder created.\n"
-    else
-    echo "Build directory already exists."
-
-    while true; do
-    read -p "Do you want to erase old compilation files (Recommended : No) ? " yn
-    case $yn in
-    [YyOo]* ) rm -r ${current_dir}/arma2numpy-builder/build/*; break;;
-    [Nn]* ) break;;
-    * ) echo "Please answer yes (y) or no (n).";;
-    esac
-    done
-    fi
-
-    cd ${current_dir}/arma2numpy-builder/build
-    cmake -G Ninja .. -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev
-    echo ""
-    ninja
-    ninja install
-    cd ..
-    cd ..
-
-#    if [ $OS = "Mac" ]
-#    then
-#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
-#        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/arma2numpy/Tarma2numpy.so
-#
-#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
-#        install_name_tool -change ${current_dir}/arma2numpy-python-builder/build/lib/libarma2numpy.dylib  @rpath/libarma2numpy.dylib ${current_dir}/arma2numpy-python-builder/test/CM_func/TCM_func.so
-#    fi
-    cd ${current_dir}/arma2numpy-builder/
-    make test
-
-
     cd ${current_dir}/simcoon-python-builder
 
     #Test if build exist and if it's necessary to erase it
