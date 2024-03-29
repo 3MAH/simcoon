@@ -24,7 +24,7 @@
 #include <string>
 #include <assert.h>
 #include <armadillo>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <CGAL/Simple_cartesian.h>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
