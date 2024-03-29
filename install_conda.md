@@ -12,7 +12,6 @@ conda create --name scientific
 
 conda install -c conda-forge armadillo
 conda install -c conda-forge boost
-conda install -c conda-forge cgal
 conda install -c conda-forge numpy
 
 

@@ -23,7 +23,6 @@ requirements:
     - numpy>=1.24
     - pip
     - setuptools
-    - cgal
     - boost
     - libboost
     - gtest
@@ -41,7 +40,6 @@ requirements:
     - {{ pin_compatible('numpy') }}
     - openblas # [not win]
     - mkl # [win]
-    - cgal
     - boost
     - pybind11
     - armadillo

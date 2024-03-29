@@ -50,7 +50,6 @@ The next step is to install the required packages:
 
     conda install -c conda-forge armadillo 
     conda install -c conda-forge boost 
-    conda install -c conda-forge cgal 
     conda install -c conda-forge numpy
 
 Next, download the Simcoon sources in the github repository of Simcoon_
@@ -89,12 +88,9 @@ If you do no want to install Simcoon using a conda environnement, the following 
 .. _Boost : https://www.boost.org
 - Armadillo_ 
 .. _Armadillo : http://arma.sourceforge.net
-- CGAL_
-.. _CGAL : https://www.cgal.org
 
 .. image:: _static/boost_logo.png
 .. image:: _static/Armadillo_logo.png
-.. image:: _static/CGAL_logo.png
 
 Note that FTensor_ .. _FTensor : https://bitbucket.org/wlandry/ftensor
 is also utilized by Simcoon but it is integrated to facilitate the installation. You can get the sources and docs here
