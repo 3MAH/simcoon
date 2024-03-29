@@ -3,6 +3,7 @@
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include <CGAL/Simple_cartesian.h>
 
@@ -24,7 +25,6 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 //#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
-//#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Umat_fedoo.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
@@ -156,6 +156,7 @@ PYBIND11_MODULE(simmit, m) {
 
     //register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
+    m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");    
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a,"F0"_a, "F1"_a, "dtime"_a, "return_de"_a=false, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
@@ -229,8 +230,17 @@ PYBIND11_MODULE(simmit, m) {
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
     //umat
-    m.def("umat", &launch_umat);
-    //py::tuple umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py){
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = py::none());
+
+    // Register the from-python converters for read and solver
+    m.def("read_matprops", &read_matprops);
+    m.def("read_path", &read_path);
+    m.def("solver", &solver);        
+
+    // Register the from-python converters for ODF functions
+    m.def("get_densities_ODF", &get_densities_ODF);
+    m.def("ODF_discretization", &ODF_discretization);
+
 }
 
 
@@ -338,40 +348,12 @@ BOOST_PYTHON_MODULE(simmitboost) {
     bp::def("T_II", T_II);
 */
     
-    // Register the from-python converters for read and solver
+/*    // Register the from-python converters for read and solver
     bp::def("read_matprops", read_matprops);
     bp::def("read_path", read_path);
     bp::def("solver", solver);
-	
-    //Wrapper fedoo
- /*   bp::class_<Umat_fedoo>("Umat_fedoo", bp::init < std::string, bn::ndarray, int, int, int> ())
-        .def("compute_Detot", &Umat_fedoo::compute_Detot)
-        .def("Run", &Umat_fedoo::Run)
-        .def("Initialize", &Umat_fedoo::Initialize)
-        .def("to_start", &Umat_fedoo::to_start)
-        .def("set_start", &Umat_fedoo::set_start)
-        .def("set_T", &Umat_fedoo::set_T)
-        .def_readwrite("corate", &Umat_fedoo::corate)
-        .def_readonly("Time", &Umat_fedoo::Time)
-        .def_readonly("DTime", &Umat_fedoo::DTime)
-        .def_readonly("nb_points", &Umat_fedoo::nb_points)
-        .def_readonly("nlgeom", &Umat_fedoo::nlgeom)
-        .add_property("T", &Umat_fedoo::Get_T)
-        .add_property("props", &Umat_fedoo::Get_props)
-        .add_property("Kirchhoff", &Umat_fedoo::Get_Kirchhoff)
-        .add_property("Cauchy", &Umat_fedoo::Get_Cauchy)
-        .add_property("PKII", &Umat_fedoo::Get_PKII)
-        .add_property("etot", &Umat_fedoo::Get_etot)
-        .add_property("Detot", &Umat_fedoo::Get_Detot)
-        .add_property("statev", &Umat_fedoo::Get_statev)
-        .add_property("L", &Umat_fedoo::Get_L)
-        .add_property("Lt", &Umat_fedoo::Get_Lt)
-        .add_property("DR", &Umat_fedoo::Get_DR)
-        .add_property("Wm", &Umat_fedoo::Get_Wm)
-        .add_property("F0", &Umat_fedoo::Get_F0)
-        .add_property("F1", &Umat_fedoo::Get_F1)
-        ;
-        
+*/
+    /*    
     bp::class_<state_variables_py>("state_variables", bp::init <>())
         .def(bp::init <const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const bn::ndarray&, const double&, const double&> ())
         .def_readwrite("T", &state_variables_py::T)
@@ -489,10 +471,10 @@ BOOST_PYTHON_MODULE(simmitboost) {
         ;
     */
     
-    // Register the from-python converters for ODF functions
+/*    // Register the from-python converters for ODF functions
     bp::def("get_densities_ODF", get_densities_ODF);
     bp::def("ODF_discretization", ODF_discretization);
-    
+*/    
     //Register the from-python converters for rotation
 /*    bp::def("rotate_vec_R", rotate_vec_R);
     bp::def("rotate_vec_angle", rotate_vec_angle);

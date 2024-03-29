@@ -1,12 +1,12 @@
 #pragma once
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
 namespace simpy{
 
 //This function reads material properties to prepare a simulation
-boost::python::tuple read_matprops(const std::string &, const std::string &);
+pybind11::tuple read_matprops(const std::string &, const std::string &);
 
-boost::python::tuple read_path(const std::string &, const std::string &);
+pybind11::tuple read_path(const std::string &, const std::string &);
     
 } //namespace simpy

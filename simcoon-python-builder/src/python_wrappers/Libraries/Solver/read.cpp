@@ -1,24 +1,24 @@
+#include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
+#include <string>
+#include <carma>
 #include <armadillo>
-#include <boost/python.hpp>
-#include <boost/python/numpy.hpp>
-#include <simcoon/arma2numpy/numpy_arma.hpp>
+
 
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
 
-namespace bp = boost::python;
-namespace bn = boost::python::numpy;
 using namespace std;
 using namespace arma;
-using namespace arma2numpy;
+namespace py=pybind11;
 
 namespace simpy {
 
 //This function reads material properties to prepare a simulation
-bp::tuple read_matprops(const std::string &path_data_py, const std::string &materialfile_py) {
+py::tuple read_matprops(const std::string &path_data_py, const std::string &materialfile_py) {
     unsigned int nprops;
     unsigned int nstatev;
     double psi_rve;
@@ -29,14 +29,14 @@ bp::tuple read_matprops(const std::string &path_data_py, const std::string &mate
 //    string path_data = bp::extract<std::string>(path_data_py);
 //    string materialfile = bp::extract<std::string>(materialfile_py);
     simcoon::read_matprops(umat_name, nprops, v, nstatev, psi_rve, theta_rve, phi_rve, path_data_py, materialfile_py);
-    return bp::make_tuple(nprops, nstatev, psi_rve, theta_rve, phi_rve, vec2array(v));
+    return py::make_tuple(nprops, nstatev, psi_rve, theta_rve, phi_rve, carma::col_to_arr(v));
 }
 
-bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile_py) {
+py::tuple read_path(const std::string &path_data_py, const std::string &pathfile_py) {
 
     double T;
-    bp::list blocks_py;
-    bp::list cycles_per_blocks_py;
+    py::list blocks_py;
+    py::list cycles_per_blocks_py;
     std::vector<simcoon::block> blocks;
     
 //    string path_data = bp::extract<std::string>(path_data_py);
@@ -44,7 +44,7 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
     simcoon::read_path(blocks, T, path_data_py, pathfile_py);
 
     //blocks loop
-    for(unsigned int i = 0 ; i < blocks.size() ; i++) {
+/*    for(unsigned int i = 0 ; i < blocks.size() ; i++) {
         bp::list ith_block_py;
         switch(blocks[i].type) {
             case 1: { //Mechanical
@@ -83,8 +83,8 @@ bp::tuple read_path(const std::string &path_data_py, const std::string &pathfile
             }
         }
 
-    }
-    return bp::make_tuple(T, cycles_per_blocks_py, blocks_py);
+    }*/
+    return py::make_tuple(T, cycles_per_blocks_py, blocks_py);
 }
 
         
