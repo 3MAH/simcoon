@@ -25,7 +25,7 @@
 #include <math.h>
 #include <armadillo>
 #include <algorithm>
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/random.hpp>
 #include <simcoon/Simulation/Identification/parameters.hpp>
@@ -48,20 +48,20 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     std::string data_num_ext = data_num_name.substr(data_num_name.length()-4,data_num_name.length());
     std::string data_num_name_root = data_num_name.substr(0,data_num_name.length()-4); //to remove the extension
     
-    cout << boost::filesystem::current_path().string() << endl;
+    cout << filesystem::current_path().string() << endl;
     
     //Check if the required directories exist:
-    if(!boost::filesystem::is_directory(path_data)) {
+    if(!filesystem::is_directory(path_data)) {
         cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
         return;
     }
-    if(!boost::filesystem::is_directory(path_keys)) {
+    if(!filesystem::is_directory(path_keys)) {
         cout << "error: the folder for the keys, " << path_keys << ", is not present" << endl;
         return;
     }
-    if(!boost::filesystem::is_directory(path_results)) {
+    if(!filesystem::is_directory(path_results)) {
         cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        boost::filesystem::create_directory(path_results);
+        filesystem::create_directory(path_results);
     }
     
     //Check consistency of data
@@ -102,7 +102,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     
     //Get the experimental data file
     string data_exp_folder="exp_data";
-    if(!boost::filesystem::is_directory(data_exp_folder)) {
+    if(!filesystem::is_directory(data_exp_folder)) {
         cout << "The folder for the experimental data, " << data_exp_folder << ", is not present" << endl;
         return;
     }
@@ -163,9 +163,9 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     gen_initialize(geninit, spop, apop, idnumber, aleaspace, n_param, params, lambdaLM);
     
     string data_num_folder = "num_data";
-    if(!boost::filesystem::is_directory(data_num_folder)) {
+    if(!filesystem::is_directory(data_num_folder)) {
         cout << "The folder for the numerical data, " << data_num_folder << ", is not present and has been created" << endl;
-        boost::filesystem::create_directory(data_num_folder);
+        filesystem::create_directory(data_num_folder);
     }
     
     /// Run the simulations corresponding to each individual
@@ -297,9 +297,9 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         }
         
         //In the simulation run, make sure that we remove all the temporary files
-        boost::filesystem::path path_to_remove(data_num_folder);
-        for (boost::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-            boost::filesystem::remove_all(it->path());
+        filesystem::path path_to_remove(data_num_folder);
+        for (filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
+            filesystem::remove_all(it->path());
         }
         
         //Run the identified simulation and store results in the results folder
@@ -308,7 +308,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         for (int i = 0; i<nfiles; i++) {
             string simulfile = path_results + "/" + data_num_name_root + "_" + to_string(gen[g].pop[0].id)  + "_" + to_string(i+1) + data_num_ext;
             string finalfile = path_results + "/" + data_num_name_root + "_" + to_string(i+1) + data_num_ext;
-            boost::filesystem::rename(simulfile, finalfile);
+            filesystem::rename(simulfile, finalfile);
         }
         
         copy_parameters(params, path_keys, path_results);
