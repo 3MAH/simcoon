@@ -63,7 +63,7 @@ endif()
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
 #Inclusion of Boost
-find_package(Boost 1.57.0 COMPONENTS system REQUIRED)
+find_package(Boost 1.57.0 COMPONENTS filesystem system REQUIRED)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
