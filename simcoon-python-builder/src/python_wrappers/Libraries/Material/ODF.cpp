@@ -11,7 +11,6 @@
 #include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
 #include <simcoon/Continuum_mechanics/Material/read.hpp>
 
-#include <simcoon/arma2numpy/numpy_arma.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 
 using namespace std;
