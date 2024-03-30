@@ -29,6 +29,7 @@
 #include <armadillo>
 #include <filesystem>
 #include <boost/version.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/dll/import.hpp> // for import_alias
 
 #include <simcoon/parameter.hpp>
@@ -967,7 +968,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             case 0: {
 //                umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 
-                std::filesystem::path lib_path("external");          // argv[1] contains path to directory with our plugin library
+                boost::filesystem::path lib_path("external");          // argv[1] contains path to directory with our plugin library
                 boost::shared_ptr<umat_plugin_ext_api> external_umat;            // variable to hold a pointer to plugin variable
                 external_umat = boost_dll_import<umat_plugin_ext_api>(          // type of imported symbol is located between `<` and `>`
                     lib_path / "umat_plugin_ext",                     // path to the library and library name
@@ -981,7 +982,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             }
             case 1: {
                 //
-                std::filesystem::path lib_path("external");
+                boost::filesystem::path lib_path("external");
                 boost::shared_ptr<umat_plugin_aba_api> abaqus_umat;            // variable to hold a pointer to plugin variable
 
                 abaqus_umat = boost_dll_import<umat_plugin_aba_api>(lib_path / "umat_plugin_aba", "abaqus_umat", boost::dll::load_mode::append_decorations);
