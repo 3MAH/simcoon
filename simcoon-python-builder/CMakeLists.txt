@@ -46,18 +46,18 @@ find_package(Python3 COMPONENTS Interpreter Development NumPy)
 if (Python3_FOUND)
   if(MSVC)
     set(CMAKE_FIND_FRAMEWORK NEVER)
-      FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
+      FIND_PACKAGE(Boost REQUIRED)
       #FIND_PACKAGE(PythonInterp 3)
       #FIND_PACKAGE(PythonLibs 3 REQUIRED)
       #FIND_PACKAGE(NumPy REQUIRED)
   elseif (UNIX AND NOT APPLE)
-    FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_SUFFIX} numpy${PYTHON_VERSION_SUFFIX} REQUIRED)
+    FIND_PACKAGE(Boost REQUIRED)
     FIND_PACKAGE(PythonInterp 3)
     FIND_PACKAGE(PythonLibs 3 REQUIRED)
     FIND_PACKAGE(NumPy REQUIRED)
   else()
     set(CMAKE_FIND_FRAMEWORK NEVER)
-      FIND_PACKAGE(Boost COMPONENTS python${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} numpy${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR} REQUIRED)
+      FIND_PACKAGE(Boost REQUIRED)
       FIND_PACKAGE(PythonInterp 3)
       FIND_PACKAGE(PythonLibs 3 REQUIRED)
       FIND_PACKAGE(NumPy REQUIRED)
@@ -80,7 +80,6 @@ else()
 endif()
 
 find_package(simcoon REQUIRED)
-find_package(arma2numpy REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -99,7 +98,6 @@ message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
-message(STATUS "arma2numpy_LIBRARIES = ${arma2numpy_LIBRARIES}")
 message(STATUS "carma_INCLUDE_DIR = ${carma_INCLUDE_DIR}")
 
 # Build type
@@ -180,23 +178,6 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 ################################################################################
-# SIMCOON modules
-#Add the files to the lib
-#add_library(simmitboost MODULE ${source_files_simmit})
-Python3_add_library(simmitboost MODULE ${source_files_simmit})
-#Wrapper library set_target properties
-if (MSVC)
-  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".pyd")
-else()
-  set_target_properties(simmitboost PROPERTIES PREFIX "" SUFFIX ".so")
-endif()
-#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmitboost PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES} )
-#if (UNIX AND APPLE)
-#	set_target_properties(simmitboost PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-#endif()
-
-################################################################################
 
 ################################################################################
 # SIMCOON PYBIND11 modules
@@ -209,7 +190,7 @@ else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 #link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES} ${arma2numpy_LIBRARIES})
+target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
 #if (UNIX AND APPLE)
 #	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 #endif()
