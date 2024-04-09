@@ -42,7 +42,7 @@ jobs:
           anaconda upload osx-64/*.tar.bz2 --force
           anaconda logout              
 
-  macos:
+  macos-arm64:
       name: MacOS-arm64
       runs-on: "macos-14"
       steps:
