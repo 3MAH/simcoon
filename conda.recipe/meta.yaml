@@ -8,6 +8,8 @@ source:
 
 build:
   number: 0
+  script_env:
+  - CXXFLAGS="${CXXFLAGS} -D_LIBCPP_DISABLE_AVAILABILITY"
 
 requirements:
   build:
