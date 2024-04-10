@@ -17,30 +17,31 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
   host:
-    - arpack  # [unix]
-    - superlu >=5.2.0,<6  # [unix]
+    - arpack  # [linux]
+    - superlu >=5.2.0,<6  # [linux]
     - python
-    - numpy>=1.24
+    - {{ pin_compatible('numpy') }}
     - pip
     - setuptools
     - boost
     - libboost
     - gtest
     - pybind11-abi
-    - libblas * *openblas #[not win]
-    - liblapack * *openblas #[not win]
+    - libblas * *openblas # [not win]
+    - liblapack * *openblas # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
     - armadillo
-    - carma
+    - carma    
   run:
-    - arpack  # [unix]
-    - superlu >=5.2.0,<6  # [unix]
+    - arpack  # [linux]
+    - superlu >=5.2.0,<6  # [linux]
     - python
     - {{ pin_compatible('numpy') }}
     - openblas # [not win]
     - mkl # [win]
     - boost
+    - libboost    
     - pybind11
     - armadillo
     - carma
