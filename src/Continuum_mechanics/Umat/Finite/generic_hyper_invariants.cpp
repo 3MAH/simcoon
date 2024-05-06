@@ -33,7 +33,7 @@
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 
 using namespace std;
 using namespace arma;
