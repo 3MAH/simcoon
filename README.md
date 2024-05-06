@@ -1,10 +1,7 @@
 Simcoon
 =========
 
-
 [![Simcoon Logo](https://github.com/3MAH/3mah.github.io/blob/master/assets/images/logo_simcoon/simcoon_logo_text.png?raw=true)](https://github.com/3MAH/simcoon)
-
-/assets/images/logo_simcoon/
 
 About
 -----
@@ -65,7 +62,7 @@ conda create --name scientific
 
 OR
 
-The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
+You can install simcoon from the sources. The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
 (for the installation of an environment called "scientific")
 
 ```bash
