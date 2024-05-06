@@ -501,7 +501,7 @@ arma::mat Dtau_LieDD_Dtau_JaumannDD(const arma::mat &Lt, const arma::mat &tau);
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the logarithmic spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
  *
  * \f[
- *      \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} \mathbf{\Omega}_{\textrm{log}}} (i,s,p,r) = \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} (i,s,p,r) - \frac{1}{2} \tau (p,s) \delta (i,r) - \frac{1}{2} \tau (r,s) \delta (i,p) - \frac{1}{2} \tau (i,r) \delta (s,p) - \frac{1}{2} \tau(i,p) \delta(s,r)
+ *      \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} \mathbf{\Omega}_{\textrm{log}}} (i,s,p,r) = \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} (i,s,p,r) - \frac{1}{2} \tau (p,s) \delta (i,r) - \frac{1}{2} \tau (r,s) \delta (i,p) - \frac{1}{2} \tau (i,r) \delta (s,p) - \frac{1}{2} \tau(i,p) \delta(s,r)
  * \f]
  * 
  * This function takes in the tangent modulus \f$ \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis,
@@ -518,13 +518,13 @@ arma::mat Dtau_LieDD_Dtau_JaumannDD(const arma::mat &Lt, const arma::mat &tau);
 arma::mat Dtau_LieDD_Dtau_logarithmicDD(const arma::mat &Lt, const arma::mat &BBBB, const arma::mat &tau);
 
 /**
- * @brief Computes the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
+ * @brief Computes the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
  *
  * \f[
- *      \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\mathbf{W})} = \frac{1}{J} \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\mathbf{W})}
+ *      \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\mathbf{W})} = \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\mathbf{W})}
  * \f]
  * 
- * This function takes in the tangent modulus \f$ \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis,
+ * This function takes in the tangent modulus \f$ \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis,
  * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
  * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\tau} \f$.
  * 
@@ -532,10 +532,30 @@ arma::mat Dtau_LieDD_Dtau_logarithmicDD(const arma::mat &Lt, const arma::mat &BB
  * 
  * @note : The return tensor is the tangent modulus utilized by Abaqus
  * 
- * @param[in] DSDE (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
- * @param[in] tau (3x3 arma::mat) Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
+ * @param[in] Dsigma_LieDD (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ * @param[in] sigma (3x3 arma::mat) Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
  * @return (6x6 arma::mat) the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin
 */
-arma::mat Dtau_LieDD_Dsigma_JaumannDD(const arma::mat &Dtau_JaumannDD, const double &J);
- 
+arma::mat Dsigma_LieDD_Dsigma_JaumannDD(const arma::mat &Dsigma_LieDD, const arma::mat &sigma);
+
+/**
+ * @brief Computes the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the logarithmic spin from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
+ *
+ * \f[
+ *      \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} \mathbf{\Omega}_{\textrm{log}}} (i,s,p,r) = \left( \frac{\partial \mathbf{\eth \sigma}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} (i,s,p,r) - \frac{1}{2} \sigma (p,s) \delta (i,r) - \frac{1}{2} \sigma (r,s) \delta (i,p) - \frac{1}{2} \tau (i,r) \delta (s,p) - \frac{1}{2} \tau(i,p) \delta(s,r)
+ * \f]
+ * 
+ * This function takes in the tangent modulus \f$ \left( \frac{\partial \mathbf{\eth \tau}}{\partial \eth \mathbf{e}} \right)_{\mathcal{R} (\vec{g}_i)} \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis,
+ * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
+ * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\tau} \f$.
+ * 
+ * It returns the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the logarithmic spin
+ * 
+ * @param[in] DSDE (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ * @param[in] BBBB (6x6 arma::mat) logarithmic antisymmetric tensor-valued function  \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$
+ * @param[in] sigma (3x3 arma::mat) Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
+ * @return (6x6 arma::mat) the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the logarithmic spin
+*/
+arma::mat Dsigma_LieDD_Dsigma_logarithmicDD(const arma::mat &Lt, const arma::mat &BBBB, const arma::mat &sigma);
+
 } //namespace simcoon
