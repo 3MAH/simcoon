@@ -25,8 +25,8 @@ requirements:
     - {{ pin_compatible('numpy') }}
     - pip
     - setuptools
-    - boost
-    - libboost
+    - boost <=1.84
+    - libboost <=1.84
     - gtest
     - pybind11-abi
     - libblas * *openblas # [not win]
@@ -42,8 +42,8 @@ requirements:
     - {{ pin_compatible('numpy') }}
     - openblas # [not win]
     - mkl # [win]
-    - boost
-    - libboost    
+    - boost <=1.84
+    - libboost <=1.84
     - pybind11
     - armadillo
     - carma
