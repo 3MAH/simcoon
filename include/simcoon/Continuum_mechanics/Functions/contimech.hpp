@@ -406,5 +406,40 @@ arma::mat auto_dyadic(const arma::mat &a);
 */
 arma::mat dyadic(const arma::mat &a, const arma::mat &b);
 
+/**
+ * @brief Provides the symmetric 4th-order dyadic product of a symmetric tensor with itself
+ * @param a
+ * @details This function returns the operation \f$ c = a \odot a \f$. The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
+\f[
+    \begin{align}
+    \left(\mathbf{a} \odot \mathbf{b} \right)_{ijkl} = \frac{1}{2} \left( a_{ik} a_{jl} + a_{il} a_{jk} \right)
+    \end{align}
+\f]
+ * @returns The 6x6 matrix that represent the dyadic product (arma::mat)
+ * @code 
+    mat a = randu(3,3);
+    mat b = randu(3,3);
+    mat c = sym_dyadic_operator(a,b);
+ * @endcode
+*/
+arma::mat auto_sym_dyadic_operator(const arma::mat &a);
+
+/**
+ * @brief Provides the symmetric 4th-order dyadic product of two symmetric tensors
+ * @param a, b
+ * @details This function returns the operation \f$ c = a \odot b \f$. The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
+\f[
+    \begin{align}
+    \left(\mathbf{a} \odot \mathbf{b} \right)_{ijkl} = \frac{1}{2} \left( a_{ik} b_{jl} + a_{il} b_{jk} \right)
+    \end{align}
+\f]
+ * @returns The 6x6 matrix that represent the dyadic product (arma::mat)
+ * @code 
+    mat a = randu(3,3);
+    mat b = randu(3,3);
+    mat c = sym_dyadic_operator(a,b);
+ * @endcode
+*/
+arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
 
 } //namespace simcoon

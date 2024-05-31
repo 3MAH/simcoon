@@ -409,4 +409,79 @@ mat dyadic(const mat &A, const mat &B) {
     return FTensor4_mat(C_);    
 }
 
+///This computes the symmetric 4th-order dyadic product A o A = 0.5*(A(i,j)*A(k,l) + A(i,j)*A(l,k));
+mat auto_sym_dyadic_operator(const mat &A) {
+
+	mat C = zeros(6,6);
+
+	int ij=0;
+	int kl=0;
+    
+    umat Id(3,3);
+    Id(0,0) = 0;
+    Id(0,1) = 3;
+    Id(0,2) = 4;
+    Id(1,0) = 3;
+    Id(1,1) = 1;
+    Id(1,2) = 5;
+    Id(2,0) = 4;
+    Id(2,1) = 5;
+    Id(2,2) = 2;
+	
+	for (int i=0; i<3; i++) {
+		for (int j=i; j<3; j++) {
+			ij = Id(i,j);
+			for (int k=0; k<3; k++) {
+				for (int l=k; l<3; l++) {
+					kl = Id(k,l);
+					C(ij,kl) = 0.5*(A(i,k)*A(j,l) + A(i,l)*A(j,k));
+				}
+			}
+		}
+	}
+	
+	return C;
+}
+
+///This computes the symmetric 4th-order dyadic product A o B = 0.5*(A(i,j)*B(k,l) + A(i,j)*B(l,k));
+mat sym_dyadic_operator(const mat &A, const mat &B) {
+
+	mat C = zeros(6,6);
+
+	int ij=0;
+	int kl=0;
+    
+    umat Id(3,3);
+    Id(0,0) = 0;
+    Id(0,1) = 3;
+    Id(0,2) = 4;
+    Id(1,0) = 3;
+    Id(1,1) = 1;
+    Id(1,2) = 5;
+    Id(2,0) = 4;
+    Id(2,1) = 5;
+    Id(2,2) = 2;
+	
+	for (int i=0; i<3; i++) {
+		for (int j=i; j<3; j++) {
+			ij = Id(i,j);
+			for (int k=0; k<3; k++) {
+				for (int l=k; l<3; l++) {
+					kl = Id(k,l);
+					C(ij,kl) = 0.5*(A(i,k)*B(j,l) + A(i,l)*B(j,k));
+				}
+			}
+		}
+	}
+	return C;
+}
+
+/*mat eulerian_determinant(const mat &A) {
+	mat Id = eye(3,3);
+	vec A_Id = A*Ith();
+	double Id_A_Id = sum(Ith()%A_Id);
+	return A - (1./3.)*(sym_dyadic(Id,A_Id)+sym_dyadic(A_Id,Id))+(1./9.)*Id_A_Id*auto_sym_dyadic(Id);
+
+}*/
+
 } //namespace simcoon

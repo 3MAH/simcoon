@@ -402,7 +402,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                     }
                                     else if (blocks[i].control_type == 3) {
-                                        sv_M->DEtot = zeros(6);
+                                        sv_M->Detot = zeros(6);
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
@@ -447,11 +447,21 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                             else if (blocks[i].control_type == 3) {
-//                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
 
-                                                //C = DtauDe_2_DsigmaDe(sv_M->Lt, det(sv_M->F1));
-                                                //Everything is here with Cauchy
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                if(corate_type == 0) {
+                                                    C = Dsigma_LieDD_Dsigma_JaumannDD(sv_M->Lt, v2t_stress(sv_M->sigma));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
+                                                if(corate_type == 1) {
+                                                    mat B_GN = get_BBBB_GN(sv_M->F1);
+                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, B_GN, v2t_stress(sv_M->sigma));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
+                                                if(corate_type == 2) {
+                                                    mat B = get_BBBB(sv_M->F1);
+                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, B, v2t_stress(sv_M->sigma));
+                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                }
                                             }
                                             
                                             ///jacobian inversion

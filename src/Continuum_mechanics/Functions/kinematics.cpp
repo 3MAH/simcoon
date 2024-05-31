@@ -102,7 +102,6 @@ void VR_decomposition(mat &V, mat &R, const mat &F) {
 //This function computes the common Right (or Left) Cauchy-Green invariants
 vec Inv_X(const mat &X) {
     
-    vec lambda = eig_sym(X);
     vec I = zeros(3);
     I(0) = trace(X);
     I(1) = 0.5*(pow(trace(X),2.) - trace(X*X));
