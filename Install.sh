@@ -106,7 +106,7 @@ done
 #Build Simcoon
 echo ""
 cd ${current_dir}/build
-cmake -G Ninja -DCMAKE_CXX_COMPILER_CLANG_SCAN_DEPS:FILEPATH=$CONDA_PREFIX/bin/clang-scan-deps -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev ..
+cmake -G Ninja -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DCMAKE_BUILD_TYPE=Release -Wno-dev ..
 echo ""
 ninja -j${ncpus}
 Install_OK=$?
