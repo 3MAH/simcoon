@@ -9,6 +9,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/stress.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/hyperelastic.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
@@ -207,7 +208,7 @@ PYBIND11_MODULE(simmit, m) {
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
     //umat
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = py::none());
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none());
 
     // Register the from-python converters for read and solver
     m.def("read_matprops", &read_matprops);
@@ -217,5 +218,4 @@ PYBIND11_MODULE(simmit, m) {
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
-
 }
