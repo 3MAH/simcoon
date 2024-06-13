@@ -43,29 +43,6 @@ set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
 find_package(Python3 COMPONENTS Interpreter Development NumPy)
 
-if (Python3_FOUND)
-  if(MSVC)
-    set(CMAKE_FIND_FRAMEWORK NEVER)
-      FIND_PACKAGE(Boost REQUIRED)
-      #FIND_PACKAGE(PythonInterp 3)
-      #FIND_PACKAGE(PythonLibs 3 REQUIRED)
-      #FIND_PACKAGE(NumPy REQUIRED)
-  elseif (UNIX AND NOT APPLE)
-    FIND_PACKAGE(Boost REQUIRED)
-    FIND_PACKAGE(PythonInterp 3)
-    FIND_PACKAGE(PythonLibs 3 REQUIRED)
-    FIND_PACKAGE(NumPy REQUIRED)
-  else()
-    set(CMAKE_FIND_FRAMEWORK NEVER)
-      FIND_PACKAGE(Boost REQUIRED)
-#      FIND_PACKAGE(PythonInterp 3)
-#      FIND_PACKAGE(PythonLibs 3 REQUIRED)
-#      FIND_PACKAGE(NumPy REQUIRED)
-  endif()
-else()
-    message("Python not found")
-endif()
-
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
@@ -79,6 +56,7 @@ else()
   find_package(carma CONFIG REQUIRED)
 endif()
 
+find_package(OpenMP)
 find_package(simcoon REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
@@ -114,7 +92,7 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
@@ -143,10 +121,6 @@ else()
       set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -std=c++17 -stdlib=libc++")
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++17 -stdlib=libc++")
   endif()
-endif()
-
-if(OPENMP_FOUND)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
 #Inclusion of public headers
@@ -184,6 +158,11 @@ add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/sim
 #Add the files to the lib
 pybind11_add_module(simmit ${source_files_simmit})
 #Wrapper library set_target properties
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(simmit PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
 if (MSVC)
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
 else()
