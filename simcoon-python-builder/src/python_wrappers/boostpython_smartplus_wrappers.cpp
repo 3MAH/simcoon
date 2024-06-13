@@ -9,7 +9,6 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/stress.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/hyperelastic.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
