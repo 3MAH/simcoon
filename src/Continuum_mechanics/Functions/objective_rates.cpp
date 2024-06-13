@@ -1,349 +1,523 @@
+/* This file is part of simcoon.
+ 
+ simcoon is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ simcoon is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ */
 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
+///@file objective_rate.cpp
+///@brief A set of function that help to define different quantities, depending on a selected objective rate
+///@version 1.0
 
-#include <string>
-#include <carma>
+#include <iostream>
+#include <assert.h>
+#include <math.h>
 #include <armadillo>
-
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
-#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/FTensor.hpp>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
 using namespace arma;
-namespace py=pybind11;
+using namespace FTensor;
 
-namespace simpy {
+namespace simcoon{
 
-//This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
-    mat DR = zeros(3,3);
-    mat D = zeros(3,3);
-    mat Omega = zeros(3,3);
-    simcoon::logarithmic(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy));
+void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
+    mat I = eye(3,3);
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    W = 0.5*(L-L.t());
+    
+    //Jaumann
+    DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
+}
+    
+void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    //Green-Naghdi
+    mat I = eye(3,3);
+    mat U0;
+    mat R0;
+    mat U1;
+    mat R1;
+    RU_decomposition(R0,U0,F0);
+    RU_decomposition(R1,U1,F1);
+    
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+    Omega = (1./DTime)*(R1-R0)*R1.t();
+
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    //alternative ... to test
+    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
 
-//This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
-    mat DR = zeros(3,3);
-    mat D = zeros(3,3);
-    mat N_1 = zeros(3,3);
-    mat N_2 = zeros(3,3);    
-    mat Omega = zeros(3,3);
-    simcoon::logarithmic_R(DR, D, N_1, N_2, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
+void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    //Green-Naghdi
+    mat I = eye(3,3);
+    mat U0;
+    mat R0;
+    mat U1;
+    mat R1;
+    RU_decomposition(R0,U0,F0);
+    RU_decomposition(R1,U1,F1);
+    
+    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+    Omega = (1./DTime)*(R1-R0)*R1.t();
+
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    //alternative ... to test
+    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    N_1 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
+
+    N_2 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
 }
 
+void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
+    //Green-Naghdi
+    mat I = eye(3,3);
+    mat U0;
+    mat R0;
+    mat U1;
+    mat R1;
+    RU_decomposition(R0,U0,F0);
+    RU_decomposition(R1,U1,F1);
+    
+    L = (1./DTime)*(F1-F0)*inv(F1);
+    
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
 
-//This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de) {
-    std::map<string, int> list_corate;
-    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3}, {"gn",1},{"log",2},{"log_R",3}};
-	int corate = list_corate[corate_name];
+    //alternative ... to test
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    N_1 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
+    }
 
-    void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &); 
-    void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);     
-    switch (corate) {
-
-        case 0: {
-            corate_function = &simcoon::Jaumann;
-            break;
+    N_2 = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            }
         }
-        case 1: {
-            corate_function = &simcoon::Green_Naghdi;
-            break;
-        }
-        case 2: {
-            corate_function = &simcoon::logarithmic;
-            break;
-        }
-        case 3: {
-            corate_function_2 = &simcoon::logarithmic_R;
-            break;
-        }        
     }
     
-    if (F1.ndim() == 2) {            
-        if (F0.ndim() != 2) {
-            throw std::invalid_argument("the number of dim of F1 should be the same as F0");
-        }
+    DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    
+}
 
-        mat F0_cpp = carma::arr_to_mat_view(F0);
-        mat F1_cpp = carma::arr_to_mat_view(F1);
-        mat DR = zeros(3,3);
-        mat D = zeros(3,3);
-        mat Omega = zeros(3,3); 
+void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
+    mat I = eye(3,3);
+    L = (1./DTime)*(F1-F0)*inv(F1);
+    //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
+    D = 0.5*(L+L.t());
+    
+    //Truesdell
+    DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+}
 
-        mat N_1 = zeros(3,3);
-        mat N_2 = zeros(3,3);
-
-		switch (corate) {
-
-            case 0: case 1: case 2: {
-                corate_function(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-                break;
+mat get_BBBB(const mat &F1) {
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    mat BBBB = zeros(6,6);
+    
+    double f_z = 0.;
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
             }
-            case 3: {
-                corate_function_2(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
-                break;
+        }
+    }
+    return BBBB;
+}
+
+mat get_BBBB_GN(const mat &F1) {
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    mat BBBB = zeros(6,6);
+    
+    double f_z = 0.;
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
+                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
             }
         }
+    }
+    return BBBB;
+}
 
-        if (return_de) {
-            //also return the strain increment
-            vec de = zeros(6);
-
-    		switch (corate) {
-                case 0: case 1: case 2: {
-                //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
-                //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime));                 
-                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
-                    break;
-                }
-                case 3: {
-                    mat I = eye(3,3);
-                    mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
-                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
-                    de = simcoon::rotate_strain(de, DR_N);
-                    break;
-                }
-            }
-            return py::make_tuple(carma::col_to_arr(de,false), carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
-        }
-        else{
-            return py::make_tuple(carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
-        }
+void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
+    mat I = eye(3,3);
+    mat L = zeros(3,3);
+    
+    if(DTime > sim_iota) {
+        L = (1./DTime)*(F1-F0)*inv(F1);
+    }
         
+    //decomposition of L
+    D = 0.5*(L+L.t());
+    mat W = 0.5*(L-L.t());
+    
+    //Logarithmic
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    std::vector<mat> Bi_proj(3);
+    Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
+    Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
+    Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
+    
+    mat N = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                N+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            }
+        }
     }
-    else if (F1.ndim() == 3) {
-        cube F1_cpp = carma::arr_to_cube_view(F1);            
-        int nb_points = F1_cpp.n_slices;
-        cube DR(3,3,nb_points);
-        cube D(3,3,nb_points);            
-        cube N_1(3,3,nb_points);
-        cube N_2(3,3,nb_points);                            
-        cube Omega = zeros(3,3, nb_points); 	
-        mat de;
-        if(return_de) de.set_size(6,nb_points);
-        mat DR_N = zeros(3,3);
-        mat I = eye(3,3);        
-
-        if (F0.ndim() == 2) {
-            mat vec_F0 = carma::arr_to_mat_view(F0);
-            for (int pt = 0; pt < nb_points; pt++) {
-
-        		switch (corate) {
-                    case 0: case 1: case 2: {
-                        corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
-                        }
-                        break;
-                    }
-                    case 3: {
-                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);                                
-                            DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            de_col = simcoon::rotate_strain(de_col, DR_N);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        else if (F0.ndim() == 3) {
-            cube F0_cpp = carma::arr_to_cube_view(F0); 
-            if (F0_cpp.n_slices==1) {
-                mat vec_F0 = F0_cpp.slice(0);
-
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(4);
-                py::gil_scoped_release release;
-
-                #ifdef _OPENMP
-                omp_set_max_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)    
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {
-                        case 0: case 1: case 2: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);                                
-                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de_col, DR_N);
-                            }
-                            break;
-                        }
-                    }
-                }
-                py::gil_scoped_acquire acquire;					
-                omp_set_num_threads(max_threads);			
-            }
-            else {
-
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(4);
-                py::gil_scoped_release release;
-
-                #ifdef _OPENMP
-                omp_set_max_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {                    
-                        case 0: case 1: case 2: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);                                
-                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de.col(pt), DR_N);
-                            }
-                            break;
-                        }
-                    }
-                }
-                py::gil_scoped_acquire acquire;					
-                omp_set_num_threads(max_threads);			
-            }
-        }
-        if (return_de){	                     
-            return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
-        }
-        else{
-            return py::make_tuple(carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
-        }        
-    }
+    Omega = W + N;
+    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
 }
 
-//This function computes the gradient of displacement (Eulerian) from the deformation gradient 
-py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::array_t<double> &Omega, const double &DTime, const bool &copy) {
-    mat D_cpp = carma::arr_to_mat(D);
-    mat Omega_cpp = carma::arr_to_mat(Omega);
-    mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
-    return carma::mat_to_arr(Delta_log_strain, copy);
+mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
+    mat I = eye(3,3);
+    mat DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
-//This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
-    std::map<string, int> list_Lt_convert;
-    list_Lt_convert = { {"DsigmaDe_2_DSDE",0},{"DsigmaDe_JaumannDD_2_DSDE",1}, {"DtauDe_JaumannDD_2_DSDE",2}, {"DsigmaDe_2_DtauDe",3}};
-	int select = list_Lt_convert [converter_key];
-    mat (*convert_function)(const mat &, const mat &, const mat &); 
-    mat (*convert_function2)(const mat &, const double &);     
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
+    
+    mat invF = inv(F);
+    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_ = mat_FTensor4(Lt);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> H;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    return FTensor4_mat(DSDE_);
+}
 
-    switch (select) {
-        case 0: {
-            convert_function = &simcoon::DsigmaDe_2_DSDE;
-            break;
-        }
-        case 1: {
-            convert_function = &simcoon::DsigmaDe_JaumannDD_2_DSDE;
-            break;
-        }
-        case 2: {
-            convert_function = &simcoon::DtauDe_JaumannDD_2_DSDE;
-            break;
-        }
-        case 3: {
-            convert_function2 = &simcoon::DsigmaDe_2_DtauDe;            
-            break;
-        }
-    }
+mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+    
+    mat invF = inv(F);
+    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_JaumannDD_ = mat_FTensor4(Lt);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> H;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    Dtau_LieDD_(i,j,k,l) = Dtau_JaumannDD_(i,j,k,l) - 0.5*tau_(k,j)*delta_(i,l) - 0.5*tau_(l,j)*delta_(i,k) - 0.5*tau_(i,l)*delta_(j,k) - 0.5*tau_(i,k)*delta_(j,l);
+    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    return FTensor4_mat(DSDE_);
+}
 
-    if (Lt.ndim() == 2) {            
-        if ((F.ndim() != 2) or (stress.ndim() != 1))  {
-            throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
-        }
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma){
+    
+    double J = det(F);
+    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+}
 
-        mat F_cpp = carma::arr_to_mat_view(F);
-        mat Lt_cpp = carma::arr_to_mat_view(Lt);
-        vec stress_cpp = carma::arr_to_col_view(stress);
-        mat Lt_converted(6,6);
+//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
+mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
-        switch (select) {             
-            case 0: case 1: case 2: {
-                Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
-                break;
-            }
-            case 3: {
-                Lt_converted = convert_function2(F_cpp, det(F_cpp));
-                break;
-            }      
-        }          
-        return carma::mat_to_arr(Lt_converted,false);
-    }
-    else if (Lt.ndim() == 3) {
-        cube F_cpp = carma::arr_to_cube_view(F);
-        cube Lt_cpp = carma::arr_to_cube_view(Lt);
-        mat stress_cpp = carma::arr_to_mat_view(stress);
-        int nb_points = Lt_cpp.n_slices;
-        cube Lt_converted(6,6,nb_points);
+    double J = det(F);
+    mat B = get_BBBB(F);
+    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+}
 
-        mat stress_pt;
-
-        int max_threads = omp_get_max_threads();
-        omp_set_num_threads(4);
-        py::gil_scoped_release release;
-
-        #ifdef _OPENMP
-        omp_set_max_active_levels(3);
-        #pragma omp parallel for shared(Lt_converted)  
-        #endif
-
-        for (int pt = 0; pt < nb_points; pt++) {
-            //vec stress_pt = stress_cpp.unsafe_col(pt); 
-            stress_pt = simcoon::v2t_stress(stress_cpp.col(pt));
-            switch (select) {             
-                case 0: case 1: case 2: {
-                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-                    break;
-                }
-                case 3: {
-                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), det(F_cpp.slice(pt)));
-                    break;
-                }      
-            }          
-        }        
-        py::gil_scoped_acquire acquire;					
-        omp_set_num_threads(max_threads);			                     
-        return carma::cube_to_arr(Lt_converted,false);
-    }
+mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
+    
+    double J = det(F);
+    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 
-} //namepsace simpy
+mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
+    
+    return (1./J)*Lt;
+}
+
+mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
+    
+    return Lt*J;
+}
+
+mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
+    
+    Tensor2<double,3,3> F_ = mat_FTensor2(F);
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_;
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> J;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    C_(i,j,k,l) = F_(i,L)*(F_(j,J)*(F_(k,M)*(F_(l,N)*DSDE_(L,J,M,N)))) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    return FTensor4_mat(C_);
+}
+
+mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigma) {
+
+    double J = det(F);
+    return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+//This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
+mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
+
+    Tensor2<double,3,3> F_ = mat_FTensor2(F);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'s', 3> s;
+    Index<'r', 3> r;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> J;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N))));
+    return FTensor4_mat(C_);
+}
+
+mat DSDE_2_DsigmaDe_LieDD(const mat &DSDE, const mat &F) {
+
+    double J = det(F);
+    return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
+}
+
+//This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
+mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
+    
+    Tensor2<double,3,3> F_ = mat_FTensor2(F);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'i', 3> i;
+    Index<'s', 3> s;
+    Index<'r', 3> r;
+    Index<'p', 3> p;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> J;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+    
+    C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N)))) + 0.5*tau_(p,s)*delta_(i,r) + 0.5*tau_(r,s)*delta_(i,p) + 0.5*tau_(i,r)*delta_(s,p) + 0.5*tau_(i,p)*delta_(s,r);
+    return FTensor4_mat(C_);
+}
+
+mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
+    
+    double J = det(F);
+    return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+//This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
+mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
+
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Dtau_LieDD);
+    Tensor4<double,3,3,3,3> Dtau_JaumannDD_;
+    
+    Index<'i', 3> i;
+    Index<'s', 3> s;
+    Index<'r', 3> r;
+    Index<'p', 3> p;
+    
+    Dtau_JaumannDD_(i,s,p,r) = Dtau_LieDD_(i,s,p,r) + 0.5*tau_(p,s)*delta_(i,r) + 0.5*tau_(r,s)*delta_(i,p) + 0.5*tau_(i,r)*delta_(s,p) + 0.5*tau_(i,p)*delta_(s,r);
+    return FTensor4_mat(Dtau_JaumannDD_);
+}
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
+
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Dtau_LieDD);
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_;
+    
+    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_;
+
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    Dtau_logarithmicDD_(i,j,k,l) = Dtau_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    return FTensor4_mat(Dtau_logarithmicDD_);
+}
+    
+//This function computes the tangent modulus that links the Jaumann rate of the Cauchy stress tau to the rate of deformation D, from the tangent modulus that links the Lie derivative of the Cauchy stress tau to the rate of deformation D
+mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
+
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> sigma_ = mat_FTensor2(sigma);
+    Tensor4<double,3,3,3,3> Dsigma_LieDD_ = mat_FTensor4(Dsigma_LieDD);
+    Tensor4<double,3,3,3,3> Dsigma_JaumannDD_;
+    
+    Index<'i', 3> i;
+    Index<'s', 3> s;
+    Index<'r', 3> r;
+    Index<'p', 3> p;
+    
+    Dsigma_JaumannDD_(i,s,p,r) = Dsigma_LieDD_(i,s,p,r) + 0.5*sigma_(p,s)*delta_(i,r) + 0.5*sigma_(r,s)*delta_(i,p) + 0.5*sigma_(i,r)*delta_(s,p) + 0.5*sigma_(i,p)*delta_(s,r);
+    return FTensor4_mat(Dsigma_JaumannDD_);
+}
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
+
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> sigma_ = mat_FTensor2(sigma);
+    Tensor4<double,3,3,3,3> Dsigma_LieDD_ = mat_FTensor4(Dsigma_LieDD);
+    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
+    Tensor4<double,3,3,3,3> I_;
+    
+    Tensor4<double,3,3,3,3> Dsigma_logarithmicDD_;
+
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    Index<'p', 3> p;
+    
+    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
+    Dsigma_logarithmicDD_(i,j,k,l) = Dsigma_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*sigma_(p,j)-sigma_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
+    return FTensor4_mat(Dsigma_logarithmicDD_);
+}
+ 
+} //namespace simcoon
