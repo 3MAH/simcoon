@@ -28,13 +28,14 @@ requirements:
     - boost <=1.84
     - libboost <=1.84
     - gtest
-    - pybind11-abi
+    - pybind11
     - libblas * *openblas # [not win]
     - liblapack * *openblas # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
     - armadillo
     - carma    
+    - llvm-openmp
   run:
     - arpack  # [linux]
     - superlu >=5.2.0,<6  # [linux]
@@ -47,6 +48,7 @@ requirements:
     - pybind11
     - armadillo
     - carma
+    - llvm-openmp
 
 test:
   imports:
