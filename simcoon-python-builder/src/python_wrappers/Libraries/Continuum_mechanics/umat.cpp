@@ -1,8 +1,13 @@
+#include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
 #include <armadillo>
+#include <carma>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
@@ -52,11 +57,12 @@ namespace simpy {
 	
 	py::tuple launch_umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py){
 		//Get the id of umat
+
 		std::map<string, int> list_umat;
 		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"LLDM0",9},{"ZENER",10},{"ZENNK",11},{"PRONK",12},{"EPHIC",17},{"EPHIN",18},{"SMAMO",19},{"SMAMC",20},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 		int id_umat = list_umat[umat_name_py];
 		int arguments_type; //depends on the argument used in the umat
-		
+
 		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &); 
 		void (*umat_function_2)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &); 
 		void (*umat_function_3)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &); 	
@@ -220,14 +226,15 @@ namespace simpy {
 			else {
 				use_temp = false; 
 			}
-			mat etot = carma::arr_to_mat_view(etot_py);
-			int nb_points = etot.n_cols; //number of material points
-			mat Detot = carma::arr_to_mat_view(Detot_py); 
-			mat list_sigma = carma::arr_to_mat(sigma_py); //copy data because values are changed by the umat and returned to python
+			
+			mat list_etot = carma::arr_to_mat_view(etot_py);
+			int nb_points = list_etot.n_cols; //number of material points
+			mat list_Detot = carma::arr_to_mat_view(Detot_py); 
+			mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
 			cube DR = carma::arr_to_cube_view(DR_py); 
 			mat list_props = carma::arr_to_mat_view(props_py);
-			mat list_statev = carma::arr_to_mat(statev_py); //copy data because values are changed by the umat and returned to python
-			mat Wm = carma::arr_to_mat(Wm_py); //copy data because values are changed by the umat and returned to python
+			mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
+			mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
 			cube L(ncomp, ncomp, nb_points);
 			cube Lt(ncomp, ncomp, nb_points);
 			vec sigma_in = zeros(1); //not used
@@ -235,31 +242,52 @@ namespace simpy {
 			int nstatev = list_statev.n_rows;
 
 			vec props(ncomp);
-	
+
+			int max_threads = omp_get_max_threads();
+			omp_set_num_threads(4);
+			py::gil_scoped_release release;
+
+			#ifdef _OPENMP
+		    omp_set_max_active_levels(3);
+			#pragma omp parallel for shared(Lt, L, DR) private(props)
+			#endif
 			for (int pt = 0; pt < nb_points; pt++) {
+
 				//if (use_temp) T = list_T(pt);
-				if (pt < list_props.n_cols) props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)			
+				if (pt < list_props.n_cols) {
+					props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)		
+				} 	
+				else {
+					props = list_props.col(0);
+				}
 				vec statev = list_statev.unsafe_col(pt);
 				vec sigma = list_sigma.unsafe_col(pt); 
-				if (use_temp) T=vec_T(pt);
 
+				vec etot = list_etot.unsafe_col(pt);
+				vec Detot = list_Detot.unsafe_col(pt);
+				vec Wm = list_Wm.unsafe_col(pt);				
+
+				if (use_temp) T=vec_T(pt);
+				
 				switch (arguments_type) {
 
 					case 1: {
-						umat_function(etot.col(pt), Detot.col(pt), sigma, Lt.slice(pt), L.slice(pt), sigma_in, DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0,pt), Wm(1,pt), Wm(2,pt), Wm(3,pt), ndi, nshr, start, solver_type, tnew_dt);
+						umat_function(etot, Detot, sigma, Lt.slice(pt), L.slice(pt), sigma_in, DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 						break;
 					}
 					case 2: {
-						umat_function_2(etot.col(pt), Detot.col(pt), sigma, Lt.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0,pt), Wm(1,pt), Wm(2,pt), Wm(3,pt), ndi, nshr, start, tnew_dt);
+						umat_function_2(etot, Detot, sigma, Lt.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 						break;
 					}
 					case 3: {
-						umat_function_3(etot.col(pt), Detot.col(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0,pt), Wm(1,pt), Wm(2,pt), Wm(3,pt), ndi, nshr, start, tnew_dt);
+						umat_function_3(etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 						break;
 					}
 				}
 			}
-			return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(Wm, false), carma::cube_to_arr(Lt, false));
+			py::gil_scoped_acquire acquire;					
+			omp_set_num_threads(max_threads);			
+			return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 		}
 	}
 }

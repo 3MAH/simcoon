@@ -6,6 +6,10 @@
 #include <carma>
 #include <armadillo>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
@@ -75,8 +79,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             throw std::invalid_argument("the number of dim of F1 should be the same as F0");
         }
 
-        mat F0_cpp = carma::arr_to_mat(F0);
-        mat F1_cpp = carma::arr_to_mat(F1);
+        mat F0_cpp = carma::arr_to_mat_view(F0);
+        mat F1_cpp = carma::arr_to_mat_view(F1);
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
@@ -129,7 +133,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         cube D(3,3,nb_points);            
         cube N_1(3,3,nb_points);
         cube N_2(3,3,nb_points);                            
-        cube Omega = zeros(3,3, nb_points); 			
+        cube Omega = zeros(3,3, nb_points); 	
+        mat de;
+        if(return_de) de.set_size(6,nb_points);
+        mat DR_N = zeros(3,3);
+        mat I = eye(3,3);        
 
         if (F0.ndim() == 2) {
             mat vec_F0 = carma::arr_to_mat_view(F0);
@@ -138,10 +146,20 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         		switch (corate) {
                     case 0: case 1: case 2: {
                         corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                        if (return_de) {
+                            vec de_col = de.unsafe_col(pt);
+                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                        }
                         break;
                     }
                     case 3: {
                         corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                        if (return_de) {
+                            vec de_col = de.unsafe_col(pt);                                
+                            DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                            de_col = simcoon::rotate_strain(de_col, DR_N);
+                        }
                         break;
                     }
                 }
@@ -151,57 +169,79 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             cube F0_cpp = carma::arr_to_cube_view(F0); 
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
+
+                int max_threads = omp_get_max_threads();
+                omp_set_num_threads(4);
+                py::gil_scoped_release release;
+
+                #ifdef _OPENMP
+                omp_set_max_active_levels(3);
+                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)    
+    			#endif
                 for (int pt = 0; pt < nb_points; pt++) {
 
             		switch (corate) {
                         case 0: case 1: case 2: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                            }
                             break;
                         }
                         case 3: {
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);                                
+                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                                de_col = simcoon::rotate_strain(de_col, DR_N);
+                            }
                             break;
                         }
                     }
                 }
+                py::gil_scoped_acquire acquire;					
+                omp_set_num_threads(max_threads);			
             }
             else {
+
+                int max_threads = omp_get_max_threads();
+                omp_set_num_threads(4);
+                py::gil_scoped_release release;
+
+                #ifdef _OPENMP
+                omp_set_max_active_levels(3);
+                #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
+    			#endif
                 for (int pt = 0; pt < nb_points; pt++) {
 
             		switch (corate) {                    
                         case 0: case 1: case 2: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                            }
                             break;
                         }
                         case 3: {
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);                                
+                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                                de_col = simcoon::rotate_strain(de.col(pt), DR_N);
+                            }
                             break;
                         }
                     }
                 }
+                py::gil_scoped_acquire acquire;					
+                omp_set_num_threads(max_threads);			
             }
         }
-        if (return_de){
-            //also return the strain increment
-            mat de(6,nb_points);
-            for (int pt = 0; pt < nb_points; pt++) {
-
-        		switch (corate) {
-                    case 0: case 1: case 2: {
-                    //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
-                    //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime));                 
-                        de.col(pt) = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        break;
-                    }
-                    case 3: {
-                        mat I = eye(3,3);
-                        mat DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                        de.col(pt) = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        de.col(pt) = simcoon::rotate_strain(de.col(pt), DR_N);
-                        break;
-                    }     
-                }           
-            }            
+        if (return_de){	                     
             return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
         }
         else{
@@ -250,11 +290,21 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
         }
 
-        mat F_cpp = carma::arr_to_mat(F);
-        mat Lt_cpp = carma::arr_to_mat(Lt);
-        vec stress_cpp = carma::arr_to_col(stress);
+        mat F_cpp = carma::arr_to_mat_view(F);
+        mat Lt_cpp = carma::arr_to_mat_view(Lt);
+        vec stress_cpp = carma::arr_to_col_view(stress);
+        mat Lt_converted(6,6);
 
-        mat Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
+        switch (select) {             
+            case 0: case 1: case 2: {
+                Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
+                break;
+            }
+            case 3: {
+                Lt_converted = convert_function2(F_cpp, det(F_cpp));
+                break;
+            }      
+        }          
         return carma::mat_to_arr(Lt_converted,false);
     }
     else if (Lt.ndim() == 3) {
@@ -265,6 +315,15 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         cube Lt_converted(6,6,nb_points);
 
         mat stress_pt;
+
+        int max_threads = omp_get_max_threads();
+        omp_set_num_threads(4);
+        py::gil_scoped_release release;
+
+        #ifdef _OPENMP
+        omp_set_max_active_levels(3);
+        #pragma omp parallel for shared(Lt_converted)  
+        #endif
 
         for (int pt = 0; pt < nb_points; pt++) {
             //vec stress_pt = stress_cpp.unsafe_col(pt); 
@@ -280,6 +339,8 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                 }      
             }          
         }        
+        py::gil_scoped_acquire acquire;					
+        omp_set_num_threads(max_threads);			                     
         return carma::cube_to_arr(Lt_converted,false);
     }
 }
