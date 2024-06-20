@@ -21,8 +21,8 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
-#include <armadillo>
 #include <carma>
+#include <armadillo>
 
 namespace py = pybind11;
 
