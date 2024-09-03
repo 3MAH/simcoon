@@ -318,42 +318,6 @@ Tensor4<double,3,3,3,3> mat_FTensor4(const mat &L) {
         }
     }
     return C;
-}
-    
-///This computes the operator b_k X b_l X b_m X b_n according to 2 vectors b_i and b_j
-mat B_klmn(const vec &b_i, const vec &b_j) {
-
-	mat Bij = b_i*b_j.t();
-	mat BBBB = zeros(6,6);
-
-	int ij=0;
-	int kl=0;
-    
-    umat Id(3,3);
-    Id(0,0) = 0;
-    Id(0,1) = 3;
-    Id(0,2) = 4;
-    Id(1,0) = 3;
-    Id(1,1) = 1;
-    Id(1,2) = 5;
-    Id(2,0) = 4;
-    Id(2,1) = 5;
-    Id(2,2) = 2;
-	
-	for (int i=0; i<3; i++) {
-		for (int j=i; j<3; j++) {
-			ij = Id(i,j);
-			for (int k=0; k<3; k++) {
-				for (int l=k; l<3; l++) {
-					kl = Id(k,l);
-					BBBB(ij,kl) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
-				}
-			}
-		}
-	}
-	
-	return BBBB;
-}
-    
+}    
     
 } //namespace simcoon
