@@ -30,9 +30,9 @@ namespace simcoon{
  * @param v, b, n
  * @return The Prager equivalent stress (double)
  * @details Returns the Prager equivalent stress \f$ \mathbf{\sigma}^{P} \f$, considering
-\f[
-    \sigma^{P} = \sigma^{VM} \left(\frac{1 + b \cdot J_3 \left(\mathbf{\sigma} \right)}{\left(J_2 \left(\mathbf{\sigma} \right) \right)^{3/2} } \right)^{m}
-\f]
+    \f[
+        \sigma^{P} = \sigma^{VM} \left(\frac{1 + b \cdot J_3 \left(\mathbf{\sigma} \right)}{\left(J_2 \left(\mathbf{\sigma} \right) \right)^{3/2} } \right)^{m}
+    \f]
     considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
     Note that if n > 10, the Prager criteria is sufficiently close to the Mises that the Mises norm is used to avoid numerical instabilities from high-power computations
  * @code 
@@ -49,12 +49,12 @@ double Prager_stress(const arma::vec &v, const double &b, const double &n);
  * @param v, b, n
  * @return The derivative of the Prager equivalent stress (arma::vec)
  * @details Returns the derivative of the Prager equivalent stress with respect to stress. It main use is to define evolution equations for strain based on an associated rule of a convex yield surface
-\f[
-    \frac{\partial \sigma^{P}}{\partial \mathbf{\sigma}} = \sqrt{3} \left( \frac{1. + b * J_3}{J_2^{3/2}} \right)^{1/n-1} \, \frac{1}{2} \frac{\sqrt{J_2}}{\mathbf{\sigma}'} 
-    + b \, m \left( 6 J_2^2 \right) \left( 6 J_2 \mathbf{\sigma}' \cdot \mathbf{\sigma}' - 4 J_2^2 \mathbf{I} + \frac{3}{m-9} J_3 \mathbf{\sigma}' \right)
-\f]
-    considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
-    Note that if n > 10, the Prager criteria is sufficiently close to the Mises that the derivative of the Mises norm is used to avoid numerical instabilities from high-power computations
+    \f[
+        \frac{\partial \sigma^{P}}{\partial \mathbf{\sigma}} = \sqrt{3} \left( \frac{1. + b * J_3}{J_2^{3/2}} \right)^{1/n-1} \, \frac{1}{2} \frac{\sqrt{J_2}}{\mathbf{\sigma}'} 
+        + b \, m \left( 6 J_2^2 \right) \left( 6 J_2 \mathbf{\sigma}' \cdot \mathbf{\sigma}' - 4 J_2^2 \mathbf{I} + \frac{3}{m-9} J_3 \mathbf{\sigma}' \right)
+    \f]
+ *   considering the input stress \f$ \mathbf{\sigma} \f$, \f$ \mathbf{\sigma}^{VM} \f$ is the Von Mises computed equivalent stress, and \f$ b \f$ and \f$ m \f$ are parameter that define the equivalent stress.
+ *   Note that if n > 10, the Prager criteria is sufficiently close to the Mises that the derivative of the Mises norm is used to avoid numerical instabilities from high-power computations
  * @code 
         vec sigma = randu(6);
         double b = 1.2;
@@ -69,11 +69,11 @@ arma::vec dPrager_stress(const arma::vec &v, const double &b, const double &n);
  * @param v
  * @return The Prager equivalent stress (double)
  * @details Returns the Tresca equivalent stress \f$ \mathbf{\sigma}^{T} \f$, considering
-\f[
-    \sigma^{T} = \sigma_{I} - \sigma_{III},
-\f]
+    \f[
+        \sigma^{T} = \sigma_{I} - \sigma_{III},
+    \f]
     considering the input stress \f$ \mathbf{\sigma} \f$.
-    Note that the principal stress are classified such that \f$ \sigma_{I} \geq \sigma_{II} \geq \sigma_{III}.
+    Note that the principal stress are classified such that \f$ \sigma_{I} \geq \sigma_{II} \geq \sigma_{III} \f$.
  * @code 
         vec sigma = randu(6);
         double sigma_Tresca = Tresca_stress(sigma);
@@ -172,7 +172,8 @@ arma::mat P_Ani(const arma::vec &P_params);
 \f]
     Considering the Mises equivalent strain 
 \f[ 
-    \sigma^{M} & = \left( \frac{1}{2} \left[ \left( \sigma_{11} - \sigma_{22} \right)^2 + \left( \sigma_{11} - \sigma_{33} \right)^2 + \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
+    \begin{align}    
+    \sigma^{M} & = \frac{1}{2} \left( \left( \sigma_{11} - \sigma_{22} \right)^2 + \left( \sigma_{11} - \sigma_{33} \right)^2 + \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
      & + \left. 6\,\sigma_{12}^2 + 6\,\sigma_{13}^2 + 6\,\sigma_{23}^2 \right)^{1/2}
     \end{align}
 \f]
