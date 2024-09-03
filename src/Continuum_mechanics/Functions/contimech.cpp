@@ -394,6 +394,60 @@ mat auto_dyadic(const mat &A) {
     
 }
 
+mat dyadic_4vectors_sym(const vec &n_a, const vec &n_b, const std::string  &conv) {
+
+	mat C = zeros(6,6);
+
+	int ij=0;
+	int kl=0;
+    
+    umat Id(3,3);
+    Id(0,0) = 0;
+    Id(0,1) = 3;
+    Id(0,2) = 4;
+    Id(1,0) = 3;
+    Id(1,1) = 1;
+    Id(1,2) = 5;
+    Id(2,0) = 4;
+    Id(2,1) = 5;
+    Id(2,2) = 2;
+
+	if (conv == "aabb") {
+
+		for (int i=0; i<3; i++) {
+			for (int j=i; j<3; j++) {
+				ij = Id(i,j);
+				for (int k=0; k<3; k++) {
+					for (int l=k; l<3; l++) {
+						kl = Id(k,l);
+						C(ij,kl) = n_a(i)*n_a(j)*n_b(k)*n_b(l);
+					}
+				}
+			}
+		}
+		return C;
+	}
+	else if (conv == "abab") {
+
+		for (int i=0; i<3; i++) {
+			for (int j=i; j<3; j++) {
+				ij = Id(i,j);
+				for (int k=0; k<3; k++) {
+					for (int l=k; l<3; l++) {
+						kl = Id(k,l);
+						C(ij,kl) = 0.5*(n_a(i)*n_b(j)*n_a(k)*n_b(l) + n_a(i)*n_b(j)*n_b(k)*n_a(l));
+					}
+				}
+			}
+		}
+		return C;		
+		
+	}
+	else {
+	    throw std::invalid_argument("conv string must be either aabb or abab");
+	}
+}
+
 mat dyadic(const mat &A, const mat &B) {
             
     Tensor2<double,3,3> A_ = mat_FTensor2(A);
@@ -409,7 +463,7 @@ mat dyadic(const mat &A, const mat &B) {
     return FTensor4_mat(C_);    
 }
 
-///This computes the symmetric 4th-order dyadic product A o A = 0.5*(A(i,j)*A(k,l) + A(i,j)*A(l,k));
+///This computes the symmetric 4th-order dyadic product A o A = 0.5*(A(i,k)*A(j,l) + A(i,l)*A(j,k));
 mat auto_sym_dyadic_operator(const mat &A) {
 
 	mat C = zeros(6,6);
@@ -443,7 +497,7 @@ mat auto_sym_dyadic_operator(const mat &A) {
 	return C;
 }
 
-///This computes the symmetric 4th-order dyadic product A o B = 0.5*(A(i,j)*B(k,l) + A(i,j)*B(l,k));
+///This computes the symmetric 4th-order dyadic product A o B = 0.5*(A(i,k)*B(j,l) + A(i,l)*B(j,k));
 mat sym_dyadic_operator(const mat &A, const mat &B) {
 
 	mat C = zeros(6,6);
@@ -475,6 +529,42 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	}
 	return C;
 }
+
+///This computes the operator BBBB such that B_i x D x B_j = BBBB x D, considering B_i and B_j are projection tensors of the vectors b_i and b_j
+mat B_klmn(const vec &b_i, const vec &b_j) {
+
+	mat Bij = b_i*b_j.t();
+	mat BBBB = zeros(6,6);
+
+	int ij=0;
+	int kl=0;
+    
+    umat Id(3,3);
+    Id(0,0) = 0;
+    Id(0,1) = 3;
+    Id(0,2) = 4;
+    Id(1,0) = 3;
+    Id(1,1) = 1;
+    Id(1,2) = 5;
+    Id(2,0) = 4;
+    Id(2,1) = 5;
+    Id(2,2) = 2;
+	
+	for (int i=0; i<3; i++) {
+		for (int j=i; j<3; j++) {
+			ij = Id(i,j);
+			for (int k=0; k<3; k++) {
+				for (int l=k; l<3; l++) {
+					kl = Id(k,l);
+					BBBB(ij,kl) = 0.5*(Bij(i,j)*Bij(k,l) + Bij(i,j)*Bij(l,k));
+				}
+			}
+		}
+	}
+	
+	return BBBB;
+}
+
 
 /*mat eulerian_determinant(const mat &A) {
 	mat Id = eye(3,3);
