@@ -97,7 +97,7 @@ arma::vec L_iso_props(const arma::mat &L);
  *     vec eliso_props = L_iso_props(L);
  * @endcode
 */
-arma::vec M_iso_props(const arma::mat &);
+arma::vec M_iso_props(const arma::mat &M);
     
 /**
  * @brief Provides material parameters of a linear transversely isotropic material from a stiffness matrix
@@ -107,6 +107,7 @@ arma::vec M_iso_props(const arma::mat &);
  * do not exactly correspond to an isotropic material)
  * 
  * @param L (6x6 arma::mat) A stiffness tensor
+ * @param axis axis of symetry for the linear transversely isotropic material
  * @return (arma::vec) the vector of parameters \f$ \left(E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT} \right) \f$
  * 
  * @details Example: 
@@ -121,7 +122,7 @@ arma::vec M_iso_props(const arma::mat &);
     vec isotrans_props = L_isotrans_props(L, axis);
  * @endcode
 */
-arma::vec L_isotrans_props(const arma::mat &, const int &);
+arma::vec L_isotrans_props(const arma::mat &L, const int &axis);
 
 /**
  * @brief Provides material parameters of a linear transversely isotropic material from a compliance matrix
@@ -131,6 +132,7 @@ arma::vec L_isotrans_props(const arma::mat &, const int &);
  * do not exactly correspond to an isotropic material)
  * 
  * @param M (6x6 arma::mat) A compliance tensor
+ * @param axis axis of symetry for the linear transversely isotropic material
  * @return (arma::vec) the vector of parameters \f$ \left(E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT} \right) \f$
  * 
  * @details Example: 
@@ -145,7 +147,7 @@ arma::vec L_isotrans_props(const arma::mat &, const int &);
     vec isotrans_props = M_isotrans_props(M, axis);
  * @endcode
 */
-arma::vec M_isotrans_props(const arma::mat &, const int &);
+arma::vec M_isotrans_props(const arma::mat &M, const int &axis);
 
 /**
  * @brief Provides material parameters of a cubic material from a stiffness matrix
@@ -163,7 +165,7 @@ arma::vec M_isotrans_props(const arma::mat &, const int &);
     vec cubic_props = L_cubic_props(L);
  * @endcode
 */
-arma::vec L_cubic_props(const arma::mat &);
+arma::vec L_cubic_props(const arma::mat &L);
 
 /**
  * @brief Provides material parameters of a cubic material from a compliance matrix
@@ -181,7 +183,7 @@ arma::vec L_cubic_props(const arma::mat &);
     vec cubic_props = M_cubic_props(M);
  * @endcode
 */
-arma::vec M_cubic_props(const arma::mat &);
+arma::vec M_cubic_props(const arma::mat &M);
     
 /**
  * @brief Provides material parameters of an orthotropic material from a stiffness matrix
@@ -208,7 +210,7 @@ arma::vec M_cubic_props(const arma::mat &);
     vec ortho_props = L_ortho_props(L);
  * @endcode
 */
-arma::vec L_ortho_props(const arma::mat &);
+arma::vec L_ortho_props(const arma::mat &L);
     
 /**
  * @brief Provides material parameters of an orthotropic material from a compliance matrix
@@ -235,7 +237,7 @@ arma::vec L_ortho_props(const arma::mat &);
     vec ortho_props = M_ortho_props(M);
  * @endcode
 */
-arma::vec M_ortho_props(const arma::mat &);
+arma::vec M_ortho_props(const arma::mat &M);
     
 /**
  * @brief Provides material parameters of an anisotropic material from a compliance matrix
@@ -285,6 +287,6 @@ arma::vec M_ortho_props(const arma::mat &);
     vec aniso_props = M_aniso_props(M);
  * @endcode
 */
-arma::vec M_aniso_props(const arma::mat &);
+arma::vec M_aniso_props(const arma::mat &M);
 
 } //namespace simcoon
