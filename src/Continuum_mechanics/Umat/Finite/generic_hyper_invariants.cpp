@@ -15,8 +15,8 @@
  
  */
 
-///@file elastic_isotropic.cpp
-///@brief User subroutine for Isotropic elastic materials in 3D case
+///@file generic_hyper_pstretch.cpp
+///@brief User subroutine for hyperelastic materials using isochoric invariants
 ///@version 1.0
 
 #include <iostream>
@@ -132,12 +132,12 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     }
 
     mat m_sigma_iso = sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b, J);
-    mat m_sigma_vol = sigma_vol_hyper_invariants(dUdJ, b, J);    
+    mat m_sigma_vol = sigma_vol_hyper(dUdJ, b, J);    
     mat m_sigma = m_sigma_iso + m_sigma_vol;
     sigma = t2v_stress(m_sigma);  
 
     mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);    
-    mat Lt_vol = L_vol_hyper_invariants(dUdJ, dU2dJ2, b, J);
+    mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
     Lt = Lt_iso + Lt_vol;
 
     if(start) {
@@ -149,6 +149,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     cout << "Lt_iso = " << Lt_iso << endl;    
     cout << "Lt_vol = " << Lt_vol << endl;        
     cout << "eig(Lt)" << eig_sym(Lt);
+    
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%Detot);
     Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
