@@ -235,7 +235,7 @@ arma::vec Kirchoff2PKII(const arma::vec &tau, const arma::mat &F, const double &
  * @param Sigma (3x3 arma::mat) first Piola-Kirchoff stress tensor \f$ \mathbf{\Sigma} \f$
  * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param J (double, optional) determinant of the transformation gradient \f$ \textrm{det}\,\mathbf{F} \f$ 
- * @return (3x3 arma::mat) the Kirchoff stress tensor \f$ \mathbf{\tau}
+ * @return (3x3 arma::mat) the Kirchoff stress tensor \f$ \mathbf{\tau} \f$
  * 
  * @details Example: 
  * @code
@@ -310,6 +310,6 @@ arma::mat PKI2Cauchy(const arma::mat &Sigma, const arma::mat &F, const double &J
  *      mat sigma = PKII2Cauchy(PKII, F);
  * @endcode
 */
-arma::mat PKII2Cauchy(const arma::mat &, const arma::mat &, const double & = 0.);
+arma::mat PKII2Cauchy(const arma::mat &S, const arma::mat &F, const double &J = 0.);
     
 } //namespace simcoon
