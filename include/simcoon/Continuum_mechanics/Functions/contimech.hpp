@@ -18,7 +18,7 @@
 /**
 * @file contimech.hpp
 * @author Yves Chemisky 
-* @section The contimech library contains Functions that computes continuu mechanical quatities and operations on stress/strains, directions, etc
+* @section Contimech library contains Functions that computes continuu mechanical quatities and operations on stress/strains, directions, etc
 */
 
 #pragma once
@@ -394,6 +394,21 @@ arma::mat sym_dyadic(const arma::mat &a, const arma::mat &b);
 arma::mat auto_dyadic(const arma::mat &a);
 
 /**
+ * @brief Provides the dyadic product of four vectors to provide a symmetric 4th order tensor (minor symmetry)
+ * @param a
+ * @details This function returns the operation \f$ c = n_a \otimes n_a \otimes n_b \otimes  n_b \f$ if convention ('conv') is 'aabb' or \f$ c = 0.5 * \left( n_a \otimes n_b \otimes n_a \otimes  n_b + n_a \otimes n_b \otimes n_b \otimes n_a \right) if convention ('conv') is 'abab' \f$.
+ *  The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
+ * @returns The 6x6 matrix that represent the dyadic product (arma::mat)
+ * @code 
+    vec n_a = randu(3);
+    vec n_b = randu(3);    
+    mat c = dyadic_4vectors_sym(n_a, n_b, "aabb");
+ * @endcode
+*/
+arma::mat dyadic_4vectors_sym(const arma::vec &n_a, const arma::vec &n_b, const std::string &conv);
+
+
+/**
  * @brief Provides the dyadic product of of two symmetric tensors
  * @param a, b
  * @details This function returns the operation \f$ c = a \otimes b \f$. The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
@@ -441,5 +456,31 @@ arma::mat auto_sym_dyadic_operator(const arma::mat &a);
  * @endcode
 */
 arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
+
+/**
+ * @brief Provides the symmetric 4th-order tensor B_klmn, defined as B_i x D x B_j = B_klmn x D, considering B_i and B_j are projection tensors of the vectors b_i and b_j
+ * @param b_i, b_j
+ * @details  The function returns a 6x6 matrix that correspond to a 4th order tensor. Note that such conversion to 6x6 matrices product correspond to a conversion with the component of the 4th order tensor correspond to the component of the matrix (such as stiffness matrices)
+ * @returns The 6x6 matrix that represent the tensor BBBB
+ * @code 
+    mat B = L_Cauchy_Green(F1);
+    
+    vec bi = zeros(3);
+    mat Bi;
+    eig_sym(bi, Bi, B);
+    mat BBBB = zeros(6,6);
+    
+    double f_z = 0.;
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
+            }
+        }
+    }
+ * @endcode
+*/
+arma::mat B_klmn(const arma::vec &b_i, const arma::vec &b_j);
 
 } //namespace simcoon
