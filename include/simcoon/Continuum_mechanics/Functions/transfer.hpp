@@ -177,7 +177,7 @@ FTensor::Tensor1<double,3> vec_FTensor1(const arma::vec &v);
 /**
  * @brief Provides the FTensor matrix (Tensor2<double,3,3>) of a 3x3 armadillo matrix (arma::mat 3x3)
  *
- * @param v (arma::mat 3x3) the armadillo matrix 
+ * @param m (arma::mat 3x3) the armadillo matrix 
  * @return (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
  *
  * @details Example:
@@ -186,7 +186,7 @@ FTensor::Tensor1<double,3> vec_FTensor1(const arma::vec &v);
         FTensor::Tensor2<double,3,3> FT2 = mat_FTensor2(m);
  * @endcode
 */
-FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &);
+FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &m);
 
 /**
  * @brief Provides the FTensor matrix (Tensor2<double,3,3>) of armadillo column vector that correspond to a strain vector in Voigt notation (arma::vec size=6)
@@ -201,11 +201,10 @@ FTensor::Tensor2<double,3,3> mat_FTensor2(const arma::mat &);
         FTensor::Tensor2<double,3,3> FT2_strain = v_FTensor2_strain(v);
  * @endcode
 */
-FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &);
+FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &v);
 
-//This function transforms a stress Voigt vector to a FTensor Tensor of the 2nd rank
 /**
- * @brief Provides a strain vector in Voigt notation (arma::vec size=6) the FTensor matrix (Tensor2<double,3,3>) of armadillo column vector that correspond to a strain vector in Voigt notation (arma::vec size=6)
+ * @brief Provides the FTensor matrix (Tensor2<double,3,3>) of armadillo column vector that correspond to a stress vector in Voigt notation (arma::vec size=6)
  *
  * @param v (arma::vec size=6) the strain tensor written in with Voigt notation
  * @return (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
@@ -217,26 +216,108 @@ FTensor::Tensor2<double,3,3> v_FTensor2_strain(const arma::vec &);
         FTensor::Tensor2<double,3,3> FT2_strain = v_FTensor2_strain(v);
  * @endcode
 */
-FTensor::Tensor2<double,3,3> v_FTensor2_stress(const arma::vec &);
+FTensor::Tensor2<double,3,3> v_FTensor2_stress(const arma::vec &v);
 
-//This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
-arma::vec FTensor1_vec(const FTensor::Tensor1<double,3> &);
+/**
+ * @brief Provides an armadillo vector (arma::vec size=3) from a FTensor Tensor of the 1st rank (Tensor1<double,3>)
+ *
+ * @param FT1 (FTensor::Tensor1<double,3>) the FTensor of rank 1, and dimension 3
+ * @return (arma::vec size=3) the corresponding armadillo vector
+ *
+ * @details Example:
+ * @code
+        FTensor::Tensor1<double,3> FT1 {0,1,2};
+        arma::vec v = FTensor1_vec(FT1);
+ * @endcode
+*/
+arma::vec FTensor1_vec(const FTensor::Tensor1<double,3> &FT1);
 
-//This function transforms an armadillo 3x3 matrix to a FTensor Tensor of the 2nd rank
-arma::mat FTensor2_mat(const FTensor::Tensor2<double,3,3> &);
+/**
+ * @brief Provides an armadillo matrix (arma::mat 3x3) to a FTensor Tensor of the 2nd rank (Tensor2<double,3,3>)
+ *
+ * @param FT2 (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
+ * @return (arma::mat 3x3) the corresponding armadillo matrix
+ *
+ * @details Example:
+ * @code
+        FTensor::Tensor2<double,3,3> FT2 {00, 01, 02
+                                          10, 11, 12
+                                          20, 21, 22};
+        arma::mat m = FTensor2_mat(FT2);
+ * @endcode
+*/
+arma::mat FTensor2_mat(const FTensor::Tensor2<double,3,3> &FT2);
 
-//This function transforms a FTensor Tensor of the 2nd rank to a strain Voigt vector
-arma::vec FTensor2_v_strain(const FTensor::Tensor2<double,3,3> &);
+/**
+ * @brief Provides an armadillo vec in Voigt notation (arma::vec size=6) from a strain tensor expressed as a FTensor Tensor of the 2nd rank (Tensor2<double,3,3>)
+ *
+ * @param FT2 (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
+ * @return (arma::vec size=6) the corresponding armadillo strain vector in Voigt notation
+ *
+ * @details Example:
+ * @code
+        FTensor::Tensor2<double,3,3> FT2 {00, 01, 02
+                                          10, 11, 12
+                                          20, 21, 22};
+        arma::vec E = FTensor2_v_strain(FT2);
+ * @endcode
+*/
+arma::vec FTensor2_v_strain(const FTensor::Tensor2<double,3,3> &FT2);
     
-//This function transforms a FTensor Tensor of the 2nd rank to a stress Voigt vector
-arma::vec FTensor2_v_stress(const FTensor::Tensor2<double,3,3> &);
+/**
+ * @brief Provides an armadillo vec in Voigt notation (arma::vec size=6) from a stress tensor expressed as a FTensor Tensor of the 2nd rank (Tensor2<double,3,3>)
+ *
+ * @param FT2 (Tensor2<double,3,3>) the Ftensor of dimension 2, size=3x3
+ * @return (arma::vec size=6) the corresponding armadillo strain vector in Voigt notation
+ *
+ * @details Example:
+ * @code
+        FTensor::Tensor2<double,3,3> FT2 {00, 01, 02
+                                          10, 11, 12
+                                          20, 21, 22};
+        arma::vec sigma = FTensor2_v_stress(FT2);
+ * @endcode
+*/
+arma::vec FTensor2_v_stress(const FTensor::Tensor2<double,3,3> &FT2);
 
-//This function transforms a FTensor Tensor of the 4nd rank to a stiffness symmetric matrix 6x6
-arma::mat FTensor4_mat(const FTensor::Tensor4<double,3,3,3,3> &);
+/**
+ * @brief Provides an armadillo (stiffness) mat in Voigt notation (arma::mat 6x6) from a  4th order tensor expressed as a FTensor (Tensor2<double,3,3,3,3>)
+ *
+ * @param FT4 (Tensor4<double,3,3,3,3>) the (stifness) tensor Ftensor of dimension 4, size=3x3x3x3
+ * @return (arma::mat 6x6) the corresponding armadillo (stiffness) matrix in Voigt notation
+ *
+ * @details Example:
+ * @code
+       Tensor2<double,3,3> A_ = mat_FTensor2(A);
+       Tensor4<double,3,3,3,3> C_;
+
+       Index<'i', 3> i;
+       Index<'j', 3> j;
+       Index<'k', 3> k;
+       Index<'l', 3> l;
+              
+       C_(i,j,k,l) = A_(i,j)*A_(k,l);
+       return FTensor4_mat(C_);
+ * @endcode
+*/
+arma::mat FTensor4_mat(const FTensor::Tensor4<double,3,3,3,3> &FT4);
 
 //This function transforms a stiffness symmetric matrix 6x6 to a FTensor Tensor of the 4nd rank
-FTensor::Tensor4<double,3,3,3,3> mat_FTensor4(const arma::mat &);
 
-arma::mat B_klmn(const arma::vec &b_i, const arma::vec &b_j);
+
+/**
+ * @brief Provides a 4th order (stiffness) tensor expressed as a FTensor (Tensor2<double,3,3,3,3>) from an armadillo (stiffness) mat in Voigt notation (arma::mat 6x6) 
+ *
+ * @param L (arma::mat 6x6) the corresponding armadillo (stiffness) matrix in Voigt notation
+ * @return (Tensor4<double,3,3,3,3>) the (stifness) tensor Ftensor of dimension 4, size=3x3x3x3
+ *
+ * @details Example:
+ * @code
+	mat L = randu(6,6);
+       Tensor4<double,3,3,3,3> C;	
+	C = mat_FTensor4(L);
+ * @endcode
+*/
+FTensor::Tensor4<double,3,3,3,3> mat_FTensor4(const arma::mat &L);
     
 } //namespace simcoon
