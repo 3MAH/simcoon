@@ -24,7 +24,7 @@ namespace simcoon{
 /**
 * @file constitutive.hpp
 * @author Yves Chemisky 
-* @section The constitutive library contains all the function helpful to write a constitutive relation of constitutive model
+* @section Constitutive library contains all the function helpful to write a constitutive relation of constitutive model
 */
 
 /**
