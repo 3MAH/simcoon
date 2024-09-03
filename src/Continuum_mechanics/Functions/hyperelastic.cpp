@@ -30,7 +30,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns the modified invariant \bar{I}_1
 vec isochoric_invariants(const mat &b, const double &mJ) {
 
     double J=mJ;
@@ -40,7 +39,7 @@ vec isochoric_invariants(const mat &b, const double &mJ) {
     mat b_bar = pow(J,-2./3.)*b;
     vec I = zeros(3);    
     I(0) = trace(b_bar);
-    I(1) = 0.5*(pow(trace(b_bar),2.))-trace(powmat(b_bar,2));
+    I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
     I(2) = 1.;
     return I;
 }
@@ -57,6 +56,177 @@ vec isochoric_invariants(const vec &lambda, const double &mJ) {
     I(1) = pow(lambda_bar(0),-2.) + pow(lambda_bar(1),-2.) + pow(lambda_bar(2),-2.);
     I(2) = 1.;
     return I;
+}
+
+vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = det(V);
+    }
+    vec lambda = eig_sym(V);
+    vec lambda_bar = pow(J,-1./3.)*lambda;
+    return lambda_bar;    
+}
+
+vec isochoric_pstretch_from_b(const mat &b, const double &mJ) {
+
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = sqrt(det(b));
+    }
+    vec lambda = eig_sym(b);
+    lambda.transform( [](double val) { return (sqrt(val)); } );
+    vec lambda_bar = pow(J,-1./3.)*lambda;
+    return lambda_bar;
+}
+
+vec isochoric_pstretch(const mat &input, const string &input_tensor, const double &mJ) {
+    if (input_tensor == "b") {
+        return isochoric_pstretch_from_b(input, mJ);
+    }
+    if (input_tensor == "v" || input_tensor == "V") {
+        return isochoric_pstretch_from_V(input, mJ);
+    }
+    throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
+}
+
+void pstretch(vec &lambda, mat &n_pvector, const mat &input, const string &input_tensor, const double &mJ) {
+
+    double J=mJ;
+    if (input_tensor == "b") {
+        if (fabs(mJ) < sim_iota) {
+            J = sqrt(det(input));
+        }
+        eig_sym(lambda, n_pvector, input);
+        lambda.transform( [](double val) { return (sqrt(val)); } );
+    }
+    else if (input_tensor == "v" || input_tensor == "V") {
+        if (fabs(mJ) < sim_iota) {
+            J = det(input);
+        }
+        eig_sym(lambda, n_pvector, input);
+    }
+    else {
+        throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
+    }
+}
+
+void pstretch(vec &lambda, mat &n_pvector, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
+
+    pstretch(lambda, n_pvector, input, input_tensor, mJ);
+    N_projectors[0] = n_pvector.col(0)*(n_pvector.col(0)).t();
+    N_projectors[1] = n_pvector.col(1)*(n_pvector.col(1)).t();
+    N_projectors[2] = n_pvector.col(2)*(n_pvector.col(2)).t();        
+}
+
+void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, const string &input_tensor, const double &mJ) {
+
+    double J=mJ;
+    vec lambda = zeros(3);
+
+    if (input_tensor == "b") {
+        if (fabs(mJ) < sim_iota) {
+            J = sqrt(det(input));
+        }        
+        eig_sym(lambda, n_pvectors, input);
+        lambda.transform( [](double val) { return (sqrt(val)); } );
+    }
+    else if (input_tensor == "v" || input_tensor == "V") {
+        if (fabs(mJ) < sim_iota) {
+            J = det(input);
+        }
+        eig_sym(lambda, n_pvectors, input);
+    }
+    else {
+        throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
+    }
+    lambda_bar = pow(J,-1./3.)*lambda;
+}
+
+void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
+
+    isochoric_pstretch(lambda_bar, n_pvectors, input, input_tensor, mJ);
+    N_projectors[0] = n_pvectors.col(0)*(n_pvectors.col(0)).t();
+    N_projectors[1] = n_pvectors.col(1)*(n_pvectors.col(1)).t();
+    N_projectors[2] = n_pvectors.col(2)*(n_pvectors.col(2)).t();        
+}
+
+vec beta_coefs(const vec &dWdlambda_bar, const vec &lambda_bar) {
+
+    vec beta = lambda_bar%dWdlambda_bar - (1./3.)*sum(lambda_bar%dWdlambda_bar)*ones(3);
+    return beta;
+}
+
+mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec &lambda_bar) {
+
+    mat gamma = zeros(3,3);
+    mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + (dWdlambda_bar*lambda_bar.t())%ones(3,3);
+    vec factor_sum_col = (-1./3.)*sum(factor,0);
+    vec factor_sum_row = (-1./3.)*sum(factor,1);
+
+    for(unsigned int i=0; i<3; i++) {
+        for(unsigned int j=0; j<3; j++) {
+                gamma(i,j) = factor_sum_col(i) + factor_sum_row(j);
+        }            
+    }    
+
+    gamma += factor;
+    gamma += (1./9.)*accu(factor)*ones(3,3);
+
+    return gamma;
+}
+
+mat  tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
+    vec lambda_bar = zeros(3);
+    vec n_pvectors = zeros(3);
+    std::vector<mat> N_projectors(3);
+    isochoric_pstretch(lambda_bar, n_pvectors, N_projectors, b, "b", mJ);
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+
+    mat tau_iso = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        tau_iso += beta(i)*N_projectors[i];
+    }
+    return tau_iso;
+}
+
+mat tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const vec &lambda_bar, const std::vector<mat> &N_projectors) {
+
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+    mat tau_iso = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        tau_iso += beta(i)*N_projectors[i];
+    }
+    return tau_iso;
+}
+
+mat sigma_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
+
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = sqrt(det(b));
+    }  
+    vec lambda_bar = zeros(3);
+    vec n_pvectors = zeros(3);
+    std::vector<mat> N_projectors(3);
+    isochoric_pstretch(lambda_bar, n_pvectors, N_projectors, b, "b", mJ);
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+
+    mat tau_iso = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        tau_iso += beta(i)*N_projectors[i];
+    }
+    return (1./J)*tau_iso;
+}
+
+mat sigma_iso_hyper_pstretch(const vec &dWdlambda_bar, const vec &lambda_bar, const std::vector<mat> &N_projectors, const double &J) {
+
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+    mat tau_iso = zeros(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        tau_iso += beta(i)*N_projectors[i];
+    }
+    return (1./J)*tau_iso;
 }
 
 /*vec a_coefs(const double &dWdI_1_bar, const double &dWdI_2_bar, const vec &I_bar) {
@@ -102,7 +272,7 @@ mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar,
     return 2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2));
 }
 
-mat tau_vol_hyper_invariants(const double &dUdJ, const mat &b, const double &mJ) {
+mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
@@ -121,7 +291,7 @@ mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_ba
     return (1./J)*(2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2)));
 }
 
-mat sigma_vol_hyper_invariants(const double &dUdJ, const mat &b, const double &mJ) {
+mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
@@ -129,6 +299,32 @@ mat sigma_vol_hyper_invariants(const double &dUdJ, const mat &b, const double &m
     mat Id = eye(3,3);
     return dUdJ*eye(3,3);
 }
+
+/*mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = sqrt(det(b));
+    }    
+    mat b_bar = pow(J,-2./3.)*b;
+    mat b_bar2 = powmat(b_bar,2);
+    vec I_bar = isochoric_invariants(b,J);
+    mat Id = eye(3,3);
+
+    mat H_1 = ;
+    mat H_2 = ;
+
+    mat gamma_1 = 2.*H_1 - (4./3.)*(I_bar(0)*Idev() - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
+    mat gamma_2 = (8./3.)*(I_bar(0)*(Ireal() - 2.*Ivol()) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+                    + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(dev_b_bar)-H_bar);
+    mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
+    mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
+    mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
+
+    mat L_iso = zeros (6,6);
+    L_iso = (1./J)*(gamma_1*dWdI_1_bar+gamma_2*dWdI_2_bar+gamma_11*dW2dI_11_bar+gamma_12*dW2dI_12_bar+gamma_22*dW2dI_22_bar);
+
+    return L_iso;
+}*/
 
 /*mat L_iso_hyper_invariants(const vec &delta_coefs, const mat &b, const double &mJ) {
     double J=mJ;
@@ -155,6 +351,73 @@ mat sigma_vol_hyper_invariants(const double &dUdJ, const mat &b, const double &m
     return L_iso;
 }*/
 
+mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec &lambda_bar, const mat &n_pvectors, const double &J) {
+
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+    mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
+    mat c = zeros(6,6);
+    mat delta = eye(3,3);
+
+    double factor = 0.;
+
+    for(unsigned int i=0; i<3; i++) {
+        for(unsigned int j=0; j<3; j++) {
+            c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
+        }            
+
+        for(unsigned int j=i; j<3; j++) {
+            if(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.) < 1.E-6) {
+                factor = pow(lambda_bar(i), 2.) * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
+            }
+            else {
+                factor = (beta(j)*pow(lambda_bar(i),2.) - beta(i)*pow(lambda_bar(j),2.))/(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.));
+            }
+
+            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
+        }            
+    }   
+    return (1./J)*c;    
+}
+
+mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const mat &b, const double &mJ) {
+
+    double J=mJ;
+    if (fabs(mJ) < sim_iota) {
+        J = sqrt(det(b));
+    }    
+    vec lambda = eig_sym(b);
+
+    vec lambda_bar = zeros(3);
+    vec n_pvectors = zeros(3);
+    isochoric_pstretch(lambda_bar, n_pvectors, b, "b", J);
+
+    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
+    mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
+    mat c = zeros(6,6);
+    mat delta = eye(3,3);
+
+    double factor = 0.;
+
+    for(unsigned int i=0; i<3; i++) {
+        for(unsigned int j=0; j<3; j++) {
+            c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
+        }            
+
+        for(unsigned int j=i; j<3; j++) {
+            if(pow(lambda(j),2.)-pow(lambda(i),2.) < 1.E-6) {
+                factor = pow(lambda(i), 2.) * pow(lambda(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
+            }
+            else {
+                factor = (beta(j)*pow(lambda(i),2.) - beta(i)*pow(lambda(j),2.))/(pow(lambda(j),2.)-pow(lambda(i),2.));
+            }
+
+            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
+        }            
+    }   
+    return (1./J)*c;
+
+}
+
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
@@ -177,22 +440,15 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
     mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
     mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
 
-    mat L_iso = zeros (6,6);
-    L_iso = (1./J)*(gamma_1*dWdI_1_bar+gamma_2*dWdI_2_bar+gamma_11*dW2dI_11_bar+gamma_12*dW2dI_12_bar+gamma_22*dW2dI_22_bar);
-
-    cout << gamma_2 << endl;
-
-    return L_iso;
+    return (1./J)*(gamma_1*dWdI_1_bar+gamma_2*dWdI_2_bar+gamma_11*dW2dI_11_bar+gamma_12*dW2dI_12_bar+gamma_22*dW2dI_22_bar);
 }
 
-mat L_vol_hyper_invariants(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {
+mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
-    }    
-    mat Id = eye(3,3);
-    mat L_vol = (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();
-    return L_vol;
+    }
+    return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();;
 }
 
 } //namespace simcoon
