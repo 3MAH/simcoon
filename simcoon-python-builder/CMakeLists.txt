@@ -43,9 +43,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-# Set this variable to tell pybind11 to find Python3
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
-set(PYBIND11_FINDPYTHON ON)
+find_package(Python3 COMPONENTS Interpreter Development NumPy)
 
 #Inclusion of Armadillo
 if (MSVC)
