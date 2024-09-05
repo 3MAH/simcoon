@@ -7,15 +7,17 @@ project(simcoon)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # The version number
-set(VERSION_MAJOR 0)
+set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)
-set(VERSION_PATCH 0)
+set(VERSION_PATCH 3)
 
 if(VERSION_PATCH MATCHES "0")
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}")
 else()
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 endif()
+
+set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
 
 ##### RPATH HANDLING ####
 #set(CMAKE_MACOSX_RPATH 1)
@@ -41,6 +43,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
+find_package(Python3 COMPONENTS Interpreter Development NumPy)
+
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
@@ -57,16 +61,11 @@ endif()
 find_package(OpenMP)
 find_package(simcoon REQUIRED)
 
-# Set this variable to tell pybind11 to find Python3
-set(PYBIND11_FINDPYTHON ON)
-
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
-include_directories(SYSTEM ${PYTHON3_INCLUDE_DIRS})
-include_directories(SYSTEM ${Python3_NumPy_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
 
@@ -95,7 +94,7 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
