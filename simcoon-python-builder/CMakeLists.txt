@@ -7,17 +7,15 @@ project(simcoon)
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # The version number
-set(VERSION_MAJOR 1)
+set(VERSION_MAJOR 0)
 set(VERSION_MINOR 9)
-set(VERSION_PATCH 3)
+set(VERSION_PATCH 0)
 
 if(VERSION_PATCH MATCHES "0")
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}")
 else()
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
 endif()
-
-set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
 
 ##### RPATH HANDLING ####
 #set(CMAKE_MACOSX_RPATH 1)
@@ -43,7 +41,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-find_package(Python3 COMPONENTS Interpreter Development NumPy)
+# Set this variable to tell pybind11 to find Python3
+set(PYBIND11_FINDPYTHON ON)
 
 #Inclusion of Armadillo
 if (MSVC)
@@ -94,7 +93,7 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
