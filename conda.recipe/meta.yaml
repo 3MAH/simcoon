@@ -16,13 +16,13 @@ requirements:
     - git # [win]
     - make # [unix]
     - cmake
-    - python    
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - python {{ python }}
   host:
     - arpack  # [linux]
     - superlu >=5.2.0,<6  # [linux]
-    - python
+    - python {{ python }}
     - {{ pin_compatible('numpy') }}
     - pip
     - setuptools
@@ -41,7 +41,7 @@ requirements:
   run:
     - arpack  # [linux]
     - superlu >=5.2.0,<6  # [linux]
-    - python
+    - python {{ python }}
     - {{ pin_compatible('numpy') }}
     - openblas # [not win]
     - mkl # [win]
