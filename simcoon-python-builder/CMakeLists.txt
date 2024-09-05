@@ -41,9 +41,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 set(EXECUTABLE_OUTPUT_PATH bin/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
-# Set this variable to tell pybind11 to find Python3
-set(PYBIND11_FINDPYTHON ON)
-
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
@@ -59,6 +56,9 @@ endif()
 
 find_package(OpenMP)
 find_package(simcoon REQUIRED)
+
+# Set this variable to tell pybind11 to find Python3
+set(PYBIND11_FINDPYTHON ON)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
