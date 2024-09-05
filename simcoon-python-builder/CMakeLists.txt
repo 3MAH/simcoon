@@ -65,6 +65,8 @@ set(PYBIND11_FINDPYTHON ON)
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
+include_directories(SYSTEM ${PYTHON3_INCLUDE_DIRS})
+include_directories(SYSTEM ${Python3_NumPy_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
 
