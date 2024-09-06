@@ -52,6 +52,7 @@ TEST(Thyperelastic, isochoric_invariants)
     mat b_rand = simcoon::v2t_strain(randu(6));
 
     double J = sqrt(det(b_rand));
+    
     mat b_bar = pow(J,-2./3.)*b_rand;
     vec I = zeros(3);    
     I(0) = trace(b_bar);
@@ -61,6 +62,9 @@ TEST(Thyperelastic, isochoric_invariants)
     vec I_rand = simcoon::isochoric_invariants(b_rand);    
 
     cout << "b_rand = " << b_rand << endl;
+    cout << "b_bar = " << b_bar << endl;
+    cout << "J = " << J << endl;    
+
     cout << "I_rand = " << I_rand << endl;
     cout << "I = " << I << endl;    
 
