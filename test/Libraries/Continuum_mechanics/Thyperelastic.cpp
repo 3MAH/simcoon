@@ -49,7 +49,7 @@ TEST(Thyperelastic, isochoric_invariants)
     EXPECT_LT(I_test_lambda(1)-3.,1.E-9);    
     EXPECT_LT(I_test_lambda(2)-1.,1.E-9);
 
-    mat b_rand = simcoon::v2t_strain(randu(6));
+    mat b_rand = simcoon::v2t_strain(randu(6))+eye(3,3);
 
     double J = sqrt(det(b_rand));
     
@@ -59,14 +59,7 @@ TEST(Thyperelastic, isochoric_invariants)
     I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
     I(2) = 1.;
 
-    vec I_rand = simcoon::isochoric_invariants(b_rand);    
-
-    cout << "b_rand = " << b_rand << endl;
-    cout << "b_bar = " << b_bar << endl;
-    cout << "J = " << J << endl;    
-
-    cout << "I_rand = " << I_rand << endl;
-    cout << "I = " << I << endl;    
+    vec I_rand = simcoon::isochoric_invariants(b_rand);     
 
     EXPECT_LT(I_rand(0)-I(0),1.E-9);
     EXPECT_LT(I_rand(1)-I(1),1.E-9);    
