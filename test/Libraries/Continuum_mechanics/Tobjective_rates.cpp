@@ -48,7 +48,7 @@ TEST(Tobjective_rates, get_B)
 	F(1,2) = 1.25;
 	F(2,0) = 1.5;
 	F(2,1) = 3.5;
-	F(2,2) = 6.;
+	F(2,2) = 0.25;
 
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
@@ -101,9 +101,12 @@ TEST(Tobjective_rates, logarithmic_functions)
 	F1(1,2) = 1.25;
 	F1(2,0) = 1.5;
 	F1(2,1) = 3.5;
-	F1(2,2) = 6.;
+	F1(2,2) = 0.25;    
 
     mat F0 = F1*(0.9);
+	F0(0,1) = 3.;    
+	F0(1,0) = 2.;
+
     double DTime = 1.E-3;
 
     //Compute log rate and increment of rotation
@@ -159,6 +162,10 @@ TEST(Tobjective_rates, logarithmic_functions)
     
     logarithmic(DR, D, Omega, DTime, F0, F1);
     
+    cout << "Omega\n" << BBBB << endl;
+    cout << "Omega_test\n" << Omega_test << endl;
+    cout << "Omega_test2\n" << Omega_test2 << endl;
+
     //Test of logarithmic function
     EXPECT_LT(norm(D - D_test,2),1.E-9);
     EXPECT_LT(norm(Omega - Omega_test,2),1.E-9);
