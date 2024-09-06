@@ -58,6 +58,9 @@ TEST(Thyperelastic, isochoric_invariants)
     I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
     I(2) = 1.;
 
+    cout << "I_rand = " << I_rand << endl;
+    cout << "I = " << I << endl;    
+
     vec I_rand = simcoon::isochoric_invariants(b_rand);    
 
     EXPECT_LT(I_rand(0)-I(0),1.E-9);
