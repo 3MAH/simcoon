@@ -1,3 +1,10 @@
+numpy:
+  - 1.24  # Specify the numpy version you want
+  - 1.25
+  - 1.26
+  - 2.0
+  - 2.1 
+
 python:
   - 3.10
   - 3.11
