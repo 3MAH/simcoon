@@ -60,6 +60,7 @@ TEST(Thyperelastic, isochoric_invariants)
 
     vec I_rand = simcoon::isochoric_invariants(b_rand);    
 
+    cout << "b_rand = " << b_rand << endl;
     cout << "I_rand = " << I_rand << endl;
     cout << "I = " << I << endl;    
 
