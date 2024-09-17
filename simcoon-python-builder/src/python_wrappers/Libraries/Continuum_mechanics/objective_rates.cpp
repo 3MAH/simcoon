@@ -47,7 +47,7 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
 
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
-py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de) {
+py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de, const unsigned int &n_threads) {
     std::map<string, int> list_corate;
     list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3}, {"gn",1},{"log",2},{"log_R",3}};
 	int corate = list_corate[corate_name];

@@ -55,7 +55,7 @@ namespace py=pybind11;
 
 namespace simpy {
 	
-	py::tuple launch_umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py){
+	py::tuple launch_umat(const std::string& umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const unsigned int &n_threads){
 		//Get the id of umat
 
 		std::map<string, int> list_umat;
@@ -244,7 +244,7 @@ namespace simpy {
 			vec props(ncomp);
 
 			int max_threads = omp_get_max_threads();
-			omp_set_num_threads(4);
+			omp_set_num_threads(n_threads);
 			py::gil_scoped_release release;
 
 			#ifdef _OPENMP
@@ -289,6 +289,10 @@ namespace simpy {
 			omp_set_num_threads(max_threads);			
 			return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 		}
+		else {
+            throw std::invalid_argument("the dimension of etot_py is not correct (either 1 or 2)");			
+		}
+
 	}
 }
 
@@ -322,7 +326,7 @@ namespace simpy {
 					arguments_type = 4;
 					break;
 				}
-/*				case 5: {
+				case 5: {
 					umat_function = &simcoon::umat_plasticity_iso_CCP;
 					arguments_type = 1;
 					//simcoon::umat_plasticity_iso_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
