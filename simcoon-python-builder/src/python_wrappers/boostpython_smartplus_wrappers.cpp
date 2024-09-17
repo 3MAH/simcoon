@@ -9,6 +9,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/stress.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/criteria.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/hyperelastic.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/recovery_props.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
@@ -135,7 +136,7 @@ PYBIND11_MODULE(simmit, m) {
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
     m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a=true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");    
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a=true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
-    m.def("objective_rate", &objective_rate, "corate_name"_a,"F0"_a, "F1"_a, "dtime"_a, "return_de"_a=false, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
+    m.def("objective_rate", &objective_rate, "corate_name"_a,"F0"_a, "F1"_a, "dtime"_a, "return_de"_a=false, "n_threads"_a = 4, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
 
     //register the damage library
@@ -143,6 +144,10 @@ PYBIND11_MODULE(simmit, m) {
     m.def("damage_kachanov", &damage_kachanov, "stress"_a, "strain"_a, "damage"_a, "A0"_a, "r"_a, "criterion"_a, "This function returns damage evolution (/dt) considering Kachanov's creep damage law");
     m.def("damage_miner", &damage_miner, "S_max"_a, "S_mean"_a, "S_ult"_a, "b"_a, "B0"_a, "beta"_a, "Sl_0"_a = 0., "This function returns the constant damage evolution (/dN) considering Woehler- Miner's damage law");
     m.def("damage_manson", &damage_manson, "S_amp"_a, "C2"_a, "gamma2"_a, "This function returns the constant damage evolution (/dN) considering Coffin-Manson's damage law");
+
+    //register the hyperelastic library
+    m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a=0., "copy"_a=true, "This function computes the isochoric invariants");
+    m.def("isochoric_pstretch", &isochoric_pstretch, "input"_a, "input_tensor"_a="V", "J"_a=0., "copy"_a=true, "This function computes the isochoric invariants");    
 
     //register the transfer library
     m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a=true, "This function transforms the strain Voigt vector into a 3*3 strain matrix");
@@ -207,7 +212,7 @@ PYBIND11_MODULE(simmit, m) {
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a=0., "copy"_a=true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
 
     //umat
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none());
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "n_threads"_a = 4);
 
     // Register the from-python converters for read and solver
     m.def("read_matprops", &read_matprops);
@@ -217,4 +222,8 @@ PYBIND11_MODULE(simmit, m) {
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
+
+    // Register the from-python converters for identification
+    m.def("identification", &identification);
+
 }
