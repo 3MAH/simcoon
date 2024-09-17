@@ -172,7 +172,7 @@ double Eq_stress_P(const vec &v, const mat &H) {
 vec dEq_stress_P(const vec &v, const mat &H) {
    
    if (norm(v,2) > sim_iota) {
-       return (H*v)/Ani_stress(v,H);
+       return (H*v)/Eq_stress_P(v,H);
    }
    else {
        return zeros(6);
