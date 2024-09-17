@@ -8,7 +8,7 @@ include(CheckLibraryExists)
 # The version number
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)
-set(VERSION_PATCH 3)
+set(VERSION_PATCH 4)
 
 if(VERSION_PATCH MATCHES "0")
 	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}")
