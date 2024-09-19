@@ -50,7 +50,7 @@ It is now possible to install simcoon directly with conda :
 ```bash
 conda install -c conda-forge -c set3mah simcoon
 ```
-For using simcoon with Python 3.11 the installation of libboost via conda may
+For using simcoon with Python 3.11 or later the installation of libboost via conda may
 be necessary :
 ```bash
 conda install -c conda-forge libboost
@@ -80,7 +80,8 @@ The next step is to install the required packages:
 ```bash
 conda install -c conda-forge cxx-compiler
 conda install -c conda-forge fortran-compiler
-conda install -c conda-forge armadillo boost pybind11 numpy
+conda install -c conda-forge armadillo boost pybind11 numpy gtest 
+pip install pytest
 ```
 
 Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder.
@@ -91,6 +92,12 @@ The last step is to run the installation script:
 sh Install.sh
 ```
 
+Note that if you want to install numpy that make use of the framework Accelerate in MacOS (for versions earlier than 1.26.4), you shall install numpy with:
+
+```bash
+pip install cython
+pip install --no-binary :all: numpy
+```
 
 
 Authors
