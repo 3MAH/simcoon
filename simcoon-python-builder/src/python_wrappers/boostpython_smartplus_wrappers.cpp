@@ -225,5 +225,6 @@ PYBIND11_MODULE(simmit, m) {
 
     // Register the from-python converters for identification
     m.def("identification", &identification);
+    m.def("calc_cost", &calc_cost, "nfiles"_a, "data_num_name"_a); 
 
 }
