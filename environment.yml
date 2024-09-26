@@ -14,12 +14,11 @@ dependencies:
   - numpy>=1.24
   - pip
   - setuptools
-  - boost <=1.84
-  - libboost <=1.84
+  - boost
+  - libboost
   - gtest
   - pybind11
-  - armadillo
+  - armadillo >= 12.6
   - carma
   - pytest
   - ninja
-  - llvm-openmp
