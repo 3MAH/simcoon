@@ -40,12 +40,9 @@ jobs:
           cmake --install build --config Release          
           ctest --test-dir ${{github.workspace}}/build
 
-          cd ${{github.workspace}}/simcoon-python-builder
-
-          cmake -S . -B ${{github.workspace}}/simcoon-python-builder/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build ${{github.workspace}}/simcoon-python-builder/build
-          cd ${{github.workspace}}/python-setup
-          python -m pip install .
+          cmake -S simcoon-python-builder -B simcoon-python-builder/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build simcoon-python-builder/build
+          python -m pip install python-setup
 
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
