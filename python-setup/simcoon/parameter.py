@@ -4,29 +4,46 @@ Phase class to manage list of solids belonging to the same phase
 
 import os
 import shutil
-from typing import List
-from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple, NamedTuple
 
 
-@dataclass
 class Parameter:
     """
-    Parameter class to manage a set of parameter values to be applied during an identification
+    Parameter class to manage of set of parameters values to be applied during an identification
     and/or DOE test matrix
     :param number: int, number of the constant
+    :param ninput_values: number of inputs for the considered constant
     :param key: alphanumeric key to identify the constant in a file
-    :param value: float, value of the constant
-    :param min_value: float, minimum value of the constant
-    :param max_value: float, maximum value of the constant
-    :param input_files: List[str], list of input files related to the constant
     """
 
-    number: int
-    key: str
-    value: float
-    min_value: float
-    max_value: float
-    input_files: List[str]
+    def __init__(
+        self,
+        number: int = 0,
+        bounds: Tuple[float, float] = (0.0, 1.0),
+        key: str = "",
+        input_files: Optional[List[str]] = None,
+    ) -> None:
+
+        self.number = number
+        self.key = key
+        self.bounds = bounds
+        self._min_value = bounds[0]
+        self._max_value = bounds[1]
+        self.input_files = input_files
+
+        self._value = None
+
+    @property
+    def value(self) -> float:
+
+        if self._value is not None:
+            return self._value
+        else:
+            return 0.5 * (self._min_value + self._max_value)
+
+    @value.setter
+    def value(self, value):
+        self._value = value
 
 
 def read_parameters() -> List[Parameter]:
@@ -43,9 +60,7 @@ def read_parameters() -> List[Parameter]:
             nfiles = int(values[4])
             pa = Parameter(
                 number=int(values[0]),
-                value=0.5 * float(values[1]) + 0.5 * float(values[2]),
-                min_value=float(values[1]),
-                max_value=float(values[2]),
+                bounds=(float(values[1]), float(values[2])),
                 key=values[3],
                 input_files=[values[5 + j] for j in range(nfiles)],
             )
