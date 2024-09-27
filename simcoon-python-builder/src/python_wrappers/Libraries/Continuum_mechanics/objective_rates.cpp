@@ -170,11 +170,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
 
+                #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
                 py::gil_scoped_release release;
 
-                #ifdef _OPENMP
                 omp_set_max_active_levels(3);
                 #pragma omp parallel for shared(DR, D, Omega, F1_cpp)    
     			#endif
@@ -201,16 +201,17 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         }
                     }
                 }
+                #ifdef _OPENMP
                 py::gil_scoped_acquire acquire;					
                 omp_set_num_threads(max_threads);			
+    			#endif                                
             }
             else {
-
+                #ifdef _OPENMP                
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
                 py::gil_scoped_release release;
 
-                #ifdef _OPENMP
                 omp_set_max_active_levels(3);
                 #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
     			#endif
@@ -237,8 +238,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         }
                     }
                 }
+                #ifdef _OPENMP                                
                 py::gil_scoped_acquire acquire;					
-                omp_set_num_threads(max_threads);			
+                omp_set_num_threads(max_threads);	
+    			#endif                		
             }
         }
         if (return_de){	                     
@@ -316,11 +319,11 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
 
         mat stress_pt;
 
+        #ifdef _OPENMP
         int max_threads = omp_get_max_threads();
         omp_set_num_threads(4);
         py::gil_scoped_release release;
 
-        #ifdef _OPENMP
         omp_set_max_active_levels(3);
         #pragma omp parallel for shared(Lt_converted)  
         #endif
@@ -339,8 +342,10 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                 }      
             }          
         }        
+        #ifdef _OPENMP
         py::gil_scoped_acquire acquire;					
         omp_set_num_threads(max_threads);			                     
+        #endif
         return carma::cube_to_arr(Lt_converted,false);
     }
 }
