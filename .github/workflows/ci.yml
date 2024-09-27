@@ -39,13 +39,18 @@ jobs:
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
 
+          cmake -S . -B ${{github.workspace}}/simcoon-python-builder/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build ${{github.workspace}}/simcoon-python-builder/build
+          cd ${{github.workspace}}/python-setup
+          python -m pip install .
+
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v3
         with:
           name: test-logs
-          path: build/Testing/Temporary/LastTest.log          
-        
+          path: build/Testing/Temporary/LastTest.log   
+
   MacOS:
     name: MacOS
     runs-on: "macos-latest"
