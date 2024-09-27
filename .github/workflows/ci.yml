@@ -37,6 +37,7 @@ jobs:
         run: |
           cmake -S . -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
+          cmake --install
           ctest --test-dir ${{github.workspace}}/build
 
           cd ${{github.workspace}}/simcoon-python-builder
