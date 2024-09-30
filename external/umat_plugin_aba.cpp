@@ -48,7 +48,7 @@ public:
         return "umaba";
     }
     
-    void umat_abaqus(simcoon::phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
+    void umat_abaqus(const simcoon::phase_characteristics &rve, const arma::mat &DR, const int &nprops, const int &nstatev, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
         
         // Macroscopic state variables and control increments
         double stress[6];
@@ -84,9 +84,7 @@ public:
         double ddsddt[6];
         char cmname[5];
         strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
-        const int nprops = rve.sptr_matprops->nprops;
         double props[nprops];
-        const int nstatev = rve.sptr_sv_global->nstatev;
         double statev[nstatev+4];                   //+4 for a mechanical response to store Wm components
         double pnewdt = tnew_dt;
         double time[2];
