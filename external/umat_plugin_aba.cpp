@@ -50,14 +50,14 @@ public:
     
     void umat_abaqus(simcoon::phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
         
-        ///@brief Macroscopic state variables and control increments
+        // Macroscopic state variables and control increments
         double stress[6];
         double stran[6];
         double dstran[6];
         double temperature;
         double Dtemperature;
         
-        ///@brief Umat variable list unused here
+        // Umat variable list unused here
         double sse = 0.;
         double spd = 0.;
         double scd = 0.;
@@ -74,7 +74,7 @@ public:
         double coords = 0;
         double drot[9];
             
-        ///@brief Usefull UMAT variables
+        // Usefull UMAT variables
         int ntens = 6;
         int noel = 1;
         int npt = 1;
@@ -84,9 +84,9 @@ public:
         double ddsddt[6];
         char cmname[5];
         strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
-        int nprops = rve.sptr_matprops->nprops;
+        const int nprops = rve.sptr_matprops->nprops;
         double props[nprops];
-        int nstatev = rve.sptr_sv_global->nstatev;
+        const int nstatev = rve.sptr_sv_global->nstatev;
         double statev[nstatev+4];                   //+4 for a mechanical response to store Wm components
         double pnewdt = tnew_dt;
         double time[2];
