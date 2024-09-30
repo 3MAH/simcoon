@@ -157,7 +157,10 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} -ldl)
+	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+  if(NOT WIN32)
+    target_link_libraries(${Exe_to_compile} -ldl)
+  endif()
 
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
