@@ -48,7 +48,7 @@ public:
         return "umaba";
     }
     
-    void umat_abaqus(const simcoon::phase_characteristics &rve, const arma::mat &DR, const int &nprops, const int &nstatev, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
+    void umat_abaqus(simcoon::phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt) {
         
         // Macroscopic state variables and control increments
         double stress[6];
@@ -84,17 +84,19 @@ public:
         double ddsddt[6];
         char cmname[5];
         strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
-        double props[nprops];
-        double statev[nstatev+4];                   //+4 for a mechanical response to store Wm components
+        const int nprops = rve.sptr_matprops->nprops;
+        std::vector<double> props(nprops);
+        int nstatev = rve.sptr_sv_global->nstatev;
+        std::vector<double> statev(nstatev+4);                   //+4 for a mechanical response to store Wm components
         double pnewdt = tnew_dt;
         double time[2];
         double dtime;
         
         auto rve_sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
         
-        smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
+        smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props.data(), nstatev, statev.data(), ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
 //        smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
-        umat_(stress, statev, ddsdde, sse, spd, scd, rpl, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, predef, dpred, cmname, ndi, nshr, ntens, nstatev, props, nprops, coords, drot, pnewdt, celent, dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
+        umat_(stress, statev.data(), ddsdde, sse, spd, scd, rpl, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, predef, dpred, cmname, ndi, nshr, ntens, nstatev, props.data(), nprops, coords, drot, pnewdt, celent, dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
         
         abaqus2smart_M_light(stress, ddsdde, nstatev, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Wm, rve_sv_M->statev);
     }

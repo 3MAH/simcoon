@@ -795,7 +795,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
                 boost::shared_ptr<umat_plugin_aba_api> abaqus_umat;            // variable to hold a pointer to plugin variable
 
                 abaqus_umat = boost_dll_import<umat_plugin_aba_api>(lib_path / "umat_plugin_aba", "abaqus_umat", boost::dll::load_mode::append_decorations);
-                abaqus_umat->umat_abaqus(rve, DR, rve.sptr_matprops->nprops, umat_M->nstatev, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+                abaqus_umat->umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
                 break;
             }
             case 2: {
