@@ -191,7 +191,10 @@ foreach(testSrc ${TEST_SRCS})
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main -ldl)
+        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main)
+        if(NOT WIN32)
+          target_link_libraries(${testName} -ldl)
+        endif()
 
         #I like to move testing binaries into a testBin directory
         set_target_properties(${testName} PROPERTIES 
