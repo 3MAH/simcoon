@@ -4,7 +4,7 @@ Phase class to manage list of solids belonging to the same phase
 
 import os
 import shutil
-from typing import List, Optional, Sequence, Tuple, NamedTuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 
 class Parameter:
@@ -46,13 +46,24 @@ class Parameter:
         self._value = value
 
 
-def read_parameters() -> List[Parameter]:
+def read_parameters(
+    fname: Union[str, os.PathLike] = "data/parameters.inp"
+) -> List[Parameter]:
     """
     read_parameters from a simcoon input file
     @return : List of Parameter
     """
+
+    try:
+        if isinstance(fname, os.PathLike):
+            fname = os.fspath(fname)
+    except TypeError as e:
+        raise ValueError(
+            f"fname must be a string or filehandle. Got {type(fname)} instead."
+        ) from e
+
     params = []
-    with open("data/parameters.inp", "r", encoding="utf-8") as paraminit:
+    with open(fname, "r", encoding="utf-8") as paraminit:
         lines = paraminit.readlines()
 
         for line in lines[1:]:
@@ -80,11 +91,17 @@ def copy_parameters(
     :param dst_path: Destination path
     :return: None
     """
+
     for pa in params:
-        for ifiles in pa.input_files:
-            src_files = os.path.join(src_path, ifiles)
-            dst_files = os.path.join(dst_path, ifiles)
-            shutil.copy(src_files, dst_files)
+        try:
+            for ifiles in pa.input_files:
+                src_files = os.path.join(src_path, ifiles)
+                dst_files = os.path.join(dst_path, ifiles)
+                shutil.copy(src_files, dst_files)
+        except TypeError as e:
+            raise ValueError(
+                f"params.input_files must be a list of str. Got {type(pa.input_files)} instead."
+            ) from e
 
 
 def apply_parameters(
@@ -99,11 +116,16 @@ def apply_parameters(
     :return: None
     """
     for pa in params:
-        for ifiles in pa.input_files:
-            mod_files = os.path.join(dst_path, ifiles)
+        try:
+            for ifiles in pa.input_files:
+                mod_files = os.path.join(dst_path, ifiles)
 
-            with open(mod_files, "r", encoding="utf-8") as in_files:
-                content = in_files.read()
-            modified_content = content.replace(pa.key, str(pa.value))
-            with open(mod_files, "w", encoding="utf-8") as ou_files:
-                ou_files.write(modified_content)
+                with open(mod_files, "r", encoding="utf-8") as in_files:
+                    content = in_files.read()
+                modified_content = content.replace(pa.key, str(pa.value))
+                with open(mod_files, "w", encoding="utf-8") as ou_files:
+                    ou_files.write(modified_content)
+        except TypeError as e:
+            raise ValueError(
+                f"params.input_files must be a list of str. Got {type(pa.input_files)} instead."
+            ) from e
