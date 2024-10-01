@@ -85,9 +85,11 @@ public:
         char cmname[5];
         strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
         const int nprops = rve.sptr_matprops->nprops;
-        std::vector<double> props(nprops);
+        std::vector<double> props;
+        props.reserve(nprops);
         int nstatev = rve.sptr_sv_global->nstatev;
-        std::vector<double> statev(nstatev+4);                   //+4 for a mechanical response to store Wm components
+        std::vector<double> statev;
+        statev.reserve(nstatev+4);                   //+4 for a mechanical response to store Wm components
         double pnewdt = tnew_dt;
         double time[2];
         double dtime;
