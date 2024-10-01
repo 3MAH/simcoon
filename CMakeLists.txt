@@ -1,7 +1,7 @@
 # CMakeLists.txt
 
 cmake_minimum_required(VERSION 3.15)
-project(simcoon LANGUAGES CXX C Fortran)
+project(simcoon CXX C)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
@@ -157,10 +157,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
-  if(NOT WIN32)
-    target_link_libraries(${Exe_to_compile} -ldl)
-  endif()
+	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} -ldl)
 
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
@@ -191,10 +188,7 @@ foreach(testSrc ${TEST_SRCS})
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main)
-        if(NOT WIN32)
-          target_link_libraries(${testName} -ldl)
-        endif()
+        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main -ldl)
 
         #I like to move testing binaries into a testBin directory
         set_target_properties(${testName} PROPERTIES 
