@@ -4,7 +4,7 @@ Constant class to manage list of solids belonging to the same phase
 
 import os
 import shutil
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Union
 import numpy as np
 
 
@@ -24,15 +24,26 @@ class Constant(NamedTuple):
     input_files: List[str]
 
 
-def read_constants(n_consts: int) -> List[Constant]:
+def read_constants(
+    n_consts: int, fname: Union[str, os.PathLike] = "data/constants.inp"
+) -> List[Constant]:
     """
     read_constants from a simcoon input file
     @param: n_const
     @return : List of Constant
     """
+
+    try:
+        if isinstance(fname, os.PathLike):
+            fname = os.fspath(fname)
+    except TypeError as e:
+        raise ValueError(
+            f"fname must be a string or filehandle. Got {type(fname)} instead."
+        ) from e
+
     consts = []
-    with open("data/constants.inp", "r", encoding="utf-8") as paraminit:
-        lines = paraminit.readlines()
+    with open(fname, "r", encoding="utf-8") as constinit:
+        lines = constinit.readlines()
 
         for line in lines[1:]:
             values = line.split()
@@ -65,10 +76,15 @@ def copy_constants(
     :return: None
     """
     for co in consts:
-        for ifiles in co.input_files:
-            src_files = os.path.join(src_path, ifiles)
-            dst_files = os.path.join(dst_path, ifiles)
-            shutil.copy(src_files, dst_files)
+        try:
+            for ifiles in co.input_files:
+                src_files = os.path.join(src_path, ifiles)
+                dst_files = os.path.join(dst_path, ifiles)
+                shutil.copy(src_files, dst_files)
+        except TypeError as e:
+            raise ValueError(
+                f"consts.input_files must be a list of str. Got {type(co.input_files)} instead."
+            ) from e
 
 
 def apply_constants(
@@ -83,11 +99,16 @@ def apply_constants(
     :return: None
     """
     for co in consts:
-        for ifiles in co.input_files:
-            mod_files = os.path.join(dst_path, ifiles)
+        try:
+            for ifiles in co.input_files:
+                mod_files = os.path.join(dst_path, ifiles)
 
-            with open(mod_files, "r", encoding="utf-8") as in_files:
-                content = in_files.read()
-            modified_content = content.replace(co.key, str(co.value))
-            with open(mod_files, "w", encoding="utf-8") as ou_files:
-                ou_files.write(modified_content)
+                with open(mod_files, "r", encoding="utf-8") as in_files:
+                    content = in_files.read()
+                modified_content = content.replace(co.key, str(co.value))
+                with open(mod_files, "w", encoding="utf-8") as ou_files:
+                    ou_files.write(modified_content)
+        except TypeError as e:
+            raise ValueError(
+                f"consts.input_files must be a list of str. Got {type(co.input_files)} instead."
+            ) from e
