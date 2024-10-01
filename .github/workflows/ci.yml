@@ -91,8 +91,8 @@ jobs:
         run: |
           conda list
           $gfortranPath = Join-Path $env:CONDA_PREFIX "Library\bin\gfortran.exe"
-          echo $gfortranPath
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=$gfortranPath -DCMAKE_INCLUDE_PATH=$env:CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$env:CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$env:CONDA_PREFIX -Wno-dev
+          ls $gfortranPath
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER="$gfortranPath" -DCMAKE_INCLUDE_PATH=$env:CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$env:CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$env:CONDA_PREFIX -Wno-dev
           cmake --build build --config Release
       - name: Tests
         shell: pwsh
