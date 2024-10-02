@@ -103,3 +103,10 @@ jobs:
       - name: Tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Upload test logs as artifact
+        if: always()  # Ensure this step runs even if the tests fail
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-logs
+          path: build/Testing/Temporary/LastTest.log        
