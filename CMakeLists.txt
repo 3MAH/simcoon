@@ -85,6 +85,14 @@ if (MSVC) #if windows using visual c++
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+  # Specify the output directory for each configuration (Debug, Release, etc.)
+  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER ${CONFIG_TYPE} CONFIG)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/bin")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/lib")
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/lib")
+  endforeach()
+
 elseif (UNIX AND NOT APPLE)
   #enable Fortran
   enable_language(Fortran)
