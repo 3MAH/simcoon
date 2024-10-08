@@ -61,6 +61,8 @@ jobs:
         with:
           name: test-logs-Linux
           path: build/Testing/Temporary/LastTest.log   
+          name: test-logs-Pythin-Linux
+          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log      
 
   MacOS:
     name: MacOS
