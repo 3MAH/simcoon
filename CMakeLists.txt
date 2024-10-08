@@ -202,7 +202,7 @@ foreach(testSrc ${TEST_SRCS})
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} PRIVATE simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+        target_link_libraries(${testName} PRIVATE simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma GTest::gtest GTest::gtest_main)
 
         # Include GTest headers
         target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} PRIVATE ${GTEST_INCLUDE_DIRS})
