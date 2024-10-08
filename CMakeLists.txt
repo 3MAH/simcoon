@@ -53,8 +53,6 @@ find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 
 find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
-
 
 if (MSVC)
   find_package(carma CONFIG REQUIRED)
@@ -193,28 +191,26 @@ target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIB
 foreach(testSrc ${TEST_SRCS})
 
         get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+      	file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
 
-	file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
+
         #Extract the filename without an extension (NAME_WE)
         get_filename_component(testName ${testRel} NAME_WE)
         get_filename_component(testFolder ${testRel} DIRECTORY)
 
         #Add compile target
-	link_directories ( ${BOOST_LIBRARY_DIRS} )
         add_executable(${testName} ${testSrc})
 
         #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest_main)
-        if(NOT WIN32)
-          target_link_libraries(${testName} -ldl)
-        endif()
+        target_link_libraries(${testName} PRIVATE simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+
+        # Include GTest headers
+        target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} PRIVATE ${GTEST_INCLUDE_DIRS})
 
         # Custom runtime output directory for test binaries
         set_target_properties(${testName} PROPERTIES 
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
-
-        # Prevent creation of the 'Release' and other configuration folders
-        set_target_properties(${testName} PROPERTIES 
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
             RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
             RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
