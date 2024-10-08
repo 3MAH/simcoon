@@ -190,39 +190,42 @@ target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIB
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
 
-        get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
-        get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
-        file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
-    
-        # Extract the filename without an extension (NAME_WE)
-        get_filename_component(testName ${testRel} NAME_WE)
-        get_filename_component(testFolder ${testRel} DIRECTORY)
-    
-        #Add compile target
-        add_executable(${testName} ${testSrc})
+  get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
+  get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
+  file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
 
-        #link to Boost libraries AND your targets and dependencies
-        target_link_libraries(${testName} PRIVATE simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma GTest::gtest GTest::gtest_main)
+  # Extract the filename without an extension (NAME_WE)
+  get_filename_component(testName ${testRel} NAME_WE)
+  get_filename_component(testFolder ${testRel} DIRECTORY)
 
-        # Include GTest headers
-        target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} PRIVATE ${GTEST_INCLUDE_DIRS})
+  #Add compile target
+  add_executable(${testName} ${testSrc})
 
-        # Custom runtime output directory for test binaries
-        set_target_properties(${testName} PROPERTIES 
-            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+  if (MSVC)
+    target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma GTest::gtest GTest::gtest_main)
+  else()
+    target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+  endif()
 
-        if(WIN32)
-          add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              ${CMAKE_CURRENT_BINARY_DIR}/../bin/simcoon.dll 
-              ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
-        endif()
+  #link to Boost libraries AND your targets and dependencies
+  target_include_directories(${testName} ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
 
-        # Add test with proper working directory and command
-        add_test(NAME ${testFolder}/${testName} 
-                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
+  # Custom runtime output directory for test binaries
+  set_target_properties(${testName} PROPERTIES 
+      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+      RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+      RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+
+  if(WIN32)
+    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_BINARY_DIR}/../bin/simcoon.dll 
+        ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+  endif()
+
+  # Add test with proper working directory and command
+  add_test(NAME ${testFolder}/${testName} 
+          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
 endforeach(testSrc)
 
 #set_property(TARGET FOR PROPERTY)
