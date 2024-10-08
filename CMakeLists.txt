@@ -55,6 +55,7 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 if (MSVC)
+  set(CARMA_DIR C:/Miniconda3/envs/foo/Library)
   find_package(carma REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS} ${CARMA_INCLUDE_DIRS})  
