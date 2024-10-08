@@ -31,7 +31,8 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment.yml          
+          environment-file: environment.yml     
+
       - name: Build for Linux
         shell: bash -l {0}
         run: |
@@ -50,11 +51,15 @@ jobs:
           cmake --build simcoon-python-builder/build
           python -m pip install python-setup
 
+      - name: Python tests
+        shell: bash -l {0}
+        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+          
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v3
         with:
-          name: test-logs
+          name: test-logs-Linux
           path: build/Testing/Temporary/LastTest.log   
 
   MacOS:
@@ -67,15 +72,36 @@ jobs:
           miniconda-version: "latest"
           activate-environment: foo
           environment-file: environment.yml          
+
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
+          cmake --install build --config Release
+
       - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
         
+      - name: Build Python lib
+        shell: bash -l {0}
+        run: |
+          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build simcoon-python-builder/build
+          python -m pip install python-setup
+
+      - name: Python tests
+        shell: bash -l {0}
+        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+
+      - name: Upload test logs as artifact
+        if: always()  # Ensure this step runs even if the tests fail
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-logs-OSX
+          path: build/Testing/Temporary/LastTest.log             
+
   Windows:
     name: Windows
     runs-on: "windows-latest"
@@ -108,5 +134,5 @@ jobs:
         if: always()  # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v3
         with:
-          name: test-logs
+          name: test-logs-Win
           path: build/Testing/Temporary/LastTest.log        
