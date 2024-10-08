@@ -55,10 +55,12 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 if (MSVC)
-  find_package(carma CONFIG REQUIRED)
+  find_package(carma REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS} ${CARMA_INCLUDE_DIRS})  
+else()
+  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 endif() 
-include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
 
 #Inclusion of Boost
 find_package(Boost 1.57.0 COMPONENTS filesystem system REQUIRED)
