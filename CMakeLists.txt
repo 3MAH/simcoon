@@ -1,7 +1,7 @@
 # CMakeLists.txt
 
 cmake_minimum_required(VERSION 3.15)
-project(simcoon LANGUAGES CXX C)
+project(simcoon LANGUAGES CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
