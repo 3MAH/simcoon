@@ -177,12 +177,19 @@ endforeach (Exe_to_compile ${All_exe_to_compile})
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 
 add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+if(MSVC)
+  set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX ".dll" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+else()
+  set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+endif()
 target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
-set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+if(MSVC)
+  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+else()
+  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+endif()
 
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
