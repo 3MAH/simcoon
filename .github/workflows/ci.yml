@@ -61,8 +61,6 @@ jobs:
         with:
           name: test-logs-Linux
           path: build/Testing/Temporary/LastTest.log   
-          name: test-logs-Pythin-Linux
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log      
 
       - name: Upload Python test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
