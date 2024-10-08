@@ -190,6 +190,7 @@ if(MSVC)
 else()
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
 endif()
+target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 
 #Run through each source
 foreach(testSrc ${TEST_SRCS})
