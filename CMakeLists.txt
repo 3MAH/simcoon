@@ -158,6 +158,8 @@ else()
   target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 endif()
 
+target_include_directories(simcoon PRIVATE ${CARMA_INCLUDE_DIRS})
+
 #Define lists of executables for compilation
 set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
 
