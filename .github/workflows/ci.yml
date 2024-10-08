@@ -80,7 +80,7 @@ jobs:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -102,7 +102,7 @@ jobs:
           cmake --build build --config Release
       - name: Tests
         shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
