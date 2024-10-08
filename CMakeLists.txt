@@ -218,9 +218,11 @@ foreach(testSrc ${TEST_SRCS})
             RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
             RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
-        add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_BINARY_DIR}/../bin/simcoon.dll 
-            ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+        if(WIN32)
+          add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${CMAKE_CURRENT_BINARY_DIR}/../bin/simcoon.dll 
+              ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+        endif()
 
         # Add test with proper working directory and command
         add_test(NAME ${testFolder}/${testName} 
