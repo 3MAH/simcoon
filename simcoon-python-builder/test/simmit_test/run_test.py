@@ -5,7 +5,7 @@ from simcoon import simmit as sim
 
 
 @pytest.fixture(scope="session")
-def L_gt() -> npt.NDArray[np.float_]:
+def L_gt() -> npt.NDArray[np.float64]:
     L_gt = np.array(
         [
             [1.34615385, 0.57692308, 0.57692308, 0.0, 0.0, 0.0],
