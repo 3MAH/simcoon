@@ -209,15 +209,19 @@ foreach(testSrc ${TEST_SRCS})
           target_link_libraries(${testName} -ldl)
         endif()
 
-        #I like to move testing binaries into a testBin directory
+        # Custom runtime output directory for test binaries
         set_target_properties(${testName} PROPERTIES 
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
-        #Finally add it to test execution - 
-        #Notice the WORKING_DIRECTORY and COMMAND
+        # Prevent creation of the 'Release' and other configuration folders
+        set_target_properties(${testName} PROPERTIES 
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+
+        # Add test with proper working directory and command
         add_test(NAME ${testFolder}/${testName} 
-                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-                 COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName} )
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
 endforeach(testSrc)
 
 #set_property(TARGET FOR PROPERTY)
