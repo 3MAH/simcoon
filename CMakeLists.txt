@@ -203,12 +203,11 @@ foreach(testSrc ${TEST_SRCS})
 
   if (MSVC)
     target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma GTest::gtest GTest::gtest_main)
+    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS} ${CARMA_INCLUDE_DIRS})
   else()
     target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
   endif()
-
-  #link to Boost libraries AND your targets and dependencies
-  target_include_directories(${testName} ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
 
   # Custom runtime output directory for test binaries
   set_target_properties(${testName} PROPERTIES 
