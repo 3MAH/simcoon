@@ -78,7 +78,7 @@ if (MSVC) #if windows using visual c++
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=") #\Y- to disable precompile header (don't work for an unknown reason)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address") #do nothing but kept anyway if required to add some options
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
 
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -87,9 +87,9 @@ if (MSVC) #if windows using visual c++
   # Specify the output directory for each configuration (Debug, Release, etc.)
   foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${CONFIG_TYPE} CONFIG)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/bin")
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/lib")
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/lib")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/lib")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_SOURCE_DIR}/bin")
   endforeach()
 
 elseif (UNIX AND NOT APPLE)
@@ -182,7 +182,7 @@ if(MSVC)
 else()
   set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
 endif()
-target_link_libraries(umat_plugin_aba simcoon  ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+target_link_libraries(umat_plugin_aba simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
 
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 if(MSVC)
