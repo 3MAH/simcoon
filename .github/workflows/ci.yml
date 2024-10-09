@@ -129,7 +129,16 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_win.yml          
+          environment-file: environment_win.yml    
+
+      # Setup Fortran for the specified toolchain
+      - name: Setup Fortran Compiler
+        uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: gcc
+          version: 13          
+
       - name: Build for Windows
         shell: pwsh
         run: |
