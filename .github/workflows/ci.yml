@@ -151,7 +151,7 @@ jobs:
               -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
               -Wno-dev `
-            # -DCMAKE_Fortran_COMPILER="$gfortranPath"
+              -DCMAKE_Fortran_COMPILER="$gfortranPath"
           cmake --build build --config Release
       - name: Tests
         shell: pwsh
