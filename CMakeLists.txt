@@ -5,6 +5,8 @@ project(simcoon LANGUAGES CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
+enable_language(Fortran)
+
 # The version number
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)
