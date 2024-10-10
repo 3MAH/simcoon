@@ -137,7 +137,11 @@ jobs:
         id: setup-fortran
         with:
           compiler: intel
-          version: 2023.2  
+          version: 2023.2
+          
+        run: |
+          ${{ env.FC }} ... # environment vars FC, CC, and CXX are set
+          ${{ steps.setup-fortran.outputs.fc }} ... # outputs work too            
                   
       - name: Build for Windows
         shell: pwsh
