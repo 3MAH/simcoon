@@ -1,7 +1,6 @@
 # CMakeLists.txt
 
 cmake_minimum_required(VERSION 3.30)
-enable_language(Fortran C CXX)
 
 project(simcoon LANGUAGES Fortran C CXX)
 include(CheckIncludeFileCXX)
