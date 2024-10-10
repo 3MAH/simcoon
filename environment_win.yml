@@ -8,6 +8,7 @@ dependencies:
   - pkg-config
   - cxx-compiler
   - fortran-compiler
+  - gfortran
   - libblas * *netlib
   - liblapack * *netlib
   - cmake
