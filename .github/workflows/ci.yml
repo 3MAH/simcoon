@@ -139,10 +139,6 @@ jobs:
           compiler: intel
           version: 2023.2  
                   
-      - name: Check Fortran Compiler
-        run: |
-          ifort --version
-
       - name: Build for Windows
         shell: pwsh
         run: |
