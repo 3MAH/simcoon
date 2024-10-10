@@ -151,8 +151,7 @@ jobs:
               -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
               -Wno-dev `
-              -T "Intel C++ Compiler 2023" `
-              -DCMAKE_Fortran_COMPILER=ifort
+              -DCMAKE_Fortran_COMPILER=ifx
           cmake --build build --config Release
       - name: Tests
         shell: pwsh
