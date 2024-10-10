@@ -5,13 +5,6 @@ project(simcoon LANGUAGES Fortran C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-if (MSVC)
-  set(CMAKE_Fortran_COMPILER "${FC}")
-endif()
-
-
-#enable_language(Fortran)
-
 # The version number
 set(VERSION_MAJOR 1)
 set(VERSION_MINOR 9)

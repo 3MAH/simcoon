@@ -136,12 +136,12 @@ jobs:
         uses: fortran-lang/setup-fortran@v1
         id: setup-fortran
         with:
-          compiler: gcc
-          version: 13  
+          compiler: intel
+          version: 2023.2  
                   
       - name: Check Fortran Compiler
         run: |
-          gfortran --version
+          ifort --version
 
       - name: Build for Windows
         shell: pwsh
