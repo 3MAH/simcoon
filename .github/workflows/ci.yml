@@ -153,14 +153,13 @@ jobs:
           # conda list
           # $gfortranPath = (Join-Path $env:CONDA_PREFIX "Library\bin\gfortran.exe") -Replace "\\", "/"
           # ls $gfortranPath
-          & "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" --force
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
               -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
               -Wno-dev `
-              -DCMAKE_Fortran_COMPILER="$fc_path"
+              -T fortran=ifx
           cmake --build build --config Release
       - name: Tests
         shell: pwsh
