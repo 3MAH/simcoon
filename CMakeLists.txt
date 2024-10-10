@@ -5,7 +5,10 @@ project(simcoon LANGUAGES Fortran C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-set(CMAKE_Fortran_COMPILER "${FC}")
+if (MSVC)
+  set(CMAKE_Fortran_COMPILER "${FC}")
+endif()
+
 
 #enable_language(Fortran)
 
