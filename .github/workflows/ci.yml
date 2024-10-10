@@ -143,8 +143,8 @@ jobs:
       - name: Run Fortran Compiler Commands
         shell: pwsh      
         run: |
-          echo ${{ env.FC }} # Check the Fortran compiler environment variable
-          ${{ steps.setup-fortran.outputs.fc }} --version # Run a command to verify Fortran compiler setup   
+          echo "Fortran Compiler: ${{ env.FC }}"
+          ${{ steps.setup-fortran.outputs.fc }} -V # Correct way to check version in Intel Fortran (Windows
                   
       - name: Build for Windows
         shell: pwsh
