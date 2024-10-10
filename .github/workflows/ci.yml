@@ -144,7 +144,6 @@ jobs:
         shell: pwsh      
         run: |
           echo "Fortran Compiler: ${{ env.FC }}"
-          ${{ steps.setup-fortran.outputs.fc }} /? # Correct way to check version in Intel Fortran (Windows
           $fc_path = (Get-Command $env:FC).Path
           echo "Fortran Compiler Full Path: $fc_path"          
                   
@@ -154,6 +153,7 @@ jobs:
           # conda list
           # $gfortranPath = (Join-Path $env:CONDA_PREFIX "Library\bin\gfortran.exe") -Replace "\\", "/"
           # ls $gfortranPath
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
