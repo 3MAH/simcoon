@@ -138,7 +138,10 @@ jobs:
         with:
           compiler: intel
           version: 2023.2
-          
+
+      # Now run your custom commands using the setup environment
+      - name: Run Fortran Compiler Commands
+        shell: pwsh      
         run: |
           ${{ env.FC }} ... # environment vars FC, CC, and CXX are set
           ${{ steps.setup-fortran.outputs.fc }} ... # outputs work too            
