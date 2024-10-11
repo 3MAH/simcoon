@@ -131,35 +131,15 @@ jobs:
           activate-environment: foo
           environment-file: environment_win.yml    
 
-      # Setup Fortran for the specified toolchain
-      - name: Setup Fortran Compiler
-        uses: fortran-lang/setup-fortran@v1
-        id: setup-fortran
-        with:
-          compiler: intel
-          version: 2023.2
-
-      # Now run your custom commands using the setup environment
-      - name: Run Fortran Compiler Commands
-        shell: pwsh      
-        run: |
-          echo "Fortran Compiler: ${{ env.FC }}"
-          $fc_path = (Get-Command $env:FC).Path
-          echo "Fortran Compiler Full Path: $fc_path"          
-                  
       - name: Build for Windows
         shell: pwsh
         run: |
-          # conda list
-          # $gfortranPath = (Join-Path $env:CONDA_PREFIX "Library\bin\gfortran.exe") -Replace "\\", "/"
-          # ls $gfortranPath
-          cmake -S . -B build `
+          cmake -S . -B build`
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
               -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
               -Wno-dev `
-              -T fortran=ifx
           cmake --build build --config Release
       - name: Tests
         shell: pwsh

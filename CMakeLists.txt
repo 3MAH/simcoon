@@ -1,8 +1,8 @@
 # CMakeLists.txt
 
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.15)
 
-project(simcoon LANGUAGES Fortran C CXX)
+project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
