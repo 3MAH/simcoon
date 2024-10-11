@@ -176,9 +176,9 @@ endforeach (Exe_to_compile ${All_exe_to_compile})
 ##Testing
 #Test files are in a separate source directory called test
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
+file(GLOB_RECURSE TEST_EXTERN test_external/*.cpp)
 
 if(NOT MSVC)
-  file(GLOB_RECURSE TEST_EXTERN test_external/*.cpp)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
   set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
   target_link_libraries(umat_plugin_aba simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
