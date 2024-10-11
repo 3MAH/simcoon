@@ -177,6 +177,13 @@ endforeach (Exe_to_compile ${All_exe_to_compile})
 #Test files are in a separate source directory called test
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 
+if(NOT MSVC)
+  file(GLOB_RECURSE TEST_EXTERN test_external/*.cpp)
+  add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+  set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+  target_link_libraries(umat_plugin_aba simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+endif()
+
 if(MSVC)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
   # Specify the output directory for each configuration (Debug, Release, etc.)
@@ -226,6 +233,36 @@ foreach(testSrc ${TEST_SRCS})
           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
           COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
 endforeach(testSrc)
+
+if(NOT MSCV)
+  #Run through each source
+  foreach(testSrc ${TEST_EXTERN})
+
+    get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
+    file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test_extern ${testFolder})
+
+    # Extract the filename without an extension (NAME_WE)
+    get_filename_component(testName ${testRel} NAME_WE)
+    get_filename_component(testFolder ${testRel} DIRECTORY)
+
+    #Add compile target
+    add_executable(${testName} ${testSrc})
+
+    target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
+
+    # Custom runtime output directory for test binaries
+    set_target_properties(${testName} PROPERTIES 
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+
+    # Add test with proper working directory and command
+    add_test(NAME ${testFolder}/${testName} 
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
+  endforeach(testSrc)
+endif()
 
 #set_property(TARGET FOR PROPERTY)
 #add_library(ABA OBJECT testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
