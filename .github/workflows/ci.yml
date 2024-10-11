@@ -134,7 +134,7 @@ jobs:
       - name: Build for Windows
         shell: pwsh
         run: |
-          cmake -S . -B build`
+          cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
               -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
