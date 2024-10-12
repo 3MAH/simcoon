@@ -234,7 +234,7 @@ foreach(testSrc ${TEST_SRCS})
           COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
 endforeach(testSrc)
 
-if(NOT MSCV)
+if(NOT MSVC)
   #Run through each source
   foreach(testSrc ${TEST_EXTERN})
 
