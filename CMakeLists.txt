@@ -176,7 +176,7 @@ endforeach (Exe_to_compile ${All_exe_to_compile})
 ##Testing
 #Test files are in a separate source directory called test
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
-file(GLOB_RECURSE TEST_EXTERN test_external/*.cpp)
+file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
 
 if(NOT MSVC)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
