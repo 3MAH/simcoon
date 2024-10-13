@@ -147,7 +147,7 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Build Python lib
-        shell: bash -l {0}
+        shell: pwsh
         run: |
           cmake -S simcoon-python-builder -B simcoon-python-builder/build `
           -DCMAKE_BUILD_TYPE=Release `
