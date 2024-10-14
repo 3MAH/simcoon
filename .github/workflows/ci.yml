@@ -142,7 +142,8 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
           cmake --install build       
-          
+          copy "${{ github.workspace }}/build/lib/Release/simcoon.dll" "$env:CONDA_PREFIX\bin"
+
       - name: Tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure -VV
