@@ -224,7 +224,7 @@ foreach(testSrc ${TEST_SRCS})
 
   if(MSVC)
     add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_BINARY_DIR}/../bin/simcoon.dll 
+        ${CMAKE_BINARY_DIR}/bin/simcoon.dll  
         ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
   endif()
 
