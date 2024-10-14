@@ -150,11 +150,11 @@ jobs:
         shell: pwsh
         run: |
           cmake -S simcoon-python-builder -B simcoon-python-builder/build `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
-          -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
-          -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
-          -Wno-dev
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
+            -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
+            -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
+            -Wno-dev
           cmake --build simcoon-python-builder/build --config Release
           cmake --install simcoon-python-builder/build         
           cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
