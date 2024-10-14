@@ -162,7 +162,7 @@ jobs:
 
       - name: Python tests
         shell: pwsh
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
