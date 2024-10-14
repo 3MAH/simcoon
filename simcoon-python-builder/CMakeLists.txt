@@ -160,27 +160,23 @@ target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} c
 #Setup CMake to run tests
 enable_testing()
 
-#Test Carma, link against carma, 
-if(MSVC)
+if (MSVC) #if windows using visual c++
+
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
+
   # Specify the output directory for each configuration (Debug, Release, etc.)
   foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${CONFIG_TYPE} CONFIG)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma")
-  endforeach()
-endif()
-set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
-
-pybind11_add_module(test_carma ${test_files_carma})
-
-if(MSVC)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
-  # Specify the output directory for each configuration (Debug, Release, etc.)
-  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
-    string(TOUPPER ${CONFIG_TYPE} CONFIG)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma")
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma")
   endforeach()
 endif()
+
+set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
+pybind11_add_module(test_carma ${test_files_carma})
 
 # Set output directories based on the build type
 if(MSVC)
