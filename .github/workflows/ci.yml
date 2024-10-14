@@ -142,6 +142,7 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
           cmake --install build       
+          
       - name: Tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure -VV
@@ -157,7 +158,7 @@ jobs:
             -Wno-dev
           cmake --build simcoon-python-builder/build --config Release
           cmake --install simcoon-python-builder/build         
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
+          copy ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
           python -m pip install ${{github.workspace}}/python-setup
 
       - name: Python tests
