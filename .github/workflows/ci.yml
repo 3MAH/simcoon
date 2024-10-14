@@ -157,11 +157,11 @@ jobs:
           -Wno-dev
           cmake --build simcoon-python-builder/build --config Release
           cmake --install simcoon-python-builder/build         
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.dll ${{github.workspace}}/python-setup/simcoon/simmit.dll
+          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
           python -m pip install ${{github.workspace}}/python-setup
 
       - name: Python tests
-        shell: bash -l {0}
+        shell: pwsh
         run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
 
       - name: Upload test logs as artifact
