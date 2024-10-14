@@ -153,19 +153,19 @@ if(MSVC)
 endif()
 set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
 
-Python3_add_library(test_carma MODULE ${test_files_carma})
+pybind11_add_module(test_carma ${test_files_carma})
 
-
-# Set output paths for all configurations
+# Set output directories based on the build type
 if(MSVC)
   set_target_properties(test_carma PROPERTIES
     PREFIX ""
-    SUFFIX ".dll"
+    SUFFIX ".pyd"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
   )
 else()
+  # For non-MSVC platforms
   set_target_properties(test_carma PROPERTIES
     PREFIX ""
     SUFFIX ".so"
@@ -182,12 +182,6 @@ add_test(NAME test_carma_roundtrip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 add_test(NAME test_carma_arr_to_mat WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_arr_to_mat.py)    
 
-#Finally add it to test execution -
-#Notice the WORKING_DIRECTORY and COMMAND
-add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
-
-################################################################################
 
 ################################################################################
 # SIMCOON PYBIND11 modules
@@ -209,6 +203,11 @@ target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} c
 #if (UNIX AND APPLE)
 #	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
 #endif()
+
+#Finally add it to test execution -
+#Notice the WORKING_DIRECTORY and COMMAND
+add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
+		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 ################################################################################
 
