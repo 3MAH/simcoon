@@ -138,11 +138,29 @@ include_directories(include)
 file(GLOB_RECURSE source_files_simmit src/python_wrappers/* include/simcoon/python_wrappers/*)
 file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
 
+################################################################################
+# SIMCOON PYBIND11 modules
+#Add the files to the lib
+pybind11_add_module(simmit ${source_files_simmit})
+#Wrapper library set_target properties
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(simmit PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+if (MSVC)
+  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
+else()
+  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
+endif()
+#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
+target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
+
+
 #Setup CMake to run tests
 enable_testing()
 
 #Test Carma, link against carma, 
-
 if(MSVC)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
   # Specify the output directory for each configuration (Debug, Release, etc.)
@@ -155,14 +173,20 @@ set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
 
 pybind11_add_module(test_carma ${test_files_carma})
 
+if(MSVC)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma)
+  # Specify the output directory for each configuration (Debug, Release, etc.)
+  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER ${CONFIG_TYPE} CONFIG)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma")
+  endforeach()
+endif()
+
 # Set output directories based on the build type
 if(MSVC)
   set_target_properties(test_carma PROPERTIES
     PREFIX ""
     SUFFIX ".pyd"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/test/Carma"
   )
 else()
   # For non-MSVC platforms
@@ -182,27 +206,6 @@ add_test(NAME test_carma_roundtrip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 add_test(NAME test_carma_arr_to_mat WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_arr_to_mat.py)    
 
-
-################################################################################
-# SIMCOON PYBIND11 modules
-#Add the files to the lib
-pybind11_add_module(simmit ${source_files_simmit})
-#Wrapper library set_target properties
-
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(simmit PUBLIC OpenMP::OpenMP_CXX)
-endif()
-
-if (MSVC)
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
-else()
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
-endif()
-#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
-#if (UNIX AND APPLE)
-#	set_target_properties(simmit PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
-#endif()
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
