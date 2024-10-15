@@ -136,13 +136,10 @@ jobs:
         run: |
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
-              -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
-              -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
-              -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
+              -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
           cmake --build build --config Release
-          cmake --install build       
-          copy ${{ github.workspace }}/build/bin/simcoon.dll $env:CONDA_PREFIX\bin
+          cmake --install build
 
       - name: Tests
         shell: pwsh
@@ -153,9 +150,7 @@ jobs:
         run: |
           cmake -S simcoon-python-builder -B simcoon-python-builder/build `
             -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_INCLUDE_PATH="$env:CONDA_PREFIX/include" `
-            -DCMAKE_LIBRARY_PATH="$env:CONDA_PREFIX/lib" `
-            -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX" `
+            -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
             -Wno-dev
           cmake --build simcoon-python-builder/build --config Release
           cmake --install simcoon-python-builder/build         
@@ -179,4 +174,3 @@ jobs:
         with:
           name: test-logs-Python-Win
           path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
-
