@@ -9,7 +9,7 @@ else:
 
 setup(
     name="simcoon",
-    version="1.9.3",
+    version="1.9.4",
     description="Simulation in Mechanics and Materials: Interactive Tools",
     author="Yves Chemisky",
     author_email="yves.chemisky@gmail.com",
