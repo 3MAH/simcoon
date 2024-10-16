@@ -50,7 +50,7 @@ requirements:
     - boost
     - libboost
     - pybind11
-    - armadillo
+    - armadillo >= 12.6
     - carma
     - llvm-openmp # [not x86]
 

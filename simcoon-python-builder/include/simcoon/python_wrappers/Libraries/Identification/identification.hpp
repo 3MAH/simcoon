@@ -19,6 +19,6 @@ void copy_parameters_py(const pybind11::list &, const std::string &, const std::
 
 void apply_parameters_py(const pybind11::list &, const std::string &);
 
-double calc_cost(const int &, const std::string &);
+double calc_cost(const int &, const pybind11::list &);
     
 } //namespace simpy

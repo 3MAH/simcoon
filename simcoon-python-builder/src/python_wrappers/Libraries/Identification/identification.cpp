@@ -75,7 +75,7 @@ void apply_parameters_py(const py::list &params_py, const string &dst_path) {
     simcoon::apply_parameters(params, dst_path);
 }
     
-double calc_cost(const int &nfiles, const string &data_num_name) {
+double calc_cost(const int &nfiles, const py::list &data_num_names_list) {
 
     //Get the data structures
     std::vector<simcoon::opti_data> data_exp(nfiles);
@@ -94,17 +94,18 @@ double calc_cost(const int &nfiles, const string &data_num_name) {
     ///Import of the experimental data
     string data_exp_folder="exp_data";
     string data_num_folder="num_data";
-
-    string data_num_name_ext = data_num_name.substr(data_num_name.length()-4,data_num_name.length());
-    string data_num_name_root = data_num_name.substr(0,data_num_name.length()-4); //to remove the extension
     
     int sizev = 0;
     for(int i=0; i<nfiles;i++) {
+
+        py::object item = data_num_names_list[i];
+        std::string data_num_item = item.cast<std::string>();
+
         data_exp[i].import(data_exp_folder);
         data_weight[i].import(data_exp_folder);
         sizev += data_exp[i].ndata * data_exp[i].ninfo;
         
-        data_num[i].name = data_num_name_root + "_" + to_string(i+1) + data_num_name_ext;
+        data_num[i].name = data_num_item;
         data_num[i].import(data_num_folder);
     }
     
