@@ -82,7 +82,7 @@ public:
         int kinc = 0;
         double ddsdde[36];
         double ddsddt[6];
-        char cmname[5];
+        char cmname[6];
         strcpy(cmname, rve.sptr_matprops->umat_name.c_str());
         int nprops = rve.sptr_matprops->nprops;
         double props[nprops];
@@ -96,6 +96,7 @@ public:
         
         smart2abaqus_M_full(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, rve.sptr_matprops->props, rve_sv_M->Wm, rve_sv_M->statev, DR, start);
 //        smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
+                
         umat_(stress, statev, ddsdde, sse, spd, scd, rpl, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, predef, dpred, cmname, ndi, nshr, ntens, nstatev, props, nprops, coords, drot, pnewdt, celent, dfgrd0, dfgrd1, noel, npt, layer, kspt, kstep, kinc);
         
         abaqus2smart_M_light(stress, ddsdde, nstatev, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Wm, rve_sv_M->statev);

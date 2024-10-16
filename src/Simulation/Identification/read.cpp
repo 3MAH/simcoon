@@ -20,6 +20,7 @@
 ///@version 1.0
 
 #include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <assert.h>
 #include <math.h>
@@ -37,11 +38,14 @@ namespace simcoon{
 
 void read_parameters(const int &n_param, vector<parameters> &params) {
     
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "parameters.inp";  
+
     ifstream paraminit;
     string buffer;
     
     ///@brief Properties of the parameters reading, use "parameters.dat" to specify the parameters of a model
-    paraminit.open("data/parameters.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(paraminit) {
         paraminit >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
         for(int i=0; i<n_param; i++) {
@@ -58,7 +62,7 @@ void read_parameters(const int &n_param, vector<parameters> &params) {
     }
     paraminit.close();
     
-    paraminit.open("data/parameters.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(paraminit) {
         paraminit >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer;
         for(int i=0; i<n_param; i++) {
@@ -73,11 +77,14 @@ void read_parameters(const int &n_param, vector<parameters> &params) {
     
 void read_constants(const int &n_consts, vector<constants> &consts, const int &nfiles) {
     
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "constants.inp";    
+
     ifstream paraminit;
     string buffer;
     
     ///@brief Properties of the parameters reading, use "parameters.dat" to specify the parameters of a model
-    paraminit.open("data/constants.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(paraminit) {
         paraminit >> buffer >> buffer >> buffer >> buffer >> buffer;
         for(int i=0; i<n_consts; i++) {
@@ -98,7 +105,7 @@ void read_constants(const int &n_consts, vector<constants> &consts, const int &n
     }
     paraminit.close();
     
-    paraminit.open("data/constants.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(paraminit) {
         paraminit >> buffer >> buffer >> buffer >> buffer >> buffer;
         for(int i=0; i<n_consts; i++) {
@@ -116,10 +123,13 @@ void read_constants(const int &n_consts, vector<constants> &consts, const int &n
 }
     
 void read_data_exp(const int &nfiles, vector<opti_data> &datas) {
-    
+
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_exp.inp";    
+
     ifstream paraminit;
     string buffer;
-    paraminit.open("data/files_exp.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(!paraminit) {
         cout << "Error: cannot open files_exp.inp file\n";
         exit(0);
@@ -160,9 +170,12 @@ void read_data_exp(const int &nfiles, vector<opti_data> &datas) {
     
 void read_data_weights(const int &nfiles, Col<int> &weight_types, vec &weights_file, vector<vec> &weights_cols, vector<opti_data> &weights, const vector<opti_data> &data_exp) {
     
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_weights.inp";
+
     ifstream paraminit;
     string buffer;
-    paraminit.open("data/files_weights.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(!paraminit) {
         cout << "Error: cannot open files_weights.inp file\n";
         exit(0);
@@ -243,9 +256,12 @@ void read_data_weights(const int &nfiles, Col<int> &weight_types, vec &weights_f
 
 void read_data_num(const int &nfiles, const vector<opti_data> &data_exp, vector<opti_data> &data_num) {
     
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_num.inp";
+
     ifstream paraminit;
     string buffer;
-    paraminit.open("data/files_num.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     if(!paraminit) {
         cout << "Error: cannot open files_num.inp file\n";
         exit(0);
@@ -275,7 +291,8 @@ void read_data_num(const int &nfiles, const vector<opti_data> &data_exp, vector<
 
 void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &path, const string &filename) {
 
-    string pathfile = path + "/" + filename;
+    std::filesystem::path data_dir = std::filesystem::current_path() / path;
+    std::filesystem::path pathfile = data_dir / filename;
     ifstream param_essentials;
     string buffer;
 
@@ -296,7 +313,8 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     
 void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &station_lim, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {
     
-    string pathfile = path + "/" + filename;
+    std::filesystem::path data_dir = std::filesystem::current_path() / path;
+    std::filesystem::path pathfile = data_dir / filename;
     ifstream param_control;
     string buffer;
         
@@ -337,7 +355,11 @@ void read_gen(int &apop, mat &samples, const int &n_param) {
     
     ifstream paraminit;
     string buffer;
-    paraminit.open("data/gen0.inp", ios::in);
+
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "gen0.inp";
+    
+    paraminit.open(pathfile, ios::in);
     if(!paraminit) {
         cout << "Error: cannot open data/gen0.inp file\n";
         exit(0);
@@ -356,7 +378,7 @@ void read_gen(int &apop, mat &samples, const int &n_param) {
     apop--;
     samples.resize(apop, n_param);
     
-    paraminit.open("data/gen0.inp", ios::in);
+    paraminit.open(pathfile, ios::in);
     paraminit >> buffer >> buffer >> buffer;
     for(int j=0; j<n_param; j++) {
         paraminit >> buffer;
