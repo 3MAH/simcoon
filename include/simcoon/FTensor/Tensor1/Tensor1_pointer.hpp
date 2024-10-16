@@ -10,7 +10,7 @@ namespace FTensor
     /* Note that the T *'s are mutable, so the pointer can change,
        allowing iterating over a array. */
 
-    mutable T *restrict data[Tensor_Dim];
+    mutable T *data[Tensor_Dim];
 
   public:
     /* Initializations for varying numbers of elements. */

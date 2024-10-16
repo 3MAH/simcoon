@@ -7,8 +7,8 @@ namespace FTensor
   template <class T, int Tensor_Dim01, int Tensor_Dim23>
   class Ddg<T *, Tensor_Dim01, Tensor_Dim23>
   {
-    mutable T *restrict data[(Tensor_Dim01 * (Tensor_Dim01 + 1)) / 2]
-                            [(Tensor_Dim23 * (Tensor_Dim23 + 1)) / 2];
+    mutable T *data[(Tensor_Dim01 * (Tensor_Dim01 + 1)) / 2]
+                   [(Tensor_Dim23 * (Tensor_Dim23 + 1)) / 2];
 
   public:
     /* There are two operator(int,int,int,int)'s, one for non-consts

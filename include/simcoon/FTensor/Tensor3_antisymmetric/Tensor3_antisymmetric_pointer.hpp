@@ -7,8 +7,7 @@ namespace FTensor
   template <class T, int Tensor_Dim0, int Tensor_Dim12>
   class Tensor3_antisymmetric<T *, Tensor_Dim0, Tensor_Dim12>
   {
-    mutable T *restrict
-      data[Tensor_Dim0][(Tensor_Dim12 * (Tensor_Dim12 - 1)) / 2];
+    mutable T *data[Tensor_Dim0][(Tensor_Dim12 * (Tensor_Dim12 - 1)) / 2];
 
   public:
     template <class... U> Tensor3_antisymmetric(U *... d) : data{d...}
