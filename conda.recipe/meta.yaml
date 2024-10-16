@@ -33,7 +33,7 @@ requirements:
     - liblapack * *openblas # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
-    - armadillo
+    - armadillo >=12.6
     - carma    
     - llvm-openmp
     - ninja
