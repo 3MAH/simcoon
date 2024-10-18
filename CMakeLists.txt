@@ -56,6 +56,7 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 if (MSVC)
+  find_package(Carma REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 else()
@@ -154,7 +155,11 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+if (MSVC)
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma)
+else()
+  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+endif()
 
 #Define lists of executables for compilation
 set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
