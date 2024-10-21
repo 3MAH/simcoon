@@ -1,0 +1,6 @@
+Number	Coatingof	umat	save	c	psi_mat	theta_mat   phi_mat	a1	a2	a3 psi_geom	theta_geom	phi_geom	nprops	nstatev	props
+0	0		ELISO   1	0.500000	0.      0.          0.		1	1	1  0.       	0.          	0.          	3       1       2250   0.19 8.8E-5
+1	0       	ELISO   1	0.500000	0.      0.          0.	        1	1	1  0.       	0.          	0.           	3       1       73000   0.19 0.5E-6
+
+
+
