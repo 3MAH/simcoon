@@ -30,7 +30,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_Chaboche_ccp.hpp>
 
 using namespace std;
 using namespace arma;
@@ -76,22 +76,23 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     
     //From the props to the material properties
     double E = props(0);
-    double nu= props(1);
-    double alpha_iso = props(2);
-    double sigmaY = props(3);
-    double Q=props(4);
-    double b=props(5);
-    double C_1 = props(6);
-    double D_1 = props(7);
-    double C_2 = props(8);
-    double D_2 = props(9);
+    double nu = props(1);
+    double G = props(2);    
+    double alpha_iso = props(3);
+    double sigmaY = props(4);
+    double Q=props(5);
+    double b=props(6);
+    double C_1 = props(7);
+    double D_1 = props(8);
+    double C_2 = props(9);
+    double D_2 = props(10);
 
-    double F_hill = props(10);
-    double G_hill = props(11);
-    double H_hill = props(12);
-    double L_hill = props(13);
-    double M_hill = props(14);
-    double N_hill = props(15);
+    double F_hill = props(11);
+    double G_hill = props(12);
+    double H_hill = props(13);
+    double L_hill = props(14);
+    double M_hill = props(15);
+    double N_hill = props(16);
     
     vec Hill_params = {F_hill,G_hill,H_hill,L_hill,M_hill,N_hill};    
     //double X_0 = props(10);
@@ -155,7 +156,7 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     a_2 = rotate_strain(a_2, DR);
     
     //Elstic stiffness tensor
-    L = L_iso(E, nu, "Enu");
+    L = L_cubic(E, nu, G, "EnuG");
         
     ///@brief Initialization
     if(start)
