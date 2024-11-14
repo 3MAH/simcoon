@@ -159,7 +159,7 @@ mat P_Hill(const vec &params) {
     return P;
 }
 
-mat P_DFA(const vec &params) //Deshpande–Fleck–Ashby {
+mat P_DFA(const vec &params) { //Deshpande–Fleck–Ashby 
     assert(params.n_elem == 7); //F,G,H,L,M,N,K
     mat P = zeros(6,6);
     //param(0) = F
