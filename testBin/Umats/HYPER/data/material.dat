@@ -1,0 +1,94 @@
+Material
+Name	MOORI
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.14
+C01 0.07
+kappa 100.
+
+Material
+Name	YEOHH
+Number_of_material_parameters	4
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.14
+C20 0.14
+C30 0.14
+kappa 10000.
+
+
+
+
+Material
+Name	NEOHC
+Number_of_material_parameters	2
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+mu 1
+kappa 1.E6
+
+
+Material
+Name	EPICP
+Number_of_material_parameters	6
+Number_of_internal_variables	8
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+E_A 10
+nu_A 0.349
+alphaA 1.E-6
+sigmaY	3
+k	150
+m	0.3
+
+
+
+Material
+Name	ELISO
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+E 1
+mu 0.3
+CTE 0.
+
+
+
+
+
+
+
+
+
+
+
