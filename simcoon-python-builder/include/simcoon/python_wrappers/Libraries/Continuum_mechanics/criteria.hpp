@@ -35,7 +35,7 @@ double Ani_stress(const pybind11::array_t<double> &input, const pybind11::array_
 pybind11::array_t<double> dAni_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props, const bool &copy=true);
 
 //This function returns the DFA equivalent stress.
-double DFA_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props;
+double DFA_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props);
 
 //This function returns the derivative of the DFA equivalent stress.
 pybind11::array_t<double> dDFA_stress(const pybind11::array_t<double> &input, const pybind11::array_t<double> &props, const bool &copy=true);
