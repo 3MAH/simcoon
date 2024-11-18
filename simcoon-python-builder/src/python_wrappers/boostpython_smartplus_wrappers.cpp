@@ -94,6 +94,8 @@ PYBIND11_MODULE(simmit, m) {
     m.def("dHill_stress", &dHill_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the Hill equivalent stress");
     m.def("Ani_stress", &Ani_stress, "input"_a, "props"_a, "This function returns the Ani equivalent stress");
     m.def("dAni_stress", &dAni_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the Ani equivalent stress");
+    m.def("DFA_stress", &DFA_stress, "input"_a, "props"_a, "This function returns the DFA equivalent stress");
+    m.def("dDFA_stress", &dDFA_stress, "input"_a, "props"_a, "copy"_a=true, "This function returns the derivative of the DFA equivalent stress");
     m.def("Eq_stress", &Eq_stress, "input"_a, "criteria"_a, "props"_a, "This function computes the selected equivalent stress function");
     m.def("dEq_stress", &dEq_stress, "input"_a, "criteria"_a, "props"_a, "copy"_a=true, "This function computes the deriavtive of the selected equivalent stress function");
 
