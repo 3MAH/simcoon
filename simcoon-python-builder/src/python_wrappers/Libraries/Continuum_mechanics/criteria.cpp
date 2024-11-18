@@ -90,12 +90,12 @@ py::array_t<double> dAni_stress(const py::array_t<double> &input, const py::arra
 //This function returns the DFA equivalent stress.
 double DFA_stress(const py::array_t<double> &input, const py::array_t<double> &props) {
     vec v = carma::arr_to_col(input);
-    vec props_cpp = carma::arr_to_vol(props);
+    vec props_cpp = carma::arr_to_col(props);
     return simcoon::DFA_stress(v, props_cpp);
 }
 
 //This function returns the derivative of the DFA equivalent stress.
-py::array_t<double> dDFA_stress(const py::array_t<double> &input, const py::array_t<double> &props, const bool &copy {
+py::array_t<double> dDFA_stress(const py::array_t<double> &input, const py::array_t<double> &props, const bool &copy) {
     vec v = carma::arr_to_col(input);
     vec props_cpp = carma::arr_to_col(props);
     vec t = simcoon::dDFA_stress(v, props_cpp);
