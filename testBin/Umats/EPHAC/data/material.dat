@@ -1,6 +1,6 @@
 Material
 Name	EPHAC
-Number_of_material_parameters	16
+Number_of_material_parameters	17
 Number_of_internal_variables	33
 
 #Orientation
@@ -11,6 +11,7 @@ phi	0
 #Mechancial
 E	140000
 nu_A 	0.3
+G  23000
 alphaA 1.E-6
 sigmaY	62.859017
 Q	416.004456
