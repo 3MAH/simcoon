@@ -30,7 +30,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/DFA_chaboche_ccp.hpp>
 
 using namespace std;
 using namespace arma;
@@ -64,7 +64,7 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void umat_dfa_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
 {
     
     UNUSED(nprops);
@@ -87,14 +87,15 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     double C_2 = props(9);
     double D_2 = props(10);
 
-    double F_hill = props(11);
-    double G_hill = props(12);
-    double H_hill = props(13);
-    double L_hill = props(14);
-    double M_hill = props(15);
-    double N_hill = props(16);
+    double F_dfa = props(11);
+    double G_dfa = props(12);
+    double H_dfa = props(13);
+    double L_dfa = props(14);
+    double M_dfa = props(15);
+    double N_dfa = props(16);
+    double K_dfa = props(17);
     
-    vec Hill_params = {F_hill,G_hill,H_hill,L_hill,M_hill,N_hill};    
+    vec DFA_params = {F_dfa,G_dfa,H_dfa,L_dfa,M_dfa,N_dfa,K_dfa};  
     //double X_0 = props(10);
     //double ep_eq0 = props(11);
     
@@ -220,9 +221,9 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = dHill_stress(sigma-X,Hill_params);
-    vec Lambdaa_1 = dHill_stress(sigma-X,Hill_params) - D_1*a_1;
-    vec Lambdaa_2 = dHill_stress(sigma-X,Hill_params) - D_2*a_2;
+    vec Lambdap = dDFA_stress(sigma-X,DFA_params);
+    vec Lambdaa_1 = dDFA_stress(sigma-X,DFA_params) - D_1*a_1;
+    vec Lambdaa_2 = dDFA_stress(sigma-X,DFA_params) - D_2*a_2;
 
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
@@ -242,19 +243,19 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
         else {
             dHpdp = 0.;
         }
-        dPhidsigma = dHill_stress(sigma-X,Hill_params);
+        dPhidsigma = dDFA_stress(sigma-X,DFA_params);
         dPhidp = -1.*dHpdp;
 //        dPhidp = -1.*dHpdp;
-        dPhida_1 = -1.*(2./3.)*C_1*(dHill_stress(sigma-X,Hill_params)%Ir05());
-        dPhida_2 = -1.*(2./3.)*C_2*(dHill_stress(sigma-X,Hill_params)%Ir05());
+        dPhida_1 = -1.*(2./3.)*C_1*(dDFA_stress(sigma-X,DFA_params)%Ir05());
+        dPhida_2 = -1.*(2./3.)*C_2*(dDFA_stress(sigma-X,DFA_params)%Ir05());
 //        dPhida = 0.*(eta_stress(sigma - X)%Ir05());
         
         //compute Phi and the derivatives
-        Phi(0) = Hill_stress(sigma-X,Hill_params) - Hp - sigmaY;
+        Phi(0) = DFA_stress(sigma-X,DFA_params) - Hp - sigmaY;
         
-        Lambdap = dHill_stress(sigma-X,Hill_params);
-        Lambdaa_1 = dHill_stress(sigma-X,Hill_params) - D_1*a_1;
-        Lambdaa_2 = dHill_stress(sigma-X,Hill_params) - D_2*a_2;
+        Lambdap = dDFA_stress(sigma-X,DFA_params);
+        Lambdaa_1 = dDFA_stress(sigma-X,DFA_params) - D_1*a_1;
+        Lambdaa_2 = dDFA_stress(sigma-X,DFA_params) - D_2*a_2;
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp + sum(dPhida_1%Lambdaa_1) + sum(dPhida_2%Lambdaa_2);
