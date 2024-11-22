@@ -6,11 +6,9 @@ channels:
 
 dependencies:
   - pkg-config
-  - cxx-compiler
-  - fortran-compiler
   - libblas * *netlib
   - liblapack * *netlib
-  - cmake
+  - cmake>=3.30
   - python
   - numpy>=1.24
   - pip

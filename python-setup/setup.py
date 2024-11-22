@@ -1,16 +1,26 @@
-from setuptools import setup, find_packages
+from setuptools import setup
+import sys
+
+# Determine the appropriate file extension based on the OS
+if sys.platform == "win32":
+    extension_suffix = ".pyd"
+else:
+    extension_suffix = ".so"
 
 setup(
     name="simcoon",
-    version="1.9.3",
+    version="1.9.5",
     description="Simulation in Mechanics and Materials: Interactive Tools",
     author="Yves Chemisky",
     author_email="yves.chemisky@gmail.com",
-    # url=
     packages=[
         "simcoon",
     ],
-    package_data={"simcoon": ["simmit.so"]},
+    package_data={
+        "simcoon": [
+            f"simmit{extension_suffix}"
+        ],  # Include .pyd or .so depending on the platform
+    },
     include_package_data=True,
     license="GPL",
 )

@@ -30,7 +30,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Ani_chaboche_ccp.hpp>
 
 using namespace std;
 using namespace arma;
@@ -64,7 +64,7 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void umat_ani_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
 {
     
     UNUSED(nprops);
@@ -87,14 +87,17 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     double C_2 = props(9);
     double D_2 = props(10);
 
-    double F_hill = props(11);
-    double G_hill = props(12);
-    double H_hill = props(13);
-    double L_hill = props(14);
-    double M_hill = props(15);
-    double N_hill = props(16);
+    double P11 = props(11);
+    double P22 = props(12);
+    double P33 = props(13);
+    double P12 = props(14);
+    double P13 = props(15);
+    double P23 = props(16);
+    double P44 = props(17);
+    double P55 = props(18);
+    double P66 = props(19);
     
-    vec Hill_params = {F_hill,G_hill,H_hill,L_hill,M_hill,N_hill};    
+    vec Ani_params = {P11,P22,P33,P12,P13,P23,P44,P55,P66};    
     //double X_0 = props(10);
     //double ep_eq0 = props(11);
     
@@ -220,9 +223,9 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = dHill_stress(sigma-X,Hill_params);
-    vec Lambdaa_1 = dHill_stress(sigma-X,Hill_params) - D_1*a_1;
-    vec Lambdaa_2 = dHill_stress(sigma-X,Hill_params) - D_2*a_2;
+    vec Lambdap = dAni_stress(sigma-X,Ani_params);
+    vec Lambdaa_1 = dAni_stress(sigma-X,Ani_params) - D_1*a_1;
+    vec Lambdaa_2 = dAni_stress(sigma-X,Ani_params) - D_2*a_2;
 
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
@@ -242,19 +245,19 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
         else {
             dHpdp = 0.;
         }
-        dPhidsigma = dHill_stress(sigma-X,Hill_params);
+        dPhidsigma = dAni_stress(sigma-X,Ani_params);
         dPhidp = -1.*dHpdp;
 //        dPhidp = -1.*dHpdp;
-        dPhida_1 = -1.*(2./3.)*C_1*(dHill_stress(sigma-X,Hill_params)%Ir05());
-        dPhida_2 = -1.*(2./3.)*C_2*(dHill_stress(sigma-X,Hill_params)%Ir05());
+        dPhida_1 = -1.*(2./3.)*C_1*(dAni_stress(sigma-X,Ani_params)%Ir05());
+        dPhida_2 = -1.*(2./3.)*C_2*(dAni_stress(sigma-X,Ani_params)%Ir05());
 //        dPhida = 0.*(eta_stress(sigma - X)%Ir05());
         
         //compute Phi and the derivatives
-        Phi(0) = Hill_stress(sigma-X,Hill_params) - Hp - sigmaY;
+        Phi(0) = Ani_stress(sigma-X,Ani_params) - Hp - sigmaY;
         
-        Lambdap = dHill_stress(sigma-X,Hill_params);
-        Lambdaa_1 = dHill_stress(sigma-X,Hill_params) - D_1*a_1;
-        Lambdaa_2 = dHill_stress(sigma-X,Hill_params) - D_2*a_2;
+        Lambdap = dAni_stress(sigma-X,Ani_params);
+        Lambdaa_1 = dAni_stress(sigma-X,Ani_params) - D_1*a_1;
+        Lambdaa_2 = dAni_stress(sigma-X,Ani_params) - D_2*a_2;
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp + sum(dPhida_1%Lambdaa_1) + sum(dPhida_2%Lambdaa_2);

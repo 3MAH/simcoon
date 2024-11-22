@@ -7,8 +7,7 @@ namespace FTensor
   template <class T, int Tensor_Dim01, int Tensor_Dim2>
   class Dg<T *, Tensor_Dim01, Tensor_Dim2>
   {
-    mutable T *restrict
-      data[(Tensor_Dim01 * (Tensor_Dim01 + 1)) / 2][Tensor_Dim2];
+    mutable T *data[(Tensor_Dim01 * (Tensor_Dim01 + 1)) / 2][Tensor_Dim2];
 
   public:
     template <class... U> Dg(U *... d) : data{d...}

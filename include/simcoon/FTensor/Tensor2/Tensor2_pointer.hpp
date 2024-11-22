@@ -7,7 +7,7 @@ namespace FTensor
   template <class T, int Tensor_Dim0, int Tensor_Dim1>
   class Tensor2<T *, Tensor_Dim0, Tensor_Dim1>
   {
-    mutable T *restrict data[Tensor_Dim0][Tensor_Dim1];
+    mutable T *data[Tensor_Dim0][Tensor_Dim1];
 
   public:
     /* Initializations for varying numbers of elements. */

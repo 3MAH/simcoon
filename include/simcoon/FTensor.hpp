@@ -2,6 +2,7 @@
    in namespace FTensor. */
 
 #pragma once
+
 #include <cmath>
 #include <complex>
 #include <type_traits>
