@@ -22,7 +22,7 @@ def savitzky_golay(y, window_size, order, deriv=0, rate=1):
     m = np.linalg.pinv(b).A[deriv] * rate**deriv * factorial(deriv)
     # pad the signal at the extremes with
     # values taken from the signal itself
-    firstvals = y[0] - np.abs( y[1:half_window+1][::-1] - y[0] )
+    firstvals = y[0] - np.abs(y[1:half_window+1][::-1] - y[0])
     lastvals = y[-1] + np.abs(y[-half_window-1:-1][::-1] - y[-1])
     y = np.concatenate((firstvals, y, lastvals))
     return np.convolve( m[::-1], y, mode='valid')
@@ -31,16 +31,16 @@ def split_monotonic(data):
 
     np_split_indexes= np.where(np.diff(np.sign(np.diff(data))) != 0)[0]+2
     split_indexes= [1] + list(np_split_indexes) + [len(data)]
-    return [data[a-1:b] for a,b in zip(split_indexes[:-1],split_indexes[1:])]
+    return [data[a-1:b] for a, b in zip(split_indexes[:-1],split_indexes[1:])]
 
 def split_monotonic_func(x,y):
 
     d = []
-    np_split_indexes= np.where(np.diff(np.sign(np.diff(y))) != 0)[0]+2
-    split_indexes= [1] + list(np_split_indexes) + [len(y)]
-    d.append([x[a-1:b] for a,b in zip(split_indexes[:-1],split_indexes[1:])])
-    d.append([y[a-1:b] for a,b in zip(split_indexes[:-1],split_indexes[1:])])
-    return d;
+    np_split_indexes = np.where(np.diff(np.sign(np.diff(y))) != 0)[0]+2
+    split_indexes = [1] + list(np_split_indexes) + [len(y)]
+    d.append([x[a-1:b] for a, b in zip(split_indexes[:-1], split_indexes[1:])])
+    d.append([y[a-1:b] for a, b in zip(split_indexes[:-1], split_indexes[1:])])
+    return d
 
 def interpolate_multi_monotonic(x,y, num):
     
@@ -50,7 +50,7 @@ def interpolate_multi_monotonic(x,y, num):
     y2_list = []
     for xi, yi in zip(d[0], d[1]):
         f_x2y2 = interpolate.interp1d(xi, yi)
-        x2i = np.linspace(xi[0],xi[-1],num)
+        x2i = np.linspace(xi[0], xi[-1], num)
         y2i = f_x2y2(x2i)
         x2_list.append(x2i)
         y2_list.append(y2i)
@@ -61,18 +61,18 @@ def interpolate_multi_monotonic(x,y, num):
 
     y_tot = np.array(y2_list[0])
     for a in y2_list[1:]:
-        y_tot = np.append(y_tot,a[1:])
+        y_tot = np.append(y_tot, a[1:])
 
     d2.append(x_tot)
     d2.append(y_tot)
-    return d2;
+    return d2
 
-def interpolatespline_monotonic(xi,yi,x2i,num):
+def interpolatespline_monotonic(xi, yi, x2i, num):
 
-    f_x2y2_in = interpolate.interp1d(xi,yi)
-    xi_inter = np.linspace(np.amin(xi),np.amax(xi),num)
+    f_x2y2_in = interpolate.interp1d(xi, yi)
+    xi_inter = np.linspace(np.amin(xi), np.amax(xi), num)
     yi_inter = f_x2y2_in(xi_inter)
-    f_x2y2_out = interpolate.InterpolatedUnivariateSpline(xi_inter,yi_inter)
+    f_x2y2_out = interpolate.InterpolatedUnivariateSpline(xi_inter, yi_inter)
 
     xi_min = np.amin(xi)
     xi_max = np.amax(xi)
@@ -92,31 +92,31 @@ def interpolatespline_monotonic(xi,yi,x2i,num):
 
 def interpolatespline_multi_monotonic(x,y,x_res,num):
     
-    d = split_monotonic_func(x,y)
+    d = split_monotonic_func(x, y)
     d_res = split_monotonic(x_res)
     
-    assert(len(d[0])<=len(d_res))
+    assert(len(d[0]) <= len(d_res))
     
     d2 = []
     x2_list = []
     y2_list = []
     for xi, yi, x2i in zip(d[0], d[1], d_res):
         
-        y2i = interpolatespline_monotonic(xi,yi,x2i,num)
+        y2i = interpolatespline_monotonic(xi, yi, x2i, num)
         x2_list.append(x2i)
         y2_list.append(y2i)
     
     x_tot = np.array(x2_list[0])
     for a in x2_list[1:]:
-        x_tot = np.append(x_tot,a[1:])
+        x_tot = np.append(x_tot, a[1:])
     
     y_tot = np.array(y2_list[0])
     for a in y2_list[1:]:
-        y_tot = np.append(y_tot,a[1:])
+        y_tot = np.append(y_tot, a[1:])
     
     d2.append(x_tot)
     d2.append(y_tot)
-    return d2;
+    return d2
 
 
 
