@@ -1,5 +1,5 @@
 """
-Constant class to manage list of solids belonging to the same phase
+Constant class to manage simcoon computations constants
 """
 
 import os
@@ -24,15 +24,16 @@ class Constant(NamedTuple):
     input_files: List[str]
 
 
-def read_constants(n_consts: int) -> List[Constant]:
+def read_constants(n_consts: int, path: str = "data/") -> List[Constant]:
     """
-    read_constants from a simcoon input file
-    @param: n_const
-    @return : List of Constant
+    read constants from a simcoon input file
+    :param n_const: number of constants
+    :param path: path where constants.inp simcoon input file is located
+    :return: List of Constant
     """
     consts = []
-    with open("data/constants.inp", "r", encoding="utf-8") as paraminit:
-        lines = paraminit.readlines()
+    with open(path + "constants.inp", "r", encoding="utf-8") as constinit:
+        lines = constinit.readlines()
 
         for line in lines[1:]:
             values = line.split()
@@ -41,14 +42,14 @@ def read_constants(n_consts: int) -> List[Constant]:
             for j in range(n_consts):
                 array_input_values[j] = values[2 + j]
 
-            co = Constant(
+            const = Constant(
                 number=int(values[0]),
                 key=values[1],
                 input_values=array_input_values,
                 value=array_input_values[0],
                 input_files=[values[3 + n_consts + j] for j in range(nfiles)],
             )
-            consts.append(co)
+            consts.append(const)
     return consts
 
 
@@ -64,8 +65,8 @@ def copy_constants(
     :param dst_path: Destination path
     :return: None
     """
-    for co in consts:
-        for ifiles in co.input_files:
+    for const in consts:
+        for ifiles in const.input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -82,12 +83,12 @@ def apply_constants(
     :param dst_path: Destination path
     :return: None
     """
-    for co in consts:
-        for ifiles in co.input_files:
+    for const in consts:
+        for ifiles in const.input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(co.key, str(co.value))
+            modified_content = content.replace(const.key, str(const.value))
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)
