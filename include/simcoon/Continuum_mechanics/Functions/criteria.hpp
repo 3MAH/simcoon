@@ -203,9 +203,9 @@ arma::mat P_Hill(const arma::vec &P_params);
     \f$ F,G,H,L,M,N,K \f$, such that
 \f[
     P_{DFA} = \left( \begin{array}{cccccc}
-        G + H + K & -H + K & -G + K & 0 & 0 & 0 \\
-        -H + K & F + H + K & -F + K & 0 & 0 & 0 \\
-        -G + K & -F + K & F + G + K & 0 & 0 & 0 \\
+        G + H + K/9 & -H + K/9 & -G + K/9 & 0 & 0 & 0 \\
+        -H + K/9 & F + H + K/9 & -F + K/9 & 0 & 0 & 0 \\
+        -G + K/9 & -F + K/9 & F + G + K/9 & 0 & 0 & 0 \\
         0 & 0 & 0 & 2 \, N & 0 & 0 \\
         0 & 0 & 0 & 0 & 2 \, M & 0 \\
         0 & 0 & 0 & 0 & 0 & 2 \, L \end{array} \right)
@@ -216,7 +216,7 @@ arma::mat P_Hill(const arma::vec &P_params);
 \f[ 
     \begin{align}    
     \sigma^{DFA} & = \left( H\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + F\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
-     & + \left. 2\,L\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,N\,\sigma_{23}^2 \right)^{1/2} + K \left( \sigma_{11} + \sigma_{22} + \sigma_{33} \right)^2
+     & + \left. 2\,L\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,N\,\sigma_{23}^2 \right)^{1/2} + K \left( \left( \sigma_{11} + \sigma_{22} + \sigma_{33} \right) /9 \right)^2
     \end{align}
 \f]
     Considering the full anisotric formulation:
