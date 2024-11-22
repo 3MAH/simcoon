@@ -1,5 +1,5 @@
 """
-Phase class to manage list of solids belonging to the same phase
+Parameter class to manage simcoon computation parameters
 """
 
 import os
@@ -29,19 +29,20 @@ class Parameter:
     input_files: List[str]
 
 
-def read_parameters() -> List[Parameter]:
+def read_parameters(path: str = "data/") -> List[Parameter]:
     """
-    read_parameters from a simcoon input file
-    @return : List of Parameter
+    read_parameters from a simcoon input file located in path
+    :param path: path where parameters.inp simcoon input file is located
+    :return: List of Parameter
     """
     params = []
-    with open("data/parameters.inp", "r", encoding="utf-8") as paraminit:
+    with open(path + "parameters.inp", "r", encoding="utf-8") as paraminit:
         lines = paraminit.readlines()
 
         for line in lines[1:]:
             values = line.split()
             nfiles = int(values[4])
-            pa = Parameter(
+            param = Parameter(
                 number=int(values[0]),
                 value=0.5 * float(values[1]) + 0.5 * float(values[2]),
                 min_value=float(values[1]),
@@ -49,7 +50,7 @@ def read_parameters() -> List[Parameter]:
                 key=values[3],
                 input_files=[values[5 + j] for j in range(nfiles)],
             )
-            params.append(pa)
+            params.append(param)
     return params
 
 
@@ -65,8 +66,8 @@ def copy_parameters(
     :param dst_path: Destination path
     :return: None
     """
-    for pa in params:
-        for ifiles in pa.input_files:
+    for param in params:
+        for ifiles in param.input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -83,12 +84,12 @@ def apply_parameters(
     :param dst_path: Destination path
     :return: None
     """
-    for pa in params:
-        for ifiles in pa.input_files:
+    for param in params:
+        for ifiles in param.input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(pa.key, str(pa.value))
+            modified_content = content.replace(param.key, str(param.value))
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)
