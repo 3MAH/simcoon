@@ -120,8 +120,8 @@ void read_phase(phase_characteristics &rve, const string &path_data, const strin
         
         r.sptr_matprops->resize(nprops);
         natural_basis nb;
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
-        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -189,8 +189,8 @@ void read_layer(phase_characteristics &rve, const string &path_data, const strin
         
         r.sptr_matprops->resize(nprops);
         natural_basis nb;
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
-        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -263,8 +263,8 @@ void read_ellipsoid(phase_characteristics &rve, const string &path_data, const s
         
         r.sptr_matprops->resize(nprops);
         natural_basis nb;
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
-        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;
@@ -346,8 +346,8 @@ void read_cylinder(phase_characteristics &rve, const string &path_data, const st
         
         r.sptr_matprops->resize(nprops);
         natural_basis nb;
-        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
-        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+        r.sptr_sv_local->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), rve.sptr_sv_global->T, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
         
         for(int j=0; j<r.sptr_matprops->nprops; j++) {
             paramphases >> buffer;

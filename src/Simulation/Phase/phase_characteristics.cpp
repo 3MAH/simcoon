@@ -29,7 +29,6 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Geometry/geometry.hpp>
 #include <simcoon/Simulation/Geometry/layer.hpp>
-#include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Simulation/Geometry/cylinder.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -443,7 +442,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     VR_decomposition(V, R_temp, sptr_sv_global->F1);
                     vec lambda_bar = isochoric_pstretch_from_V(V);
                     for (int z=0; z<so.o_nb_strain; z++) {
-                        *sptr_out_global << sptr_sv_global->lambda_bar(so.o_strain(z)) << "\t";
+                        *sptr_out_global << lambda_bar(so.o_strain(z)) << "\t";
                     }
                     break;
                 }                
@@ -680,6 +679,16 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     }
                     break;
                 }
+                case 4: {
+                    mat R_temp = zeros(3,3);
+                    mat V = zeros(3,3);                    
+                    VR_decomposition(V, R_temp, sptr_sv_local->F1);
+                    vec lambda_bar = isochoric_pstretch_from_V(V);
+                    for (int z=0; z<so.o_nb_strain; z++) {
+                        *sptr_out_local << lambda_bar(so.o_strain(z)) << "\t";
+                    }
+                    break;
+                }                
                 default: {
                     cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
                     exit(0);

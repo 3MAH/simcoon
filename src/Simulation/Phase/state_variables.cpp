@@ -44,7 +44,7 @@ namespace simcoon{
 */
 
 //-------------------------------------------------------------
-state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {
 	Etot = zeros(6);
@@ -57,10 +57,12 @@ state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(
     tau_start = zeros(6);
 	sigma = zeros(6);
 	sigma_start = zeros(6);
-    F0 = zeros(3,3);
-    F1 = zeros(3,3);
-    R = zeros(3,3);
-    DR = zeros(3,3);
+    F0 = eye(3,3);
+    F1 = eye(3,3);
+    U0 = eye(3,3);
+    U1 = eye(3,3);
+    R = eye(3,3);
+    DR = eye(3,3);
     T = 0.;
     DT = 0.;
 	nstatev=0;
@@ -73,7 +75,7 @@ state_variables::state_variables() : Etot(6), DEtot(6), etot(6), Detot(6), PKII(
 */
 
 //-------------------------------------------------------------
-state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const int &m, const bool &init, const double &value) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {
     
@@ -87,10 +89,12 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
     tau_start = zeros(6);
     sigma = zeros(6);
     sigma_start = zeros(6);
-    F0 = zeros(3,3);
-    F1 = zeros(3,3);
-    R = zeros(3,3);
-    DR = zeros(3,3);
+    F0 = eye(3,3);
+    F1 = eye(3,3);
+    U0 = eye(3,3);
+    U1 = eye(3,3);
+    R = eye(3,3);
+    DR = eye(3,3);
     T = 0.;
     DT = 0.;
     
@@ -109,7 +113,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -123,9 +127,9 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     assert (mF0.n_cols == 3);
     assert (mF1.n_rows == 3);
     assert (mF1.n_cols == 3);
+    assert (mU0.n_rows == 3);
+    assert (mU1.n_cols == 3);
     assert (mR.n_rows == 3);
-    assert (mR.n_cols == 3);
-    assert (mDR.n_rows == 3);
     assert (mDR.n_cols == 3);
 	
 	Etot = mEtot;
@@ -140,6 +144,8 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 	sigma_start = msigma_start;
     F0 = mF0;
     F1 = mF1;
+    U0 = mU0;
+    U1 = mU1;
     R = mR;
     DR = mDR;
     T = mT;
@@ -158,7 +164,7 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
 */
 
 //------------------------------------------------------
-state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //------------------------------------------------------
 {
 	Etot = sv.Etot;
@@ -173,6 +179,8 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    U0 = sv.U0;
+    U1 = sv.U1;
     R = sv.R;
     DR = sv.DR;
     T = sv.T;
@@ -220,6 +228,8 @@ state_variables& state_variables::operator = (const state_variables& sv)
     F1 = sv.F1;
     R = sv.R;
     DR = sv.DR;
+	U0 = sv.U0;
+	U1 = sv.U1;    
     T = sv.T;
     DT = sv.DT;
 
@@ -248,6 +258,8 @@ state_variables& state_variables::copy_fields(const state_variables& sv)
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+	U0 = sv.U0;
+	U1 = sv.U1;    
     R = sv.R;
     DR = sv.DR;
     T = sv.T;
@@ -286,7 +298,7 @@ void state_variables::resize(const int &m, const bool &init, const double &value
     
     
 //-------------------------------------------------------------
-void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb)
+void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb)
 //-------------------------------------------------------------
 {
     assert (mEtot.size() == 6);
@@ -300,6 +312,10 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &met
     assert (mF0.n_cols == 3);
     assert (mF1.n_rows == 3);
     assert (mF1.n_cols == 3);
+    assert (mU0.n_rows == 3);
+    assert (mU0.n_cols == 3);
+    assert (mU1.n_rows == 3);
+    assert (mU1.n_cols == 3);
     assert (mR.n_rows == 3);
     assert (mR.n_cols == 3);
     assert (mDR.n_rows == 3);
@@ -317,6 +333,8 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &met
     sigma_start = msigma_start;
     F0 = mF0;
     F1 = mF1;
+    U0 = mU0;
+    U1 = mU1;
     R = mR;
     DR = mDR;
     T = mT;
@@ -355,10 +373,11 @@ void state_variables::set_start(const int &corate_type)
         T += DT;
         F0 = F1;
     //    R = R*DR;
+        U0 = U1;
         R = DR*R;
         nb.from_F(F1);
     }
-    else {
+    else { //DR is here understand as DF since the material system of coordinates is no longer orthonormal
         PKII_start = PKII;
         tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
         sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));
@@ -367,6 +386,7 @@ void state_variables::set_start(const int &corate_type)
         etot = t2v_strain(DR*v2t_strain(etot)*inv(DR)) + Detot;
         T += DT;
         F0 = F1;
+        U0 = U1;
     //    R = R*DR;
         R = DR*R;
         nb.from_F(F1);        
@@ -390,6 +410,8 @@ state_variables& state_variables::rotate_fix2natural(const state_variables& sv, 
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    U0 = sv.U0;
+    U1 = sv.U1;
     R = sv.R;
     DR = sv.DR;
     T = sv.T;
@@ -421,6 +443,34 @@ state_variables& state_variables::rotate_fix2natural(const state_variables& sv, 
 */
 
 //----------------------------------------------------------------------
+arma::mat state_variables::PKI_stress()
+//----------------------------------------------------------------------
+{
+    return Cauchy2PKI(v2t_stress(sigma), F1);
+}
+
+//----------------------------------------------------------------------
+arma::mat state_variables::PKI_stress_start()
+//----------------------------------------------------------------------
+{
+    return Cauchy2PKI(v2t_stress(sigma_start), F0);
+}
+
+//----------------------------------------------------------------------
+arma::mat state_variables::Biot_stress()
+//----------------------------------------------------------------------
+{
+    return Cauchy2Biot(v2t_stress(sigma), F1);
+}
+
+//----------------------------------------------------------------------
+arma::mat state_variables::Biot_stress_start()
+//----------------------------------------------------------------------
+{
+    return Cauchy2Biot(v2t_stress(sigma_start), F0);
+}
+
+//----------------------------------------------------------------------
 state_variables& state_variables::rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
@@ -437,6 +487,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
+    U0 = sv.U0;
+    U1 = sv.U1;
     R = sv.R;
     DR = sv.DR;
     T = sv.T;
@@ -459,6 +511,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -phi, axis_phi);
         F0 = rotate_mat(F0, -phi, axis_phi);
         F1 = rotate_mat(F1, -phi, axis_phi);
+        U0 = rotate_mat(U0, -phi, axis_phi);
+        U1 = rotate_mat(U1, -phi, axis_phi);        
         R = rotate_mat(R, -phi, axis_phi);
         DR = rotate_mat(DR, -phi, axis_phi);
 	}
@@ -475,6 +529,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -theta, axis_theta);
         F0 = rotate_mat(F0, -theta, axis_theta);
         F1 = rotate_mat(F1, -theta, axis_theta);
+        U0 = rotate_mat(U0, -theta, axis_theta);
+        U1 = rotate_mat(U1, -theta, axis_theta);
         R = rotate_mat(R, -theta, axis_theta);
         DR = rotate_mat(DR, -theta, axis_theta);
 	}
@@ -491,6 +547,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, -psi, axis_psi);
         F0 = rotate_mat(F0, -psi, axis_psi);
         F1 = rotate_mat(F1, -psi, axis_psi);
+        U0 = rotate_mat(U0, -psi, axis_psi);
+        U1 = rotate_mat(U1, -psi, axis_psi);
         R = rotate_mat(R, -psi, axis_psi);
         DR = rotate_mat(DR, -psi, axis_psi);
 	}
@@ -516,6 +574,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     F1 = sv.F1;
     R = sv.R;
     DR = sv.DR;
+    U0 = sv.U0;
+    U1 = sv.U1;    
     T = sv.T;
     DT = sv.DT;
     
@@ -536,6 +596,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, psi, axis_psi);
         F0 = rotate_mat(F0, psi, axis_psi);
         F1 = rotate_mat(F1, psi, axis_psi);
+        U0 = rotate_mat(U0, psi, axis_psi);
+        U1 = rotate_mat(U1, psi, axis_psi);
         R = rotate_mat(R, psi, axis_psi);
         DR = rotate_mat(DR, psi, axis_psi);
 	}
@@ -552,6 +614,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, theta, axis_theta);
         F0 = rotate_mat(F0, theta, axis_theta);
         F1 = rotate_mat(F1, theta, axis_theta);
+        U0 = rotate_mat(U0, theta, axis_theta);
+        U1 = rotate_mat(U1, theta, axis_theta);
         R = rotate_mat(R, theta, axis_theta);
         DR = rotate_mat(DR, theta, axis_theta);
 	}
@@ -568,6 +632,8 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
 		sigma_start = rotate_stress(sigma_start, phi, axis_phi);
         F0 = rotate_mat(F0, phi, axis_phi);
         F1 = rotate_mat(F1, phi, axis_phi);
+        U0 = rotate_mat(U0, phi, axis_phi);
+        U1 = rotate_mat(U1, phi, axis_phi);
         R = rotate_mat(R, phi, axis_phi);
         DR = rotate_mat(DR, phi, axis_phi);
     }
@@ -591,6 +657,8 @@ ostream& operator << (ostream& s, const state_variables& sv)
 	s << "sigma_start: \n" << sv.sigma_start << "\n";
     s << "F0: \n" << sv.F0 << "\n";
     s << "F1: \n" << sv.F1 << "\n";
+    s << "U0: \n" << sv.U0 << "\n";
+    s << "U1: \n" << sv.U1 << "\n";
     s << "R: \n" << sv.R << "\n";
     s << "DR: \n" << sv.DR << "\n";
     s << "T: \n" << sv.T << "\n";
