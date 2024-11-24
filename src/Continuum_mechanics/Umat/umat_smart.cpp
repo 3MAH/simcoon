@@ -920,7 +920,7 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
-        case 2: case 3: case 4: case 5: {
+        case 2: case 3: case 4: case 5: case 6: {
             select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
