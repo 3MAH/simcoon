@@ -35,7 +35,7 @@ namespace simcoon{
  * - the transformation gradient \f$ \mathbf{F} \f$ and its determinant \f$ \mathbf{J} \f$ (this last one is optional, if not indicated, it will be computed from \f$ \mathbf{F} \f$)
  *
  * @param sigma (3x3 arma::mat) the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
- * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F}_0 \f$
+ * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param J (double, optional) determinant of the transformation gradient \f$ \mathbf{F} \f$
  * @return (3x3 arma::mat) the first Piola Kirchoff stress tensor \f$ \mathbf{\Sigma} \f$
  *
@@ -48,6 +48,35 @@ namespace simcoon{
  * @endcode
 */
 arma::mat Cauchy2PKI(const arma::mat &sigma, const arma::mat &F, const double &J = 0.);
+
+/**
+ * @brief Provides the Biot stress tensor \f$ \mathbf{T} \f$ from the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
+ *
+ * Returns a matrix, that is the Biot stress tensor from
+ * - the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
+ * - the transformation gradient \f$ \mathbf{F} \f$ and its determinant \f$ \mathbf{J} \f$ (this last one is optional, if not indicated, it will be computed from \f$ \mathbf{F} \f$)
+ * Note that the first Piola Kirchoff stress tensor \f$ \mathbf{\Sigma} \f$ is computed, and the Biot stress is obtained through
+ * 
+ * \f[
+ *      \mathbf{T} = \frac{1}{2} \left( \mathbf{R}^T \cdot mathbf{\Sigma} + mathbf{\Sigma}^T \cdot \mathbf{R} \right)
+ * \f] 
+ * 
+ *
+ * @param sigma (3x3 arma::mat) the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
+ * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
+ * @param R (3x3 arma::mat, optional) rotation part of the transformation gradient \f$ \mathbf{R} \f$ 
+ * @param J (double, optional) determinant of the transformation gradient \f$ \mathbf{F} \f$
+ * @return (3x3 arma::mat) the Biot stress tensor \f$ \mathbf{T} \f$
+ *
+ * @details Example:
+ * @code
+ *      mat matrand = randu(3,3);
+ *      mat sigma = 0.5*(matrand + matrand.t());
+ *      mat F = eye(3,3);
+ *      mat Biot = Cauchy2Biot(sigma, F);
+ * @endcode
+*/
+arma::mat Cauchy2Biot(const arma::mat &sigma, const arma::mat &F, const arma::mat &R = arma::zeros(3,3), const double &J = 0.);
 
 /**
  * @brief Provides the second Piola Kirchoff stress tensor \f$ \mathbf{S} \f$ from the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
