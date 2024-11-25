@@ -141,11 +141,12 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
         L = Lt;
     }
 
-    cout << "L = " << L << endl;
+/*    cout << "L = " << L << endl;
     cout << "Lt = " << Lt << endl;
     cout << "Lt_iso = " << Lt_iso << endl;    
     cout << "Lt_vol = " << Lt_vol << endl;        
     cout << "eig(Lt)" << eig_sym(Lt);
+*/
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%Detot);
