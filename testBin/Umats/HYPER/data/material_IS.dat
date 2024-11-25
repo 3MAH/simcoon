@@ -1,0 +1,26 @@
+Material
+Name	ISHAH
+Number_of_material_parameters	4
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.1161
+C20 0.0136
+C01 0.0114
+kappa 4000.
+
+
+
+
+
+
+
+
+
+
+

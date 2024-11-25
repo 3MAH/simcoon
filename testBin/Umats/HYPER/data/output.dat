@@ -1,7 +1,7 @@
 #Output_values
-strain_type 3
-nb_strain   6
-0   1   2   3   4   5
+strain_type 4
+nb_strain   3
+0   1   2
 stress_type	4
 nb_stress   6
 0   1   2   3   4   5
