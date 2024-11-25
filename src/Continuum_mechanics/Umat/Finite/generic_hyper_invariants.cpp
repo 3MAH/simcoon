@@ -77,7 +77,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     vec I_bar = isochoric_invariants(b, J);
 
     std::map<string, int> list_potentials;
-    list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2}};
+    list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2},{"ISHAH",3},{"GETHH",4},{"SWANH",5}};
 
     switch (list_potentials[umat_name]) {
         case 0: {
@@ -112,6 +112,65 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
             dU2dJ2 = kappa/J;
             break;
         }
+        case 3: {
+            // Ishara model (1951)
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+            double C_10 = props(0);
+            double C_20 = props(1);            
+            double C_01 = props(2);            
+            double kappa = props(3);     
+            dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.)*C_01*(I_bar(1)-3.);
+            dW2dI_11_bar = 2.*C_20*C_01*(I_bar(1)-3.);  
+            dW2dI_12_bar =  2.*C_20*C_01*(I_bar(0)-3.);
+            dWdI_2_bar = C_20*C_01*pow((I_bar(0)-3.),2.);
+            dUdJ = kappa*log(J);
+            dU2dJ2 = kappa/J;
+            break;
+        }
+        case 4: {
+            // Gent-Thomas model (1958)
+            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+            double c_1 = props(0);
+            double c_2 = props(1);            
+            double kappa = props(2);     
+            dWdI_1_bar = c_1;
+            if(fabs(I_bar(1)) > sim_iota) {
+                dWdI_2_bar = c_2/I_bar(1);
+                dW2dI_22_bar = -1.*c_2/pow(I_bar(1),2.);
+            }
+            dUdJ = kappa*log(J);
+            dU2dJ2 = kappa/J;
+            break;
+        }   
+        case 5: {        
+            // Swanson model (1985)
+            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+            int N_Swanson = int(props(0));
+            double kappa = props(1);     
+
+            vec A = zeros(N_Swanson);
+            vec B = zeros(N_Swanson);
+            vec alpha = zeros(N_Swanson);
+            vec beta = zeros(N_Swanson);
+            
+            for (int i=0; i<N_Swanson; i++) {
+                A(i) = props(2+i*4);
+                B(i) = props(2+i*4+1);
+                alpha(i) = props(2+i*4+2);
+                beta(i) = props(2+i*4+3);
+            }
+
+            for (int i=0; i<N_Swanson; i++) {
+                dWdI_1_bar += 1./2.*A(i)*pow((I_bar(0)/3.),alpha(i));
+                dW2dI_11_bar += 1./2.*(A(i)/alpha(i))*pow((I_bar(0)/3.),alpha(i)-1.);
+                dWdI_2_bar += 1./2.*B(i)*pow((I_bar(1)/3.),beta(i));
+                dW2dI_22_bar += 1./2.*(B(i)/beta(i))*pow((I_bar(1)/3.),beta(i)-1.);
+            }
+            dUdJ = kappa*log(J);
+            dU2dJ2 = kappa/J;
+            break;
+        }            
+
         default: {
             cout << "Error: The choice of hyperelastic potential could not be found in the simcoon library :" << umat_name
              << "\n";
@@ -144,12 +203,12 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         L = Lt;
     }
 
-    cout << "L = " << L << endl;
+/*    cout << "L = " << L << endl;
     cout << "Lt = " << Lt << endl;
     cout << "Lt_iso = " << Lt_iso << endl;    
     cout << "Lt_vol = " << Lt_vol << endl;        
     cout << "eig(Lt)" << eig_sym(Lt);
-    
+*/    
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%Detot);
     Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
