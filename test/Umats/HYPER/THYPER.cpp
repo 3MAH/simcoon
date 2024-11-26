@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <string>
 #include <assert.h>
 #include <math.h>
@@ -71,7 +72,10 @@ TEST(THYPER, HYPER_solver )
     std::vector<std::string> materialfiles = {"material_NH.dat", "material_MR.dat", "material_IS.dat", "material_GT.dat"};
     std::vector<std::string> comparison_files = {"results_NH.dat", "results_MR.dat", "results_IS.dat", "results_GT.dat"};
 
-    for(auto materialfile : materialfiles) {
+    for (size_t i = 0; i < materialfiles.size(); ++i) {
+
+        std::string materialfile = materialfiles[i];
+        std::string comparison_file = "comparison/" + comparison_files[i];
 
         solver_essentials(solver_type, corate_type, path_data, sol_essentials);
         solver_control(div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, sol_control);
@@ -79,16 +83,22 @@ TEST(THYPER, HYPER_solver )
         read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);
         solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
         
-        string path_comparison = "comparison/results_job_global-0.txt";
-        string path_outputfile = path_results + "/" + "results_job_global-0.txt";
+        string output_file = path_results + "/" + "results_job_global-0.txt";
         
         cout << "run " << materialfile << endl;
 
+        try {
+            std::filesystem::copy(output_file, comparison_file, std::filesystem::copy_options::overwrite_existing);
+            std::cout << "File copied successfully to " << comparison_file << std::endl;
+        } catch (std::filesystem::filesystem_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
+
         mat C;
-        C.load(path_comparison);
+        C.load(comparison_file);
 
         mat R;
-        R.load(path_outputfile);
+        R.load(output_file);
             
         for (unsigned int i=0; i<C.n_rows; i++) {
             for (unsigned int j=0; j<C.n_cols; j++) {
