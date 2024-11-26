@@ -3,7 +3,7 @@ Data Class to manage Simcoon computation data
 """
 
 
-from typing import List, Union
+from typing import List, Union, Optional
 import numpy as np
 import numpy.typing as npt
 
@@ -24,8 +24,15 @@ class Data:
         else:
             raise TypeError("list_data must be a list of numpy arrays or of strings")
 
-    def write_input_file(self):
-        pass
+    def write_input_files(self, path: str = "exp_data/") -> None:
+        for element in self.list_data:  # order: strain, stress
+            i = 1
+            increments = np.array([j+1 for j in range(len(element))])
+            time = np.array([j*0.01 for j in range(len(element))])
+            data_array = np.column_stack((increments, time, element))
+            np.savetxt(path + "input_file_" + str(i) + ".txt", data_array)
+            i += 1
 
-    def write_tab_file(self):
+
+    def write_tab_files(self):
         pass
