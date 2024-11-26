@@ -27,12 +27,19 @@ class Data:
     def write_input_files(self, path: str = "exp_data/") -> None:
         for element in self.list_data:  # order: strain, stress
             i = 1
-            increments = np.array([j+1 for j in range(len(element))])
-            time = np.array([j*0.01 for j in range(len(element))])
+            increments = np.array([j + 1 for j in range(len(element))])
+            time = np.array([j * 0.01 for j in range(len(element))])
             data_array = np.column_stack((increments, time, element))
-            np.savetxt(path + "input_file_" + str(i) + ".txt", data_array)
+            np.savetxt(path + "input_data_" + str(i) + ".txt", data_array)
             i += 1
 
 
-    def write_tab_files(self):
-        pass
+    def write_tab_files(self, path: str = "data/") -> None:
+        for element in self.list_data:
+            i = 1
+            increments = np.array([j + 1 for j in range(len(element))])
+            time = np.array([j * 0.01 for j in range(len(element))])
+            strain = element[:, 0]
+            data_array = np.column_stack((increments, time, strain))
+            np.savetxt(path + "tab_file_" + str(i) + ".txt", data_array)
+            i += 1
