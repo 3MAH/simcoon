@@ -24,22 +24,17 @@ class Data:
         else:
             raise TypeError("list_data must be a list of numpy arrays or of strings")
 
-    def write_input_files(self, path: str = "exp_data/") -> None:
+    def write_input_and_tab_files(self, exp_data_path: str = "exp_data/", tab_files_path: str = "data/") -> None:
         for element in self.list_data:  # order: strain, stress
             i = 1
             increments = np.array([j + 1 for j in range(len(element))])
             time = np.array([j * 0.01 for j in range(len(element))])
-            data_array = np.column_stack((increments, time, element))
-            np.savetxt(path + "input_data_" + str(i) + ".txt", data_array)
-            i += 1
-
-
-    def write_tab_files(self, path: str = "data/") -> None:
-        for element in self.list_data:
-            i = 1
-            increments = np.array([j + 1 for j in range(len(element))])
-            time = np.array([j * 0.01 for j in range(len(element))])
             strain = element[:, 0]
-            data_array = np.column_stack((increments, time, strain))
-            np.savetxt(path + "tab_file_" + str(i) + ".txt", data_array)
+            exp_data_array = np.column_stack((increments, time, element))
+            tab_file_array = np.column_stack((increments, time, strain))
+            np.savetxt(exp_data_path + "input_data_" + str(i) + ".txt", exp_data_array)
+            np.savetxt(tab_files_path + "tab_file_" + str(i) + ".txt", tab_file_array)
             i += 1
+
+    def write_file_exp_files(self, path: str = "data/") -> None:
+        pass
