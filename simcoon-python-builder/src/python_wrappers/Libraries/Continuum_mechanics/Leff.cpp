@@ -30,7 +30,7 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props_cpp.n_elem, props_cpp);
     rve.construct(0,1);
     simcoon::natural_basis nb;
-    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3),T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
     
     auto sv_M = std::dynamic_pointer_cast<simcoon::state_variables_M>(rve.sptr_sv_global);
     
