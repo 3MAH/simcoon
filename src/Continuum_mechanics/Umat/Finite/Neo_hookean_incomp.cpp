@@ -43,7 +43,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_neo_hookean_incomp(const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void umat_neo_hookean_incomp(const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
 {  	
 
     UNUSED(nprops);
@@ -99,15 +99,15 @@ void umat_neo_hookean_incomp(const vec &Etot, const vec &DEtot, const mat &F0, c
 //    L = (-2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(invC,I)+(2./9.)*C_10*I1_bar*sym_dyadic(invC,invC)-(2./3.)*C_10*I1_bar*dinvSdSsym(C)
 //    -(2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(I,invC)
 //    +(1./D_1)*(J-1.)*J*sym_dyadic(invC,invC)+(2./D_1)*(J-1)*J*dinvSdSsym(C);
-    L = (-2./3.)*C_10*pow(J,-2./3.)*dyadic(invC,I)+(2./9.)*C_10*I1_bar*auto_dyadic(invC)-(2./3.)*C_10*I1_bar*dinvSdSsym(C)
+    Lt = (-2./3.)*C_10*pow(J,-2./3.)*dyadic(invC,I)+(2./9.)*C_10*I1_bar*auto_dyadic(invC)-(2./3.)*C_10*I1_bar*dinvSdSsym(C)
     -(2./3.)*C_10*pow(J,-2./3.)*dyadic(I,invC)
     +(1./D_1)*(J-1.)*J*auto_dyadic(invC)+(2./D_1)*(J-1)*J*dinvSdSsym(C);
 
-    
-    if((solver_type == 0)||(solver_type==2)) {
-        Lt = L;
-	}
-    
+    if(start) {
+        L = Lt;
+    }
+
+
     //Computation of the mechanical and thermal work quantities
     /*
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
