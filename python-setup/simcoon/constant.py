@@ -21,7 +21,7 @@ class Constant(NamedTuple):
     key: str
     input_values: np.ndarray
     value: float
-    input_files: List[str]
+    sim_input_files: List[str]
 
 
 def read_constants(
@@ -55,7 +55,7 @@ def read_constants(
                 key=values[1],
                 input_values=array_input_values,
                 value=array_input_values[0],
-                input_files=[values[3 + n_consts + j] for j in range(nfiles)],
+                sim_input_files=[values[3 + n_consts + j] for j in range(nfiles)],
             )
             consts.append(co)
     return consts
@@ -63,8 +63,8 @@ def read_constants(
 
 def copy_constants(
     consts: List[Constant],
-    src_path: str,
-    dst_path: str,
+    src_path: Union[str, os.PathLike],
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Copy constants file from a source path to a destination path, so that key values can be applied
@@ -73,21 +73,26 @@ def copy_constants(
     :param dst_path: Destination path
     :return: None
     """
+    if not isinstance(src_path, (str, os.PathLike)):
+        raise TypeError(f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike.")
+    
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike.")
+
     for co in consts:
-        try:
-            for ifiles in co.input_files:
-                src_files = os.path.join(src_path, ifiles)
-                dst_files = os.path.join(dst_path, ifiles)
-                shutil.copy(src_files, dst_files)
-        except TypeError as e:
-            raise ValueError(
-                f"consts.input_files must be a list of str. Got {type(co.input_files)} instead."
-            ) from e
+
+        if not all(isinstance(item, str) for item in co.sim_input_files):
+            raise TypeError("All elements in sim_input_files must be strings.")
+
+        for ifiles in co.sim_input_files:
+            src_files = os.path.join(src_path, ifiles)
+            dst_files = os.path.join(dst_path, ifiles)
+            shutil.copy(src_files, dst_files)
 
 
 def apply_constants(
     consts: List[Constant],
-    dst_path: str,
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Apply constants, i.e. replace in file the value of the key with the value of the Constant
@@ -96,17 +101,15 @@ def apply_constants(
     :param dst_path: Destination path
     :return: None
     """
-    for co in consts:
-        try:
-            for ifiles in co.input_files:
-                mod_files = os.path.join(dst_path, ifiles)
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike.")
 
-                with open(mod_files, "r", encoding="utf-8") as in_files:
-                    content = in_files.read()
-                modified_content = content.replace(co.key, str(co.value))
-                with open(mod_files, "w", encoding="utf-8") as ou_files:
-                    ou_files.write(modified_content)
-        except TypeError as e:
-            raise ValueError(
-                f"consts.input_files must be a list of str. Got {type(co.input_files)} instead."
-            ) from e
+    for co in consts:
+        for ifiles in co.sim_input_files:
+            mod_files = os.path.join(dst_path, ifiles)
+
+            with open(mod_files, "r", encoding="utf-8") as in_files:
+                content = in_files.read()
+            modified_content = content.replace(co.key, str(co.value))
+            with open(mod_files, "w", encoding="utf-8") as ou_files:
+                ou_files.write(modified_content)
