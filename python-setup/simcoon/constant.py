@@ -33,13 +33,11 @@ def read_constants(
     @return : List of Constant
     """
 
-    try:
-        if isinstance(fname, os.PathLike):
-            fname = os.fspath(fname)
-    except TypeError as e:
-        raise ValueError(
-            f"fname must be a string or filehandle. Got {type(fname)} instead."
-        ) from e
+    if not isinstance(fname, (str, os.PathLike)):
+        raise TypeError(f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike.")
+
+    if isinstance(fname, os.PathLike):
+        fname = os.fspath(fname)
 
     consts = []
     with open(fname, "r", encoding="utf-8") as constinit:
