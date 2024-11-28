@@ -21,7 +21,7 @@ class Parameter:
         number: int = 0,
         bounds: Tuple[float, float] = (0.0, 1.0),
         key: str = "",
-        input_files: Optional[List[str]] = None,
+        sim_input_files: Optional[List[str]] = None,
     ) -> None:
 
         self.number = number
@@ -29,7 +29,7 @@ class Parameter:
         self.bounds = bounds
         self._min_value = bounds[0]
         self._max_value = bounds[1]
-        self.input_files = input_files
+        self.sim_input_files = sim_input_files
 
         self._value = None
 
@@ -70,7 +70,7 @@ def read_parameters(
                 number=int(values[0]),
                 bounds=(float(values[1]), float(values[2])),
                 key=values[3],
-                input_files=[values[5 + j] for j in range(nfiles)],
+                sim_input_files=[values[5 + j] for j in range(nfiles)],
             )
             params.append(pa)
     return params
@@ -97,11 +97,10 @@ def copy_parameters(
 
     for pa in params:
         
+        if not all(isinstance(item, str) for item in pa.sim_input_files):
+            raise TypeError("All elements in sim_input_files must be strings.")
         
-        if not all(isinstance(item, str) for item in pa.input_files):
-            raise TypeError("All elements in input_files must be strings.")
-        
-        for ifiles in pa.input_files:
+        for ifiles in pa.sim_input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -122,7 +121,7 @@ def apply_parameters(
 
     for pa in params:
             
-        for ifiles in pa.input_files:
+        for ifiles in pa.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
