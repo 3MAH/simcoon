@@ -1,0 +1,23 @@
+Material
+Name	MOORI
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.2588
+C01 -0.0449
+kappa 10000.
+
+
+
+
+
+
+
+
+

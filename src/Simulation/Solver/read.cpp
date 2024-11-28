@@ -389,7 +389,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         
                         path >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer >> sptr_meca->Dn_inc >> buffer >> sptr_meca->BC_Time >> buffer;
                         
-                        if (sptr_meca->control_type <= 3) {
+                        if (sptr_meca->control_type <= 4) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -403,7 +403,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        else if (sptr_meca->control_type >= 4) {
+                        else if (sptr_meca->control_type >= 5) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 sptr_meca->cBC_meca(k) = 0;
                                 path >> sptr_meca->BC_meca(k);
@@ -413,8 +413,8 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             cout << "Error in read.cpp : read_path. Please provide a valid control_type" << endl;
                         }
                         
-                        //Add the rotation for control_type 2 and 3
-                        if ((sptr_meca->control_type == 2)||(sptr_meca->control_type == 3)) {
+                        //Add the rotation for control_type 2 and 3 and 4
+                        if ((sptr_meca->control_type >= 2)&&(sptr_meca->control_type <= 4)) {
                             path >> buffer;
                             for(unsigned int i = 0 ; i < 3 ; i++) {
                                 for(unsigned int j = 0 ; j < 3 ; j++) {
@@ -442,7 +442,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         path >> buffer >> pathfile_inc >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer;
                         sptr_meca->file = path_data + "/" + pathfile_inc;
                         
-                        if (sptr_meca->control_type <= 3) {
+                        if (sptr_meca->control_type <= 4) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -457,7 +457,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        else if (sptr_meca->control_type == 4) {
+                        else if (sptr_meca->control_type == 5) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -469,7 +469,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        else if (sptr_meca->control_type == 5) {
+                        else if (sptr_meca->control_type == 6) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -516,7 +516,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         
                         path >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer >> sptr_thermomeca->Dn_inc >> buffer >> sptr_thermomeca->BC_Time >> buffer;
                     
-                        if (sptr_thermomeca->control_type <= 3) {
+                        if (sptr_thermomeca->control_type <= 4) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -530,15 +530,15 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        if (sptr_thermomeca->control_type >= 4) {
+                        if (sptr_thermomeca->control_type >= 5) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 sptr_thermomeca->cBC_meca(k) = 0;
                                 path >> sptr_thermomeca->BC_meca(k);
                             }
                         }
 
-                        //Add the rotation for control_type 2 and 3
-                        if ((sptr_thermomeca->control_type == 2)||(sptr_thermomeca->control_type == 3)) {
+                        //Add the rotation for control_type 2 and 3 and 4
+                        if ((sptr_thermomeca->control_type >= 2)&&(sptr_thermomeca->control_type <= 3)) {
                             path >> buffer;
                             for(unsigned int i = 0 ; i < 3 ; i++) {
                                 for(unsigned int j = 0 ; j < 3 ; j++) {
@@ -571,7 +571,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                         path >> buffer >> pathfile_inc >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer;
                         sptr_thermomeca->file = path_data + "/" + pathfile_inc;
                         
-                        if (sptr_thermomeca->control_type <= 3) {
+                        if (sptr_thermomeca->control_type <= 4) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -586,7 +586,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        else if (sptr_thermomeca->control_type == 4) {
+                        else if (sptr_thermomeca->control_type == 5) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
@@ -598,7 +598,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                                 }
                             }
                         }
-                        else if (sptr_thermomeca->control_type == 5) {
+                        else if (sptr_thermomeca->control_type == 6) {
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;

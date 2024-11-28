@@ -50,7 +50,7 @@ step_meca::step_meca() : step()
 
 step_meca::step_meca(const unsigned int &control_type) : step()
 {
-    if (control_type == 4 || control_type == 5) { //Control with F (4) or gradU (5)
+    if (control_type == 5 || control_type == 6) { //Control with F (4) or gradU (5)
         cBC_meca = zeros<Col<int> >(9);
         BC_meca = zeros(9);
     }
@@ -122,7 +122,7 @@ step_meca::~step_meca() {}
 void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigma, const double &mT)
 //-------------------------------------------------------------
 {
-    assert(control_type <= 3);
+    assert(control_type <= 4);
     
     //This in for the case of an incremental path file, to get the number of increments
     string buffer;
@@ -168,7 +168,7 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
             Ts(i) = (BC_T - mT)/ninc;
             BC_Ts(i) = (i+1)*((BC_T - mT)/ninc) + mT;
             times(i) = (BC_Time)/ninc;
-            
+
             for(unsigned int k = 0 ; k < size_meca ; k++) {
                 if (cBC_meca(k) == 1){
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-msigma(k))/ninc;
@@ -270,7 +270,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
 {
     
     unsigned int size_meca = 9;
-    assert(control_type > 3);
+    assert(control_type > 4);
     for (unsigned int k=0; k<size_meca; k++) {
         assert(cBC_meca(k) != 1);
     }
@@ -318,11 +318,11 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             times(i) = (BC_Time)/ninc;
             
             for(unsigned int k = 0 ; k < size_meca ; k++) {
-                if (control_type == 4) {
+                if (control_type == 5) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
                     BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3))/ninc) + mF(k/3,k%3);
                 }
-                else if (control_type == 5) {
+                else if (control_type == 6) {
                     mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
                     BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3)-I2(k/3,k%3))/ninc) + mF(k/3,k%3) + I2(k/3,k%3);
                 }
@@ -356,10 +356,10 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         }
         for (unsigned int k=0; k<size_meca; k++) {
             if (cBC_meca(k) == 0) {
-                if (control_type == 4) {
+                if (control_type == 5) {
                     BC_file_n(kT+1) = mF(k/3,k%3);
                 }
-                else if (control_type == 5) {
+                else if (control_type == 6) {
                     BC_file_n(kT+1) = mF(k/3,k%3)-I2(k/3,k%3);
                 }
                 else {
@@ -486,10 +486,10 @@ ostream& operator << (ostream& s, const step_meca& stm)
     unsigned int size_meca = stm.BC_meca.n_elem;
     if (stm.mode == 3) {
     
-        if(stm.control_type == 4) {
+        if(stm.control_type == 5) {
             s << "Control: " << stm.control_type << " : Transformation gradient F\n";
         }
-        else if (stm.control_type == 5) {
+        else if (stm.control_type == 6) {
             s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
         }
         else {
@@ -516,13 +516,13 @@ ostream& operator << (ostream& s, const step_meca& stm)
         s << "\tTime of the step " << stm.BC_Time << " s\n\t";
         s << "\tInitial fraction: " << stm.Dn_init << "\tMinimal fraction: " << stm.Dn_mini << "\tIncrement fraction: " << stm.Dn_inc << "\n\t";
 
-        if(stm.control_type == 4) {
+        if(stm.control_type == 5) {
             s << "Control: " << stm.control_type << " : Transformation gradient F\n";
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
             }
         }
-        else if (stm.control_type == 5) {
+        else if (stm.control_type == 6) {
             s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
