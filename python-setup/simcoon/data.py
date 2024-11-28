@@ -36,5 +36,8 @@ class Data:
             np.savetxt(tab_files_path + "tab_file_" + str(i) + ".txt", tab_file_array)
             i += 1
 
-    def write_file_exp_files(self, path: str = "data/") -> None:
+    def write_files_exp(self, list_nb_columns_in_files: List[int], list_nb_columns_to_identify: List[int], list_columns_to_identify: List[int], path: str = "data/", ) -> None:
+        pass
+
+    def write_files_num(self, list_nb_columns_in_files: List[int], list_columns_to_identify: List[int], path: str = "data/", ) -> None:
         pass
