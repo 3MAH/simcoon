@@ -80,6 +80,7 @@ The next step is to install the required packages:
 ```bash
 conda install -c conda-forge cxx-compiler
 conda install -c conda-forge fortran-compiler
+conda install -c conda-forge cmake ninja
 conda install -c conda-forge armadillo boost pybind11 numpy gtest 
 pip install pytest
 ```
