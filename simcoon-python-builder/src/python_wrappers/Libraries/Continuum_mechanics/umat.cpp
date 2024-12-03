@@ -227,8 +227,8 @@ namespace simpy {
 				F1 = carma::arr_to_cube_view(F1_py);						
 				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 4;
+				break;				
 			}				
-
 			default: {
 				//py::print("Error: The choice of Umat could not be found in the umat library \n");
 				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
