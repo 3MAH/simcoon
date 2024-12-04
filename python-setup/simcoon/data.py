@@ -15,7 +15,7 @@ class Data:
 
     def __init__(self, control: npt.NDArray[np.float_],
                  observation: npt.NDArray[np.float_],
-                 time: Optional[npt.NDArray[np.float_]],
+                 time: Optional[npt.NDArray[np.float_]] = None,
                  timestep: Optional[float] = 0.01):
 
         self.control = control
