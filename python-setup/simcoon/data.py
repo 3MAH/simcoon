@@ -72,7 +72,7 @@ def write_files_exp(list_data: List[Data], path: str = "data/", exp_data_path: s
 def write_files_num(list_data: List[Data], list_columns_to_compare: List[List[int]], path: str = "data/", ) -> None:
     if len(list_data) != len(list_columns_to_compare):
         raise IndexError("list_data and list_columns_to_compare must have the same length")
-    with open(path + "files_num.inp", "x+") as file:
+    with open(path + "files_num.inp", "w+") as file:
         file.write("NUMNb_columnsinfiles\n")
         for element in list_data:
             file.write(str(24) + "\n") #total number of columns
