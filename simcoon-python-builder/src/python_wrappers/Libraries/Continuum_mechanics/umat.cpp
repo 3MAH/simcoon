@@ -112,7 +112,7 @@ namespace simpy {
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
-		vec props(ncomp);
+		vec props;
 		switch (id_umat) {
 			case 2: {
 				umat_function = &simcoon::umat_elasticity_iso;
