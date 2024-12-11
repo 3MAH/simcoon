@@ -63,7 +63,7 @@ state_variables_M::state_variables_M() : state_variables(), sigma_in(6), sigma_i
 */
 
 //-------------------------------------------------------------
-state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec& mWm_start, const mat &mL, const mat &mLt) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
+state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec& mWm_start, const mat &mL, const mat &mLt) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
 //-------------------------------------------------------------
 {
 
@@ -189,10 +189,10 @@ state_variables_M& state_variables_M::copy_fields_M(const state_variables_M& sv)
 }
 
 //-------------------------------------------------------------
-void state_variables_M::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec &mWm_start, const mat &mL, const mat &mLt)
+void state_variables_M::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec &mWm_start, const mat &mL, const mat &mLt)
 //-------------------------------------------------------------
 {
-    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb);
+    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb);
 
     assert (msigma_in.size() == 6);
     assert (msigma_in_start.size() == 6);

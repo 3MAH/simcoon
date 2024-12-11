@@ -1,0 +1,188 @@
+Material
+Name	NEOHC
+Number_of_material_parameters	2
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+mu 0.5673
+kappa 1000
+
+Material
+Name	SWANH
+Number_of_material_parameters	10
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+Nb_Swanson 2
+kappa 4000.
+A 2.83E-3
+B 1.871E-13
+alpha 1.684
+beta -0.4302
+
+A 2.82E-13
+B 0.4643
+alpha 9.141
+beta 0.7882
+
+Material
+Name	SWANH
+Number_of_material_parameters	10
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+Nb_Swanson 2
+kappa 4000.
+A_1 2.83E−3
+B_1 1.871E−13
+alpha_1 1.684
+beta_1 −0.4302
+
+A_2 2.82E−13
+B_2 0.4643
+alpha_2 9.141
+beta_2 0.7882
+
+Material
+Name	SWANH
+Number_of_material_parameters	6
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+Nb_Swanson 1
+kappa 4000.
+A 4.287E-5
+B 0.4159
+alpha 3.128
+beta 1.085
+
+Material
+Name	GETHH
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+c1 0.2837
+c2 2.81E-11
+kappa 4000.
+
+Material
+Name	ISHAH
+Number_of_material_parameters	4
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.1161
+C20 0.0136
+C01 0.0114
+kappa 4000.
+
+Material
+Name	MOORI
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.2588
+C01 -0.0449
+kappa 10000.
+
+Material
+Name	YEOHH
+Number_of_material_parameters	4
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+C10 0.14
+C20 0.14
+C30 0.14
+kappa 10000.
+
+
+
+
+Material
+Name	EPICP
+Number_of_material_parameters	6
+Number_of_internal_variables	8
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+E_A 10
+nu_A 0.349
+alphaA 1.E-6
+sigmaY	3
+k	150
+m	0.3
+
+
+
+Material
+Name	ELISO
+Number_of_material_parameters	3
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+E 1
+mu 0.3
+CTE 0.
+
+
+
+
+
+
+
+
+
+
+

@@ -1,10 +1,10 @@
 package:
   name: simcoon
-  version: 1.9.4
+  version: 1.9.5
 
 source:
   git_url: https://github.com/3MAH/simcoon.git
-  #git_tag: 1.9.0
+  #git_tag: 1.9.5
 
 build:
   number: 0
@@ -33,7 +33,7 @@ requirements:
     - liblapack * *openblas # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
-    - armadillo
+    - armadillo >=12.6
     - carma    
     - llvm-openmp # [not x86]
     - mkl # [x86]
@@ -50,7 +50,7 @@ requirements:
     - boost
     - libboost
     - pybind11
-    - armadillo >= 12.6
+    - armadillo >=12.6
     - carma
     - llvm-openmp # [not x86]
 

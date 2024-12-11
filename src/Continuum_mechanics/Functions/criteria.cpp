@@ -159,6 +159,32 @@ mat P_Hill(const vec &params) {
     return P;
 }
 
+mat P_DFA(const vec &params) { //Deshpande–Fleck–Ashby 
+    assert(params.n_elem == 7); //F,G,H,L,M,N,K
+    mat P = zeros(6,6);
+    //param(0) = F
+    //param(1) = G
+    //param(2) = H
+    //param(3) = L
+    //param(4) = M
+    //param(5) = N
+    //param(6) = K
+    P(0,0) = params(1) + params(2) + params(6)/9.; //P_11 = G+H+K/9
+    P(1,1) = params(0) + params(2) + params(6)/9.; //P_22 = F+H+K/9
+    P(2,2) = params(0) + params(1) + params(6)/9.; //P_33 = F+G+K/9
+    P(0,1) = -1.*params(2) + params(6)/9.; //P_12 = -H+K/9
+    P(1,0) = -1.*params(2) + params(6)/9.; //P_12 = -H+K/9
+    P(0,2) = -1.*params(1) + params(6)/9.; //P_13 = -G+K/9
+    P(2,0) = -1.*params(1) + params(6)/9.; //P_13 = -G+K/9
+    P(1,2) = -1.*params(0) + params(6)/9.; //P_23 = -F+K/9
+    P(2,1) = -1.*params(0) + params(6)/9.; //P_23 = -F+K/9
+    P(3,3) = 2.*params(5); //P_44 = N
+    P(4,4) = 2.*params(4); //P_55 = M
+    P(5,5) = 2.*params(3); //P_66 = L
+    
+    return P;
+}
+
 double Eq_stress_P(const vec &v, const mat &H) {
     
     if (norm(v,2) > sim_iota) {
@@ -186,6 +212,16 @@ double Hill_stress(const vec &v, const vec &params) {
 
 vec dHill_stress(const vec &v, const vec &params) {
    mat P = P_Hill(params);
+   return dEq_stress_P(v,P);
+}
+
+double DFA_stress(const vec &v, const vec &params) {
+    mat P = P_DFA(params);
+    return Eq_stress_P(v,P);
+}
+
+vec dDFA_stress(const vec &v, const vec &params) {
+   mat P = P_DFA(params);
    return dEq_stress_P(v,P);
 }
                    

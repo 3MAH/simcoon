@@ -7,8 +7,7 @@ namespace FTensor
   template <class T, int Tensor_Dim0, int Tensor_Dim12>
   class Tensor3_antisymmetric<T *, Tensor_Dim0, Tensor_Dim12>
   {
-    mutable T *restrict
-      data[Tensor_Dim0][(Tensor_Dim12 * (Tensor_Dim12 - 1)) / 2];
+    mutable T *data[Tensor_Dim0][(Tensor_Dim12 * (Tensor_Dim12 - 1)) / 2];
 
   public:
     template <class... U> Tensor3_antisymmetric(U *... d) : data{d...}
@@ -49,44 +48,41 @@ namespace FTensor
     T operator()(const int N1, const int N2, const int N3) const
     {
 #ifdef FTENSOR_DEBUG
-      if(N1 >= Tensor_Dim0 || N1 < 0 || N2 >= Tensor_Dim12 || N2 < 0
-         || N3 >= Tensor_Dim12 || N3 < 0)
-        {
-          std::stringstream s;
-          s << "Bad index in Tensor3_antisymmetric<T*," << Tensor_Dim0 << ","
-            << Tensor_Dim12 << ">.operator(" << N1 << "," << N2 << "," << N3
-            << ") const" << std::endl;
-          throw std::out_of_range(s.str());
-        }
-#endif
+  if(N1 >= Tensor_Dim0 || N1 < 0 || N2 >= Tensor_Dim12 || N2 < 0
+    || N3 >= Tensor_Dim12 || N3 < 0)
+  {
+    std::stringstream s;
+    s << "Bad index in Tensor3_antisymmetric<T*," << Tensor_Dim0 << ","
+      << Tensor_Dim12 << ">.operator(" << N1 << "," << N2 << "," << N3
+      << ") const" << std::endl;
+    throw std::out_of_range(s.str());
+  }
+    #endif
       return N2 < N3
-               ? *data[N1]
-                      [N3 - 1 + (N2 * (2 * (Tensor_Dim12 - 1) - N2 - 1)) / 2]
-               : (N2 > N3
-                    ? -*data[N1][N2 - 1
-                                 + (N3 * (2 * (Tensor_Dim12 - 1) - N3 - 1)) / 2]
+              ? *data[N1][N3 - 1 + (N2 * (2 * (Tensor_Dim12 - 1) - N2 - 1)) / 2]
+              : (N2 > N3
+                    ? -(*data[N1][N2 - 1 + (N3 * (2 * (Tensor_Dim12 - 1) - N3 - 1)) / 2])
                     : 0.0);
     }
 
     T *ptr(const int N1, const int N2, const int N3) const
     {
 #ifdef FTENSOR_DEBUG
-      if(N1 >= Tensor_Dim0 || N1 < 0 || N2 >= Tensor_Dim12 || N2 < 0
-         || N3 >= Tensor_Dim12 || N3 < 0)
-        {
-          std::stringstream s;
-          s << "Bad index in Tensor3_antisymmetric<T*," << Tensor_Dim0 << ","
-            << Tensor_Dim12 << ">.ptr(" << N1 << "," << N2 << "," << N3 << ")"
-            << std::endl;
-          throw std::out_of_range(s.str());
-        }
+  if(N1 >= Tensor_Dim0 || N1 < 0 || N2 >= Tensor_Dim12 || N2 < 0
+    || N3 >= Tensor_Dim12 || N3 < 0)
+  {
+    std::stringstream s;
+    s << "Bad index in Tensor3_antisymmetric<T*," << Tensor_Dim0 << ","
+      << Tensor_Dim12 << ">.ptr(" << N1 << "," << N2 << "," << N3 << ")"
+      << std::endl;
+    throw std::out_of_range(s.str());
+  }
 #endif
       return N2 < N3
-               ? data[N1][N3 - 1 + (N2 * (2 * (Tensor_Dim12 - 1) - N2 - 1)) / 2]
-               : (N2 > N3
-                    ? -data[N1][N2 - 1
-                                + (N3 * (2 * (Tensor_Dim12 - 1) - N3 - 1)) / 2]
-                    : 0);
+              ? data[N1][N3 - 1 + (N2 * (2 * (Tensor_Dim12 - 1) - N2 - 1)) / 2]
+              : (N2 > N3
+                    ? data[N1][N2 - 1 + (N3 * (2 * (Tensor_Dim12 - 1) - N3 - 1)) / 2]
+                    : nullptr);
     }
 
     /* These operator()'s are the first part in constructing template

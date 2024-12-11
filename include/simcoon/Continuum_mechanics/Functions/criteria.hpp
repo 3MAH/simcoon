@@ -134,7 +134,7 @@ arma::vec dTresca_stress(const arma::vec &v);
     P_{ani} = \left( \begin{array}{cccccc}
         1 & -1/2 & -1/2 & 0 & 0 & 0 \\
         -1/2 & 1 & -1/2 & 0 & 0 & 0 \\
-        -1/2 & -1/2 & -1/2 & 0 & 0 & 0 \\
+        -1/2 & -1/2 & 1 & 0 & 0 & 0 \\
         0 & 0 & 0 & 3 & 0 & 0 \\
         0 & 0 & 0 & 0 & 3 & 0 \\
         0 & 0 & 0 & 0 & 0 & 3 \end{array} \right)
@@ -150,24 +150,24 @@ arma::mat P_Ani(const arma::vec &P_params);
  * @brief Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion \cite Hill.48 in the Voigt format (6x6 matrix), given its vector representation
  * @param P_params
  * @return The anisotropic Hill48 configurational tensor (arma::mat)
- * @details The vector of parameters must be constituted of 5 values, respectively:
-    \f$ F^*,G^*,H^*,L,M,N \f$, such that
+ * @details The vector of parameters must be constituted of 6 values, respectively:
+    \f$ F,G,H,L,M,N \f$, such that
 \f[
     P_{Hill48} = \left( \begin{array}{cccccc}
         G + H & -H & -G & 0 & 0 & 0 \\
         -H & F + H & -F & 0 & 0 & 0 \\
         -G & -F & F + G & 0 & 0 & 0 \\
-        0 & 0 & 0 & 2 \, L & 0 & 0 \\
+        0 & 0 & 0 & 2 \, N & 0 & 0 \\
         0 & 0 & 0 & 0 & 2 \, M & 0 \\
-        0 & 0 & 0 & 0 & 0 & 2 \, N \end{array} \right)
+        0 & 0 & 0 & 0 & 0 & 2 \, L \end{array} \right)
 \f]
     considering the input stress \f$ \mathbf{\sigma} \f$.
     Note that the equivalent anisotropic Hill 1948) tensor is written as : \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
     which reduces to : 
 \f[ 
     \begin{align}    
-    \sigma^{H48} & = \left( F\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + H\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
-     & + \left. 2\,L\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,N\,\sigma_{23}^2 \right)^{1/2}
+    \sigma^{H48} & = \left( H\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + F\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
+     & + \left. 2\,N\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,L\,\sigma_{23}^2 \right)^{1/2}
     \end{align}
 \f]
     Considering the Mises equivalent strain 
@@ -196,12 +196,52 @@ So that \f$ F = H = G = 1/2 \f$, \f$ = L = M = N = 3/2 \f$
 arma::mat P_Hill(const arma::vec &P_params);
 
 /**
+ * @brief Provides an anisotropic configurational tensor considering the quadratic Deshpande–Fleck–Ashby yield criterion \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) in the Voigt format (6x6 matrix), given its vector representation
+ * @param P_params
+ * @return The anisotropic DFA configurational tensor (arma::mat)
+ * @details The vector of parameters must be constituted of 7 values, respectively:
+    \f$ F,G,H,L,M,N,K \f$, such that
+\f[
+    P_{DFA} = \left( \begin{array}{cccccc}
+        G + H + K/9 & -H + K/9 & -G + K/9 & 0 & 0 & 0 \\
+        -H + K/9 & F + H + K/9 & -F + K/9 & 0 & 0 & 0 \\
+        -G + K/9 & -F + K/9 & F + G + K/9 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 2 \, N & 0 & 0 \\
+        0 & 0 & 0 & 0 & 2 \, M & 0 \\
+        0 & 0 & 0 & 0 & 0 & 2 \, L \end{array} \right)
+\f]
+    considering the input stress \f$ \mathbf{\sigma} \f$.
+    Note that the equivalent anisotropic tensor is written as : \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
+    which reduces to : 
+\f[ 
+    \begin{align}    
+    \sigma^{DFA} & = \left( H\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + F\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
+     & + \left. 2\,L\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,N\,\sigma_{23}^2 \right)^{1/2} + K \left( \left( \sigma_{11} + \sigma_{22} + \sigma_{33} \right) /9 \right)^2
+    \end{align}
+\f]
+    Considering the full anisotric formulation:
+\f[ 
+    \begin{align}
+    \sigma^{ani} & = \left( P_{11}\,\sigma_{11}^2 + P_{22}\,\sigma_{22}^2 + P_{33}\,\sigma_{33}^2 \right. \\
+     & + 2\,P_{12}\,\sigma_{11}\,\sigma_{22} + 2\,P_{13}\,\sigma_{11}\,\sigma_{33} + 2\,P_{23}\,\sigma_{22} \sigma_{33} \\
+     & + \left. 2\,P_{44}\,\sigma_{12}^2 + 2\,P_{55}\,\sigma_{13}^2 + 2\,P_{66}\,\sigma_{23}^2 \right)^{1/2}
+    \end{align}
+\f]
+    the above matrix is identified.
+ * @code 
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6,1.};
+        mat P = P_Hill(P_params);
+ * @endcode
+*/
+arma::mat P_DFA(const arma::vec &P_params);
+
+/**
  * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and given a configurational tensor P
  * @param sigma, H
  * @return The anisotropic equivalent stress (double)
  * @details Returns anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
  * @code 
-        vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
         mat P = P_Hill(P_params);
         vec sigma = randu(6);
         double sigma_ani = Eq_stress_P(sigma,P_Hill);
@@ -218,7 +258,7 @@ double Eq_stress_P(const arma::vec &sigma, const arma::mat &H);
     \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
 \f]
  * @code 
-        vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
         mat P = P_Hill(P_params);
         vec sigma = randu(6);
         vec dsigma_ani = dEq_stress_P(sigma,P_Hill);
@@ -231,9 +271,9 @@ arma::vec dEq_stress_P(const arma::vec &sigma, const arma::mat &H);
  * @param sigma, P_params
  * @return The Hill48 anisotropic equivalent stress (double)
  * @details Returns the Hill48 anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
- * see the function P_hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
+ * see the function P_Hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
  * @code 
-        vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
         vec sigma = randu(6);
         double sigma_Hill = Hill_stress(sigma, P_params);
  * @endcode
@@ -248,14 +288,45 @@ double Hill_stress(const arma::vec &sigma, const arma::vec &P_params);
 \f[
     \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
 \f]
-see the function P_hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
+see the function P_Hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
  * @code 
-        vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6};
         vec sigma = randu(6);
-        double sigma_Hill = Hill_stress(sigma, P_params);
+        vec dsigma_Hill = dHill_stress(sigma, P_params);
  * @endcode
 */
 arma::vec dHill_stress(const arma::vec &, const arma::vec &);
+
+/**
+ * @brief Provides the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
+ * @param sigma, P_params
+ * @return The DFA anisotropic equivalent stress (double)
+ * @details Returns the DFA anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
+ * see the function P_DFA() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N,K).
+ * @code 
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6,1.2};
+        vec sigma = randu(6);
+        double sigma_DFA = DFA_stress(sigma, P_params);
+ * @endcode
+*/
+double DFA_stress(const arma::vec &sigma, const arma::vec &P_params);
+
+/**
+ * @brief Provides the derivative of the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
+ * @param sigma, P_params
+ * @return The derivative of the DFA anisotropic equivalent stress (arma::vec)
+ * @details Returns the derivative of the DFA anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
+\f[
+    \sigma^{eq}_{ani} = \frac{\mathbf{H} : \mathbf{\sigma}}{ \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } }
+\f]
+see the function P_DFA() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N,K).
+ * @code 
+        vec P_params = {0.5,0.6,0.7,1.5,1.5,1.6,1.2};
+        vec sigma = randu(6);
+        vec dsigma_DFA = dDFA_stress(sigma, P_params);
+ * @endcode
+*/
+arma::vec dDFA_stress(const arma::vec &, const arma::vec &);
 
 /**
  * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and a vector of parameters \f$ ( P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44},P_{55},P_{66} ) \f$

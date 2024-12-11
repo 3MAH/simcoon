@@ -137,7 +137,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 K = zeros(6,6);
                 invK = zeros(6,6);
 
-                if(blocks[i].control_type <= 3) {
+                if(blocks[i].control_type <= 4) {
                     size_meca = 6;
                 }
                 else {
@@ -153,7 +153,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 if(start) {
                     rve.construct(0,blocks[i].type);
                     natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
@@ -216,9 +216,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                         else if (blocks[i].control_type == 3) {
                             sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
 //                            sptr_meca->generate(Time, sv_M->etot, sv_M->tau, sv_M->T);
- 
                         }
-                        else if((blocks[i].control_type == 4)||(blocks[i].control_type == 5)) {
+                        else if (blocks[i].control_type == 4) {
+                            vec Biot_vec = t2v_stress(sv_M->Biot_stress());
+                            sptr_meca->generate(Time, t2v_strain(sv_M->U0), Biot_vec, sv_M->T); 
+                        }                        
+                        else if((blocks[i].control_type == 5)||(blocks[i].control_type == 6)) {
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
                         }
                         else {
@@ -308,6 +311,33 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         else
                                             D = zeros(3,3);
                                     }
+                                    else if (blocks[i].control_type == 4) {
+
+                                        sv_M->U1 = sv_M->U0 + v2t_strain(Dtinc*sptr_meca->mecas.row(inc).t());
+                                        sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                        //Application of the Hughes-Winget (1980) algorithm
+
+                                        DTime = Dtinc*sptr_meca->times(inc);
+                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                        
+                                        sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
+                                        sv_M->F1 = (sptr_meca->BC_R*DR)*(sv_M->U1);
+                                        sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
+                                                                                
+                                        mat D = zeros(3,3);
+                                        mat Omega = zeros(3,3);
+                                        if(corate_type == 0) {
+                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 1) {
+                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+                                        if(corate_type == 2) {
+                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                        }
+
+                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                    }                                    
                                     else {
                                         sv_M->F1 = sv_M->F0 + Dtinc*v2t(sptr_meca->mecas.row(inc).t());
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
@@ -373,7 +403,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
                                     ///Saving stress and stress set point at the beginning of the loop
-                                    
+                                
                                     error = 1.;
                                     
                                     if (blocks[i].control_type == 1) {
@@ -414,14 +444,26 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                         }
                                     }
+                                    else if (blocks[i].control_type == 4) {
+                                        vec Biot_stress = t2v_stress(sv_M->Biot_stress());
+                                        vec Biot_stress_start = t2v_stress(sv_M->Biot_stress_start());
+                                        vec DU_vec = t2v_strain(sv_M->U1 - sv_M->U0);                                        
+                                        for(int k = 0 ; k < 6 ; k++)
+                                        {
+                                            if (sptr_meca->cBC_meca(k)) {
+                                                residual(k) = Biot_stress(k) - Biot_stress_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                            }
+                                            else {
+                                                residual(k) = lambda_solver*(DU_vec(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                            }
+                                        }
+                                    }                                    
                                     else {
                                         cout << "error , Those control types are inteded for use in strain-controlled loading only" << endl;
                                         exit(0);
                                     }
-
-                                    
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
-                                        
+
                                         if(solver_type != 1){
                                             // classic
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
@@ -430,21 +472,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 2) {
-
-                                                if(corate_type == 0) {
-                                                    C = DsigmaDe_JaumannDD_2_DSDE(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
-                                                if(corate_type == 1) {
-                                                    mat B_GN = get_BBBB_GN(sv_M->F1);
-                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B_GN, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
-                                                if(corate_type == 2) {
-                                                    mat B = get_BBBB(sv_M->F1);
-                                                    C = DsigmaDe_2_DSDE(sv_M->Lt, B, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
+                                                C = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);                                             
                                             }
                                             else if (blocks[i].control_type == 3) {
 
@@ -453,16 +482,22 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                                 if(corate_type == 1) {
-                                                    mat B_GN = get_BBBB_GN(sv_M->F1);
-                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, B_GN, v2t_stress(sv_M->sigma));
+                                                    C = Dsigma_LieDD_Dsigma_GreenNaghdiDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                                 if(corate_type == 2) {
-                                                    mat B = get_BBBB(sv_M->F1);
-                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, B, v2t_stress(sv_M->sigma));
+                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
                                                     Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                                 }
                                             }
+                                            else if (blocks[i].control_type == 4) {
+                                                mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);    
+                                                mat R = zeros(3,3);
+                                                mat U = zeros(3,3);                                                
+                                                RU_decomposition(R,U,sv_M->F1);
+                                                C = DSDE_DBiotStressDU(DSDE, U, v2t_stress(sv_M->PKII));
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                            }                                            
                                             
                                             ///jacobian inversion
                                             invK = inv(K);
@@ -501,7 +536,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             
                                             sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
                                             sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
-                                        
+                                    
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
                                             if(corate_type == 0) {
@@ -513,10 +548,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             if(corate_type == 2) {
                                                 logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             }
+                                            if(corate_type == 4) {
+                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }                                            
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
                                         else if (blocks[i].control_type == 3) {
-                                        
+
                                             sv_M->Detot += Delta;
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
@@ -544,9 +582,35 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             else
                                                 D = zeros(3,3);
                                         }
+                                        else if (blocks[i].control_type == 4) {
+                                    
+                                            sv_M->U1 += v2t_strain(Delta);
+                                            sv_M->DT = Dtinc*sptr_meca->Ts(inc);
+                                            //Application of the Hughes-Winget (1980) algorithm
+                                            DTime = Dtinc*sptr_meca->times(inc);
+                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                            sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
+                                            sv_M->F1 = (DR*sptr_meca->BC_R)*sv_M->U1;
+                                            sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;;
+                                            mat D = zeros(3,3);
+                                            mat Omega = zeros(3,3);
+                                            if(corate_type == 0) {
+                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 1) {
+                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 2) {
+                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }
+                                            if(corate_type == 4) {
+                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            }    
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        }      
                                         rve.to_start();
                                         run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
-                                        
+
                                         if (blocks[i].control_type == 1) {
                                         
                                             //sv_M->DEtot = zeros(6);
@@ -561,7 +625,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                         }
                                         else if (blocks[i].control_type == 2) {
-                                            //sv_M->DEtot = zeros(6);
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
@@ -585,6 +648,21 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
+                                        else if (blocks[i].control_type == 4) {
+
+                                            vec Biot_stress = t2v_stress(sv_M->Biot_stress());
+                                            vec Biot_stress_start = t2v_stress(sv_M->Biot_stress_start());                                        
+                                            vec DU_vec = t2v_strain(sv_M->U1 - sv_M->U0);
+                                            for(int k = 0 ; k < 6 ; k++)
+                                            {
+                                                if (sptr_meca->cBC_meca(k)) {
+                                                    residual(k) = Biot_stress(k) - Biot_stress_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                }
+                                                else {
+                                                    residual(k) = lambda_solver*(DU_vec(k) - Dtinc*sptr_meca->mecas(inc,k));
+                                                }
+                                            }
+                                        }                                        
                                         compteur++;
                                         error = norm(residual, 2.);
                                         
@@ -701,7 +779,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 if(start) {
                     rve.construct(0,blocks[i].type);
                     natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {
