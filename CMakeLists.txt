@@ -262,8 +262,7 @@ if(NOT MSVC)
     #Add compile target
     add_executable(${testName} ${testSrc})
 
-    target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma GTest::gtest GTest::gtest_main)
-    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+    target_link_libraries(${testName} simcoon GTest::gtest GTest::gtest_main)
 
     # Custom runtime output directory for test binaries
     set_target_properties(${testName} PROPERTIES 
