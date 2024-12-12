@@ -373,13 +373,14 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                     break;
                 }                      
             }          
+        }
 /*        #ifdef _OPENMP
             #ifndef _WIN32
             py::gil_scoped_acquire acquire;					
             #endif
         omp_set_num_threads(max_threads);			                     
         #endif
-*/        
+*/
         return carma::cube_to_arr(Lt_converted,false);
     }
 }

@@ -235,11 +235,6 @@ namespace simpy {
 				//exit(0);
 			}
 		}
-
-		int max_threads = omp_get_max_threads();
-		omp_set_num_threads(n_threads);
-		py::gil_scoped_release release;
-
 		#ifdef _OPENMP
 		int max_threads = omp_get_max_threads();
 		omp_set_num_threads(n_threads);
