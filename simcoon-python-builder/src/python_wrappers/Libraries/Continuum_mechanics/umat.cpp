@@ -235,12 +235,12 @@ namespace simpy {
 				//exit(0);
 			}
 		}
-
+		#ifdef _OPENMP
 		int max_threads = omp_get_max_threads();
 		omp_set_num_threads(n_threads);
-		py::gil_scoped_release release;
-
-		#ifdef _OPENMP
+			#ifndef _WIN32
+			py::gil_scoped_release release;
+			#endif
 		omp_set_max_active_levels(3);
 		#pragma omp parallel for shared(Lt, L, DR) private(props)
 		#endif
@@ -282,8 +282,12 @@ namespace simpy {
 				}					
 			}
 		}
-		py::gil_scoped_acquire acquire;					
-		omp_set_num_threads(max_threads);			
+		#ifdef _OPENMP
+			#ifndef _WIN32	
+			py::gil_scoped_acquire acquire;
+			#endif
+		omp_set_num_threads(max_threads);		
+		#endif			
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}
