@@ -8,7 +8,7 @@
 #Loading_type
 1
 #Control_type(NLGEOM)
-4
+5
 #Repeat
 1
 #Steps

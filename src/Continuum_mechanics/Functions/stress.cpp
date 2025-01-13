@@ -21,6 +21,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 
 using namespace std;
@@ -42,6 +43,19 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
     else {
         return J*sigma*inv(F.t());
     }
+}
+
+//This function returns the Biot stress tensor from the Cauchy stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
+mat Cauchy2Biot(const mat &sigma, const mat &F, const mat &mR, const double &mJ) {
+
+    mat PKI = Cauchy2PKI(sigma, F, mJ);
+    mat R = mR;
+
+    if (norm(R,1) < sim_iota) {
+        mat U = zeros(3,3);
+        RU_decomposition(R,U,F);        
+    }
+    return 0.5*(R.t()*PKI + PKI.t()*R);
 }
 
 //This function returns the second Piola-Kirchoff stress tensor from the Cauchy stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
