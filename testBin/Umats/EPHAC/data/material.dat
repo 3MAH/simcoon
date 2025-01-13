@@ -11,7 +11,7 @@ phi	0
 #Mechancial
 E	140000
 nu_A 	0.3
-G	100000
+G	23000
 alphaA 1.E-6
 sigmaY	62.859017
 Q	416.004456
