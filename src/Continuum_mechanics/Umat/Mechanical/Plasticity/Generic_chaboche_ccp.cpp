@@ -183,7 +183,7 @@ void umat_generic_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, ma
         X_N[i](2) = statev(8+i*12+9);
         X_N[i](3) = statev(8+i*12+10);                
         X_N[i](4) = statev(8+i*12+11);
-        X_N[i](5) = statev(7+i*12+12);
+        X_N[i](5) = statev(8+i*12+12);
     }
     
     //Rotation of internal variables (tensors)
