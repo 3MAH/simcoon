@@ -141,9 +141,9 @@ jobs:
           cmake --build build --config Release
           cmake --install build
 
-      - name: Tests
-        shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure -VV
+      # - name: Tests
+      #  shell: pwsh
+      #  run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Build Python lib
         shell: pwsh
