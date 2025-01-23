@@ -57,4 +57,4 @@ requirements:
 test:
   imports:
     - simcoon
-    - simcoon.simmit
+#    - simcoon.simmit
