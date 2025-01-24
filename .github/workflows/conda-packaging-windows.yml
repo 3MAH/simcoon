@@ -17,6 +17,7 @@ jobs:
         run: |
           conda update --all        
           conda install conda-build anaconda-client conda-verify
+          conda clean --all                    
           conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           anaconda upload win-64/*.tar.bz2 --force
