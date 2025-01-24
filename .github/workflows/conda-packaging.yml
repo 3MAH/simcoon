@@ -37,6 +37,7 @@ jobs:
       - name: Conda build for MacOS
         shell: bash -l {0}
         run: |
+          conda update --all        
           conda install conda-build anaconda-client
           conda clean --all          
           conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
@@ -56,7 +57,9 @@ jobs:
       - name: Conda build for Windows
         shell: pwsh
         run: |
+          conda update --all        
           conda install conda-build anaconda-client
+          conda clean --all                    
           conda-build conda.recipe -c conda-forge -c set3mah --no-test --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           anaconda upload win-64/*.tar.bz2 --force
