@@ -233,8 +233,8 @@ foreach(testSrc ${TEST_SRCS})
   #Add compile target
   add_executable(${testName} ${testSrc})
 
-  if (MSVC)
-  	target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+  if (MSVC AND USE_CARMA)
+  	target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
   else()
   	target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
   endif()
