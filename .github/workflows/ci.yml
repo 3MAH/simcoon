@@ -120,6 +120,32 @@ jobs:
           name: test-logs-Python-OSX
           path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
 
+  WindowsSimcoonOnly:
+    name: WindowsSimcoonOnly
+    runs-on: "windows-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: foo
+          environment-file: environment_win.yml    
+
+      - name: Build for Windows
+        shell: pwsh
+        run: |
+          cmake -S . -B build `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DUSE_CARMA=False `
+              -Wno-dev
+          cmake --build build --config Release
+          cmake --install build
+
+      - name: Tests
+        shell: pwsh
+        run: ctest --test-dir build -C Release --output-on-failure -VV
+
   Windows:
     name: Windows
     runs-on: "windows-latest"
@@ -140,10 +166,6 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
           cmake --install build
-
-      - name: Tests
-        shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Build Python lib
         shell: pwsh
