@@ -19,7 +19,7 @@ jobs:
           conda install conda-build anaconda-client conda-verify
           conda clean --all                    
           conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
+          export ANACONDA_API_TOKEN=${{ secrets.ANACONDA_API_TOKEN }}          
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          conda config --set anaconda_upload yes
           anaconda upload win-64/*.tar.bz2 --force
           anaconda logout
