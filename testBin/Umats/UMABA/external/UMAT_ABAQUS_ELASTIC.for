@@ -245,22 +245,6 @@
        E = props(1)
        xnu = props(2)
 
-       write(6,*), 'props(1)'
-       write(6,*), props(1)
-
-       write(6,*), 'nprops'
-       write(6,*), nprops
-
-       write(6,*), 'TEMP'
-       write(6,*), TEMP
-
-       write(6,*), 'F77 E = '
-       write(6,*), E
-
-       write(6,*), 'F77 xnu = '
-       write(6,*), xnu
-
-
 !    for debugging, you can use
 !      write(6,*) ' Hello '
 !    Output is then written to the .dat file

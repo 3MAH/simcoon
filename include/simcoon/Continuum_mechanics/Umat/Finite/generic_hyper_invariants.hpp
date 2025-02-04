@@ -32,6 +32,6 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_generic_hyper_invariants(const std::string &umat_name, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat&, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
-                            
+void umat_generic_hyper_invariants(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm_0, double &Wm_1, double &Wm_2, double &Wm_3, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+                        
 } //namespace simcoon

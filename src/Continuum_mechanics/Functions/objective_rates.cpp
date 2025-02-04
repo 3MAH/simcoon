@@ -294,6 +294,27 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     return FTensor4_mat(DSDE_);
 }
 
+mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
+    
+    mat invF = inv(F);
+    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
+    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Lt);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
+    
+    Index<'i', 3> i;
+    Index<'j', 3> j;
+    Index<'k', 3> k;
+    Index<'l', 3> l;
+    
+    Index<'L', 3> L;
+    Index<'J', 3> H;
+    Index<'M', 3> M;
+    Index<'N', 3> N;
+
+    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    return FTensor4_mat(DSDE_);
+}
+
 mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     
     mat invF = inv(F);
@@ -334,6 +355,12 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     double J = det(F);
     mat B = get_BBBB(F);
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
+    
+    double J = det(F);
+    return J*Dtau_LieDD_2_DSDE(Lt, F);
 }
 
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
@@ -459,7 +486,7 @@ mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
-mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
+mat Dtau_LieDD_Dtau_objectiveDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
 
     Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
     Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
@@ -480,7 +507,21 @@ mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &B, const mat
     Dtau_logarithmicDD_(i,j,k,l) = Dtau_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
     return FTensor4_mat(Dtau_logarithmicDD_);
 }
-    
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
+
+    mat B = get_BBBB_GN(F);
+    return Dtau_LieDD_Dtau_objectiveDD(Dtau_LieDD, B, tau);
+}
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
+
+    mat B = get_BBBB(F);
+    return Dtau_LieDD_Dtau_objectiveDD(Dtau_LieDD, B, tau);
+}
+
 //This function computes the tangent modulus that links the Jaumann rate of the Cauchy stress tau to the rate of deformation D, from the tangent modulus that links the Lie derivative of the Cauchy stress tau to the rate of deformation D
 mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
 
@@ -499,7 +540,7 @@ mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
-mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
+mat Dsigma_LieDD_Dsigma_objectiveDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
 
     Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
     Tensor2<double,3,3> sigma_ = mat_FTensor2(sigma);
@@ -520,5 +561,44 @@ mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &B, con
     Dsigma_logarithmicDD_(i,j,k,l) = Dsigma_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*sigma_(p,j)-sigma_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
     return FTensor4_mat(Dsigma_logarithmicDD_);
 }
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dsigma_LieDD_Dsigma_GreenNaghdiDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
+
+    mat B = get_BBBB_GN(F);
+    return Dsigma_LieDD_Dsigma_objectiveDD(Dsigma_LieDD, B, sigma);
+}
+
+//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
+mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
+
+    mat B = get_BBBB(F);
+    return Dsigma_LieDD_Dsigma_objectiveDD(Dsigma_LieDD, B, sigma);
+}
  
+mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
+
+    Tensor2<double,3,3> U_ = mat_FTensor2(U);
+    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
+    Tensor2<double,3,3> S_ = mat_FTensor2(S);
+    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
+    Tensor4<double,3,3,3,3> C_;
+    
+    Index<'s', 3> s;
+    Index<'j', 3> j;
+    Index<'p', 3> p;
+    Index<'r', 3> r;
+    
+    Index<'i', 3> i;
+    Index<'l', 3> l;
+    Index<'m', 3> m;
+    Index<'n', 3> n;
+    
+    C_(s,j,p,r) = 0.5*delta_(i,s)*(U_(l,j)*(U_(m,p)*(delta_(n,r)*DSDE_(i,l,m,n)))) 
+                + 0.5*delta_(i,s)*(U_(l,j)*(delta_(m,r)*(U_(n,p)*DSDE_(i,l,m,n))))
+                + 0.5*S_(s,p)*delta_(r,j) + 0.5*S_(r,j)*delta_(s,p);
+    return FTensor4_mat(C_);
+
+}
+
 } //namespace simcoon

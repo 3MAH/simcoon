@@ -4,39 +4,64 @@ Parameter class to manage simcoon computation parameters
 
 import os
 import shutil
-from typing import List
-from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple, Union
 
 
-@dataclass
 class Parameter:
     """
-    Parameter class to manage a set of parameter values to be applied during an identification
+    Parameter class to manage of set of parameters values to be applied during an identification
     and/or DOE test matrix
     :param number: int, number of the constant
+    :param ninput_values: number of inputs for the considered constant
     :param key: alphanumeric key to identify the constant in a file
-    :param value: float, value of the constant
-    :param min_value: float, minimum value of the constant
-    :param max_value: float, maximum value of the constant
-    :param input_files: List[str], list of input files related to the constant
     """
 
-    number: int
-    key: str
-    value: float
-    min_value: float
-    max_value: float
-    input_files: List[str]
+    def __init__(
+        self,
+        number: int = 0,
+        bounds: Tuple[float, float] = (0.0, 1.0),
+        key: str = "",
+        sim_input_files: Optional[List[str]] = None,
+    ) -> None:
+        self.number = number
+        self.key = key
+        self.bounds = bounds
+        self._min_value = bounds[0]
+        self._max_value = bounds[1]
+        self.sim_input_files = sim_input_files
+
+        self._value = None
+
+    @property
+    def value(self) -> float:
+        if self._value is not None:
+            return self._value
+        else:
+            return 0.5 * (self._min_value + self._max_value)
+
+    @value.setter
+    def value(self, value):
+        self._value = value
 
 
-def read_parameters(path: str = "data/") -> List[Parameter]:
+def read_parameters(
+    fname: Union[str, os.PathLike] = "data/parameters.inp",
+) -> List[Parameter]:
     """
     read_parameters from a simcoon input file located in path
     :param path: path where parameters.inp simcoon input file is located
     :return: List of Parameter
     """
+    if not isinstance(fname, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike."
+        )
+
+    if isinstance(fname, os.PathLike):
+        fname = os.fspath(fname)
+
     params = []
-    with open(path + "parameters.inp", "r", encoding="utf-8") as paraminit:
+    with open(fname, "r", encoding="utf-8") as paraminit:
         lines = paraminit.readlines()
 
         for line in lines[1:]:
@@ -44,11 +69,9 @@ def read_parameters(path: str = "data/") -> List[Parameter]:
             nfiles = int(values[4])
             param = Parameter(
                 number=int(values[0]),
-                value=0.5 * float(values[1]) + 0.5 * float(values[2]),
-                min_value=float(values[1]),
-                max_value=float(values[2]),
+                bounds=(float(values[1]), float(values[2])),
                 key=values[3],
-                input_files=[values[5 + j] for j in range(nfiles)],
+                sim_input_files=[values[5 + j] for j in range(nfiles)],
             )
             params.append(param)
     return params
@@ -56,8 +79,8 @@ def read_parameters(path: str = "data/") -> List[Parameter]:
 
 def copy_parameters(
     params: List[Parameter],
-    src_path: str,
-    dst_path: str,
+    src_path: Union[str, os.PathLike],
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Copy parameters file from a source path to a destination path, so that key values can be applied
@@ -66,8 +89,22 @@ def copy_parameters(
     :param dst_path: Destination path
     :return: None
     """
-    for param in params:
-        for ifiles in param.input_files:
+
+    if not isinstance(src_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
+        )
+
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
+
+    for pa in params:
+        if not all(isinstance(item, str) for item in pa.sim_input_files):
+            raise TypeError("All elements in sim_input_files must be strings.")
+
+        for ifiles in pa.sim_input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -75,7 +112,7 @@ def copy_parameters(
 
 def apply_parameters(
     params: List[Parameter],
-    dst_path: str,
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Apply parameters, i.e. replace in file the value of the key with the value of the Parameter
@@ -84,8 +121,13 @@ def apply_parameters(
     :param dst_path: Destination path
     :return: None
     """
-    for param in params:
-        for ifiles in param.input_files:
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
+
+    for pa in params:
+        for ifiles in pa.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:

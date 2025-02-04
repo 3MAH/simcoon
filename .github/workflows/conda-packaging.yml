@@ -9,8 +9,8 @@ jobs:
     name: Linux
     runs-on: "ubuntu-latest"
     steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v4
         with:
           miniconda-version: "latest"
           activate-environment: packaging
@@ -29,7 +29,7 @@ jobs:
     name: MacOS
     runs-on: "macos-latest"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -37,6 +37,7 @@ jobs:
       - name: Conda build for MacOS
         shell: bash -l {0}
         run: |
+          conda update --all        
           conda install conda-build anaconda-client
           conda clean --all          
           conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
@@ -48,7 +49,7 @@ jobs:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -56,8 +57,10 @@ jobs:
       - name: Conda build for Windows
         shell: pwsh
         run: |
+          conda update --all        
           conda install conda-build anaconda-client
-          conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
+          conda clean --all                    
+          conda-build conda.recipe -c conda-forge -c set3mah --no-test --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           anaconda upload win-64/*.tar.bz2 --force
           anaconda logout

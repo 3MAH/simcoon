@@ -4,7 +4,7 @@ Constant class to manage simcoon computations constants
 
 import os
 import shutil
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Union
 import numpy as np
 
 
@@ -21,18 +21,29 @@ class Constant(NamedTuple):
     key: str
     input_values: np.ndarray
     value: float
-    input_files: List[str]
+    sim_input_files: List[str]
 
 
-def read_constants(n_consts: int, path: str = "data/") -> List[Constant]:
+def read_constants(
+    n_consts: int, fname: Union[str, os.PathLike] = "data/constants.inp"
+) -> List[Constant]:
     """
     read constants from a simcoon input file
     :param n_const: number of constants
     :param path: path where constants.inp simcoon input file is located
     :return: List of Constant
     """
+
+    if not isinstance(fname, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike."
+        )
+
+    if isinstance(fname, os.PathLike):
+        fname = os.fspath(fname)
+
     consts = []
-    with open(path + "constants.inp", "r", encoding="utf-8") as constinit:
+    with open(fname, "r", encoding="utf-8") as constinit:
         lines = constinit.readlines()
 
         for line in lines[1:]:
@@ -47,7 +58,7 @@ def read_constants(n_consts: int, path: str = "data/") -> List[Constant]:
                 key=values[1],
                 input_values=array_input_values,
                 value=array_input_values[0],
-                input_files=[values[3 + n_consts + j] for j in range(nfiles)],
+                sim_input_files=[values[3 + n_consts + j] for j in range(nfiles)],
             )
             consts.append(const)
     return consts
@@ -55,8 +66,8 @@ def read_constants(n_consts: int, path: str = "data/") -> List[Constant]:
 
 def copy_constants(
     consts: List[Constant],
-    src_path: str,
-    dst_path: str,
+    src_path: Union[str, os.PathLike],
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Copy constants file from a source path to a destination path, so that key values can be applied
@@ -65,8 +76,21 @@ def copy_constants(
     :param dst_path: Destination path
     :return: None
     """
-    for const in consts:
-        for ifiles in const.input_files:
+    if not isinstance(src_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
+        )
+
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
+
+    for co in consts:
+        if not all(isinstance(item, str) for item in co.sim_input_files):
+            raise TypeError("All elements in sim_input_files must be strings.")
+
+        for ifiles in co.sim_input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -74,7 +98,7 @@ def copy_constants(
 
 def apply_constants(
     consts: List[Constant],
-    dst_path: str,
+    dst_path: Union[str, os.PathLike],
 ) -> None:
     """
     Apply constants, i.e. replace in file the value of the key with the value of the Constant
@@ -83,8 +107,13 @@ def apply_constants(
     :param dst_path: Destination path
     :return: None
     """
-    for const in consts:
-        for ifiles in const.input_files:
+    if not isinstance(dst_path, (str, os.PathLike)):
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
+
+    for co in consts:
+        for ifiles in co.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:

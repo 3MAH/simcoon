@@ -1,0 +1,22 @@
+Material
+Name	NEOHC
+Number_of_material_parameters	2
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+mu 0.5673
+kappa 1000
+
+
+
+
+
+
+
+
+
