@@ -31,5 +31,4 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          anaconda login --token $ANACONDA_API_TOKEN
-          anaconda upload --user ${{ secrets.ANACONDA_USERNAME }} $(conda-build --output conda.recipe)
+          anaconda upload $(conda-build --output conda.recipe)
