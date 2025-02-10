@@ -19,38 +19,29 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
   host:
-    # - arpack  # [linux]
-    # - superlu >=5.2.0,<6  # [linux]
     - python
     - {{ pin_compatible('numpy') }}
     - pip
     - setuptools
-    - boost
-    - libboost
-    - gtest
     - pybind11
-    - libblas * *openblas # [not win]
-    - liblapack * *openblas # [not win]
-    - libblas * *netlib # [win]
-    - liblapack * *netlib # [win]
-    - armadillo >=12.6
-    - carma    
-    - llvm-openmp # [not x86]
-    - mkl # [x86]
+    - blas
     - ninja
   run:
     # - arpack  # [linux]
     # - superlu >=5.2.0,<6  # [linux]
     - python
     - {{ pin_compatible('numpy') }}
-    - openblas # [not x86]
+    - blas * accelerate # [osx and arm64]
+    - lapack * accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
+    - blas * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
+    - lapack * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
     - boost
     - libboost
     - pybind11
-    - armadillo >=12.6
+    - armadillo
     - carma
     - llvm-openmp # [not x86]
 
