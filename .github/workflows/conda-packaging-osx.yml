@@ -9,13 +9,32 @@ jobs:
     runs-on: "macos-latest"
     steps:
       - uses: actions/checkout@v4
+      
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
-          activate-environment: packaging-osx
-      - name: Conda build for MacOS
+          activate-environment: packaging-linux
+
+      - name: Install Dependencies
         shell: bash -l {0}
         run: |
-          conda update --all        
+          conda update --all     
+          conda clean --all          
           conda install conda-build anaconda-client conda-verify
-          conda-build conda.recipe -c set3mah -c conda-forge --no-test --user ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }} 
+          conda config --set anaconda_upload no          
+
+      - name: Build Package
+        shell: bash -l {0}
+        run: |
+          conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
+
+      - name: Upload to Anaconda
+        shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_API_TOKEN }}
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          anaconda upload osx-arm64/*.tar.bz2 --force
+          anaconda upload osx-arm64/*.conda --force
+          anaconda logout 
