@@ -6,14 +6,13 @@ on:
 jobs:        
   Linux:
     name: Linux
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
-          activate-environment: packaging-linux
 
       - name: Install Dependencies
         shell: bash -l {0}
@@ -33,7 +32,6 @@ jobs:
         run: |
           set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload linux-64/*.tar.bz2 --force
           anaconda upload linux-64/*.conda --force
           anaconda logout
           

@@ -6,14 +6,15 @@ on:
 jobs:           
   macos:
     name: MacOS
-    runs-on: "macos-latest"
+    runs-on: macos-latest
+    target_arch: x86_64
+
     steps:
       - uses: actions/checkout@v4
       
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
-          activate-environment: packaging-linux
 
       - name: Install Dependencies
         shell: bash -l {0}
@@ -33,6 +34,5 @@ jobs:
         run: |
           set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload osx-arm64/*.tar.bz2 --force
-          anaconda upload osx-arm64/*.conda --force
+          anaconda upload osx-64/*.conda --force
           anaconda logout 
