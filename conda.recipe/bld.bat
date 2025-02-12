@@ -25,7 +25,7 @@ cmake --build build --target simmit --config Release
 cmake --install build
 if errorlevel 1 exit 1
 
-xcopy /s /i %SRC_DIR%/simcoon-python-builder/build/lib/simmit.pyd %SRC_DIR%/python-setup/simcoon/
+xcopy /s /i /y %SRC_DIR%\simcoon-python-builder\build\lib\simmit.pyd %SRC_DIR%\python-setup\simcoon\simmit.pyd
 python -m pip install %SRC_DIR%/python-setup
 
 if errorlevel 1 exit 1
