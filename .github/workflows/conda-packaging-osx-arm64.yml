@@ -35,12 +35,9 @@ jobs:
         run: |
           conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
 
-      - name: Build and upload the conda packages
-        with:
-          meta_yaml_dir: conda.recipe
-          user: set3mah
-          token: ${{ secrets.ANACONDA_TOKEN }}
+      - name: Build and Upload Conda Packages
         shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
           anaconda upload osx-arm64/*.conda --force
-          anaconda logout          
