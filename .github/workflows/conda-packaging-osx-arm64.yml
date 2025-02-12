@@ -35,7 +35,7 @@ jobs:
         run: |
           conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
 
-      - name: Build and Upload Conda Packages
+      - name: Upload Conda Packages
         shell: bash -l {0}
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}

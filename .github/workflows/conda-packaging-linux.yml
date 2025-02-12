@@ -30,9 +30,8 @@ jobs:
 
       - name: Upload to Anaconda
         shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
-          anaconda login
           anaconda upload linux-64/*.conda --force
-          anaconda logout
           
