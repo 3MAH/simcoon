@@ -1,4 +1,4 @@
-name: Conda packaging osx
+name: Conda packaging osx-arm64
 
 on:
   workflow_dispatch:
