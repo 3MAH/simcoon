@@ -35,7 +35,7 @@ jobs:
         run: |
           set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_API_TOKEN }}
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload osx-arm64/*.tar.bz2 --force
-          anaconda upload osx-arm64/*.conda --force
+          anaconda upload linux-64/*.tar.bz2 --force
+          anaconda upload linux-64/*.conda --force
           anaconda logout
           
