@@ -7,7 +7,7 @@ jobs:
   macos:
     name: MacOS
     runs-on: macos-latest
-    target_arch: arm64
+    platform: arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +15,13 @@ jobs:
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
+          auto-update-conda: true          
+
+      - name: Configure Conda for osx-arm64
+        shell: bash -l {0}
+        run: |
+          conda config --set subdir osx-arm64
+          echo "CONDA_SUBDIR=osx-arm64" >> $GITHUB_ENV
 
       - name: Install Dependencies
         shell: bash -l {0}
@@ -31,8 +38,9 @@ jobs:
 
       - name: Upload to Anaconda
         shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           anaconda upload osx-arm64/*.conda --force
           anaconda logout 
