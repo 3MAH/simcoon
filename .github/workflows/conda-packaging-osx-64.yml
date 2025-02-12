@@ -39,5 +39,6 @@ jobs:
         shell: bash -l {0}
         run: |
           set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          anaconda login          
           anaconda upload osx-64/*.conda --force
           anaconda logout 

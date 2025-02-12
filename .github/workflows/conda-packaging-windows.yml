@@ -30,6 +30,7 @@ jobs:
         shell: pwsh
         run: |
           set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_TOKEN }}
+          anaconda login          
           anaconda upload win-64/*.tar.bz2 --force
           anaconda upload win-64/*.conda --force
           anaconda logout
