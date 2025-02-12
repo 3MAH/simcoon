@@ -24,7 +24,14 @@ requirements:
     - pip
     - setuptools
     - pybind11
-    - blas
+    - mkl # [x86]
+    - blas # [not win]
+    - lapack # [not win]
+    - libblas * *netlib # [win]
+    - liblapack * *netlib # [win]
+    - armadillo >=12.6
+    - carma    
+    - llvm-openmp # [not x86]
     - ninja
   run:
     # - arpack  # [linux]

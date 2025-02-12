@@ -15,6 +15,13 @@ jobs:
       - name: Conda build for Windows
         shell: pwsh
         run: |
-          conda update --all        
+          conda update --all
+          conda clean --all
           conda install conda-build anaconda-client conda-verify
-          conda-build conda.recipe -c set3mah -c conda-forge --no-test --user ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          conda config --set anaconda_upload no
+          conda-build conda.recipe -c set3mah -c conda-forge --no-test --output-folder  .
+          set ANACONDA_API_TOKEN=${{ secrets.ANACONDA_API_TOKEN }}
+          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
+          anaconda upload win-64/*.tar.bz2 --force
+          anaconda upload win-64/*.conda --force
+          anaconda logout
