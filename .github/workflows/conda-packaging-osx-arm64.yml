@@ -7,7 +7,6 @@ jobs:
   macos:
     name: MacOS
     runs-on: macos-latest
-    platform: arm64
 
     steps:
       - uses: actions/checkout@v4
