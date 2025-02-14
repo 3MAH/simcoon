@@ -78,13 +78,13 @@ def write_files_exp(list_data: List[Data],
     with open(path + "files_exp.inp", "w+") as file:
         file.write("#Name_of_the_exp_files\n")
         for file_name in list_exp_input_files_names:
-            file.write(file_name + "\n")
+            file.write(f"{file_name}\n")
         file.write("\n#EXP_Nb_columns_in_files\n")
         for nb_col_file in list_nb_columns_in_files:
-            file.write(str(nb_col_file) + "\n")
+            file.write(f"{nb_col_file}\n")
         file.write("\n#EXP_Nb_columns_to_identify\n")
         for nb_obs_col in list_nb_observation_columns:
-            file.write(str(nb_obs_col) + "\n")
+            file.write(f"{nb_obs_col}\n")
         file.write("\n#EXP_colums_to_identify\n")
         for indices_list in list_observation_columns_indices:
             file.write(" ".join(str(val) for val in indices_list))
