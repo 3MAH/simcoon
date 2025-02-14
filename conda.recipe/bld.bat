@@ -3,7 +3,7 @@ cd %SRC_DIR%
 cmake -G"Visual Studio 17 2022" ^
       -S . -B build ^
       -DCMAKE_BUILD_TYPE=Release ^
-      -DCMAKE_INSTALL_PREFIX=%PREFIX%/Library ^      
+      -DCMAKE_INSTALL_PREFIX=%PREFIX%/Library ^
       -Wno-dev
 
 cmake --build build --config Release
