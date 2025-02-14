@@ -49,9 +49,9 @@ requirements:
     - blas * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
     - lapack * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
     - boost >=1.84
-    - pybind11
-    - armadillo >=12.6
-    - carma
+    - pybind11 # [not win]
+    - armadillo >=12.6 # [not win]
+    - carma # [not win]
     - llvm-openmp # [not x86]
 
 test:
