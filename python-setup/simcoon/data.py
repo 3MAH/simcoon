@@ -1,7 +1,6 @@
 """
 Data Class to manage computation data
 """
-
 from typing import List, Union, Optional
 import numpy as np
 import numpy.typing as npt
@@ -33,7 +32,6 @@ class Data:
         else:
             self.time = time
 
-
 def write_input_and_tab_files(
     list_data: List[Data],
     exp_data_path: str = "exp_data/",
@@ -52,9 +50,10 @@ def write_input_and_tab_files(
         i += 1
 
 
-def write_files_exp(
-    list_data: List[Data], path: str = "data/", exp_data_path: str = "exp_data/"
-) -> None:
+def write_files_exp(list_data: List[Data],
+                    exp_data_path: str = "exp_data/",
+                    path: str = "data/",
+                    ) -> None:
     list_exp_input_files_names = glob.glob("input_data_*.txt", root_dir=exp_data_path)
     list_nb_columns_in_files = []
     list_nb_observation_columns = []
@@ -90,56 +89,4 @@ def write_files_exp(
         for indices_list in list_observation_columns_indices:
             file.write(" ".join(str(val) for val in indices_list))
             file.write("\n")
-
-
-def write_files_num(
-    list_data: List[Data],
-    list_columns_to_compare: List[List[Union[int, str]]],
-    path: str = "data/",
-) -> None:
-    n_columns = 24
-    column_header_to_index = {
-        "phase": 0,
-        "block": 1,
-        "step": 2,
-        "increment": 3,
-        "time": 4,
-        "temperature": 5,
-        "Q": 6, #specific heat
-        "r": 7, #-q
-        "e11": 8,
-        "e22": 9,
-        "e33": 10,
-        "e12": 11,
-        "e13": 12,
-        "e23": 13,
-        "s11": 14,
-        "s22": 15,
-        "s33": 16,
-        "s12": 17,
-        "s13": 18,
-        "s23": 19,
-        "Wm": 20, #total deformation energy
-        "Wm_r": 21, #reversible deformation energy
-        "Wm_ir": 22, #irreversible deformation energy
-        "Wm_d": 23, #dissipated deformation energy
-    }
-    if len(list_data) != len(list_columns_to_compare):
-        raise IndexError(
-            "list_data and list_columns_to_compare must have the same length"
-        )
-    with open(path + "files_num.inp", "w+") as file:
-        file.write("NUMNb_columnsinfiles\n")
-        for _ in list_data:
-            file.write(str(n_columns) + "\n")  # total number of columns
-        file.write("\nNUMNb_colums_to_identify\n")
-        for columns_to_compare in list_columns_to_compare:
-            try:
-                converted_columns = [
-                    column_header_to_index[col] if isinstance(col, str) else col
-                    for col in columns_to_compare
-                ]
-            except KeyError as e:
-                raise ValueError(f"Invalid column name: {e.args[0]}")
-            file.write(" ".join(str(val) for val in converted_columns))
-            file.write("\n")
+        file.close()
