@@ -1,19 +1,16 @@
-"""
-Parameter class to manage simcoon computation parameters
-"""
-
 import os
 import shutil
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 
 class Parameter:
     """
     Parameter class to manage of set of parameters values to be applied during an identification
     and/or DOE test matrix
-    :param number: int, number of the constant
-    :param ninput_values: number of inputs for the considered constant
-    :param key: alphanumeric key to identify the constant in a file
+    :param number: int, number of the parameter
+    :param bounds: min and max boundaries in which parameter may vary
+    :param key: alphanumeric key to identify the parameter in a file
+    :param sim_input_files: simulation input files in which the parameter is used
     """
 
     def __init__(
@@ -100,11 +97,11 @@ def copy_parameters(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for pa in params:
-        if not all(isinstance(item, str) for item in pa.sim_input_files):
+    for param in params:
+        if not all(isinstance(item, str) for item in param.sim_input_files):
             raise TypeError("All elements in sim_input_files must be strings.")
 
-        for ifiles in pa.sim_input_files:
+        for ifiles in param.sim_input_files:
             src_files = os.path.join(src_path, ifiles)
             dst_files = os.path.join(dst_path, ifiles)
             shutil.copy(src_files, dst_files)
@@ -126,8 +123,8 @@ def apply_parameters(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for pa in params:
-        for ifiles in pa.sim_input_files:
+    for param in params:
+        for ifiles in param.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:

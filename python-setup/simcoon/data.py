@@ -1,6 +1,3 @@
-"""
-Data Class to manage computation data
-"""
 from typing import List, Optional
 import numpy as np
 import numpy.typing as npt
