@@ -1,10 +1,11 @@
 """
 Data Class to manage computation data
 """
-from typing import List, Union, Optional
+from typing import List, Optional
 import numpy as np
 import numpy.typing as npt
 import glob
+np.float_ = np.float64
 
 
 class Data:
