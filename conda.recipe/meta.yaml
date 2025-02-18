@@ -21,7 +21,7 @@ requirements:
     - {{ compiler('fortran') }} # [not win]
   host:
     - python
-    - {{ pin_compatible('numpy') }}
+    - numpy>=1.26
     - pip
     - setuptools
     - pybind11
@@ -41,7 +41,7 @@ requirements:
     # - arpack  # [linux]
     # - superlu >=5.2.0,<6  # [linux]
     - python
-    - {{ pin_compatible('numpy') }}
+    - numpy>=1.26
     - blas * accelerate # [osx and arm64]
     - lapack * accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
