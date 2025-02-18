@@ -33,7 +33,6 @@ requirements:
     - armadillo >=12.6
     - carma    
     - llvm-openmp # [not win]
-    - libomp # [win]
     - boost >=1.84
     - gtest
     - ninja
@@ -54,7 +53,6 @@ requirements:
     - armadillo >=12.6
     - carma
     - llvm-openmp # [not win]
-    - libomp # [win]
 
 test:
   imports:
