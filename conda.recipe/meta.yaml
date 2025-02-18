@@ -32,8 +32,7 @@ requirements:
     - liblapack * *netlib # [win]
     - armadillo >=12.6
     - carma    
-    - llvm-openmp # [not win]
-    - libomp # [win]
+    - llvm-openmp
     - boost >=1.84
     - gtest
     - ninja
@@ -53,8 +52,7 @@ requirements:
     - pybind11
     - armadillo >=12.6
     - carma
-    - llvm-openmp # [not win]
-    - libomp # [win]
+    - llvm-openmp
 
 test:
   imports:
