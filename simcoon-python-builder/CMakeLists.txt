@@ -100,7 +100,7 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
@@ -146,12 +146,7 @@ pybind11_add_module(simmit ${source_files_simmit})
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(simmit PUBLIC OpenMP::OpenMP_CXX)
-elseif (MSVC)
-    message(STATUS "Using OpenMP with MSVC")
-    target_compile_options(simmit PRIVATE /openmp)
 endif()
-
-
 
 if (MSVC)
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
