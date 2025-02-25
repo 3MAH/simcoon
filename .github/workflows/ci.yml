@@ -173,6 +173,7 @@ jobs:
           cmake -S simcoon-python-builder -B simcoon-python-builder/build `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+            -DUSE_OPENMP=False `
             -Wno-dev
           cmake --build simcoon-python-builder/build --config Release
           cmake --install simcoon-python-builder/build         
