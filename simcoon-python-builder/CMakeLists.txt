@@ -64,7 +64,13 @@ else()
   find_package(carma CONFIG REQUIRED)
 endif()
 
-find_package(OpenMP)
+if (NOT DEFINED USE_OPENMP)
+  set(USE_OPENMP True)
+endif()
+
+if (USE_OPENMP)
+  find_package(OpenMP)
+endif()
 find_package(simcoon REQUIRED)
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
@@ -100,8 +106,12 @@ endif()
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
-  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  if (USE_OPENMP)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+    # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
+  endif()
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
@@ -144,8 +154,10 @@ file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
 pybind11_add_module(simmit ${source_files_simmit})
 #Wrapper library set_target properties
 
-if(OpenMP_CXX_FOUND)
+if (USE_OPENMP)
+  if(OpenMP_CXX_FOUND)
     target_link_libraries(simmit PUBLIC OpenMP::OpenMP_CXX)
+  endif()
 endif()
 
 if (MSVC)
