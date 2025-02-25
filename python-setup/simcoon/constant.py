@@ -1,5 +1,5 @@
 """
-Constant class to manage list of solids belonging to the same phase
+Constant class to manage simcoon computations constants
 """
 
 import os
@@ -28,13 +28,16 @@ def read_constants(
     n_consts: int, fname: Union[str, os.PathLike] = "data/constants.inp"
 ) -> List[Constant]:
     """
-    read_constants from a simcoon input file
-    @param: n_const
-    @return : List of Constant
+    read constants from a simcoon input file
+    :param n_const: number of constants
+    :param path: path where constants.inp simcoon input file is located
+    :return: List of Constant
     """
 
     if not isinstance(fname, (str, os.PathLike)):
-        raise TypeError(f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike.")
+        raise TypeError(
+            f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike."
+        )
 
     if isinstance(fname, os.PathLike):
         fname = os.fspath(fname)
@@ -50,14 +53,14 @@ def read_constants(
             for j in range(n_consts):
                 array_input_values[j] = values[2 + j]
 
-            co = Constant(
+            const = Constant(
                 number=int(values[0]),
                 key=values[1],
                 input_values=array_input_values,
                 value=array_input_values[0],
                 sim_input_files=[values[3 + n_consts + j] for j in range(nfiles)],
             )
-            consts.append(co)
+            consts.append(const)
     return consts
 
 
@@ -74,13 +77,16 @@ def copy_constants(
     :return: None
     """
     if not isinstance(src_path, (str, os.PathLike)):
-        raise TypeError(f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike.")
-    
+        raise TypeError(
+            f"Invalid type: {type(src_path).__name__}. Expected str or os.PathLike."
+        )
+
     if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike.")
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
 
     for co in consts:
-
         if not all(isinstance(item, str) for item in co.sim_input_files):
             raise TypeError("All elements in sim_input_files must be strings.")
 
@@ -102,7 +108,9 @@ def apply_constants(
     :return: None
     """
     if not isinstance(dst_path, (str, os.PathLike)):
-        raise TypeError(f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike.")
+        raise TypeError(
+            f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
+        )
 
     for co in consts:
         for ifiles in co.sim_input_files:
@@ -110,6 +118,6 @@ def apply_constants(
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(co.key, str(co.value))
+            modified_content = content.replace(const.key, str(const.value))
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)
