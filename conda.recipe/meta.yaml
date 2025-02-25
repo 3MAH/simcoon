@@ -21,7 +21,6 @@ requirements:
     - {{ compiler('fortran') }} # [not win]
   host:
     - python
-    - numpy>=1.26
     - pip
     - setuptools
     - pybind11
