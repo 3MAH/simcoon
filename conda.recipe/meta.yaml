@@ -49,7 +49,7 @@ requirements:
     - lapack * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
     - boost >=1.84
     - armadillo >=12.6 # [not win]
-    - llvm-openmp
+    - llvm-openmp # [not win]
 
 test:
   imports:
