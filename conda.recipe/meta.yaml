@@ -13,20 +13,15 @@ build:
   - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
 
 requirements:
-  ignore_run_exports:
-      from_package:
-        - carma
-        - gtest
-        - armadillo
   build:
     - git # [win]
     - make # [unix]
     - cmake
+    - gtest
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
   host:
     - armadillo >=12.6
-    - gtest
     - carma
     - pybind11
     - python
