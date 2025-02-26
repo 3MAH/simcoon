@@ -31,7 +31,7 @@ requirements:
     - lapack # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
-    - carma    
+    - carma # [not win]
     - llvm-openmp  # [not win]
     - boost >=1.84
     - ninja
