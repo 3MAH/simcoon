@@ -19,6 +19,8 @@ requirements:
     - cmake
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - armadillo >=12.6
+    - gtest
   host:
     - python
     - pip
@@ -29,11 +31,9 @@ requirements:
     - lapack # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
-    - armadillo >=12.6
     - carma    
-    - llvm-openmp
+    - llvm-openmp  # [not win]
     - boost >=1.84
-    - gtest
     - ninja
   run:
     # - arpack  # [linux]
