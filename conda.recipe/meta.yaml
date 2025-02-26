@@ -21,17 +21,17 @@ requirements:
     - {{ compiler('fortran') }} # [not win]
     - armadillo >=12.6
     - gtest
+    - carma
+    - pybind11
   host:
     - python
     - pip
     - setuptools
-    - pybind11
     - mkl # [x86]
     - blas # [not win]
     - lapack # [not win]
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
-    - carma # [not win]
     - llvm-openmp  # [not win]
     - boost >=1.84
     - ninja
