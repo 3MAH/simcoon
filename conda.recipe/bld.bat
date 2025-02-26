@@ -1,6 +1,4 @@
 :: Simcoon
-conda install set3mah::carma
-
 cd %SRC_DIR%
 cmake -G"Visual Studio 17 2022" ^
       -S . -B build ^
