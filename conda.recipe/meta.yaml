@@ -40,8 +40,8 @@ requirements:
     # - superlu >=5.2.0,<6  # [linux]
     - python
     - numpy>=1.26
-    - blas * accelerate # [osx and arm64]
-    - lapack * accelerate # [osx and arm64]
+    - libblas * accelerate # [osx and arm64]
+    - liblapack * accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
