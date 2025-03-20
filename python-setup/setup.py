@@ -7,9 +7,11 @@ if sys.platform == "win32":
 else:
     extension_suffix = ".so"
 
+from simcoon import __version__
+
 setup(
     name="simcoon",
-    version="1.9.5",
+    version=__version__,
     description="Simulation in Mechanics and Materials: Interactive Tools",
     author="Yves Chemisky",
     author_email="yves.chemisky@gmail.com",
