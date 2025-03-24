@@ -1,2 +1,2 @@
-__version__ = '1.9.5'
 from simcoon.simmit import *
+from simcoon.__version__ import __version__

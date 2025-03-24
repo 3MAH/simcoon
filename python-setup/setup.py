@@ -7,7 +7,7 @@ if sys.platform == "win32":
 else:
     extension_suffix = ".so"
 
-from simcoon import __version__
+from simcoon.__version__ import __version__
 
 setup(
     name="simcoon",
