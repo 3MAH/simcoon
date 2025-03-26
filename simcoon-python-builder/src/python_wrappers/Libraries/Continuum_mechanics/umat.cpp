@@ -61,7 +61,7 @@ namespace py=pybind11;
 
 namespace simpy {
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const unsigned int &n_threads){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads){
 		//Get the id of umat
 
 		std::map<string, int> list_umat;
@@ -76,9 +76,18 @@ namespace simpy {
 
 		//scalar needed to launch umat
 		const int solver_type = 0;
-		const int ndi=3;
-		const int nshr=3;
-		const int ncomp=ndi+nshr;
+		const int ncomp=6;
+		int nshr;
+		if (ndi==3) {
+			nshr=3;
+		} else if (ndi==1) {
+			nshr=0;
+		} else if (ndi==2) {
+			nshr=1;
+		} else {
+			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
+		}
+
 		const bool start = false;
 		double tnew_dt = 0;//usefull ?		
 		double T = 0; //default value
@@ -97,7 +106,7 @@ namespace simpy {
 			use_temp = false; 
 		}
 		
-		mat list_etot = carma::arr_to_mat_view(etot_py);
+		mat list_etot = carma::arr_to_mat_view(etot_py);		
 		int nb_points = list_etot.n_cols; //number of material points
 		mat list_Detot = carma::arr_to_mat_view(Detot_py); 
 		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python

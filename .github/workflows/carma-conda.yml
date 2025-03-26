@@ -20,7 +20,7 @@ jobs:
           conda install python=3.11 conda-build anaconda-client conda-verify
           conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload linux-64/*.tar.bz2 --force
+          anaconda upload linux-64/*.conda --force
           anaconda logout    
           
   macos:
@@ -39,7 +39,7 @@ jobs:
           conda install python=3.11 conda-build anaconda-client conda-verify
           conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload osx-64/*.tar.bz2 --force
+          anaconda upload osx-64/*.conda --force
           anaconda logout              
 
   macos-arm64:
@@ -58,7 +58,7 @@ jobs:
             conda install python=3.11 conda-build anaconda-client conda-verify
             conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
             anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-            anaconda upload osx-arm64/*.tar.bz2 --force
+            anaconda upload osx-arm64/*.conda --force
             anaconda logout  
 
         
@@ -78,5 +78,5 @@ jobs:
           conda install python=3.11 conda-build anaconda-client conda-verify
           conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload win-64/*.tar.bz2 --force
+          anaconda upload win-64/*.conda --force
           anaconda logout                        
