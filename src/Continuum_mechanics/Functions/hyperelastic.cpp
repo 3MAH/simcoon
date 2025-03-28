@@ -176,7 +176,7 @@ mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec 
     return gamma;
 }
 
-mat  tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
+mat tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
     vec lambda_bar = zeros(3);
     vec n_pvectors = zeros(3);
     std::vector<mat> N_projectors(3);
@@ -448,7 +448,7 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
     }
-    return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();;
+    return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();
 }
 
 } //namespace simcoon
