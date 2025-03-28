@@ -7,11 +7,11 @@ channels:
 dependencies:
   - cxx-compiler
   - fortran-compiler
-  - blas
-  - lapack
+  - libblas
+  - liblapack
   - cmake
   - python
-  - numpy>=1.24
+  - numpy>=1.26
   - pip
   - setuptools
   - boost
