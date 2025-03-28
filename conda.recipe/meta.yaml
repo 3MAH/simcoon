@@ -20,6 +20,8 @@ requirements:
     - gtest
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - llvm-openmp  # [osx]
+    - libgomp      # [linux]    
   host:
     - armadillo >=12.6
     - carma
@@ -27,21 +29,15 @@ requirements:
     - python
     - pip
     - setuptools
-    - mkl # [x86]
-    - blas # [not win]
-    - lapack # [not win]
-    - libblas * *netlib # [win]
-    - liblapack * *netlib # [win]
-    - llvm-openmp  # [not win]
+    - libblas
+    - liblapack
     - boost >=1.84
     - ninja
   run:
-    # - arpack  # [linux]
-    # - superlu >=5.2.0,<6  # [linux]
     - python
     - numpy>=1.26
-    - libblas * accelerate # [osx and arm64]
-    - liblapack * accelerate # [osx and arm64]
+    - libblas * *accelerate # [osx and arm64]
+    - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
@@ -49,8 +45,6 @@ requirements:
     - lapack * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
     - boost >=1.84
     - armadillo >=12.6 # [not win]
-    - llvm-openmp # [not win]
-
 test:
   imports:
     - simcoon
