@@ -13,7 +13,6 @@ dependencies:
   - numpy>=1.26
   - pip
   - setuptools
-  - boost
   - libboost
   - gtest
   - pybind11
