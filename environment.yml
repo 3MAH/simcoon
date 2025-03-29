@@ -7,8 +7,8 @@ channels:
 dependencies:
   - cxx-compiler
   - fortran-compiler
-  - nomkl  
-  - openblas
+  - mkl  
+  - openblas  
   - numpy>=1.26
   - cmake
   - python
