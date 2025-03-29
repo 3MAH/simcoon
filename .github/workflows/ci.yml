@@ -50,10 +50,14 @@ jobs:
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
           
-      - name: Run ldd
+      - name: Run ldd on BLAS
         run: |
-          echo "Running ldd on testBin/Identification/Tidentification..."
+          ldd /usr/share/miniconda3/envs/foo/lib/././libblas.so.3 || echo "ldd failed!"
+
+      - name: Run ldd on ARPACK
+        run: |
           ldd /usr/share/miniconda3/envs/foo/lib/./libarpack.so.2 || echo "ldd failed!"
+
 
       - name: Tests
         shell: bash -l {0}
