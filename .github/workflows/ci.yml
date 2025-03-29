@@ -36,12 +36,17 @@ jobs:
           environment-file: environment.yml     
           channels: conda-forge,set3mah
 
-      - name: Build for Linux
+      - name: Prepare conda environment
         shell: bash -l {0}
         run: |
           conda config --env --add channels conda-forge
           conda config --env --add channels set3mah          
-          conda config --env --set channel_priority strict       
+          conda config --env --set channel_priority strict      
+          find /usr/lib /usr/local/lib -name "*.so*" -exec ldd {} \; 2>/dev/null | grep mkl      
+
+      - name: Build for Linux
+        shell: bash -l {0}
+        run: |               
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
