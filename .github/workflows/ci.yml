@@ -49,7 +49,11 @@ jobs:
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
-          
+
+      - name: Run ldd on ARMADILLO
+        run: |
+          ldd /usr/share/miniconda3/envs/foo/lib/libarmadillo.so.14 || echo "ldd failed!"
+
       - name: Run ldd on BLAS
         run: |
           ldd /usr/share/miniconda3/envs/foo/lib/././libblas.so.3 || echo "ldd failed!"
