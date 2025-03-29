@@ -9,6 +9,7 @@ dependencies:
   - fortran-compiler
   - blas
   - lapack  
+  - mkl
   - numpy>=1.26
   - cmake
   - python
