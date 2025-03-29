@@ -41,38 +41,7 @@ jobs:
         run: |
           conda config --env --add channels conda-forge
           conda config --env --add channels set3mah          
-          conda config --env --set channel_priority strict      
-
-      - name: Install Required Packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y findutils grep libc-bin patchelf
-
-      - name: Check Shared Libraries Using ldd
-        run: |
-          echo "Checking shared libraries using ldd..."
-          find /usr/lib /usr/local/lib -name "*.so*" -exec ldd {} \; 2>/dev/null | grep mkl || echo "No MKL dependencies found."
-
-      - name: Check Libraries Using ldconfig
-        run: |
-          echo "Checking libraries using ldconfig..."
-          ldconfig -p | grep mkl || echo "No MKL dependencies found in ldconfig cache."
-
-      - name: Check Dependencies Using patchelf
-        run: |
-          echo "Checking libraries using patchelf..."
-          find /usr/lib /usr/local/lib -name "*.so*" -exec patchelf --print-needed {} \; 2>/dev/null | grep mkl || echo "No MKL dependencies found with patchelf."
-
-      - name: List Installed MKL Packages (if available)
-        run: |
-          echo "Checking installed MKL packages..."
-          dpkg -l | grep mkl || echo "No MKL packages found."
-
-      - name: Find Statically Linked MKL Symbols
-        run: |
-          echo "Checking for static MKL symbols..."
-          find /usr/lib /usr/local/lib -name "*.a" -exec nm -A {} \; 2>/dev/null | grep mkl || echo "No static MKL symbols found."
-
+          conda config --env --set channel_priority strict                
 
       - name: Build for Linux
         shell: bash -l {0}
@@ -81,6 +50,11 @@ jobs:
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
           
+      - name: Run ldd on Tidentification
+        run: |
+          echo "Running ldd on testBin/Identification/Tidentification..."
+          ldd /home/runner/work/simcoon/simcoon/testBin/Identification/Tidentification || echo "ldd failed!"
+
       - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
