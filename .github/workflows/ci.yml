@@ -50,19 +50,6 @@ jobs:
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
 
-      - name: Run ldd on ARMADILLO
-        run: |
-          ldd /usr/share/miniconda3/envs/foo/lib/libarmadillo.so.14 || echo "ldd failed!"
-
-      - name: Run ldd on BLAS
-        run: |
-          ldd /usr/share/miniconda3/envs/foo/lib/././libblas.so.3 || echo "ldd failed!"
-
-      - name: Run ldd on ARPACK
-        run: |
-          ldd /usr/share/miniconda3/envs/foo/lib/./libarpack.so.2 || echo "ldd failed!"
-
-
       - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
@@ -103,7 +90,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment.yml          
+          environment-file: environment_arm64.yml          
 
       - name: Build for MacOS
         shell: bash -l {0}
