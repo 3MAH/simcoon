@@ -6,18 +6,21 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# The version number
-set(VERSION_MAJOR 1)
-set(VERSION_MINOR 9)
-set(VERSION_PATCH 4)
+# Ensure Python finds `simcoon` in the correct location
+execute_process(
+    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
+    OUTPUT_VARIABLE PROJECT_VERSION
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
-if(VERSION_PATCH MATCHES "0")
-	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}")
-else()
-	set(VERSION_NUMBER "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}")
-endif()
+# Print and set the project version
+message(STATUS "Project version: ${PROJECT_VERSION}")
+set(PROJECT_VERSION ${PROJECT_VERSION})
 
-message(STATUS "Configuring ${PROJECT_NAME} ${VERSION_NUMBER}")
+# Optionally use this version in packaging/configuration
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+
+message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
