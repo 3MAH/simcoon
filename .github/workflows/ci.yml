@@ -50,12 +50,10 @@ jobs:
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
           
-      - name: Run ldd on Tidentification
+      - name: Run ldd
         run: |
           echo "Running ldd on testBin/Identification/Tidentification..."
-#          ldd /usr/share/miniconda3/envs/foo/lib/libarmadillo.so.14 || echo "ldd failed!"
           ldd /usr/share/miniconda3/envs/foo/lib/./libarpack.so.2 || echo "ldd failed!"
-#          ldd /usr/share/miniconda3/envs/foo/lib/././libblas.so.3 || echo "ldd failed!"
 
       - name: Tests
         shell: bash -l {0}
