@@ -24,6 +24,7 @@ requirements:
     - libgomp      # [linux]    
   host:
     - armadillo >=12.6
+    - mkl # [x86]    
     - carma
     - pybind11
     - python
