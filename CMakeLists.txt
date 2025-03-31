@@ -73,8 +73,10 @@ else()
 endif() 
 
 #Inclusion of Boost
-find_package(Boost 1.57.0 COMPONENTS filesystem system REQUIRED)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+find_package(Boost 1.57.0)
+if (Boost_FOUND)
+  include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+endif()
 
 # OpenMP
 #include(FindOpenMP)
@@ -165,9 +167,9 @@ set(objs
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
 if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma)
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
 else()
-  target_link_libraries(simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
 endif()
 
 #Define lists of executables for compilation
@@ -180,10 +182,10 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
- 	if (MSVC AND USE_CARMA)
-		target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma)
+  if (MSVC AND USE_CARMA)
+    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
   else()
-   	target_link_libraries(${Exe_to_compile} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
   endif()
   if(NOT WIN32)
     target_link_libraries(${Exe_to_compile} -ldl)
@@ -199,7 +201,7 @@ file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
 if(NOT MSVC)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
   set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-  target_link_libraries(umat_plugin_aba simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+  target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
 endif()
 
 if(MSVC)
@@ -214,13 +216,13 @@ add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.
 if(MSVC)
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
   if (USE_CARMA)
-    target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} carma::carma)
+    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} carma::carma)
   else()
-    target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
   endif()
 else()
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-  target_link_libraries(umat_plugin_ext simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES})
+  target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
 endif()
 
 #Run through each source
@@ -237,11 +239,11 @@ foreach(testSrc ${TEST_SRCS})
   add_executable(${testName} ${testSrc})
 
   if (MSVC AND USE_CARMA)
-  	target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
+  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
   else()
-  	target_link_libraries(${testName} simcoon ${Boost_LIBRARIES} ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
   endif()
-  target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
+  target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
 
   # Custom runtime output directory for test binaries
   set_target_properties(${testName} PROPERTIES 
@@ -276,6 +278,7 @@ if(NOT MSVC)
     add_executable(${testName} ${testSrc})
 
     target_link_libraries(${testName} simcoon GTest::gtest GTest::gtest_main)
+    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
 
     # Custom runtime output directory for test binaries
     set_target_properties(${testName} PROPERTIES 
