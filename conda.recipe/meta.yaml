@@ -24,7 +24,11 @@ requirements:
     - libgomp      # [linux]    
   host:
     - armadillo >=12.6
-    - mkl # [x86]    
+    - mkl # [x86]
+    - blas # [not win]
+    - lapack # [not win]
+    - libblas * *netlib # [win]
+    - liblapack * *netlib # [win]        
     - carma
     - pybind11
     - python
