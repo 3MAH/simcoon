@@ -29,7 +29,7 @@
 namespace simcoon{
 
 #ifndef sim_pi
-#define sim_pi std::numbers::pi;
+#define sim_pi std::numbers::pi
 #endif
     
 #ifndef axis_psi

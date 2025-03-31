@@ -19,6 +19,7 @@
 ///@version 1.0
 
 #include <math.h>
+#include <cassert>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
