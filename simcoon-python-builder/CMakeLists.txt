@@ -76,7 +76,6 @@ find_package(simcoon REQUIRED)
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
 include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS} )
 include_directories(SYSTEM ${PYTHON_INCLUDE_DIRS})
 include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
@@ -84,8 +83,6 @@ include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
 message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
 message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
-message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
-message(STATUS "Boost_INCLUDE_DIRS = ${Boost_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
@@ -165,8 +162,8 @@ if (MSVC)
 else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
-#link against simcoon (C++ lib) and arma2numpy, and Boost for the wrappers
-target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
+#link against simcoon (C++ lib) and carma
+target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
 
 
 #Setup CMake to run tests
