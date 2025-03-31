@@ -222,7 +222,6 @@ then
     cd ..
     cd ..
     cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
-    cp ${current_dir}/simcoon-python-builder/build/lib/simmitboost.so ${current_dir}/python-setup/simcoon/simmitboost.so
     cd ${current_dir}/python-setup
         
     #Change the current dir and install python library

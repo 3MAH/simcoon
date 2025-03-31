@@ -15,7 +15,6 @@ dependencies:
   - pip
   - setuptools
   - boost
-  - libboost
   - gtest
   - pybind11
   - armadillo >= 12.6

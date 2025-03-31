@@ -19,7 +19,7 @@
 ///@brief parameters of simcoon
 ///@version 1.0
 
-#include <boost/math/constants/constants.hpp>
+#include <numbers>
 #define UNUSED(x) [&x]{}()
 
 #ifndef version_full
@@ -29,7 +29,7 @@
 namespace simcoon{
 
 #ifndef sim_pi
-#define sim_pi boost::math::constants::pi<double>()
+#define sim_pi std::numbers::pi;
 #endif
     
 #ifndef axis_psi
