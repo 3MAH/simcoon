@@ -63,7 +63,13 @@ vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = det(V);
     }
-    vec lambda = eig_sym(V);
+    vec lambda;
+    try {
+        lambda = eig_sym(V);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in eig_sym: " << e.what() << endl;
+        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in isochoric_pstretch_from_V.");
+    }
     vec lambda_bar = pow(J,-1./3.)*lambda;
     return lambda_bar;    
 }
@@ -74,7 +80,13 @@ vec isochoric_pstretch_from_b(const mat &b, const double &mJ) {
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
     }
-    vec lambda = eig_sym(b);
+    vec lambda;
+    try {
+        lambda = eig_sym(b);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in eig_sym: " << e.what() << endl;
+        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in isochoric_pstretch_from_b.");
+    }
     lambda.transform( [](double val) { return (sqrt(val)); } );
     vec lambda_bar = pow(J,-1./3.)*lambda;
     return lambda_bar;
@@ -97,14 +109,20 @@ void pstretch(vec &lambda, mat &n_pvector, const mat &input, const string &input
         if (fabs(mJ) < sim_iota) {
             J = sqrt(det(input));
         }
-        eig_sym(lambda, n_pvector, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
+        }
         lambda.transform( [](double val) { return (sqrt(val)); } );
     }
     else if (input_tensor == "v" || input_tensor == "V") {
         if (fabs(mJ) < sim_iota) {
             J = det(input);
         }
-        eig_sym(lambda, n_pvector, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvector, input);        
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
+        }
     }
     else {
         throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
@@ -128,14 +146,20 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
         if (fabs(mJ) < sim_iota) {
             J = sqrt(det(input));
         }        
-        eig_sym(lambda, n_pvectors, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
+        }        
         lambda.transform( [](double val) { return (sqrt(val)); } );
     }
     else if (input_tensor == "v" || input_tensor == "V") {
         if (fabs(mJ) < sim_iota) {
             J = det(input);
         }
-        eig_sym(lambda, n_pvectors, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
+        }        
     }
     else {
         throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
@@ -385,7 +409,14 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
     }    
-    vec lambda = eig_sym(b);
+
+    vec lambda;
+    try {
+        lambda = eig_sym(b);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in eig_sym: " << e.what() << endl;
+        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in L_iso_hyper_pstretch.");
+    }    
 
     vec lambda_bar = zeros(3);
     vec n_pvectors = zeros(3);
