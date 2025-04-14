@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -103,9 +104,14 @@ vec dPrager_stress(const vec &v, const double &b, const double &n)
 double Tresca_stress(const vec &v)
 {
     mat sigma = v2t_stress(v);
-    vec lambda = eig_sym(sigma);
-
-    //eig_sym is in ascending order
+    vec lambda;
+    try {
+        lambda = eig_sym(sigma);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in eig_sym: " << e.what() << endl;
+        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in Tresca_stress.");
+    }
+    // eig_sym is in ascending order
     return lambda(2) - lambda(0);
 }
 
