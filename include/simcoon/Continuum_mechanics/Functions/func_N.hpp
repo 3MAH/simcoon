@@ -38,6 +38,14 @@ namespace simcoon{
  * @param[in] path_data (std::string) path to find the file to be read 
  * @param[in] inputfile (std::string) name of the input file to be read
  * 
+ * @details Example
+ *  @code
+ *      arma::vec params;
+ *      arma::vec variables;
+ *      std::string path_data = "data";
+ *      std::string inputfile = "input.txt";
+ *      read_func_N(params, variables, path_data, inputfile);
+ *  @endcode
 */
 void read_func_N(arma::vec&params, arma::vec&variables, const std::string &path_data, const std::string &inputfile);
 

@@ -27,7 +27,9 @@ namespace simcoon{
     
 /**
  * @brief Provides the Prager equivalent stress, given its vector representation
- * @param v, b, n
+ * @param v The stress vector
+ * @param b Parameter that defines the equivalent stress
+ * @param n Parameter that defines the equivalent stress
  * @return The Prager equivalent stress (double)
  * @details Returns the Prager equivalent stress \f$ \mathbf{\sigma}^{P} \f$, considering
     \f[
@@ -46,7 +48,9 @@ double Prager_stress(const arma::vec &v, const double &b, const double &n);
 
 /**
  * @brief Provides derivative of the Prager equivalent stress, given its vector representation
- * @param v, b, n
+ * @param v The stress vector
+ * @param b Parameter that defines the equivalent stress
+ * @param n Parameter that defines the equivalent stress
  * @return The derivative of the Prager equivalent stress (arma::vec)
  * @details Returns the derivative of the Prager equivalent stress with respect to stress. It main use is to define evolution equations for strain based on an associated rule of a convex yield surface
     \f[
@@ -66,8 +70,8 @@ arma::vec dPrager_stress(const arma::vec &v, const double &b, const double &n);
 
 /**
  * @brief Provides the Tresca equivalent stress, given its vector representation
- * @param v
- * @return The Prager equivalent stress (double)
+ * @param v The stress vector
+ * @return The Tresca equivalent stress (double)
  * @details Returns the Tresca equivalent stress \f$ \mathbf{\sigma}^{T} \f$, considering
     \f[
         \sigma^{T} = \sigma_{I} - \sigma_{III},
@@ -83,7 +87,7 @@ double Tresca_stress(const arma::vec &v);
 
 /**
  * @brief Provides derivative of the Tresca equivalent stress, given its vector representation
- * @param v
+ * @param v The stress vector
  * @return The derivative of the Tresca equivalent stress (arma::vec)
  * @details Returns the derivative of the Tresca equivalent stress with respect to stress. It main use is to define evolution equations for strain based on an associated rule of a Tresca convex but not smooth yield surface
  * @warning Note that so far that the correct derivative it is not implemented! Only stress flow \f$ \eta_{stress}=\frac{3/2\sigma_{dev}}{\sigma_{Mises}} \f$ is returned
@@ -98,7 +102,7 @@ arma::vec dTresca_stress(const arma::vec &v);
     
 /**
  * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix), given its vector representation
- * @param P_params
+ * @param P_params The vector of parameters
  * @return The anisotropic configurational tensor (arma::mat)
  * @details The vector of parameters must be constituted of 9 values, respectively:
     \f$ P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44}=P_{1212},P_{55}=P_{1313},P_{66}=P_{2323} \f$
@@ -148,7 +152,7 @@ arma::mat P_Ani(const arma::vec &P_params);
 
 /**
  * @brief Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion \cite Hill.48 in the Voigt format (6x6 matrix), given its vector representation
- * @param P_params
+ * @param P_params The vector of parameters
  * @return The anisotropic Hill48 configurational tensor (arma::mat)
  * @details The vector of parameters must be constituted of 6 values, respectively:
     \f$ F,G,H,L,M,N \f$, such that
@@ -197,7 +201,7 @@ arma::mat P_Hill(const arma::vec &P_params);
 
 /**
  * @brief Provides an anisotropic configurational tensor considering the quadratic Deshpande–Fleck–Ashby yield criterion \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) in the Voigt format (6x6 matrix), given its vector representation
- * @param P_params
+ * @param P_params The vector of parameters
  * @return The anisotropic DFA configurational tensor (arma::mat)
  * @details The vector of parameters must be constituted of 7 values, respectively:
     \f$ F,G,H,L,M,N,K \f$, such that
@@ -237,7 +241,8 @@ arma::mat P_DFA(const arma::vec &P_params);
 
 /**
  * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and given a configurational tensor P
- * @param sigma, H
+ * @param sigma The stress vector
+ * @param H The configurational tensor
  * @return The anisotropic equivalent stress (double)
  * @details Returns anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
  * @code 
@@ -251,7 +256,8 @@ double Eq_stress_P(const arma::vec &sigma, const arma::mat &H);
 
 /**
  * @brief Provides the derivative of the anisotropic equivalent stress, given the stress in a vector format and given a configurational tensor P
- * @param sigma, H
+ * @param sigma The stress vector
+ * @param H The configurational tensor
  * @return The derivative of the anisotropic equivalent stress (mat::vec)
  * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
@@ -268,7 +274,8 @@ arma::vec dEq_stress_P(const arma::vec &sigma, const arma::mat &H);
     
 /**
  * @brief Provides the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The Hill48 anisotropic equivalent stress (double)
  * @details Returns the Hill48 anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
  * see the function P_Hill() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N).
@@ -282,7 +289,8 @@ double Hill_stress(const arma::vec &sigma, const arma::vec &P_params);
 
 /**
  * @brief Provides the derivative of the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The derivative of the Hill48 anisotropic equivalent stress (arma::vec)
  * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
@@ -299,7 +307,8 @@ arma::vec dHill_stress(const arma::vec &, const arma::vec &);
 
 /**
  * @brief Provides the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The DFA anisotropic equivalent stress (double)
  * @details Returns the DFA anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
  * see the function P_DFA() for more details to obtain the tensor H from the set of parameters (F,G,H,L,M,N,K).
@@ -313,7 +322,8 @@ double DFA_stress(const arma::vec &sigma, const arma::vec &P_params);
 
 /**
  * @brief Provides the derivative of the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The derivative of the DFA anisotropic equivalent stress (arma::vec)
  * @details Returns the derivative of the DFA anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
@@ -330,7 +340,8 @@ arma::vec dDFA_stress(const arma::vec &, const arma::vec &);
 
 /**
  * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and a vector of parameters \f$ ( P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44},P_{55},P_{66} ) \f$
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The anisotropic equivalent stress (double)
  * @details Returns the anisotropic equivalent stress \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$.
  * see the function P_Ani() for more details to obtain the tensor P from the set of parameters.
@@ -344,7 +355,8 @@ double Ani_stress(const arma::vec &sigma, const arma::vec &P_params);
 
 /**
  * @brief Provides the derivative of the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
- * @param sigma, P_params
+ * @param sigma The stress vector
+ * @param P_params The vector of parameters
  * @return The derivative of the Hill48 anisotropic equivalent stress (arma::vec)
  * @details Returns the derivative of the anisotropic equivalent stress \f$ \frac{\partial \mathbf{\sigma}^{ani}}{\partial \mathbf{\sigma}} \f$, considering
 \f[
@@ -363,7 +375,9 @@ arma::vec dAni_stress(const arma::vec &, const arma::vec &);
 
 /**
  * @brief Provides an equivalent stress, given the stress in a vector format, a string indicating the type of equivalent stress and a vector of parameters
- * @param sigma, type_eq, P_params
+ * @param sigma The stress vector
+ * @param type_eq The type of equivalent stress ("Mises", "Tresca", "Prager", "Hill", "Ani")
+ * @param P_params The vector of parameters
  * @return The equivalent stress (double)
  * @details Returns the anisotropic equivalent stress, depending on the equivalen type provided : "Mises", "Tresca", "Prager", "Hill", "Ani"
 See the detailed function for each equivalent stress to determine the number and type of parameters to provide, in the form of an arma::vec (so for the Prager criteria, P_params = {b,n} for instance)
@@ -377,7 +391,9 @@ double Eq_stress(const arma::vec &sigma, const std::string &type_eq, const arma:
 
 /**
  * @brief Provides an derivative of the equivalent stress, given the stress in a vector format, a string indicating the type of equivalent stress and a vector of parameters
- * @param sigma, type_eq, P_params
+ * @param sigma The stress vector
+ * @param type_eq The type of equivalent stress ("Mises", "Tresca", "Prager", "Hill", "Ani")
+ * @param P_params The vector of parameters
  * @return The deriative of the equivalent stress (arma::vec)
  * @details Returns the anisotropic equivalent stress, depending on the equivalen type provided : "Mises", "Tresca", "Prager", "Hill", "Ani"
 See the detailed function for each equivalent stress to determine the number and type of parameters to provide, in the form of an arma::vec (so for the Prager criteria, P_params = {b,n} for instance)
