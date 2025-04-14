@@ -97,7 +97,11 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
+
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
@@ -145,7 +149,10 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
@@ -188,7 +195,10 @@ mat get_BBBB(const mat &F1) {
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     mat BBBB = zeros(6,6);
     
     double f_z = 0.;
@@ -208,7 +218,10 @@ mat get_BBBB_GN(const mat &F1) {
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     mat BBBB = zeros(6,6);
     
     double f_z = 0.;
@@ -240,7 +253,10 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
