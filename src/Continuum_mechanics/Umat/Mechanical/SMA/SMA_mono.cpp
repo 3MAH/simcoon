@@ -395,11 +395,10 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
             Lt = L + ((L*lambda)*(inv(dPhidxi))*(dPhidsigma*L));
         }
         else
-            Lt = L;
-       
-		vec eigval = eig_sym(Lt);
+            Lt = L;  
 		
 /*		///Note : To use with Self-consistent micromechanics only!
+		vec eigval = eig_sym(Lt);
 		while(eigval(0) < 0.) {
 				Lt = 0.99*Lt + 0.01*Lt_eff;
 				eigval = eig_sym(Lt);			
@@ -414,9 +413,8 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
         Lt = L;
     }
     
-	vec Dsigma = sigma - sigma_start;
-	vec eigval = eig_sym(Lt);
-    
+//	vec Dsigma = sigma - sigma_start;
+  
 /*	if (compteur < 20) {
         tnew_dt = 2.;
     }
