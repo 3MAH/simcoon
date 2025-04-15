@@ -103,14 +103,14 @@ vec isochoric_pstretch(const mat &input, const string &input_tensor, const doubl
     throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");
 }
 
-void pstretch(vec &lambda, mat &n_pvector, const mat &input, const string &input_tensor, const double &mJ) {
+void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &input_tensor, const double &mJ) {
 
     double J=mJ;
     if (input_tensor == "b") {
         if (fabs(mJ) < sim_iota) {
             J = sqrt(det(input));
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
         }
@@ -120,7 +120,7 @@ void pstretch(vec &lambda, mat &n_pvector, const mat &input, const string &input
         if (fabs(mJ) < sim_iota) {
             J = det(input);
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvector, input);        
+        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);        
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside pstretch.");
         }
@@ -130,12 +130,12 @@ void pstretch(vec &lambda, mat &n_pvector, const mat &input, const string &input
     }
 }
 
-void pstretch(vec &lambda, mat &n_pvector, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
+void pstretch(vec &lambda, mat &n_pvectors, std::vector<mat> &N_projectors, const mat &input, const string &input_tensor, const double &mJ) {
 
-    pstretch(lambda, n_pvector, input, input_tensor, mJ);
-    N_projectors[0] = n_pvector.col(0)*(n_pvector.col(0)).t();
-    N_projectors[1] = n_pvector.col(1)*(n_pvector.col(1)).t();
-    N_projectors[2] = n_pvector.col(2)*(n_pvector.col(2)).t();        
+    pstretch(lambda, n_pvectors, input, input_tensor, mJ);
+    N_projectors[0] = n_pvectors.col(0)*(n_pvectors.col(0)).t();
+    N_projectors[1] = n_pvectors.col(1)*(n_pvectors.col(1)).t();
+    N_projectors[2] = n_pvectors.col(2)*(n_pvectors.col(2)).t();        
 }
 
 void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, const string &input_tensor, const double &mJ) {
@@ -147,7 +147,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
         if (fabs(mJ) < sim_iota) {
             J = sqrt(det(input));
         }        
-        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
         }        
@@ -157,7 +157,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
         if (fabs(mJ) < sim_iota) {
             J = det(input);
         }
-        bool success_eig_sym = eig_sym(lambda, n_pvector, input);
+        bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
         if (!success_eig_sym) {
             throw simcoon::exception_eig_sym("Error in eig_sym function inside isochoric_pstretch.");
         }        
