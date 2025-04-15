@@ -364,7 +364,7 @@ mat sym_dyadic(const mat &A, const mat &B) {
     vec A_v = t2v_sym(A);
     vec B_v = t2v_sym(B);
 	
-	return = A_v * B_v.t();
+	return A_v * B_v.t();
 }
 
 mat auto_dyadic(const mat &A) {
