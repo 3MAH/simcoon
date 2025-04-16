@@ -45,7 +45,7 @@ PYBIND11_MODULE(simmit, m) {
 
     // Register the exception translator
     py::register_exception<std::runtime_error>(m, "CppRuntimeError");
-    py::register_exception<simcoon::exception_eig_syn>(m, "CppExceptionEigSym");    
+    py::register_exception<simcoon::exception_eig_sym>(m, "CppExceptionEigSym");    
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a=true, "Returns the fourth order identity tensor written in Voigt notation Ireal");
