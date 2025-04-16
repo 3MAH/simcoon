@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <simcoon/exception.hpp>
+
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
@@ -40,6 +42,10 @@ using namespace pybind11::literals;
 
 PYBIND11_MODULE(simmit, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
+
+    // Register the exception translator
+    py::register_exception<std::runtime_error>(m, "CppRuntimeError");
+    py::register_exception<simcoon::exception_eig_syn>(m, "CppExceptionEigSym");    
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a=true, "Returns the fourth order identity tensor written in Voigt notation Ireal");
