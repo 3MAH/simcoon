@@ -34,9 +34,9 @@ namespace simcoon{
 
 void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym, const double &tol) {
  
-    double max_tol_simcoon::limit = simcoon::limit;
+    double max_tol_sim = simcoon::limit;
     if(tol > simcoon::limit) {
-        max_tol_simcoon::limit = tol;
+        max_tol_sim = tol;
     }
 
     axis = 0; //Indicate no preferential axis
@@ -92,14 +92,14 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     
     for (unsigned int i=0; i<check_sym.n_rows; i++) {
         for (unsigned int j=0; j<check_sym.n_cols; j++) {
-            if(check_sym(i,j) < max_tol_simcoon::limit)
+            if(check_sym(i,j) < max_tol_sim)
                 type_sym(i,j) = 1;
             else
                 type_sym(i,j) = 0;
         }
     }
         
-    if (check_L_sym_diff < max_tol_simcoon::limit)
+    if (check_L_sym_diff < max_tol_sim)
         maj_sym = 1;
     else
         maj_sym = 0;
