@@ -42,8 +42,8 @@ constexpr axis_psi 3
 constexpr axis_theta 1
 constexpr axis_phi 3
 
-constexpr sim_limit 1.E-9
-constexpr sim_iota 1.E-12
+constexpr limit 1.E-9
+constexpr iota 1.E-12
 constexpr miniter_umat 10
 
 constexpr maxiter_umat 100
