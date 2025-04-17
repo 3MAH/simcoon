@@ -25,6 +25,7 @@
 #include <armadillo>
 #include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -97,7 +98,11 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
+
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
@@ -106,7 +111,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
             }
         }
@@ -115,7 +120,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
             }
         }
@@ -145,7 +150,10 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
@@ -154,7 +162,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
             }
         }
@@ -163,7 +171,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
             }
         }
@@ -188,13 +196,16 @@ mat get_BBBB(const mat &F1) {
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     mat BBBB = zeros(6,6);
     
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
                 BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
             }
@@ -208,13 +219,16 @@ mat get_BBBB_GN(const mat &F1) {
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     mat BBBB = zeros(6,6);
     
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
                 BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
             }
@@ -227,7 +241,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat I = eye(3,3);
     mat L = zeros(3,3);
     
-    if(DTime > sim_iota) {
+    if(DTime > simcoon::iota) {
         L = (1./DTime)*(F1-F0)*inv(F1);
     }
         
@@ -240,7 +254,10 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     
     vec bi = zeros(3);
     mat Bi;
-    eig_sym(bi, Bi, B);
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+    }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
@@ -249,7 +266,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat N = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 N+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
             }
         }

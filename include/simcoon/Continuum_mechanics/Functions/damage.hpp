@@ -30,7 +30,12 @@ namespace simcoon{
 
 /**
  * @brief Provides the damage evolution \f$ \delta D \f$ considering a Weibull damage law.
- * @param stress, damage, alpha, beta, DTime, criterion
+ * @param stress The stress vector \f$ \sigma \f$
+ * @param damage The old damage \f$ D_{old} \f$
+ * @param alpha The shape parameter \f$ \alpha \f$
+ * @param beta The scale parameter \f$ \beta \f$
+ * @param DTime The time increment \f$ \Delta T \f$
+ * @param criterion The criterion (default is "vonmises")
  * @return The damage evolution \f$ \delta D \f$
  * @details It is given by :
     \f$ \Delta D = (1-D_{old})*\Big(1-exp\big(-1(\frac{crit}{\beta})^{\alpha}\big)\Big) \f$
@@ -48,7 +53,12 @@ double damage_weibull(const arma::vec &stress, const double &damage, const doubl
 
 /**
  * @brief Provides the damage evolution \f$ \delta D \f$ considering a Weibull damage law.
- * @param stress, strain, damage, A0, r, criterion
+ * @param stress The stress vector \f$ \sigma \f$
+ * @param strain The strain vector \f$ \epsilon \f$
+ * @param damage The old damage \f$ D_{old} \f$
+ * @param A0 The material properties characteristic of creep damage \f$ A_0 \f$
+ * @param r The parameter \f$ r \f$
+ * @param criterion The criterion (which is a string)
  * @return The damage evolution \f$ \delta D \f$
  * @details It is given by :
  *    \f$ \delta D = \Big(\frac{crit}{A_0(1-D_{old})}\Big)^r \f$
@@ -66,7 +76,13 @@ double damage_kachanov(const arma::vec &stress, const arma::vec &strain, const d
 
 /**
  * @brief  Provides the constant damage evolution \f$ \Delta D \f$ considering a Woehler- Miner’s damage law.
- * @param S_max, S_mean, S_ult, b, B0, beta, Sl_0
+ * @param S_max The max stress value \f$ \sigma_{Max} \f$
+ * @param S_mean The mean stress value \f$\ sigma_{Mean} \f$
+ * @param S_ult The “ultimate” stress value \f$ \sigma_{ult} \f$
+ * @param b The parameter \f$ b \f$
+ * @param B0 The parameter \f$ B_0 \f$
+ * @param beta The parameter \f$ \beta \f$
+ * @param Sl_0 The parameter \f$ Sl_0 \f$ (default is 0.0)
  * @return The damage evolution \f$ \delta D \f$
  * @details It is given by :
     \f$ \Delta D = \big(\frac{S_{Max}-S_{Mean}+Sl_0*(1-b*S_{Mean})}{S_{ult}-S_{Max}}\big)*\big(\frac{S_{Max}-S_{Mean}}{B_0*(1-b*S_{Mean})}\big)^\beta \f$
@@ -80,7 +96,9 @@ double damage_miner(const double &S_max, const double &S_mean, const double &S_u
 
 /**
  * @brief Provides the constant damage evolution \f$ \Delta D \f$ considering a Coffin-Manson’s damage law.
- * @param S_amp, C2, gamma2
+ * @param S_amp The stress amplitude \f$ \sigma_{Amp} \f$
+ * @param C2 The parameter \f$ C_2 \f$
+ * @param gamma2 The parameter \f$ \gamma_2 \f$
  * @return The damage evolution \f$ \delta D \f$
  * @details It is given by :
     \f$ \Delta D = \big(\frac{\sigma_{Amp}}{C_{2}}\big)^{\gamma_2} \f$

@@ -329,7 +329,7 @@ arma::mat finite_L(const arma::mat &F0, const arma::mat &F1, const double &DTime
  * where \f$\mathbf{L}\f$ is the Eulerian velocity tensor. \f$\mathbf{D}\f$ is commonly referred as the rate of deformation (this necessitates although a specific discussion).
  *
  * @param F0 3x3 matrix representing the transformation gradient \f$\mathbf{F_0}\f$ at time \f$t_0\f$
- * @param F1 3x3 matrix representing the transformation gradient \f$\mathbf{F_1}\f$ at time \f$t_1\f$
+ * @param F1 3x3 matrix representing the transformation gradient \f$\mathbf{F}_1}\f$ at time \f$t_1\f$
  * @param DTime time difference \f$\Delta t = t_1 - t_0\f$
  * @return 3x3 matrix representing the approximation of the Eulerian symmetric rate tensor \f$\mathbf{D}\f$
  *

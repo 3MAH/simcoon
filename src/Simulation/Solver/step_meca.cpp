@@ -157,7 +157,7 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     if (mode == 2) {
         double sum_ = 0.;
         for(int k = 0 ; k < ninc ; k++){
-            inc_coef(k) =  cos(sim_pi+ (k+1)*2.*sim_pi/(ninc+1))+1.;
+            inc_coef(k) =  cos(simcoon::pi+ (k+1)*2.*simcoon::pi/(ninc+1))+1.;
             sum_ += inc_coef(k);
         }
         inc_coef = inc_coef*ninc/sum_;
@@ -307,7 +307,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     if (mode == 2) {
         double sum_ = 0.;
         for(int k = 0 ; k < ninc ; k++){
-            inc_coef(k) =  cos(sim_pi+ (k+1)*2.*sim_pi/(ninc+1))+1.;
+            inc_coef(k) =  cos(simcoon::pi+ (k+1)*2.*simcoon::pi/(ninc+1))+1.;
             sum_ += inc_coef(k);
         }
         inc_coef = inc_coef*ninc/sum_;

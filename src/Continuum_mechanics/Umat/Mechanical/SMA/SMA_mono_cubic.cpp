@@ -174,7 +174,7 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
         ET = vide;
         xi = 0.;
         for(int i=0; i<nvariants; i++) {
-            xin(i) = sim_limit;
+            xin(i) = simcoon::limit;
             xi += xin(i);
         }
         
@@ -400,11 +400,9 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
         }
         else
             Lt = L;
-       
-		vec eigval = eig_sym(Lt);  								     		
-		
 		///Note : To use with Self-consistent micromechanics only!
-/*		while(eigval(0) < 0.) {
+/*		vec eigval = eig_sym(Lt);  								     				
+		while(eigval(0) < 0.) {
 				Lt = 0.99*Lt + 0.01*Lt_eff;
 				eigval = eig_sym(Lt);			
 		}       */

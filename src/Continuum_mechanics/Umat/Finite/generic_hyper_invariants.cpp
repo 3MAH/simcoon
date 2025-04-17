@@ -134,7 +134,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
             double c_2 = props(1);            
             double kappa = props(2);     
             dWdI_1_bar = c_1;
-            if(fabs(I_bar(1)) > sim_iota) {
+            if(fabs(I_bar(1)) > simcoon::iota) {
                 dWdI_2_bar = c_2/I_bar(1);
                 dW2dI_22_bar = -1.*c_2/pow(I_bar(1),2.);
             }

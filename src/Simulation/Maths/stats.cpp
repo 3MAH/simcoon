@@ -41,7 +41,7 @@ double normal_distrib(const double &x, const double &mean, const double &dev){
 	else {
 		double k = 1.0/(1.0 + 0.2316419*x_norm);
 		double k_sum = k*(0.319381530 + k*(-0.356563782 + k*(1.781477937 + k*(-1.821255978 + 1.330274429*k))));
-		return (1.0 - (1.0/(sqrt(2*sim_pi)))*exp(-0.5*x_norm*x_norm) * k_sum);
+		return (1.0 - (1.0/(sqrt(2*simcoon::pi)))*exp(-0.5*x_norm*x_norm) * k_sum);
 	}	
 }
 
@@ -86,7 +86,7 @@ double ODF_sd(const double &Theta, const double &mean, const vec &params) {
     
 	if (fabs(Theta - mean) < 1.E-6)
 		return alpha1;  
-	else if (fabs((Theta - mean)-0.5*sim_pi) < 1.E-6)
+	else if (fabs((Theta - mean)-0.5*simcoon::pi) < 1.E-6)
 		return 0.;
 	else
 		return fabs((alpha1*pow(cos(Theta - mean),2.*pow1) + alpha2*pow(cos(Theta - mean),2.*pow2)*pow(sin(Theta - mean),2.*pow2))*cos(Theta - mean));
@@ -106,7 +106,7 @@ double Gaussian(const double &X, const double &mean, const double &std_dev, cons
 
     assert(std_dev>0);
 	
-	return ampl/(std_dev * sqrt(2.*sim_pi)) * exp(-1./2. * pow((X - mean)/std_dev, 2.));
+	return ampl/(std_dev * sqrt(2.*simcoon::pi)) * exp(-1./2. * pow((X - mean)/std_dev, 2.));
 }
 
 ///4. Lorentzian
@@ -114,7 +114,7 @@ double Lorentzian(const double &X, const double &mean, const double &width, cons
 
     assert(width>0);
     
-	return ampl * width/(2.*sim_pi*(pow(X - mean, 2.)+ pow(width / 2., 2.)));
+	return ampl * width/(2.*simcoon::pi*(pow(X - mean, 2.)+ pow(width / 2., 2.)));
 }
 
 ///5. Pseudo-Voigt
@@ -134,7 +134,7 @@ double Pearson7(const double& X, const double& mean, const double &inv_width, ve
     double max = params(0);
     double shape = params(1);
     assert(shape>0);
-    if (fabs(max) < sim_limit) {
+    if (fabs(max) < simcoon::limit) {
         max = 1.;
     }
     
