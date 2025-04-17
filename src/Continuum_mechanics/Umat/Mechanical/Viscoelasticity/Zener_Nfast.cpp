@@ -187,7 +187,7 @@ void umat_zener_Nfast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
             Lambdav[i] = eta_norm_strain(flow_visco[i]);
             dPhi_idsigma[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             
-            if (DTime > sim_iota) {
+            if (DTime > simcoon::iota) {
                 Phi(i) = norm_strain(flow_visco[i]) - Ds_j(i)/DTime;
                 dPhidv[i] = -1.*sum((dPhi_idsigma[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
@@ -243,7 +243,7 @@ void umat_zener_Nfast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
     
     for (int i=0; i<N_kelvin; i++) {
         
-        if(Ds_j(i) > sim_iota)
+        if(Ds_j(i) > simcoon::iota)
             op(i) = 1.;
         
         for (int j = 0; j <N_kelvin; j++) {

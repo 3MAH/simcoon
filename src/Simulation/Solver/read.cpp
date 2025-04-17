@@ -159,9 +159,9 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
         return;
 	}
     
-    psi_rve*=(sim_pi/180.);
-    theta_rve*=(sim_pi/180.);
-    phi_rve*=(sim_pi/180.);
+    psi_rve*=(simcoon::pi/180.);
+    theta_rve*=(simcoon::pi/180.);
+    phi_rve*=(simcoon::pi/180.);
     
 	propsmat.close();
     
@@ -290,7 +290,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                             }
                         }
                         else if(so.o_type(i) == 2) {
-                            if((fmod(1, so.o_tfreq(i)) > sim_limit)||(fmod(so.o_tfreq(i), sptr_meca->Dn_inc) > 0.)) {
+                            if((fmod(1, so.o_tfreq(i)) > simcoon::limit)||(fmod(so.o_tfreq(i), sptr_meca->Dn_inc) > 0.)) {
                                 cout << "The output tfreq is not compatible with the time of increments of the step)" << endl;
                                 break;
                             }
@@ -321,7 +321,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                             }
                         }
                         else if(so.o_type(i) == 2) {
-                            if((fmod(1, so.o_tfreq(i)) > sim_limit)||(fmod(so.o_tfreq(i), sptr_thermomeca->Dn_inc) > 0.)) {
+                            if((fmod(1, so.o_tfreq(i)) > simcoon::limit)||(fmod(so.o_tfreq(i), sptr_thermomeca->Dn_inc) > 0.)) {
                                 cout << "The output tfreq is not compatible with the time of increments of the step)" << endl;
                                 break;
                             }

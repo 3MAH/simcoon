@@ -498,7 +498,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-  	if(fabs(phi) > sim_iota) {
+  	if(fabs(phi) > simcoon::iota) {
 		Etot = rotate_strain(Etot, -phi, axis_phi);
 		DEtot = rotate_strain(DEtot, -phi, axis_phi);
 		etot = rotate_strain(etot, -phi, axis_phi);
@@ -516,7 +516,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
         R = rotate_mat(R, -phi, axis_phi);
         DR = rotate_mat(DR, -phi, axis_phi);
 	}
-  	if(fabs(theta) > sim_iota) {
+  	if(fabs(theta) > simcoon::iota) {
 		Etot = rotate_strain(Etot, -theta, axis_theta);
 		DEtot = rotate_strain(DEtot, -theta, axis_theta);
 		etot = rotate_strain(etot, -theta, axis_theta);
@@ -534,7 +534,7 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
         R = rotate_mat(R, -theta, axis_theta);
         DR = rotate_mat(DR, -theta, axis_theta);
 	}
-	if(fabs(psi) > sim_iota) {
+	if(fabs(psi) > simcoon::iota) {
 		Etot = rotate_strain(Etot, -psi, axis_psi);
 		DEtot = rotate_strain(DEtot, -psi, axis_psi);
 		etot = rotate_strain(etot, -psi, axis_psi);
@@ -583,7 +583,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;    
     
-  	if(fabs(psi) > sim_iota) {
+  	if(fabs(psi) > simcoon::iota) {
 		Etot = rotate_strain(Etot, psi, axis_psi);
 		DEtot = rotate_strain(DEtot, psi, axis_psi);
 		etot = rotate_strain(etot, psi, axis_psi);
@@ -601,7 +601,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
         R = rotate_mat(R, psi, axis_psi);
         DR = rotate_mat(DR, psi, axis_psi);
 	}
-	if(fabs(theta) > sim_iota) {
+	if(fabs(theta) > simcoon::iota) {
 		Etot = rotate_strain(Etot, theta, axis_theta);
 		DEtot = rotate_strain(DEtot, theta, axis_theta);
 		etot = rotate_strain(etot, theta, axis_theta);
@@ -619,7 +619,7 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
         R = rotate_mat(R, theta, axis_theta);
         DR = rotate_mat(DR, theta, axis_theta);
 	}
-	if(fabs(phi) > sim_iota) {
+	if(fabs(phi) > simcoon::iota) {
 		Etot = rotate_strain(Etot, phi, axis_phi);
 		DEtot = rotate_strain(DEtot, phi, axis_phi);
 		etot = rotate_strain(etot, phi, axis_phi);

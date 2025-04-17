@@ -306,7 +306,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                         
-                                        if (DTime > sim_iota)
+                                        if (DTime > simcoon::iota)
                                             D = sv_M->Detot/DTime;
                                         else
                                             D = zeros(3,3);
@@ -577,7 +577,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             if(corate_type == 2) {
                                                 logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             }
-                                            if (DTime > sim_iota)
+                                            if (DTime > simcoon::iota)
                                                 D = sv_M->Detot/DTime;
                                             else
                                                 D = zeros(3,3);
@@ -667,7 +667,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         error = norm(residual, 2.);
                                         
                                         if(tnew_dt < 1.) {
-                                            if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > sim_iota)||(inforce_solver == 0)) {
+                                            if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
                                                 compteur = maxiter_solver;
                                             }
                                         }
@@ -675,7 +675,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     
                                 }
-/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
+/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
 //                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;
@@ -1004,7 +1004,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         error = norm(residual, 2.);
                                         
                                         if(tnew_dt < 1.) {
-                                            if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > sim_iota)||(inforce_solver == 0)) {
+                                            if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
                                                 compteur = maxiter_solver;
                                             }
                                         }
@@ -1013,7 +1013,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                 }
                                 
-/*                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < sim_iota)&&(tnew_dt < 1.)) {
+/*                                if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
                                     cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
                                     //The solver has been inforced!
                                     return;

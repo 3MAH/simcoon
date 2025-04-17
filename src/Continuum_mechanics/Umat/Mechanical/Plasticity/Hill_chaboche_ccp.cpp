@@ -179,7 +179,7 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     //Additional parameters and variables
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = b*(Q-Hp);
     }
     else {
@@ -236,7 +236,7 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
     for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = b*(Q-Hp);
         }
         else {
@@ -294,7 +294,7 @@ void umat_hill_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &
 		mat delta = eye(1,1);
     
 		for (int i=0; i<1; i++) {
-			if(Ds_j[i] > sim_iota)
+			if(Ds_j[i] > simcoon::iota)
 				op(i) = 1.;
 		}
     

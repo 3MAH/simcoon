@@ -69,27 +69,27 @@ TEST(Ttransfer, v2t_func)
 	
 	//Test of v2t_strain function
 	strain = v2t_strain(zeros(6));
-    EXPECT_LT(norm(strain,2),sim_iota);
+    EXPECT_LT(norm(strain,2),simcoon::iota);
 	strain = v2t_strain(test);
-    EXPECT_LT(norm(strain - teststrain,2),sim_iota);
+    EXPECT_LT(norm(strain - teststrain,2),simcoon::iota);
 
     //Test of t2v_strain function
 	vec dev1 = t2v_strain(zeros(3,3));
     vec dev2 = t2v_strain(teststrain);
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - test,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - test,2),simcoon::iota);
 
 	//Test of v2t_stress function
 	stress = v2t_stress(zeros(6));
-    EXPECT_LT(norm(stress,2),sim_iota);
+    EXPECT_LT(norm(stress,2),simcoon::iota);
 	stress = v2t_stress(test);
-    EXPECT_LT(norm(stress - teststress,2),sim_iota);
+    EXPECT_LT(norm(stress - teststress,2),simcoon::iota);
     
 	//Test of t2v_stress function
 	dev1 = t2v_stress(zeros(3,3));
 	dev2 = t2v_stress(teststress);
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - test,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - test,2),simcoon::iota);
     
 }
 
@@ -174,9 +174,9 @@ TEST(Ttransfer, FTensor_transfer)
 	C = mat_FTensor4(L);
 	mat L2 = FTensor4_mat(C);
 
-    EXPECT_LT(norm(testmat2 - testmat,2),sim_iota);
-    EXPECT_LT(norm(test_strain - test,2),sim_iota);
-    EXPECT_LT(norm(test_stress - test,2),sim_iota);
-    EXPECT_LT(norm(L2 - L,2),sim_iota);
+    EXPECT_LT(norm(testmat2 - testmat,2),simcoon::iota);
+    EXPECT_LT(norm(test_strain - test,2),simcoon::iota);
+    EXPECT_LT(norm(test_stress - test,2),simcoon::iota);
+    EXPECT_LT(norm(L2 - L,2),simcoon::iota);
     
 }

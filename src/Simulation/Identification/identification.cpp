@@ -278,7 +278,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         find_best(gen[g], gboys[g], gen[g-1], gboys[g-1], gensons, maxpop, n_param, id0);
         write_results(result, outputfile, gen[g], g, maxpop, n_param);
         
-        if(fabs(costnm1 - gen[g].pop[0].cout) < sim_iota) {
+        if(fabs(costnm1 - gen[g].pop[0].cout) < simcoon::iota) {
             compt_des++;
         }
         else{

@@ -87,9 +87,9 @@ void read_peak(ODF &odf_rve, const string &path_data, const string &inputfile) {
         }
         
         if(odf_rve.radian == false) {
-            odf_rve.peaks[i].mean *=(sim_pi/180.);
-            odf_rve.peaks[i].s_dev *=(sim_pi/180.);
-            odf_rve.peaks[i].width *=(sim_pi/180.);
+            odf_rve.peaks[i].mean *=(simcoon::pi/180.);
+            odf_rve.peaks[i].s_dev *=(simcoon::pi/180.);
+            odf_rve.peaks[i].width *=(simcoon::pi/180.);
         }
     }
     

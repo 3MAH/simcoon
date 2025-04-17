@@ -897,7 +897,7 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     
     tnew_dt = 1.;
     
-    if (Time > sim_limit) {
+    if (Time > simcoon::limit) {
         start = false;
     }
     switch (control_type) {
@@ -920,7 +920,7 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
 {
     
     tnew_dt = 1.;
-    if (Time > sim_limit) {
+    if (Time > simcoon::limit) {
         start = false;
     }
     switch (control_type) {

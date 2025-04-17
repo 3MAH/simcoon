@@ -33,11 +33,11 @@ namespace simcoon{
 mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {
@@ -51,7 +51,7 @@ mat Cauchy2Biot(const mat &sigma, const mat &F, const mat &mR, const double &mJ)
     mat PKI = Cauchy2PKI(sigma, F, mJ);
     mat R = mR;
 
-    if (norm(R,1) < sim_iota) {
+    if (norm(R,1) < simcoon::iota) {
         mat U = zeros(3,3);
         RU_decomposition(R,U,F);        
     }
@@ -62,11 +62,11 @@ mat Cauchy2Biot(const mat &sigma, const mat &F, const mat &mR, const double &mJ)
 mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {
@@ -78,11 +78,11 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
 mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {
@@ -95,11 +95,11 @@ mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
 vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(6);
     }
     else {
@@ -112,11 +112,11 @@ vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
 mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {
@@ -128,11 +128,11 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
 vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
 
 	double J = mJ;
-	if (fabs(mJ) < sim_iota) {
+	if (fabs(mJ) < simcoon::iota) {
 		J = det(F);
 	}
 	//If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-	if (fabs(J) < sim_iota) {
+	if (fabs(J) < simcoon::iota) {
 		return zeros(6);
 	}
 	else {
@@ -180,11 +180,11 @@ mat PKII2Kirchoff(const mat &S, const mat &F, const double &mJ) {
 mat PKI2Cauchy(const mat &Sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {
@@ -196,11 +196,11 @@ mat PKI2Cauchy(const mat &Sigma, const mat &F, const double &mJ) {
 mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(F);
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
-    if (fabs(J) < sim_iota) {
+    if (fabs(J) < simcoon::iota) {
         return zeros(3,3);
     }
     else {

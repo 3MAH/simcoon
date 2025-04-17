@@ -34,7 +34,7 @@ namespace simcoon{
 vec isochoric_invariants(const mat &b, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }
     mat b_bar = pow(J,-2./3.)*b;
@@ -48,7 +48,7 @@ vec isochoric_invariants(const mat &b, const double &mJ) {
 vec isochoric_invariants(const vec &lambda, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = prod(lambda);
     }
     vec lambda_bar = pow(J,-1./3.)*lambda;
@@ -61,7 +61,7 @@ vec isochoric_invariants(const vec &lambda, const double &mJ) {
 
 vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = det(V);
     }
     vec lambda;
@@ -78,7 +78,7 @@ vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
 vec isochoric_pstretch_from_b(const mat &b, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }
     vec lambda;
@@ -107,7 +107,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
 
     double J=mJ;
     if (input_tensor == "b") {
-        if (fabs(mJ) < sim_iota) {
+        if (fabs(mJ) < simcoon::iota) {
             J = sqrt(det(input));
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -117,7 +117,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
         lambda.transform( [](double val) { return (sqrt(val)); } );
     }
     else if (input_tensor == "v" || input_tensor == "V") {
-        if (fabs(mJ) < sim_iota) {
+        if (fabs(mJ) < simcoon::iota) {
             J = det(input);
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);        
@@ -144,7 +144,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
     vec lambda = zeros(3);
 
     if (input_tensor == "b") {
-        if (fabs(mJ) < sim_iota) {
+        if (fabs(mJ) < simcoon::iota) {
             J = sqrt(det(input));
         }        
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -154,7 +154,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
         lambda.transform( [](double val) { return (sqrt(val)); } );
     }
     else if (input_tensor == "v" || input_tensor == "V") {
-        if (fabs(mJ) < sim_iota) {
+        if (fabs(mJ) < simcoon::iota) {
             J = det(input);
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -228,7 +228,7 @@ mat tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const vec &lambda_bar, cons
 mat sigma_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }  
     vec lambda_bar = zeros(3);
@@ -289,7 +289,7 @@ vec delta_coefs(const vec &a_coefs, const vec &b_coefs, const mat &b) {
 
 mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -299,7 +299,7 @@ mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar,
 
 mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat Id = eye(3,3);
@@ -308,7 +308,7 @@ mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
 
 mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -318,7 +318,7 @@ mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_ba
 
 mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat Id = eye(3,3);
@@ -327,7 +327,7 @@ mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
 
 /*mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -353,7 +353,7 @@ mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
 
 /*mat L_iso_hyper_invariants(const vec &delta_coefs, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -407,7 +407,7 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
 mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const mat &b, const double &mJ) {
 
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
 
@@ -452,7 +452,7 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
 
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -477,7 +477,7 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
 
 mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const double &mJ) {
     double J=mJ;
-    if (fabs(mJ) < sim_iota) {
+    if (fabs(mJ) < simcoon::iota) {
         J = sqrt(det(b));
     }
     return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();

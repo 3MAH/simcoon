@@ -145,7 +145,7 @@ void umat_plasticity_hill_isoh_CCP_N(const vec &Etot, const vec &DEtot, vec &sig
     vec dHpdp = zeros(N_plas);
 
     for (int i=0; i<N_plas; i++) {
-        if (p[i] > sim_iota)	{
+        if (p[i] > simcoon::iota)	{
             dHpdp[i] = m[i]*k[i]*pow(p[i], m[i]-1.0);
             Hp[i] = k[i]*pow(p[i], m[i]);
         }
@@ -195,7 +195,7 @@ void umat_plasticity_hill_isoh_CCP_N(const vec &Etot, const vec &DEtot, vec &sig
         
         p = s_j;
         for (int i=0; i<N_plas; i++) {
-            if (p[i] > sim_iota)	{
+            if (p[i] > simcoon::iota)	{
                 dHpdp[i] = m[i]*k[i]*pow(p[i], m[i]-1.0);
                 Hp[i] = k[i]*pow(p[i], m[i]);
             }
@@ -248,7 +248,7 @@ void umat_plasticity_hill_isoh_CCP_N(const vec &Etot, const vec &DEtot, vec &sig
     mat delta = eye(N_plas,N_plas);
     
     for (int i=0; i<N_plas; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
     

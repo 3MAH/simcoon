@@ -97,7 +97,7 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
 
     double A_Damage = 0.;
     double Rv = 0.;
-    if (Mises_stress(sigma) > sim_iota) {
+    if (Mises_stress(sigma) > simcoon::iota) {
         Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(sigma)/(3.*Mises_stress(sigma)),2.);
         A_Damage = pow(Mises_stress(sigma),2.)*Rv/(2.*E*pow(1.-Damage,2.));
     }
@@ -200,7 +200,7 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     mat delta = eye(1,1);
     
     for (int i=0; i<1; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
     
@@ -226,7 +226,7 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     Lt = L_tilde - (kappa_j[0]*P_epsilon[0].t());
     //Lt = L_tilde;
     
-    if (Mises_stress(sigma) > sim_iota) {
+    if (Mises_stress(sigma) > simcoon::iota) {
         Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(sigma)/(3.*Mises_stress(sigma)),2.);
         A_Damage = pow(Mises_stress(sigma),2.)*Rv/(2.*E*pow(1.-Damage,2.));
     }

@@ -201,7 +201,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
             dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             kappa_j[i] = L_i[i]*Lambdav[i];
             
-            if (DTime > sim_iota) {
+            if (DTime > simcoon::iota) {
                 Phi(i) = norm_strain(flow_visco[i]) - Ds_j(i)/DTime;
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
@@ -271,7 +271,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     for (int i=0; i<N_prony; i++) {
         
-        if(Ds_j(i) > sim_iota)
+        if(Ds_j(i) > simcoon::iota)
             op(i) = 1.;
         
         for (int j = 0; j <N_prony; j++) {

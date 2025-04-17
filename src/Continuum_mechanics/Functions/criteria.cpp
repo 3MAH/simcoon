@@ -193,7 +193,7 @@ mat P_DFA(const vec &params) { //Deshpande–Fleck–Ashby
 
 double Eq_stress_P(const vec &v, const mat &H) {
     
-    if (norm(v,2) > sim_iota) {
+    if (norm(v,2) > simcoon::iota) {
         return pow(sum(v%(H*v)),0.5);
     }
     else {
@@ -203,7 +203,7 @@ double Eq_stress_P(const vec &v, const mat &H) {
                    
 vec dEq_stress_P(const vec &v, const mat &H) {
    
-   if (norm(v,2) > sim_iota) {
+   if (norm(v,2) > simcoon::iota) {
        return (H*v)/Eq_stress_P(v,H);
    }
    else {
