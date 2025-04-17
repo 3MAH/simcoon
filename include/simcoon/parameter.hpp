@@ -19,16 +19,13 @@
 ///@brief parameters of simcoon
 ///@version 1.0
 
+#pragma once
 #if __has_include(<numbers>)
     #include <numbers>
     #define HAS_STD_NUMBERS
 #endif
 
 #define UNUSED(x) [&x]{}()
-
-#ifndef version_full
-#define version_full 1
-#endif
 
 namespace simcoon{
 
@@ -38,21 +35,21 @@ namespace simcoon{
     constexpr double pi = 3.14159265358979323846;
 #endif
     
-constexpr axis_psi 3
-constexpr axis_theta 1
-constexpr axis_phi 3
+constexpr int axis_psi = 3;
+constexpr int axis_theta = 1;
+constexpr int axis_phi = 3;
 
-constexpr limit 1.E-9
-constexpr iota 1.E-12
-constexpr miniter_umat 10
+constexpr double limit = 1.E-9;
+constexpr double iota = 1.E-12;
+constexpr int miniter_umat = 10;
 
-constexpr maxiter_umat 100
-constexpr precision_umat 1E-9
+constexpr int maxiter_umat = 100;
+constexpr double precision_umat = 1E-9;
 
-constexpr div_tnew_dt_umat 0.2
-constexpr mul_tnew_dt_umat 2
-constexpr maxiter_micro 100
+constexpr double div_tnew_dt_umat = 0.2;
+constexpr double mul_tnew_dt_umat  = 2.0;
+constexpr int maxiter_micro = 100;
 
-constexpr precision_micro 1E-6
+constexpr double precision_micro = 1E-6;
 
 } //namespace simcoon
