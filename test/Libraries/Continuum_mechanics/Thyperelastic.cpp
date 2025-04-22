@@ -51,7 +51,13 @@ TEST(Thyperelastic, isochoric_invariants)
 
     mat b_rand = simcoon::v2t_strain(randu(6))+eye(3,3);
 
-    double J = sqrt(det(b_rand));
+    double J;
+    try {
+        J = sqrt(det(b_rand));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Thyperelastic.");
+    }      
     
     mat b_bar = pow(J,-2./3.)*b_rand;
     vec I = zeros(3);    
@@ -96,7 +102,14 @@ TEST(Thyperelastic, isochoric_pstretch)
 
     mat V_rand = simcoon::v2t_strain(randu(6)) + eye(3,3);
     mat b_rand = powmat(V_rand,2);    
-    double J = det(V_rand);    
+
+    double J;
+    try {
+        J = det(V_rand);    
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Thyperelastic.");
+    }      
 
     vec lambda = eig_sym(V_rand);
     vec lambda_bar = pow(J,-1./3.)*lambda;

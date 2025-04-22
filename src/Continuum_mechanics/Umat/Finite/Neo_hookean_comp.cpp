@@ -84,7 +84,13 @@ void umat_neo_hookean_comp(const vec &Etot, const vec &DEtot, const mat &F0, con
     
     //Invariants of C
     double I1 = trace(C); // pow(lambda_alpha(2),2.) + pow(lambda_alpha(1),2.) + pow(lambda_alpha(0),2.); //ascending order
-    double J = det(F1); //lambda(2)*lambda(1)*lambda(0)
+    double J;
+    try {
+        J = det(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside umat_neo_hookean_comp.");
+    }   
     
     double W = mu/2.0*(I1-3.) - mu*log(J) + lambda/2.0*pow(log(J),2.);
 

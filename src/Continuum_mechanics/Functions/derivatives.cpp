@@ -58,13 +58,26 @@ mat dtrSdS(const mat &S) {
 
 //This function returns the derivative of the determinant of a tensor
 mat ddetSdS(const mat &S) {
-    return det(S)*(inv(S)).t();
+
+    try {
+        return det(S)*(inv(S)).t();
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv (combined expression), error inv is thrown: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside ddetSdS.");
+    }    
 }
 
 mat dinvSdSsym(const mat &S) {
 
-    mat invS = inv(S);
-    
+    mat invS;
+
+    try {
+        invS = inv(S);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv : " << e.what() << endl;
+        throw simcoon::exception_inv("Error in eig_sym function inside dinvSdSsym.");
+    }    
+
     Tensor2<double,3,3> invS_ = mat_FTensor2(invS);
     Tensor4<double,3,3,3,3> dinvSdSsym_;
     

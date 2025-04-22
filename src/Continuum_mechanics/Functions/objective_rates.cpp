@@ -362,38 +362,64 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma){
     
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_2_DSDE.");
+    }     
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_2_DSDE.");
+    }     
     mat B = get_BBBB(F);
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
     
-    double J = det(F);
+    double J;    
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside Dsigma_LieDD_2_DSDE.");
+    }     
     return J*Dtau_LieDD_2_DSDE(Lt, F);
 }
 
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_JaumannDD_2_DSDE.");
+    }     
     return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 
 mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
     
+    assert(J > simcoon::iota);
     return (1./J)*Lt;
 }
 
 mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
     
+    assert(J > simcoon::iota);    
     return Lt*J;
 }
 
@@ -425,7 +451,13 @@ mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
 
 mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigma) {
 
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_DsigmaDe.");
+    }   
     return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
@@ -452,7 +484,13 @@ mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
 
 mat DSDE_2_DsigmaDe_LieDD(const mat &DSDE, const mat &F) {
 
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_DsigmaDe_LieDD.");
+    }   
     return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
 }
 
@@ -481,7 +519,13 @@ mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
     
-    double J = det(F);
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_Dsigma_JaumannDD.");
+    }   
     return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 

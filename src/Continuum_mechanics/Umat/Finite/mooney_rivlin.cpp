@@ -83,7 +83,13 @@ void umat_mooney_rivlin(const vec &Etot, const vec &DEtot, const mat &F0, const 
     
     //Invariants of C
     double I1 = trace(C); // pow(lambda_alpha(2),2.) + pow(lambda_alpha(1),2.) + pow(lambda_alpha(0),2.); //ascending order
-    double J = det(F1); //lambda(2)*lambda(1)*lambda(0)
+    double J;
+    try {
+        J = det(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside umat_mooney_rivlin.");
+    }    
     double I1_bar = pow(J,-2./3.)*I1;
     
     double W = C_10*(I1_bar-3.) + (1./D_1)*pow(J-1.,2.);

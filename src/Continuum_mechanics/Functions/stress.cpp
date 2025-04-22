@@ -34,7 +34,12 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2PKI.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -63,7 +68,12 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2PKII.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -79,7 +89,12 @@ mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2Kirchoff.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -96,7 +111,12 @@ vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2Kirchoff.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -113,7 +133,12 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Kirchoff2Cauchy.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -129,7 +154,12 @@ vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
 
 	double J = mJ;
 	if (fabs(mJ) < simcoon::iota) {
-		J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside Kirchoff2Cauchy.");
+        } 
 	}
 	//If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
 	if (fabs(J) < simcoon::iota) {
@@ -181,7 +211,12 @@ mat PKI2Cauchy(const mat &Sigma, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside PKI2Cauchy.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {
@@ -197,7 +232,12 @@ mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
 
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
-        J = det(F);
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in eig_sym function inside PKII2Cauchy.");
+        } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
     if (fabs(J) < simcoon::iota) {

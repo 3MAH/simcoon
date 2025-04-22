@@ -73,7 +73,13 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     double dUdJ = 0.;
     double dU2dJ2 = 0.;
 
-    double J = det(F1);  
+    double J;
+    try {
+        J = det(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in eig_sym function inside umat_generic_hyper_invariants.");
+    }     
     vec I_bar = isochoric_invariants(b, J);
 
     std::map<string, int> list_potentials;

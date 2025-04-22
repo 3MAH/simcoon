@@ -32,4 +32,16 @@ public:
         : std::runtime_error(msg) {}
 };
 
+class exception_det : public std::runtime_error {
+    public:
+        explicit exception_det(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };
+
+class exception_inv : public std::runtime_error {
+    public:
+        explicit exception_inv(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };    
+
 } //namespace simcoon
