@@ -85,7 +85,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
-
+        mat DR_N = zeros(3,3);
         mat N_1 = zeros(3,3);
         mat N_2 = zeros(3,3);
 
