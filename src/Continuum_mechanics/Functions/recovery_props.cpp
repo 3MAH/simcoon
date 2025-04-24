@@ -366,7 +366,13 @@ vec M_cubic_props(const mat &Mt) {
 
 vec L_ortho_props(const mat &Lt) {
     
-    mat Mt = inv(Lt);
+    mat Mt;
+    try {
+        Mt = inv(Lt);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside L_ortho_props.");
+    } 
     
     double E1 = 1/Mt(0,0);
     double E2 = 1/Mt(1,1);

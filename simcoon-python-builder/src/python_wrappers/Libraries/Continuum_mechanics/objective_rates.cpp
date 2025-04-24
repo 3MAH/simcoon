@@ -10,6 +10,7 @@
 #include <omp.h>
 #endif
 
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
@@ -113,7 +114,12 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 }
                 case 3: {
                     mat I = eye(3,3);
-                    mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
+                    try {
+                        DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
+                    } catch (const std::runtime_error &e) {
+                        cerr << "Error in inv: " << e.what() << endl;
+                        throw simcoon::exception_inv("Error in inv function inside objective_rate.");
+                    }                        
                     de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
                     de = simcoon::rotate_strain(de, DR_N);
                     break;
@@ -155,8 +161,13 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     case 3: {
                         corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                         if (return_de) {
-                            vec de_col = de.unsafe_col(pt);                                
-                            DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                            vec de_col = de.unsafe_col(pt);           
+                            try {
+                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                            } catch (const std::runtime_error &e) {
+                                cerr << "Error in inv: " << e.what() << endl;
+                                throw simcoon::exception_inv("Error in inv function inside objective_rate.");
+                            }                                                  
                             de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                             de_col = simcoon::rotate_strain(de_col, DR_N);
                         }
@@ -193,8 +204,14 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         case 3: {
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                             if (return_de) {
-                                vec de_col = de.unsafe_col(pt);                                
-                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                vec de_col = de.unsafe_col(pt);
+                                mat DR_N;
+                                try {
+                                    DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                } catch (const std::runtime_error &e) {
+                                    cerr << "Error in inv: " << e.what() << endl;
+                                    throw simcoon::exception_inv("Error in inv function inside objective_rate.");
+                                }                                                                    
                                 de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                                 de_col = simcoon::rotate_strain(de_col, DR_N);
                             }
@@ -233,8 +250,13 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         case 3: {
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
                             if (return_de) {
-                                vec de_col = de.unsafe_col(pt);                                
-                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                vec de_col = de.unsafe_col(pt); 
+                                try {
+                                    DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
+                                } catch (const std::runtime_error &e) {
+                                    cerr << "Error in inv: " << e.what() << endl;
+                                    throw simcoon::exception_inv("Error in inv function inside objective_rate.");
+                                }                                                                    
                                 de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                                 de_col = simcoon::rotate_strain(de.col(pt), DR_N);
                             }

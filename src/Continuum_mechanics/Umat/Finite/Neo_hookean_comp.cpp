@@ -94,7 +94,13 @@ void umat_neo_hookean_comp(const vec &Etot, const vec &DEtot, const mat &F0, con
     
     double W = mu/2.0*(I1-3.) - mu*log(J) + lambda/2.0*pow(log(J),2.);
 
-    mat invC = inv(C);
+    mat invC;
+    try {
+        invC = inv(C);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside umat_neo_hookean_comp.");
+    }
     mat I = eye(3,3);
 
     //Compute the PKII stress and then the Cauchy stress

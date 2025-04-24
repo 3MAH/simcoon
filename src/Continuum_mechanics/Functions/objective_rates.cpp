@@ -40,14 +40,28 @@ namespace simcoon{
 
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
     
+    mat L;
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Jaumann (L).");
+        }          
+    }   
+
     //decomposition of L
     D = 0.5*(L+L.t());
     W = 0.5*(L-L.t());
     
     //Jaumann
-    DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
+    try {
+        DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Jaumann (DR).");
+    }     
 }
     
 void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -60,14 +74,28 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L;
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (L).");
+        }          
+    }   
     
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
     Omega = (1./DTime)*(R1-R0)*R1.t();
 
-    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (DR).");
+    }         
     //alternative ... to test
     //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
@@ -82,14 +110,27 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L;
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside logarithmic_R (L).");
+        }          
+    }   
     
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
     Omega = (1./DTime)*(R1-R0)*R1.t();
 
-    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside logarithmic_R (DR).");
+    }    
     //alternative ... to test
     //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
     
@@ -137,13 +178,19 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L;
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside logarithmic_F (L).");
+        }          
+    }   
     
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
-
-    //alternative ... to test
     
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
@@ -177,18 +224,36 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
         }
     }
     
-    DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
-    
+    try {
+        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside logarithmic_F (DF).");
+    }         
 }
 
 void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L;
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Truesdell (L).");
+        }          
+    }      
+
     //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
     
     //Truesdell
-    DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    try {
+        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Truesdell (DF).");
+    }  
 }
 
 mat get_BBBB(const mat &F1) {
@@ -240,10 +305,15 @@ mat get_BBBB_GN(const mat &F1) {
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
     mat L = zeros(3,3);
-    
-    if(DTime > simcoon::iota) {
-        L = (1./DTime)*(F1-F0)*inv(F1);
-    }
+
+    if(DTime > simcoon::iota) {    
+        try {
+            L = (1./DTime)*(F1-F0)*inv(F1);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside logarithmic (L).");
+        }          
+    }    
         
     //decomposition of L
     D = 0.5*(L+L.t());
@@ -272,19 +342,37 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
         }
     }
     Omega = W + N;
-    DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside logarithmic (DR).");
+    }       
 }
 
 mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
     mat I = eye(3,3);
-    mat DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    mat DR;
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside logarithmic (DR).");
+    }           
     return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     
-    mat invF = inv(F);
+    mat invF;
+    try {
+        invF = inv(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside DtauDe_2_DSDE.");
+    }   
     Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
     Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
     Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
@@ -313,7 +401,14 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
 
 mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
     
-    mat invF = inv(F);
+    mat invF;
+    try {
+        invF = inv(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Dtau_LieDD_2_DSDE.");
+    }   
+
     Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
     Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Lt);
     Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
@@ -334,7 +429,13 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
 
 mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     
-    mat invF = inv(F);
+    mat invF;
+    try {
+        invF = inv(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside DtauDe_JaumannDD_2_DSDE.");
+    }   
     Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
     Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
     Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
@@ -367,7 +468,7 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma)
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_2_DSDE.");
+        throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
     }     
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
@@ -380,7 +481,7 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_2_DSDE.");
+        throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
     }     
     mat B = get_BBBB(F);
     return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
@@ -393,7 +494,7 @@ mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside Dsigma_LieDD_2_DSDE.");
+        throw simcoon::exception_det("Error in det function inside Dsigma_LieDD_2_DSDE.");
     }     
     return J*Dtau_LieDD_2_DSDE(Lt, F);
 }
@@ -405,7 +506,7 @@ mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DsigmaDe_JaumannDD_2_DSDE.");
+        throw simcoon::exception_det("Error in det function inside DsigmaDe_JaumannDD_2_DSDE.");
     }     
     return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
@@ -456,7 +557,7 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigm
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_DsigmaDe.");
+        throw simcoon::exception_det("Error in det function inside DSDE_2_DsigmaDe.");
     }   
     return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
@@ -489,7 +590,7 @@ mat DSDE_2_DsigmaDe_LieDD(const mat &DSDE, const mat &F) {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_DsigmaDe_LieDD.");
+        throw simcoon::exception_det("Error in det function inside DSDE_2_DsigmaDe_LieDD.");
     }   
     return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
 }
@@ -524,7 +625,7 @@ mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside DSDE_2_Dsigma_JaumannDD.");
+        throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_JaumannDD.");
     }   
     return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }

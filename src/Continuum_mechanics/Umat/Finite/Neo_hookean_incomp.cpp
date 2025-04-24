@@ -88,13 +88,19 @@ void umat_neo_hookean_incomp(const vec &etot, const vec &Detot, const mat &F0, c
         J = det(F1);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside umat_neo_hookean_incomp.");
+        throw simcoon::exception_det("Error in det function inside umat_neo_hookean_incomp.");
     }   
     double I1_bar = pow(J,-2./3.)*I1;
     
     double W = C_10*(I1_bar-3.) + (1./D_1)*pow(J-1.,2.);
 
-    mat invC = inv(C);
+    mat invC;
+    try {
+        invC = inv(C);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside umat_neo_hookean_incomp.");
+    }
     mat I = eye(3,3);
 
     //Compute the PKII stress and then the Cauchy stress

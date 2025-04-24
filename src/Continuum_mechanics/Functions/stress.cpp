@@ -38,7 +38,7 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2PKI.");
+            throw simcoon::exception_det("Error in det function inside Cauchy2PKI.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -46,7 +46,12 @@ mat Cauchy2PKI(const mat &sigma, const mat &F, const double &mJ) {
         return zeros(3,3);
     }
     else {
-        return J*sigma*inv(F.t());
+        try {
+            return J*sigma*inv(F.t());
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Cauchy2PKI.");
+        } 
     }
 }
 
@@ -72,7 +77,7 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2PKII.");
+            throw simcoon::exception_det("Error in det function inside Cauchy2PKII.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -80,7 +85,12 @@ mat Cauchy2PKII(const mat &sigma, const mat &F, const double &mJ) {
         return zeros(3,3);
     }
     else {
-        return J*inv(F)*sigma*inv(F.t());
+        try {
+            return J*inv(F)*sigma*inv(F.t());
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Cauchy2PKII.");
+        }         
     }
 }
 
@@ -93,7 +103,7 @@ mat Cauchy2Kirchoff(const mat &sigma, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2Kirchoff.");
+            throw simcoon::exception_det("Error in det function inside Cauchy2Kirchoff.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -115,7 +125,7 @@ vec Cauchy2Kirchoff(const vec &sigma, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Cauchy2Kirchoff.");
+            throw simcoon::exception_det("Error in det function inside Cauchy2Kirchoff.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -137,7 +147,7 @@ mat Kirchoff2Cauchy(const mat &tau, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Kirchoff2Cauchy.");
+            throw simcoon::exception_det("Error in det function inside Kirchoff2Cauchy.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -158,7 +168,7 @@ vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside Kirchoff2Cauchy.");
+            throw simcoon::exception_det("Error in det function inside Kirchoff2Cauchy.");
         } 
 	}
 	//If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -175,20 +185,36 @@ vec Kirchoff2Cauchy(const vec& tau, const mat& F, const double& mJ) {
 mat Kirchoff2PKI(const mat &tau, const mat &F, const double &mJ) {
 
     UNUSED(mJ);
-    return tau*inv(F.t());
+    try {
+        return tau*inv(F.t());
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Kirchoff2PKI.");
+    }    
 }
 
 //This function returns the second Piola-Kirchoff stress tensor from the Kirchoff stress tensor, the transformation gradient F and its determinant (optional, if not indicated, it will be computed)
 mat Kirchoff2PKII(const mat &tau, const mat &F, const double &mJ) {
 
     UNUSED(mJ);
-    return inv(F)*tau*inv(F.t());
+    try {
+        return inv(F)*tau*inv(F.t());
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Kirchoff2PKII.");
+    }     
+
 }
 
 vec Kirchoff2PKII(const vec &tau, const mat &F, const double &mJ) {
 
     UNUSED(mJ);
-    return t2v_stress(inv(F)*v2t_stress(tau)*inv(F.t()));
+    try {
+        return t2v_stress(inv(F)*v2t_stress(tau)*inv(F.t()));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Kirchoff2PKII.");
+    }     
 }
 
 
@@ -215,7 +241,7 @@ mat PKI2Cauchy(const mat &Sigma, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside PKI2Cauchy.");
+            throw simcoon::exception_det("Error in det function inside PKI2Cauchy.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0
@@ -236,7 +262,7 @@ mat PKII2Cauchy(const mat &S, const mat &F, const double &mJ) {
             J = det(F);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside PKII2Cauchy.");
+            throw simcoon::exception_det("Error in det function inside PKII2Cauchy.");
         } 
     }
     //If J is still less than a small value, we assume that sigma=tau=PK1=PKII = 0

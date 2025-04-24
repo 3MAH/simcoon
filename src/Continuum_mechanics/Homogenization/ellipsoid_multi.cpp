@@ -133,8 +133,12 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
     S_loc = Eshelby(Lt_m_local_geom, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
     mat Lt_local_geom = rotate_g2l_L(Lt, ell.psi_geom, ell.theta_geom, ell.phi_geom);
     
-    T_loc = inv(eye(6,6) + S_loc*inv(Lt_m_local_geom)*(Lt_local_geom - Lt_m_local_geom));
-    
+    try {
+      T_loc = inv(eye(6,6) + S_loc*inv(Lt_m_local_geom)*(Lt_local_geom - Lt_m_local_geom));
+    } catch (const std::runtime_error &e) {
+      cerr << "Error in inv: " << e.what() << endl;
+      throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT.");
+    }          
     T = rotate_l2g_A(T_loc, ell.psi_geom, ell.theta_geom, ell.phi_geom);
 }
 
@@ -147,7 +151,12 @@ void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid 
     S_loc = Eshelby(Lt_m_iso, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
     mat Lt_local_geom = rotate_g2l_L(Lt, ell.psi_geom, ell.theta_geom, ell.phi_geom);
     
-    T_loc = inv(eye(6,6) + S_loc*inv(Lt_m_iso)*(Lt_local_geom - Lt_m_iso));
+    try {
+      T_loc = inv(eye(6,6) + S_loc*inv(Lt_m_iso)*(Lt_local_geom - Lt_m_iso));
+    } catch (const std::runtime_error &e) {
+      cerr << "Error in inv: " << e.what() << endl;
+      throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT_is.");
+    }         
     
     T = rotate_l2g_A(T_loc, ell.psi_geom, ell.theta_geom, ell.phi_geom);
 }
@@ -162,10 +171,15 @@ void ellipsoid_multi::fillT_mec_in(const mat& L_m, const mat& L, const ellipsoid
     S_loc = Eshelby(L_m_local_geom, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
     mat L_local_geom = rotate_g2l_L(L, ell.psi_geom, ell.theta_geom, ell.phi_geom);
     
-    T_loc = inv(eye(6,6) + S_loc*inv(L_m_local_geom)*(L_local_geom - L_m_local_geom));
+    try {
+      T_loc = inv(eye(6,6) + S_loc*inv(L_m_local_geom)*(L_local_geom - L_m_local_geom));
+      T_in_loc = (eye(6,6)-T_loc)*inv(L_m_local_geom - L_local_geom);      
+    } catch (const std::runtime_error &e) {
+      cerr << "Error in inv: " << e.what() << endl;
+      throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT_mec_in.");
+    }
+
     T = rotate_l2g_A(T_loc, ell.psi_geom, ell.theta_geom, ell.phi_geom);
-    
-    T_in_loc = (eye(6,6)-T_loc)*inv(L_m_local_geom - L_local_geom);
     T_in = rotate_l2g_M(T_in_loc, ell.psi_geom, ell.theta_geom, ell.phi_geom);
 }
     

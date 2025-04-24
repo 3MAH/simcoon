@@ -75,7 +75,7 @@ mat dinvSdSsym(const mat &S) {
         invS = inv(S);
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv : " << e.what() << endl;
-        throw simcoon::exception_inv("Error in eig_sym function inside dinvSdSsym.");
+        throw simcoon::exception_inv("Error in inv function inside dinvSdSsym.");
     }    
 
     Tensor2<double,3,3> invS_ = mat_FTensor2(invS);

@@ -93,9 +93,14 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         //Compute the normalization interaction tensir sumT
 		sumT += elli->concentration*elli_multi->T;
     }
-				
-    inv_sumT = inv(sumT);
-    
+
+    try {
+        inv_sumT = inv(sumT);
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Lt_Mori_Tanaka.");
+      }    
+
     //Compute the strain concentration tensor A
     for(auto r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
@@ -131,8 +136,13 @@ void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         //Compute the normalization interaction tensir sumT
         sumT += elli->concentration*elli_multi->T;
     }
-    
-    inv_sumT = inv(sumT);
+
+    try {
+        inv_sumT = inv(sumT);
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Lt_Mori_Tanaka_iso.");
+      }        
     
     //Compute the strain concentration tensor A
     for(auto r : phase.sub_phases) {
@@ -169,7 +179,12 @@ void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         sumT += elli->concentration*elli_multi->T;
     }
     
-    inv_sumT = inv(sumT);
+    try {
+        inv_sumT = inv(sumT);
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside DE_Mori_Tanaka.");
+      }   
     
     //Compute the strain concentration tensor A
     for(auto r : phase.sub_phases) {
@@ -209,7 +224,12 @@ void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         sumT += elli->concentration*elli_multi->T;
     }
     
-    inv_sumT = inv(sumT);
+    try {
+        inv_sumT = inv(sumT);
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside DE_Mori_Tanaka_iso.");
+      }   
     
     //Compute the strain concentration tensor A
     for(auto r : phase.sub_phases) {
@@ -382,20 +402,50 @@ void dE_Periodic_Layer(phase_characteristics &phase, const int &nbiter) {
         lay_multi->sigma_hat(1) = sigma_local(3);
         lay_multi->sigma_hat(2) = sigma_local(4);
     }
+
+    try {
+        for(auto r : phase.sub_phases) {
+            lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
+            lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
+            sumDnn += lay->concentration*inv(lay_multi->Dnn);
+            sumcDsig += lay->concentration*inv(lay_multi->Dnn)*lay_multi->sigma_hat;
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside dE_Periodic_Layer.");
+    }       
+
+    vec m;
+    try {
+        m = inv(sumDnn)*sumcDsig;
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside dE_Periodic_Layer.");
+      }       
     
-    for(auto r : phase.sub_phases) {
-        lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
-        lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
-        sumDnn += lay->concentration*inv(lay_multi->Dnn);
-        sumcDsig += lay->concentration*inv(lay_multi->Dnn)*lay_multi->sigma_hat;
-    }
-    vec m = inv(sumDnn)*sumcDsig;
-    
+      try {
+        for(auto r : phase.sub_phases) {
+            lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
+            lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
+            sumDnn += lay->concentration*inv(lay_multi->Dnn);
+            sumcDsig += lay->concentration*inv(lay_multi->Dnn)*lay_multi->sigma_hat;
+        }
+      } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside dE_Periodic_Layer.");
+      }   
+      
     for(auto r : phase.sub_phases) {
         
         sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
-        lay_multi->dzdx1 = inv(lay_multi->Dnn)*(m-lay_multi->sigma_hat);
+
+        try {
+            lay_multi->dzdx1 = inv(lay_multi->Dnn)*(m-lay_multi->sigma_hat);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside dE_Periodic_Layer.");
+        }        
         lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
         
         mat dEtot_local = zeros(6);
@@ -449,20 +499,40 @@ void Lt_Periodic_Layer(phase_characteristics &phase) {
     
     mat sumDnn = zeros(3,3);
     mat sumDnt = zeros(3,3);
-    for(auto r : phase.sub_phases) {
-        lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
-        lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
-        sumDnn += lay->concentration*inv(lay_multi->Dnn);
-        sumDnt += lay->concentration*inv(lay_multi->Dnn)*lay_multi->Dnt;
-    }
-    mat m_n = inv(sumDnn);
+
+    try {
+        for(auto r : phase.sub_phases) {
+            lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
+            lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
+            sumDnn += lay->concentration*inv(lay_multi->Dnn);
+            sumDnt += lay->concentration*inv(lay_multi->Dnn)*lay_multi->Dnt;
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Lt_Periodic_Layer.");
+    }    
+
+    mat m_n;
+    try {
+        m_n = inv(sumDnn);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Lt_Periodic_Layer.");
+    }       
+
     mat m_t = m_n*sumDnt;
 
     for(auto r : phase.sub_phases) {
         lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
-        lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);        
-        lay_multi->dXn = inv(lay_multi->Dnn)*(m_n-lay_multi->Dnn);
-        lay_multi->dXt = inv(lay_multi->Dnn)*(m_t-lay_multi->Dnt);
+        lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);   
+
+        try {
+            lay_multi->dXn = inv(lay_multi->Dnn)*(m_n-lay_multi->Dnn);
+            lay_multi->dXt = inv(lay_multi->Dnn)*(m_t-lay_multi->Dnt);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in inv: " << e.what() << endl;
+            throw simcoon::exception_inv("Error in inv function inside Lt_Periodic_Layer.");
+        }           
         
         A_loc = eye(6,6);
         
