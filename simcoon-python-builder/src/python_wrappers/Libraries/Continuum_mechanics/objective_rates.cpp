@@ -141,8 +141,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         cube N_2(3,3,nb_points);                            
         cube Omega = zeros(3,3, nb_points); 	
         mat de;
-        if(return_de) de.set_size(6,nb_points);
-        mat DR_N = zeros(3,3);
+        if(return_de) de.set_size(6,nb_points);=
         mat I = eye(3,3);        
 
         if (F0.ndim() == 2) {
@@ -161,7 +160,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     case 3: {
                         corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                         if (return_de) {
-                            vec de_col = de.unsafe_col(pt);           
+                            vec de_col = de.unsafe_col(pt);
+                            mat DR_N = zeros(3,3);                                       
                             try {
                                 DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
                             } catch (const std::runtime_error &e) {
