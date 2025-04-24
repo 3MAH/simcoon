@@ -233,7 +233,6 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
 
 void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    mat L;
     if(DTime > simcoon::iota) {    
         try {
             L = (1./DTime)*(F1-F0)*inv(F1);
