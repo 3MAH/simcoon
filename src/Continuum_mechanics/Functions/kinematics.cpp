@@ -122,7 +122,7 @@ vec Inv_X(const mat &X) {
     vec I = zeros(3);
     I(0) = trace(X);
     I(1) = 0.5*(pow(trace(X),2.) - trace(X*X));
-L_vol_hyper
+    I(2) = det(X);    
     return I;
 }
 
