@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <armadillo>
 #include <memory>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>

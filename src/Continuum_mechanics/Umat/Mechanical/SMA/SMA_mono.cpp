@@ -22,7 +22,7 @@
 #include <iostream>
 #include <fstream>
 #include <armadillo>
-
+#include <simcoon/exception.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>

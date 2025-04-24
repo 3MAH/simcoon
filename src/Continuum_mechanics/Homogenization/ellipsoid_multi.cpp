@@ -24,6 +24,7 @@
 #include <string>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>

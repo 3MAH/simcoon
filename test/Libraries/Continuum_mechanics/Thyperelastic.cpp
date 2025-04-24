@@ -21,8 +21,8 @@
 
 #include <gtest/gtest.h>
 #include <armadillo>
-
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 

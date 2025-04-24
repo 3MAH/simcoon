@@ -19,6 +19,7 @@
 #include <fstream>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;

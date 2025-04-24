@@ -25,6 +25,7 @@
 #include <armadillo>
 #include <math.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -78,7 +79,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         J = det(F1);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in eig_sym function inside umat_generic_hyper_invariants.");
+        throw simcoon::exception_det("Error in det function inside umat_generic_hyper_invariants.");
     }     
     vec I_bar = isochoric_invariants(b, J);
 

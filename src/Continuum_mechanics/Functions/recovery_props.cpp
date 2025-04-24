@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 

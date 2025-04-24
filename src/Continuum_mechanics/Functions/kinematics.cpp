@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;

@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 
 using namespace std;
 using namespace arma;
