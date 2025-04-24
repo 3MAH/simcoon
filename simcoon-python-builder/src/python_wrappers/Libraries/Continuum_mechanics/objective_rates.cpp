@@ -141,7 +141,9 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         cube N_2(3,3,nb_points);                            
         cube Omega = zeros(3,3, nb_points); 	
         mat de;
-        if(return_de) de.set_size(6,nb_points);=
+        if(return_de) {
+            de.set_size(6,nb_points);
+        }
         mat I = eye(3,3);        
 
         if (F0.ndim() == 2) {
