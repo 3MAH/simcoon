@@ -144,6 +144,7 @@ include_directories(include)
 #Command file to get all the files in the src/ and include/
 file(GLOB_RECURSE source_files_simmit src/python_wrappers/* include/simcoon/python_wrappers/*)
 file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
+file(GLOB_RECURSE test_files_exception test/exception_test/*.cpp test/exception_test/*.hpp)
 
 ################################################################################
 # SIMCOON PYBIND11 modules
@@ -211,6 +212,46 @@ add_test(NAME test_carma_roundtrip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 add_test(NAME test_carma_arr_to_mat WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma
 		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_arr_to_mat.py)    
 
+
+if (MSVC) #if windows using visual c++
+
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test)
+
+  # Specify the output directory for each configuration (Debug, Release, etc.)
+  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER ${CONFIG_TYPE} CONFIG)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test")
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test")
+  endforeach()
+endif()
+
+set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
+pybind11_add_module(test_exception ${test_files_exception})
+
+# Set output directories based on the build type
+if(MSVC)
+  set_target_properties(test_exception PROPERTIES
+    PREFIX ""
+    SUFFIX ".pyd"
+  )
+else()
+  # For non-MSVC platforms
+  set_target_properties(test_exception PROPERTIES
+    PREFIX ""
+    SUFFIX ".so"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test"
+  )
+endif()
+#Link libraries
+target_link_libraries(test_exception PRIVATE carma::carma ${ARMADILLO_LIBRARIES} Python3::Module)
+
+#Finally add it to test execution -
+#Notice the WORKING_DIRECTORY and COMMAND
+add_test(NAME test_simcoon_exception WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test
+    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/exception_test/run_test_exception.py)
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
