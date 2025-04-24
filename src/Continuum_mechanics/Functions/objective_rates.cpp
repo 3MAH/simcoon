@@ -178,7 +178,6 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
     
-    mat L;
     if(DTime > simcoon::iota) {    
         try {
             L = (1./DTime)*(F1-F0)*inv(F1);
