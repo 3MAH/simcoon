@@ -253,6 +253,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
                             if (return_de) {
                                 vec de_col = de.unsafe_col(pt); 
+                                mat DR_N;
                                 try {
                                     DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
                                 } catch (const std::runtime_error &e) {
