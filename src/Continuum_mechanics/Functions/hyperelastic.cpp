@@ -44,8 +44,14 @@ vec isochoric_invariants(const mat &b, const double &mJ) {
     }
     mat b_bar = pow(J,-2./3.)*b;
     vec I = zeros(3);    
+
     I(0) = trace(b_bar);
-    I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    try {
+        I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside isochoric_invariants.");
+    }        
     I(2) = 1.;
     return I;
 }
@@ -338,7 +344,15 @@ mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar,
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
-    mat b_bar2 = powmat(b_bar,2);
+
+    mat b_bar2;
+    try {
+        b_bar2 = powmat(b_bar,2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside tau_iso_hyper_invariants.");
+    }        
+
     return 2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2));
 }
 
@@ -353,6 +367,7 @@ mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
         }   
     }    
     mat Id = eye(3,3);
+
     return J*dUdJ*eye(3,3);
 }
 
@@ -367,7 +382,14 @@ mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_ba
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
-    mat b_bar2 = powmat(b_bar,2);
+    mat b_bar2;
+    try {
+        b_bar2 = powmat(b_bar,2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside sigma_iso_hyper_invariants.");
+    }            
+
     return (1./J)*(2.*dWdI_1_bar*dev(b_bar) + 2.*dWdI_2_bar*(trace(b_bar)*dev(b_bar) - dev(b_bar2)));
 }
 
@@ -526,7 +548,15 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
-    mat b_bar2 = powmat(b_bar,2);
+
+    mat b_bar2;
+    try {
+        b_bar2 = powmat(b_bar,2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside L_iso_hyper_invariants.");
+    }            
+
     mat dev_b_bar = dev(b_bar);    
     mat dev_b_bar2 = dev(b_bar2);        
     vec I_bar = isochoric_invariants(b,J);

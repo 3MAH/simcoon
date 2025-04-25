@@ -61,8 +61,15 @@ TEST(Thyperelastic, isochoric_invariants)
     
     mat b_bar = pow(J,-2./3.)*b_rand;
     vec I = zeros(3);    
+
     I(0) = trace(b_bar);
-    I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    mat b_bar2;
+    try {
+        I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside Thyperelastic.");
+    }            
     I(2) = 1.;
 
     vec I_rand = simcoon::isochoric_invariants(b_rand);     

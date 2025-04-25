@@ -61,5 +61,11 @@ class exception_expmat_sym : public std::runtime_error {
         explicit exception_expmat_sym(const std::string& msg)
             : std::runtime_error(msg) {}
     };
+
+class exception_powmat : public std::runtime_error {
+    public:
+        explicit exception_powmat(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };    
     
 } //namespace simcoon
