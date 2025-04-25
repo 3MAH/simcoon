@@ -95,8 +95,15 @@ TEST(TLOG_int, TLOG_int_solver)
 	F_test(2,0) = 0.;
 	F_test(2,1) = 0.;
 	F_test(2,2) = 1.;
-    
-    vec e_tot_log_test = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(F_test)));
+
+    vec e_tot_log_test;  
+    try {
+        e_tot_log_test = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(F_test)));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in logmat_sympd: " << e.what() << endl;
+        throw simcoon::exception_logmat_sympd("Error in logmat_sympd function inside TLOG_int.");
+    }
+
     unsigned int n_rows_results = R.n_rows;
     vec e_tot_log = zeros(6);
 

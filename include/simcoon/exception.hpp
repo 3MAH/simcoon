@@ -44,4 +44,22 @@ class exception_inv : public std::runtime_error {
             : std::runtime_error(msg) {}
     };    
 
+class exception_sqrtmat_sympd : public std::runtime_error {
+    public:
+        explicit exception_sqrtmat_sympd(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };
+    
+class exception_logmat_sympd : public std::runtime_error {
+    public:
+        explicit exception_logmat_sympd(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };    
+    
+class exception_expmat_sym : public std::runtime_error {
+    public:
+        explicit exception_expmat_sym(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };
+    
 } //namespace simcoon

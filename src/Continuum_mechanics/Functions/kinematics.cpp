@@ -50,7 +50,13 @@ mat ER_to_F(const mat &E, const mat &R) {
         vec N = N_alpha.col(i);
         U = U + (lambda_alpha(i)*(N*N.t()));
     }*/
-    return (R*sqrtmat_sympd(C));
+
+    try {
+        return (R*sqrtmat_sympd(C));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside ER_to_F.");
+    }            
 }
 
 mat eR_to_F(const mat &e, const mat &R) {
@@ -61,7 +67,13 @@ mat eR_to_F(const mat &e, const mat &R) {
     assert(R.n_rows == 3);
 
     //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat V = expmat_sym(e);
+    mat V;
+    try {
+        V = expmat_sym(e);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in expmat_sym : " << e.what() << endl;
+        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside eR_to_F.");
+    }            
 
     return (V*R);
 }
@@ -95,7 +107,14 @@ mat L_Cauchy_Green(const mat &F) {
 //Provides the RU decomposition of the transformation gradient F
 void RU_decomposition(mat &R, mat &U, const mat &F) {
     mat U2 = F.t()*F;
-    U = sqrtmat_sympd(U2);
+
+    try {
+        U = sqrtmat_sympd(U2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside RU_decomposition.");
+    }                
+
     try {
         R = F*inv(U);
     } catch (const std::runtime_error &e) {
@@ -107,7 +126,14 @@ void RU_decomposition(mat &R, mat &U, const mat &F) {
 //Provides the VR decomposition of the transformation gradient F
 void VR_decomposition(mat &V, mat &R, const mat &F) {
     mat V2 = F*F.t();
-    V = sqrtmat_sympd(V2);
+
+    try {
+        V = sqrtmat_sympd(V2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside VR_decomposition.");
+    }                
+
     try {
         R = inv(V)*F;
     } catch (const std::runtime_error &e) {
@@ -148,7 +174,12 @@ mat Euler_Almansi(const mat &F) {
 
 //This function computes the Euler-Almansi finite strain tensor h
 mat Log_strain(const mat &F) {
-    return  0.5*logmat_sympd(L_Cauchy_Green(F));
+    try {
+        return  0.5*logmat_sympd(L_Cauchy_Green(F));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in logmat_sympd: " << e.what() << endl;
+        throw simcoon::exception_logmat_sympd("Error in logmat_sympd function inside Log_strain.");
+    }     
 }
 
 //This function computes the velocity difference

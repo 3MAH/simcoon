@@ -39,7 +39,7 @@ vec isochoric_invariants(const mat &b, const double &mJ) {
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside isochoric_invariants.");
+            throw simcoon::exception_det("Error in det function inside isochoric_invariants.");
         }            
     }
     mat b_bar = pow(J,-2./3.)*b;
@@ -71,7 +71,7 @@ vec isochoric_pstretch_from_V(const mat &V, const double &mJ) {
             J = det(V);
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside isochoric_pstretch_from_V.");
+            throw simcoon::exception_det("Error in det function inside isochoric_pstretch_from_V.");
         }    
     }
     vec lambda;
@@ -93,7 +93,7 @@ vec isochoric_pstretch_from_b(const mat &b, const double &mJ) {
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside isochoric_pstretch_from_b.");
+            throw simcoon::exception_det("Error in det function inside isochoric_pstretch_from_b.");
         }    
     }
     vec lambda;
@@ -127,7 +127,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
                 J = sqrt(det(input));
             } catch (const std::runtime_error &e) {
                 cerr << "Error in det: " << e.what() << endl;
-                throw simcoon::exception_det("Error in eig_sym function inside pstretch.");
+                throw simcoon::exception_det("Error in det function inside pstretch.");
             }    
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -142,7 +142,7 @@ void pstretch(vec &lambda, mat &n_pvectors, const mat &input, const string &inpu
                 J = sqrt(det(input));
             } catch (const std::runtime_error &e) {
                 cerr << "Error in det: " << e.what() << endl;
-                throw simcoon::exception_det("Error in eig_sym function inside pstretch.");
+                throw simcoon::exception_det("Error in det function inside pstretch.");
             }   
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);        
@@ -174,7 +174,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
                 J = sqrt(det(input));
             } catch (const std::runtime_error &e) {
                 cerr << "Error in det: " << e.what() << endl;
-                throw simcoon::exception_det("Error in eig_sym function inside isochoric_pstretch.");
+                throw simcoon::exception_det("Error in det function inside isochoric_pstretch.");
             }   
         }        
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -189,7 +189,7 @@ void isochoric_pstretch(vec &lambda_bar, mat &n_pvectors, const mat &input, cons
                 J = sqrt(det(input));
             } catch (const std::runtime_error &e) {
                 cerr << "Error in det: " << e.what() << endl;
-                throw simcoon::exception_det("Error in eig_sym function inside isochoric_pstretch.");
+                throw simcoon::exception_det("Error in det function inside isochoric_pstretch.");
             }   
         }
         bool success_eig_sym = eig_sym(lambda, n_pvectors, input);
@@ -268,7 +268,7 @@ mat sigma_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const doubl
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside sigma_iso_hyper_pstretch.");
+            throw simcoon::exception_det("Error in det function inside sigma_iso_hyper_pstretch.");
         }   
     }  
     vec lambda_bar = zeros(3);
@@ -334,7 +334,7 @@ mat tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar,
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside tau_iso_hyper_invariants.");
+            throw simcoon::exception_det("Error in det function inside tau_iso_hyper_invariants.");
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -349,7 +349,7 @@ mat tau_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside tau_vol_hyper.");
+            throw simcoon::exception_det("Error in det function inside tau_vol_hyper.");
         }   
     }    
     mat Id = eye(3,3);
@@ -363,7 +363,7 @@ mat sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_ba
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside sigma_iso_hyper_invariants.");
+            throw simcoon::exception_det("Error in det function inside sigma_iso_hyper_invariants.");
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -378,7 +378,7 @@ mat sigma_vol_hyper(const double &dUdJ, const mat &b, const double &mJ) {
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside sigma_vol_hyper.");
+            throw simcoon::exception_det("Error in det function inside sigma_vol_hyper.");
         }   
     }    
     mat Id = eye(3,3);
@@ -472,7 +472,7 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside L_iso_hyper_pstretch.");
+            throw simcoon::exception_det("Error in det function inside L_iso_hyper_pstretch.");
         }   
     }    
 
@@ -522,7 +522,7 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside L_iso_hyper_invariants.");
+            throw simcoon::exception_det("Error in det function inside L_iso_hyper_invariants.");
         }   
     }    
     mat b_bar = pow(J,-2./3.)*b;
@@ -552,7 +552,7 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
             J = sqrt(det(b));
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
-            throw simcoon::exception_det("Error in eig_sym function inside L_vol_hyper.");
+            throw simcoon::exception_det("Error in det function inside L_vol_hyper.");
         } 
     }
     return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();
