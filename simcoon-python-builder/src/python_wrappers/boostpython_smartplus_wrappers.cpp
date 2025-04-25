@@ -52,7 +52,7 @@ PYBIND11_MODULE(simmit, m) {
     py::register_exception<simcoon::exception_inv>(m, "CppExceptionInv", SimcoonError.ptr());
     py::register_exception<simcoon::exception_sqrtmat_sympd>(m, "CppExceptionSqrtMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_logmat_sympd>(m, "CppExceptionLogMatSym", SimcoonError.ptr());
-    py::register_exception<simcoon::exception_expmat_sympd>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_expmat_sym>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_powmat>(m, "CppExceptionPowMat", SimcoonError.ptr());
 
     // Register the from-python converters for constitutive.hpp
