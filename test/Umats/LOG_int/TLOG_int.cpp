@@ -28,6 +28,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
