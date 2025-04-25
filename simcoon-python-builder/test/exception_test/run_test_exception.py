@@ -3,6 +3,7 @@
 import numpy as np
 import numpy.typing as npt
 import test_exception as exception
+from simcoon import simmit as sim
 import pytest
 
 
@@ -23,7 +24,12 @@ def test_eig_sym(Mat_fail_eigen_sym):
 
     try:
         eigval = exception.test_eig_sym_val_affect(Mat_fail_eigen_sym, True)
-    except exception.CppExceptionEigSym as e:
+    except sim.SimcoonError as e:
+        print("Caught C++ exception in test_eig_sym_val:", e)
+
+    try:
+        eigval = exception.test_eig_sym_val_affect(Mat_fail_eigen_sym, True)
+    except sim.SimcoonError as e:
         print("Caught C++ exception in test_eig_sym_val:", e)
 
     try:
@@ -33,10 +39,10 @@ def test_eig_sym(Mat_fail_eigen_sym):
 
     try:
         eigval = exception.test_eig_sym_val_modify(Mat_fail_eigen_sym, True)
-    except exception.CppExceptionEigSym as e:
+    except sim.SimcoonError as e:
         print("Caught C++ exception in test_eig_sym_val_vec:", e)
 
     try:
         (eigval, eigvec) = exception.test_eig_sym_val_vec(Mat_fail_eigen_sym, True)
-    except exception.CppExceptionEigSym as e:
+    except sim.SimcoonError as e:
         print("Caught C++ exception in test_eig_sym_val_vec:", e)
