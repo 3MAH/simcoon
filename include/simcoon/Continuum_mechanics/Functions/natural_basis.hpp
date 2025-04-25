@@ -65,15 +65,26 @@ class natural_basis
 		 * @brief Default constructor.
 		 * 
 		 * This constructor creates an empty natural_basis object.
+		 * 
+		 * Example usage:
+		 * @code
+		 * simcoon::natural_basis nb;
+		 * @endcode
 		 */
 		natural_basis();
 
 		/**
 		 * @brief Constructor with parameters.
 		 * 
-		 * This constructor creates a natural_basis object from a std::vector of arma::vec containing the covariant vectors \f$\mathbf{g}_i\f$..
+		 * This constructor creates a natural_basis object from a std::vector of arma::vec containing the covariant vectors \f$\mathbf{g}_i\f$.
 		 * 
 		 * @param[in] g_i A std::vector of arma::vec containing the covariant vectors.
+		 * 
+		 * Example usage:
+		 * @code
+		 * std::vector<arma::vec> covariant_vectors = {arma::vec({1, 0, 0}), arma::vec({0, 1, 0}), arma::vec({0, 0, 1})};
+		 * simcoon::natural_basis nb(covariant_vectors);
+		 * @endcode
 		 */
 		natural_basis(const std::vector<arma::vec> &g_i);
 
@@ -83,6 +94,12 @@ class natural_basis
 		 * This constructor creates a copy of a natural_basis object.
 		 * 
 		 * @param[in] other The natural_basis object to be copied.
+		 * 
+		 * Example usage:
+		 * @code
+		 * simcoon::natural_basis nb1;
+		 * simcoon::natural_basis nb2(nb1);
+		 * @endcode
 		 */
 		natural_basis(const natural_basis &other);
 
@@ -90,6 +107,13 @@ class natural_basis
 		 * @brief Destructor.
 		 * 
 		 * This destructor frees the memory used by the natural_basis object.
+		 * 
+		 * Example usage:
+		 * @code
+		 * {
+		 *     simcoon::natural_basis nb;
+		 * } // nb goes out of scope and is destroyed here
+		 * @endcode
 		 */
 		virtual ~natural_basis();
     
@@ -97,9 +121,16 @@ class natural_basis
 		 * @brief update with a new set of covariant vectors.
 		 * 
 		 * This function updates the natural_basis object with a set of covariant vectors \f$\mathbf{g}_i\f$.
-		*
-		* @param[in] g_i A std::vector of arma::vec containing the new covariant vectors.
-		*/
+		 * 
+		 * @param[in] g_i A std::vector of arma::vec containing the new covariant vectors.
+		 * 
+		 * Example usage:
+		 * @code
+		 * std::vector<arma::vec> new_covariant_vectors = {arma::vec({1, 0, 0}), arma::vec({0, 1, 0}), arma::vec({0, 0, 1})};
+		 * simcoon::natural_basis nb;
+		 * nb.update(new_covariant_vectors);
+		 * @endcode
+		 */
 		virtual void update(const std::vector<arma::vec> &g_i);
 
 		/**
@@ -108,6 +139,13 @@ class natural_basis
 		 * This function updates the natural_basis object using the transformation gradient \f$\mathbf{F}\f$.
 		 * 
 		 * @param[in] F An arma::mat containing the transformation gradient.
+		 * 
+		 * Example usage:
+		 * @code
+		 * arma::mat F = arma::eye(3, 3); // Identity matrix as an example
+		 * simcoon::natural_basis nb;
+		 * nb.from_F(F);
+		 * @endcode
 		 */
 		virtual void from_F(const arma::mat &F);
     
@@ -119,6 +157,13 @@ class natural_basis
 		 * @param[in] other The natural_basis object from which the values are to be copied.
 		 * 
 		 * @return A reference to the current natural_basis object.
+		 * 
+		 * Example usage:
+		 * @code
+		 * simcoon::natural_basis nb1;
+		 * simcoon::natural_basis nb2;
+		 * nb2 = nb1;
+		 * @endcode
 		 */
 		virtual natural_basis& operator = (const natural_basis& other);
         
@@ -131,6 +176,12 @@ class natural_basis
 		 * @param[in] nb The natural_basis object to be printed.
 		 * 
 		 * @return A reference to the output stream.
+		 * 
+		 * Example usage:
+		 * @code
+		 * simcoon::natural_basis nb;
+		 * std::cout << nb;
+		 * @endcode
 		 */
 		friend std::ostream& operator << (std::ostream& os, const natural_basis& nb);
 };

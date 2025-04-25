@@ -107,7 +107,7 @@ int main() {
     string npeaksfile = "Npeaks" + to_string(int(num_file_npeaks)) + ".dat";
     read_peak(odf_rve, path_data, npeaksfile);
     
-    vec x = linspace<vec>(angle_min, angle_max-sim_iota,  90);
+    vec x = linspace<vec>(angle_min, angle_max-simcoon::iota,  90);
     cout << "x = " << x.t() << endl;
     
     vec y = get_densities_ODF(x, path_data, "Npeaks0.dat", false);
