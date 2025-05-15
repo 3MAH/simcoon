@@ -1,15 +1,19 @@
-Overview
-========
+Welcome to Simcoon's Documentation
+=================================
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
+   :caption: Contents:
 
    about.rst
    installation.rst
    examples.rst
    external.rst
-   Cpp/index.rst
-   Python/index.rst
+   doc_constitutive
+
+Indices and tables
+==================
 
 * :ref:`genindex`
+* :ref:`modindex`
 * :ref:`search`
