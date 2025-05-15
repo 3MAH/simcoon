@@ -32,6 +32,8 @@
 #include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
 #include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
 
+#include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
+
 using namespace std;
 using namespace arma;
 using namespace simpy;
@@ -42,23 +44,23 @@ PYBIND11_MODULE(simmit, m) {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
     // Register the from-python converters for constitutive.hpp
-    m.def("Ireal", &Ireal, "copy"_a=true, "Returns the fourth order identity tensor written in Voigt notation Ireal");
-    m.def("Ivol", &Ivol, "copy"_a=true, "Returns the volumic of the identity tensor Ireal written in Voigt notation");
-    m.def("Idev", &Idev, "copy"_a=true, "Returns the deviatoric of the identity tensor Ireal written in Voigt notation");        
-    m.def("Ireal2", &Ireal2, "copy"_a=true, "Returns the fourth order identity tensor Iˆ written in Voigt notation");
-    m.def("Idev2", &Idev2, "copy"_a=true, "Returns the deviatoric of the identity tensor Iˆ written in Voigt notation");    
-    m.def("Ith", &Ith, "copy"_a=true, "Returns the expansion vector");        
-    m.def("Ir2", &Ir2, "copy"_a=true, "Returns the stress 2 strain operator");
-    m.def("Ir05", &Ir05, "copy"_a=true, "Returns the strain 2 stress operator");        
-    m.def("L_iso", &L_iso, "props"_a, "conv"_a, "copy"_a=true, "Provides the elastic stiffness tensor for an isotropic material");
-    m.def("M_iso", &M_iso, "props"_a, "conv"_a, "copy"_a=true, "Provides the elastic compliance tensor for an isotropic material");
-    m.def("L_cubic", &L_cubic,"props"_a, "conv"_a, "copy"_a=true, "Returns the elastic stiffness tensor for a cubic material");
-    m.def("M_cubic", &M_cubic, "props"_a, "conv"_a, "copy"_a=true, "Returns the elastic compliance tensor for an isotropic material");
-    m.def("L_ortho", &L_ortho, "props"_a, "conv"_a, "copy"_a=true, "Returns the elastic stiffness tensor for an orthotropic material");
-    m.def("M_ortho", &M_ortho, "props"_a, "conv"_a, "copy"_a=true, "Returns the elastic compliance tensor for an orthotropic material");
-    m.def("L_isotrans", &L_isotrans, "props"_a, "axis"_a, "copy"_a=true, "Returns the elastic stiffness tensor for an isotropic transverse material");
-    m.def("M_isotrans", &M_isotrans, "props"_a, "axis"_a, "copy"_a=true, "Returns the elastic compliance tensor for an isotropic transverse material");
-    m.def("H_iso", &H_iso, "props"_a, "copy"_a=true, "Provides the viscous tensor H an isotropic material");
+    m.def("Ireal", &Ireal, "copy"_a=true, simcoon_docs::Ireal);
+    m.def("Ivol", &Ivol, "copy"_a=true, simcoon_docs::Ivol);
+    m.def("Idev", &Idev, "copy"_a=true, simcoon_docs::Idev);
+    m.def("Ireal2", &Ireal2, "copy"_a=true, simcoon_docs::Ireal2);
+    m.def("Idev2", &Idev2, "copy"_a=true, simcoon_docs::Idev2);
+    m.def("Ith", &Ith, "copy"_a=true, simcoon_docs::Ith);
+    m.def("Ir2", &Ir2, "copy"_a=true, simcoon_docs::Ir2);
+    m.def("Ir05", &Ir05, "copy"_a=true, simcoon_docs::Ir05);
+    m.def("L_iso", &L_iso, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::L_iso);
+    m.def("M_iso", &M_iso, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::M_iso);
+    m.def("L_cubic", &L_cubic, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::L_cubic);
+    m.def("M_cubic", &M_cubic, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::M_cubic);
+    m.def("L_ortho", &L_ortho, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::L_ortho);
+    m.def("M_ortho", &M_ortho, "props"_a, "conv"_a, "copy"_a=true, simcoon_docs::M_ortho);
+    m.def("L_isotrans", &L_isotrans, "props"_a, "axis"_a, "copy"_a=true, simcoon_docs::L_isotrans);
+    m.def("M_isotrans", &M_isotrans, "props"_a, "axis"_a, "copy"_a=true, simcoon_docs::M_isotrans);
+    m.def("H_iso", &H_iso, "props"_a, "copy"_a=true, simcoon_docs::H_iso);
 
     // Register the from-python converters for contimech
     m.def("tr", &tr, "input"_a, "This function returns the trace of a tensor");
