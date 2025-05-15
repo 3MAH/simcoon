@@ -19,7 +19,11 @@
 ///@brief parameters of simcoon
 ///@version 1.0
 
-#include <numbers>
+#if defined(__cpp_lib_math_constants)
+    #include <numbers>
+    #define HAS_STD_NUMBERS
+#endif
+
 #define UNUSED(x) [&x]{}()
 
 #ifndef version_full
@@ -29,9 +33,13 @@
 namespace simcoon{
 
 #ifndef sim_pi
-#define sim_pi std::numbers::pi
+#ifdef HAS_STD_NUMBERS
+    #define sim_pi std::numbers::pi
+#else
+    #define sim_pi 3.14159265358979323846
 #endif
-    
+#endif    
+
 #ifndef axis_psi
 #define axis_psi 3
 #endif
