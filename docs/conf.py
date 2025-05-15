@@ -13,17 +13,20 @@
 import mock
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+
+sys.path.insert(
+    0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
+)
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Simcoon'
-copyright = '2022, 3MAH'
-author = '3MAH'
+project = "Simcoon"
+copyright = "2025, 3MAH development team"
+author = "3MAH development team"
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = "1.9.6"
 
 
 # -- General configuration ---------------------------------------------------
@@ -32,15 +35,9 @@ release = '1.0.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.mathjax",
 ]
 
 
@@ -48,35 +45,34 @@ extensions = [
 # for mod_name in MOCK_MODULES:
 #     sys.modules[mod_name] = mock.Mock()
 
-#Ensure index.rst is the master file instead of 'contents.rst'
-master_doc = 'index'
+# Ensure index.rst is the master file instead of 'contents.rst'
+master_doc = "index"
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {
-    'canonical_url': 'https://microgen.readthedocs.io/en/latest/',
+    "canonical_url": "https://microgen.readthedocs.io/en/latest/",
     # 'logo_only': False,
     # 'display_version': True,
     # 'prev_next_buttons_location': 'bottom',
-    'style_external_links': True,
+    "style_external_links": True,
     # 'vcs_pageview_mode': '',
-    'style_nav_header_background': '#24445C',
+    "style_nav_header_background": "#24445C",
     # Toc options
-    'collapse_navigation': False,
+    "collapse_navigation": False,
     # 'sticky_navigation': True,
     # 'navigation_depth': 4,
     # 'includehidden': True,
@@ -88,4 +84,4 @@ html_logo = "_static/simcoon_logo_text_original.png"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
