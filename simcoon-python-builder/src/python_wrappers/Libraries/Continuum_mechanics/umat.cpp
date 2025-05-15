@@ -9,6 +9,8 @@
 #include <omp.h>
 #endif
 
+#include <simcoon/parameter.hpp>
+
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
@@ -88,16 +90,21 @@ namespace simpy {
 			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
 		}
 
-		const bool start = false;
+		bool start = true;
+
+		if (Time > sim_limit) {
+			start = false;
+		}
+
 		double tnew_dt = 0;//usefull ?		
-		double T = 0; //default value
-		double DT = 0;  //not used. T should be the current temperature (=T+DT)
 		//bool use_temp;
 		//if (T.n_elem == 0.) use_temp = false; 
 		//else use_temp = true;
 
 		bool use_temp;
 		vec vec_T;
+		double T = 0; //default value
+		double DT = 0;  //not used. T should be the current temperature (=T+DT)	
 		if (T_py.has_value()) {
 			vec_T = carma::arr_to_col_view(T_py.value());
 			use_temp = true;
@@ -105,7 +112,7 @@ namespace simpy {
 		else {
 			use_temp = false; 
 		}
-		
+
 		mat list_etot = carma::arr_to_mat_view(etot_py);		
 		int nb_points = list_etot.n_cols; //number of material points
 		mat list_Detot = carma::arr_to_mat_view(Detot_py); 
@@ -245,13 +252,10 @@ namespace simpy {
 			}
 		}
 		#ifdef _OPENMP
-		int max_threads = omp_get_max_threads();
-		omp_set_num_threads(n_threads);
-			#ifndef _WIN32
-			py::gil_scoped_release release;
-			#endif
-		omp_set_max_active_levels(3);
-		#pragma omp parallel for shared(Lt, L, DR) private(props)
+			int max_threads = omp_get_max_threads();
+			omp_set_num_threads(n_threads);
+			omp_set_max_active_levels(3);
+			#pragma omp parallel for shared(Lt, L, DR) private(props)
 		#endif
 		for (int pt = 0; pt < nb_points; pt++) {
 
@@ -268,9 +272,11 @@ namespace simpy {
 			vec etot = list_etot.unsafe_col(pt);
 			vec Detot = list_Detot.unsafe_col(pt);
 			vec Wm = list_Wm.unsafe_col(pt);				
-
-			if (use_temp) T=vec_T(pt);
 			
+			if (use_temp) {
+				T = vec_T(pt);
+			}
+
 			switch (arguments_type) {
 
 				case 1: {
@@ -292,11 +298,8 @@ namespace simpy {
 			}
 		}
 		#ifdef _OPENMP
-			#ifndef _WIN32	
-			py::gil_scoped_acquire acquire;
-			#endif
 		omp_set_num_threads(max_threads);		
-		#endif			
+		#endif		
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}
