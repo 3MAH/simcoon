@@ -32,12 +32,14 @@ constexpr auto Ireal = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ireal
-    >>> Ireal = sim.Ireal()
-    >>> print(Ireal)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for real
+        Ireal = sim.Ireal()
+        print(Ireal)
 )pbdoc";
 
 constexpr auto Ivol = R"pbdoc(
@@ -70,12 +72,14 @@ constexpr auto Ivol = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ivol
-    >>> Ivol = sim.Ivol()
-    >>> print(Ivol)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Ivol
+        Ivol = sim.Ivol()
+        print(Ivol)
 )pbdoc";
 
 constexpr auto Idev = R"pbdoc(
@@ -108,12 +112,14 @@ constexpr auto Idev = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Idev
-    >>> Idev = sim.Idev()
-    >>> print(Idev)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Idev
+        Idev = sim.Idev()
+        print(Idev)
 )pbdoc";
 
 constexpr auto Ireal2 = R"pbdoc(
@@ -146,12 +152,14 @@ constexpr auto Ireal2 = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ireal2
-    >>> Ireal2 = sim.Ireal2()
-    >>> print(Ireal2)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Ireal2
+        Ireal2 = sim.Ireal2()
+        print(Ireal2)
 )pbdoc";
 
 constexpr auto Idev2 = R"pbdoc(
@@ -184,12 +192,14 @@ constexpr auto Idev2 = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Idev2
-    >>> Idev2 = sim.Idev2()
-    >>> print(Idev2)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Idev2
+        Idev2 = sim.Idev2()
+        print(Idev2)
 )pbdoc";
 
 constexpr auto Ith = R"pbdoc(
@@ -222,12 +232,14 @@ constexpr auto Ith = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ith
-    >>> Ith = sim.Ith()
-    >>> print(Ith)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Ith
+        Ith = sim.Ith()
+        print(Ith)
 )pbdoc";
 
 constexpr auto Ir2 = R"pbdoc(
@@ -260,12 +272,14 @@ constexpr auto Ir2 = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ir2
-    >>> Ir2 = sim.Ir2()
-    >>> print(Ir2)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Ir2
+        Ir2 = sim.Ir2()
+        print(Ir2)
 )pbdoc";
 
 constexpr auto Ir05 = R"pbdoc(
@@ -298,12 +312,14 @@ constexpr auto Ir05 = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Ir05
-    >>> Ir05 = sim.Ir05()
-    >>> print(Ir05)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Ir05
+        Ir05 = sim.Ir05()
+        print(Ir05)
 )pbdoc";
 
 constexpr auto L_iso = R"pbdoc(
@@ -330,13 +346,15 @@ constexpr auto L_iso = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for L_iso
-    >>> props = np.array([210000, 0.3])
-    >>> L_iso = sim.L_iso(props, "Enu")
-    >>> print(L_iso)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for L_iso
+        props = np.array([210000, 0.3])
+        L_iso = sim.L_iso(props, "Enu")
+        print(L_iso)
 )pbdoc";
 
 constexpr auto M_iso = R"pbdoc(
@@ -363,13 +381,15 @@ constexpr auto M_iso = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for M_iso
-    >>> props = np.array([210000, 0.3])    
-    >>> M_iso = sim.M_iso(props, "Enu")
-    >>> print(M_iso)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for M_iso
+        props = np.array([210000, 0.3])    
+        M_iso = sim.M_iso(props, "Enu")
+        print(M_iso)
 )pbdoc";
 
 constexpr auto L_cubic = R"pbdoc(
@@ -396,13 +416,15 @@ constexpr auto L_cubic = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for L_cubic
-    >>> props_cubic = np.array([100000, 50000, 30000])
-    >>> L_cubic = sim.L_cubic(props_cubic, "Cii")
-    >>> print(L_cubic)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for L_cubic
+        props_cubic = np.array([100000, 50000, 30000])
+        L_cubic = sim.L_cubic(props_cubic, "Cii")
+        print(L_cubic)
 )pbdoc";
 
 constexpr auto M_cubic = R"pbdoc(
@@ -429,13 +451,15 @@ constexpr auto M_cubic = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for M_cubic
-    >>> props_cubic = np.array([100000, 50000, 30000])    
-    >>> M_cubic = sim.M_cubic(props_cubic, "Cii")
-    >>> print(M_cubic)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for M_cubic
+        props_cubic = np.array([100000, 50000, 30000])    
+        M_cubic = sim.M_cubic(props_cubic, "Cii")
+        print(M_cubic)
 )pbdoc";
 
 constexpr auto L_ortho = R"pbdoc(
@@ -462,13 +486,15 @@ constexpr auto L_ortho = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for L_ortho
-    >>> props_ortho = np.array([100000, 50000, 30000, 0.3, 0.3, 0.3, 40000, 40000, 40000])
-    >>> L_ortho = sim.L_ortho(props_ortho, "EnuG")
-    >>> print(L_ortho)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for L_ortho
+        props_ortho = np.array([100000, 50000, 30000, 0.3, 0.3, 0.3, 40000, 40000, 40000])
+        L_ortho = sim.L_ortho(props_ortho, "EnuG")
+        print(L_ortho)
 )pbdoc";
 
 constexpr auto M_ortho = R"pbdoc(
@@ -495,13 +521,15 @@ constexpr auto M_ortho = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for M_ortho
-    >>> props_ortho = np.array([100000, 50000, 30000, 0.3, 0.3, 0.3, 40000, 40000, 40000])    
-    >>> M_ortho = sim.M_ortho(props_ortho, "EnuG")
-    >>> print(M_ortho)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for M_ortho
+        props_ortho = np.array([100000, 50000, 30000, 0.3, 0.3, 0.3, 40000, 40000, 40000])    
+        M_ortho = sim.M_ortho(props_ortho, "EnuG")
+        print(M_ortho)
 )pbdoc";
 
 constexpr auto L_isotrans = R"pbdoc(
@@ -527,14 +555,16 @@ constexpr auto L_isotrans = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for L_isotrans
-    >>> props_isotrans = np.array([210000, 70000, 0.3, 0.3, 50000])
-    >>> axis = 1
-    >>> L_isotrans = sim.L_isotrans(props_isotrans, axis)
-    >>> print(L_isotrans)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for L_isotrans
+        props_isotrans = np.array([210000, 70000, 0.3, 0.3, 50000])
+        axis = 1
+        L_isotrans = sim.L_isotrans(props_isotrans, axis)
+        print(L_isotrans)
 )pbdoc";
 
 constexpr auto M_isotrans = R"pbdoc(
@@ -560,14 +590,16 @@ constexpr auto M_isotrans = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for M_isotrans
-    >>> props_isotrans = np.array([210000, 70000, 0.3, 0.3, 50000])
-    >>> axis = 1    
-    >>> M_isotrans = sim.M_isotrans(props_isotrans, axis)
-    >>> print(M_isotrans)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for M_isotrans
+        props_isotrans = np.array([210000, 70000, 0.3, 0.3, 50000])
+        axis = 1    
+        M_isotrans = sim.M_isotrans(props_isotrans, axis)
+        print(M_isotrans)
 )pbdoc";
 
 constexpr auto H_iso = R"pbdoc(
@@ -591,13 +623,15 @@ constexpr auto H_iso = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for H_iso
-    >>> props_viscous = np.array([0.1, 0.05])
-    >>> H_iso = sim.H_iso(props_viscous)
-    >>> print(H_iso)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for H_iso
+        props_viscous = np.array([0.1, 0.05])
+        H_iso = sim.H_iso(props_viscous)
+        print(H_iso)
 )pbdoc";
 
 } // namespace simpy_docs

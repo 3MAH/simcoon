@@ -17,13 +17,15 @@ constexpr auto dev = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for dev
-    >>> m = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    >>> dev_m = sim.dev(m)
-    >>> print(dev_m)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for dev
+        m = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        dev_m = sim.dev(m)
+        print(dev_m)
 )pbdoc";
 
 constexpr auto sph = R"pbdoc(
@@ -41,13 +43,15 @@ constexpr auto sph = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for sph
-    >>> m = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    >>> sph_m = sim.sph(m)
-    >>> print(sph_m)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for sph
+        m = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        sph_m = sim.sph(m)
+        print(sph_m)
 )pbdoc";
 
 constexpr auto tr = R"pbdoc(
@@ -65,13 +69,15 @@ constexpr auto tr = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for tr
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> trace = sim.tr(v)
-    >>> print(trace)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for tr
+        v = np.array([1, 1, 1, 0, 0, 0])
+        trace = sim.tr(v)
+        print(trace)
 )pbdoc";
 
 constexpr auto dev_voigt = R"pbdoc(
@@ -89,13 +95,15 @@ constexpr auto dev_voigt = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for dev_voigt
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> dev_v = sim.dev_voigt(v)
-    >>> print(dev_v)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for dev_voigt
+        v = np.array([1, 1, 1, 0, 0, 0])
+        dev_v = sim.dev_voigt(v)
+        print(dev_v)
 )pbdoc";
 
 constexpr auto Mises_stress = R"pbdoc(
@@ -113,13 +121,15 @@ constexpr auto Mises_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Mises_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> stress = sim.Mises_stress(v)
-    >>> print(stress)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Mises_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        stress = sim.Mises_stress(v)
+        print(stress)
 )pbdoc";
 
 constexpr auto eta_stress = R"pbdoc(
@@ -137,13 +147,15 @@ constexpr auto eta_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for eta_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> flow = sim.eta_stress(v)
-    >>> print(flow)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for eta_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        flow = sim.eta_stress(v)
+        print(flow)
 )pbdoc";
 
 constexpr auto eta_norm_stress = R"pbdoc(
@@ -161,13 +173,15 @@ constexpr auto eta_norm_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for eta_norm_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> flow = sim.eta_norm_stress(v)
-    >>> print(flow)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for eta_norm_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        flow = sim.eta_norm_stress(v)
+        print(flow)
 )pbdoc";
 
 constexpr auto eta_norm_strain = R"pbdoc(
@@ -185,13 +199,15 @@ constexpr auto eta_norm_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for eta_norm_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> flow = sim.eta_norm_strain(v)
-    >>> print(flow)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for eta_norm_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        flow = sim.eta_norm_strain(v)
+        print(flow)
 )pbdoc";
 
 constexpr auto norm_stress = R"pbdoc(
@@ -209,13 +225,15 @@ constexpr auto norm_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for norm_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> norm = sim.norm_stress(v)
-    >>> print(norm)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for norm_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        norm = sim.norm_stress(v)
+        print(norm)
 )pbdoc";
 
 constexpr auto norm_strain = R"pbdoc(
@@ -233,13 +251,15 @@ constexpr auto norm_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for norm_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> norm = sim.norm_strain(v)
-    >>> print(norm)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for norm_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        norm = sim.norm_strain(v)
+        print(norm)
 )pbdoc";
 
 constexpr auto Mises_strain = R"pbdoc(
@@ -257,13 +277,15 @@ constexpr auto Mises_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Mises_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> strain = sim.Mises_strain(v)
-    >>> print(strain)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Mises_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        strain = sim.Mises_strain(v)
+        print(strain)
 )pbdoc";
 
 constexpr auto eta_strain = R"pbdoc(
@@ -281,13 +303,15 @@ constexpr auto eta_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for eta_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> flow = sim.eta_strain(v)
-    >>> print(flow)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for eta_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        flow = sim.eta_strain(v)
+        print(flow)
 )pbdoc";
 
 constexpr auto J2_stress = R"pbdoc(
@@ -305,13 +329,15 @@ constexpr auto J2_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for J2_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> invariant = sim.J2_stress(v)
-    >>> print(invariant)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for J2_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        invariant = sim.J2_stress(v)
+        print(invariant)
 )pbdoc";
 
 constexpr auto J2_strain = R"pbdoc(
@@ -329,13 +355,15 @@ constexpr auto J2_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for J2_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> invariant = sim.J2_strain(v)
-    >>> print(invariant)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for J2_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        invariant = sim.J2_strain(v)
+        print(invariant)
 )pbdoc";
 
 constexpr auto J3_stress = R"pbdoc(
@@ -353,13 +381,15 @@ constexpr auto J3_stress = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for J3_stress
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> invariant = sim.J3_stress(v)
-    >>> print(invariant)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for J3_stress
+        v = np.array([1, 1, 1, 0, 0, 0])
+        invariant = sim.J3_stress(v)
+        print(invariant)
 )pbdoc";
 
 constexpr auto J3_strain = R"pbdoc(
@@ -377,13 +407,15 @@ constexpr auto J3_strain = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for J3_strain
-    >>> v = np.array([1, 1, 1, 0, 0, 0])
-    >>> invariant = sim.J3_strain(v)
-    >>> print(invariant)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for J3_strain
+        v = np.array([1, 1, 1, 0, 0, 0])
+        invariant = sim.J3_strain(v)
+        print(invariant)
 )pbdoc";
 
 constexpr auto Macaulay_p = R"pbdoc(
@@ -401,13 +433,15 @@ constexpr auto Macaulay_p = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Macaulay_p
-    >>> d = np.array([1, -1, 0])
-    >>> result = sim.Macaulay_p(d)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Macaulay_p
+        d = np.array([1, -1, 0])
+        result = sim.Macaulay_p(d)
+        print(result)
 )pbdoc";
 
 constexpr auto Macaulay_n = R"pbdoc(
@@ -425,13 +459,15 @@ constexpr auto Macaulay_n = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for Macaulay_n
-    >>> d = np.array([1, -1, 0])
-    >>> result = sim.Macaulay_n(d)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for Macaulay_n
+        d = np.array([1, -1, 0])
+        result = sim.Macaulay_n(d)
+        print(result)
 )pbdoc";
 
 constexpr auto sign = R"pbdoc(
@@ -449,13 +485,15 @@ constexpr auto sign = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for sign
-    >>> d = np.array([1, -1, 0])
-    >>> result = sim.sign(d)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for sign
+        d = np.array([1, -1, 0])
+        result = sim.sign(d)
+        print(result)
 )pbdoc";
 
 constexpr auto normal_ellipsoid = R"pbdoc(
@@ -481,17 +519,19 @@ constexpr auto normal_ellipsoid = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for normal_ellipsoid
-    >>> u = np.array([1, 0, 0])
-    >>> v = np.array([0, 1, 0])
-    >>> a1 = np.array([1])
-    >>> a2 = np.array([1])
-    >>> a3 = np.array([1])
-    >>> normal = sim.normal_ellipsoid(u, v, a1, a2, a3)
-    >>> print(normal)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for normal_ellipsoid
+        u = np.array([1, 0, 0])
+        v = np.array([0, 1, 0])
+        a1 = np.array([1])
+        a2 = np.array([1])
+        a3 = np.array([1])
+        normal = sim.normal_ellipsoid(u, v, a1, a2, a3)
+        print(normal)
 )pbdoc";
 
 constexpr auto curvature_ellipsoid = R"pbdoc(
@@ -517,17 +557,19 @@ constexpr auto curvature_ellipsoid = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for curvature_ellipsoid
-    >>> u = np.array([1, 0, 0])
-    >>> v = np.array([0, 1, 0])
-    >>> a1 = np.array([1])
-    >>> a2 = np.array([1])
-    >>> a3 = np.array([1])
-    >>> curvature = sim.curvature_ellipsoid(u, v, a1, a2, a3)
-    >>> print(curvature)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for curvature_ellipsoid
+        u = np.array([1, 0, 0])
+        v = np.array([0, 1, 0])
+        a1 = np.array([1])
+        a2 = np.array([1])
+        a3 = np.array([1])
+        curvature = sim.curvature_ellipsoid(u, v, a1, a2, a3)
+        print(curvature)
 )pbdoc";
 
 constexpr auto sigma_int = R"pbdoc(
@@ -555,18 +597,20 @@ constexpr auto sigma_int = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for sigma_int
-    >>> sigma_in = np.array([1, 1, 1, 0, 0, 0])
-    >>> u = np.array([1, 0, 0])
-    >>> v = np.array([0, 1, 0])
-    >>> a1 = np.array([1])
-    >>> a2 = np.array([1])
-    >>> a3 = np.array([1])
-    >>> result = sim.sigma_int(sigma_in, u, v, a1, a2, a3)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for sigma_int
+        sigma_in = np.array([1, 1, 1, 0, 0, 0])
+        u = np.array([1, 0, 0])
+        v = np.array([0, 1, 0])
+        a1 = np.array([1])
+        a2 = np.array([1])
+        a3 = np.array([1])
+        result = sim.sigma_int(sigma_in, u, v, a1, a2, a3)
+        print(result)
 )pbdoc";
 
 constexpr auto p_ikjl = R"pbdoc(
@@ -584,13 +628,15 @@ constexpr auto p_ikjl = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for p_ikjl
-    >>> a = np.array([1, 0, 0])
-    >>> result = sim.p_ikjl(a)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for p_ikjl
+        a = np.array([1, 0, 0])
+        result = sim.p_ikjl(a)
+        print(result)
 )pbdoc";
 
 constexpr auto auto_sym_dyadic = R"pbdoc(
@@ -608,13 +654,15 @@ constexpr auto auto_sym_dyadic = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for auto_sym_dyadic
-    >>> a = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.auto_sym_dyadic(a)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for auto_sym_dyadic
+        a = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.auto_sym_dyadic(a)
+        print(result)
 )pbdoc";
 
 constexpr auto sym_dyadic = R"pbdoc(
@@ -634,14 +682,16 @@ constexpr auto sym_dyadic = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for sym_dyadic
-    >>> a = np.array([1, 1, 1, 0, 0, 0])
-    >>> b = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.sym_dyadic(a, b)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for sym_dyadic
+        a = np.array([1, 1, 1, 0, 0, 0])
+        b = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.sym_dyadic(a, b)
+        print(result)
 )pbdoc";
 
 constexpr auto auto_dyadic = R"pbdoc(
@@ -659,13 +709,15 @@ constexpr auto auto_dyadic = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for auto_dyadic
-    >>> a = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.auto_dyadic(a)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for auto_dyadic
+        a = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.auto_dyadic(a)
+        print(result)
 )pbdoc";
 
 constexpr auto dyadic_4vectors_sym = R"pbdoc(
@@ -687,15 +739,17 @@ constexpr auto dyadic_4vectors_sym = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for dyadic_4vectors_sym
-    >>> n_a = np.array([1, 0, 0])
-    >>> n_b = np.array([0, 1, 0])
-    >>> conv = "some_convention"
-    >>> result = sim.dyadic_4vectors_sym(n_a, n_b, conv)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim        
+
+        # Example for dyadic_4vectors_sym
+        n_a = np.array([1, 0, 0])
+        n_b = np.array([0, 1, 0])
+        conv = "some_convention"
+        result = sim.dyadic_4vectors_sym(n_a, n_b, conv)
+        print(result)
 )pbdoc";
 
 constexpr auto auto_sym_dyadic_operator = R"pbdoc(
@@ -713,13 +767,15 @@ constexpr auto auto_sym_dyadic_operator = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for auto_sym_dyadic_operator
-    >>> a = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.auto_sym_dyadic_operator(a)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for auto_sym_dyadic_operator
+        a = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.auto_sym_dyadic_operator(a)
+        print(result)
 )pbdoc";
 
 constexpr auto sym_dyadic_operator = R"pbdoc(
@@ -739,14 +795,16 @@ constexpr auto sym_dyadic_operator = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for sym_dyadic_operator
-    >>> a = np.array([1, 1, 1, 0, 0, 0])
-    >>> b = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.sym_dyadic_operator(a, b)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for sym_dyadic_operator
+        a = np.array([1, 1, 1, 0, 0, 0])
+        b = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.sym_dyadic_operator(a, b)
+        print(result)
 )pbdoc";
 
 constexpr auto B_klmn = R"pbdoc(
@@ -766,111 +824,16 @@ constexpr auto B_klmn = R"pbdoc(
 
     Examples
     --------
-    >>> import numpy as np
-    >>> import simcoon as sim
+    .. code-block:: python
 
-    # Example for B_klmn
-    >>> b_i = np.array([1, 1, 1, 0, 0, 0])
-    >>> b_j = np.array([1, 1, 1, 0, 0, 0])
-    >>> result = sim.B_klmn(b_i, b_j)
-    >>> print(result)
+        import numpy as np
+        import simcoon as sim
+
+        # Example for B_klmn
+        b_i = np.array([1, 1, 1, 0, 0, 0])
+        b_j = np.array([1, 1, 1, 0, 0, 0])
+        result = sim.B_klmn(b_i, b_j)
+        print(result)
 )pbdoc";
 
 } // namespace simpy_docs
-
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-
-namespace simpy {
-
-// Returns the deviatoric part of a 3x3 matrix
-pybind11::array_t<double> dev(const pybind11::array_t<double>& m);
-
-// Returns the spherical part of a 3x3 matrix
-pybind11::array_t<double> sph(const pybind11::array_t<double>& m);
-
-// Returns the trace of a tensor v expressed in Voigt notation
-pybind11::array_t<double> tr(const pybind11::array_t<double>& v);
-
-// Returns the deviatoric part of a tensor v expressed in Voigt notation
-pybind11::array_t<double> dev_voigt(const pybind11::array_t<double>& v);
-
-// Provides the Von Mises stress of a second-order stress tensor written as a vector v in Voigt notation
-pybind11::array_t<double> Mises_stress(const pybind11::array_t<double>& v);
-
-// Provides the stress flow of a second-order stress tensor written as a vector v in Voigt notation
-pybind11::array_t<double> eta_stress(const pybind11::array_t<double>& v);
-
-// Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
-pybind11::array_t<double> eta_norm_stress(const pybind11::array_t<double>& v);
-
-// Provides the strain flow (direction) from a strain tensor (Euclidian norm), according to the Voigt convention for strains
-pybind11::array_t<double> eta_norm_strain(const pybind11::array_t<double>& v);
-
-// Provides the Euclidian norm of a stress tensor
-pybind11::array_t<double> norm_stress(const pybind11::array_t<double>& v);
-
-// Provides the Euclidian norm of a strain tensor
-pybind11::array_t<double> norm_strain(const pybind11::array_t<double>& v);
-
-// Provides the Von Mises strain of a second-order strain tensor
-pybind11::array_t<double> Mises_strain(const pybind11::array_t<double>& v);
-
-// Provides the strain flow of a second-order strain tensor written as a vector v in Voigt notation
-pybind11::array_t<double> eta_strain(const pybind11::array_t<double>& v);
-
-// Provides the second invariant of the deviatoric part of a second-order stress tensor, written as a vector v in Voigt notation
-pybind11::array_t<double> J2_stress(const pybind11::array_t<double>& v);
-
-// Provides the second invariant of the deviatoric part of a second-order strain tensor, written as a vector v in Voigt notation
-pybind11::array_t<double> J2_strain(const pybind11::array_t<double>& v);
-
-// Provides the third invariant of the deviatoric part of a second-order stress tensor, written as a vector v in Voigt notation
-pybind11::array_t<double> J3_stress(const pybind11::array_t<double>& v);
-
-// Provides the third invariant of the deviatoric part of a second-order strain tensor, written as a vector v in Voigt notation
-pybind11::array_t<double> J3_strain(const pybind11::array_t<double>& v);
-
-// Provides the results of the MacCaulay brackets operator <>+
-pybind11::array_t<double> Macaulay_p(const pybind11::array_t<double>& d);
-
-// Provides the results of the MacCaulay brackets operator <>-
-pybind11::array_t<double> Macaulay_n(const pybind11::array_t<double>& d);
-
-// Provides the results of the sign operator
-pybind11::array_t<double> sign(const pybind11::array_t<double>& d);
-
-// Provides the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3
-pybind11::array_t<double> normal_ellipsoid(const pybind11::array_t<double>& u, const pybind11::array_t<double>& v, const pybind11::array_t<double>& a1, const pybind11::array_t<double>& a2, const pybind11::array_t<double>& a3);
-
-// Provides the curvature of an ellipsoid with semi-principal axes of length a1, a2, a3 at the angle u,v
-pybind11::array_t<double> curvature_ellipsoid(const pybind11::array_t<double>& u, const pybind11::array_t<double>& v, const pybind11::array_t<double>& a1, const pybind11::array_t<double>& a2, const pybind11::array_t<double>& a3);
-
-// Provides the normal and tangent components of the traction vector in the normal direction n to an ellipsoid with axes a1, a2, a3 from an input inside stress
-pybind11::array_t<double> sigma_int(const pybind11::array_t<double>& sigma_in, const pybind11::array_t<double>& u, const pybind11::array_t<double>& v, const pybind11::array_t<double>& a1, const pybind11::array_t<double>& a2, const pybind11::array_t<double>& a3);
-
-// Computes the Hill interfacial operator according to a normal a
-pybind11::array_t<double> p_ikjl(const pybind11::array_t<double>& a);
-
-// Provides the dyadic product of a symmetric tensor with itself
-pybind11::array_t<double> auto_sym_dyadic(const pybind11::array_t<double>& a);
-
-// Provides the dyadic product of two symmetric tensors
-pybind11::array_t<double> sym_dyadic(const pybind11::array_t<double>& a, const pybind11::array_t<double>& b);
-
-// Provides the dyadic product of a tensor with itself
-pybind11::array_t<double> auto_dyadic(const pybind11::array_t<double>& a);
-
-// Provides the dyadic product of four vectors to provide a symmetric 4th order tensor
-pybind11::array_t<double> dyadic_4vectors_sym(const pybind11::array_t<double>& n_a, const pybind11::array_t<double>& n_b, const std::string& conv);
-
-// Provides the symmetric 4th-order dyadic product of a symmetric tensor with itself
-pybind11::array_t<double> auto_sym_dyadic_operator(const pybind11::array_t<double>& a);
-
-// Provides the symmetric 4th-order dyadic product of two symmetric tensors
-pybind11::array_t<double> sym_dyadic_operator(const pybind11::array_t<double>& a, const pybind11::array_t<double>& b);
-
-// Provides the symmetric 4th-order tensor B_klmn
-pybind11::array_t<double> B_klmn(const pybind11::array_t<double>& b_i, const pybind11::array_t<double>& b_j);
-
-} // namespace simpy
