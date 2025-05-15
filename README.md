@@ -55,6 +55,7 @@ be necessary :
 ```bash
 conda install -c conda-forge libboost
 ```
+
 In case there are any conflicts, it is preferable to do it in a new conda environment :
 ```bash
 conda create --name scientific
@@ -81,8 +82,13 @@ The next step is to install the required packages:
 conda install -c conda-forge cxx-compiler
 conda install -c conda-forge fortran-compiler
 conda install -c conda-forge cmake ninja
-conda install -c conda-forge armadillo boost pybind11 numpy gtest 
+conda install -c conda-forge armadillo boost pybind11 numpy gtest carma
 pip install pytest
+```
+
+x86 architectures may require to install mkl
+```bash
+conda install -c conda-forge mkl
 ```
 
 Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder.
