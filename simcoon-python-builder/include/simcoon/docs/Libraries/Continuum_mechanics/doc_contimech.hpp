@@ -1,6 +1,6 @@
 #pragma once
 
-namespace simpy_docs {
+namespace simcoon_docs {
 
 constexpr auto dev = R"pbdoc(
     Returns the deviatoric part of a 3x3 matrix.
@@ -836,4 +836,4 @@ constexpr auto B_klmn = R"pbdoc(
         print(result)
 )pbdoc";
 
-} // namespace simpy_docs
+} // namespace simcoon_docs

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace simpy_docs {
+namespace simcoon_docs {
 
 constexpr auto damage_weibull = R"pbdoc(
     Provides the damage evolution \( \delta D \) considering a Weibull damage law.
@@ -188,4 +188,4 @@ constexpr auto damage_manson = R"pbdoc(
 
 // Add more documentation strings for other functions in damage.hpp as needed.
 
-} // namespace simpy_docs
+} // namespace simcoon_docs

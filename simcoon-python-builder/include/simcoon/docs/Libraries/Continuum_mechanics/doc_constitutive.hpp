@@ -1,6 +1,6 @@
 #pragma once
 
-namespace simpy_docs {
+namespace simcoon_docs {
 
 constexpr auto Ireal = R"pbdoc(
     Returns the fourth order identity tensor :math:`I_{real}` written in Voigt notation.
@@ -634,4 +634,4 @@ constexpr auto H_iso = R"pbdoc(
         print(H_iso)
 )pbdoc";
 
-} // namespace simpy_docs
+} // namespace simcoon_docs

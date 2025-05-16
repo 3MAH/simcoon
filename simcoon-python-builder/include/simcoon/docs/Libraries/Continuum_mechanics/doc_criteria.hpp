@@ -1,6 +1,6 @@
 #pragma once
 
-namespace simpy_docs {
+namespace simcoon_docs {
 
 constexpr auto Prager_stress = R"pbdoc(
     Provides the Prager equivalent stress, given its vector representation.
@@ -300,4 +300,4 @@ constexpr auto dEq_stress = R"pbdoc(
 
 // Add more documentation strings for other functions in criteria.hpp as needed.
 
-} // namespace simpy_docs
+} // namespace simcoon_docs
