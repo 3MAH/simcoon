@@ -1,10 +1,10 @@
 package:
   name: simcoon
-  version: 1.9.6
+  version: 1.9.7
 
 source:
   git_url: https://github.com/3MAH/simcoon.git
-  #git_tag: 1.9.6
+  #git_tag: 1.9.7
   #path: local path for local build
 
 build:
