@@ -101,7 +101,7 @@ namespace simpy {
 		//if (T.n_elem == 0.) use_temp = false; 
 		//else use_temp = true;
 
-		bool use_temp;
+		bool use_temp = false;
 		vec vec_T;
 		double T = 0; //default value
 		double DT = 0;  //not used. T should be the current temperature (=T+DT)	
@@ -255,7 +255,7 @@ namespace simpy {
 			int max_threads = omp_get_max_threads();
 			omp_set_num_threads(n_threads);
 			omp_set_max_active_levels(3);
-			#pragma omp parallel for shared(Lt, L, DR) private(props)
+			#pragma omp parallel for ordered shared(Lt, L, DR) private(props, T, DT)
 		#endif
 		for (int pt = 0; pt < nb_points; pt++) {
 
