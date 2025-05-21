@@ -103,8 +103,6 @@ namespace simpy {
 
 		bool use_temp = false;
 		vec vec_T;
-		double T = 0; //default value
-		double DT = 0;  //not used. T should be the current temperature (=T+DT)	
 		if (T_py.has_value()) {
 			vec_T = carma::arr_to_col_view(T_py.value());
 			use_temp = true;
@@ -119,7 +117,17 @@ namespace simpy {
 		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
 		cube DR = carma::arr_to_cube_view(DR_py); 
 		cube F0, F1;
+
+		vec props;
 		mat list_props = carma::arr_to_mat_view(props_py);
+		auto shape = props_py.shape();
+
+		bool unique_props = false;
+		if (shape[1] == 1) {
+			props = list_props.col(0);
+			unique_props = true;
+		}		
+
 		mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
 		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
 		cube L(ncomp, ncomp, nb_points);
@@ -128,7 +136,6 @@ namespace simpy {
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
-		vec props;
 		switch (id_umat) {
 			case 2: {
 				umat_function = &simcoon::umat_elasticity_iso;
@@ -251,21 +258,19 @@ namespace simpy {
 				//exit(0);
 			}
 		}
+
 		#ifdef _OPENMP
 			int max_threads = omp_get_max_threads();
 			omp_set_num_threads(n_threads);
 			omp_set_max_active_levels(3);
-			#pragma omp parallel for ordered shared(Lt, L, DR) private(props, T, DT)
+			#pragma omp parallel for shared(Lt, L, DR)
 		#endif
 		for (int pt = 0; pt < nb_points; pt++) {
 
 			//if (use_temp) T = list_T(pt);
-			if (pt < list_props.n_cols) {
+			if (unique_props == false) {
 				props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)		
 			} 	
-			else {
-				props = list_props.col(0);
-			}
 			vec statev = list_statev.unsafe_col(pt);
 			vec sigma = list_sigma.unsafe_col(pt); 
 
@@ -273,7 +278,8 @@ namespace simpy {
 			vec Detot = list_Detot.unsafe_col(pt);
 			vec Wm = list_Wm.unsafe_col(pt);				
 			
-			if (use_temp) {
+			double T = 0.0, DT = 0.0;
+			if (use_temp && pt < vec_T.n_elem) {
 				T = vec_T(pt);
 			}
 
