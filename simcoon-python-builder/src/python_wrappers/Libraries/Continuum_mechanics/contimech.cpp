@@ -136,10 +136,30 @@ py::array_t<double> auto_dyadic(const py::array_t<double> &input, const bool &co
     return carma::mat_to_arr(c, copy);
 }
 
+py::array_t<double> dyadic_4vectors_sym(const py::array_t<double> &a, const py::array_t<double> &b, const std::string &conv, const bool &copy=true) {
+    vec a_cpp = carma::arr_to_col(a);
+    vec b_cpp = carma::arr_to_col(b);    
+    mat c = simcoon::dyadic_4vectors_sym(a_cpp, b_cpp, conv);
+    return carma::mat_to_arr(c, copy);
+}
+
 py::array_t<double> dyadic(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
     mat a_cpp = carma::arr_to_mat(a);
     mat b_cpp = carma::arr_to_mat(b);    
     mat c = simcoon::dyadic(a_cpp, b_cpp);
+    return carma::mat_to_arr(c, copy);
+}
+
+py::array_t<double> auto_dyadic_operator(const py::array_t<double> &input, const bool &copy) {
+    mat a = carma::arr_to_mat(input);
+    mat c = simcoon::auto_dyadic_operator(a);
+    return carma::mat_to_arr(c, copy);
+}
+
+py::array_t<double> sym_dyadic_operator(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
+    mat a_cpp = carma::arr_to_mat(a);
+    mat b_cpp = carma::arr_to_mat(b);    
+    mat c = simcoon::dyasym_dyadic_operatordic(a_cpp, b_cpp);
     return carma::mat_to_arr(c, copy);
 }
 
