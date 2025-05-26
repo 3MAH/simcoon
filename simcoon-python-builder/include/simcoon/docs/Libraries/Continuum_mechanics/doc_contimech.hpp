@@ -80,31 +80,6 @@ constexpr auto tr = R"pbdoc(
         print(trace)
 )pbdoc";
 
-constexpr auto dev_voigt = R"pbdoc(
-    Returns the deviatoric part of a tensor expressed in Voigt notation.
-
-    Parameters
-    ----------
-    v : pybind11::array_t<double>
-        Input tensor in Voigt notation.
-
-    Returns
-    -------
-    pybind11::array_t<double>
-        Deviatoric part of the input tensor.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        import numpy as np
-        import simcoon as sim
-
-        # Example for dev_voigt
-        v = np.array([1, 1, 1, 0, 0, 0])
-        dev_v = sim.dev_voigt(v)
-        print(dev_v)
-)pbdoc";
 
 constexpr auto Mises_stress = R"pbdoc(
     Provides the Von Mises stress of a second-order stress tensor written as a vector in Voigt notation.
@@ -660,7 +635,8 @@ constexpr auto auto_sym_dyadic = R"pbdoc(
         import simcoon as sim
 
         # Example for auto_sym_dyadic
-        a = np.array([1, 1, 1, 0, 0, 0])
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric        
         result = sim.auto_sym_dyadic(a)
         print(result)
 )pbdoc";
@@ -688,8 +664,10 @@ constexpr auto sym_dyadic = R"pbdoc(
         import simcoon as sim
 
         # Example for sym_dyadic
-        a = np.array([1, 1, 1, 0, 0, 0])
-        b = np.array([1, 1, 1, 0, 0, 0])
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric        
+        b = np.random.rand(3, 3)
+        b = (b + b.T) / 2  # Make a symmetric 
         result = sim.sym_dyadic(a, b)
         print(result)
 )pbdoc";
@@ -715,7 +693,8 @@ constexpr auto auto_dyadic = R"pbdoc(
         import simcoon as sim
 
         # Example for auto_dyadic
-        a = np.array([1, 1, 1, 0, 0, 0])
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric        
         result = sim.auto_dyadic(a)
         print(result)
 )pbdoc";
@@ -725,9 +704,9 @@ constexpr auto dyadic_4vectors_sym = R"pbdoc(
 
     Parameters
     ----------
-    n_a : pybind11::array_t<double>
+    a : pybind11::array_t<double>
         Input vector n_a.
-    n_b : pybind11::array_t<double>
+    b : pybind11::array_t<double>
         Input vector n_b.
     conv : std::string
         Convention for the dyadic product.
@@ -745,10 +724,45 @@ constexpr auto dyadic_4vectors_sym = R"pbdoc(
         import simcoon as sim        
 
         # Example for dyadic_4vectors_sym
-        n_a = np.array([1, 0, 0])
-        n_b = np.array([0, 1, 0])
-        conv = "some_convention"
-        result = sim.dyadic_4vectors_sym(n_a, n_b, conv)
+        a = np.array([1, 0, 0])
+        b = np.array([0, 1, 0])
+        conv = "aabb"  # or "abab"
+        result = sim.dyadic_4vectors_sym(a, b, conv)
+        print(result)
+)pbdoc";
+
+constexpr auto dyadic = R"pbdoc(
+    Provides the dyadic product of two tensors.
+
+    Parameters
+    ----------
+    a : pybind11::array_t<double>
+        The first input tensor.
+    b : pybind11::array_t<double>
+        The second input tensor.
+
+    Returns
+    -------
+    pybind11::array_t<double>
+        Dyadic product of the input tensors.
+
+    Details
+    -------
+    This function computes the dyadic product of two tensors, resulting in a higher-order tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        # Example for dyadic
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric        
+        b = np.random.rand(3, 3)
+        b = (b + b.T) / 2  # Make a symmetric        
+        result = sim.dyadic(a, b)
         print(result)
 )pbdoc";
 
@@ -773,7 +787,8 @@ constexpr auto auto_sym_dyadic_operator = R"pbdoc(
         import simcoon as sim
 
         # Example for auto_sym_dyadic_operator
-        a = np.array([1, 1, 1, 0, 0, 0])
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric        
         result = sim.auto_sym_dyadic_operator(a)
         print(result)
 )pbdoc";
@@ -801,38 +816,11 @@ constexpr auto sym_dyadic_operator = R"pbdoc(
         import simcoon as sim
 
         # Example for sym_dyadic_operator
-        a = np.array([1, 1, 1, 0, 0, 0])
-        b = np.array([1, 1, 1, 0, 0, 0])
+        a = np.random.rand(3, 3)
+        a = (a + a.T) / 2  # Make a symmetric
+        b = np.random.rand(3, 3)
+        b = (b + b.T) / 2  # Make b symmetric
         result = sim.sym_dyadic_operator(a, b)
-        print(result)
-)pbdoc";
-
-constexpr auto B_klmn = R"pbdoc(
-    Provides the symmetric 4th-order tensor B_klmn.
-
-    Parameters
-    ----------
-    b_i : pybind11::array_t<double>
-        Input tensor b_i.
-    b_j : pybind11::array_t<double>
-        Input tensor b_j.
-
-    Returns
-    -------
-    pybind11::array_t<double>
-        Symmetric 4th-order tensor B_klmn.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        import numpy as np
-        import simcoon as sim
-
-        # Example for B_klmn
-        b_i = np.array([1, 1, 1, 0, 0, 0])
-        b_j = np.array([1, 1, 1, 0, 0, 0])
-        result = sim.B_klmn(b_i, b_j)
         print(result)
 )pbdoc";
 
