@@ -65,6 +65,15 @@ pybind11::array_t<double> sym_dyadic(const pybind11::array_t<double> &a, const p
 pybind11::array_t<double> auto_dyadic(const pybind11::array_t<double> &input, const bool &copy=true);
 
 //Provides the dyadic product of of two symmetric tensors
+pybind11::array_t<double> dyadic_4vectors_sym(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const std::string  &conv, const bool &copy=true);
+
+//Provides the dyadic product of of two symmetric tensors
 pybind11::array_t<double> dyadic(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const bool &copy=true);
+
+//Provides the symmetric 4th-order dyadic product of a symmetric tensor with itself
+pybind11::array_t<double> auto_sym_dyadic_operator(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//Provides the symmetric 4th-order dyadic product of two symmetric tensors
+pybind11::array_t<double> sym_dyadic_operator(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const bool &copy=true);
 
 } //namespace simpy
