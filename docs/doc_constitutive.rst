@@ -1,5 +1,5 @@
 The Constitutive Library
-================
+========================
 
 .. autofunction:: simcoon.simmit.Ireal
 .. autofunction:: simcoon.simmit.Ivol
