@@ -92,7 +92,7 @@ namespace simpy {
 
 		bool start = true;
 
-		if (Time > limit) {
+		if (Time > simcoon::limit) {
 			start = false;
 		}
 
