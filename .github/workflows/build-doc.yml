@@ -3,9 +3,9 @@ name: Documentation
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ documentation, master ]
   pull_request:
-    branches: [ master ]
+    branches: [ documentation, master ]
 
 env:
   USE_CACHE: "true"
