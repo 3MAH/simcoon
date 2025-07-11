@@ -40,6 +40,13 @@ jobs:
           CACHE_NUMBER: 0
         id: cache
 
+      - name: Prepare conda environment
+        shell: bash -l {0}
+        run: |
+          conda config --env --add channels conda-forge
+          conda config --env --add channels set3mah          
+          conda config --env --set channel_priority strict    
+
       - name: Update environment
         run: |
           conda env update -n simcoon-doc -f environment_doc.yml
@@ -48,19 +55,35 @@ jobs:
           # - pip uninstall -y vtk
           conda remove --force vtk
           pip install --extra-index-url https://wheels.vtk.org trame vtk-osmesa
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true' 
 
       - name: Conda info
         run: |
           conda info
           conda list
 
-      - name: Cache Sphinx-Gallery Examples
-        uses: actions/cache@v4
-        if: env.USE_CACHE == 'true'
-        with:
-          path: examples/
-          key: doc-examples-${{ hashFiles('fedoo/_version.py') }}
+      - name: Build for Linux
+        shell: bash -l {0}
+        run: |               
+          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          cmake --install build --config Release
+
+      - name: Build Python lib
+        shell: bash -l {0}
+        run: |
+          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake --build simcoon-python-builder/build
+          cmake --install simcoon-python-builder/build --config Release          
+          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
+          python -m pip install ${{github.workspace}}/python-setup
+
+      # - name: Cache Sphinx-Gallery Examples
+      #   uses: actions/cache@v4
+      #   if: env.USE_CACHE == 'true'
+      #   with:
+      #     path: examples/
+      #     key: doc-examples-${{ hashFiles('python-setup/simcoon/__version__.py') }}
 
       - name: Cache Sphinx build directory
         uses: actions/cache@v4
