@@ -1,0 +1,28 @@
+name: fedoo
+
+channels:
+  - conda-forge
+  - set3mah
+
+dependencies:
+  - python=3.12
+  - numpy>=1.26
+  - scipy
+  - pypardiso # [x86 or x86_64]
+  # - scikit-umfpack # [(not x86) and (not x86_64)]
+  - vtk>=9.2
+  - pypandoc
+  - pyvista>=0.39
+  - simcoon>=1.9.6
+  - fedoo >= 0.5.1
+  - pytest
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinx-design
+  - sphinx-gallery
+  - imageio
+  - imageio-ffmpeg
+  - trame-vtk
+  - trame-vuetify
+  - trame
+  - ipywidgets
