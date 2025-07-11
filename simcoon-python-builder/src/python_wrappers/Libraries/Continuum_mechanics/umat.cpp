@@ -92,7 +92,7 @@ namespace simpy {
 
 		bool start = true;
 
-		if (Time > sim_limit) {
+		if (Time > limit) {
 			start = false;
 		}
 
