@@ -7,13 +7,31 @@ channels:
 dependencies:
   - python=3.12
   - numpy>=1.26
+# to compile simcoon
+  - cxx-compiler
+  - fortran-compiler
+  - blas
+  - lapack  
+  - mkl
+  - numpy>=1.26
+  - cmake
+  - python
+  - pip
+  - setuptools
+  - boost
+  - gtest
+  - pybind11
+  - armadillo >= 12.6
+  - carma
+  - pytest
+  - ninja
+#for documentation and fedoo tests
   - scipy
   - pypardiso # [x86 or x86_64]
   # - scikit-umfpack # [(not x86) and (not x86_64)]
   - vtk>=9.2
   - pypandoc
   - pyvista>=0.39
-  - simcoon>=1.9.6
   - fedoo >= 0.5.1
   - pytest
   - sphinx
