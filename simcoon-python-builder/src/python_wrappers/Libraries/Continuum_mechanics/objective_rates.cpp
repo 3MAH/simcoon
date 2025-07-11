@@ -186,9 +186,6 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(n_threads);
-                    #ifndef _WIN32
-                    py::gil_scoped_release release;
-                    #endif
                 omp_set_max_active_levels(3);
                 #pragma omp parallel for shared(DR, D, Omega, F1_cpp)    
     			#endif
@@ -222,9 +219,6 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     }
                 }
                 #ifdef _OPENMP
-                    #ifndef _WIN32
-                    py::gil_scoped_acquire acquire;					
-                    #endif
                 omp_set_num_threads(max_threads);			
     			#endif
             }
@@ -232,9 +226,6 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP                
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
-                    #ifndef _WIN32
-                    py::gil_scoped_release release;
-                    #endif
                 omp_set_max_active_levels(3);
                 #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
     			#endif
@@ -268,9 +259,6 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     }
                 }
                 #ifdef _OPENMP
-                    #ifndef _WIN32     
-                    py::gil_scoped_acquire acquire;
-                    #endif
                 omp_set_num_threads(max_threads);	
     			#endif
             }
