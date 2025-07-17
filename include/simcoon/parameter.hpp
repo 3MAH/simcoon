@@ -29,12 +29,21 @@
 
 namespace simcoon{
 
-#ifdef HAS_STD_NUMBERS
-    constexpr double pi = std::numbers::pi;
-#else
-    constexpr double pi = 3.14159265358979323846;
+#if defined(__cpp_lib_math_constants)
+    #include <numbers>
+    #define HAS_STD_NUMBERS
 #endif
+
+#define UNUSED(x) [&x]{}()
     
+#ifndef sim_pi
+#ifdef HAS_STD_NUMBERS
+    #define sim_pi std::numbers::pi
+#else
+    #define sim_pi 3.14159265358979323846
+#endif
+#endif    
+
 constexpr int axis_psi = 3;
 constexpr int axis_theta = 1;
 constexpr int axis_phi = 3;
