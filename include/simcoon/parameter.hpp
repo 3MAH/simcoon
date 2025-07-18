@@ -28,14 +28,12 @@
 #define UNUSED(x) [&x]{}()
 
 namespace simcoon{
-    
-#ifndef sim_pi
+
 #ifdef HAS_STD_NUMBERS
-    #define pi std::numbers::pi
+constexpr double pi = std::numbers::pi;
 #else
-    #define pi 3.14159265358979323846
+constexpr double pi = 3.14159265358979323846;
 #endif
-#endif    
 
 constexpr int axis_psi = 3;
 constexpr int axis_theta = 1;
