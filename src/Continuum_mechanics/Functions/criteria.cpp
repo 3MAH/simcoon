@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -103,9 +104,14 @@ vec dPrager_stress(const vec &v, const double &b, const double &n)
 double Tresca_stress(const vec &v)
 {
     mat sigma = v2t_stress(v);
-    vec lambda = eig_sym(sigma);
-
-    //eig_sym is in ascending order
+    vec lambda;
+    try {
+        lambda = eig_sym(sigma);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in eig_sym: " << e.what() << endl;
+        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in Tresca_stress.");
+    }
+    // eig_sym is in ascending order
     return lambda(2) - lambda(0);
 }
 
@@ -187,7 +193,7 @@ mat P_DFA(const vec &params) { //Deshpande–Fleck–Ashby
 
 double Eq_stress_P(const vec &v, const mat &H) {
     
-    if (norm(v,2) > sim_iota) {
+    if (norm(v,2) > simcoon::iota) {
         return pow(sum(v%(H*v)),0.5);
     }
     else {
@@ -197,7 +203,7 @@ double Eq_stress_P(const vec &v, const mat &H) {
                    
 vec dEq_stress_P(const vec &v, const mat &H) {
    
-   if (norm(v,2) > sim_iota) {
+   if (norm(v,2) > simcoon::iota) {
        return (H*v)/Eq_stress_P(v,H);
    }
    else {

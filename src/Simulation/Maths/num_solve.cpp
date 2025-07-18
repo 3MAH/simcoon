@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 
 using namespace std;
 using namespace arma;
@@ -37,12 +38,17 @@ void Newton_Raphon(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp,
         assert(fabs(Y_crit(i)) > 0.);
     }
     
-    if (fabs(det(denom)) > sim_limit) {
-        dp = -1.*solve(denom,Phi);
-    }
-    else {
-        dp = zeros(n);
-    }
+    try {
+        if (fabs(det(denom)) > simcoon::limit) {
+            dp = -1.*solve(denom,Phi);
+        }
+        else {
+            dp = zeros(n);
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Newton_Raphon.");
+    }   
     
     //New update of the vector of the variable increment throughout the step
     Dp = Dp + dp;
@@ -100,12 +106,17 @@ void Fischer_Burmeister(const vec &Phi, const vec &Y_crit, const mat &denom, vec
         
     }
     
-    if (fabs(det(denomFB)) > sim_limit) {
-        dp = -1.*solve(denomFB,FB);
-    }
-    else {
-        dp = zeros(n);
-    }
+    try {
+        if (fabs(det(denomFB)) > simcoon::limit) {
+            dp = -1.*solve(denomFB,FB);
+        }
+        else {
+            dp = zeros(n);
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister.");
+    }   
     
     //New update of the vector of the variable increment throughout the step
     Dp = Dp + dp;
@@ -218,13 +229,18 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
         }
     }
     
-    if (fabs(det(denomFB)) > sim_limit) {
-        dp = -1.*solve(denomFB,FB);
-    }
-    else {
-        dp = zeros(n);
-    }
-    
+    try {
+        if (fabs(det(denomFB)) > simcoon::limit) {
+            dp = -1.*solve(denomFB,FB);
+        }
+        else {
+            dp = zeros(n);
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_limits.");
+    }   
+
     //New update of the vector of the variable increment throughout the step
     Dp = Dp + dp;
     error = 0.;
@@ -291,12 +307,17 @@ void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, v
         
     }
     
-    if (fabs(det(denomFB)) > sim_limit) {
-        dp = -1.*solve(denomFB, FB);
-    }
-    else {
-        dp = zeros(n);
-    }
+    try {
+        if (fabs(det(denomFB)) > simcoon::limit) {
+            dp = -1.*solve(denomFB, FB);
+        }
+        else {
+            dp = zeros(n);
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m.");
+    }  
     
     //New update of the transformation/orientation multipliers
     Dp = Dp + dp;
@@ -421,12 +442,17 @@ void Fischer_Burmeister_m_limits(const vec &Phi_p, const vec &Phi_l, const vec &
         }
     }
     
-    if (fabs(det(denomFB)) > sim_limit) {
-        dp = -1.*solve(denomFB, FB);
-    }
-    else {
-        dp = zeros(n);
-    }
+    try {
+        if (fabs(det(denomFB)) > simcoon::limit) {
+            dp = -1.*solve(denomFB, FB);
+        }
+        else {
+            dp = zeros(n);
+        }
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Fischer_Burmeister_m_limits.");
+    }  
     
     //New update of the transformation/orientation multipliers
     Dp = Dp + dp;

@@ -23,6 +23,7 @@
 #include <fstream>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -83,12 +84,24 @@ void umat_neo_hookean_incomp(const vec &etot, const vec &Detot, const mat &F0, c
     
     //Invariants of C
     double I1 = trace(C); // pow(lambda_alpha(2),2.) + pow(lambda_alpha(1),2.) + pow(lambda_alpha(0),2.); //ascending order
-    double J = det(F1); //lambda(2)*lambda(1)*lambda(0)
+    double J;
+    try {
+        J = det(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside umat_neo_hookean_incomp.");
+    }   
     double I1_bar = pow(J,-2./3.)*I1;
     
     double W = C_10*(I1_bar-3.) + (1./D_1)*pow(J-1.,2.);
 
-    mat invC = inv(C);
+    mat invC;
+    try {
+        invC = inv(C);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside umat_neo_hookean_incomp.");
+    }
     mat I = eye(3,3);
 
     //Compute the PKII stress and then the Cauchy stress

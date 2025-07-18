@@ -113,7 +113,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         d_22 = 0.;
         d_12 = 0.;
         
-        p_ts = 10.*sim_limit;
+        p_ts = 10.*simcoon::limit;
         EP = zeros(6);
         sigma = zeros(6);
     }
@@ -227,10 +227,10 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         
         //Plasticity computations
                 //Compute the hardening
-        if (p_ts > sim_limit)
+        if (p_ts > simcoon::limit)
             Hp_ts = beta_ts*pow(p_ts, alpha_ts);
         else
-            Hp_ts = sim_iota;
+            Hp_ts = simcoon::iota;
         
         //effective stress
         sigma_eff = el_pred(L,Eel,ndi);
@@ -242,10 +242,10 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         //Compute the explicit flow direction
         Lambdap_ts = eta_stress(sigma_eff_ts);
         
-        if (p_ts > sim_limit)
+        if (p_ts > simcoon::limit)
             dPhip_tsdp_ts = -1.*alpha_ts*beta_ts*pow(p_ts, alpha_ts-1.);
         else
-            dPhip_tsdp_ts = sim_iota;
+            dPhip_tsdp_ts = simcoon::iota;
         
         dPhi_p_tsd_sigma = Theta_ts*eta_stress(sigma_eff_ts); //Here as well
         
@@ -319,22 +319,22 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
         sigma = el_pred(L_tilde, Eel, ndi);
         
-        if (fabs(sigma(1)) < sim_iota )
+        if (fabs(sigma(1)) < simcoon::iota )
             Yd_22 = 0.;
         else
             Yd_22 = 0.5*(pow(Macaulay_p(sigma(1)),2.)/(E2_0*pow(1.-d_22,2.)));
 
-        if (fabs(sigma(2)) < sim_iota )
+        if (fabs(sigma(2)) < simcoon::iota )
             Yd_33 = 0.;
         else
             Yd_33 = 0.5*(pow(Macaulay_p(sigma(2)),2.)/(E2_0*pow(1.-d_22,2.)));
         
-        if (fabs(sigma(3)) < sim_iota )
+        if (fabs(sigma(3)) < simcoon::iota )
             Yd_12 = 0.;
         else
             Yd_12 = 0.5*(pow(sigma(3),2.)/(G12_0*pow(1.-d_12,2.)));
 
-        if (fabs(sigma(4)) < sim_iota )
+        if (fabs(sigma(4)) < simcoon::iota )
             Yd_13 = 0.;
         else
             Yd_13 = 0.5*(pow(sigma(4),2.)/(G12_0*pow(1.-d_12,2.)));
@@ -347,29 +347,29 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         lambda_22 = lagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
         
         //Preliminaries to compute damage the derivatives of Phi
-        if (fabs(sigma(1)) < sim_iota )
+        if (fabs(sigma(1)) < simcoon::iota )
             dYd_22dd = 0.;
         else
             dYd_22dd = -0.25*(pow(Macaulay_p(sigma(1)),2.)/(E2_0*pow(1-d_22,3.)));
 
-        if (fabs(sigma(2)) < sim_iota )
+        if (fabs(sigma(2)) < simcoon::iota )
             dYd_33dd = 0.;
         else
             dYd_33dd = -0.25*(pow(Macaulay_p(sigma(2)),2.)/(E2_0*pow(1-d_22,3.)));
         
-        if (fabs(sigma(3)) < sim_iota )
+        if (fabs(sigma(3)) < simcoon::iota )
             dYd_12dd = 0.;
         else
             dYd_12dd = -0.25*(pow(sigma(3),2.)/(G12_0*pow(1-d_12,3.)));
 
-        if (fabs(sigma(4)) < sim_iota )
+        if (fabs(sigma(4)) < simcoon::iota )
             dYd_13dd = 0.;
         else
             dYd_13dd = -0.25*(pow(sigma(4),2.)/(G12_0*pow(1-d_12,3.)));
 
         
         
-        if (fabs(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33)) < sim_iota ) {
+        if (fabs(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33)) < simcoon::iota ) {
             dY_tsdd_22 = 0.;
             dY_tsdd_12 = 0.;
         }
@@ -390,7 +390,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         dYts_d_Y12 = 0.;
         dYts_d_Y13 = 0.;
         
-        if (Y_ts > sim_limit) {
+        if (Y_ts > simcoon::limit) {
             dYts_d_Y22 = b/(2.*Y_ts);
             dYts_d_Y33 = b/(2.*Y_ts);
             dYts_d_Y12 = 1./(2.*Y_ts);
@@ -494,7 +494,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
 		dYts_d_Y12 = 0.;
 		dYts_d_Y13 = 0.;
 		
-		if (Y_ts > sim_limit) {
+		if (Y_ts > simcoon::limit) {
 			dYts_d_Y22 = b/(2.*Y_ts);
 			dYts_d_Y33 = b/(2.*Y_ts);
 			dYts_d_Y12 = 1./(2.*Y_ts);
@@ -588,11 +588,11 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
 		vec op = zeros(3);
 		mat delta = eye(3,3);
 
-		if(Dd(0) > sim_iota)
+		if(Dd(0) > simcoon::iota)
 			op(0) = 1.;
-		if(Dd(1) > sim_iota)
+		if(Dd(1) > simcoon::iota)
 			op(1) = 1.;
-		if(Dp(0) > sim_iota)
+		if(Dp(0) > simcoon::iota)
 			op(2) = 1.;
 		
 		
