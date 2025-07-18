@@ -19,13 +19,11 @@
 ///@brief parameters of simcoon
 ///@version 1.0
 
+#pragma once
 #if defined(__cpp_lib_math_constants)
     #include <numbers>
     #define HAS_STD_NUMBERS
 #endif
-
-#define UNUSED(x) [&x]{}()
-
 
 #define UNUSED(x) [&x]{}()
 
