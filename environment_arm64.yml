@@ -6,7 +6,7 @@ channels:
 
 dependencies:
   - cxx-compiler
-  - fortran-compiler
+  - gfortran_osx-64
   - blas
   - lapack  
   - numpy>=1.26
