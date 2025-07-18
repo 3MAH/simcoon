@@ -199,7 +199,7 @@ file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
 
 if(NOT MSVC)
-  add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+  add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
   set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
   target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
 endif()
