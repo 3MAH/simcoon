@@ -19,28 +19,23 @@
 ///@brief parameters of simcoon
 ///@version 1.0
 
-#pragma once
-#if __has_include(<numbers>)
-    #include <numbers>
-    #define HAS_STD_NUMBERS
-#endif
-
-#define UNUSED(x) [&x]{}()
-
-namespace simcoon{
-
 #if defined(__cpp_lib_math_constants)
     #include <numbers>
     #define HAS_STD_NUMBERS
 #endif
 
 #define UNUSED(x) [&x]{}()
+
+
+#define UNUSED(x) [&x]{}()
+
+namespace simcoon{
     
 #ifndef sim_pi
 #ifdef HAS_STD_NUMBERS
-    #define sim_pi std::numbers::pi
+    #define pi std::numbers::pi
 #else
-    #define sim_pi 3.14159265358979323846
+    #define pi 3.14159265358979323846
 #endif
 #endif    
 
