@@ -33,6 +33,13 @@ namespace simcoon{
 constexpr double pi = std::numbers::pi;
 #else
 constexpr double pi = 3.14159265358979323846;
+<<<<<<< Updated upstream
+=======
+#endif
+
+#ifndef axis_psi
+#define axis_psi 3
+>>>>>>> Stashed changes
 #endif
 
 constexpr int axis_psi = 3;
