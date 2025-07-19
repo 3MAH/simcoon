@@ -21,7 +21,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev liblapack-dev libblas-dev gfortran
 
       - name: Install the project
         run: uv sync --locked --all-extras --dev
@@ -34,10 +34,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies  
+        run: |
+          sudo apt-get update
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev liblapack-dev libblas-dev gfortran
+
       - name: Build Ubuntu
         shell: bash -l {0}
         run: |
-          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
           cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build
           ctest --test-dir ${{github.workspace}}/build
