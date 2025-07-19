@@ -37,7 +37,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev liblapack-dev libblas-dev gfortran ninja
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev liblapack-dev libblas-dev gfortran ninja-build
 
       - name: Build Ubuntu
         shell: bash -l {0}
