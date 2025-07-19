@@ -46,4 +46,4 @@ jobs:
           cmake -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address -g"
           cmake --build ${{github.workspace}}/build
           export ASAN_OPTIONS=detect_stack_use_after_return=true:check_initialization_order=true:detect_leaks=false
-          ctest --test-dir ${{github.workspace}}/build --output-on-failure
+          ctest --test-dir ${{github.workspace}}/build --output-on-failure --stop-on-failure
