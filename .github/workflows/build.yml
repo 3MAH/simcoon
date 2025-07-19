@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies  
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev liblapack-dev libblas-dev gfortran
@@ -44,4 +44,4 @@ jobs:
         run: |
           cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
           cmake --build ${{github.workspace}}/build
-          ctest --test-dir ${{github.workspace}}/build
+          ctest --test-dir ${{github.workspace}}/build --output-on-failure
