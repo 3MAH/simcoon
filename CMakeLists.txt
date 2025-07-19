@@ -394,7 +394,7 @@ if(BUILD_PYTHON_MODULE)
   endif()
   
   # Link against required libraries - use static linking for simcoon to avoid separate .so
-  target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} Python3::Module)
+  target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Python3::Module)
   
   # Instead of linking to the shared library, compile the sources directly into the module
   target_sources(simmit PRIVATE ${source_files})
