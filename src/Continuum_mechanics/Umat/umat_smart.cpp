@@ -784,7 +784,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
-            std::shared_ptr<umat_plugin_ext_api> external_umat;  // Using std::shared_ptr instead of boost::shared_ptr
+            boost::shared_ptr<umat_plugin_ext_api> external_umat;  // Using boost::shared_ptr to match boost::dll::import_symbol return type
 
             external_umat = boost::dll::import_symbol<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
                 boost_lib_path,  // Path to the library and library name
@@ -803,7 +803,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             //
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
-            std::shared_ptr<umat_plugin_aba_api> abaqus_umat;  // Using std::shared_ptr instead of boost::shared_ptr
+            boost::shared_ptr<umat_plugin_aba_api> abaqus_umat;  // Using boost::shared_ptr to match boost::dll::import_symbol return type
 
             abaqus_umat = boost::dll::import_symbol<umat_plugin_aba_api>(boost_lib_path,
                 "abaqus_umat", 
