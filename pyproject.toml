@@ -60,8 +60,8 @@ cmake.args = [
     "-DCMAKE_CXX_STANDARD=20",
     "-DCMAKE_CXX_STANDARD_REQUIRED=ON",
 ]
-build.verbose = false
 cmake.build-type = "Release"
+build.verbose = false
 
 # Specify which directories to include in the wheel
 wheel.packages = ["src/simcoon"]
@@ -123,4 +123,9 @@ exclude_lines = [
     "def __repr__",
     "raise AssertionError",
     "raise NotImplementedError",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
 ]

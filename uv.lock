@@ -679,6 +679,11 @@ test = [
     { name = "pytest-cov" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "breathe", marker = "extra == 'docs'" },
@@ -691,6 +696,9 @@ requires-dist = [
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
 ]
 provides-extras = ["test", "docs", "dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.4.1" }]
 
 [[package]]
 name = "snowballstemmer"
