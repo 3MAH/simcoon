@@ -1,0 +1,124 @@
+[build-system]
+requires = ["scikit-build-core>=0.11.5", "pybind11>=3", "numpy>=2"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "simcoon"
+dynamic = ["version"]
+description = "Simulation in Mechanics and Materials: Interactive Tools"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Yves Chemisky", email = "yves.chemisky@gmail.com" }]
+maintainers = [{ name = "Yves Chemisky", email = "yves.chemisky@gmail.com" }]
+keywords = [
+    "mechanics",
+    "materials",
+    "simulation",
+    "finite-element",
+    "constitutive-models",
+    "homogenization",
+    "micromechanics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.9, <3.13"
+dependencies = ["numpy>=2"]
+
+[project.optional-dependencies]
+test = ["pytest>=6.0", "pytest-cov"]
+docs = ["sphinx", "sphinx-rtd-theme", "breathe"]
+dev = ["simcoon[test,docs]", "pre-commit"]
+
+[project.urls]
+Homepage = "https://github.com/3MAH/simcoon"
+Documentation = "https://simcoon.readthedocs.io/"
+Repository = "https://github.com/3MAH/simcoon"
+Issues = "https://github.com/3MAH/simcoon/issues"
+
+[tool.scikit-build]
+# Specify the CMake configuration
+cmake.version = ">=3.15"
+cmake.args = [
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DUSE_CARMA=ON",
+    "-DBUILD_PYTHON_MODULE=ON",
+]
+build.verbose = false
+cmake.build-type = "Release"
+
+# Specify which directories to include in the wheel
+wheel.packages = ["src/simcoon"]
+wheel.expand-macos-universal-tags = true
+
+# Install the shared library alongside the Python module
+install.components = ["python"]
+
+# Setup version detection from __version__.py
+metadata.version.provider = "scikit_build_core.metadata.regex"
+metadata.version.input = "src/simcoon/__version__.py"
+
+[tool.scikit-build.cmake.define]
+# Enable position-independent code for shared libraries
+CMAKE_POSITION_INDEPENDENT_CODE = "ON"
+# Build shared libraries
+BUILD_SHARED_LIBS = "ON"
+# Python-specific build
+BUILD_PYTHON_MODULE = "ON"
+
+[tool.cibuildwheel]
+# Build wheels for these platforms
+build = "cp38-* cp39-* cp310-* cp311-* cp312-*"
+skip = "*-win32 *-manylinux_i686"
+
+# Use system libraries where possible
+before-all = [
+    "yum install -y gcc-gfortran blas-devel lapack-devel || apt-get update && apt-get install -y gfortran libblas-dev liblapack-dev || brew install gcc openblas lapack",
+]
+
+[tool.cibuildwheel.linux]
+before-all = [
+    "yum install -y gcc-gfortran blas-devel lapack-devel boost-devel || apt-get update && apt-get install -y gfortran libblas-dev liblapack-dev libboost-all-dev",
+]
+environment = { CMAKE_ARGS = "-DCMAKE_BUILD_TYPE=Release -DUSE_SYSTEM_BLAS=ON" }
+
+[tool.cibuildwheel.macos]
+before-all = ["brew install gcc openblas lapack boost"]
+environment = { CMAKE_ARGS = "-DCMAKE_BUILD_TYPE=Release -DUSE_SYSTEM_BLAS=ON" }
+
+[tool.cibuildwheel.windows]
+before-all = [
+    "vcpkg install boost:x64-windows blas:x64-windows lapack:x64-windows",
+]
+environment = { CMAKE_ARGS = "-DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["simcoon"]
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
