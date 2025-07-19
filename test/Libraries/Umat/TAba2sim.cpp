@@ -74,13 +74,12 @@ TEST(Taba2sim, read_write)
     int ndi = 3;
     int nshr = 3;
     double *drot = new double[9];
-    char *cmname = new char[6];
+    char *cmname = new char[5];
     cmname[0] = 'M';
     cmname[1] = 'I';
     cmname[2] = 'M';
     cmname[3] = 'T';
     cmname[4] = 'N';
-    cmname[5] = '\0';
     double pnewdt = 1.;
     
     bool start = false;

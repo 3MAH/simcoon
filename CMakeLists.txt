@@ -6,12 +6,16 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Ensure Python finds `simcoon` in the correct location
+# Try to get version from Python module, fallback to default
 execute_process(
-    COMMAND python3 -c "import sys; sys.path.insert(0, 'src'); from simcoon.__version__ import __version__; print(__version__)"
+    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
     OUTPUT_VARIABLE PROJECT_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
 )
+if(NOT PROJECT_VERSION)
+    set(PROJECT_VERSION "1.9.7")
+endif()
 
 # Print and set the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
@@ -62,7 +66,7 @@ find_package(Armadillo 10.8 REQUIRED)
 
 # GTest is only needed for C++ testing, not for Python module
 option(BUILD_TESTING "Build C++ tests" ON)
-if(NOT BUILD_PYTHON_MODULE AND BUILD_TESTING)
+if(BUILD_TESTING)
   find_package(GTest QUIET)
   if(NOT GTest_FOUND)
     message(STATUS "GTest not found, downloading and building from source...")
@@ -72,17 +76,7 @@ if(NOT BUILD_PYTHON_MODULE AND BUILD_TESTING)
       GIT_REPOSITORY https://github.com/google/googletest.git
       GIT_TAG v1.14.0
     )
-    # For Windows: Prevent overriding the parent project's compiler/linker settings
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
-    
-    # Create aliases to match find_package target names
-    if(NOT TARGET GTest::gtest)
-      add_library(GTest::gtest ALIAS gtest)
-    endif()
-    if(NOT TARGET GTest::gtest_main)
-      add_library(GTest::gtest_main ALIAS gtest_main)
-    endif()
     message(STATUS "GTest downloaded and configured successfully")
   endif()
 endif()
@@ -178,12 +172,9 @@ include_directories(include)
 # add the binary tree to the search path for include files
 include_directories("${PROJECT_BINARY_DIR}")
 
-#Command file to get all the files in the src/ and include/ (excluding Python wrapper)
-file(GLOB_RECURSE source_files 
-  src/Continuum_mechanics/* 
-  src/Simulation/*
-  include/*
-)
+#Command file to get all the files in the src/ and include/ (exclude wrapper files)
+file(GLOB_RECURSE source_files src/* include/*)
+list(FILTER source_files EXCLUDE REGEX ".*/_wrapper/.*")
 
 set(objs
  external/umat_externalM.o external/umat_externalT.o
@@ -192,46 +183,38 @@ set(objs
  GENERATED true
 )
 
-# Only build the shared library if we're not building Python module
-if(NOT BUILD_PYTHON_MODULE)
-  #Add the files to the lib
-  add_library(simcoon SHARED ${source_files})
-  #link against armadillo
-  if (MSVC AND USE_CARMA)
-    target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
-  endif()
+#Add the files to the lib
+add_library(simcoon SHARED ${source_files})
+#link against armadillo
+if (MSVC AND USE_CARMA)
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
 else()
-  # For Python module build, we'll include the sources directly in the module
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
 endif()
 
-# Only compile executables if we're not building Python module
-if(NOT BUILD_PYTHON_MODULE)
-  #Define lists of executables for compilation
-  set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
+#Define lists of executables for compilation
+set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
 
-  #Compile public executable
-  foreach (Exe_to_compile ${All_exe_to_compile})
+#Compile public executable
+foreach (Exe_to_compile ${All_exe_to_compile})
 
-    #Add the solver executable
-    add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
+	#Add the solver executable
+	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
-    #Link the solver executable with armadillo
-    if (MSVC AND USE_CARMA)
-      target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-    else()
-      target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
-    endif()
-    if(NOT WIN32)
-      target_link_libraries(${Exe_to_compile} -ldl)
-    endif()
+	#Link the solver executable with armadillo
+  if (MSVC AND USE_CARMA)
+    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
+  else()
+    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
+  endif()
+  if(NOT WIN32)
+    target_link_libraries(${Exe_to_compile} -ldl)
+  endif()
 
-  endforeach (Exe_to_compile ${All_exe_to_compile})
-endif()
+endforeach (Exe_to_compile ${All_exe_to_compile})
 
-##Testing (only when not building Python module and BUILD_TESTING is ON)
-if(NOT BUILD_PYTHON_MODULE AND BUILD_TESTING)
+##Testing
+if(BUILD_TESTING)
 #Test files are in a separate source directory called test
 file(GLOB_RECURSE TEST_SRCS test/*.cpp)
 file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
@@ -330,7 +313,7 @@ if(NOT MSVC)
             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
   endforeach(testSrc)
 endif()
-endif() # End of NOT BUILD_PYTHON_MODULE conditional
+endif() # BUILD_TESTING
 
 #set_property(TARGET FOR PROPERTY)
 #add_library(ABA OBJECT testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
@@ -342,88 +325,6 @@ endif() # End of NOT BUILD_PYTHON_MODULE conditional
 #add_library(umatT OBJECT software/umat_singleT.cpp)
 #set_property(TARGET umatT PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++20 -DARMA_DONT_USE_WRAPPER")
 
-
-################################################################################
-# PYTHON MODULE CONFIGURATION (Optional - controlled by BUILD_PYTHON_MODULE)
-
-option(BUILD_PYTHON_MODULE "Build Python module simmit" OFF)
-
-if(BUILD_PYTHON_MODULE)
-  # Find Python and pybind11
-  find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
-  find_package(pybind11 REQUIRED)
-  
-  # Find Carma for NumPy-Armadillo conversion
-  if(USE_CARMA)
-    # Add carma as subdirectory if not found as package
-    if(NOT TARGET carma::carma)
-      add_subdirectory(external/carma EXCLUDE_FROM_ALL)
-    endif()
-  endif()
-  
-  # Include directories for Python wrapper
-  include_directories(SYSTEM ${Python3_INCLUDE_DIRS})
-  include_directories(SYSTEM ${Python3_NumPy_INCLUDE_DIRS})
-  if(USE_CARMA)
-    include_directories(SYSTEM ${carma_INCLUDE_DIR})
-  endif()
-  
-  # Include wrapper headers  
-  include_directories(src/simcoon/_wrapper/include)
-  # Add alias for python_wrappers path expected by wrapper files
-  include_directories(src/simcoon/_wrapper/include/simcoon)
-  
-  # Collect wrapper source files - full featured version  
-  file(GLOB_RECURSE wrapper_files src/simcoon/_wrapper/Libraries/*.cpp)
-  set(source_files_simmit 
-    src/simcoon/_wrapper/boostpython_smartplus_wrappers.cpp
-    ${wrapper_files}
-  )
-  
-  # Create the Python module
-  pybind11_add_module(simmit ${source_files_simmit})
-  
-  # Define BUILDING_PYTHON_MODULE for the Python module to disable problematic Boost DLL code
-  target_compile_definitions(simmit PRIVATE BUILDING_PYTHON_MODULE)
-  
-  # Set module properties
-  if(MSVC)
-    set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
-  else()
-    set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
-  endif()
-  
-  # Link against required libraries - use static linking for simcoon to avoid separate .so
-  target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES} Python3::Module)
-  
-  # Instead of linking to the shared library, compile the sources directly into the module
-  target_sources(simmit PRIVATE ${source_files})
-  if(USE_CARMA)
-    target_link_libraries(simmit PRIVATE carma::carma)
-  endif()
-  
-  # OpenMP support if available
-  if(OPENMP_FOUND)
-    target_link_libraries(simmit PRIVATE OpenMP::OpenMP_CXX)
-  endif()
-  
-  # Install only the Python module (no separate C++ library needed)
-  install(TARGETS simmit DESTINATION .)
-  
-  # Remove libsimcoon.so from the Python package directory since it's no longer needed
-  install(CODE "
-    file(REMOVE \"${CMAKE_SOURCE_DIR}/src/simcoon/libsimcoon.so\")
-    message(STATUS \"Removed libsimcoon.so from Python package - not needed with static linking\")
-  ")
-  
-  # Set the library output directory for development builds
-  set_target_properties(simmit PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/src/simcoon
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/src/simcoon
-  )
-  
-  message(STATUS "Python module 'simmit' will be built and installed")
-endif()
 
 ################################################################################
 # INSTALL CONFIGURATION
@@ -442,7 +343,4 @@ message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
 message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-# Only install simcoon library if we built it
-if(NOT BUILD_PYTHON_MODULE)
-  install(TARGETS simcoon)
-endif()
+install(TARGETS simcoon)

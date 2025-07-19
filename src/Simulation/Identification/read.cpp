@@ -38,8 +38,8 @@ namespace simcoon{
 
 void read_parameters(const int &n_param, vector<parameters> &params) {
     
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/parameters.inp";  
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "parameters.inp";  
 
     ifstream paraminit;
     string buffer;
@@ -77,8 +77,8 @@ void read_parameters(const int &n_param, vector<parameters> &params) {
     
 void read_constants(const int &n_consts, vector<constants> &consts, const int &nfiles) {
     
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/constants.inp";    
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "constants.inp";    
 
     ifstream paraminit;
     string buffer;
@@ -124,8 +124,8 @@ void read_constants(const int &n_consts, vector<constants> &consts, const int &n
     
 void read_data_exp(const int &nfiles, vector<opti_data> &datas) {
 
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/files_exp.inp";    
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_exp.inp";    
 
     ifstream paraminit;
     string buffer;
@@ -170,8 +170,8 @@ void read_data_exp(const int &nfiles, vector<opti_data> &datas) {
     
 void read_data_weights(const int &nfiles, Col<int> &weight_types, vec &weights_file, vector<vec> &weights_cols, vector<opti_data> &weights, const vector<opti_data> &data_exp) {
     
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/files_weights.inp";
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_weights.inp";
 
     ifstream paraminit;
     string buffer;
@@ -256,8 +256,8 @@ void read_data_weights(const int &nfiles, Col<int> &weight_types, vec &weights_f
 
 void read_data_num(const int &nfiles, const vector<opti_data> &data_exp, vector<opti_data> &data_num) {
     
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/files_num.inp";
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "files_num.inp";
 
     ifstream paraminit;
     string buffer;
@@ -291,8 +291,8 @@ void read_data_num(const int &nfiles, const vector<opti_data> &data_exp, vector<
 
 void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &path, const string &filename) {
 
-    std::string data_dir = path;
-    std::string pathfile = data_dir + "/" + filename;
+    std::filesystem::path data_dir = std::filesystem::current_path() / path;
+    std::filesystem::path pathfile = data_dir / filename;
     ifstream param_essentials;
     string buffer;
 
@@ -313,8 +313,8 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     
 void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &station_lim, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {
     
-    std::string data_dir = path;
-    std::string pathfile = data_dir + "/" + filename;
+    std::filesystem::path data_dir = std::filesystem::current_path() / path;
+    std::filesystem::path pathfile = data_dir / filename;
     ifstream param_control;
     string buffer;
         
@@ -356,8 +356,8 @@ void read_gen(int &apop, mat &samples, const int &n_param) {
     ifstream paraminit;
     string buffer;
 
-    std::string data_dir = "data";
-    std::string pathfile = data_dir + "/gen0.inp";
+    std::filesystem::path data_dir = std::filesystem::current_path() / "data";
+    std::filesystem::path pathfile = data_dir / "gen0.inp";
     
     paraminit.open(pathfile, ios::in);
     if(!paraminit) {

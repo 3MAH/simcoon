@@ -28,19 +28,15 @@
 #include <vector>
 #include <armadillo>
 #include <memory>
-#ifndef BUILDING_PYTHON_MODULE
 #define BOOST_DLL_USE_STD_FS  // Forces Boost.DLL to use std::filesystem
 #include <boost/dll.hpp>
-#endif
 #include <filesystem>
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
-#ifndef BUILDING_PYTHON_MODULE
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
-#endif
 
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_comp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
@@ -779,33 +775,26 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
     switch (list_umat[rve.sptr_matprops->umat_name]) {
 
         case 0: {
-#ifndef BUILDING_PYTHON_MODULE
             //umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
-            
+
             boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::append_decorations);
             auto& external_umat = lib.get<umat_plugin_ext_api>("external_umat");     
 
             external_umat.umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
-#else
-            throw std::runtime_error("External UMAT functionality is not available in Python module builds");
-#endif
+
             break;
         }
         case 1: {
-#ifndef BUILDING_PYTHON_MODULE
             //
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
-            
-            boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::append_decorations);
-            auto& abaqus_umat = lib.get<umat_plugin_aba_api>("abaqus_umat");
+
+            boost::dll::shared_library lib2(boost_lib_path, boost::dll::load_mode::append_decorations);
+            auto& abaqus_umat = lib2.get<umat_plugin_aba_api>("abaqus_umat");
             abaqus_umat.umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
-#else
-            throw std::runtime_error("Abaqus UMAT functionality is not available in Python module builds");
-#endif
             break;
         }
         case 2: {

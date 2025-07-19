@@ -27,7 +27,6 @@
 #include <math.h>
 #include <memory>
 #include <filesystem>
-#include <sys/stat.h>  // For stat, mkdir
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Phase/material_characteristics.hpp>
@@ -55,14 +54,13 @@ namespace simcoon{
 void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile) {
 
     //Check if the required directories exist:
-    struct stat st;
-    if(stat(path_data.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+    if(!filesystem::is_directory(path_data)) {
         cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
         return;
     }
-    if(stat(path_results.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
+    if(!filesystem::is_directory(path_results)) {
         cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        mkdir(path_results.c_str(), 0755);
+        filesystem::create_directory(path_results);
     }
     
     std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
