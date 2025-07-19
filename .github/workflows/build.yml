@@ -1,0 +1,36 @@
+name: Build & Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Build Ubuntu
+        shell: bash -l {0}
+        run: |
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
+          uv pip install .
+
+  build-cmake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Ubuntu
+        shell: bash -l {0}
+        run: |
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
+          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build ${{github.workspace}}/build
+          ctest --test-dir ${{github.workspace}}/build
