@@ -16,14 +16,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
+
       - name: Install the project
         run: uv sync --locked --all-extras --dev
-
-      - name: Build Ubuntu
-        shell: bash -l {0}
-        run: |
-          sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
-          uv pip install .
 
       - name: Run tests
         run: uv run pytest tests

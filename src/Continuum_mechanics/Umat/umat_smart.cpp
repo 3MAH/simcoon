@@ -784,15 +784,11 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
-            boost::shared_ptr<umat_plugin_ext_api> external_umat;  // Using boost::shared_ptr to match boost::dll::import_symbol return type
+            
+            boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::append_decorations);
+            auto& external_umat = lib.get<umat_plugin_ext_api>("external_umat");     
 
-            external_umat = boost::dll::import<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
-                boost_lib_path,  // Path to the library and library name
-                "external_umat",               // Name of the symbol to import
-                boost::dll::load_mode::append_decorations  // Handles platform-specific library name decorations
-            );     
-
-            external_umat->umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+            external_umat.umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 #else
             throw std::runtime_error("External UMAT functionality is not available in Python module builds");
 #endif
@@ -803,13 +799,10 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             //
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
-            boost::shared_ptr<umat_plugin_aba_api> abaqus_umat;  // Using boost::shared_ptr to match boost::dll::import_symbol return type
-
-            abaqus_umat = boost::dll::import<umat_plugin_aba_api>(boost_lib_path,
-                "abaqus_umat", 
-                boost::dll::load_mode::append_decorations
-            );
-            abaqus_umat->umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            
+            boost::dll::shared_library lib(boost_lib_path, boost::dll::load_mode::append_decorations);
+            auto& abaqus_umat = lib.get<umat_plugin_aba_api>("abaqus_umat");
+            abaqus_umat.umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
 #else
             throw std::runtime_error("Abaqus UMAT functionality is not available in Python module builds");
 #endif
