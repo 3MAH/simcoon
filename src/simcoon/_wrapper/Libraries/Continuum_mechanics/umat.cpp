@@ -1,6 +1,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <optional>
 
 #include <carma>
 #include <armadillo>
@@ -63,7 +64,7 @@ namespace py=pybind11;
 
 namespace simpy {
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const py::object &T_py, const int &ndi, const unsigned int &n_threads){
 		//Get the id of umat
 
 		std::map<string, int> list_umat;
@@ -103,8 +104,8 @@ namespace simpy {
 
 		bool use_temp = false;
 		vec vec_T;
-		if (T_py.has_value()) {
-			vec_T = carma::arr_to_col_view(T_py.value());
+		if (!T_py.is_none()) {
+			vec_T = carma::arr_to_col_view(T_py.cast<py::array_t<double>>());
 			use_temp = true;
 		}
 		else {

@@ -26,6 +26,9 @@
 #include <armadillo>
 #include <algorithm>
 #include <filesystem>
+#include <unistd.h>  // For getcwd
+#include <sys/stat.h>  // For stat, mkdir
+#include <climits>  // For PATH_MAX
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/random.hpp>
 #include <simcoon/Simulation/Identification/parameters.hpp>
@@ -48,20 +51,24 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     std::string data_num_ext = data_num_name.substr(data_num_name.length()-4,data_num_name.length());
     std::string data_num_name_root = data_num_name.substr(0,data_num_name.length()-4); //to remove the extension
     
-    cout << filesystem::current_path().string() << endl;
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        cout << cwd << endl;
+    }
     
     //Check if the required directories exist:
-    if(!filesystem::is_directory(path_data)) {
+    struct stat st;
+    if(stat(path_data.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
         cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
         return;
     }
-    if(!filesystem::is_directory(path_keys)) {
+    if(stat(path_keys.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
         cout << "error: the folder for the keys, " << path_keys << ", is not present" << endl;
         return;
     }
-    if(!filesystem::is_directory(path_results)) {
+    if(stat(path_results.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
         cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        filesystem::create_directory(path_results);
+        mkdir(path_results.c_str(), 0755);
     }
     
     //Check consistency of data
@@ -102,7 +109,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     
     //Get the experimental data file
     string data_exp_folder="exp_data";
-    if(!filesystem::is_directory(data_exp_folder)) {
+    if(stat(data_exp_folder.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
         cout << "The folder for the experimental data, " << data_exp_folder << ", is not present" << endl;
         return;
     }
@@ -163,9 +170,9 @@ void run_identification(const std::string &simul_type, const int &n_param, const
     gen_initialize(geninit, spop, apop, idnumber, aleaspace, n_param, params, lambdaLM);
     
     string data_num_folder = "num_data";
-    if(!filesystem::is_directory(data_num_folder)) {
+    if(stat(data_num_folder.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) {
         cout << "The folder for the numerical data, " << data_num_folder << ", is not present and has been created" << endl;
-        filesystem::create_directory(data_num_folder);
+        mkdir(data_num_folder.c_str(), 0755);
     }
     
     /// Run the simulations corresponding to each individual
@@ -297,10 +304,8 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         }
         
         //In the simulation run, make sure that we remove all the temporary files
-        filesystem::path path_to_remove(data_num_folder);
-        for (filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-            filesystem::remove_all(it->path());
-        }
+        std::string cmd = "find \"" + data_num_folder + "\" -mindepth 1 -delete 2>/dev/null || true";
+        system(cmd.c_str());
         
         //Run the identified simulation and store results in the results folder
         run_simulation(simul_type, gen[g].pop[0], nfiles, params, consts, data_num, path_results, data_num_name, path_data, path_keys, materialfile);
@@ -308,7 +313,7 @@ void run_identification(const std::string &simul_type, const int &n_param, const
         for (int i = 0; i<nfiles; i++) {
             string simulfile = path_results + "/" + data_num_name_root + "_" + to_string(gen[g].pop[0].id)  + "_" + to_string(i+1) + data_num_ext;
             string finalfile = path_results + "/" + data_num_name_root + "_" + to_string(i+1) + data_num_ext;
-            filesystem::rename(simulfile, finalfile);
+            rename(simulfile.c_str(), finalfile.c_str());
         }
         
         copy_parameters(params, path_keys, path_results);

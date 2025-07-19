@@ -57,6 +57,8 @@ cmake.args = [
     "-DCMAKE_BUILD_TYPE=Release",
     "-DUSE_CARMA=ON",
     "-DBUILD_PYTHON_MODULE=ON",
+    "-DCMAKE_CXX_STANDARD=20",
+    "-DCMAKE_CXX_STANDARD_REQUIRED=ON",
 ]
 build.verbose = false
 cmake.build-type = "Release"

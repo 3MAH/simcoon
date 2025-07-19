@@ -60,7 +60,10 @@ void copy_parameters(const vector<parameters> &params, const string &src_path, c
         for(auto ifiles : pa.input_files) {
             src_files = src_path + "/" + ifiles;
             dst_files = dst_path + "/" + ifiles;
-            std::filesystem::copy_file(src_files,dst_files,std::filesystem::copy_options::overwrite_existing);
+            // Copy file using traditional approach for Apple Clang compatibility
+            std::ifstream src(src_files, std::ios::binary);
+            std::ofstream dst(dst_files, std::ios::binary);
+            dst << src.rdbuf();
         }
     }
 }
@@ -75,7 +78,10 @@ void copy_constants(const vector<constants> &consts, const string &src_path, con
         for(auto ifiles : co.input_files) {
             src_files = src_path + "/" + ifiles;
             dst_files = dst_path + "/" + ifiles;
-            std::filesystem::copy_file(src_files,dst_files,std::filesystem::copy_options::overwrite_existing);
+            // Copy file using traditional approach for Apple Clang compatibility
+            std::ifstream src(src_files, std::ios::binary);
+            std::ofstream dst(dst_files, std::ios::binary);
+            dst << src.rdbuf();
         }
     }
 }
@@ -219,7 +225,10 @@ void launch_solver(const individual &ind, const int &nfiles, vector<parameters> 
         outputfile = path_results + "/" + name_root + "_" + to_string(ind.id) + "_" + to_string(i+1) + "_global-0" + name_ext;
         simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  + "_" + to_string(i+1) + name_ext;
         
-        std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
+        // Copy file using traditional approach for Apple Clang compatibility
+    std::ifstream src(outputfile, std::ios::binary);
+    std::ofstream dst(simulfile, std::ios::binary);
+    dst << src.rdbuf();
     }
 }
     
@@ -322,7 +331,10 @@ void launch_odf(const individual &ind, vector<parameters> &params, const string 
     //Get the simulation files according to the proper name
     simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  +"_" + to_string(1) + name_ext;
     outputfile = path_data + "/" + outputfile;
-    std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
+    // Copy file using traditional approach for Apple Clang compatibility
+    std::ifstream src(outputfile, std::ios::binary);
+    std::ofstream dst(simulfile, std::ios::binary);
+    dst << src.rdbuf();
 }
 
 
@@ -430,7 +442,10 @@ void launch_pdf(const individual &ind, vector<parameters> &params, const string 
     //Get the simulation files according to the proper name
     simulfile = path_results + "/" + name_root + "_" + to_string(ind.id)  +"_" + to_string(1) + name_ext;
     outputfile = path_data + "/" + outputfile;
-    std::filesystem::copy_file(outputfile,simulfile,std::filesystem::copy_options::overwrite_existing);
+    // Copy file using traditional approach for Apple Clang compatibility
+    std::ifstream src(outputfile, std::ios::binary);
+    std::ofstream dst(simulfile, std::ios::binary);
+    dst << src.rdbuf();
 }
     
 void launch_func_N(const individual &ind, const int &nfiles, vector<parameters> &params, vector<constants> &consts, const string &path_results, const string &name, const string &path_data, const string &path_keys, const string &materialfile)
@@ -478,10 +493,9 @@ void launch_func_N(const individual &ind, const int &nfiles, vector<parameters> 
 void run_simulation(const string &simul_type, const individual &ind, const int &nfiles, vector<parameters> &params, vector<constants> &consts, vector<opti_data> &data_num, const string &folder, const string &name, const string &path_data, const string &path_keys, const string &inputdatafile) {
     
     //In the simulation run, make sure that we remove all the temporary files
-    std::filesystem::path path_to_remove(folder);
-    for (std::filesystem::directory_iterator end_dir_it, it(path_to_remove); it!=end_dir_it; ++it) {
-        std::filesystem::remove_all(it->path());
-    }
+    // Use system command for directory cleanup on Apple Clang for compatibility
+    std::string cmd = "find \"" + folder + "\" -mindepth 1 -delete 2>/dev/null || true";
+    system(cmd.c_str());
     
     std::map<std::string, int> list_simul;
     list_simul = {{"SCRIPT",0},{"SOLVE",1},{"ODF",2},{"PDF",3},{"FUNCN",4}};

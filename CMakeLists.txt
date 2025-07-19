@@ -383,6 +383,9 @@ if(BUILD_PYTHON_MODULE)
   # Create the Python module
   pybind11_add_module(simmit ${source_files_simmit})
   
+  # Define BUILDING_PYTHON_MODULE for the Python module to disable problematic Boost DLL code
+  target_compile_definitions(simmit PRIVATE BUILDING_PYTHON_MODULE)
+  
   # Set module properties
   if(MSVC)
     set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")

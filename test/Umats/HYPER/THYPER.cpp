@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
+#define _LIBCPP_NO_EXPERIMENTAL_DEPRECATION_WARNING_FILESYSTEM
 #include <filesystem>
 #include <string>
 #include <assert.h>
@@ -87,11 +88,13 @@ TEST(THYPER, HYPER_solver )
         
         cout << "run " << materialfile << endl;
 
-        try {
-            std::filesystem::copy(output_file, comparison_file, std::filesystem::copy_options::overwrite_existing);
+        std::ifstream src(output_file, std::ios::binary);
+        std::ofstream dst(comparison_file, std::ios::binary | std::ios::trunc);
+        if (src && dst) {
+            dst << src.rdbuf();
             std::cout << "File copied successfully to " << comparison_file << std::endl;
-        } catch (std::filesystem::filesystem_error& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
+        } else {
+            std::cerr << "Error copying file from " << output_file << " to " << comparison_file << std::endl;
         }
 
         mat C;
