@@ -455,7 +455,7 @@ if(BUILD_PYTHON_BINDINGS)
     COMMAND ${CMAKE_COMMAND} -E copy 
       ${CMAKE_CURRENT_BINARY_DIR}/lib/simmit${PYTHON_LIB_EXTENSION}
       ${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/simmit${PYTHON_LIB_EXTENSION}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}/python-setup
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}
       ${PIP_COMMAND} install .
     COMMENT "Installing Python package"
   )

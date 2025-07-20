@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simcoon"
+dynamic = ["version"]
+description = "Simulation in Mechanics and Materials: Interactive Tools"
+authors = [
+    {name = "Yves Chemisky", email = "yves.chemisky@gmail.com"}
+]
+license = {text = "GPL"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=2.0.2",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License (GPL)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/3MAH/simcoon"
+"Bug Tracker" = "https://github.com/3MAH/simcoon/issues"
+"Documentation" = "https://simcoon.readthedocs.io"
+"Source Code" = "https://github.com/3MAH/simcoon"
+
+[tool.setuptools]
+packages = ["simcoon"]
+package-dir = {"" = "python-setup"}
+
+[tool.setuptools.package-data]
+simcoon = ["*.so", "*.pyd"]
+
+[tool.setuptools.dynamic]
+version = {attr = "simcoon.__version__.__version__"}
+
+[dependency-groups]
+dev = [
+    "pip>=25.0.1",
+    "pytest>=8.3.5",
+    "pybind11>=3.0.0",
+    "cmake>=4.0.3",
+    "ninja>=1.11.1.4",
+]
