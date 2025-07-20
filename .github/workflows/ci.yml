@@ -130,7 +130,6 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -DBUILD_PYTHON_BINDINGS=OFF `
-              -DUSE_CARMA=False `
               -Wno-dev
           cmake --build build --config Release
           cmake --install build

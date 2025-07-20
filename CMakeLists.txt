@@ -33,12 +33,7 @@ if(NOT CMAKE_BUILD_TYPE)  # Debug by default
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
         FORCE)
 endif()
-if (NOT DEFINED USE_CARMA)
-  set(USE_CARMA True)
-endif()
-
 message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-message(STATUS "USE_CARMA          = ${USE_CARMA}"         )
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -88,9 +83,6 @@ if(BUILD_TESTS)
 endif()
 
 if (MSVC)
-  if (USE_CARMA)
-    find_package(Carma REQUIRED)
-  endif()
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 else()
@@ -191,7 +183,7 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-if (MSVC AND USE_CARMA)
+if (MSVC AND BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
 else()
   target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
@@ -207,7 +199,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-  if (MSVC AND USE_CARMA)
+  if (MSVC AND BUILD_PYTHON_BINDINGS)
     target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
   else()
     target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
@@ -241,7 +233,7 @@ endif()
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 if(MSVC)
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
-  if (USE_CARMA)
+  if (BUILD_PYTHON_BINDINGS)
     target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} carma::carma)
   else()
     target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
@@ -264,7 +256,7 @@ foreach(testSrc ${TEST_SRCS})
   #Add compile target
   add_executable(${testName} ${testSrc})
 
-  if (MSVC AND USE_CARMA)
+  if (MSVC AND BUILD_PYTHON_BINDINGS)
   	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
   else()
   	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
@@ -412,7 +404,7 @@ if(BUILD_PYTHON_BINDINGS)
         message(STATUS "Using standard pip")
       endif()
       
-      # Try to find carma, if not found, clone it
+      # Try to find carma, if not found, fetch it (needed for Python bindings)
       find_package(carma CONFIG QUIET)
       if(NOT carma_FOUND)
         message(STATUS "carma not found, fetching from GitHub...")
