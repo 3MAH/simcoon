@@ -22,8 +22,7 @@ jobs:
       
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
-      - run: uv venv
-      - run: uv pip install pybind11 cmake ninja numpy pytest
+      - run: uv pip install pybind11 cmake ninja numpy pytest --system
       
       - name: Install dependencies
         run: |
@@ -68,8 +67,7 @@ jobs:
       
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
-      - run: uv venv
-      - run: uv pip install pybind11 cmake ninja numpy pytest
+      - run: uv pip install pybind11 cmake ninja numpy pytest --system
 
       - name: Install dependencies
         run: |
