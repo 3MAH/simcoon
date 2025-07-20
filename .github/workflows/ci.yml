@@ -43,10 +43,10 @@ jobs:
           conda config --env --add channels set3mah          
           conda config --env --set channel_priority strict                
 
-      - name: Build for Linux
+      - name: Build for Linux (with Python bindings)
         shell: bash -l {0}
         run: |               
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=ON -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
 
@@ -54,18 +54,9 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
 
-      - name: Build Python lib
-        shell: bash -l {0}
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build simcoon-python-builder/build
-          cmake --install simcoon-python-builder/build --config Release          
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
-          python -m pip install ${{github.workspace}}/python-setup
-
       - name: Python tests
         shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+        run: ctest --test-dir ${{github.workspace}}/build/simcoon-python-builder
           
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
@@ -79,7 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-Linux
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log      
 
   MacOS:
     name: MacOS
@@ -92,10 +83,10 @@ jobs:
           activate-environment: foo
           environment-file: environment_arm64.yml          
 
-      - name: Build for MacOS
+      - name: Build for MacOS (with Python bindings)
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=ON -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
 
@@ -103,18 +94,9 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
         
-      - name: Build Python lib
-        shell: bash -l {0}
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build simcoon-python-builder/build
-          cmake --install simcoon-python-builder/build --config Release                    
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
-          python -m pip install ${{github.workspace}}/python-setup
-
       - name: Python tests
         shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+        run: ctest --test-dir ${{github.workspace}}/build/simcoon-python-builder
 
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
@@ -128,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-OSX
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log                      
 
   WindowsSimcoonOnly:
     name: WindowsSimcoonOnly
@@ -141,12 +123,13 @@ jobs:
           activate-environment: foo
           environment-file: environment_win.yml    
 
-      - name: Build for Windows
+      - name: Build for Windows (C++ only)
         shell: pwsh
         run: |
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DBUILD_PYTHON_BINDINGS=OFF `
               -DUSE_CARMA=False `
               -Wno-dev
           cmake --build build --config Release
@@ -167,32 +150,20 @@ jobs:
           activate-environment: foo
           environment-file: environment_win.yml    
 
-      - name: Build for Windows
+      - name: Build for Windows (with Python bindings)
         shell: pwsh
         run: |
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DBUILD_PYTHON_BINDINGS=ON `
               -Wno-dev
           cmake --build build --config Release
           cmake --install build
 
-      - name: Build Python lib
-        shell: pwsh
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
-            -DUSE_OPENMP=False `
-            -Wno-dev
-          cmake --build simcoon-python-builder/build --config Release
-          cmake --install simcoon-python-builder/build         
-          copy ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
-          python -m pip install ${{github.workspace}}/python-setup
-
       - name: Python tests
         shell: pwsh
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build -C Release --output-on-failure -VV
+        run: ctest --test-dir build/simcoon-python-builder -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
         if: always()  # Ensure this step runs even if the tests fail
@@ -206,4 +177,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-Win
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log                      
