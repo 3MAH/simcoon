@@ -27,6 +27,7 @@ include(GNUInstallDirs)
 
 # We default to debugging mode for developers.
 option(DEBUG "Compile with debugging information" OFF)
+option(BUILD_TESTS "Build the tests" ON)
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
     set(CMAKE_BUILD_TYPE Release CACHE STRING
@@ -45,7 +46,9 @@ message(STATUS "USE_CARMA          = ${USE_CARMA}"         )
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #Setup CMake to run tests
-enable_testing()
+if(BUILD_TESTS)
+  enable_testing()
+endif()
 
 #Set executable files and library files
 set(EXECUTABLE_OUTPUT_PATH bin)
@@ -60,7 +63,30 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 
-find_package(GTest REQUIRED)
+# GTest handling - only if BUILD_TESTS is ON
+if(BUILD_TESTS)
+  find_package(GTest QUIET)
+  
+  if(NOT GTest_FOUND)
+    message(STATUS "GTest not found, fetching from GitHub...")
+    include(FetchContent)
+    
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG        release-1.12.1
+    )
+    
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    
+    FetchContent_MakeAvailable(googletest)
+    
+    # Create aliases to match find_package behavior
+    add_library(GTest::gtest ALIAS gtest)
+    add_library(GTest::gtest_main ALIAS gtest_main)
+  endif()
+endif()
 
 if (MSVC)
   if (USE_CARMA)
@@ -194,9 +220,10 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 endforeach (Exe_to_compile ${All_exe_to_compile})
 
 ##Testing
-#Test files are in a separate source directory called test
-file(GLOB_RECURSE TEST_SRCS test/*.cpp)
-file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
+if(BUILD_TESTS)
+  #Test files are in a separate source directory called test
+  file(GLOB_RECURSE TEST_SRCS test/*.cpp)
+  file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
 
 if(NOT MSVC)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
@@ -292,6 +319,8 @@ if(NOT MSVC)
             COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
   endforeach(testSrc)
 endif()
+
+endif() # BUILD_TESTS
 
 #set_property(TARGET FOR PROPERTY)
 #add_library(ABA OBJECT testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
