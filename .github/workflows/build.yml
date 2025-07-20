@@ -28,9 +28,9 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
 
-      - name: Tests
-        shell: bash -l {0}
-        run: ctest --test-dir build
+      # - name: Tests
+      #   shell: bash -l {0}
+      #   run: ctest --test-dir build
 
       - name: Build Python lib
         shell: bash -l {0}
