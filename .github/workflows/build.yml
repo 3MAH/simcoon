@@ -27,7 +27,6 @@ jobs:
         run: |               
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
-          cmake --install build --config Release
 
       - name: Tests
         shell: bash -l {0}
@@ -67,14 +66,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          brew install armadillo boost cmake ninja python3 gtest      
+          brew install armadillo boost cmake ninja python3 googletest      
 
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
-          cmake --install build --config Release
 
       - name: Tests
         shell: bash -l {0}
