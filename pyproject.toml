@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=45", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.7.0", "pybind11>=2.6.0", "numpy>=2.0.2"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
@@ -36,21 +36,19 @@ classifiers = [
 "Documentation" = "https://simcoon.readthedocs.io"
 "Source Code" = "https://github.com/3MAH/simcoon"
 
-[tool.setuptools]
-packages = ["simcoon"]
-package-dir = {"" = "python-setup"}
-
-[tool.setuptools.package-data]
-simcoon = ["*.so", "*.pyd"]
-
-[tool.setuptools.dynamic]
-version = {attr = "simcoon.__version__.__version__"}
+[tool.scikit-build]
+# Source directory for Python packages
+wheel.packages = ["python-setup"]
+# CMake options
+cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON"]
+cmake.build-type = "Release"
+# Install directory mapping
+install.components = ["python"]
+# Version discovery
+metadata.version.provider = "scikit_build_core.metadata.regex"
+metadata.version.input = "python-setup/simcoon/__version__.py"
 
 [dependency-groups]
 dev = [
-    "pip>=25.0.1",
     "pytest>=8.3.5",
-    "pybind11>=3.0.0",
-    "cmake>=4.0.3",
-    "ninja>=1.11.1.4",
 ]

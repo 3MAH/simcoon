@@ -436,28 +436,28 @@ if(BUILD_PYTHON_BINDINGS)
       
       # Add simcoon-python-builder as subdirectory
       add_subdirectory(simcoon-python-builder)
+      
+      # Set RPATH for simmit to find libsimcoon.dylib in the same directory
+      if(APPLE)
+        set_target_properties(simmit PROPERTIES
+          INSTALL_RPATH "@loader_path"
+          BUILD_WITH_INSTALL_RPATH TRUE)
+      else()
+        set_target_properties(simmit PROPERTIES
+          INSTALL_RPATH "\$ORIGIN"
+          BUILD_WITH_INSTALL_RPATH TRUE)
+      endif()
     endif()
   endif()
 endif()
 
 if(BUILD_PYTHON_BINDINGS)
+  # Install Python module and required libraries
+  install(TARGETS simmit simcoon DESTINATION simcoon COMPONENT python)
   
-  # Install Python package after building
-  if(UNIX)
-    set(PYTHON_LIB_EXTENSION ".so")
-  else()
-    set(PYTHON_LIB_EXTENSION ".pyd")
-  endif()
-  
-  # Custom target to copy the Python library and install the package
-  add_custom_target(install_python_package ALL
-    DEPENDS simmit
-    COMMAND ${CMAKE_COMMAND} -E copy 
-      ${CMAKE_CURRENT_BINARY_DIR}/lib/simmit${PYTHON_LIB_EXTENSION}
-      ${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/simmit${PYTHON_LIB_EXTENSION}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}
-      ${PIP_COMMAND} install .
-    COMMENT "Installing Python package"
-  )
-  
+  # Install Python package files
+  install(DIRECTORY python-setup/simcoon/ 
+          DESTINATION simcoon 
+          COMPONENT python
+          FILES_MATCHING PATTERN "*.py")
 endif()
