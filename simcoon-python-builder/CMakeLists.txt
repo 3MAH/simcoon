@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.15)
 
 project(simcoon)
 
+# Set C++ standard to 20 for consistency with main project
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 #set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # The version number
@@ -61,7 +65,7 @@ if (MSVC)
 else()
   find_package(pybind11 REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
+  # carma is provided by parent project
 endif()
 
 if (NOT DEFINED USE_OPENMP)
@@ -71,7 +75,7 @@ endif()
 if (USE_OPENMP)
   find_package(OpenMP)
 endif()
-find_package(simcoon REQUIRED)
+# simcoon is provided by parent project when built as subdirectory
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
@@ -164,6 +168,9 @@ else()
 endif()
 #link against simcoon (C++ lib) and carma
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
+
+# Ensure C++20 for consistency with main project
+target_compile_features(simmit PRIVATE cxx_std_20)
 
 
 #Setup CMake to run tests

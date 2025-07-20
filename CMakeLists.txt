@@ -6,12 +6,10 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Ensure Python finds `simcoon` in the correct location
-execute_process(
-    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
-    OUTPUT_VARIABLE PROJECT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Read project version directly from version file
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/__version__.py" VERSION_FILE_CONTENT)
+string(REGEX MATCH "__version__ = \"([^\"]+)\"" VERSION_MATCH "${VERSION_FILE_CONTENT}")
+set(PROJECT_VERSION "${CMAKE_MATCH_1}")
 
 # Print and set the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
@@ -28,6 +26,7 @@ include(GNUInstallDirs)
 # We default to debugging mode for developers.
 option(DEBUG "Compile with debugging information" OFF)
 option(BUILD_TESTS "Build the tests" ON)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
     set(CMAKE_BUILD_TYPE Release CACHE STRING
@@ -351,3 +350,114 @@ message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
 install(TARGETS simcoon)
+
+################################################################################
+# PYTHON BINDINGS CONFIGURATION
+
+if(BUILD_PYTHON_BINDINGS)
+  message(STATUS "Building Python bindings...")
+  
+  # Find Python dependencies for bindings
+  find_package(Python3 COMPONENTS Interpreter Development QUIET)
+  if(NOT Python3_FOUND)
+    message(WARNING "Python3 not found. Python bindings will be disabled.")
+    set(BUILD_PYTHON_BINDINGS OFF)
+  else()
+    message(STATUS "Python3 found: ${Python3_EXECUTABLE}")
+    
+    # Try to find pybind11, first with standard search
+    find_package(pybind11 QUIET)
+    if(NOT pybind11_FOUND)
+      message(STATUS "pybind11 not found in standard locations, trying to locate via Python...")
+      
+      # Try to get pybind11 cmake directory from Python
+      execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import pybind11; print(pybind11.get_cmake_dir())"
+        OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE PYBIND11_PYTHON_RESULT
+      )
+      
+      if(PYBIND11_PYTHON_RESULT EQUAL 0 AND PYBIND11_CMAKE_DIR)
+        message(STATUS "Found pybind11 cmake directory via Python: ${PYBIND11_CMAKE_DIR}")
+        
+        # Add to CMAKE_PREFIX_PATH and try again
+        list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
+        find_package(pybind11 QUIET)
+        
+        if(pybind11_FOUND)
+          message(STATUS "pybind11 found via Python detection")
+        else()
+          message(WARNING "pybind11 cmake directory found but package not loaded correctly")
+          set(BUILD_PYTHON_BINDINGS OFF)
+        endif()
+      else()
+        message(WARNING "pybind11 not found. Python bindings require pybind11.")
+        message(STATUS "Please install: pip install pybind11")
+        set(BUILD_PYTHON_BINDINGS OFF)
+      endif()
+    else()
+      message(STATUS "pybind11 found")
+    endif()
+    
+    # If pybind11 was found (either way), set up the rest
+    if(pybind11_FOUND)
+      # Determine pip command based on Python environment
+      string(FIND "${Python3_EXECUTABLE}" ".venv" UV_DETECTED)
+      if(UV_DETECTED GREATER -1)
+        set(PIP_COMMAND "uv" "pip")
+        message(STATUS "Detected uv environment, using 'uv pip'")
+      else()
+        set(PIP_COMMAND "${Python3_EXECUTABLE}" "-m" "pip")
+        message(STATUS "Using standard pip")
+      endif()
+      
+      # Try to find carma, if not found, clone it
+      find_package(carma CONFIG QUIET)
+      if(NOT carma_FOUND)
+        message(STATUS "carma not found, fetching from GitHub...")
+        include(FetchContent)
+        
+        FetchContent_Declare(
+          carma
+          GIT_REPOSITORY https://github.com/RUrlus/carma.git
+          GIT_TAG        v0.8.0
+        )
+        
+        FetchContent_MakeAvailable(carma)
+        message(STATUS "carma fetched and configured")
+      else()
+        message(STATUS "carma found")
+      endif()
+      
+      # Set variables for simcoon-python-builder
+      set(SIMCOON_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include)
+      set(SIMCOON_LIBRARIES simcoon)
+      
+      # Add simcoon-python-builder as subdirectory
+      add_subdirectory(simcoon-python-builder)
+    endif()
+  endif()
+endif()
+
+if(BUILD_PYTHON_BINDINGS)
+  
+  # Install Python package after building
+  if(UNIX)
+    set(PYTHON_LIB_EXTENSION ".so")
+  else()
+    set(PYTHON_LIB_EXTENSION ".pyd")
+  endif()
+  
+  # Custom target to copy the Python library and install the package
+  add_custom_target(install_python_package ALL
+    DEPENDS simmit
+    COMMAND ${CMAKE_COMMAND} -E copy 
+      ${CMAKE_CURRENT_BINARY_DIR}/lib/simmit${PYTHON_LIB_EXTENSION}
+      ${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/simmit${PYTHON_LIB_EXTENSION}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}/python-setup
+      ${PIP_COMMAND} install .
+    COMMENT "Installing Python package"
+  )
+  
+endif()
