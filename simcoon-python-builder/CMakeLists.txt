@@ -48,6 +48,14 @@ elseif(UNIX)
         BUILD_WITH_INSTALL_RPATH TRUE)
 endif()
 
+if(MSVC)
+    # Copy simcoon.dll to the same directory as simmit.pyd
+    add_custom_command(TARGET simmit POST_BUILD 
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:simcoon>
+        $<TARGET_FILE_DIR:simmit>)
+endif()
+
 # Testing
 if(BUILD_TESTS)
     # Check if test file exists
