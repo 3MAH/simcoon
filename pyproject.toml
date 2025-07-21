@@ -1,20 +1,16 @@
 [build-system]
-requires = ["scikit-build-core>=0.7.0", "pybind11>=2.6.0", "numpy>=2.0.2"]
+requires = ["scikit-build-core>=0.11.5", "pybind11>=3.0.0", "numpy>=2.0.2"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
-dynamic = ["version"]
+version = "1.9.7"
 description = "Simulation in Mechanics and Materials: Interactive Tools"
-authors = [
-    {name = "Yves Chemisky", email = "yves.chemisky@gmail.com"}
-]
-license = {text = "GPL"}
+authors = [{ name = "Yves Chemisky", email = "yves.chemisky@gmail.com" }]
+license = { text = "GPL" }
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
-    "numpy>=2.0.2",
-]
+dependencies = ["numpy>=2.0.2"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -44,11 +40,6 @@ cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON"]
 cmake.build-type = "Release"
 # Install directory mapping
 install.components = ["python"]
-# Version discovery
-metadata.version.provider = "scikit_build_core.metadata.regex"
-metadata.version.input = "python-setup/simcoon/__version__.py"
 
 [dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-]
+dev = ["pytest>=8.3.5"]

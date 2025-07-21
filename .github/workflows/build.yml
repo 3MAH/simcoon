@@ -1,88 +1,63 @@
 name: Build python package
-#build and test on the three OS
 
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
-        
-  Linux:
-    name: Linux
-    runs-on: "ubuntu-latest"
-    steps:
-    
-      - uses: actions/checkout@v4
-      
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install
-      
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-armadillo-boost
-          restore-keys: |
-            ${{ runner.os }}-apt-
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            sys-package-cache-path: /var/cache/apt/archives
+            sys-package-install-command: >
+              sudo apt-get update &&
+              sudo apt-get install -y libarmadillo-dev libboost-dev
+          - os: macos-latest
+            sys-package-cache-path: ~/Library/Caches/Homebrew
+            sys-package-install-command: brew install armadillo boost googletest
+          - os: windows-latest
+            sys-package-cache-path: C:\vcpkg\installed
+            sys-package-install-command: |
+              vcpkg install armadillo:x64-windows boost:x64-windows
+            setup-env-command: |
+              echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+              echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
 
-      - run: sudo apt update && sudo apt install -y libarmadillo-dev libboost-dev
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}
 
-      - run: uv sync --locked --all-extras --dev
-
-      - run: uv run pytest   
-
-  MacOS:
-    name: MacOS
-    runs-on: "macos-latest"
     steps:
       - uses: actions/checkout@v4
-      
-      - uses: astral-sh/setup-uv@v6
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
       - run: uv python install
 
-      - name: Cache Homebrew packages
+      - name: Cache system packages
         uses: actions/cache@v4
         with:
-          path: ~/Library/Caches/Homebrew
-          key: ${{ runner.os }}-brew-armadillo-boost-gtest
+          path: ${{ matrix.sys-package-cache-path }}
+          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/**') }}
           restore-keys: |
-            ${{ runner.os }}-brew-
+            ${{ runner.os }}-sys-packages-
 
-      - run: brew install armadillo boost googletest
+      - name: Install system dependencies
+        run: ${{ matrix.sys-package-install-command }}
 
-      - run: uv sync --locked --all-extras --dev
+      - name: Setup environment (Windows only)
+        if: runner.os == 'Windows'
+        run: ${{ matrix.setup-env-command }}
 
-      - run: uv run pytest
+      - name: Install Python dependencies
+        run: uv sync --locked --all-extras --dev
 
-  Windows:
-    name: Windows
-    runs-on: "windows-latest"
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: astral-sh/setup-uv@v6
-      - run: uv python install
-
-      - name: Cache vcpkg
-        uses: actions/cache@v4
-        with:
-          path: C:\vcpkg\installed
-          key: ${{ runner.os }}-vcpkg-armadillo-boost
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-
-
-      - name: Install dependencies with vcpkg
-        run: |
-          vcpkg install armadillo:x64-windows boost:x64-windows
-          
-      - name: Set environment variables
-        run: |
-          echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
-          echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-
-      - run: uv sync --locked --all-extras --dev
-
-      - run: uv run pytest
+      - name: Run tests
+        run: uv run pytest
