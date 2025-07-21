@@ -25,7 +25,7 @@ jobs:
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: |
-              vcpkg install armadillo:x64-windows boost:x64-windows
+              vcpkg install armadillo:x64-windows boost-config:x64-windows boost-dll:x64-windows
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
@@ -45,7 +45,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.sys-package-cache-path }}
-          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/**') }}
+          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/build.yml') }}
           restore-keys: |
             ${{ runner.os }}-sys-packages-
 
