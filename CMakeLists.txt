@@ -95,7 +95,7 @@ if(BUILD_TESTS)
         FetchContent_Declare(
             googletest
             GIT_REPOSITORY https://github.com/google/googletest.git
-            GIT_TAG release-1.12.1
+            GIT_TAG release-1.17.0
         )
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
         FetchContent_MakeAvailable(googletest)
@@ -203,9 +203,23 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(TARGETS simcoon)
 
 if(BUILD_PYTHON_BINDINGS)
-    install(TARGETS simmit simcoon ${EXECUTABLES} 
-        DESTINATION simcoon 
-        COMPONENT python)
+    if(WIN32)
+        install(TARGETS simmit 
+            RUNTIME DESTINATION simcoon 
+            LIBRARY DESTINATION simcoon
+            COMPONENT python)
+        install(TARGETS simcoon
+            RUNTIME DESTINATION simcoon 
+            COMPONENT python)
+        install(TARGETS ${EXECUTABLES}
+            RUNTIME DESTINATION simcoon 
+            COMPONENT python)
+    else()
+        install(TARGETS simmit simcoon ${EXECUTABLES} 
+            DESTINATION simcoon 
+            COMPONENT python)
+    endif()
+    
     install(DIRECTORY python-setup/simcoon/ 
         DESTINATION simcoon 
         COMPONENT python

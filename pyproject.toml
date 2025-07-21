@@ -40,6 +40,8 @@ cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON"]
 cmake.build-type = "Release"
 # Install directory mapping
 install.components = ["python"]
+build-dir = "build"
+
 
 [dependency-groups]
 dev = ["pytest>=8.3.5"]
