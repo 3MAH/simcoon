@@ -204,6 +204,7 @@ install(TARGETS simcoon)
 
 if(BUILD_PYTHON_BINDINGS)
     if(WIN32)
+        # Install the main Python module and simcoon.dll
         install(TARGETS simmit 
             RUNTIME DESTINATION simcoon 
             LIBRARY DESTINATION simcoon
@@ -214,6 +215,49 @@ if(BUILD_PYTHON_BINDINGS)
         install(TARGETS ${EXECUTABLES}
             RUNTIME DESTINATION simcoon 
             COMPONENT python)
+            
+        # Find and install required runtime DLLs for Windows
+        # This works for both single-config and multi-config generators
+        set(REQUIRED_DLL_NAMES
+            "openblas.dll"  # required by simmit.pyd
+            "liblapack.dll"  # required by simmit.pyd
+            "libgcc_s_seh-1.dll"  # required by liblapack.dll
+            "libgfortran-5.dll"  # required by liblapack.dll
+            "libquadmath-0.dll"  # required by libgfortran.dll
+            "libwinpthread-1.dll"  # required by libgfortran.dll
+        )
+        
+        # Search in multiple possible locations
+        set(SEARCH_PATHS
+            "${CMAKE_BINARY_DIR}/bin"
+            "${CMAKE_BINARY_DIR}/bin/Release"
+            "${CMAKE_BINARY_DIR}/bin/Debug"
+            "${CMAKE_BINARY_DIR}/Release"
+            "${CMAKE_BINARY_DIR}/Debug"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE}"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG}"
+        )
+        
+        foreach(DLL_NAME ${REQUIRED_DLL_NAMES})
+            set(DLL_FOUND FALSE)
+            foreach(SEARCH_PATH ${SEARCH_PATHS})
+                if(EXISTS "${SEARCH_PATH}/${DLL_NAME}")
+                    install(FILES "${SEARCH_PATH}/${DLL_NAME}"
+                        DESTINATION simcoon
+                        COMPONENT python)
+                    message(STATUS "Found ${DLL_NAME} in ${SEARCH_PATH}")
+                    set(DLL_FOUND TRUE)
+                    break()
+                endif()
+            endforeach()
+            
+            if(NOT DLL_FOUND)
+                message(WARNING "Required DLL not found: ${DLL_NAME}")
+                message(STATUS "Searched in: ${SEARCH_PATHS}")
+            endif()
+        endforeach()
+        
     else()
         install(TARGETS simmit simcoon ${EXECUTABLES} 
             DESTINATION simcoon 

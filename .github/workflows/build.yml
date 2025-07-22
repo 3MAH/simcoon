@@ -57,7 +57,7 @@ jobs:
         run: ${{ matrix.setup-env-command }}
 
       - name: Install Python dependencies
-        run: uv sync --locked --all-extras --dev
+        run: uv sync --locked --all-extras --dev --verbose
 
       - name: Run tests
         run: uv run pytest
