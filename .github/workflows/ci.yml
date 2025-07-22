@@ -4,36 +4,35 @@ name: Build & Test
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   # build-linux:
   #   runs-on: ubuntu-latest
   #   steps:
   #   - uses: actions/checkout@v4
-    
+
   #   - name: Build Ubuntu
   #     shell: bash -l {0}
-  #     run: | 
+  #     run: |
   #       sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
   #       cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
   #       cmake --build ${{github.workspace}}/build
   #       ctest --test-dir ${{github.workspace}}/build
-        
+
   Linux:
     name: Linux
     runs-on: "ubuntu-latest"
     steps:
-    
       - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.12"          
-          environment-file: environment.yml     
+          python-version: "3.12"
+          environment-file: environment.yml
           channels: conda-forge,set3mah
 
       - name: Prepare conda environment
@@ -41,11 +40,11 @@ jobs:
         run: |
           conda config --env --add channels conda-forge
           conda config --env --add channels set3mah          
-          conda config --env --set channel_priority strict                
+          conda config --env --set channel_priority strict
 
       - name: Build for Linux (with Python bindings)
         shell: bash -l {0}
-        run: |               
+        run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=ON -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
@@ -57,31 +56,39 @@ jobs:
       - name: Python tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build/simcoon-python-builder
-          
+
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Linux
-          path: build/Testing/Temporary/LastTest.log   
+          path: build/Testing/Temporary/LastTest.log
 
       - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-Linux
-          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log
 
   MacOS:
     name: MacOS
     runs-on: "macos-latest"
     steps:
       - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_arm64.yml          
+          environment-file: environment_arm64.yml
+          channels: conda-forge,set3mah
+
+      - name: Prepare conda environment
+        shell: bash -l {0}
+        run: |
+          conda config --env --add channels conda-forge
+          conda config --env --add channels set3mah          
+          conda config --env --set channel_priority strict
 
       - name: Build for MacOS (with Python bindings)
         shell: bash -l {0}
@@ -93,35 +100,35 @@ jobs:
       - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build
-        
+
       - name: Python tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build/simcoon-python-builder
 
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-OSX
-          path: build/Testing/Temporary/LastTest.log       
+          path: build/Testing/Temporary/LastTest.log
 
       - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-OSX
-          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log                      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log
 
   WindowsSimcoonOnly:
     name: WindowsSimcoonOnly
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_win.yml    
+          environment-file: environment_win.yml
 
       - name: Build for Windows (C++ only)
         shell: pwsh
@@ -142,12 +149,12 @@ jobs:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_win.yml    
+          environment-file: environment_win.yml
 
       - name: Build for Windows (with Python bindings)
         shell: pwsh
@@ -165,15 +172,15 @@ jobs:
         run: ctest --test-dir build/simcoon-python-builder -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Win
-          path: build/Testing/Temporary/LastTest.log        
+          path: build/Testing/Temporary/LastTest.log
 
       - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Python-Win
-          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log                      
+          path: build/simcoon-python-builder/Testing/Temporary/LastTest.log
