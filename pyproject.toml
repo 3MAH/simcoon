@@ -42,6 +42,37 @@ cmake.build-type = "Release"
 install.components = ["python"]
 build-dir = "build"
 
-
 [dependency-groups]
 dev = ["pytest>=8.3.5"]
+
+[tool.cibuildwheel]
+# Build for Python 3.9-3.13 on all platforms
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+
+# Skip 32-bit builds and PyPy
+skip = "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
+
+# Test the built wheels
+test-requires = ["pytest>=8.3.5"]
+test-command = "pytest {project}/tests"
+
+# Build verbosity
+build-verbosity = 1
+
+[tool.cibuildwheel.linux]
+# Use manylinux2014 for broader compatibility
+archs = ["x86_64", "aarch64"]
+before-all = [
+    "yum update -y",
+    "yum install -y epel-release",
+    "yum install -y armadillo-devel boost-devel cmake3 gcc-c++",
+]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+before-all = ["brew install armadillo boost"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+before-all = "vcpkg install armadillo:x64-windows boost-config:x64-windows boost-dll:x64-windows boost-filesystem:x64-windows boost-system:x64-windows"
+environment = { VCPKG_ROOT = "C:/vcpkg", CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }

@@ -30,6 +30,7 @@
 #include <memory>
 #define BOOST_DLL_USE_STD_FS  // Forces Boost.DLL to use std::filesystem
 #include <boost/dll.hpp>
+#include <boost/version.hpp>
 #include <filesystem>
 
 #include <simcoon/parameter.hpp>
@@ -84,6 +85,13 @@
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
+
+// Define a macro for version compatibility
+#if BOOST_VERSION >= 107600  // Boost 1.76.0 and later
+    #define BOOST_DLL_IMPORT_SYMBOL boost::dll::import_symbol
+#else
+    #define BOOST_DLL_IMPORT_SYMBOL boost::dll::import
+#endif
 
 using namespace std;
 using namespace arma;
@@ -779,7 +787,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
-            auto external_umat = boost::dll::import_symbol<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
+            auto external_umat = BOOST_DLL_IMPORT_SYMBOL<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
                 boost_lib_path,  // Path to the library and library name
                 "external_umat",               // Name of the symbol to import
                 boost::dll::load_mode::append_decorations  // Handles platform-specific library name decorations
@@ -793,7 +801,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             //
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
-            auto abaqus_umat = boost::dll::import_symbol<umat_plugin_aba_api>(boost_lib_path,
+            auto abaqus_umat = BOOST_DLL_IMPORT_SYMBOL<umat_plugin_aba_api>(boost_lib_path,
                 "abaqus_umat", 
                 boost::dll::load_mode::append_decorations
             );
