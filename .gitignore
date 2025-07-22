@@ -1,2 +1,12 @@
 
 .DS_Store
+
+*.exe
+*.dll
+*.pdb
+*.lib
+*.exp
+*.pyd
+
+**/__pycache__/
+build/
