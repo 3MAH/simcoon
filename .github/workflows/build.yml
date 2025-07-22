@@ -59,5 +59,11 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --locked --all-extras --dev --verbose
 
+      - run: ls .venv/Lib/site-packages/simcoon/
+      - run: ls build/
+      - run: ls build/bin/
+
+      - run: cp build/bin/* .venv/Lib/site-packages/simcoon/
+
       - name: Run tests
         run: uv run pytest

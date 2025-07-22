@@ -36,7 +36,7 @@ classifiers = [
 # Source directory for Python packages
 wheel.packages = ["python-setup"]
 # CMake options
-cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON"]
+cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON", "-DBUILD_TESTS=OFF"]
 cmake.build-type = "Release"
 # Install directory mapping
 install.components = ["python"]
