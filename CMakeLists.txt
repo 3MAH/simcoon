@@ -1,6 +1,6 @@
 # Main CMakeLists.txt
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.21)
 project(simcoon LANGUAGES C CXX)
 
 # Project version from version file
@@ -202,70 +202,23 @@ include(GNUInstallDirs)
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(TARGETS simcoon)
 
-# Replace your DLL installation section in main CMakeLists.txt with this:
-
 if(BUILD_PYTHON_BINDINGS)
     if(WIN32)
-        # Install the main Python module and simcoon.dll
-        install(TARGETS simmit 
-            RUNTIME DESTINATION simcoon 
-            LIBRARY DESTINATION simcoon
+        install(TARGETS simmit simcoon ${EXECUTABLES}
+            DESTINATION simcoon 
             COMPONENT python)
-        install(TARGETS simcoon
-            RUNTIME DESTINATION simcoon 
-            COMPONENT python)
-        install(TARGETS ${EXECUTABLES}
-            RUNTIME DESTINATION simcoon 
-            COMPONENT python)
-            
-        # Install required runtime DLLs using install-time code execution
-        install(CODE "
-            set(REQUIRED_DLL_NAMES
-                \"openblas.dll\"
-                \"liblapack.dll\"
-                \"libgcc_s_seh-1.dll\"
-                \"libgfortran-5.dll\"
-                \"libquadmath-0.dll\"
-                \"libwinpthread-1.dll\"
-            )
-            
-            # Search paths - these will be evaluated at install time
-            set(SEARCH_PATHS
-                \"${CMAKE_BINARY_DIR}/bin\"
-                \"${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\"
-            )
-            
-            message(STATUS \"Installing required DLLs at install time...\")
-            
-            foreach(DLL_NAME \${REQUIRED_DLL_NAMES})
-                set(DLL_FOUND FALSE)
-                foreach(SEARCH_PATH \${SEARCH_PATHS})
-                    # Use file(GLOB) to find the DLL at install time
-                    file(GLOB DLL_MATCHES \"\${SEARCH_PATH}/\${DLL_NAME}\")
-                    if(DLL_MATCHES)
-                        list(GET DLL_MATCHES 0 DLL_PATH)
-                        message(STATUS \"Installing \${DLL_NAME} from \${DLL_PATH}\")
-                        file(INSTALL \"\${DLL_PATH}\" 
-                             DESTINATION \"\${CMAKE_INSTALL_PREFIX}/simcoon\"
-                             USE_SOURCE_PERMISSIONS)
-                        set(DLL_FOUND TRUE)
-                        break()
-                    endif()
-                endforeach()
-                
-                if(NOT DLL_FOUND)
-                    message(WARNING \"Required DLL not found at install time: \${DLL_NAME}\")
-                    message(STATUS \"Searched in: \${SEARCH_PATHS}\")
-                    # Debug: List what files are actually in the bin directory
-                    file(GLOB BIN_CONTENTS \"${CMAKE_BINARY_DIR}/bin/*.dll\")
-                    message(STATUS \"DLLs found in bin directory:\")
-                    foreach(dll_file \${BIN_CONTENTS})
-                        message(STATUS \"  \${dll_file}\")
-                    endforeach()
-                endif()
-            endforeach()
-        " COMPONENT python)
-            
+        
+        # Only search in bin directory to avoid conflicts
+        set(REQUIRED_DLLS
+            openblas.dll liblapack.dll libgcc_s_seh-1.dll 
+            libgfortran-5.dll libquadmath-0.dll libwinpthread-1.dll)
+        
+        foreach(dll ${REQUIRED_DLLS})
+            install(FILES ${CMAKE_BINARY_DIR}/bin/${dll}
+                DESTINATION simcoon
+                COMPONENT python
+                OPTIONAL)
+        endforeach()
     else()
         install(TARGETS simmit simcoon ${EXECUTABLES} 
             DESTINATION simcoon 
@@ -277,3 +230,78 @@ if(BUILD_PYTHON_BINDINGS)
         COMPONENT python
         FILES_MATCHING PATTERN "*.py")
 endif()
+
+
+# if(BUILD_PYTHON_BINDINGS)
+#     if(WIN32)
+#         # Install the main Python module and simcoon.dll
+#         install(TARGETS simmit 
+#             RUNTIME DESTINATION simcoon 
+#             LIBRARY DESTINATION simcoon
+#             COMPONENT python)
+#         install(TARGETS simcoon
+#             RUNTIME DESTINATION simcoon 
+#             COMPONENT python)
+#         install(TARGETS ${EXECUTABLES}
+#             RUNTIME DESTINATION simcoon 
+#             COMPONENT python)
+            
+#         # Install required runtime DLLs using install-time code execution
+#         install(CODE "
+#             set(REQUIRED_DLL_NAMES
+#                 \"openblas.dll\"
+#                 \"liblapack.dll\"
+#                 \"libgcc_s_seh-1.dll\"
+#                 \"libgfortran-5.dll\"
+#                 \"libquadmath-0.dll\"
+#                 \"libwinpthread-1.dll\"
+#             )
+            
+#             # Search paths - these will be evaluated at install time
+#             set(SEARCH_PATHS
+#                 \"${CMAKE_BINARY_DIR}/bin\"
+#                 \"${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\"
+#             )
+            
+#             message(STATUS \"Installing required DLLs at install time...\")
+            
+#             foreach(DLL_NAME \${REQUIRED_DLL_NAMES})
+#                 set(DLL_FOUND FALSE)
+#                 foreach(SEARCH_PATH \${SEARCH_PATHS})
+#                     # Use file(GLOB) to find the DLL at install time
+#                     file(GLOB DLL_MATCHES \"\${SEARCH_PATH}/\${DLL_NAME}\")
+#                     if(DLL_MATCHES)
+#                         list(GET DLL_MATCHES 0 DLL_PATH)
+#                         message(STATUS \"Installing \${DLL_NAME} from \${DLL_PATH}\")
+#                         file(INSTALL \"\${DLL_PATH}\" 
+#                              DESTINATION \"\${CMAKE_INSTALL_PREFIX}/simcoon\"
+#                              USE_SOURCE_PERMISSIONS)
+#                         set(DLL_FOUND TRUE)
+#                         break()
+#                     endif()
+#                 endforeach()
+                
+#                 if(NOT DLL_FOUND)
+#                     message(WARNING \"Required DLL not found at install time: \${DLL_NAME}\")
+#                     message(STATUS \"Searched in: \${SEARCH_PATHS}\")
+#                     # Debug: List what files are actually in the bin directory
+#                     file(GLOB BIN_CONTENTS \"${CMAKE_BINARY_DIR}/bin/*.dll\")
+#                     message(STATUS \"DLLs found in bin directory:\")
+#                     foreach(dll_file \${BIN_CONTENTS})
+#                         message(STATUS \"  \${dll_file}\")
+#                     endforeach()
+#                 endif()
+#             endforeach()
+#         " COMPONENT python)
+            
+#     else()
+#         install(TARGETS simmit simcoon ${EXECUTABLES} 
+#             DESTINATION simcoon 
+#             COMPONENT python)
+#     endif()
+    
+#     install(DIRECTORY python-setup/simcoon/ 
+#         DESTINATION simcoon 
+#         COMPONENT python
+#         FILES_MATCHING PATTERN "*.py")
+# endif()
