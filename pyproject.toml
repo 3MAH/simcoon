@@ -46,7 +46,7 @@ build-dir = "build"
 dev = ["pytest>=8.3.5"]
 
 [tool.cibuildwheel]
-build-frontend = "build[uv]"
+# build-frontend = "build[uv]"
 # Build for Python 3.9-3.13 on all platforms
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 
