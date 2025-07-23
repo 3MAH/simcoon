@@ -92,11 +92,11 @@ before-all = [
     "find /usr -name '*boost_filesystem*' 2>/dev/null",
     "find /usr -name '*boost_system*' 2>/dev/null",
     
-    # Debug: What CMake can find
+    # Debug: What CMake can find (fixed escaping)
     "echo '=== CMake Boost detection test ==='",
     "cd /tmp && echo 'find_package(Boost REQUIRED COMPONENTS filesystem system)' > test.cmake",
-    "cd /tmp && echo 'message(STATUS \"Boost found: \${Boost_FOUND}\")' >> test.cmake", 
-    "cd /tmp && echo 'message(STATUS \"Boost libraries: \${Boost_LIBRARIES}\")' >> test.cmake",
+    "cd /tmp && echo 'message(STATUS \"Boost found: \\${Boost_FOUND}\")' >> test.cmake", 
+    "cd /tmp && echo 'message(STATUS \"Boost libraries: \\${Boost_LIBRARIES}\")' >> test.cmake",
     "cd /tmp && cmake3 -P test.cmake || true",
 ]
 
