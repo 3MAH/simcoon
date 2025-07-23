@@ -3,22 +3,6 @@
 cmake_minimum_required(VERSION 3.21)
 project(simcoon LANGUAGES C CXX)
 
-# if(APPLE)
-#     # Set deployment target to match Homebrew dependencies (macOS 15.0)
-#     if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
-#         set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum macOS deployment version")
-#     endif()
-    
-#     # Ensure we're building universal binaries compatible with the target
-#     if(CMAKE_OSX_ARCHITECTURES)
-#         message(STATUS "Building for architectures: ${CMAKE_OSX_ARCHITECTURES}")
-#     endif()
-    
-#     # Set RPATH for better compatibility
-#     set(CMAKE_MACOSX_RPATH ON)
-#     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-# endif()
-
 # Project version from version file
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/__version__.py" VERSION_FILE)
 string(REGEX MATCH "__version__ = \"([^\"]+)\"" _ "${VERSION_FILE}")
@@ -70,7 +54,50 @@ endif()
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
-find_package(Boost 1.57.0)
+
+# Boost detection - Linux-specific fix for manylinux environments
+if(UNIX AND NOT APPLE)
+    # Linux: Use manual detection for manylinux compatibility
+    message(STATUS "Linux detected: Using manual Boost detection for manylinux compatibility")
+    
+    # Check if we're in a manylinux environment (has the specific library paths)
+    if(EXISTS "/usr/lib64/libboost_filesystem.so" AND EXISTS "/usr/lib64/libboost_system.so")
+        # Direct linking for manylinux
+        set(Boost_FOUND TRUE)
+        set(Boost_INCLUDE_DIRS /usr/include)
+        set(Boost_LIBRARIES /usr/lib64/libboost_filesystem.so /usr/lib64/libboost_system.so)
+        message(STATUS "Using direct Boost linking for manylinux:")
+        message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${Boost_LIBRARIES}")
+    else()
+        # Standard Linux detection
+        find_package(Boost 1.57.0 COMPONENTS filesystem system)
+        if(NOT Boost_FOUND)
+            # Fallback manual detection
+            find_path(Boost_INCLUDE_DIR 
+                NAMES boost/version.hpp
+                PATHS /usr/include /usr/local/include)
+            find_library(Boost_FILESYSTEM_LIBRARY 
+                NAMES boost_filesystem
+                PATHS /usr/lib64 /usr/lib /usr/local/lib)
+            find_library(Boost_SYSTEM_LIBRARY 
+                NAMES boost_system  
+                PATHS /usr/lib64 /usr/lib /usr/local/lib)
+            
+            if(Boost_INCLUDE_DIR AND Boost_FILESYSTEM_LIBRARY AND Boost_SYSTEM_LIBRARY)
+                set(Boost_FOUND TRUE)
+                set(Boost_LIBRARIES ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
+                set(Boost_INCLUDE_DIRS ${Boost_INCLUDE_DIR})
+                message(STATUS "Manual Boost detection successful")
+            else()
+                message(FATAL_ERROR "Could not find Boost libraries on Linux")
+            endif()
+        endif()
+    endif()
+else()
+    # Windows and macOS: Use standard detection (already working)
+    find_package(Boost 1.57.0)
+endif()
 
 # Include directories
 include_directories(include)
@@ -82,7 +109,19 @@ endif()
 # Main library
 file(GLOB_RECURSE source_files src*/* include/*)
 add_library(simcoon SHARED ${source_files})
-target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
+
+# Link libraries - include Boost on Linux, optional on other platforms
+if(UNIX AND NOT APPLE)
+    # Linux: Always link Boost libraries
+    target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
+else()
+    # Windows/macOS: Original logic
+    target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
+    if(Boost_FOUND)
+        target_link_libraries(simcoon ${Boost_LIBRARIES})
+    endif()
+endif()
+
 if(MSVC)
     target_link_libraries(simcoon ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
     if(BUILD_PYTHON_BINDINGS)
@@ -90,12 +129,23 @@ if(MSVC)
     endif()
 endif()
 
-
 # Executables with proper RPATH configuration
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
 foreach(exe ${EXECUTABLES})
     add_executable(${exe} software/${exe}.cpp)
-    target_link_libraries(${exe} simcoon ${ARMADILLO_LIBRARIES})
+    
+    # Link libraries - include Boost on Linux
+    if(UNIX AND NOT APPLE)
+        # Linux: Always link Boost libraries
+        target_link_libraries(${exe} simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
+    else()
+        # Windows/macOS: Original logic
+        target_link_libraries(${exe} simcoon ${ARMADILLO_LIBRARIES})
+        if(Boost_FOUND)
+            target_link_libraries(${exe} ${Boost_LIBRARIES})
+        endif()
+    endif()
+    
     if(NOT WIN32)
         target_link_libraries(${exe} -ldl)
     endif()
@@ -141,11 +191,24 @@ if(BUILD_TESTS)
         set_target_properties(umat_plugin_aba PROPERTIES 
             PREFIX "" SUFFIX "" 
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-        target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
+        
+        # Link with Boost on Linux
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
+        else()
+            target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
+        endif()
     endif()
     
     add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
+    
+    # Link with Boost on Linux
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
+    else()
+        target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
+    endif()
+    
     if(MSVC)
         set_target_properties(umat_plugin_ext PROPERTIES 
             PREFIX "" 
@@ -166,7 +229,13 @@ if(BUILD_TESTS)
         get_filename_component(testFolder ${testRel} DIRECTORY)
         
         add_executable(${testName} ${testSrc})
-        target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+        
+        # Link with Boost on Linux
+        if(UNIX AND NOT APPLE)
+            target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES} GTest::gtest GTest::gtest_main)
+        else()
+            target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
+        endif()
         
         set_target_properties(${testName} PROPERTIES 
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
@@ -260,78 +329,3 @@ if(BUILD_PYTHON_BINDINGS)
         COMPONENT python
         FILES_MATCHING PATTERN "*.py")
 endif()
-
-
-# if(BUILD_PYTHON_BINDINGS)
-#     if(WIN32)
-#         # Install the main Python module and simcoon.dll
-#         install(TARGETS simmit 
-#             RUNTIME DESTINATION simcoon 
-#             LIBRARY DESTINATION simcoon
-#             COMPONENT python)
-#         install(TARGETS simcoon
-#             RUNTIME DESTINATION simcoon 
-#             COMPONENT python)
-#         install(TARGETS ${EXECUTABLES}
-#             RUNTIME DESTINATION simcoon 
-#             COMPONENT python)
-            
-#         # Install required runtime DLLs using install-time code execution
-#         install(CODE "
-#             set(REQUIRED_DLL_NAMES
-#                 \"openblas.dll\"
-#                 \"liblapack.dll\"
-#                 \"libgcc_s_seh-1.dll\"
-#                 \"libgfortran-5.dll\"
-#                 \"libquadmath-0.dll\"
-#                 \"libwinpthread-1.dll\"
-#             )
-            
-#             # Search paths - these will be evaluated at install time
-#             set(SEARCH_PATHS
-#                 \"${CMAKE_BINARY_DIR}/bin\"
-#                 \"${CMAKE_RUNTIME_OUTPUT_DIRECTORY}\"
-#             )
-            
-#             message(STATUS \"Installing required DLLs at install time...\")
-            
-#             foreach(DLL_NAME \${REQUIRED_DLL_NAMES})
-#                 set(DLL_FOUND FALSE)
-#                 foreach(SEARCH_PATH \${SEARCH_PATHS})
-#                     # Use file(GLOB) to find the DLL at install time
-#                     file(GLOB DLL_MATCHES \"\${SEARCH_PATH}/\${DLL_NAME}\")
-#                     if(DLL_MATCHES)
-#                         list(GET DLL_MATCHES 0 DLL_PATH)
-#                         message(STATUS \"Installing \${DLL_NAME} from \${DLL_PATH}\")
-#                         file(INSTALL \"\${DLL_PATH}\" 
-#                              DESTINATION \"\${CMAKE_INSTALL_PREFIX}/simcoon\"
-#                              USE_SOURCE_PERMISSIONS)
-#                         set(DLL_FOUND TRUE)
-#                         break()
-#                     endif()
-#                 endforeach()
-                
-#                 if(NOT DLL_FOUND)
-#                     message(WARNING \"Required DLL not found at install time: \${DLL_NAME}\")
-#                     message(STATUS \"Searched in: \${SEARCH_PATHS}\")
-#                     # Debug: List what files are actually in the bin directory
-#                     file(GLOB BIN_CONTENTS \"${CMAKE_BINARY_DIR}/bin/*.dll\")
-#                     message(STATUS \"DLLs found in bin directory:\")
-#                     foreach(dll_file \${BIN_CONTENTS})
-#                         message(STATUS \"  \${dll_file}\")
-#                     endforeach()
-#                 endif()
-#             endforeach()
-#         " COMPONENT python)
-            
-#     else()
-#         install(TARGETS simmit simcoon ${EXECUTABLES} 
-#             DESTINATION simcoon 
-#             COMPONENT python)
-#     endif()
-    
-#     install(DIRECTORY python-setup/simcoon/ 
-#         DESTINATION simcoon 
-#         COMPONENT python
-#         FILES_MATCHING PATTERN "*.py")
-# endif()
