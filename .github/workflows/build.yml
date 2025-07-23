@@ -18,7 +18,7 @@ jobs:
             sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: >
               sudo apt-get update &&
-              sudo apt-get install -y libarmadillo-dev libboost-dev
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install armadillo boost googletest
