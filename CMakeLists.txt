@@ -55,68 +55,59 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 
-# Boost detection - Linux-specific fix for manylinux and Ubuntu environments
+# Boost detection - Linux-specific fallback for manylinux environments
 if(UNIX AND NOT APPLE)
-    # Linux: Use manual detection for better compatibility
-    message(STATUS "Linux detected: Using enhanced Boost detection")
+    # Linux: Try standard detection first (works on Ubuntu), fallback for manylinux
+    message(STATUS "Linux detected: Trying standard Boost detection first...")
     
-    # First, try to find Boost headers
-    find_path(Boost_INCLUDE_DIR 
-        NAMES boost/version.hpp
-        PATHS /usr/include /usr/local/include
-        NO_DEFAULT_PATH)
-    
-    # Look for libraries in multiple possible locations
-    set(BOOST_LIB_SEARCH_PATHS 
-        /usr/lib64 
-        /usr/lib 
-        /usr/lib/x86_64-linux-gnu 
-        /usr/local/lib)
-    
-    find_library(Boost_FILESYSTEM_LIBRARY 
-        NAMES boost_filesystem libboost_filesystem
-        PATHS ${BOOST_LIB_SEARCH_PATHS}
-        NO_DEFAULT_PATH)
-    
-    find_library(Boost_SYSTEM_LIBRARY 
-        NAMES boost_system libboost_system
-        PATHS ${BOOST_LIB_SEARCH_PATHS}
-        NO_DEFAULT_PATH)
-    
-    # Check if manual detection succeeded
-    if(Boost_INCLUDE_DIR AND Boost_FILESYSTEM_LIBRARY AND Boost_SYSTEM_LIBRARY)
-        set(Boost_FOUND TRUE)
-        set(Boost_LIBRARIES ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
-        set(Boost_INCLUDE_DIRS ${Boost_INCLUDE_DIR})
-        
-        message(STATUS "Manual Boost detection successful:")
-        message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
-        message(STATUS "  Filesystem library: ${Boost_FILESYSTEM_LIBRARY}")
-        message(STATUS "  System library: ${Boost_SYSTEM_LIBRARY}")
-    else()
-        # Try standard CMake detection as fallback
-        message(STATUS "Manual detection failed, trying standard CMake FindBoost...")
-        
-        # Suppress the CMP0167 warning
+    # Suppress the CMP0167 warning for newer CMake versions
+    if(POLICY CMP0167)
         cmake_policy(SET CMP0167 OLD)
-        find_package(Boost 1.57.0 COMPONENTS filesystem system)
+    endif()
+    
+    # Try standard CMake detection first (this was working on Ubuntu)
+    find_package(Boost 1.57.0 COMPONENTS filesystem system)
+    
+    # Check if we found both the headers AND the required components
+    if(Boost_FOUND AND Boost_FILESYSTEM_LIBRARY AND Boost_SYSTEM_LIBRARY)
+        # Standard detection succeeded completely
+        message(STATUS "Standard Boost detection successful:")
+        message(STATUS "  Boost version: ${Boost_VERSION}")
+        message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${Boost_LIBRARIES}")
+    else()
+        # Standard detection failed or incomplete, try manual detection
+        message(STATUS "Standard Boost detection failed or incomplete, trying manual detection...")
         
-        if(NOT Boost_FOUND)
-            # Final fallback: try linking by library name for package-installed boost
-            message(STATUS "Standard detection failed, using library name fallback...")
+        # Look for Boost headers
+        find_path(Boost_INCLUDE_DIR 
+            NAMES boost/version.hpp
+            PATHS /usr/include /usr/local/include
+            NO_DEFAULT_PATH)
+        
+        # Look for libraries in various paths
+        find_library(Boost_FILESYSTEM_LIBRARY 
+            NAMES boost_filesystem libboost_filesystem
+            PATHS /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
+            NO_DEFAULT_PATH)
+        
+        find_library(Boost_SYSTEM_LIBRARY 
+            NAMES boost_system libboost_system
+            PATHS /usr/lib64 /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib
+            NO_DEFAULT_PATH)
+        
+        # Check if manual detection succeeded
+        if(Boost_INCLUDE_DIR AND Boost_FILESYSTEM_LIBRARY AND Boost_SYSTEM_LIBRARY)
+            set(Boost_FOUND TRUE)
+            set(Boost_LIBRARIES ${Boost_FILESYSTEM_LIBRARY} ${Boost_SYSTEM_LIBRARY})
+            set(Boost_INCLUDE_DIRS ${Boost_INCLUDE_DIR})
             
-            # Check if boost-dev package is installed (Ubuntu/Debian style)
-            if(EXISTS "/usr/include/boost/version.hpp")
-                set(Boost_FOUND TRUE)
-                set(Boost_INCLUDE_DIRS /usr/include)
-                set(Boost_LIBRARIES -lboost_filesystem -lboost_system)
-                
-                message(STATUS "Using library name fallback:")
-                message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
-                message(STATUS "  Libraries: ${Boost_LIBRARIES}")
-            else()
-                message(FATAL_ERROR "Could not find Boost libraries on Linux. Please install libboost-all-dev or boost-devel package.")
-            endif()
+            message(STATUS "Manual Boost detection successful:")
+            message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
+            message(STATUS "  Filesystem library: ${Boost_FILESYSTEM_LIBRARY}")
+            message(STATUS "  System library: ${Boost_SYSTEM_LIBRARY}")
+        else()
+            message(FATAL_ERROR "Could not find Boost libraries on Linux. Found headers: ${Boost_INCLUDE_DIR}, filesystem: ${Boost_FILESYSTEM_LIBRARY}, system: ${Boost_SYSTEM_LIBRARY}")
         endif()
     endif()
 else()
