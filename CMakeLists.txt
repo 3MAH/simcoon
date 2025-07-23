@@ -3,6 +3,22 @@
 cmake_minimum_required(VERSION 3.21)
 project(simcoon LANGUAGES C CXX)
 
+if(APPLE)
+    # Set deployment target to match Homebrew dependencies (macOS 15.0)
+    if(NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum macOS deployment version")
+    endif()
+    
+    # Ensure we're building universal binaries compatible with the target
+    if(CMAKE_OSX_ARCHITECTURES)
+        message(STATUS "Building for architectures: ${CMAKE_OSX_ARCHITECTURES}")
+    endif()
+    
+    # Set RPATH for better compatibility
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
+
 # Project version from version file
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python-setup/simcoon/__version__.py" VERSION_FILE)
 string(REGEX MATCH "__version__ = \"([^\"]+)\"" _ "${VERSION_FILE}")
@@ -74,7 +90,8 @@ if(MSVC)
     endif()
 endif()
 
-# Executables
+
+# Executables with proper RPATH configuration
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
 foreach(exe ${EXECUTABLES})
     add_executable(${exe} software/${exe}.cpp)
@@ -83,11 +100,13 @@ foreach(exe ${EXECUTABLES})
         target_link_libraries(${exe} -ldl)
     endif()
     
-    # Add RPATH configuration for macOS
+    # Configure RPATH for all platforms
     if(APPLE)
         set_target_properties(${exe} PROPERTIES 
             INSTALL_RPATH "@loader_path"
-            BUILD_WITH_INSTALL_RPATH TRUE)
+            BUILD_WITH_INSTALL_RPATH TRUE
+            # Set deployment target for compatibility
+            OSX_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
     elseif(UNIX)
         set_target_properties(${exe} PROPERTIES 
             INSTALL_RPATH "$ORIGIN"
