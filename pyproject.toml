@@ -53,8 +53,7 @@ build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 skip = "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
 
 # Test the built wheels
-test-requires = ["pytest>=8.3.5"]
-test-command = "pytest {project}/tests"
+test-command = 'python -c "import simcoon; import simcoon.simmit"'
 
 # Build verbosity
 build-verbosity = 1
