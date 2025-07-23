@@ -71,7 +71,7 @@ before-all = [
 [tool.cibuildwheel.macos]
 archs = ["auto"]
 before-all = ["brew install armadillo boost"]
-environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
