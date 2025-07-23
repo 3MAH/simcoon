@@ -29,6 +29,8 @@
 #include <armadillo>
 #include <memory>
 #define BOOST_DLL_USE_STD_FS  // Forces Boost.DLL to use std::filesystem
+#include <string>
+#include <system_error>
 #include <boost/dll.hpp>
 #include <boost/version.hpp>
 #include <filesystem>
