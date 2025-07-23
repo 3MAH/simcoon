@@ -51,7 +51,7 @@ dev = ["pytest>=8.3.5"]
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 
 # Skip 32-bit builds and PyPy
-skip = "pp* *-win32 *-manylinux_i686 *-musllinux_i686"
+skip = "pp* *-win32 *-manylinux_i686 *-musllinux_i686 *-musllinux*"
 
 # Test the built wheels
 test-command = 'python -c "import simcoon; import simcoon.simmit"'
