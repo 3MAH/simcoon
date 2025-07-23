@@ -46,6 +46,7 @@ build-dir = "build"
 dev = ["pytest>=8.3.5"]
 
 [tool.cibuildwheel]
+build-frontend = "build[uv]"
 # Build for Python 3.9-3.13 on all platforms
 build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
 
@@ -70,6 +71,7 @@ before-all = [
 [tool.cibuildwheel.macos]
 archs = ["auto"]
 before-all = ["brew install armadillo boost"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "15.0" }
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]

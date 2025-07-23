@@ -82,6 +82,17 @@ foreach(exe ${EXECUTABLES})
     if(NOT WIN32)
         target_link_libraries(${exe} -ldl)
     endif()
+    
+    # Add RPATH configuration for macOS
+    if(APPLE)
+        set_target_properties(${exe} PROPERTIES 
+            INSTALL_RPATH "@loader_path"
+            BUILD_WITH_INSTALL_RPATH TRUE)
+    elseif(UNIX)
+        set_target_properties(${exe} PROPERTIES 
+            INSTALL_RPATH "$ORIGIN"
+            BUILD_WITH_INSTALL_RPATH TRUE)
+    endif()
 endforeach()
 
 # Testing
