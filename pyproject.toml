@@ -68,7 +68,7 @@ before-all = [
 ]
 
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64"]
+archs = ["auto"]
 before-all = ["brew install armadillo boost"]
 
 [tool.cibuildwheel.windows]
