@@ -71,7 +71,7 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 # Add this to pyproject.toml to debug what's actually installed:
 
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "aarch64"]
+archs = ["x86_64"] #, "aarch64"]
 before-all = [
     "yum update -y",
     "yum install -y epel-release",
