@@ -59,6 +59,15 @@ test-command = 'python -c "import simcoon; import simcoon.simmit"'
 # Build verbosity
 build-verbosity = 1
 
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_x86_64"
+environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }
+
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx_arm64"
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
+
 [tool.cibuildwheel.linux]
 # Use manylinux2014 for broader compatibility
 archs = ["x86_64", "aarch64"]
@@ -71,7 +80,6 @@ before-all = [
 [tool.cibuildwheel.macos]
 archs = ["auto"]
 before-all = ["brew install armadillo boost"]
-environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
