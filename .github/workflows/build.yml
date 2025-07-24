@@ -116,10 +116,6 @@ jobs:
     needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     name: Publish to TestPyPI
-    # Only publish on manual trigger with testpypi option, or on master branch pushes
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.publish_to_testpypi) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/master')
 
     environment:
       name: testpypi
