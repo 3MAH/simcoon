@@ -40,10 +40,12 @@ jobs:
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
               echo "VCPKG_DEFAULT_TRIPLET=x64-windows-release" >> $env:GITHUB_ENV
+              echo "VCPKG_TARGET_TRIPLET=x64-windows-release" >> $env:GITHUB_ENV
               echo "VCPKG_MAX_CONCURRENCY=$env:NUMBER_OF_PROCESSORS" >> $env:GITHUB_ENV
               echo "VCPKG_BINARY_SOURCES=clear;x-gha,readwrite" >> $env:GITHUB_ENV
+              echo "VCPKG_LIBRARY_LINKAGE=static" >> $env:GITHUB_ENV
             cmake-args: "-D USE_CARMA=False"
-            build-args: ""
+            build-args: "--config Release"
             test-args: "--config Release"
 
     runs-on: ${{ matrix.os }}
