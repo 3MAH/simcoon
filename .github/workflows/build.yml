@@ -21,13 +21,15 @@ jobs:
               sudo apt-get install -y libarmadillo-dev libboost-all-dev
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew install armadillo boost googletest
+            sys-package-install-command: brew install gcc armadillo boost googletest
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: |
-              vcpkg install armadillo:x64-windows boost-config:x64-windows boost-dll:x64-windows
+              vcpkg install --triplet x64-windows --recurse armadillo boost-config boost-dll
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+              echo "VCPKG_DEFAULT_TRIPLET=x64-windows" >> $env:GITHUB_ENV
+              echo "VCPKG_MAX_CONCURRENCY=$env:NUMBER_OF_PROCESSORS" >> $env:GITHUB_ENV
 
     runs-on: ${{ matrix.os }}
     name: Test compilation on ${{ matrix.os }}
