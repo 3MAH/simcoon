@@ -18,18 +18,18 @@ jobs:
             sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: >
               sudo apt-get update &&
-              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release"
-            build-args: "--parallel"
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
+            build-args: ""
             test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew install gcc armadillo boost googletest
+            sys-package-install-command: brew install gcc armadillo boost googletest ninja
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release" 
-            build-args: "--parallel"
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja" 
+            build-args: ""
             test-args: ""
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
