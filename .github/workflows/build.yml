@@ -36,7 +36,7 @@ jobs:
             vcpkg-cache-path: C:\vcpkg\packages
             vcpkg-binary-cache-path: C:\Users\runneradmin\AppData\Local\vcpkg\archives
             sys-package-install-command: |
-              vcpkg install --triplet x64-windows-release --recurse armadillo boost-config boost-dll gtest blas lapack-reference
+              vcpkg install --triplet x64-windows-release --recurse armadillo boost-config boost-dll gtest
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
               echo "VCPKG_DEFAULT_TRIPLET=x64-windows-release" >> $env:GITHUB_ENV
