@@ -299,6 +299,9 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     param_essentials.open(pathfile, ios::in);
     if(!param_essentials) {
         cout << "Error: cannot open : " << filename << " in :" << path << endl;
+        n_param = 0;
+        n_consts = 0;
+        n_files = 0;
         return;
     }
         
@@ -321,6 +324,19 @@ void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys,
     param_control.open(pathfile, ios::in);
     if(!param_control) {
         cout << "Error: cannot open : " << filename << " in :" << path << endl;
+        ngen = 0;
+        aleaspace = 0;
+        apop = 0;
+        spop = 0;
+        ngboys = 0;
+        maxpop = 0;
+        station_nb = 0;
+        station_lim = 0.0;
+        probaMut = 0.0;
+        pertu = 0.0;
+        c = 0.0;
+        p0 = 0.0;
+        lambdaLM = 0.0;
         return;
     }
         
