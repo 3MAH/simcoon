@@ -18,10 +18,13 @@ jobs:
             sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: >
               sudo apt-get update &&
-              sudo apt-get install -y libarmadillo-dev libboost-all-dev
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install gcc armadillo boost googletest
+            setup-env-command: |
+              echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
+              echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: |
@@ -48,8 +51,8 @@ jobs:
       - name: Install system dependencies
         run: ${{ matrix.sys-package-install-command }}
 
-      - name: Setup environment (Windows only)
-        if: runner.os == 'Windows'
+      - name: Setup environment
+        if: matrix.setup-env-command
         run: ${{ matrix.setup-env-command }}
 
       - name: Build project
