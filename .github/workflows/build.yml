@@ -1,0 +1,53 @@
+name: Build and Test (Non-Conda)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            sys-package-cache-path: /var/cache/apt/archives
+            sys-package-install-command: >
+              sudo apt-get update &&
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev
+          - os: macos-latest
+            sys-package-cache-path: ~/Library/Caches/Homebrew
+            sys-package-install-command: brew install armadillo boost googletest
+          - os: windows-latest
+            sys-package-cache-path: C:\ProgramData\chocolatey\lib
+            sys-package-install-command: |
+              choco install armadillo boost-msvc-14.3 -y
+
+    runs-on: ${{ matrix.os }}
+    name: Test compilation on ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache system packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.sys-package-cache-path }}
+          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-sys-packages-
+
+      - name: Install system dependencies
+        run: ${{ matrix.sys-package-install-command }}
+
+      - name: Build project
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+
+      - name: Run tests
+        run: ctest --test-dir build
