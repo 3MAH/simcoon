@@ -36,13 +36,13 @@ jobs:
             vcpkg-cache-path: C:\vcpkg\packages
             vcpkg-binary-cache-path: C:\Users\runneradmin\AppData\Local\vcpkg\archives
             sys-package-install-command: |
-              vcpkg install --triplet x64-windows-release --recurse armadillo boost-config boost-dll gtest
+              vcpkg install --triplet x64-windows-release --recurse armadillo boost-config boost-dll gtest blas lapack
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
               echo "VCPKG_DEFAULT_TRIPLET=x64-windows-release" >> $env:GITHUB_ENV
               echo "VCPKG_MAX_CONCURRENCY=$env:NUMBER_OF_PROCESSORS" >> $env:GITHUB_ENV
               echo "VCPKG_BINARY_SOURCES=clear;x-gha,readwrite" >> $env:GITHUB_ENV
-            cmake-args: "-D USE_CARMA=False -G Ninja"
+            cmake-args: "-D USE_CARMA=False"
             build-args: ""
             test-args: "--config Release"
 
