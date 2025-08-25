@@ -23,9 +23,11 @@ jobs:
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install armadillo boost googletest
           - os: windows-latest
-            sys-package-cache-path: C:\ProgramData\chocolatey\lib
+            sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: |
-              choco install armadillo boost-msvc-14.3 -y
+              vcpkg install armadillo:x64-windows boost-config:x64-windows boost-dll:x64-windows
+            setup-env-command: |
+              echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
 
     runs-on: ${{ matrix.os }}
     name: Test compilation on ${{ matrix.os }}
@@ -43,6 +45,10 @@ jobs:
 
       - name: Install system dependencies
         run: ${{ matrix.sys-package-install-command }}
+
+      - name: Setup environment (Windows only)
+        if: runner.os == 'Windows'
+        run: ${{ matrix.setup-env-command }}
 
       - name: Build project
         run: |
