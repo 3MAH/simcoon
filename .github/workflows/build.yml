@@ -19,20 +19,29 @@ jobs:
             sys-package-install-command: >
               sudo apt-get update &&
               sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release"
+            build-args: "--parallel"
+            test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install gcc armadillo boost googletest
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release" 
+            build-args: "--parallel"
+            test-args: ""
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: |
-              vcpkg install --triplet x64-windows --recurse armadillo boost-config boost-dll gtest
+              vcpkg install --triplet x64-windows-release --recurse armadillo boost-config boost-dll gtest
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
               echo "VCPKG_DEFAULT_TRIPLET=x64-windows" >> $env:GITHUB_ENV
               echo "VCPKG_MAX_CONCURRENCY=$env:NUMBER_OF_PROCESSORS" >> $env:GITHUB_ENV
+            cmake-args: "-D USE_CARMA=False"
+            build-args: "--parallel --config Release"
+            test-args: "--config Release"
 
     runs-on: ${{ matrix.os }}
     name: Test compilation on ${{ matrix.os }}
@@ -57,8 +66,8 @@ jobs:
 
       - name: Build project
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build
+          cmake -B build ${{ matrix.cmake-args }}
+          cmake --build build ${{ matrix.build-args }}
 
       - name: Run tests
-        run: ctest --test-dir build
+        run: ctest --test-dir build ${{ matrix.test-args }}
