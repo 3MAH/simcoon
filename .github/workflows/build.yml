@@ -28,7 +28,7 @@ jobs:
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja" 
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
           - os: windows-latest
@@ -40,7 +40,7 @@ jobs:
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
             cmake-args: "-D USE_CARMA=False"
             build-args: "--config Release"
-            test-args: "--config Release"
+            test-args: "--build-config Release"
 
     runs-on: ${{ matrix.os }}
     name: Test compilation on ${{ matrix.os }}
@@ -55,7 +55,6 @@ jobs:
           key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/build.yml') }}
           restore-keys: |
             ${{ runner.os }}-sys-packages-
-
 
       - name: Install system dependencies
         run: ${{ matrix.sys-package-install-command }}
