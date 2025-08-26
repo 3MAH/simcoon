@@ -252,6 +252,7 @@ foreach(testSrc ${TEST_SRCS})
       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
+    add_dependencies(${testName} simcoon)
     add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:simcoon>
         ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
