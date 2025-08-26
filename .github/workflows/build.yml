@@ -68,5 +68,11 @@ jobs:
           cmake -B build ${{ matrix.cmake-args }}
           cmake --build build ${{ matrix.build-args }}
 
+      - name: Debug - Check DLL presence
+        if: matrix.os == 'windows-latest'
+        run: |
+          Get-ChildItem -Path "testBin" -Recurse -Filter "*.dll" | Select-Object FullName
+          Get-ChildItem -Path "build/bin" -Recurse -Filter "*.dll" | Select-Object FullName
+
       - name: Run tests
         run: ctest --test-dir build ${{ matrix.test-args }}
