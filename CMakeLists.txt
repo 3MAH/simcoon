@@ -252,10 +252,13 @@ foreach(testSrc ${TEST_SRCS})
       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
-    add_dependencies(${testName} simcoon)
-    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        $<TARGET_FILE:simcoon>
-        ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+    file(GLOB RUNTIME_DLLS "${CMAKE_CURRENT_SOURCE_DIR}/build/bin/*.dll")
+    foreach(dll ${RUNTIME_DLLS})
+      add_custom_command(TARGET ${testName} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${dll}
+          ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+    endforeach()
   endif()
 
   # Add test with proper working directory and command
