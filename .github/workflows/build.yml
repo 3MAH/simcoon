@@ -24,7 +24,7 @@ jobs:
             test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew install gcc armadillo boost googletest ninja
+            sys-package-install-command: brew install armadillo boost googletest
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
@@ -77,7 +77,6 @@ jobs:
       - name: Run tests
         run: ctest --test-dir build ${{ matrix.test-args }}
 
-      # Python bindings setup - incremental addition
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
