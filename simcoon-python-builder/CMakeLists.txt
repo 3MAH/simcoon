@@ -192,9 +192,9 @@ else()
           DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
           COMPONENT python)
 
-  # Install the core shared library next to it
-  install(TARGETS simcoon
-          LIBRARY DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+  # Install the core shared library (already built separately)
+  install(FILES ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so
+          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
           COMPONENT python)
 
   # Ensure simmit.so finds libsimcoon.so in the same directory
