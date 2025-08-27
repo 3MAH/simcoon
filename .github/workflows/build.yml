@@ -135,10 +135,37 @@ jobs:
             Write-Host "simcoon.dll not found in install\bin\"
             Get-ChildItem "install\bin\" | Write-Host
           }
-          # Also copy any other DLLs that might be needed
+          # Copy all DLLs from install directory
           Get-ChildItem "install\bin\*.dll" | ForEach-Object { 
             Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force
-            Write-Host "Copied $($_.Name)"
+            Write-Host "Copied install $($_.Name)"
+          }
+          # Copy all DLLs and PYDs from vcpkg
+          if (Test-Path "C:\vcpkg\installed\x64-windows\bin") {
+            Write-Host "Copying all vcpkg DLLs..."
+            Get-ChildItem "C:\vcpkg\installed\x64-windows\bin\*.dll" | ForEach-Object {
+              Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force -ErrorAction SilentlyContinue
+              Write-Host "Copied vcpkg $($_.Name)"
+            }
+          }
+          # Copy any PYD files from vcpkg if they exist
+          if (Test-Path "C:\vcpkg\installed\x64-windows\bin\*.pyd") {
+            Get-ChildItem "C:\vcpkg\installed\x64-windows\bin\*.pyd" | ForEach-Object {
+              Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force -ErrorAction SilentlyContinue
+              Write-Host "Copied vcpkg pyd $($_.Name)"
+            }
+          }
+          # Check dependencies of simmit.pyd using dumpbin
+          Write-Host "Analyzing simmit.pyd dependencies..."
+          try {
+            $dumpbin = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe"
+            if (Test-Path $dumpbin) {
+              & $dumpbin /dependents "$SITE_PACKAGES\simcoon\simmit.pyd"
+            } else {
+              Write-Host "dumpbin not found at expected location"
+            }
+          } catch {
+            Write-Host "Could not run dumpbin: $_"
           }
         shell: pwsh
 
