@@ -8,7 +8,10 @@ if sys.platform == "win32":
 else:
     extension_suffix = ".so"
 
-from simcoon.__version__ import __version__
+# Read version directly from file to avoid importing the package during build
+with open("simcoon/__version__.py", "r") as f:
+    exec(f.read())
+# Now __version__ is available
 
 setup(
     name="simcoon",
