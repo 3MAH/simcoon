@@ -126,7 +126,20 @@ jobs:
           uv pip install ./python-setup
           # Copy DLL dependencies to the installed package directory
           $SITE_PACKAGES = uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-          Copy-Item "install\bin\simcoon.dll" "$SITE_PACKAGES\simcoon\"
+          Write-Host "Site packages: $SITE_PACKAGES"
+          Write-Host "Copying DLLs..."
+          if (Test-Path "install\bin\simcoon.dll") {
+            Copy-Item "install\bin\simcoon.dll" "$SITE_PACKAGES\simcoon\" -Force
+            Write-Host "Copied simcoon.dll"
+          } else {
+            Write-Host "simcoon.dll not found in install\bin\"
+            Get-ChildItem "install\bin\" | Write-Host
+          }
+          # Also copy any other DLLs that might be needed
+          Get-ChildItem "install\bin\*.dll" | ForEach-Object { 
+            Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force
+            Write-Host "Copied $($_.Name)"
+          }
         shell: pwsh
 
       - name: Run Python tests (Linux/macOS)
