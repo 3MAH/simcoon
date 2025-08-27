@@ -155,18 +155,19 @@ jobs:
               Write-Host "Copied vcpkg pyd $($_.Name)"
             }
           }
-          # Check dependencies of simmit.pyd using dumpbin
+          # Optional: Check dependencies of simmit.pyd using dumpbin (non-blocking)
           Write-Host "Analyzing simmit.pyd dependencies..."
           try {
             $dumpbin = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe"
             if (Test-Path $dumpbin) {
               & $dumpbin /dependents "$SITE_PACKAGES\simcoon\simmit.pyd"
             } else {
-              Write-Host "dumpbin not found at expected location"
+              Write-Host "dumpbin not found - continuing anyway"
             }
           } catch {
-            Write-Host "Could not run dumpbin: $_"
+            Write-Host "dumpbin failed - continuing anyway: $_"
           }
+          Write-Host "DLL copy completed, proceeding with tests..."
         shell: pwsh
 
       - name: Run Python tests (Linux/macOS)
