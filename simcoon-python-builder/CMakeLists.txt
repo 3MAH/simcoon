@@ -185,6 +185,9 @@ if (MSVC)
           FILES_MATCHING PATTERN "*.dll" COMPONENT python)
 else()
   install(TARGETS simmit DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon COMPONENT python)
+  # Copy libsimcoon.so for runtime dependency
+  install(FILES ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so
+          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon COMPONENT python)
 endif()
 
 
