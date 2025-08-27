@@ -76,3 +76,79 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build ${{ matrix.test-args }}
+
+      # Python bindings setup - incremental addition
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - run: uv python install
+
+      - name: Install Python dependencies
+        run: uv pip install pybind11 numpy pytest
+
+      - name: Install simcoon library (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: cmake --install build --prefix $PWD/install
+        shell: bash
+
+      - name: Install simcoon library (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cmake --install build --config Release --prefix $PWD/install
+        shell: pwsh
+
+      - name: Build Python bindings (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
+          uv run cmake --build simcoon-python-builder/build
+        shell: bash
+
+      - name: Build Python bindings (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $PYBIND11_DIR = uv run python -m pybind11 --cmakedir
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$PWD/install;C:/vcpkg/installed/x64-windows;$PYBIND11_DIR"
+          uv run cmake --build simcoon-python-builder/build --config Release
+        shell: pwsh
+
+      - name: Install Python package (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          uv run cmake --install simcoon-python-builder/build --component python
+          uv pip install ./python-setup
+        shell: bash
+
+      - name: Install Python package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          uv run cmake --install simcoon-python-builder/build --config Release --component python
+          uv pip install ./python-setup
+        shell: pwsh
+
+      - name: Run Python tests (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd simcoon-python-builder/test/Carma
+          uv run python run_test_roundtrip.py
+          uv run python run_test_arr_to_mat.py
+          cd ../simmit_test
+          uv run python run_test.py
+        shell: bash
+
+      - name: Run Python tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cd simcoon-python-builder/test/Carma
+          uv run python run_test_roundtrip.py
+          uv run python run_test_arr_to_mat.py
+          cd ../simmit_test
+          uv run python run_test.py
+        shell: pwsh
