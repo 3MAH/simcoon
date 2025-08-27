@@ -291,7 +291,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
     }
 
     if (Lt.ndim() == 2) {            
-        if ((F.ndim() != 2) or (stress.ndim() != 1))  {
+        if ((F.ndim() != 2) || (stress.ndim() != 1))  {
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
         }
 
