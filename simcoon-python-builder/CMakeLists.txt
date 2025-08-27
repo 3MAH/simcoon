@@ -176,6 +176,16 @@ endif()
 #link against simcoon (C++ lib) and carma
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
 
+# Install Python extension and dependencies
+if (MSVC)
+  install(TARGETS simmit DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon COMPONENT python)
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/build/bin/ 
+          DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
+          FILES_MATCHING PATTERN "*.dll" COMPONENT python)
+else()
+  install(TARGETS simmit DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon COMPONENT python)
+endif()
+
 
 #Setup CMake to run tests
 enable_testing()
