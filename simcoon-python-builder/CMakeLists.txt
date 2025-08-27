@@ -175,6 +175,7 @@ else()
 endif()
 #link against simcoon (C++ lib) and carma
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
+set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
 # Install Python extension and dependencies
 if (MSVC)
