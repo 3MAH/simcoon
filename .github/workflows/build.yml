@@ -139,6 +139,7 @@ jobs:
       - name: Run Python tests (Windows)
         if: matrix.os == 'windows-latest'
         run: |
+          $env:PATH = "$PWD/install/bin;$env:PATH"
           cd simcoon-python-builder/test/Carma
           uv run python run_test_roundtrip.py
           uv run python run_test_arr_to_mat.py
