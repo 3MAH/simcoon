@@ -188,31 +188,15 @@ endif()
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
 set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
-# Install Python extension and dependencies
-if (MSVC)
-  install(TARGETS simmit
-          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-          COMPONENT python)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../build/bin/
-          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-          FILES_MATCHING PATTERN "*.dll"
-          COMPONENT python)
-else()
-  # Install the Python extension
-  install(TARGETS simmit
-          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-          COMPONENT python)
+# Install the Python extension
+install(TARGETS simmit
+        DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+        COMPONENT python)
 
-  if(APPLE)
-    set(SIMCOON_LIB_FILE ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.dylib)
-  else()
-    set(SIMCOON_LIB_FILE ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so)
-  endif()
-
-  install(FILES ${SIMCOON_LIB_FILE}
-          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-          COMPONENT python)
-endif()
+# Install the core C++ library
+install(TARGETS simcoon
+        DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+        COMPONENT python)
 
 
 #Setup CMake to run tests
