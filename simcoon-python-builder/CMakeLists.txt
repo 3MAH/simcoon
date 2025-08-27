@@ -179,15 +179,29 @@ set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
 
 # Install Python extension and dependencies
 if (MSVC)
-  install(TARGETS simmit DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon COMPONENT python)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../build/bin/ 
+  install(TARGETS simmit
           DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-          FILES_MATCHING PATTERN "*.dll" COMPONENT python)
+          COMPONENT python)
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../build/bin/
+          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+          FILES_MATCHING PATTERN "*.dll"
+          COMPONENT python)
 else()
-  install(TARGETS simmit DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon COMPONENT python)
-  # Copy libsimcoon.so for runtime dependency
-  install(FILES ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so
-          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon COMPONENT python)
+  # Install the Python extension
+  install(TARGETS simmit
+          DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+          COMPONENT python)
+
+  # Install the core shared library next to it
+  install(TARGETS simcoon
+          LIBRARY DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+          COMPONENT python)
+
+  # Ensure simmit.so finds libsimcoon.so in the same directory
+  set_target_properties(simmit PROPERTIES
+      INSTALL_RPATH "$ORIGIN"
+      BUILD_WITH_INSTALL_RPATH ON
+  )
 endif()
 
 
