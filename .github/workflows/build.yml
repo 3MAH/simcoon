@@ -124,6 +124,9 @@ jobs:
         run: |
           uv run cmake --install simcoon-python-builder/build --config Release --component python
           uv pip install ./python-setup
+          # Copy DLL dependencies to the installed package directory
+          $SITE_PACKAGES = uv run python -c "import site; print(site.getsitepackages()[0])"
+          Copy-Item "install\bin\simcoon.dll" "$SITE_PACKAGES\simcoon\"
         shell: pwsh
 
       - name: Run Python tests (Linux/macOS)
@@ -139,7 +142,6 @@ jobs:
       - name: Run Python tests (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          $env:PATH = "$PWD/install/bin;$env:PATH"
           cd simcoon-python-builder/test/Carma
           uv run python run_test_roundtrip.py
           uv run python run_test_arr_to_mat.py
