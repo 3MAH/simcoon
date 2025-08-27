@@ -111,11 +111,10 @@ endif()
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
 
-
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
   if (USE_OPENMP)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp:llvm /Y-") #\Y- to disable precompile header
     # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict= /openmp /Y-") #\Y- to disable precompile header (don't work for an unknown reason)
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
@@ -160,7 +159,19 @@ file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
 # SIMCOON PYBIND11 modules
 #Add the files to the lib
 pybind11_add_module(simmit ${source_files_simmit})
-#Wrapper library set_target properties
+
+# Ensure simmit.so can always find libsimcoon.so in the same directory
+if(APPLE)
+  set_target_properties(simmit PROPERTIES
+      INSTALL_RPATH "@loader_path"
+      BUILD_WITH_INSTALL_RPATH ON
+  )
+elseif(UNIX)
+  set_target_properties(simmit PROPERTIES
+      INSTALL_RPATH "$ORIGIN"
+      BUILD_WITH_INSTALL_RPATH ON
+  )
+endif()
 
 if (USE_OPENMP)
   if(OpenMP_CXX_FOUND)
@@ -196,12 +207,6 @@ else()
   install(FILES ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so
           DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
           COMPONENT python)
-
-  # Ensure simmit.so finds libsimcoon.so in the same directory
-  set_target_properties(simmit PROPERTIES
-      INSTALL_RPATH "$ORIGIN"
-      BUILD_WITH_INSTALL_RPATH ON
-  )
 endif()
 
 
@@ -223,7 +228,7 @@ if (MSVC) #if windows using visual c++
   endforeach()
 endif()
 
-set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
+set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/test)
 pybind11_add_module(test_carma ${test_files_carma})
 
 # Set output directories based on the build type
