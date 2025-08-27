@@ -194,7 +194,15 @@ install(TARGETS simmit
         COMPONENT python)
 
 # Install the core C++ library
-install(TARGETS simcoon
+if(APPLE)
+  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to libsimcoon.dylib
+elseif(UNIX)
+  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to libsimcoon.so
+elseif(WIN32)
+  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to simcoon.dll
+endif()
+
+install(FILES ${SIMCOON_LIB_FILE}
         DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
         COMPONENT python)
 
