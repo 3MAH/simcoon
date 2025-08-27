@@ -51,17 +51,28 @@ set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
 find_package(Python3 COMPONENTS Interpreter Development NumPy)
 
+# Fetch carma if not found
+include(FetchContent)
+find_package(carma CONFIG QUIET)
+if(NOT carma_FOUND)
+  message(STATUS "carma not found, fetching from GitHub")
+  FetchContent_Declare(
+    carma
+    GIT_REPOSITORY https://github.com/RUrlus/carma.git
+    GIT_TAG        stable
+  )
+  FetchContent_MakeAvailable(carma)
+endif()
+
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
   find_package(blas REQUIRED)
   find_package(lapack REQUIRED)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})  
 else()
   find_package(pybind11 REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
 endif()
 
 if (NOT DEFINED USE_OPENMP)
