@@ -132,6 +132,9 @@ jobs:
           uv pip install ./python-setup
         shell: pwsh
 
+      - name: List installed simcoon package contents
+        run: ls -R $(uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")/simcoon
+
       - name: Run Python tests (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |

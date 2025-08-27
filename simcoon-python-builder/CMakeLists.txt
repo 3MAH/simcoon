@@ -203,8 +203,13 @@ else()
           DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
           COMPONENT python)
 
-  # Install the core shared library (already built separately)
-  install(FILES ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so
+  if(APPLE)
+    set(SIMCOON_LIB_FILE ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.dylib)
+  else()
+    set(SIMCOON_LIB_FILE ${CMAKE_SOURCE_DIR}/../install/lib/libsimcoon.so)
+  endif()
+
+  install(FILES ${SIMCOON_LIB_FILE}
           DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
           COMPONENT python)
 endif()
