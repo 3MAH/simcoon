@@ -19,7 +19,7 @@ setup(
     packages=[
         "simcoon",
     ],
-    package_data={"simcoon": ["*.so", "*.dylib", "*.dll"]},
+    package_data={"simcoon": ["*.so", "*.dylib", "*.dll", "*.pyd"]},
     include_package_data=True,
     license="GPL",
 )
