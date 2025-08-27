@@ -125,7 +125,7 @@ jobs:
           uv run cmake --install simcoon-python-builder/build --config Release --component python
           uv pip install ./python-setup
           # Copy DLL dependencies to the installed package directory
-          $SITE_PACKAGES = uv run python -c "import site; print(site.getsitepackages()[0])"
+          $SITE_PACKAGES = uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
           Copy-Item "install\bin\simcoon.dll" "$SITE_PACKAGES\simcoon\"
         shell: pwsh
 
