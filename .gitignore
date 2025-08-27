@@ -1,2 +1,13 @@
 
 .DS_Store
+
+build/
+*.egg-info/
+**/__pycache__/
+
+*.dll
+*.pyd
+*.exp
+*.lib
+*.pdb
+*.exe
