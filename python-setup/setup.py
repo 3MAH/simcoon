@@ -1,5 +1,6 @@
-from setuptools import setup
 import sys
+
+from setuptools import setup
 
 # Determine the appropriate file extension based on the OS
 if sys.platform == "win32":
@@ -18,11 +19,7 @@ setup(
     packages=[
         "simcoon",
     ],
-    package_data={
-        "simcoon": [
-            f"simmit{extension_suffix}"
-        ],  # Include .pyd or .so depending on the platform
-    },
+    package_data={"simcoon": ["*.so", "*.dylib", "*.dll"]},
     include_package_data=True,
     license="GPL",
 )
