@@ -199,7 +199,9 @@ if(APPLE)
 elseif(UNIX)
   set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to libsimcoon.so
 elseif(WIN32)
-  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to simcoon.dll
+  # On Windows, SIMCOON_LIBRARIES points to .lib file, we need the .dll
+  get_filename_component(SIMCOON_DIR ${SIMCOON_LIBRARIES} DIRECTORY)
+  set(SIMCOON_LIB_FILE "${SIMCOON_DIR}/../bin/simcoon.dll")
 endif()
 
 install(FILES ${SIMCOON_LIB_FILE}
@@ -223,10 +225,33 @@ if(WIN32)
       "libwinpthread-1.dll")
   
   foreach(DLL_NAME ${REQUIRED_DLLS})
-    if(EXISTS "${VCPKG_BIN_DIR}/${DLL_NAME}")
-      install(FILES "${VCPKG_BIN_DIR}/${DLL_NAME}"
+    set(DLL_PATH "${VCPKG_BIN_DIR}/${DLL_NAME}")
+    if(EXISTS "${DLL_PATH}")
+      install(FILES "${DLL_PATH}"
               DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
               COMPONENT python)
+    else()
+      # If not found in vcpkg, try the install/bin directory 
+      get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
+      set(ALT_DLL_PATH "${SIMCOON_BIN_DIR}/${DLL_NAME}")
+      if(EXISTS "${ALT_DLL_PATH}")
+        install(FILES "${ALT_DLL_PATH}"
+                DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+                COMPONENT python)
+      else()
+        # If still not found and it's OpenMP DLL, try Visual Studio redistributable directories
+        if(DLL_NAME STREQUAL "libomp140.x86_64.dll")
+          file(GLOB VS_OPENMP_DLLS
+               "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/debug_nonredist/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll"
+               "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll")
+          if(VS_OPENMP_DLLS)
+            list(GET VS_OPENMP_DLLS 0 OPENMP_DLL_PATH)
+            install(FILES "${OPENMP_DLL_PATH}"
+                    DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+                    COMPONENT python)
+          endif()
+        endif()
+      endif()
     endif()
   endforeach()
 endif()
