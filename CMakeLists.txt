@@ -427,4 +427,44 @@ if(WIN32)
       endforeach()
     endforeach()
   endif()
+
+  # Install GCC runtime DLLs that might be needed by dependencies
+  # (even with MSVC, some vcpkg packages might have been built with MinGW)
+  set(GCC_RUNTIME_DLLS
+      "libgcc_s_seh-1.dll"
+      "libgfortran-5.dll"
+      "libquadmath-0.dll"
+      "libwinpthread-1.dll")
+  
+  foreach(dll_name ${GCC_RUNTIME_DLLS})
+    set(dll_found FALSE)
+    
+    # First try to find in the same location as BLAS libraries (likely vcpkg/bin)
+    foreach(lib_path ${BLAS_LIBRARIES})
+      if(NOT dll_found)
+        get_filename_component(lib_dir ${lib_path} DIRECTORY)
+        string(REPLACE "/lib" "/bin" bin_dir "${lib_dir}")
+        if(USE_RELEASE_LIBS)
+          string(REPLACE "/debug/bin" "/bin" bin_dir "${bin_dir}")
+        endif()
+        set(dll_path "${bin_dir}/${dll_name}")
+        if(EXISTS "${dll_path}")
+          install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+          message(STATUS "Will install GCC runtime DLL: ${dll_path}")
+          set(dll_found TRUE)
+        endif()
+      endif()
+    endforeach()
+    
+    # If not found and we're using GCC, try compiler directory
+    if(NOT dll_found AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      get_filename_component(COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+      set(dll_path "${COMPILER_DIR}/${dll_name}")
+      if(EXISTS "${dll_path}")
+        install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+        message(STATUS "Will install GCC runtime DLL: ${dll_path}")
+        set(dll_found TRUE)
+      endif()
+    endif()
+  endforeach()
 endif()
