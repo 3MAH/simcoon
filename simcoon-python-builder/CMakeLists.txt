@@ -226,19 +226,20 @@ if(WIN32)
       "libwinpthread-1.dll")
   
   foreach(DLL_NAME ${REQUIRED_DLLS})
-    set(DLL_PATH "${VCPKG_BIN_DIR}/${DLL_NAME}")
-    if(EXISTS "${DLL_PATH}")
-      message(STATUS "Installing ${DLL_NAME} from vcpkg: ${DLL_PATH}")
-      install(FILES "${DLL_PATH}"
+    # First try the install/bin directory (more portable)
+    get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
+    set(INSTALL_DLL_PATH "${SIMCOON_BIN_DIR}/${DLL_NAME}")
+    if(EXISTS "${INSTALL_DLL_PATH}")
+      message(STATUS "Installing ${DLL_NAME} from install/bin: ${INSTALL_DLL_PATH}")
+      install(FILES "${INSTALL_DLL_PATH}"
               DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
               COMPONENT python)
     else()
-      # If not found in vcpkg, try the install/bin directory 
-      get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
-      set(ALT_DLL_PATH "${SIMCOON_BIN_DIR}/${DLL_NAME}")
-      if(EXISTS "${ALT_DLL_PATH}")
-        message(STATUS "Installing ${DLL_NAME} from install/bin: ${ALT_DLL_PATH}")
-        install(FILES "${ALT_DLL_PATH}"
+      # If not found in install directory, try vcpkg as fallback
+      set(VCPKG_DLL_PATH "${VCPKG_BIN_DIR}/${DLL_NAME}")
+      if(EXISTS "${VCPKG_DLL_PATH}")
+        message(STATUS "Installing ${DLL_NAME} from vcpkg: ${VCPKG_DLL_PATH}")
+        install(FILES "${VCPKG_DLL_PATH}"
                 DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
                 COMPONENT python)
       else()
@@ -257,7 +258,7 @@ if(WIN32)
             message(WARNING "Could not find ${DLL_NAME} in any location")
           endif()
         else()
-          message(WARNING "Could not find ${DLL_NAME} in vcpkg or install/bin")
+          message(WARNING "Could not find ${DLL_NAME} in install/bin or vcpkg")
         endif()
       endif()
     endif()
