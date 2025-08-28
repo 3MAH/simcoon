@@ -235,31 +235,34 @@ if(WIN32)
               DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
               COMPONENT python)
     else()
-      # If not found in install directory, try vcpkg as fallback
-      set(VCPKG_DLL_PATH "${VCPKG_BIN_DIR}/${DLL_NAME}")
-      if(EXISTS "${VCPKG_DLL_PATH}")
-        message(STATUS "Installing ${DLL_NAME} from vcpkg: ${VCPKG_DLL_PATH}")
-        install(FILES "${VCPKG_DLL_PATH}"
-                DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-                COMPONENT python)
-      else()
-        # If still not found and it's OpenMP DLL, try Visual Studio redistributable directories
-        if(DLL_NAME STREQUAL "libomp140.x86_64.dll")
+      # Temporarily removed vcpkg fallback to test install directory
+      # If still not found and it's OpenMP DLL, try Visual Studio redistributable directories
+      if(DLL_NAME STREQUAL "libomp140.x86_64.dll" AND USE_OPENMP AND OpenMP_CXX_FOUND)
+        # First try using compiler path to find VS installation
+        get_filename_component(COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(VS_ROOT "${COMPILER_DIR}/../../../.." ABSOLUTE)
+        file(GLOB VS_OPENMP_DLLS
+             "${VS_ROOT}/VC/Redist/MSVC/*/debug_nonredist/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll"
+             "${VS_ROOT}/VC/Redist/MSVC/*/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll")
+        
+        # If not found, fall back to hardcoded common paths
+        if(NOT VS_OPENMP_DLLS)
           file(GLOB VS_OPENMP_DLLS
                "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/debug_nonredist/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll"
                "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll")
-          if(VS_OPENMP_DLLS)
-            list(GET VS_OPENMP_DLLS 0 OPENMP_DLL_PATH)
-            message(STATUS "Installing ${DLL_NAME} from Visual Studio: ${OPENMP_DLL_PATH}")
-            install(FILES "${OPENMP_DLL_PATH}"
-                    DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
-                    COMPONENT python)
-          else()
-            message(WARNING "Could not find ${DLL_NAME} in any location")
-          endif()
-        else()
-          message(WARNING "Could not find ${DLL_NAME} in install/bin or vcpkg")
         endif()
+        
+        if(VS_OPENMP_DLLS)
+          list(GET VS_OPENMP_DLLS 0 OPENMP_DLL_PATH)
+          message(STATUS "Installing ${DLL_NAME} from Visual Studio: ${OPENMP_DLL_PATH}")
+          install(FILES "${OPENMP_DLL_PATH}"
+                  DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+                  COMPONENT python)
+        else()
+          message(WARNING "Could not find ${DLL_NAME} - OpenMP runtime may not be available")
+        endif()
+      else()
+        message(WARNING "Could not find ${DLL_NAME} in install/bin")
       endif()
     endif()
   endforeach()

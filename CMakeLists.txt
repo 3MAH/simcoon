@@ -324,3 +324,11 @@ message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
 install(TARGETS simcoon)
+
+# Install runtime DLLs on Windows
+if(WIN32)
+  # Install all DLLs from build/bin to install/bin for complete installation
+  install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
+          DESTINATION ${INSTALL_BIN_DIR}
+          FILES_MATCHING PATTERN "*.dll")
+endif()
