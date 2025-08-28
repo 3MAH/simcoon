@@ -202,6 +202,7 @@ elseif(WIN32)
   # On Windows, SIMCOON_LIBRARIES points to .lib file, we need the .dll
   get_filename_component(SIMCOON_DIR ${SIMCOON_LIBRARIES} DIRECTORY)
   set(SIMCOON_LIB_FILE "${SIMCOON_DIR}/../bin/simcoon.dll")
+  message(STATUS "Installing simcoon.dll from: ${SIMCOON_LIB_FILE}")
 endif()
 
 install(FILES ${SIMCOON_LIB_FILE}
@@ -227,6 +228,7 @@ if(WIN32)
   foreach(DLL_NAME ${REQUIRED_DLLS})
     set(DLL_PATH "${VCPKG_BIN_DIR}/${DLL_NAME}")
     if(EXISTS "${DLL_PATH}")
+      message(STATUS "Installing ${DLL_NAME} from vcpkg: ${DLL_PATH}")
       install(FILES "${DLL_PATH}"
               DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
               COMPONENT python)
@@ -235,6 +237,7 @@ if(WIN32)
       get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
       set(ALT_DLL_PATH "${SIMCOON_BIN_DIR}/${DLL_NAME}")
       if(EXISTS "${ALT_DLL_PATH}")
+        message(STATUS "Installing ${DLL_NAME} from install/bin: ${ALT_DLL_PATH}")
         install(FILES "${ALT_DLL_PATH}"
                 DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
                 COMPONENT python)
@@ -246,10 +249,15 @@ if(WIN32)
                "C:/Program Files/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/x64/Microsoft.VC*.OpenMP*/libomp140.x86_64.dll")
           if(VS_OPENMP_DLLS)
             list(GET VS_OPENMP_DLLS 0 OPENMP_DLL_PATH)
+            message(STATUS "Installing ${DLL_NAME} from Visual Studio: ${OPENMP_DLL_PATH}")
             install(FILES "${OPENMP_DLL_PATH}"
                     DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
                     COMPONENT python)
+          else()
+            message(WARNING "Could not find ${DLL_NAME} in any location")
           endif()
+        else()
+          message(WARNING "Could not find ${DLL_NAME} in vcpkg or install/bin")
         endif()
       endif()
     endif()
