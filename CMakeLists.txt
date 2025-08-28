@@ -362,27 +362,8 @@ if(WIN32)
           DESTINATION ${INSTALL_BIN_DIR}
           FILES_MATCHING PATTERN "*.dll")
 
-  # Install boost runtime dependencies by finding their actual locations
-  if(Boost_FOUND)
-    foreach(boost_target Boost::system Boost::filesystem Boost::atomic)
-      if(TARGET ${boost_target})
-        # Try to get the imported location for the current configuration
-        get_target_property(boost_location ${boost_target} IMPORTED_LOCATION_RELEASE)
-        if(NOT boost_location)
-          get_target_property(boost_location ${boost_target} IMPORTED_LOCATION)
-        endif()
-        if(boost_location)
-          get_filename_component(boost_dir ${boost_location} DIRECTORY)
-          get_filename_component(boost_name ${boost_location} NAME_WE)
-          set(boost_dll "${boost_dir}/${boost_name}.dll")
-          if(EXISTS "${boost_dll}")
-            install(FILES "${boost_dll}" DESTINATION ${INSTALL_BIN_DIR})
-            message(STATUS "Will install boost DLL: ${boost_dll}")
-          endif()
-        endif()
-      endif()
-    endforeach()
-  endif()
+  # Note: Boost libraries are statically linked into simcoon.dll
+  # No boost DLL installation needed
 
   # Install BLAS/LAPACK DLLs by finding them near the library files
   if(BLAS_FOUND AND LAPACK_FOUND)
