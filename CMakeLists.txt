@@ -54,11 +54,37 @@ set(LIBRARY_OUTPUT_PATH lib)
 #Inclusion of Armadillo
 if (MSVC)
   set(BLA_PKGCONFIG_BLAS True)
+  # Try to guide CMake to prefer release libraries
+  set(CMAKE_FIND_DEBUG_MODE FALSE)
 endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+
+# Override debug libraries with release versions for MSVC builds
+if(MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+  # Replace debug paths with release paths
+  string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
+  string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
+  
+  # Check if release libraries exist and use them
+  set(USE_RELEASE_LIBS TRUE)
+  foreach(lib ${BLAS_LIBRARIES_RELEASE} ${LAPACK_LIBRARIES_RELEASE})
+    if(NOT EXISTS "${lib}")
+      set(USE_RELEASE_LIBS FALSE)
+      break()
+    endif()
+  endforeach()
+  
+  if(USE_RELEASE_LIBS)
+    set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
+    set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
+    message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
+  endif()
+endif()
+
 find_package(Armadillo 12.6 REQUIRED)
+
 
 find_package(GTest REQUIRED)
 
@@ -67,6 +93,13 @@ if (MSVC)
     find_package(Carma REQUIRED)
   endif()
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  
+  # Fix armadillo libraries to use release versions after they are set up
+  if(USE_RELEASE_LIBS)
+    string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
+    message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
+  endif()
+  
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
@@ -361,6 +394,37 @@ if(WIN32)
           endif()
         endif()
       endif()
+    endforeach()
+  endif()
+
+  # Install BLAS/LAPACK DLLs by finding them near the library files
+  if(BLAS_FOUND AND LAPACK_FOUND)
+    foreach(lib_path ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+      get_filename_component(lib_dir ${lib_path} DIRECTORY)
+      get_filename_component(lib_name ${lib_path} NAME_WE)
+      
+      # Convert lib directory to bin directory to find DLLs
+      string(REPLACE "/lib" "/bin" bin_dir "${lib_dir}")
+      # Also convert debug paths to release if we're preferring release libraries
+      if(USE_RELEASE_LIBS)
+        string(REPLACE "/debug/bin" "/bin" bin_dir "${bin_dir}")
+      endif()
+      
+      # Try common DLL names based on the library
+      set(possible_dlls "")
+      if(lib_name MATCHES "openblas")
+        list(APPEND possible_dlls "openblas.dll")
+      elseif(lib_name MATCHES "lapack")
+        list(APPEND possible_dlls "liblapack.dll")
+      endif()
+      
+      foreach(dll_name ${possible_dlls})
+        set(dll_path "${bin_dir}/${dll_name}")
+        if(EXISTS "${dll_path}")
+          install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+          message(STATUS "Will install BLAS/LAPACK DLL: ${dll_path}")
+        endif()
+      endforeach()
     endforeach()
   endif()
 endif()
