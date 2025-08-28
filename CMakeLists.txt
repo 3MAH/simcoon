@@ -165,11 +165,11 @@ set(objs
 
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
-#link against armadillo
+#link against armadillo and boost
 if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma ${Boost_LIBRARIES})
 else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
 endif()
 
 #Define lists of executables for compilation
@@ -331,4 +331,5 @@ if(WIN32)
   install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
           DESTINATION ${INSTALL_BIN_DIR}
           FILES_MATCHING PATTERN "*.dll")
+
 endif()
