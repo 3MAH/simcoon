@@ -124,50 +124,6 @@ jobs:
         run: |
           uv run cmake --install simcoon-python-builder/build --config Release --component python
           uv pip install ./python-setup
-          # Copy DLL dependencies to the installed package directory
-          $SITE_PACKAGES = uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
-          Write-Host "Site packages: $SITE_PACKAGES"
-          Write-Host "Copying DLLs..."
-          if (Test-Path "install\bin\simcoon.dll") {
-            Copy-Item "install\bin\simcoon.dll" "$SITE_PACKAGES\simcoon\" -Force
-            Write-Host "Copied simcoon.dll"
-          } else {
-            Write-Host "simcoon.dll not found in install\bin\"
-            Get-ChildItem "install\bin\" | Write-Host
-          }
-          # Copy all DLLs from install directory
-          Get-ChildItem "install\bin\*.dll" | ForEach-Object { 
-            Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force
-            Write-Host "Copied install $($_.Name)"
-          }
-          # Copy all DLLs and PYDs from vcpkg
-          if (Test-Path "C:\vcpkg\installed\x64-windows\bin") {
-            Write-Host "Copying all vcpkg DLLs..."
-            Get-ChildItem "C:\vcpkg\installed\x64-windows\bin\*.dll" | ForEach-Object {
-              Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force -ErrorAction SilentlyContinue
-              Write-Host "Copied vcpkg $($_.Name)"
-            }
-          }
-          # Copy any PYD files from vcpkg if they exist
-          if (Test-Path "C:\vcpkg\installed\x64-windows\bin\*.pyd") {
-            Get-ChildItem "C:\vcpkg\installed\x64-windows\bin\*.pyd" | ForEach-Object {
-              Copy-Item $_.FullName "$SITE_PACKAGES\simcoon\" -Force -ErrorAction SilentlyContinue
-              Write-Host "Copied vcpkg pyd $($_.Name)"
-            }
-          }
-          # Optional: Check dependencies of simmit.pyd using dumpbin (non-blocking)
-          Write-Host "Analyzing simmit.pyd dependencies..."
-          try {
-            $dumpbin = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\dumpbin.exe"
-            if (Test-Path $dumpbin) {
-              & $dumpbin /dependents "$SITE_PACKAGES\simcoon\simmit.pyd"
-            } else {
-              Write-Host "dumpbin not found - continuing anyway"
-            }
-          } catch {
-            Write-Host "dumpbin failed - continuing anyway: $_"
-          }
-          Write-Host "DLL copy completed, proceeding with tests..."
         shell: pwsh
 
       - name: Run Python tests (Linux/macOS)

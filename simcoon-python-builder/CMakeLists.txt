@@ -206,6 +206,24 @@ install(FILES ${SIMCOON_LIB_FILE}
         DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
         COMPONENT python)
 
+# Install required DLL dependencies on Windows
+if(WIN32)
+  # Install vcpkg DLLs required by simmit.pyd
+  set(VCPKG_BIN_DIR "C:/vcpkg/installed/x64-windows/bin")
+  set(REQUIRED_DLLS
+      "openblas.dll"
+      "liblapack.dll" 
+      "libomp140.x86_64.dll")
+  
+  foreach(DLL_NAME ${REQUIRED_DLLS})
+    if(EXISTS "${VCPKG_BIN_DIR}/${DLL_NAME}")
+      install(FILES "${VCPKG_BIN_DIR}/${DLL_NAME}"
+              DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+              COMPONENT python)
+    endif()
+  endforeach()
+endif()
+
 
 #Setup CMake to run tests
 enable_testing()
