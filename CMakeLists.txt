@@ -85,7 +85,6 @@ endif()
 
 find_package(Armadillo 12.6 REQUIRED)
 
-
 find_package(GTest REQUIRED)
 
 if (MSVC)
@@ -107,18 +106,6 @@ endif()
 
 #Inclusion of Boost
 find_package(Boost 1.57.0 REQUIRED COMPONENTS system filesystem atomic)
-message(STATUS "Boost_FOUND = ${Boost_FOUND}")
-message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
-message(STATUS "Boost targets available:")
-if(TARGET Boost::system)
-  message(STATUS "  Boost::system")
-endif()
-if(TARGET Boost::filesystem) 
-  message(STATUS "  Boost::filesystem")
-endif()
-if(TARGET Boost::atomic)
-  message(STATUS "  Boost::atomic")
-endif()
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
