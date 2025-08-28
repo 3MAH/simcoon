@@ -73,10 +73,20 @@ else()
 endif() 
 
 #Inclusion of Boost
-find_package(Boost 1.57.0)
-if (Boost_FOUND)
-  include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+find_package(Boost 1.57.0 REQUIRED COMPONENTS system filesystem atomic)
+message(STATUS "Boost_FOUND = ${Boost_FOUND}")
+message(STATUS "Boost_LIBRARIES = ${Boost_LIBRARIES}")
+message(STATUS "Boost targets available:")
+if(TARGET Boost::system)
+  message(STATUS "  Boost::system")
 endif()
+if(TARGET Boost::filesystem) 
+  message(STATUS "  Boost::filesystem")
+endif()
+if(TARGET Boost::atomic)
+  message(STATUS "  Boost::atomic")
+endif()
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
 #include(FindOpenMP)
@@ -167,9 +177,9 @@ set(objs
 add_library(simcoon SHARED ${source_files})
 #link against armadillo and boost
 if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma ${Boost_LIBRARIES})
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma Boost::system Boost::filesystem Boost::atomic)
 else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} ${Boost_LIBRARIES})
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} Boost::system Boost::filesystem Boost::atomic)
 endif()
 
 #Define lists of executables for compilation
@@ -332,4 +342,25 @@ if(WIN32)
           DESTINATION ${INSTALL_BIN_DIR}
           FILES_MATCHING PATTERN "*.dll")
 
+  # Install boost runtime dependencies by finding their actual locations
+  if(Boost_FOUND)
+    foreach(boost_target Boost::system Boost::filesystem Boost::atomic)
+      if(TARGET ${boost_target})
+        # Try to get the imported location for the current configuration
+        get_target_property(boost_location ${boost_target} IMPORTED_LOCATION_RELEASE)
+        if(NOT boost_location)
+          get_target_property(boost_location ${boost_target} IMPORTED_LOCATION)
+        endif()
+        if(boost_location)
+          get_filename_component(boost_dir ${boost_location} DIRECTORY)
+          get_filename_component(boost_name ${boost_location} NAME_WE)
+          set(boost_dll "${boost_dir}/${boost_name}.dll")
+          if(EXISTS "${boost_dll}")
+            install(FILES "${boost_dll}" DESTINATION ${INSTALL_BIN_DIR})
+            message(STATUS "Will install boost DLL: ${boost_dll}")
+          endif()
+        endif()
+      endif()
+    endforeach()
+  endif()
 endif()
