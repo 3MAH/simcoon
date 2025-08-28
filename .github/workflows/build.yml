@@ -124,6 +124,11 @@ jobs:
         run: |
           uv run cmake --install simcoon-python-builder/build --config Release --component python
           uv pip install ./python-setup
+          # Debug: List what files are in the installed package directory
+          $SITE_PACKAGES = uv run python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])"
+          Write-Host "=== Files in installed simcoon package ==="
+          Get-ChildItem "$SITE_PACKAGES\simcoon" | ForEach-Object { Write-Host $_.Name }
+          Write-Host "==========================================="
         shell: pwsh
 
       - name: Run Python tests (Linux/macOS)

@@ -213,7 +213,14 @@ if(WIN32)
   set(REQUIRED_DLLS
       "openblas.dll"
       "liblapack.dll" 
-      "libomp140.x86_64.dll")
+      "libomp140.x86_64.dll"
+      "boost_atomic-vc143-mt-x64-1_88.dll"
+      "boost_filesystem-vc143-mt-x64-1_88.dll"
+      "boost_system-vc143-mt-x64-1_88.dll"
+      "libgcc_s_seh-1.dll"
+      "libgfortran-5.dll"
+      "libquadmath-0.dll"
+      "libwinpthread-1.dll")
   
   foreach(DLL_NAME ${REQUIRED_DLLS})
     if(EXISTS "${VCPKG_BIN_DIR}/${DLL_NAME}")
