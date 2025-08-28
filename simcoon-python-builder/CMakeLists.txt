@@ -209,8 +209,23 @@ install(FILES ${SIMCOON_LIB_FILE}
         DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
         COMPONENT python)
 
-# Note: All runtime DLL dependencies are now handled by the main CMakeLists.txt
-# and installed to the install/bin directory, which this script copies from.
+# Copy all runtime DLL dependencies from install/bin directory
+# (These are installed there by the main CMakeLists.txt DLL installation logic)
+if(WIN32)
+  get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
+  file(GLOB INSTALL_DLLS "${SIMCOON_BIN_DIR}/*.dll")
+  if(INSTALL_DLLS)
+    install(FILES ${INSTALL_DLLS}
+            DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+            COMPONENT python)
+    foreach(DLL_FILE ${INSTALL_DLLS})
+      get_filename_component(DLL_NAME ${DLL_FILE} NAME)
+      message(STATUS "Installing dependency DLL: ${DLL_NAME}")
+    endforeach()
+  else()
+    message(WARNING "No DLLs found in install/bin directory: ${SIMCOON_BIN_DIR}")
+  endif()
+endif()
 
 
 #Setup CMake to run tests
