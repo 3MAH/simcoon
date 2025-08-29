@@ -31,7 +31,6 @@ jobs:
             build-args: ""
             test-args: ""
           - os: windows-latest
-            package-manager: vcpkg
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: vcpkg install
             setup-env-command: |
@@ -40,28 +39,11 @@ jobs:
             cmake-args: "-D USE_CARMA=False"
             build-args: "--config Release"
             test-args: "--build-config Release"
-          - os: windows-latest
-            package-manager: conan
-            sys-package-cache-path: ~/.conan2
-            sys-package-install-command: ""
-            etup-env-command: ""
-            cmake-args: '-D USE_CARMA=False -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake"'
-            build-args: "--config Release"
-            test-args: "--build-config Release"
 
     runs-on: ${{ matrix.os }}
-    name: Test compilation on ${{ matrix.os }}${{ matrix.package-manager && format(' ({0})', matrix.package-manager) || '' }}
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Conan
-        if: matrix.package-manager == 'conan'
-        uses: conan-io/setup-conan@v1
-
-      - name: Install Conan dependencies
-        if: matrix.package-manager == 'conan'
-        run: conan install . --build=missing -s build_type=Release -s compiler.cppstd=17
 
       - name: Cache system packages
         uses: actions/cache@v4

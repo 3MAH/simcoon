@@ -6,12 +6,10 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Ensure Python finds `simcoon` in the correct location
-execute_process(
-    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
-    OUTPUT_VARIABLE PROJECT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Read version from Python package
+file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
+string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
+set(PROJECT_VERSION ${CMAKE_MATCH_1})
 
 # Print and set the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
