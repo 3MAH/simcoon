@@ -45,7 +45,7 @@ jobs:
             sys-package-cache-path: ~/.conan2
             sys-package-install-command: ""
             etup-env-command: ""
-            cmake-args: "-D USE_CARMA=False -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake"
+            cmake-args: '-D USE_CARMA=False -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake"'
             build-args: "--config Release"
             test-args: "--build-config Release"
 
