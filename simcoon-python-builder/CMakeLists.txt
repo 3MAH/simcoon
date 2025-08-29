@@ -66,12 +66,23 @@ endif()
 
 #Inclusion of Armadillo
 find_package(pybind11 REQUIRED)
+find_package(Armadillo 12.6 REQUIRED)
+
 if (MSVC)
-  # For Windows with vcpkg, find armadillo directly - it includes BLAS/LAPACK
-  find_package(armadillo CONFIG REQUIRED)
-  set(ARMADILLO_LIBRARIES armadillo)
-else()
-  find_package(Armadillo 12.6 REQUIRED)
+  # Try to find BLAS/LAPACK - if they fail, armadillo should still work
+  find_package(blas QUIET)
+  find_package(lapack QUIET)
+  
+  if (BLAS_FOUND AND LAPACK_FOUND)
+    set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+    # Fix armadillo libraries to use release versions after they are set up
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+      string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
+      message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
+    endif()
+  else()
+    message(STATUS "Using ARMADILLO_LIBRARIES as found: ${ARMADILLO_LIBRARIES}")
+  endif()
 endif()
 
 if (NOT DEFINED USE_OPENMP)
