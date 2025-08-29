@@ -1,0 +1,13 @@
+[requires]
+boost/1.84.0
+armadillo/12.8.0
+gtest/1.14.0
+
+[generators]
+CMakeToolchain
+CMakeDeps
+
+[options]
+boost/*:shared=False
+armadillo/*:shared=False
+gtest/*:shared=False
