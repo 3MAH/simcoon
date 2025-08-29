@@ -15,15 +15,15 @@ jobs:
         include:
           - os: ubuntu-latest
             sys-package-cache-path: /var/cache/apt/archives
-            sys-package-install-command: >
-              sudo apt-get update &&
-              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+            sys-package-install-command: |
+              sudo apt-get update
+              sudo apt-get install -y $(cat deps/requirements.apt | tr '\n' ' ')
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew install armadillo boost googletest
+            sys-package-install-command: brew bundle --file=deps/Brewfile
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
@@ -33,8 +33,7 @@ jobs:
           - os: windows-latest
             package-manager: vcpkg
             sys-package-cache-path: C:\vcpkg\installed
-            sys-package-install-command: |
-              vcpkg install armadillo:x64-windows boost-config:x64-windows boost-dll:x64-windows gtest:x64-windows
+            sys-package-install-command: vcpkg install --manifest-root=deps
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
@@ -63,7 +62,7 @@ jobs:
 
       - name: Install Conan dependencies
         if: matrix.package-manager == 'conan'
-        run: conan install . --build=missing -s build_type=Release
+        run: conan install deps --build=missing -s build_type=Release -s compiler.cppstd=17
 
       - name: Cache system packages
         uses: actions/cache@v4

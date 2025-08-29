@@ -1,0 +1,8 @@
+{
+  "dependencies": [
+    "armadillo",
+    "boost-config",
+    "boost-dll",
+    "gtest"
+  ]
+}
