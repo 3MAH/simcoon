@@ -84,7 +84,7 @@ jobs:
 
       - name: Build Python bindings
         run: |
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)"
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
 
       - name: Install Python package
