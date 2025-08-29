@@ -68,6 +68,9 @@ jobs:
           cmake -B build ${{ matrix.cmake-args }}
           cmake --build build ${{ matrix.build-args }}
 
+      - name: Install simcoon library
+        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
+
       - name: Run tests
         run: ctest --test-dir build ${{ matrix.test-args }}
 
@@ -80,31 +83,13 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install pybind11 numpy pytest
 
-      - name: Install simcoon library (Linux/macOS)
-        if: matrix.os != 'windows-latest'
-        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
+      - name: Get pybind11 cmake dir
+        run: echo "PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)" >> $GITHUB_ENV
 
-      - name: Install simcoon library (Windows)
-        if: matrix.os == 'windows-latest'
-        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-
-      - name: Build Python bindings (Linux/macOS)
-        if: matrix.os != 'windows-latest'
+      - name: Build Python bindings
         run: |
-          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} \
-            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;${{ env.PYBIND11_DIR }}"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
-        shell: bash
-
-      - name: Build Python bindings (Windows)
-        if: matrix.os == 'windows-latest'
-        run: |
-          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} `
-            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
-          uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
-        shell: pwsh
 
       - name: Install Python package
         run: |
