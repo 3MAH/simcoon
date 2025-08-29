@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.sys-package-cache-path }}
-          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/build.yml') }}
+          key: ${{ runner.os }}-sys-packages-${{ hashFiles('.github/workflows/build.yml', 'requirements.apt', 'Brewfile', 'vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-sys-packages-
 
