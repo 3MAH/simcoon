@@ -95,14 +95,16 @@ jobs:
           uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} \
             -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
+        shell: bash
 
       - name: Build Python bindings (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
           uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} `
-            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR" #;C:/vcpkg/installed/x64-windows"
+            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
+        shell: pwsh
 
       - name: Install Python package
         run: |
