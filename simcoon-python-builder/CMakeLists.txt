@@ -67,34 +67,44 @@ endif()
 #Inclusion of Armadillo
 find_package(pybind11 REQUIRED)
 
+# Find BLAS/LAPACK first on Windows (required for Armadillo detection)
 if (MSVC)
-  # On Windows with vcpkg, use pkg-config to find armadillo
-  find_package(PkgConfig QUIET)
-  if(PKG_CONFIG_FOUND)
-    pkg_check_modules(ARMADILLO QUIET armadillo)
-    if(ARMADILLO_FOUND)
-      set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES})
-      set(ARMADILLO_INCLUDE_DIRS ${ARMADILLO_INCLUDE_DIRS})
-    endif()
-  endif()
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
   
-  # Fallback to manual search if pkg-config fails
-  if(NOT ARMADILLO_FOUND)
-    find_path(ARMADILLO_INCLUDE_DIR armadillo PATHS ${VCPKG_ROOT}/installed/x64-windows/include)
-    find_library(ARMADILLO_LIBRARY armadillo PATHS ${VCPKG_ROOT}/installed/x64-windows/lib)
+  # Override debug libraries with release versions for MSVC builds
+  if(BLAS_FOUND AND LAPACK_FOUND)
+    # Replace debug paths with release paths
+    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
+    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
     
-    if(ARMADILLO_INCLUDE_DIR AND ARMADILLO_LIBRARY)
-      set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARY})
-      set(ARMADILLO_INCLUDE_DIRS ${ARMADILLO_INCLUDE_DIR})
-      set(ARMADILLO_FOUND TRUE)
+    # Check if release libraries exist and use them
+    set(USE_RELEASE_LIBS TRUE)
+    foreach(lib ${BLAS_LIBRARIES_RELEASE} ${LAPACK_LIBRARIES_RELEASE})
+      if(NOT EXISTS "${lib}")
+        set(USE_RELEASE_LIBS FALSE)
+        break()
+      endif()
+    endforeach()
+    
+    if(USE_RELEASE_LIBS)
+      set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
+      set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
+      message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
     endif()
   endif()
+endif()
+
+find_package(Armadillo 12.6 REQUIRED)
+
+if (MSVC)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   
-  if(NOT ARMADILLO_FOUND)
-    message(FATAL_ERROR "Could not find Armadillo on Windows")
+  # Fix armadillo libraries to use release versions after they are set up
+  if(USE_RELEASE_LIBS)
+    string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
+    message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
   endif()
-else()
-  find_package(Armadillo 12.6 REQUIRED)
 endif()
 
 if (NOT DEFINED USE_OPENMP)
