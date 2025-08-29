@@ -65,13 +65,12 @@ if(NOT carma_FOUND)
 endif()
 
 #Inclusion of Armadillo
+find_package(pybind11 REQUIRED)
 if (MSVC)
-  find_package(pybind11 REQUIRED)
-  find_package(blas REQUIRED)
-  find_package(lapack REQUIRED)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})  
+  # For Windows with vcpkg, find armadillo directly - it includes BLAS/LAPACK
+  find_package(armadillo CONFIG REQUIRED)
+  set(ARMADILLO_LIBRARIES armadillo)
 else()
-  find_package(pybind11 REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
 endif()
 
