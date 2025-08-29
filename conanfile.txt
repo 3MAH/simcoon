@@ -1,7 +1,7 @@
 [requires]
-boost/1.84.0
-armadillo/12.8.0
-gtest/1.14.0
+boost/1.88.0
+armadillo/12.6.4
+gtest/1.17.0
 
 [generators]
 CMakeToolchain
