@@ -78,35 +78,31 @@ jobs:
         run: uv venv
 
       - name: Install Python dependencies
-        run: |
-          uv pip install pybind11 numpy pytest
-          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
+        run: uv pip install pybind11 numpy pytest
 
       - name: Install simcoon library (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-        shell: bash
 
       - name: Install simcoon library (Windows)
         if: matrix.os == 'windows-latest'
         run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-        shell: pwsh
 
       - name: Build Python bindings (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
+          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
           uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} \
             -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
-        shell: bash
 
       - name: Build Python bindings (Windows)
         if: matrix.os == 'windows-latest'
         run: |
+          PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)
           uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} `
-            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR;C:/vcpkg/installed/x64-windows"
+            -DCMAKE_PREFIX_PATH="$PWD/install;$PYBIND11_DIR" #;C:/vcpkg/installed/x64-windows"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
-        shell: pwsh
 
       - name: Install Python package
         run: |
