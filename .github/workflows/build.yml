@@ -83,12 +83,9 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install pybind11 numpy pytest
 
-      - name: Get pybind11 cmake dir
-        run: echo "PYBIND11_DIR=$(uv run python -m pybind11 --cmakedir)" >> $GITHUB_ENV
-
       - name: Build Python bindings
         run: |
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;${{ env.PYBIND11_DIR }}"
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)"
           uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
 
       - name: Install Python package
@@ -97,9 +94,4 @@ jobs:
           uv pip install ./python-setup
 
       - name: Run Python tests
-        run: |
-          cd simcoon-python-builder/test/Carma
-          uv run python run_test_roundtrip.py
-          uv run python run_test_arr_to_mat.py
-          cd ../simmit_test
-          uv run python run_test.py
+        run: ctest --test-dir simcoon-python-builder/build ${{ matrix.test-args }}
