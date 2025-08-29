@@ -14,7 +14,7 @@ setup(
     packages=[
         "simcoon",
     ],
-    package_data={"simcoon": ["simmit.*", "*.dll"]},
+    package_data={"simcoon": ["simmit.*", "libsimcoon.*", "*.dll"]},
     include_package_data=True,
     license="GPL",
 )
