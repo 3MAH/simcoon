@@ -17,13 +17,13 @@ jobs:
             sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: |
               sudo apt-get update
-              sudo apt-get install -y $(cat deps/requirements.apt | tr '\n' ' ')
+              sudo apt-get install -y $(cat requirements.apt | tr '\n' ' ')
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew bundle --file=deps/Brewfile
+            sys-package-install-command: brew bundle --file=Brewfile
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
@@ -33,7 +33,7 @@ jobs:
           - os: windows-latest
             package-manager: vcpkg
             sys-package-cache-path: C:\vcpkg\installed
-            sys-package-install-command: vcpkg install --manifest-root=deps
+            sys-package-install-command: vcpkg install
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
@@ -44,9 +44,8 @@ jobs:
             package-manager: conan
             sys-package-cache-path: ~/.conan2
             sys-package-install-command: ""
-            setup-env-command: |
-              echo "CMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake" >> $env:GITHUB_ENV
-            cmake-args: "-D USE_CARMA=False"
+            etup-env-command: ""
+            cmake-args: "-D USE_CARMA=False -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake"
             build-args: "--config Release"
             test-args: "--build-config Release"
 
@@ -62,7 +61,7 @@ jobs:
 
       - name: Install Conan dependencies
         if: matrix.package-manager == 'conan'
-        run: conan install deps --build=missing -s build_type=Release -s compiler.cppstd=17
+        run: conan install . --build=missing -s build_type=Release -s compiler.cppstd=17
 
       - name: Cache system packages
         uses: actions/cache@v4
