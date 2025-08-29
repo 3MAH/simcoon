@@ -1,12 +1,4 @@
-import sys
-
 from setuptools import setup
-
-# Determine the appropriate file extension based on the OS
-if sys.platform == "win32":
-    extension_suffix = ".pyd"
-else:
-    extension_suffix = ".so"
 
 # Read version directly from file to avoid importing the package during build
 with open("simcoon/__version__.py", "r") as f:
@@ -22,7 +14,7 @@ setup(
     packages=[
         "simcoon",
     ],
-    package_data={"simcoon": ["*.so", "*.dylib", "*.dll", "*.pyd"]},
+    package_data={"simcoon": ["simmit.*", "*.dll"]},
     include_package_data=True,
     license="GPL",
 )

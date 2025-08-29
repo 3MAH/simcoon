@@ -41,6 +41,7 @@ jobs:
             test-args: "--build-config Release"
 
     runs-on: ${{ matrix.os }}
+    name: Build and Test on ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
