@@ -66,23 +66,35 @@ endif()
 
 #Inclusion of Armadillo
 find_package(pybind11 REQUIRED)
-find_package(Armadillo 12.6 REQUIRED)
 
 if (MSVC)
-  # Try to find BLAS/LAPACK - if they fail, armadillo should still work
-  find_package(blas QUIET)
-  find_package(lapack QUIET)
-  
-  if (BLAS_FOUND AND LAPACK_FOUND)
-    set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-    # Fix armadillo libraries to use release versions after they are set up
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-      string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
-      message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
+  # On Windows with vcpkg, use pkg-config to find armadillo
+  find_package(PkgConfig QUIET)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(ARMADILLO QUIET armadillo)
+    if(ARMADILLO_FOUND)
+      set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES})
+      set(ARMADILLO_INCLUDE_DIRS ${ARMADILLO_INCLUDE_DIRS})
     endif()
-  else()
-    message(STATUS "Using ARMADILLO_LIBRARIES as found: ${ARMADILLO_LIBRARIES}")
   endif()
+  
+  # Fallback to manual search if pkg-config fails
+  if(NOT ARMADILLO_FOUND)
+    find_path(ARMADILLO_INCLUDE_DIR armadillo PATHS ${VCPKG_ROOT}/installed/x64-windows/include)
+    find_library(ARMADILLO_LIBRARY armadillo PATHS ${VCPKG_ROOT}/installed/x64-windows/lib)
+    
+    if(ARMADILLO_INCLUDE_DIR AND ARMADILLO_LIBRARY)
+      set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARY})
+      set(ARMADILLO_INCLUDE_DIRS ${ARMADILLO_INCLUDE_DIR})
+      set(ARMADILLO_FOUND TRUE)
+    endif()
+  endif()
+  
+  if(NOT ARMADILLO_FOUND)
+    message(FATAL_ERROR "Could not find Armadillo on Windows")
+  endif()
+else()
+  find_package(Armadillo 12.6 REQUIRED)
 endif()
 
 if (NOT DEFINED USE_OPENMP)
