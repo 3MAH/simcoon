@@ -1,3 +1,3 @@
 {
-  "dependencies": ["armadillo", "boost-config", "boost-dll", "gtest", "lapack-reference"]
+  "dependencies": ["armadillo", "boost-config", "boost-dll", "gtest", "lapack-reference", "openblas"]
 }

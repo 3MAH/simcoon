@@ -69,6 +69,10 @@ find_package(pybind11 REQUIRED)
 
 # Find BLAS/LAPACK first on Windows (required for Armadillo detection)
 if (MSVC)
+  set(BLA_PKGCONFIG_BLAS True)
+  # Try to guide CMake to prefer release libraries
+  set(CMAKE_FIND_DEBUG_MODE FALSE)
+  
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
   
