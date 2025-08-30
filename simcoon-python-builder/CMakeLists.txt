@@ -67,48 +67,58 @@ endif()
 #Inclusion of Armadillo
 find_package(pybind11 REQUIRED)
 
-# Find BLAS/LAPACK first on Windows (required for Armadillo detection)
+# For Windows, try to find vcpkg-provided BLAS/LAPACK directly
 if (MSVC)
-  set(BLA_PKGCONFIG_BLAS True)
-  # Try to guide CMake to prefer release libraries
-  set(CMAKE_FIND_DEBUG_MODE FALSE)
+  # Try to find openblas and lapack directly from vcpkg
+  find_package(PkgConfig QUIET)
+  set(BLAS_FOUND FALSE)
+  set(LAPACK_FOUND FALSE)
   
-  find_package(BLAS REQUIRED)
-  find_package(LAPACK REQUIRED)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(OPENBLAS QUIET openblas)
+    pkg_check_modules(LAPACK_PKG QUIET lapack)
+    
+    if(OPENBLAS_FOUND)
+      set(BLAS_LIBRARIES ${OPENBLAS_LIBRARIES})
+      set(BLAS_FOUND TRUE)
+      message(STATUS "Found OpenBLAS via pkg-config: ${BLAS_LIBRARIES}")
+    endif()
+    
+    if(LAPACK_PKG_FOUND)
+      set(LAPACK_LIBRARIES ${LAPACK_PKG_LIBRARIES})
+      set(LAPACK_FOUND TRUE)
+      message(STATUS "Found LAPACK via pkg-config: ${LAPACK_LIBRARIES}")
+    endif()
+  endif()
   
-  # Override debug libraries with release versions for MSVC builds
-  if(BLAS_FOUND AND LAPACK_FOUND)
-    # Replace debug paths with release paths
-    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
-    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
+  # Fallback: try to find libraries manually in vcpkg
+  if(NOT BLAS_FOUND OR NOT LAPACK_FOUND)
+    find_library(OPENBLAS_LIB NAMES openblas libopenblas 
+                 PATHS ${VCPKG_ROOT}/installed/x64-windows/lib 
+                 NO_DEFAULT_PATH)
+    find_library(LAPACK_LIB NAMES lapack liblapack 
+                 PATHS ${VCPKG_ROOT}/installed/x64-windows/lib 
+                 NO_DEFAULT_PATH)
     
-    # Check if release libraries exist and use them
-    set(USE_RELEASE_LIBS TRUE)
-    foreach(lib ${BLAS_LIBRARIES_RELEASE} ${LAPACK_LIBRARIES_RELEASE})
-      if(NOT EXISTS "${lib}")
-        set(USE_RELEASE_LIBS FALSE)
-        break()
-      endif()
-    endforeach()
+    if(OPENBLAS_LIB)
+      set(BLAS_LIBRARIES ${OPENBLAS_LIB})
+      set(BLAS_FOUND TRUE)
+      message(STATUS "Found OpenBLAS library: ${BLAS_LIBRARIES}")
+    endif()
     
-    if(USE_RELEASE_LIBS)
-      set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
-      set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
-      message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
+    if(LAPACK_LIB)
+      set(LAPACK_LIBRARIES ${LAPACK_LIB})
+      set(LAPACK_FOUND TRUE)
+      message(STATUS "Found LAPACK library: ${LAPACK_LIBRARIES}")
     endif()
   endif()
 endif()
 
 find_package(Armadillo 12.6 REQUIRED)
 
-if (MSVC)
+if (MSVC AND BLAS_FOUND AND LAPACK_FOUND)
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-  
-  # Fix armadillo libraries to use release versions after they are set up
-  if(USE_RELEASE_LIBS)
-    string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
-    message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
-  endif()
+  message(STATUS "Added BLAS/LAPACK to ARMADILLO_LIBRARIES: ${ARMADILLO_LIBRARIES}")
 endif()
 
 if (NOT DEFINED USE_OPENMP)
