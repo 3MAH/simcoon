@@ -65,84 +65,13 @@ if(NOT carma_FOUND)
 endif()
 
 #Inclusion of Armadillo
-find_package(pybind11 REQUIRED)
-
-# For Windows, try to find vcpkg-provided BLAS/LAPACK directly
 if (MSVC)
-  # Try to find openblas and lapack directly from vcpkg
-  find_package(PkgConfig QUIET)
-  set(BLAS_FOUND FALSE)
-  set(LAPACK_FOUND FALSE)
-  
-  if(PKG_CONFIG_FOUND)
-    pkg_check_modules(OPENBLAS QUIET openblas)
-    pkg_check_modules(LAPACK_PKG QUIET lapack)
-    
-    if(OPENBLAS_FOUND)
-      set(BLAS_LIBRARIES ${OPENBLAS_LIBRARIES})
-      set(BLAS_FOUND TRUE)
-      message(STATUS "Found OpenBLAS via pkg-config: ${BLAS_LIBRARIES}")
-    endif()
-    
-    if(LAPACK_PKG_FOUND)
-      set(LAPACK_LIBRARIES ${LAPACK_PKG_LIBRARIES})
-      set(LAPACK_FOUND TRUE)
-      message(STATUS "Found LAPACK via pkg-config: ${LAPACK_LIBRARIES}")
-    endif()
-  endif()
-  
-  # Fallback: try to find libraries manually in vcpkg
-  if(NOT BLAS_FOUND OR NOT LAPACK_FOUND)
-    find_library(OPENBLAS_LIB NAMES openblas libopenblas 
-                 PATHS ${VCPKG_ROOT}/installed/x64-windows/lib 
-                 NO_DEFAULT_PATH)
-    find_library(LAPACK_LIB NAMES lapack liblapack 
-                 PATHS ${VCPKG_ROOT}/installed/x64-windows/lib 
-                 NO_DEFAULT_PATH)
-    
-    if(OPENBLAS_LIB)
-      set(BLAS_LIBRARIES ${OPENBLAS_LIB})
-      set(BLAS_FOUND TRUE)
-      message(STATUS "Found OpenBLAS library: ${BLAS_LIBRARIES}")
-    endif()
-    
-    if(LAPACK_LIB)
-      set(LAPACK_LIBRARIES ${LAPACK_LIB})
-      set(LAPACK_FOUND TRUE)
-      message(STATUS "Found LAPACK library: ${LAPACK_LIBRARIES}")
-    endif()
-  endif()
-endif()
-
-# Find Armadillo - use direct search on Windows, standard find on other platforms  
-if (MSVC)
-  # Find armadillo manually in vcpkg
-  find_path(ARMADILLO_INCLUDE_DIR 
-            NAMES armadillo armadillo_bits/config.hpp
-            PATHS ${VCPKG_ROOT}/installed/x64-windows/include
-            NO_DEFAULT_PATH)
-            
-  find_library(ARMADILLO_LIBRARY 
-               NAMES armadillo libarmadillo
-               PATHS ${VCPKG_ROOT}/installed/x64-windows/lib
-               NO_DEFAULT_PATH)
-  
-  if(ARMADILLO_INCLUDE_DIR AND ARMADILLO_LIBRARY)
-    set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARY})
-    set(ARMADILLO_INCLUDE_DIRS ${ARMADILLO_INCLUDE_DIR})
-    set(ARMADILLO_FOUND TRUE)
-    message(STATUS "Found Armadillo manually: ${ARMADILLO_LIBRARIES}")
-    message(STATUS "Armadillo include dir: ${ARMADILLO_INCLUDE_DIRS}")
-  else()
-    message(FATAL_ERROR "Could not find Armadillo in vcpkg installation")
-  endif()
-  
-  # Add BLAS/LAPACK libraries if found
-  if(BLAS_FOUND AND LAPACK_FOUND)
-    set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-    message(STATUS "Added BLAS/LAPACK to ARMADILLO_LIBRARIES: ${ARMADILLO_LIBRARIES}")
-  endif()
+  find_package(pybind11 REQUIRED)
+  find_package(blas REQUIRED)
+  find_package(lapack REQUIRED)
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 else()
+  find_package(pybind11 REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
 endif()
 
