@@ -1,3 +1,0 @@
-brew "armadillo"
-brew "boost"
-brew "googletest"

@@ -17,13 +17,13 @@ jobs:
             sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: |
               sudo apt-get update
-              sudo apt-get install -y $(cat requirements.apt | tr '\n' ' ')
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew bundle --file=Brewfile
+            sys-package-install-command: brew install armadillo boost googletest
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
