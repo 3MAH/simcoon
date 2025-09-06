@@ -32,7 +32,7 @@ jobs:
             test-args: ""
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
-            sys-package-install-command: vcpkg install
+            sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV

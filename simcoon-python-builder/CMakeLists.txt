@@ -68,6 +68,27 @@ endif()
 find_package(pybind11 REQUIRED)
 find_package(Armadillo 12.6 REQUIRED)
 
+# Find BLAS and LAPACK for Windows compatibility
+if(WIN32)
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
+  
+  # Handle debug/release library paths for vcpkg on Windows
+  if(MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+    # Replace debug lib paths with release lib paths
+    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
+    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
+    
+    # Use release libraries
+    set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
+    set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
+    message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
+  endif()
+  
+  # Add BLAS/LAPACK to Armadillo libraries
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
+
 if (NOT DEFINED USE_OPENMP)
   set(USE_OPENMP True)
 endif()
@@ -92,6 +113,10 @@ message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 message(STATUS "carma_INCLUDE_DIR = ${carma_INCLUDE_DIR}")
+if(WIN32 AND BLAS_FOUND AND LAPACK_FOUND)
+  message(STATUS "BLAS_LIBRARIES = ${BLAS_LIBRARIES}")
+  message(STATUS "LAPACK_LIBRARIES = ${LAPACK_LIBRARIES}")
+endif()
 
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
