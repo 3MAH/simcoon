@@ -124,41 +124,29 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
 	ifstream propsmat;
     string path_materialfile = path_data + "/" + materialfile;
 	propsmat.open(path_materialfile, ios::in);
-	if(propsmat) {
-        
-		string buffer;
-		propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
-	}
-	else {
+	if(!propsmat) {
 		throw runtime_error("Cannot open material file " + materialfile + " in folder " + path_data);
 	}
-	
-	char *cmname = new char [umat_name.length() + 1];
-	strcpy (cmname, umat_name.c_str());
-    
+    propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
 	propsmat.close();
     	
 	props = zeros(nprops);
     
 	propsmat.open(path_materialfile, ios::in);
-	if(propsmat) {
-		string buffer;
-		propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
-        
-		for(unsigned int i=0;i<nprops;i++)
-			propsmat >> buffer >> props(i);
-	}
-	else {
-        delete[] cmname;
+	if(!propsmat) {
 		throw runtime_error("Cannot reopen material file " + materialfile + " in folder " + path_data);
 	}
+    
+    propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
+    
+    for(unsigned int i=0;i<nprops;i++)
+        propsmat >> buffer >> props(i);
     
     psi_rve*=(sim_pi/180.);
     theta_rve*=(sim_pi/180.);
     phi_rve*=(sim_pi/180.);
     
 	propsmat.close();
-    delete[] cmname;
 }
 
 void read_output(solver_output &so, const int &nblock, const int &nstatev, const string &path_data, const string &outputfile) {
