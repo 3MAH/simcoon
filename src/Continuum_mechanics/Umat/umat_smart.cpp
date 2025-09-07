@@ -780,7 +780,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
 
-            auto external_umat = boost::dll::import_symbol<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
+            boost::dll::detail::import_type<umat_plugin_ext_api> external_umat = boost::dll::import_symbol<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
                 boost_lib_path,  // Path to the library and library name
                 "external_umat",               // Name of the symbol to import
                 boost::dll::load_mode::append_decorations  // Handles platform-specific library name decorations
@@ -795,7 +795,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             fs::path lib_path("external");  // Path to the directory with our plugin library
             fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
 
-            auto abaqus_umat = boost::dll::import_symbol<umat_plugin_aba_api>(boost_lib_path,
+            boost::dll::detail::import_type<umat_plugin_aba_api> abaqus_umat = boost::dll::import_symbol<umat_plugin_aba_api>(boost_lib_path,
                 "abaqus_umat", 
                 boost::dll::load_mode::append_decorations
             );

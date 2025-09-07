@@ -103,7 +103,7 @@ else()
 endif() 
 
 #Inclusion of Boost
-find_package(Boost 1.57.0 REQUIRED COMPONENTS filesystem atomic)
+find_package(Boost 1.76.0 REQUIRED COMPONENTS filesystem atomic)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
