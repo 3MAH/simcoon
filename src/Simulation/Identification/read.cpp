@@ -298,11 +298,7 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
 
     param_essentials.open(pathfile, ios::in);
     if(!param_essentials) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        n_param = 0;
-        n_consts = 0;
-        n_files = 0;
-        return;
+        throw runtime_error("Cannot open file: " + filename + " in path: " + path);
     }
         
     ///Get the control values for the genetic algorithm
@@ -311,7 +307,6 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     param_essentials >> buffer >> n_files;
     
     param_essentials.close();
-    
 }
     
 void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &station_lim, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {

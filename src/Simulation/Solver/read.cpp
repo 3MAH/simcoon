@@ -90,10 +90,7 @@ void solver_essentials(int &solver_type, int &corate_type, const string &path, c
     
     solver_essentials.open(pathfile, ios::in);
     if(!solver_essentials) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        solver_type = 0;
-        corate_type = 0;
-        return;
+        throw runtime_error("Cannot open file: " + filename + " in path: " + path);
     }
     
     ///Get the control values for the solver
@@ -109,15 +106,7 @@ void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int 
     
     solver_control.open(pathfile, ios::in);
     if(!solver_control) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        div_tnew_dt_solver = 0.0;
-        mul_tnew_dt_solver = 0.0;
-        miniter_solver = 0;
-        maxiter_solver = 0;
-        inforce_solver = 0;
-        precision_solver = 0.0;
-        lambda_solver = 0.0;
-        return;
+        throw runtime_error("Cannot open file: " + filename + " in path: " + path);
     }
     
     ///Get the control values for the solver
@@ -129,7 +118,6 @@ void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int 
     solver_control >> buffer >> precision_solver;
     solver_control >> buffer >> lambda_solver;
     solver_control.close();
-
 }
     
 void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const string &path_data, const string &materialfile) {
@@ -145,14 +133,7 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
 		propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
 	}
 	else {
-		cout << "Error: cannot open the file " << materialfile << " in the folder :" << path_data << endl;
-		umat_name = "";
-		nprops = 0;
-		nstatev = 0;
-		psi_rve = 0.0;
-		theta_rve = 0.0;
-		phi_rve = 0.0;
-		return;
+		throw runtime_error("Cannot open material file: " + materialfile + " in folder: " + path_data);
 	}
 	
 	char *cmname = new char [umat_name.length() + 1];
@@ -171,9 +152,8 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
 			propsmat >> buffer >> props(i);
 	}
 	else {
-		cout << "Error: cannot open the file " << materialfile << " in the folder :" << path_data << endl;
         delete[] cmname;
-        return;
+		throw runtime_error("Cannot open material file: " + materialfile + " in folder: " + path_data);
 	}
     
     psi_rve*=(sim_pi/180.);
@@ -182,7 +162,6 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
     
 	propsmat.close();
     delete[] cmname;
-    
 }
 
 void read_output(solver_output &so, const int &nblock, const int &nstatev, const string &path_data, const string &outputfile) {
