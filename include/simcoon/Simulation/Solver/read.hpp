@@ -35,13 +35,13 @@ void Lt_2_K(const arma::mat &, arma::mat &, const arma::Col<int> &, const double
 /// Function that fills the matrix Tdsde for mix strain/stress conditions
 void Lth_2_K(const arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::Col<int> &, const int &, const double &);
 
-/// Function that reads the material properties
+/// Function that reads the solver essentials. Throws runtime_error if file cannot be read.
 void solver_essentials(int &, int &, const std::string & = "data", const std::string & = "solver_essentials.inp");
 
-/// Function that reads the material properties
+/// Function that reads the solver control. Throws runtime_error if file cannot be read.
 void solver_control(double &, double &, int &, int &, int &, double &, double &, const std::string & = "data", const std::string & = "solver_control.inp");
     
-/// Function that reads the material properties
+/// Function that reads the material properties. Throws runtime_error if file cannot be read.
 void read_matprops(std::string &, unsigned int &, arma::vec &, unsigned int &, double &, double &, double &, const std::string & = "data", const std::string & = "material.dat");
     
 /// Function that reads the output parameters
