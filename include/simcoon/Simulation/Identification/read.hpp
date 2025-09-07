@@ -41,10 +41,10 @@ void read_data_weights(const int &, arma::Col<int> &, arma::vec &, std::vector<a
     
 void read_data_num(const int &, const std::vector<opti_data> &, std::vector<opti_data> &);
 
-//Read the essential control parameters of the optimization algorithm. Throws runtime_error if file cannot be read.
+//Read the essential control parameters of the optimization algorithm
 void ident_essentials(int &, int &, int &, const std::string &, const std::string &);
     
-//Read the control parameters of the optimization algorithm. Throws runtime_error if file cannot be read.
+//Read the control parameters of the optimization algorithm
 void ident_control(int &, int &, int &, int &, int &, int &, int &, double &, double &, double &, double &, double &, double &, const std::string &, const std::string &);
 
 void read_gen(int &, arma::mat &, const int &);

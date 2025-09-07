@@ -52,8 +52,6 @@ set(LIBRARY_OUTPUT_PATH lib)
 #Inclusion of Armadillo
 if (MSVC)
   set(BLA_PKGCONFIG_BLAS True)
-  # Try to guide CMake to prefer release libraries
-  set(CMAKE_FIND_DEBUG_MODE FALSE)
 endif()
 
 find_package(BLAS REQUIRED)
@@ -281,8 +279,7 @@ foreach(testSrc ${TEST_SRCS})
 
   if(MSVC)
     add_dependencies(${testName} simcoon)
-    add_custom_command(TARGET ${testName} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory
+    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_BINARY_DIR}/bin
         ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
   endif()
