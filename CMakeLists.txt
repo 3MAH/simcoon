@@ -103,7 +103,7 @@ else()
 endif() 
 
 #Inclusion of Boost
-find_package(Boost 1.57.0 REQUIRED COMPONENTS system filesystem atomic)
+find_package(Boost 1.57.0 REQUIRED COMPONENTS filesystem atomic)
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
@@ -195,9 +195,9 @@ set(objs
 add_library(simcoon SHARED ${source_files})
 #link against armadillo and boost
 if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma Boost::system Boost::filesystem Boost::atomic)
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma Boost::filesystem Boost::atomic)
 else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} Boost::system Boost::filesystem Boost::atomic)
+  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} Boost::filesystem Boost::atomic)
 endif()
 
 #Define lists of executables for compilation
