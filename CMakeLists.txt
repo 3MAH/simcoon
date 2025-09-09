@@ -31,12 +31,8 @@ if(NOT CMAKE_BUILD_TYPE)  # Debug by default
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
         FORCE)
 endif()
-if (NOT DEFINED USE_CARMA)
-  set(USE_CARMA True)
-endif()
 
 message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-message(STATUS "USE_CARMA          = ${USE_CARMA}"         )
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -84,9 +80,6 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 if (MSVC)
-  if (USE_CARMA)
-    find_package(Carma REQUIRED)
-  endif()
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
   
   # Fix armadillo libraries to use release versions after they are set up
@@ -100,9 +93,6 @@ else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 endif() 
 
-#Inclusion of Boost
-find_package(Boost 1.76.0 REQUIRED COMPONENTS filesystem atomic)
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # OpenMP
 #include(FindOpenMP)
@@ -191,12 +181,8 @@ set(objs
 
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
-#link against armadillo and boost
-if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma Boost::filesystem Boost::atomic)
-else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} Boost::filesystem Boost::atomic)
-endif()
+#link against armadillo
+target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
 
 #Define lists of executables for compilation
 set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
@@ -208,9 +194,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-  if (MSVC AND USE_CARMA)
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
+  if (MSVC)
     target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
   endif()
   if(NOT WIN32)
@@ -241,11 +225,7 @@ endif()
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 if(MSVC)
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
-  if (USE_CARMA)
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
-  endif()
+  target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
 else()
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
   target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
@@ -264,9 +244,7 @@ foreach(testSrc ${TEST_SRCS})
   #Add compile target
   add_executable(${testName} ${testSrc})
 
-  if (MSVC AND USE_CARMA)
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
-  else()
+  if (MSVC)
   	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
   endif()
   target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
@@ -305,7 +283,7 @@ if(NOT MSVC)
     add_executable(${testName} ${testSrc})
 
     target_link_libraries(${testName} simcoon GTest::gtest GTest::gtest_main)
-    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
+    target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
 
     # Custom runtime output directory for test binaries
     set_target_properties(${testName} PROPERTIES 
@@ -357,8 +335,6 @@ if(WIN32)
           DESTINATION ${INSTALL_BIN_DIR}
           FILES_MATCHING PATTERN "*.dll")
 
-  # Note: Boost libraries are statically linked into simcoon.dll
-  # No boost DLL installation needed
 
   # Install BLAS/LAPACK DLLs by finding them near the library files
   if(BLAS_FOUND AND LAPACK_FOUND)
