@@ -242,9 +242,7 @@ foreach(testSrc ${TEST_SRCS})
   #Add compile target
   add_executable(${testName} ${testSrc})
 
-  if (MSVC)
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
-  endif()
+  target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
   target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
 
   # Custom runtime output directory for test binaries
