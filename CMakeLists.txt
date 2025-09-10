@@ -194,9 +194,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-  if (MSVC)
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
-  endif()
+  target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
   if(NOT WIN32)
     target_link_libraries(${Exe_to_compile} -ldl)
   endif()
