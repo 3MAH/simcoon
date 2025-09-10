@@ -36,7 +36,7 @@ jobs:
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-            cmake-args: "-D USE_CARMA=False"
+            cmake-args: ""
             build-args: "--config Release"
             test-args: "--build-config Release"
 
@@ -44,7 +44,7 @@ jobs:
     name: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Cache system packages
         uses: actions/cache@v4
