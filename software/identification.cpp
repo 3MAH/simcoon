@@ -74,8 +74,13 @@ int main() {
 
     string simul_type = "SOLVE";
 
-    ident_essentials(n_param, n_consts, nfiles, path_data, file_essentials);
-    ident_control(ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, probaMut, pertu, c, p0, lambdaLM, path_data, file_control);
+    try {
+        ident_essentials(n_param, n_consts, nfiles, path_data, file_essentials);
+        ident_control(ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, probaMut, pertu, c, p0, lambdaLM, path_data, file_control);
+    } catch (const runtime_error& e) {
+        cerr << "Configuration error: " << e.what() << endl;
+        return 1;
+    }
     run_identification(simul_type,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data, path_keys, path_results, materialfile, outputfile, simulfile, probaMut, pertu, c, p0, lambdaLM);
 
 }
