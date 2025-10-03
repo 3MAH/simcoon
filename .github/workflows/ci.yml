@@ -49,7 +49,6 @@ jobs:
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON=ON -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
-          cmake --install build --config Release --component python
           python -m pip install ${{github.workspace}}/python-setup
 
       - name: Tests
@@ -91,7 +90,6 @@ jobs:
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON=ON -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --config Release
-          cmake --install build --config Release --component python
           python -m pip install ${{github.workspace}}/python-setup
 
       - name: Tests
@@ -137,8 +135,7 @@ jobs:
               -DUSE_OPENMP=False `
               -Wno-dev
           cmake --build build --config Release
-          cmake --install build
-          cmake --install build --component python
+          cmake --install build --config Release
           python -m pip install ${{github.workspace}}/python-setup
 
       - name: Tests

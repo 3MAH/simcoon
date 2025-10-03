@@ -79,7 +79,6 @@ jobs:
       - name: Install simcoon library and Python components
         run: |
           cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-          cmake --install build --prefix $PWD/install ${{ matrix.build-args }} --component python
           uv pip install ./python-setup
 
       - name: Run C++ tests
