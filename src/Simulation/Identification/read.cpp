@@ -290,7 +290,6 @@ void read_data_num(const int &nfiles, const vector<opti_data> &data_exp, vector<
 }
 
 void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &path, const string &filename) {
-
     std::filesystem::path data_dir = std::filesystem::current_path() / path;
     std::filesystem::path pathfile = data_dir / filename;
     ifstream param_essentials;
@@ -298,8 +297,7 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
 
     param_essentials.open(pathfile, ios::in);
     if(!param_essentials) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        return;
+        throw runtime_error("Cannot open file " + filename + " in path " + path);
     }
         
     ///Get the control values for the genetic algorithm
@@ -308,11 +306,9 @@ void ident_essentials(int &n_param, int &n_consts, int &n_files, const string &p
     param_essentials >> buffer >> n_files;
     
     param_essentials.close();
-    
 }
     
 void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys, int &maxpop, int &station_nb, double &station_lim, double &probaMut, double &pertu, double &c, double &p0, double &lambdaLM, const string &path, const string &filename) {
-    
     std::filesystem::path data_dir = std::filesystem::current_path() / path;
     std::filesystem::path pathfile = data_dir / filename;
     ifstream param_control;
@@ -320,8 +316,7 @@ void ident_control(int &ngen, int &aleaspace, int &apop, int &spop, int &ngboys,
         
     param_control.open(pathfile, ios::in);
     if(!param_control) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        return;
+        throw runtime_error("Cannot open file " + filename + " in path " + path);
     }
         
     ///Get the control values for the genetic algorithm

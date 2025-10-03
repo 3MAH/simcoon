@@ -51,17 +51,42 @@ set(LIBRARY_OUTPUT_PATH lib/${CMAKE_BUILD_TYPE})
 
 find_package(Python3 COMPONENTS Interpreter Development NumPy)
 
+# Fetch carma if not found
+include(FetchContent)
+find_package(carma CONFIG QUIET)
+if(NOT carma_FOUND)
+  message(STATUS "carma not found, fetching from GitHub")
+  FetchContent_Declare(
+    carma
+    GIT_REPOSITORY https://github.com/RUrlus/carma.git
+    GIT_TAG        stable
+  )
+  FetchContent_MakeAvailable(carma)
+endif()
+
 #Inclusion of Armadillo
-if (MSVC)
-  find_package(pybind11 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
-  find_package(blas REQUIRED)
-  find_package(lapack REQUIRED)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})  
-else()
-  find_package(pybind11 REQUIRED)
-  find_package(Armadillo 12.6 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
+find_package(pybind11 REQUIRED)
+find_package(Armadillo 12.6 REQUIRED)
+
+# Find BLAS and LAPACK for Windows compatibility
+if(WIN32)
+  find_package(BLAS REQUIRED)
+  find_package(LAPACK REQUIRED)
+  
+  # Handle debug/release library paths for vcpkg on Windows
+  if(MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+    # Replace debug lib paths with release lib paths
+    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
+    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
+    
+    # Use release libraries
+    set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
+    set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
+    message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
+  endif()
+  
+  # Add BLAS/LAPACK to Armadillo libraries
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 endif()
 
 if (NOT DEFINED USE_OPENMP)
@@ -81,7 +106,7 @@ include_directories(SYSTEM ${SIMCOON_INCLUDE_DIRS})
 include_directories(SYSTEM ${CARMA_INCLUDE_DIR})
 
 message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
-message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
+message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_INCLUDE_DIRS = ${SIMCOON_INCLUDE_DIRS}")
 message(STATUS "SIMCOON_LIBRARIES = ${SIMCOON_LIBRARIES}")
@@ -99,7 +124,6 @@ endif()
 # Set the CFLAGS and CXXFLAGS depending on the options the user specified.
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
-
 
 if (MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -149,7 +173,19 @@ file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
 # SIMCOON PYBIND11 modules
 #Add the files to the lib
 pybind11_add_module(simmit ${source_files_simmit})
-#Wrapper library set_target properties
+
+# Ensure simmit.so can always find libsimcoon.so in the same directory
+if(APPLE)
+  set_target_properties(simmit PROPERTIES
+      INSTALL_RPATH "@loader_path"
+      BUILD_WITH_INSTALL_RPATH ON
+  )
+elseif(UNIX)
+  set_target_properties(simmit PROPERTIES
+      INSTALL_RPATH "$ORIGIN"
+      BUILD_WITH_INSTALL_RPATH ON
+  )
+endif()
 
 if (USE_OPENMP)
   if(OpenMP_CXX_FOUND)
@@ -164,6 +200,46 @@ else()
 endif()
 #link against simcoon (C++ lib) and carma
 target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module ${SIMCOON_LIBRARIES})
+set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
+# Install the Python extension
+install(TARGETS simmit
+        DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+        COMPONENT python)
+
+# Install the core C++ library
+if(APPLE)
+  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to libsimcoon.dylib
+elseif(UNIX)
+  set(SIMCOON_LIB_FILE ${SIMCOON_LIBRARIES}) # should point to libsimcoon.so
+elseif(WIN32)
+  # On Windows, SIMCOON_LIBRARIES points to .lib file, we need the .dll
+  get_filename_component(SIMCOON_DIR ${SIMCOON_LIBRARIES} DIRECTORY)
+  set(SIMCOON_LIB_FILE "${SIMCOON_DIR}/../bin/simcoon.dll")
+  message(STATUS "Installing simcoon.dll from: ${SIMCOON_LIB_FILE}")
+endif()
+
+install(FILES ${SIMCOON_LIB_FILE}
+        DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+        COMPONENT python)
+
+# Copy all runtime DLL dependencies from install/bin directory
+# (These are installed there by the main CMakeLists.txt DLL installation logic)
+if(WIN32)
+  get_filename_component(SIMCOON_BIN_DIR ${SIMCOON_LIB_FILE} DIRECTORY)
+  file(GLOB INSTALL_DLLS "${SIMCOON_BIN_DIR}/*.dll")
+  if(INSTALL_DLLS)
+    install(FILES ${INSTALL_DLLS}
+            DESTINATION ${CMAKE_SOURCE_DIR}/../python-setup/simcoon
+            COMPONENT python)
+    foreach(DLL_FILE ${INSTALL_DLLS})
+      get_filename_component(DLL_NAME ${DLL_FILE} NAME)
+      message(STATUS "Installing dependency DLL: ${DLL_NAME}")
+    endforeach()
+  else()
+    message(WARNING "No DLLs found in install/bin directory: ${SIMCOON_BIN_DIR}")
+  endif()
+endif()
 
 
 #Setup CMake to run tests
@@ -184,7 +260,7 @@ if (MSVC) #if windows using visual c++
   endforeach()
 endif()
 
-set(LIBRARY_OUTPUT_PATH {CMAKE_CURRENT_SOURCE_DIR}/test)
+set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/test)
 pybind11_add_module(test_carma ${test_files_carma})
 
 # Set output directories based on the build type
@@ -207,15 +283,15 @@ target_link_libraries(test_carma PRIVATE carma::carma ${ARMADILLO_LIBRARIES} Pyt
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
 add_test(NAME test_carma_roundtrip WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_roundtrip.py)
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_roundtrip.py)
 add_test(NAME test_carma_arr_to_mat WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_arr_to_mat.py)    
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/Carma/run_test_arr_to_mat.py)    
 
 
 #Finally add it to test execution -
 #Notice the WORKING_DIRECTORY and COMMAND
 add_test(NAME simmit_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-		COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
+		COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 ################################################################################
 
