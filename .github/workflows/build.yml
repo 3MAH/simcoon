@@ -82,15 +82,18 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install pybind11 numpy pytest
 
-      - name: Build Python bindings
+      - name: Configure with Python bindings
         run: |
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
-          uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
+          uv run cmake -S . -B build-python ${{ matrix.cmake-args }} -D BUILD_PYTHON=ON -D CMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
 
-      - name: Install Python package
+      - name: Build with Python bindings
+        run: cmake --build build-python ${{ matrix.build-args }}
+
+      - name: Install Python components
         run: |
-          uv run cmake --install simcoon-python-builder/build ${{ matrix.build-args }} --component python
+          cmake --install build-python --prefix $PWD/install ${{ matrix.build-args }}
+          cmake --install build-python --prefix $PWD/install ${{ matrix.build-args }} --component python
           uv pip install ./python-setup
 
       - name: Run Python tests
-        run: ctest --test-dir simcoon-python-builder/build ${{ matrix.test-args }}
+        run: ctest --test-dir build-python ${{ matrix.test-args }} -R "test_carma|simmit_test"
