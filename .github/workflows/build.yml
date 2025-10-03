@@ -62,17 +62,6 @@ jobs:
         if: matrix.setup-env-command
         run: ${{ matrix.setup-env-command }}
 
-      - name: Build project
-        run: |
-          cmake -B build ${{ matrix.cmake-args }}
-          cmake --build build ${{ matrix.build-args }}
-
-      - name: Install simcoon library
-        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-
-      - name: Run tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
-
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
@@ -82,18 +71,19 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install pybind11 numpy pytest
 
-      - name: Configure with Python bindings
+      - name: Build project with Python bindings
         run: |
-          uv run cmake -S . -B build-python ${{ matrix.cmake-args }} -D BUILD_PYTHON=ON -D CMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D BUILD_PYTHON=ON -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          cmake --build build ${{ matrix.build-args }}
 
-      - name: Build with Python bindings
-        run: cmake --build build-python ${{ matrix.build-args }}
-
-      - name: Install Python components
+      - name: Install simcoon library and Python components
         run: |
-          cmake --install build-python --prefix $PWD/install ${{ matrix.build-args }}
-          cmake --install build-python --prefix $PWD/install ${{ matrix.build-args }} --component python
+          cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
+          cmake --install build --prefix $PWD/install ${{ matrix.build-args }} --component python
           uv pip install ./python-setup
 
+      - name: Run C++ tests
+        run: ctest --test-dir build ${{ matrix.test-args }} --exclude-regex "test_carma|simmit_test"
+
       - name: Run Python tests
-        run: ctest --test-dir build-python ${{ matrix.test-args }} -R "test_carma|simmit_test"
+        run: ctest --test-dir build ${{ matrix.test-args }} -R "test_carma|simmit_test"
