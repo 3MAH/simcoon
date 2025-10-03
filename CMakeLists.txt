@@ -6,12 +6,10 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Ensure Python finds `simcoon` in the correct location
-execute_process(
-    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
-    OUTPUT_VARIABLE PROJECT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Read version from Python package
+file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
+string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
+set(PROJECT_VERSION ${CMAKE_MATCH_1})
 
 # Print and set the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
@@ -33,12 +31,8 @@ if(NOT CMAKE_BUILD_TYPE)  # Debug by default
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
         FORCE)
 endif()
-if (NOT DEFINED USE_CARMA)
-  set(USE_CARMA True)
-endif()
 
 message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-message(STATUS "USE_CARMA          = ${USE_CARMA}"         )
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -58,25 +52,47 @@ endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+
+# Override debug libraries with release versions for MSVC builds
+if(MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+  # Replace debug paths with release paths
+  string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_RELEASE "${BLAS_LIBRARIES}")
+  string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_RELEASE "${LAPACK_LIBRARIES}")
+  
+  # Check if release libraries exist and use them
+  set(USE_RELEASE_LIBS TRUE)
+  foreach(lib ${BLAS_LIBRARIES_RELEASE} ${LAPACK_LIBRARIES_RELEASE})
+    if(NOT EXISTS "${lib}")
+      set(USE_RELEASE_LIBS FALSE)
+      break()
+    endif()
+  endforeach()
+  
+  if(USE_RELEASE_LIBS)
+    set(BLAS_LIBRARIES ${BLAS_LIBRARIES_RELEASE})
+    set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_RELEASE})
+    message(STATUS "Using release BLAS/LAPACK libraries instead of debug")
+  endif()
+endif()
+
 find_package(Armadillo 12.6 REQUIRED)
 
 find_package(GTest REQUIRED)
 
 if (MSVC)
-  if (USE_CARMA)
-    find_package(Carma REQUIRED)
-  endif()
   set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  
+  # Fix armadillo libraries to use release versions after they are set up
+  if(USE_RELEASE_LIBS)
+    string(REPLACE "/debug/lib/" "/lib/" ARMADILLO_LIBRARIES "${ARMADILLO_LIBRARIES}")
+    message(STATUS "Fixed ARMADILLO_LIBRARIES to use release versions")
+  endif()
+  
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 else()
   include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
 endif() 
 
-#Inclusion of Boost
-find_package(Boost 1.57.0)
-if (Boost_FOUND)
-  include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
-endif()
 
 # OpenMP
 #include(FindOpenMP)
@@ -166,11 +182,7 @@ set(objs
 #Add the files to the lib
 add_library(simcoon SHARED ${source_files})
 #link against armadillo
-if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
-endif()
+target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
 
 #Define lists of executables for compilation
 set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
@@ -182,11 +194,7 @@ foreach (Exe_to_compile ${All_exe_to_compile})
 	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
 
 	#Link the solver executable with armadillo
-  if (MSVC AND USE_CARMA)
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
-  endif()
+  target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
   if(NOT WIN32)
     target_link_libraries(${Exe_to_compile} -ldl)
   endif()
@@ -215,11 +223,7 @@ endif()
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 if(MSVC)
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
-  if (USE_CARMA)
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
-  endif()
+  target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
 else()
   set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
   target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
@@ -238,11 +242,7 @@ foreach(testSrc ${TEST_SRCS})
   #Add compile target
   add_executable(${testName} ${testSrc})
 
-  if (MSVC AND USE_CARMA)
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
-  else()
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
-  endif()
+  target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
   target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
 
   # Custom runtime output directory for test binaries
@@ -252,8 +252,9 @@ foreach(testSrc ${TEST_SRCS})
       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
-    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_BINARY_DIR}/bin/simcoon.dll  
+    add_dependencies(${testName} simcoon)
+    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_BINARY_DIR}/bin
         ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
   endif()
 
@@ -278,7 +279,7 @@ if(NOT MSVC)
     add_executable(${testName} ${testSrc})
 
     target_link_libraries(${testName} simcoon GTest::gtest GTest::gtest_main)
-    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
+    target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
 
     # Custom runtime output directory for test binaries
     set_target_properties(${testName} PROPERTIES 
@@ -322,3 +323,83 @@ message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
 
 install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
 install(TARGETS simcoon)
+
+# Install runtime DLLs on Windows
+if(WIN32)
+  # Install all DLLs from build/bin to install/bin for complete installation
+  install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
+          DESTINATION ${INSTALL_BIN_DIR}
+          FILES_MATCHING PATTERN "*.dll")
+
+
+  # Install BLAS/LAPACK DLLs by finding them near the library files
+  if(BLAS_FOUND AND LAPACK_FOUND)
+    foreach(lib_path ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+      get_filename_component(lib_dir ${lib_path} DIRECTORY)
+      get_filename_component(lib_name ${lib_path} NAME_WE)
+      
+      # Convert lib directory to bin directory to find DLLs
+      string(REPLACE "/lib" "/bin" bin_dir "${lib_dir}")
+      # Also convert debug paths to release if we're preferring release libraries
+      if(USE_RELEASE_LIBS)
+        string(REPLACE "/debug/bin" "/bin" bin_dir "${bin_dir}")
+      endif()
+      
+      # Try common DLL names based on the library
+      set(possible_dlls "")
+      if(lib_name MATCHES "openblas")
+        list(APPEND possible_dlls "openblas.dll")
+      elseif(lib_name MATCHES "lapack")
+        list(APPEND possible_dlls "liblapack.dll")
+      endif()
+      
+      foreach(dll_name ${possible_dlls})
+        set(dll_path "${bin_dir}/${dll_name}")
+        if(EXISTS "${dll_path}")
+          install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+          message(STATUS "Will install BLAS/LAPACK DLL: ${dll_path}")
+        endif()
+      endforeach()
+    endforeach()
+  endif()
+
+  # Install GCC runtime DLLs that might be needed by dependencies
+  # (even with MSVC, some vcpkg packages might have been built with MinGW)
+  set(GCC_RUNTIME_DLLS
+      "libgcc_s_seh-1.dll"
+      "libgfortran-5.dll"
+      "libquadmath-0.dll"
+      "libwinpthread-1.dll")
+  
+  foreach(dll_name ${GCC_RUNTIME_DLLS})
+    set(dll_found FALSE)
+    
+    # First try to find in the same location as BLAS libraries (likely vcpkg/bin)
+    foreach(lib_path ${BLAS_LIBRARIES})
+      if(NOT dll_found)
+        get_filename_component(lib_dir ${lib_path} DIRECTORY)
+        string(REPLACE "/lib" "/bin" bin_dir "${lib_dir}")
+        if(USE_RELEASE_LIBS)
+          string(REPLACE "/debug/bin" "/bin" bin_dir "${bin_dir}")
+        endif()
+        set(dll_path "${bin_dir}/${dll_name}")
+        if(EXISTS "${dll_path}")
+          install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+          message(STATUS "Will install GCC runtime DLL: ${dll_path}")
+          set(dll_found TRUE)
+        endif()
+      endif()
+    endforeach()
+    
+    # If not found and we're using GCC, try compiler directory
+    if(NOT dll_found AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      get_filename_component(COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+      set(dll_path "${COMPILER_DIR}/${dll_name}")
+      if(EXISTS "${dll_path}")
+        install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+        message(STATUS "Will install GCC runtime DLL: ${dll_path}")
+        set(dll_found TRUE)
+      endif()
+    endif()
+  endforeach()
+endif()

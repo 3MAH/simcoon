@@ -1,0 +1,96 @@
+name: Build and Test (Non-Conda)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            sys-package-cache-path: /var/cache/apt/archives
+            sys-package-install-command: |
+              sudo apt-get update
+              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
+            build-args: ""
+            test-args: ""
+          - os: macos-latest
+            sys-package-cache-path: ~/Library/Caches/Homebrew
+            sys-package-install-command: brew install armadillo boost googletest
+            setup-env-command: |
+              echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
+              echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
+            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
+            build-args: ""
+            test-args: ""
+          - os: windows-latest
+            sys-package-cache-path: C:\vcpkg\installed
+            sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
+            setup-env-command: |
+              echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+              echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+            cmake-args: ""
+            build-args: "--config Release"
+            test-args: "--build-config Release"
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache system packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.sys-package-cache-path }}
+          key: ${{ runner.os }}-sys-packages-v2-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-sys-packages-v2-
+
+      - name: Install system dependencies
+        if: matrix.sys-package-install-command != ''
+        run: ${{ matrix.sys-package-install-command }}
+
+      - name: Setup environment
+        if: matrix.setup-env-command
+        run: ${{ matrix.setup-env-command }}
+
+      - name: Build project
+        run: |
+          cmake -B build ${{ matrix.cmake-args }}
+          cmake --build build ${{ matrix.build-args }}
+
+      - name: Install simcoon library
+        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
+
+      - name: Run tests
+        run: ctest --test-dir build ${{ matrix.test-args }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install Python dependencies
+        run: uv pip install pybind11 numpy pytest
+
+      - name: Build Python bindings
+        run: |
+          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
+
+      - name: Install Python package
+        run: |
+          uv run cmake --install simcoon-python-builder/build ${{ matrix.build-args }} --component python
+          uv pip install ./python-setup
+
+      - name: Run Python tests
+        run: ctest --test-dir simcoon-python-builder/build ${{ matrix.test-args }}

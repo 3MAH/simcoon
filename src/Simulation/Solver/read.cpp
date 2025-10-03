@@ -83,15 +83,13 @@ void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col
 }
 
 void solver_essentials(int &solver_type, int &corate_type, const string &path, const string &filename) {
-        
     string pathfile = path + "/" + filename;
     ifstream solver_essentials;
     string buffer;
     
     solver_essentials.open(pathfile, ios::in);
     if(!solver_essentials) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        return;
+        throw runtime_error("Cannot open file " + filename + " in path " + path);
     }
     
     ///Get the control values for the solver
@@ -100,15 +98,13 @@ void solver_essentials(int &solver_type, int &corate_type, const string &path, c
 }
 
 void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int &miniter_solver, int &maxiter_solver, int &inforce_solver, double &precision_solver, double &lambda_solver, const string &path, const string &filename) {
-    
     string pathfile = path + "/" + filename;
     ifstream solver_control;
     string buffer;
     
     solver_control.open(pathfile, ios::in);
     if(!solver_control) {
-        cout << "Error: cannot open : " << filename << " in :" << path << endl;
-        return;
+        throw runtime_error("Cannot open file " + filename + " in path " + path);
     }
     
     ///Get the control values for the solver
@@ -120,51 +116,37 @@ void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int 
     solver_control >> buffer >> precision_solver;
     solver_control >> buffer >> lambda_solver;
     solver_control.close();
-
 }
     
 void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const string &path_data, const string &materialfile) {
-
     ///Material properties reading, use "material.dat" to specify parameters values
 	string buffer;
 	ifstream propsmat;
     string path_materialfile = path_data + "/" + materialfile;
 	propsmat.open(path_materialfile, ios::in);
-	if(propsmat) {
-        
-		string buffer;
-		propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
+	if(!propsmat) {
+		throw runtime_error("Cannot open material file " + materialfile + " in folder " + path_data);
 	}
-	else {
-		cout << "Error: cannot open the file " << materialfile << " in the folder :" << path_data << endl;
-	}
-	
-	char *cmname = new char [umat_name.length()];
-	strcpy (cmname, umat_name.c_str());
-    
+    propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
 	propsmat.close();
     	
 	props = zeros(nprops);
     
 	propsmat.open(path_materialfile, ios::in);
-	if(propsmat) {
-		string buffer;
-		propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
-        
-		for(unsigned int i=0;i<nprops;i++)
-			propsmat >> buffer >> props(i);
+	if(!propsmat) {
+		throw runtime_error("Cannot reopen material file " + materialfile + " in folder " + path_data);
 	}
-	else {
-		cout << "Error: cannot open the file " << materialfile << " in the folder :" << path_data << endl;
-        return;
-	}
+    
+    propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
+    
+    for(unsigned int i=0;i<nprops;i++)
+        propsmat >> buffer >> props(i);
     
     psi_rve*=(sim_pi/180.);
     theta_rve*=(sim_pi/180.);
     phi_rve*=(sim_pi/180.);
     
 	propsmat.close();
-    
 }
 
 void read_output(solver_output &so, const int &nblock, const int &nstatev, const string &path_data, const string &outputfile) {
