@@ -242,12 +242,6 @@ if(NOT MSVC)
 endif()
 
 ################################################################################
-# PYTHON BINDINGS
-if(BUILD_PYTHON)
-  add_subdirectory(simcoon-python-builder)
-endif()
-
-################################################################################
 # INSTALL CONFIGURATION
 
 set(INSTALL_INCLUDE_DIR include)
@@ -263,24 +257,8 @@ message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
 message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
 message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
 
-install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-install(TARGETS simcoon)
-
-# Install runtime dependencies on Windows
+# Find and collect runtime dependency DLLs on Windows (before Python bindings)
 if(WIN32)
-  # Install all DLLs from build/bin
-  install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
-          DESTINATION ${INSTALL_BIN_DIR}
-          FILES_MATCHING PATTERN "*.dll")
-
-  # Also install to Python package directory if building Python bindings
-  if(BUILD_PYTHON)
-    install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
-            DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
-            COMPONENT python
-            FILES_MATCHING PATTERN "simcoon.dll")
-  endif()
-
   # Find and install dependency DLLs (BLAS/LAPACK/runtime)
   set(DEPENDENCY_DLLS
       "openblas.dll"
@@ -306,21 +284,49 @@ if(WIN32)
 
   list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
 
-  # Try to find and install each DLL
+  # Collect dependency DLL paths for Python package
+  if(BUILD_PYTHON)
+    set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
+  endif()
+
+  # Try to find and store each DLL path
   foreach(dll_name ${DEPENDENCY_DLLS})
     foreach(search_path ${DLL_SEARCH_PATHS})
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
-        install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
-        # Also install to Python package directory if building Python bindings
+        # Store path for Python package (handled by python-builder CMakeLists)
         if(BUILD_PYTHON)
-          install(FILES "${dll_path}"
-                  DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
-                  COMPONENT python)
+          list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
+          set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
-        message(STATUS "Will install dependency DLL: ${dll_path}")
+        message(STATUS "Found dependency DLL: ${dll_path}")
         break()
       endif()
     endforeach()
   endforeach()
+endif()
+
+################################################################################
+# PYTHON BINDINGS
+if(BUILD_PYTHON)
+  add_subdirectory(simcoon-python-builder)
+endif()
+
+################################################################################
+# INSTALL TARGETS
+
+install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
+install(TARGETS simcoon)
+
+# Install runtime dependencies on Windows
+if(WIN32)
+  # Install all DLLs from build/bin
+  install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
+          DESTINATION ${INSTALL_BIN_DIR}
+          FILES_MATCHING PATTERN "*.dll")
+
+  # Install dependency DLLs
+  if(PYTHON_RUNTIME_DLLS)
+    install(FILES ${PYTHON_RUNTIME_DLLS} DESTINATION ${INSTALL_BIN_DIR})
+  endif()
 endif()

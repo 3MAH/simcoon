@@ -49,7 +49,15 @@ install(FILES $<TARGET_FILE:simcoon>
         DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
         COMPONENT python)
 
-# Note: Dependency DLLs are installed by the main CMakeLists.txt
+# Install runtime dependency DLLs on Windows
+# (DLL paths are found and stored by parent CMakeLists.txt)
+if(WIN32 AND PYTHON_RUNTIME_DLLS)
+  install(FILES ${PYTHON_RUNTIME_DLLS}
+          DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
+          COMPONENT python)
+  list(LENGTH PYTHON_RUNTIME_DLLS DLL_COUNT)
+  message(STATUS "Python package will include ${DLL_COUNT} runtime dependency DLLs")
+endif()
 
 ################################################################################
 # TESTS
