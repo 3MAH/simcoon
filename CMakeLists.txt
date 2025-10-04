@@ -273,6 +273,14 @@ if(WIN32)
           DESTINATION ${INSTALL_BIN_DIR}
           FILES_MATCHING PATTERN "*.dll")
 
+  # Also install to Python package directory if building Python bindings
+  if(BUILD_PYTHON)
+    install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
+            DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
+            COMPONENT python
+            FILES_MATCHING PATTERN "simcoon.dll")
+  endif()
+
   # Find and install dependency DLLs (BLAS/LAPACK/runtime)
   set(DEPENDENCY_DLLS
       "openblas.dll"
@@ -304,6 +312,12 @@ if(WIN32)
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
         install(FILES "${dll_path}" DESTINATION ${INSTALL_BIN_DIR})
+        # Also install to Python package directory if building Python bindings
+        if(BUILD_PYTHON)
+          install(FILES "${dll_path}"
+                  DESTINATION ${CMAKE_SOURCE_DIR}/python-setup/simcoon
+                  COMPONENT python)
+        endif()
         message(STATUS "Will install dependency DLL: ${dll_path}")
         break()
       endif()
