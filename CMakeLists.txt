@@ -51,9 +51,14 @@ function(add_simcoon_test test_src)
   get_filename_component(testName ${test_src} NAME_WE)
   get_filename_component(testFolder ${test_src} DIRECTORY)
 
-  # Strip the base directory (test/ or test_extern/) from testFolder
-  # to match the existing testBin structure (testBin/Identification, not testBin/test/Identification)
-  string(REGEX REPLACE "^[^/]+/" "" testFolder "${testFolder}")
+  # Strip base directory and intermediate grouping directories to match testBin structure:
+  # test/Identification → Identification
+  # test/Libraries/Continuum_mechanics → Continuum_mechanics
+  # test/Umats/ELISO → Umats/ELISO
+  # test_extern/Umats/UMABA → Umats/UMABA
+  string(REGEX REPLACE "^test/" "" testFolder "${testFolder}")
+  string(REGEX REPLACE "^test_extern/" "" testFolder "${testFolder}")
+  string(REGEX REPLACE "^Libraries/" "" testFolder "${testFolder}")
 
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
