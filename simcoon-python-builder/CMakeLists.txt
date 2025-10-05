@@ -8,9 +8,6 @@ option(SIMCOON_PYTHON_INSTALL_TO_SOURCE "Install Python package to source tree (
 
 # All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
 
-# Add this subproject's include directory
-include_directories(include)
-
 # Get source files for Python bindings
 file(GLOB_RECURSE source_files_simmit src/python_wrappers/* include/simcoon/python_wrappers/*)
 
@@ -40,7 +37,11 @@ else()
 endif()
 set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
-target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3::Module simcoon)
+# Add include directories for Python wrapper headers
+target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Link dependencies (simcoon provides Armadillo transitively)
+target_link_libraries(simmit PRIVATE carma::carma Python3::Module simcoon)
 
 # Determine Python package installation directory
 if(SIMCOON_PYTHON_INSTALL_TO_SOURCE)

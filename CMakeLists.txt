@@ -52,8 +52,7 @@ function(add_simcoon_test test_src base_dir)
   get_filename_component(testFolder ${testRel} DIRECTORY)
 
   add_executable(${testName} ${test_src})
-  target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
-  target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})
+  target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
   set_output_directory(${testName} ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
 
@@ -127,8 +126,7 @@ if(BUILD_PYTHON_BINDINGS)
   message(STATUS "carma_INCLUDE_DIR = ${carma_INCLUDE_DIR}")
 endif()
 
-# Armadillo include directories
-include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})
+# Armadillo include directories will be added to targets as needed
 
 # Platform-specific configuration
 if(MSVC)
@@ -182,27 +180,31 @@ message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 
-#Inclusion of public headers
-include_directories(include)
-
-# add the binary tree to the search path for include files
-include_directories("${PROJECT_BINARY_DIR}")
-
 # Gather all source files for the library
 file(GLOB_RECURSE source_files src*/* include/*)
 
 # Create simcoon shared library
 add_library(simcoon SHARED ${source_files})
-target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
+
+# Add include directories to simcoon target
+target_include_directories(simcoon
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Add Armadillo as system headers to suppress warnings
+target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
+
+target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
 foreach(exe_name ${EXECUTABLES})
   add_executable(${exe_name} software/${exe_name}.cpp)
-  target_link_libraries(${exe_name} simcoon ${ARMADILLO_LIBRARIES})
-  if(NOT WIN32)
-    target_link_libraries(${exe_name} -ldl)
-  endif()
+  target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})
 endforeach()
 
 ##Testing
@@ -213,12 +215,12 @@ file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
 if(NOT MSVC)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
   set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-  target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
+  target_link_libraries(umat_plugin_aba PRIVATE simcoon)
 endif()
 
 add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
 set_target_properties(umat_plugin_ext PROPERTIES PREFIX "")
-target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
+target_link_libraries(umat_plugin_ext PRIVATE simcoon)
 if(MSVC)
   set_target_properties(umat_plugin_ext PROPERTIES SUFFIX ".dll")
   set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
