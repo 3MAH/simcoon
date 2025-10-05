@@ -25,6 +25,7 @@ include(GNUInstallDirs)
 # Options
 option(DEBUG "Compile with debugging information" OFF)
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(SIMCOON_BUILD_TESTS "Build tests" ON)
 
 # Helper function to set output directories for multi-config generators (MSVC)
 function(set_output_directory target output_dir)
@@ -162,11 +163,11 @@ message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 
-# Gather all source files for the library
-file(GLOB_RECURSE source_files src*/* include/*)
-
 # Create simcoon shared library
-add_library(simcoon SHARED ${source_files})
+add_library(simcoon SHARED)
+
+# Add source files from subdirectory
+add_subdirectory(src)
 
 # Create alias for namespaced usage (simcoon::simcoon)
 add_library(simcoon::simcoon ALIAS simcoon)
@@ -217,39 +218,29 @@ foreach(exe_name ${EXECUTABLES})
 endforeach()
 
 ##Testing
-#Test files are in a separate source directory called test
-file(GLOB_RECURSE TEST_SRCS test/*.cpp)
-file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
+if(SIMCOON_BUILD_TESTS)
+  # Test plugin libraries
+  if(NOT MSVC)
+    add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+    set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
+  endif()
 
-if(NOT MSVC)
-  add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-  set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-  target_link_libraries(umat_plugin_aba PRIVATE simcoon)
-endif()
+  add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
+  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "")
+  target_link_libraries(umat_plugin_ext PRIVATE simcoon)
+  if(MSVC)
+    set_target_properties(umat_plugin_ext PROPERTIES SUFFIX ".dll")
+    set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+  else()
+    set_target_properties(umat_plugin_ext PROPERTIES
+      SUFFIX ""
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+    )
+  endif()
 
-add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
-set_target_properties(umat_plugin_ext PROPERTIES PREFIX "")
-target_link_libraries(umat_plugin_ext PRIVATE simcoon)
-if(MSVC)
-  set_target_properties(umat_plugin_ext PROPERTIES SUFFIX ".dll")
-  set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-else()
-  set_target_properties(umat_plugin_ext PROPERTIES
-    SUFFIX ""
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
-  )
-endif()
-
-# Add all test executables
-foreach(testSrc ${TEST_SRCS})
-  add_simcoon_test(${testSrc} test)
-endforeach()
-
-# Add external test executables (non-MSVC only)
-if(NOT MSVC)
-  foreach(testSrc ${TEST_EXTERN})
-    add_simcoon_test(${testSrc} test_extern)
-  endforeach()
+  # Add test executables from subdirectory
+  add_subdirectory(test)
 endif()
 
 ################################################################################
