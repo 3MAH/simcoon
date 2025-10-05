@@ -36,8 +36,8 @@ jobs:
 
       - name: Conda build
         run: |
-          conda install -y conda-build boa anaconda-client
-          conda mambabuild conda.recipe -c conda-forge -c set3mah --output-folder .
+          conda install -y conda-build anaconda-client
+          conda-build conda.recipe -c conda-forge -c set3mah --output-folder .
 
       - name: Upload to Anaconda
         if: github.event_name == 'workflow_dispatch'
