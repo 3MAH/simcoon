@@ -45,18 +45,30 @@ target_link_libraries(simmit PRIVATE ${ARMADILLO_LIBRARIES} carma::carma Python3
 # Determine Python package installation directory
 if(SIMCOON_PYTHON_INSTALL_TO_SOURCE)
   message(WARNING "Installing Python package to source tree - recommended for development only")
+  set(PYTHON_PACKAGE_ROOT ${CMAKE_SOURCE_DIR}/python-setup)
   set(PYTHON_INSTALL_DIR ${CMAKE_SOURCE_DIR}/python-setup/simcoon)
 else()
+  set(PYTHON_PACKAGE_ROOT ${CMAKE_BINARY_DIR}/python-package)
   set(PYTHON_INSTALL_DIR ${CMAKE_BINARY_DIR}/python-package/simcoon)
-  message(STATUS "Python package will be installed to build directory: ${PYTHON_INSTALL_DIR}")
+  message(STATUS "Python package will be installed to build directory: ${PYTHON_PACKAGE_ROOT}")
 endif()
+
+# Install setup.py and Python source files to create a complete package
+install(FILES ${CMAKE_SOURCE_DIR}/python-setup/setup.py
+        DESTINATION ${PYTHON_PACKAGE_ROOT}
+        COMPONENT python)
+
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/python-setup/simcoon/
+        DESTINATION ${PYTHON_INSTALL_DIR}
+        COMPONENT python
+        FILES_MATCHING PATTERN "*.py")
 
 # Install the Python extension module
 install(TARGETS simmit
         DESTINATION ${PYTHON_INSTALL_DIR}
         COMPONENT python)
 
-# Install the simcoon shared library to python-setup
+# Install the simcoon shared library
 install(FILES $<TARGET_FILE:simcoon>
         DESTINATION ${PYTHON_INSTALL_DIR}
         COMPONENT python)
