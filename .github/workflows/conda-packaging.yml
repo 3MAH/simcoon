@@ -36,12 +36,13 @@ jobs:
 
       - name: Conda build
         run: |
-          conda install -y conda-build anaconda-client
+          conda install -y conda-build
           conda build conda.recipe -c conda-forge -c set3mah --output-folder .
 
       - name: Upload to Anaconda
         if: github.event_name == 'workflow_dispatch'
         run: |
+          conda install -y anaconda-client
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
           anaconda upload *-64/*.tar.bz2 --force
           anaconda logout
