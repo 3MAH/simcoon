@@ -24,7 +24,7 @@ include(GNUInstallDirs)
 
 # Options
 option(SIMCOON_DEBUG "Compile with debugging information" OFF)
-option(SIMCOON_SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
 
 # Helper function to set output directories for multi-config generators (MSVC)
