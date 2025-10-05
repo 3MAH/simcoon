@@ -363,8 +363,8 @@ if(WIN32)
   # Install all DLLs from build/bin
   install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
           DESTINATION ${CMAKE_INSTALL_BINDIR}
-          FILES_MATCHING PATTERN "*.dll"
-          COMPONENT Runtime)
+          COMPONENT Runtime
+          FILES_MATCHING PATTERN "*.dll")
 
   # Install dependency DLLs
   if(PYTHON_RUNTIME_DLLS)
