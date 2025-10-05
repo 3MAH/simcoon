@@ -145,23 +145,61 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
-  # Fetch carma if not found
+  # Find or fetch carma
   include(FetchContent)
+
+  # Try to find carma from conda/system first
   find_package(carma CONFIG QUIET)
-  if(NOT carma_FOUND)
-    message(STATUS "carma not found, fetching from GitHub")
-    FetchContent_Declare(
-      carma
-      GIT_REPOSITORY https://github.com/RUrlus/carma.git
-      GIT_TAG        stable
-    )
-    FetchContent_MakeAvailable(carma)
+
+  if(carma_FOUND)
+    message(STATUS "Found carma package (CONFIG mode)")
+  else()
+    # If not found via CONFIG, try to find headers directly in conda prefix
+    if(DEFINED ENV{PREFIX})
+      set(CONDA_PREFIX $ENV{PREFIX})
+    elseif(DEFINED ENV{CONDA_PREFIX})
+      set(CONDA_PREFIX $ENV{CONDA_PREFIX})
+    endif()
+
+    if(CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
+      message(STATUS "Found carma headers in conda environment")
+      set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
+
+      # Create carma::carma target from conda installation
+      if(NOT TARGET carma::carma)
+        add_library(carma::carma INTERFACE IMPORTED)
+        set_target_properties(carma::carma PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+        )
+      endif()
+      set(carma_FOUND TRUE)
+    else()
+      # Fall back to fetching from GitHub
+      message(STATUS "carma not found, fetching from GitHub")
+      FetchContent_Declare(
+        carma
+        GIT_REPOSITORY https://github.com/RUrlus/carma.git
+        GIT_TAG        stable
+      )
+      FetchContent_MakeAvailable(carma)
+
+      # Get the source directory and set include path
+      FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
+      set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
+
+      # Ensure carma::carma target exists with proper include directories
+      if(NOT TARGET carma::carma)
+        add_library(carma::carma INTERFACE IMPORTED)
+        set_target_properties(carma::carma PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+        )
+      endif()
+    endif()
   endif()
 
   message(STATUS "Python bindings enabled")
   message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
   message(STATUS "PYTHON_INCLUDE_DIRS = ${Python3_INCLUDE_DIRS}")
-  message(STATUS "carma_INCLUDE_DIR = ${carma_INCLUDE_DIR}")
 endif()
 
 # Armadillo include directories will be added to targets as needed

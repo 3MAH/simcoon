@@ -26,8 +26,8 @@ jobs:
     name: Linux
     runs-on: "ubuntu-latest"
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
@@ -45,7 +45,13 @@ jobs:
       - name: Build for Linux
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --component python
           python -m pip install ${{github.workspace}}/build/python-package
@@ -76,8 +82,8 @@ jobs:
     name: MacOS
     runs-on: "macos-latest"
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
@@ -86,7 +92,13 @@ jobs:
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --component python
           python -m pip install ${{github.workspace}}/build/python-package
@@ -117,8 +129,8 @@ jobs:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
@@ -127,9 +139,13 @@ jobs:
       - name: Build for Windows
         shell: pwsh
         run: |
+          $pybind11_dir = python -c "import pybind11; print(pybind11.get_cmake_dir())"
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON `
+              -DPython3_EXECUTABLE="$env:CONDA_PREFIX/python.exe" `
+              -Dpybind11_DIR="$pybind11_dir" `
               -Wno-dev
           cmake --build build --config Release
           cmake --install build --config Release --component python

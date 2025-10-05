@@ -70,6 +70,9 @@ else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 
+# Disable precompiled headers for this target (causes issues with carma includes)
+set_target_properties(simmit PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+
 # C++ standard inherited from parent (C++20)
 
 # Add include directories for Python wrapper headers
