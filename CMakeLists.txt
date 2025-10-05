@@ -46,11 +46,12 @@ function(set_output_directory target output_dir)
 endfunction()
 
 # Helper function to add test executable with proper configuration
+# test_src should be relative to CMAKE_SOURCE_DIR (e.g., "test/Identification/Tidentification.cpp")
 function(add_simcoon_test test_src)
   get_filename_component(testName ${test_src} NAME_WE)
   get_filename_component(testFolder ${test_src} DIRECTORY)
 
-  add_executable(${testName} ${test_src})
+  add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
