@@ -50,12 +50,12 @@ set(TEST_EXTERN
 
 # Add test executables
 foreach(testSrc ${TEST_SRCS})
-  add_simcoon_test(${testSrc} test)
+  add_simcoon_test(${testSrc})
 endforeach()
 
 # Add external test executables (non-MSVC only)
 if(NOT MSVC)
   foreach(testSrc ${TEST_EXTERN})
-    add_simcoon_test(${testSrc} test_extern)
+    add_simcoon_test(${testSrc})
   endforeach()
 endif()

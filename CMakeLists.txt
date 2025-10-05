@@ -46,29 +46,30 @@ function(set_output_directory target output_dir)
 endfunction()
 
 # Helper function to add test executable with proper configuration
-function(add_simcoon_test test_src base_dir)
-  get_filename_component(testFolder ${test_src} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
-  file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/${base_dir} ${testFolder})
-  get_filename_component(testName ${testRel} NAME_WE)
-  get_filename_component(testFolder ${testRel} DIRECTORY)
+function(add_simcoon_test test_src)
+  get_filename_component(testName ${test_src} NAME_WE)
+  get_filename_component(testFolder ${test_src} DIRECTORY)
 
   add_executable(${testName} ${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
-  set_output_directory(${testName} ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+  set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
     add_dependencies(${testName} simcoon)
     add_custom_command(TARGET ${testName} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_directory
       ${CMAKE_BINARY_DIR}/bin
-      ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
+      ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
     )
   endif()
 
+  # Create test output directory
+  file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
+
   add_test(NAME ${testFolder}/${testName}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+    COMMAND ${CMAKE_SOURCE_DIR}/testBin/${testFolder}/${testName}
   )
 endfunction()
 
