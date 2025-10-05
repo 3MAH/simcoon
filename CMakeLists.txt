@@ -110,6 +110,32 @@ endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+
+# WORKAROUND for vcpkg BLAS/LAPACK debug/release library confusion on Windows
+# vcpkg's FindBLAS/FindLAPACK modules (MODULE mode) don't respect CMAKE_BUILD_TYPE
+# and may return debug libraries (from vcpkg/debug/lib/) even for Release builds.
+# This causes ABI mismatches, crashes, and performance issues.
+# Only apply fix for non-Debug builds to preserve proper debug library linking.
+# TODO: Consider migrating to CONFIG mode packages (find_package(OpenBLAS CONFIG))
+#       when conda/vcpkg compatibility issues are resolved.
+if(WIN32 AND MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+  if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_FIXED "${BLAS_LIBRARIES}")
+    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_FIXED "${LAPACK_LIBRARIES}")
+
+    # Only apply if we actually found debug paths (safety check)
+    if(NOT BLAS_LIBRARIES_FIXED STREQUAL BLAS_LIBRARIES)
+      set(BLAS_LIBRARIES ${BLAS_LIBRARIES_FIXED})
+      set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_FIXED})
+      message(STATUS "Fixed BLAS/LAPACK: Using release libraries for ${CMAKE_BUILD_TYPE} build")
+      message(STATUS "  BLAS: ${BLAS_LIBRARIES}")
+      message(STATUS "  LAPACK: ${LAPACK_LIBRARIES}")
+    endif()
+  else()
+    message(STATUS "Debug build: Using debug BLAS/LAPACK libraries as found")
+  endif()
+endif()
+
 find_package(Armadillo 12.6 REQUIRED)
 
 find_package(GTest REQUIRED)
