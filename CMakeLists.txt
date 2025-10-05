@@ -23,8 +23,8 @@ message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 include(GNUInstallDirs)
 
 # Options
-option(DEBUG "Compile with debugging information" OFF)
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(SIMCOON_DEBUG "Compile with debugging information" OFF)
+option(SIMCOON_SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
 
 # Helper function to set output directories for multi-config generators (MSVC)
@@ -104,7 +104,7 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 # Python dependencies (only if building Python bindings)
-if(BUILD_PYTHON_BINDINGS)
+if(SIMCOON_BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
@@ -193,9 +193,9 @@ if(APPLE)
   target_link_options(simcoon PUBLIC -stdlib=libc++)
 endif()
 
-# Optimization flags based on DEBUG option or build type
+# Optimization flags based on SIMCOON_DEBUG option or build type
 if(NOT MSVC)
-  if(DEBUG)
+  if(SIMCOON_DEBUG)
     target_compile_options(simcoon PUBLIC -O0)
   else()
     # Use generator expressions for per-config optimization
@@ -279,7 +279,7 @@ if(WIN32)
   list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
 
   # Collect dependency DLL paths for Python package
-  if(BUILD_PYTHON_BINDINGS)
+  if(SIMCOON_BUILD_PYTHON_BINDINGS)
     set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
   endif()
 
@@ -289,7 +289,7 @@ if(WIN32)
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
         # Store path for Python package (handled by python-builder CMakeLists)
-        if(BUILD_PYTHON_BINDINGS)
+        if(SIMCOON_BUILD_PYTHON_BINDINGS)
           list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
           set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
@@ -302,7 +302,7 @@ endif()
 
 ################################################################################
 # PYTHON BINDINGS
-if(BUILD_PYTHON_BINDINGS)
+if(SIMCOON_BUILD_PYTHON_BINDINGS)
   add_subdirectory(simcoon-python-builder)
 endif()
 
