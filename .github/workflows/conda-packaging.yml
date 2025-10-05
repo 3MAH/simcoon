@@ -35,6 +35,8 @@ jobs:
           conda-solver: libmamba
 
       - name: Conda build
+        env:
+          CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: |
           conda install -y conda-build
           conda build conda.recipe -c conda-forge -c set3mah --output-folder .
