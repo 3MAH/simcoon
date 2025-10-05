@@ -1,8 +1,6 @@
 # CMakeLists.txt for Python bindings
 # This is called from the parent CMakeLists.txt when SIMCOON_BUILD_PYTHON_BINDINGS is ON
 
-cmake_minimum_required(VERSION 3.15)
-
 # Option to control Python package installation location
 option(SIMCOON_PYTHON_INSTALL_TO_SOURCE "Install Python package to source tree (development only)" OFF)
 
