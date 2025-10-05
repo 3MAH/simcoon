@@ -73,7 +73,7 @@ jobs:
 
       - name: Build project with Python bindings
         run: |
-          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D BUILD_PYTHON=ON -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
           cmake --build build ${{ matrix.build-args }}
 
       - name: Install simcoon library and Python components

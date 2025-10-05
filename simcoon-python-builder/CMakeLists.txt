@@ -1,5 +1,5 @@
 # CMakeLists.txt for Python bindings
-# This is called from the parent CMakeLists.txt when BUILD_PYTHON is ON
+# This is called from the parent CMakeLists.txt when BUILD_PYTHON_BINDINGS is ON
 
 cmake_minimum_required(VERSION 3.15)
 

@@ -24,7 +24,7 @@ include(GNUInstallDirs)
 
 # Options
 option(DEBUG "Compile with debugging information" OFF)
-option(BUILD_PYTHON "Build Python bindings" ON)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 # Helper function to set output directories for multi-config generators (MSVC)
 function(set_output_directory target output_dir)
@@ -104,7 +104,7 @@ find_package(Armadillo 12.6 REQUIRED)
 find_package(GTest REQUIRED)
 
 # Python dependencies (only if building Python bindings)
-if(BUILD_PYTHON)
+if(BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
@@ -285,7 +285,7 @@ if(WIN32)
   list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
 
   # Collect dependency DLL paths for Python package
-  if(BUILD_PYTHON)
+  if(BUILD_PYTHON_BINDINGS)
     set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
   endif()
 
@@ -295,7 +295,7 @@ if(WIN32)
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
         # Store path for Python package (handled by python-builder CMakeLists)
-        if(BUILD_PYTHON)
+        if(BUILD_PYTHON_BINDINGS)
           list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
           set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
@@ -308,7 +308,7 @@ endif()
 
 ################################################################################
 # PYTHON BINDINGS
-if(BUILD_PYTHON)
+if(BUILD_PYTHON_BINDINGS)
   add_subdirectory(simcoon-python-builder)
 endif()
 

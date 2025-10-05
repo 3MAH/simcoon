@@ -16,7 +16,6 @@ cmake -G"Visual Studio 17 2022" ^
       -S simcoon-python-builder -B simcoon-python-builder/build ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX%/Library ^
       -DCMAKE_BUILD_TYPE=Release ^
-      -DUSE_OPENMP=False ^
       -DPython3_ROOT_DIR=%PREFIX% ^
       -DPython3_EXECUTABLE=%PREFIX%/python.exe ^
       -Wno-dev
