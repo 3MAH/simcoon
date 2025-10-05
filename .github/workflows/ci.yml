@@ -45,7 +45,7 @@ jobs:
       - name: Build for Linux
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DSIMCOON_BUILD_PYTHON_BINDINGS=ON -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --component python
           python -m pip install ${{github.workspace}}/build/python-package
@@ -86,7 +86,7 @@ jobs:
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -DSIMCOON_BUILD_PYTHON_BINDINGS=ON -Wno-dev
           cmake --build ${{github.workspace}}/build
           cmake --install build --component python
           python -m pip install ${{github.workspace}}/build/python-package
@@ -130,6 +130,7 @@ jobs:
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DSIMCOON_BUILD_PYTHON_BINDINGS=ON `
               -Wno-dev
           cmake --build build --config Release
           cmake --install build --config Release --component python
