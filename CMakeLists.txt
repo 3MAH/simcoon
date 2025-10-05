@@ -168,6 +168,9 @@ file(GLOB_RECURSE source_files src*/* include/*)
 # Create simcoon shared library
 add_library(simcoon SHARED ${source_files})
 
+# Create alias for namespaced usage (simcoon::simcoon)
+add_library(simcoon::simcoon ALIAS simcoon)
+
 # Add include directories to simcoon target
 target_include_directories(simcoon
   PUBLIC
@@ -252,18 +255,10 @@ endif()
 ################################################################################
 # INSTALL CONFIGURATION
 
-set(INSTALL_INCLUDE_DIR include)
-set(INSTALL_LIB_DIR lib)
-
-# executables destination
-if(NOT INSTALL_BIN_DIR)
-  set(INSTALL_BIN_DIR bin)
-endif()
-
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
-message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
-message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
+message(STATUS "CMAKE_INSTALL_LIBDIR = ${CMAKE_INSTALL_LIBDIR}")
+message(STATUS "CMAKE_INSTALL_INCLUDEDIR = ${CMAKE_INSTALL_INCLUDEDIR}")
+message(STATUS "CMAKE_INSTALL_BINDIR = ${CMAKE_INSTALL_BINDIR}")
 
 # Find and collect runtime dependency DLLs on Windows (before Python bindings)
 if(WIN32)
@@ -323,18 +318,67 @@ endif()
 ################################################################################
 # INSTALL TARGETS
 
-install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-install(TARGETS simcoon)
+# Install simcoon library with export
+install(TARGETS simcoon
+  EXPORT simcoonTargets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    COMPONENT Runtime
+    NAMELINK_COMPONENT Development
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    COMPONENT Development
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT Runtime
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Install headers
+install(DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT Development
+)
+
+# Install the export set
+install(EXPORT simcoonTargets
+  FILE simcoonTargets.cmake
+  NAMESPACE simcoon::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+  COMPONENT Development
+)
+
+# Generate and install package config files
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/simcoonConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+  COMPONENT Development
+)
 
 # Install runtime dependencies on Windows
 if(WIN32)
   # Install all DLLs from build/bin
   install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
-          DESTINATION ${INSTALL_BIN_DIR}
-          FILES_MATCHING PATTERN "*.dll")
+          DESTINATION ${CMAKE_INSTALL_BINDIR}
+          FILES_MATCHING PATTERN "*.dll"
+          COMPONENT Runtime)
 
   # Install dependency DLLs
   if(PYTHON_RUNTIME_DLLS)
-    install(FILES ${PYTHON_RUNTIME_DLLS} DESTINATION ${INSTALL_BIN_DIR})
+    install(FILES ${PYTHON_RUNTIME_DLLS}
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+            COMPONENT Runtime)
   endif()
 endif()
