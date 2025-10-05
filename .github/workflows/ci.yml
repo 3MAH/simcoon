@@ -47,8 +47,8 @@ jobs:
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build
-          python -m pip install ${{github.workspace}}/python-setup
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
@@ -88,8 +88,8 @@ jobs:
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build
-          python -m pip install ${{github.workspace}}/python-setup
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
@@ -132,8 +132,8 @@ jobs:
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
           cmake --build build --config Release
-          cmake --install build --config Release
-          python -m pip install ${{github.workspace}}/python-setup
+          cmake --install build --config Release --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: pwsh
