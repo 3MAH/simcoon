@@ -128,10 +128,14 @@ endif()
 
 # Armadillo include directories will be added to targets as needed
 
+# Set C++ standard globally
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Platform-specific configuration
 if(MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
 
   # Set default output directories for multi-config generators
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -146,34 +150,12 @@ if(MSVC)
 else()
   # Unix-like systems (Linux, macOS)
   enable_language(Fortran)
-
-  # Base compiler and linker flags
-  set(BASE_CXX_FLAGS "-std=c++20 -Drestrict=")
-  set(BASE_LINKER_FLAGS "-std=c++20")
-
-  # Add macOS-specific flags
-  if(APPLE)
-    string(APPEND BASE_CXX_FLAGS " -stdlib=libc++ -fpermissive")
-    string(APPEND BASE_LINKER_FLAGS " -stdlib=libc++")
-  endif()
-
-  # Add optimization flags based on DEBUG option
-  if(DEBUG)
-    string(APPEND BASE_CXX_FLAGS " -O0")
-  else()
-    string(APPEND BASE_CXX_FLAGS " -O3")
-  endif()
-
-  # Apply flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BASE_CXX_FLAGS}")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${BASE_LINKER_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${BASE_LINKER_FLAGS}")
 endif()
 
 message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
 message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}"     )
 message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "CMAKE_CXX_FLAGS            = ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_STANDARD         = ${CMAKE_CXX_STANDARD}")
 message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
 message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
 message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
@@ -197,6 +179,30 @@ target_include_directories(simcoon
 
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
+
+# Define restrict macro (MSVC and GCC/Clang handle restrict differently)
+target_compile_definitions(simcoon PUBLIC restrict=)
+
+# Platform-specific compile options
+if(APPLE)
+  target_compile_options(simcoon PUBLIC -stdlib=libc++ -fpermissive)
+  target_link_options(simcoon PUBLIC -stdlib=libc++)
+endif()
+
+# Optimization flags based on DEBUG option or build type
+if(NOT MSVC)
+  if(DEBUG)
+    target_compile_options(simcoon PUBLIC -O0)
+  else()
+    # Use generator expressions for per-config optimization
+    target_compile_options(simcoon PUBLIC
+      $<$<CONFIG:Debug>:-O0>
+      $<$<CONFIG:Release>:-O3>
+      $<$<CONFIG:RelWithDebInfo>:-O2>
+      $<$<CONFIG:MinSizeRel>:-Os>
+    )
+  endif()
+endif()
 
 target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
 

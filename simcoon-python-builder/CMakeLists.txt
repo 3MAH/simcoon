@@ -35,7 +35,8 @@ if(MSVC)
 else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
-set_target_properties(simmit PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+
+# C++ standard inherited from parent (C++20)
 
 # Add include directories for Python wrapper headers
 target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
