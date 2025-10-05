@@ -21,5 +21,5 @@ cmake --install build
 cmake --install build --component python
 
 # Install Python package
-cd $SRC_DIR
-$PYTHON -m pip install ./build/python-package --no-deps -vv
+cd $SRC_DIR/build/python-package
+$PYTHON -m pip install . --no-deps -vv
