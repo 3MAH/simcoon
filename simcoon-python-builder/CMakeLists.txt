@@ -105,10 +105,14 @@ install(TARGETS simmit
         DESTINATION ${PYTHON_INSTALL_DIR}
         COMPONENT python)
 
-# Install the simcoon shared library
-install(FILES $<TARGET_FILE:simcoon>
-        DESTINATION ${PYTHON_INSTALL_DIR}
-        COMPONENT python)
+# Install the simcoon shared library with SOVERSION symlinks
+# Must use install(TARGETS) to get proper symlink handling
+install(TARGETS simcoon
+        LIBRARY DESTINATION ${PYTHON_INSTALL_DIR}
+          COMPONENT python
+          NAMELINK_COMPONENT python
+        RUNTIME DESTINATION ${PYTHON_INSTALL_DIR}
+          COMPONENT python)
 
 # Install runtime dependency DLLs on Windows
 # (DLL paths are found and stored by parent CMakeLists.txt)
