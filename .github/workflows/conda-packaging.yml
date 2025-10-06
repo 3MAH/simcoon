@@ -46,5 +46,6 @@ jobs:
         run: |
           conda install -y anaconda-client
           anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload *-64/*.tar.bz2 --force
+          shopt -s nullglob
+          anaconda upload linux-64/* win-64/* osx-64/* osx-arm64/* --force
           anaconda logout
