@@ -11,6 +11,10 @@ file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
 string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
 set(PROJECT_VERSION ${CMAKE_MATCH_1})
 
+# Extract major version for SOVERSION
+string(REGEX MATCH "^([0-9]+)" _ ${PROJECT_VERSION})
+set(PROJECT_VERSION_MAJOR ${CMAKE_MATCH_1})
+
 # Print the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
 
@@ -74,12 +78,15 @@ function(add_simcoon_test test_src)
     )
   endif()
 
-  # Create test output directory
-  file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
+  # Create test output directory at build time (not configure time)
+  add_custom_command(TARGET ${testName} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+  )
 
+  # Use generator expression to get correct executable path for multi-config generators
   add_test(NAME ${testFolder}/${testName}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
-    COMMAND ${CMAKE_SOURCE_DIR}/testBin/${testFolder}/${testName}
+    COMMAND $<TARGET_FILE:${testName}>
   )
 endfunction()
 
@@ -241,6 +248,12 @@ message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 # Create simcoon shared library
 add_library(simcoon SHARED)
 
+# Set library version for ABI compatibility tracking
+set_target_properties(simcoon PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
+)
+
 # Add source files from subdirectory
 add_subdirectory(src)
 
@@ -264,7 +277,7 @@ target_compile_definitions(simcoon PUBLIC restrict=)
 
 # Platform-specific compile options
 if(APPLE)
-  target_compile_options(simcoon PUBLIC -stdlib=libc++ -fpermissive)
+  target_compile_options(simcoon PUBLIC -stdlib=libc++)
   target_link_options(simcoon PUBLIC -stdlib=libc++)
 endif()
 
