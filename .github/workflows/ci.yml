@@ -9,19 +9,6 @@ on:
     branches: [master]
 
 jobs:
-  # build-linux:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - uses: actions/checkout@v4
-
-  #   - name: Build Ubuntu
-  #     shell: bash -l {0}
-  #     run: |
-  #       sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
-  #       cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
-  #       cmake --build ${{github.workspace}}/build
-  #       ctest --test-dir ${{github.workspace}}/build
-
   Linux:
     name: Linux
     runs-on: "ubuntu-latest"
@@ -60,22 +47,11 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
-      - name: Python tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure -R "test_carma|simmit_test"
-
       - name: Upload test logs as artifact
         if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Linux
-          path: build/Testing/Temporary/LastTest.log
-
-      - name: Upload Python test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-Linux
           path: build/Testing/Temporary/LastTest.log
 
   MacOS:
@@ -107,22 +83,11 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
-      - name: Python tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure -R "test_carma|simmit_test"
-
       - name: Upload test logs as artifact
         if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-OSX
-          path: build/Testing/Temporary/LastTest.log
-
-      - name: Upload Python test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-OSX
           path: build/Testing/Temporary/LastTest.log
 
   Windows:
@@ -155,20 +120,9 @@ jobs:
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure -VV
 
-      - name: Python tests
-        shell: pwsh
-        run: ctest --test-dir build -C Release --output-on-failure -VV -R "test_carma|simmit_test"
-
       - name: Upload test logs as artifact
         if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Win
-          path: build/Testing/Temporary/LastTest.log
-
-      - name: Upload Python test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-Win
           path: build/Testing/Temporary/LastTest.log
