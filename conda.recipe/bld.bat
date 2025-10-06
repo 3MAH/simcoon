@@ -3,6 +3,11 @@ cd %SRC_DIR%
 
 :: Set pybind11 path for CMake
 for /f "delims=" %%i in ('python -c "import pybind11; print(pybind11.get_cmake_dir())"') do set PYBIND11_DIR=%%i
+if "%PYBIND11_DIR%"=="" (
+  echo ERROR: Could not find pybind11 CMake directory
+  exit 1
+)
+echo Using pybind11 from: %PYBIND11_DIR%
 
 :: Configure with Python bindings enabled
 cmake -G"Visual Studio 17 2022" ^

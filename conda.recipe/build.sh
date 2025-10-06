@@ -6,6 +6,11 @@ cd $SRC_DIR
 
 # Set pybind11 path for CMake
 PYBIND11_DIR=$($PYTHON -c "import pybind11; print(pybind11.get_cmake_dir())")
+if [ -z "$PYBIND11_DIR" ]; then
+  echo "ERROR: Could not find pybind11 CMake directory"
+  exit 1
+fi
+echo "Using pybind11 from: $PYBIND11_DIR"
 
 # Configure with Python bindings enabled
 cmake ${CMAKE_ARGS} -G Ninja -S . -B build \

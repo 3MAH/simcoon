@@ -27,7 +27,6 @@ message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 include(GNUInstallDirs)
 
 # Options
-option(SIMCOON_DEBUG "Compile with debugging information" OFF)
 option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
 
@@ -106,10 +105,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 #Setup CMake to run tests
 enable_testing()
 
-#Set executable files and library files
-set(EXECUTABLE_OUTPUT_PATH bin)
-set(LIBRARY_OUTPUT_PATH lib)
-
 # Find dependencies
 if(MSVC)
   set(BLA_PKGCONFIG_BLAS True)
@@ -186,7 +181,7 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
       FetchContent_Declare(
         carma
         GIT_REPOSITORY https://github.com/RUrlus/carma.git
-        GIT_TAG        stable
+        GIT_TAG        v0.8.0
       )
       FetchContent_MakeAvailable(carma)
 
@@ -281,19 +276,14 @@ if(APPLE)
   target_link_options(simcoon PUBLIC -stdlib=libc++)
 endif()
 
-# Optimization flags based on SIMCOON_DEBUG option or build type
+# Optimization flags based on build type
 if(NOT MSVC)
-  if(SIMCOON_DEBUG)
-    target_compile_options(simcoon PUBLIC -O0)
-  else()
-    # Use generator expressions for per-config optimization
-    target_compile_options(simcoon PUBLIC
-      $<$<CONFIG:Debug>:-O0>
-      $<$<CONFIG:Release>:-O3>
-      $<$<CONFIG:RelWithDebInfo>:-O2>
-      $<$<CONFIG:MinSizeRel>:-Os>
-    )
-  endif()
+  target_compile_options(simcoon PUBLIC
+    $<$<CONFIG:Debug>:-O0>
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+    $<$<CONFIG:MinSizeRel>:-Os>
+  )
 endif()
 
 target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
@@ -373,6 +363,7 @@ if(WIN32)
 
   # Try to find and store each DLL path
   foreach(dll_name ${DEPENDENCY_DLLS})
+    set(dll_found FALSE)
     foreach(search_path ${DLL_SEARCH_PATHS})
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
@@ -382,9 +373,16 @@ if(WIN32)
           set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
         message(STATUS "Found dependency DLL: ${dll_path}")
+        set(dll_found TRUE)
         break()
       endif()
     endforeach()
+
+    if(NOT dll_found)
+      message(WARNING "Dependency DLL not found: ${dll_name}. "
+              "Python package may fail at runtime. "
+              "Search paths: ${DLL_SEARCH_PATHS}")
+    endif()
   endforeach()
 endif()
 
