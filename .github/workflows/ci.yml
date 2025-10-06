@@ -57,6 +57,7 @@ jobs:
         with:
           name: test-logs-Linux
           path: build/Testing/Temporary/LastTest.log
+          retention-days: 7
 
   MacOS:
     name: MacOS
@@ -93,6 +94,7 @@ jobs:
         with:
           name: test-logs-OSX
           path: build/Testing/Temporary/LastTest.log
+          retention-days: 7
 
   Windows:
     name: Windows
@@ -130,3 +132,4 @@ jobs:
         with:
           name: test-logs-Win
           path: build/Testing/Temporary/LastTest.log
+          retention-days: 7
