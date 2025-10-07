@@ -66,7 +66,7 @@ jobs:
         run: uv venv
 
       - name: Install Python library
-        run: uv pip install .
+        run: uv pip install . --verbose
 
       - name: Install test dependencies
         run: uv pip install pytest scipy matplotlib
