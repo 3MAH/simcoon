@@ -48,8 +48,11 @@ The last library should be situated in the simcoon-python-builder/build/lib fold
 
 Finally you should copy the 'simmit.so' file situated in the simcoon-python-builder/build/lib folder (or /build/lib/Relase, or /build/lib/Debug) in the folder 'python-setup/simcoon'
 
-Go to he folder 'python-setup/simcoon' and finally run:
-'python setup.py install'
+Go to the project root folder and run:
+'pip install -e .'
+
+Note: The modern build system (pyproject.toml with scikit-build-core) handles all compilation automatically.
+For a simpler workflow, just run 'pip install -e .' from the project root - no manual CMake steps needed!
 
 
 Installation of the Jupyter notebook
