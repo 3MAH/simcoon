@@ -22,27 +22,20 @@ jobs:
             sys-package-install-command: |
               sudo apt-get update
               sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
-            build-args: ""
-            test-args: ""
+
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install armadillo boost googletest
             setup-env-command: |
               echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
               echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
-            build-args: ""
-            test-args: ""
+
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
             setup-env-command: |
               echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-            cmake-args: ""
-            build-args: "--config Release"
-            test-args: "--build-config Release"
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
@@ -72,18 +65,11 @@ jobs:
       - name: Create virtual environment
         run: uv venv
 
-      - name: Install Python dependencies
-        run: uv pip install pybind11 numpy pytest
+      - name: Install Python library
+        run: uv pip install .
 
-      - name: Build project
-        run: |
-          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
-          cmake --build build ${{ matrix.build-args }}
-
-      - name: Install simcoon library
-        run: |
-          cmake --install build --prefix $PWD/install --component python ${{ matrix.build-args }}
-          uv pip install ./build/python-package
+      - name: Install test dependencies
+        run: uv pip install pytest scipy matplotlib
 
       - name: Run tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
+        run: uv run pytest python/tests
