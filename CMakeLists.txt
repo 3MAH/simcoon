@@ -7,7 +7,7 @@ include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
 # Read version from Python package
-file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
+file(READ "python/simcoon/__version__.py" VERSION_FILE)
 string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
 set(PROJECT_VERSION ${CMAKE_MATCH_1})
 
@@ -367,14 +367,22 @@ if(WIN32)
     foreach(search_path ${DLL_SEARCH_PATHS})
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
-        # Store path for Python package (handled by python-builder CMakeLists)
-        if(SIMCOON_BUILD_PYTHON_BINDINGS)
-          list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
-          set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
+        # Apply same debug/release fix as for .lib files
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+          string(REPLACE "/debug/bin/" "/bin/" dll_path "${dll_path}")
         endif()
-        message(STATUS "Found dependency DLL: ${dll_path}")
-        set(dll_found TRUE)
-        break()
+
+        # Verify the fixed path exists
+        if(EXISTS "${dll_path}")
+          # Store path for Python package (handled by python-builder CMakeLists)
+          if(SIMCOON_BUILD_PYTHON_BINDINGS)
+            list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
+            set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
+          endif()
+          message(STATUS "Found dependency DLL: ${dll_path}")
+          set(dll_found TRUE)
+          break()
+        endif()
       endif()
     endforeach()
 
@@ -389,7 +397,7 @@ endif()
 ################################################################################
 # PYTHON BINDINGS
 if(SIMCOON_BUILD_PYTHON_BINDINGS)
-  add_subdirectory(simcoon-python-builder)
+  add_subdirectory(python/bindings)
 endif()
 
 ################################################################################
