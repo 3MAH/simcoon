@@ -7,6 +7,10 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build-and-test:
     strategy:
@@ -62,17 +66,6 @@ jobs:
         if: matrix.setup-env-command
         run: ${{ matrix.setup-env-command }}
 
-      - name: Build project
-        run: |
-          cmake -B build ${{ matrix.cmake-args }}
-          cmake --build build ${{ matrix.build-args }}
-
-      - name: Install simcoon library
-        run: cmake --install build --prefix $PWD/install ${{ matrix.build-args }}
-
-      - name: Run tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
-
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
@@ -82,15 +75,15 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install pybind11 numpy pytest
 
-      - name: Build Python bindings
+      - name: Build project
         run: |
-          uv run cmake -S simcoon-python-builder -B simcoon-python-builder/build ${{ matrix.cmake-args }} -DCMAKE_PREFIX_PATH="$PWD/install;$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
-          uv run cmake --build simcoon-python-builder/build ${{ matrix.build-args }}
+          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          cmake --build build ${{ matrix.build-args }}
 
-      - name: Install Python package
+      - name: Install simcoon library
         run: |
-          uv run cmake --install simcoon-python-builder/build ${{ matrix.build-args }} --component python
-          uv pip install ./python-setup
+          cmake --install build --prefix $PWD/install --component python ${{ matrix.build-args }}
+          uv pip install ./build/python-package
 
-      - name: Run Python tests
-        run: ctest --test-dir simcoon-python-builder/build ${{ matrix.test-args }}
+      - name: Run tests
+        run: ctest --test-dir build ${{ matrix.test-args }}
