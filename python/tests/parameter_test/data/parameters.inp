@@ -1,0 +1,5 @@
+#Number	#min	#max	#key	#number_of_files	#files
+0	0	180	@0p	1			Nellipsoids0.dat
+1	0.01	100	@1p	1			Nellipsoids0.dat
+2	0.	1.	@2p	1			Nellipsoids0.dat
+3	0.	1.	@3p	1			Nellipsoids0.dat
