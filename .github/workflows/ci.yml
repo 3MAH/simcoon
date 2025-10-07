@@ -4,36 +4,26 @@ name: Build & Test
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  # build-linux:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - uses: actions/checkout@v4
-    
-  #   - name: Build Ubuntu
-  #     shell: bash -l {0}
-  #     run: | 
-  #       sudo apt-get install libarmadillo-dev libboost-all-dev libmpfr-dev
-  #       cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
-  #       cmake --build ${{github.workspace}}/build
-  #       ctest --test-dir ${{github.workspace}}/build
-        
   Linux:
     name: Linux
     runs-on: "ubuntu-latest"
     steps:
-    
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.12"          
-          environment-file: environment.yml     
+          python-version: "3.12"
+          environment-file: environment.yml
           channels: conda-forge,set3mah
 
       - name: Prepare conda environment
@@ -41,147 +31,105 @@ jobs:
         run: |
           conda config --env --add channels conda-forge
           conda config --env --add channels set3mah          
-          conda config --env --set channel_priority strict                
+          conda config --env --set channel_priority strict
 
       - name: Build for Linux
         shell: bash -l {0}
-        run: |               
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+        run: |
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build --config Release
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build
+        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
-      - name: Build Python lib
-        shell: bash -l {0}
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build simcoon-python-builder/build
-          cmake --install simcoon-python-builder/build --config Release          
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
-          python -m pip install ${{github.workspace}}/python-setup
-
-      - name: Python tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
-          
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Linux
-          path: build/Testing/Temporary/LastTest.log   
-
-      - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-Linux
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log      
+          path: build/Testing/Temporary/LastTest.log
+          retention-days: 7
 
   MacOS:
     name: MacOS
     runs-on: "macos-latest"
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_arm64.yml          
+          environment-file: environment_arm64.yml
 
       - name: Build for MacOS
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build --config Release
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build
-        
-      - name: Build Python lib
-        shell: bash -l {0}
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build simcoon-python-builder/build
-          cmake --install simcoon-python-builder/build --config Release                    
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
-          python -m pip install ${{github.workspace}}/python-setup
-
-      - name: Python tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build
+        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-OSX
-          path: build/Testing/Temporary/LastTest.log       
-
-      - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-OSX
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
+          path: build/Testing/Temporary/LastTest.log
+          retention-days: 7
 
   Windows:
     name: Windows
     runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v3
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          environment-file: environment_win.yml    
+          environment-file: environment_win.yml
 
       - name: Build for Windows
         shell: pwsh
         run: |
+          $pybind11_dir = python -c "import pybind11; print(pybind11.get_cmake_dir())"
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
+              -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON `
+              -DPython3_EXECUTABLE="$env:CONDA_PREFIX/python.exe" `
+              -Dpybind11_DIR="$pybind11_dir" `
               -Wno-dev
           cmake --build build --config Release
-          cmake --install build
+          cmake --install build --config Release --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: pwsh
         run: ctest --test-dir build -C Release --output-on-failure -VV
 
-      - name: Build Python lib
-        shell: pwsh
-        run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
-            -DUSE_OPENMP=False `
-            -Wno-dev
-          cmake --build simcoon-python-builder/build --config Release
-          cmake --install simcoon-python-builder/build         
-          copy ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.pyd ${{github.workspace}}/python-setup/simcoon/simmit.pyd
-          python -m pip install ${{github.workspace}}/python-setup
-
-      - name: Python tests
-        shell: pwsh
-        run: ctest --test-dir ${{github.workspace}}/simcoon-python-builder/build -C Release --output-on-failure -VV
-
       - name: Upload test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Win
-          path: build/Testing/Temporary/LastTest.log        
-
-      - name: Upload Python test logs as artifact
-        if: always()  # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Python-Win
-          path: simcoon-python-builder/build/Testing/Temporary/LastTest.log                      
+          path: build/Testing/Temporary/LastTest.log
+          retention-days: 7

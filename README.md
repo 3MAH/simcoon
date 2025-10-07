@@ -46,61 +46,127 @@ open _build/index.html
 Installation
 ------------
 
-It is now possible to install simcoon directly with conda :
+### Option 1: Install from Conda (Recommended)
+
+The simplest way to install simcoon is directly with conda:
+
 ```bash
 conda install -c conda-forge -c set3mah simcoon
 ```
-For using simcoon with Python 3.11 or later the installation of libboost via conda may
-be necessary :
+
+For Python 3.11 or later, you may also need to install libboost:
 ```bash
 conda install -c conda-forge libboost
 ```
 
-In case there are any conflicts, it is preferable to do it in a new conda environment :
+In case of conflicts, create a new conda environment:
 ```bash
-conda create --name scientific
+conda create --name simcoon_env
+conda activate simcoon_env
+conda install -c conda-forge -c set3mah simcoon
 ```
 
-OR
+### Option 2: Build from Source
 
-You can install simcoon from the sources. The easiest way to install simcoon is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
-(for the installation of an environment called "scientific")
+#### Prerequisites
 
+Create and activate a conda environment:
 ```bash
-conda create --name scientific
+conda create --name simcoon_build
+conda activate simcoon_build
 ```
 
-To activate the environment:
-
+Install required dependencies:
 ```bash
-conda activate scientific
-```
+# Compilers and build tools
+conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja
 
-The next step is to install the required packages:
-
-```bash
-conda install -c conda-forge cxx-compiler
-conda install -c conda-forge fortran-compiler
-conda install -c conda-forge cmake ninja
+# Libraries
 conda install -c conda-forge armadillo boost pybind11 numpy gtest carma
+
+# Python testing
 pip install pytest
 ```
 
-x86 architectures may require to install mkl
+For x86 architectures, you may also need MKL:
 ```bash
 conda install -c conda-forge mkl
 ```
 
-Next, after downloading the simcoon sources in the github repository of [Simcoon](https://github.com/3MAH/simcoon). Unzip the content in a folder.
+#### Build Instructions (without conda)
 
-The last step is to run the installation script:
-
+1. Clone or download the repository:
 ```bash
-sh Install.sh
+git clone https://github.com/3MAH/simcoon.git
+cd simcoon
 ```
 
-Note that if you want to install numpy that make use of the framework Accelerate in MacOS (for versions earlier than 1.26.4), you shall install numpy with:
+2. Install required dependencies using your system's package manager.
 
+- On Debian/Ubuntu:
+
+```bash
+sudo apt-get install libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+```
+
+- On macOS with Homebrew:
+
+```bash
+brew install armadillo boost googletest
+```
+
+- On Windows with vcpkg:
+
+```powershell
+vcpkg install armadillo boost-config boost-dll gtest
+```
+
+3. Configure and build the project:
+
+**Linux/macOS:**
+```bash
+# Configure
+cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build build
+
+# Install Python package
+pip install ./build/python-package
+```
+
+**Windows:**
+```powershell
+# Configure
+cmake -S . -B build
+
+# Build
+cmake --build build --config Release
+
+# Install Python package
+pip install ./build/python-package
+```
+
+3. (Optional) Run tests:
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+#### Build Options
+
+- `SIMCOON_BUILD_PYTHON_BINDINGS` (default: ON) - Build Python bindings
+- `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests
+
+To build only the C++ library without Python bindings:
+```bash
+cmake -S . -B build -D SIMCOON_BUILD_PYTHON_BINDINGS=OFF
+cmake --build build
+cmake --install build --prefix /path/to/install
+```
+
+#### Notes for macOS
+
+For numpy versions earlier than 1.26.4 using the Accelerate framework:
 ```bash
 pip install cython
 pip install --no-binary :all: numpy

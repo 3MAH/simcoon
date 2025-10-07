@@ -2,65 +2,56 @@ name: Conda packaging
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "CMakeLists.txt"
+      - "**/CMakeLists.txt"
+      - "conda.recipe/**"
+      - ".github/workflows/conda-packaging.yml"
+      - "environment*.yml"
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-        
-  Linux:
-    name: Linux
-    runs-on: "ubuntu-latest"
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+            target-platform: linux-64
+          - os: MacOS
+            runner: macos-latest
+            target-platform: osx-arm64
+          - os: Windows
+            runner: windows-latest
+            target-platform: win-64
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v4
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniconda-version: "latest"
+          miniforge-version: latest
           activate-environment: packaging
-      - name: Conda build for Linux
-        shell: bash -l {0}
+          auto-update-conda: true
+          conda-solver: libmamba
+
+      - name: Conda build
+        env:
+          CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
         run: |
-          conda update --all
-          conda install conda-build anaconda-client
-          conda clean --all          
-          conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload linux-64/*.tar.bz2 --force
-          anaconda logout          
-        
-  macos:
-    name: MacOS
-    runs-on: "macos-latest"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          activate-environment: packaging
-      - name: Conda build for MacOS
-        shell: bash -l {0}
+          conda install -y conda-build
+          conda build conda.recipe -c conda-forge -c set3mah --output-folder .
+
+      - name: Upload to Anaconda
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          conda update --all        
-          conda install conda-build anaconda-client
-          conda clean --all          
-          conda-build conda.recipe -c conda-forge -c set3mah --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload osx-64/*.tar.bz2 --force
-          anaconda logout          
-        
-  windows:
-    name: Windows
-    runs-on: "windows-latest"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          activate-environment: packaging
-      - name: Conda build for Windows
-        shell: pwsh
-        run: |
-          conda update --all        
-          conda install conda-build anaconda-client
-          conda clean --all                    
-          conda-build conda.recipe -c conda-forge -c set3mah --no-test --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload win-64/*.tar.bz2 --force
-          anaconda logout
+          conda install -y anaconda-client
+          anaconda upload ${{ matrix.target-platform }}/*.conda --force --no-progress
