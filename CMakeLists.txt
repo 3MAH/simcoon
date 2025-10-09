@@ -2,6 +2,15 @@
 
 cmake_minimum_required(VERSION 3.15)
 
+# Set MSVC runtime library policy and configuration BEFORE project()
+# This ensures all targets (simcoon, simmit, tests) use the same CRT
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+# Use dynamic runtime library (/MD) to prevent Windows heap corruption
+# Must be set before project() to affect all targets consistently
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
 project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
@@ -287,6 +296,7 @@ if(NOT MSVC)
 endif()
 
 target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
+
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)

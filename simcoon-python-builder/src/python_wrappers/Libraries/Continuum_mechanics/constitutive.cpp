@@ -69,7 +69,19 @@ py::array_t<double> Ir05(const bool &copy) {
 py::array_t<double> L_iso(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = carma::arr_to_col(props);
     mat m = simcoon::L_iso(props_cpp(0),props_cpp(1),conv);
-    return carma::mat_to_arr(m, copy);
+
+    // Manual copy to avoid Windows heap corruption across DLL boundaries
+    // Create numpy array with Python's allocator
+    py::array_t<double> result({static_cast<py::ssize_t>(m.n_rows),
+                                 static_cast<py::ssize_t>(m.n_cols)});
+    auto r = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < m.n_rows; i++) {
+        for (size_t j = 0; j < m.n_cols; j++) {
+            r(i, j) = m(i, j);
+        }
+    }
+    return result;
+    // m is destroyed here with simcoon's allocator - no cross-DLL issues
 }
 
 //Provides the elastic compliance tensor for an isotropic material.
