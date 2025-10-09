@@ -18,13 +18,14 @@ jobs:
         shell: bash -el {0}
     
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup miniconda
-        uses: conda-incubator/setup-miniconda@v3
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: simcoon-doc
+          python-version: "3.12"
+          environment-file: environment.yml
+          channels: conda-forge,set3mah
 
       - name: Get Date
         id: get-date
@@ -50,33 +51,21 @@ jobs:
       - name: Update environment
         run: |
           conda env update -n simcoon-doc -f environment_doc.yml
-          # swap default vtk for vtk-osmesa (avoid PyVista openGL errors)
-          # https://github.com/pyvista/pyvista/blob/main/.github/workflows/vtk-pre-test.yml#L53
-          # - pip uninstall -y vtk
-          conda remove --force vtk
-          pip install --extra-index-url https://wheels.vtk.org trame vtk-osmesa
         if: steps.cache.outputs.cache-hit != 'true' 
-
-      - name: Conda info
-        run: |
-          conda info
-          conda list
 
       - name: Build for Linux
         shell: bash -l {0}
-        run: |               
-          cmake -S . -B ${{github.workspace}}/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build ${{github.workspace}}/build
-          cmake --install build --config Release
-
-      - name: Build Python lib
-        shell: bash -l {0}
         run: |
-          cmake -S simcoon-python-builder -B simcoon-python-builder/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX -Wno-dev
-          cmake --build simcoon-python-builder/build
-          cmake --install simcoon-python-builder/build --config Release          
-          cp ${{github.workspace}}/simcoon-python-builder/build/lib/simmit.so ${{github.workspace}}/python-setup/simcoon/simmit.so
-          python -m pip install ${{github.workspace}}/python-setup
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
 
       # - name: Cache Sphinx-Gallery Examples
       #   uses: actions/cache@v4
@@ -104,7 +93,7 @@ jobs:
             docs/build/html/
 
       - name: Deploy HTML documentation
-        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') 
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') 
         uses: peaceiris/actions-gh-pages@v4
         with:
           # deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
@@ -114,7 +103,7 @@ jobs:
           publish_dir: ./docs/build/html
       
       - name: Deploy HTML documentation for pull request
-        if: ${{ ! github.ref == 'refs/heads/master' && ! startsWith(github.ref, 'refs/tags/v') }}
+        if: ${{ ! github.ref == 'refs/heads/master' && ! startsWith(github.ref, 'refs/tags/') }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
