@@ -2,8 +2,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
@@ -22,7 +22,7 @@ namespace simpy {
 //Return the elastic stiffness tensor of a composite material
 py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double> &props, const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve) {
 
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::arr_to_col(props);
     
     double T_init = 273.15;
     
@@ -37,7 +37,7 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     //Second we call a recursive method that find all the elastic moduli iof the phases
     simcoon::get_L_elastic(rve);
     
-    return carma::mat_to_arr(sv_M->Lt);
+    return simpy::mat_to_arr(sv_M->Lt);
 }
 
 } //namepsace simpy

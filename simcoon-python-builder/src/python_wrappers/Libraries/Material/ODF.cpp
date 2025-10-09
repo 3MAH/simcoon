@@ -1,8 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
@@ -25,11 +25,11 @@ py::array_t<double> get_densities_ODF(const py::array_t<double> &x_py, const std
 //    string peak_file = bp::extract<std::string>(peak_file_py);
     
     //transform x in a vec
-    vec x = carma::arr_to_col(x_py);
+    vec x = simpy::arr_to_col(x_py);
     //Get the densities
     vec y = simcoon::get_densities_ODF(x, path_data_py, peak_file_py, radian);
     //Get the densities
-    return carma::col_to_arr(y);
+    return simpy::col_to_arr(y);
 }
     
 void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const double &angle_min, const double &angle_max, const std::string &umat_name_py, const py::array_t<double> &props_py, const std::string &path_data_py, const std::string &peak_file_py, const std::string &rve_init_file_py, const std::string &rve_disc_file_py, const int &angle_mat) {
@@ -40,7 +40,7 @@ void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const
 //    string rve_init_file = bp::extract<std::string>(rve_init_file_py);
 //    string rve_disc_file = bp::extract<std::string>(rve_disc_file_py);
     
-    vec props = carma::arr_to_col(props_py);
+    vec props = simpy::arr_to_col(props_py);
         
     double psi_rve = 0.;
     double theta_rve = 0.;

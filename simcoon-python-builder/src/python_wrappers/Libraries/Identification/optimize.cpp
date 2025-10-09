@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 #include <assert.h>
 
 #include <simcoon/Simulation/Identification/read.hpp>
@@ -26,7 +26,7 @@ namespace simpy{
 double cost_solver(const py::array_t<double> &p_py) {
     
     //transform p in a vec
-    vec p = carma::arr_to_col(p_py);
+    vec p = simpy::arr_to_col(p_py);
     
     int n_param = 0;
     int n_consts = 0;
@@ -101,7 +101,7 @@ double cost_solver(const py::array_t<double> &p_py) {
 double cost_odf(const py::array_t<double> &p_py) {
     
     //transform p in a vec
-    vec p = carma::arr_to_col(p_py);
+    vec p = simpy::arr_to_col(p_py);
     
     int n_param = 0;
     int n_consts = 0;

@@ -1,8 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Solver/solver.hpp>
@@ -17,7 +17,7 @@ namespace simpy {
 //This function computes the response of materials for an homogeneous mixed thermomechanical loading path    
 void solver(const std::string &umat_name_py, const py::array_t<double> &props_py, const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const std::string &path_data_py, const std::string &path_results_py, const std::string &pathfile_py, const std::string &outputfile_py) {
     
-    vec props = carma::arr_to_col(props_py);
+    vec props = simpy::arr_to_col(props_py);
     
     double div_tnew_dt_solver = 0.5;
     double mul_tnew_dt_solver = 2.;

@@ -4,7 +4,7 @@
 # Option to control Python package installation location
 option(SIMCOON_PYTHON_INSTALL_TO_SOURCE "Install Python package to source tree (development only)" OFF)
 
-# All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
+# All dependencies (Python, pybind11, Armadillo, simcoon) are already found by parent
 
 ################################################################################
 # SIMCOON PYBIND11 MODULE (simmit)
@@ -68,7 +68,7 @@ else()
   set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 
-# Disable precompiled headers for this target (causes issues with carma includes)
+# Disable precompiled headers for this target
 set_target_properties(simmit PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
 # C++ standard inherited from parent (C++20)
@@ -77,7 +77,7 @@ set_target_properties(simmit PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
-target_link_libraries(simmit PRIVATE carma::carma Python3::Module simcoon)
+target_link_libraries(simmit PRIVATE Python3::Module simcoon)
 
 # Determine Python package installation directory
 if(SIMCOON_PYTHON_INSTALL_TO_SOURCE)
@@ -105,7 +105,7 @@ install(TARGETS simmit
         DESTINATION ${PYTHON_INSTALL_DIR}
         COMPONENT python)
 
-# Install the simcoon shared library with SOVERSION symlinks
+# Install the simcoon shared library alongside the Python extension module
 # Must use install(TARGETS) to get proper symlink handling
 install(TARGETS simcoon
         LIBRARY DESTINATION ${PYTHON_INSTALL_DIR}

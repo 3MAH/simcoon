@@ -2,8 +2,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 
 #include <simcoon/Simulation/Solver/read.hpp>
@@ -29,7 +29,7 @@ py::tuple read_matprops(const std::string &path_data_py, const std::string &mate
 //    string path_data = bp::extract<std::string>(path_data_py);
 //    string materialfile = bp::extract<std::string>(materialfile_py);
     simcoon::read_matprops(umat_name, nprops, v, nstatev, psi_rve, theta_rve, phi_rve, path_data_py, materialfile_py);
-    return py::make_tuple(nprops, nstatev, psi_rve, theta_rve, phi_rve, carma::col_to_arr(v));
+    return py::make_tuple(nprops, nstatev, psi_rve, theta_rve, phi_rve, simpy::col_to_arr(v));
 }
 
 py::tuple read_path(const std::string &path_data_py, const std::string &pathfile_py) {

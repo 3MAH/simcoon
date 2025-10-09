@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/damage.hpp>
@@ -17,14 +17,14 @@ namespace simpy {
 
 //This function returns damage evolution (/dt) considering a Weibull damage law
 double damage_weibull(const py::array_t<double> &stress, const double &damage, const double &alpha, const double &beta, const double &DTime, const std::string &criterion) {
-    vec stress_cpp = carma::arr_to_col(stress);
+    vec stress_cpp = simpy::arr_to_col(stress);
     return simcoon::damage_weibull(stress_cpp,damage,alpha,beta,DTime,criterion);
 }
 
 //This function returns damage evolution (/dt) considering Kachanov's creep damage law
 double damage_kachanov(const py::array_t<double> &stress, const py::array_t<double> &strain, const double &damage, const double &A0, const double &r, const std::string &criterion) {
-    vec stress_cpp = carma::arr_to_col(stress);
-    vec strain_cpp = carma::arr_to_col(strain);
+    vec stress_cpp = simpy::arr_to_col(stress);
+    vec strain_cpp = simpy::arr_to_col(strain);
     return simcoon::damage_kachanov(stress_cpp,strain_cpp,damage,A0,r,criterion);
 }
 
