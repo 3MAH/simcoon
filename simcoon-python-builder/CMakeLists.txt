@@ -129,7 +129,7 @@ endif()
 
 add_test(NAME simmit_test
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
+         COMMAND ${Python3_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
 # Set PYTHONPATH so the test can find the simcoon module
 # Point to parent directory of PYTHON_INSTALL_DIR since it contains the 'simcoon' package directory
