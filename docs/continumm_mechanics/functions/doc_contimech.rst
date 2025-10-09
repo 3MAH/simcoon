@@ -4,13 +4,8 @@ The Contimech Library
 .. autofunction:: simcoon.simmit.dev
 .. autofunction:: simcoon.simmit.sph
 .. autofunction:: simcoon.simmit.tr
-.. autofunction:: simcoon.simmit.dev_voigt
 .. autofunction:: simcoon.simmit.Mises_stress
 .. autofunction:: simcoon.simmit.eta_stress
-.. autofunction:: simcoon.simmit.eta_norm_stress
-.. autofunction:: simcoon.simmit.eta_norm_strain
-.. autofunction:: simcoon.simmit.norm_stress
-.. autofunction:: simcoon.simmit.norm_strain
 .. autofunction:: simcoon.simmit.Mises_strain
 .. autofunction:: simcoon.simmit.eta_strain
 .. autofunction:: simcoon.simmit.J2_stress

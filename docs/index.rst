@@ -1,5 +1,5 @@
 Welcome to Simcoon's Documentation
-=================================
+==================================
 
 .. toctree::
    :maxdepth: 2
@@ -9,7 +9,7 @@ Welcome to Simcoon's Documentation
    installation.rst
    examples.rst
    external.rst
-   doc_constitutive
+   continuum_mechanics/index
 
 Indices and tables
 ==================
