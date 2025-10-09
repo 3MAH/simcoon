@@ -14,17 +14,66 @@ namespace py=pybind11;
 
 namespace simpy {
 
-//This function returns the trace of the tensor v
-double tr(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
-    return simcoon::tr(v);
+//This function returns the spherical part of v
+py::array_t<double> sph(const py::array_t<double> &input, const bool &copy) {
+
+    if(input.ndim() == 1) {    
+        if (input.size() == 6) {
+            vec v = carma::arr_to_col(input);
+            vec t = simcoon::sph(v);
+            return carma::col_to_arr(t, copy);
+        }
+        else
+            throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6x1 tensor in Voigt notation)");        
+    }
+    else if(input.ndim() == 2) {
+        if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
+            mat m = carma::arr_to_col(input);
+            mat t = simcoon::sph(m);
+            return carma::mat_to_arr(t, copy);
+        }
+        else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {    
+            vec v = carma::arr_to_col(input);
+            vec t = simcoon::sph(v);
+            return carma::col_to_arr(t, copy);
+        } 
+    }         
+    else
+        throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
 }
 
 //This function returns the deviatoric part of v
 py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
+
+    if(input.ndim() == 1) {    
+        if (input.size() == 6) {
+            vec v = carma::arr_to_col(input);
+            vec t = simcoon::dev(v);
+            return carma::col_to_arr(t, copy);
+        }
+        else
+            throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6x1 tensor in Voigt notation)");        
+    }
+    else if(input.ndim() == 2) {
+        if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
+            mat m = carma::arr_to_col(input);
+            mat t = simcoon::dev(m);
+            return carma::mat_to_arr(t, copy);
+        }
+        else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {    
+            vec v = carma::arr_to_col(input);
+            vec t = simcoon::dev(v);
+            return carma::col_to_arr(t, copy);
+        } 
+    }         
+    else
+        throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
+}
+
+//This function returns the trace of the tensor v
+double tr(const py::array_t<double> &input) {
     vec v = carma::arr_to_col(input);
-    vec t = simcoon::dev(v);
-    return carma::col_to_arr(t, copy);
+    return simcoon::tr(v);
 }
 
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
@@ -38,6 +87,32 @@ py::array_t<double> eta_stress(const py::array_t<double> &input, const bool &cop
     vec v = carma::arr_to_col(input);
     vec t = simcoon::eta_stress(v);
     return carma::col_to_arr(t, copy);
+}
+
+//Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
+py::array_t<double> eta_norm_stress(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
+    vec t = simcoon::eta_norm_stress(v);
+    return carma::col_to_arr(t, copy);
+}
+
+//Provides the strain flow (direction) from a strain tensor (Euclidian norm), according to the Voigt convention for strains
+py::array_t<double> eta_norm_strain(const py::array_t<double> &input, const bool &copy) {
+    vec v = carma::arr_to_col(input);
+    vec t = simcoon::eta_norm_strain(v);
+    return carma::col_to_arr(t, copy);
+}
+
+//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
+double norm_stress(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
+    return simcoon::norm_stress(v);
+}
+
+//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
+double norm_strain(const py::array_t<double> &input) {
+    vec v = carma::arr_to_col(input);
+    return simcoon::norm_strain(v);
 }
 
 //This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
@@ -136,10 +211,10 @@ py::array_t<double> auto_dyadic(const py::array_t<double> &input, const bool &co
     return carma::mat_to_arr(c, copy);
 }
 
-py::array_t<double> dyadic_4vectors_sym(const py::array_t<double> &a, const py::array_t<double> &b, const std::string &conv, const bool &copy) {
-    vec a_cpp = carma::arr_to_col(a);
-    vec b_cpp = carma::arr_to_col(b);    
-    mat c = simcoon::dyadic_4vectors_sym(a_cpp, b_cpp, conv);
+py::array_t<double> dyadic_4vectors_sym(const py::array_t<double> &n_a, const py::array_t<double> &n_b, const std::string &conv, const bool &copy) {
+    vec n_a_cpp = carma::arr_to_col(n_a);
+    vec n_b_cpp = carma::arr_to_col(n_b);
+    mat c = simcoon::dyadic_4vectors_sym(n_a_cpp, n_b_cpp, conv);
     return carma::mat_to_arr(c, copy);
 }
 
