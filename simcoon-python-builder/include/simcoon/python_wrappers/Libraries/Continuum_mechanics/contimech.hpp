@@ -4,17 +4,32 @@
 
 namespace simpy{
     
-//This function returns the trace of the tensor v
-double tr(const pybind11::array_t<double> &input);
+//This function returns the spherical part of v
+pybind11::array_t<double> sph(const pybind11::array_t<double> &input, const bool &copy=true);
 
 //This function returns the deviatoric part of v
 pybind11::array_t<double> dev(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//This function returns the trace of the tensor v
+double tr(const pybind11::array_t<double> &input);
 
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
 double Mises_stress(const pybind11::array_t<double> &input);
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 pybind11::array_t<double> eta_stress(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
+pybind11::array_t<double> eta_norm_stress(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
+pybind11::array_t<double> eta_norm_strain(const pybind11::array_t<double> &input, const bool &copy=true);
+
+//This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
+double norm_stress(const pybind11::array_t<double> &input);
+
+//This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
+double norm_strain(const pybind11::array_t<double> &input);
 
 //This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
 double Mises_strain(const pybind11::array_t<double> &input);
@@ -65,7 +80,7 @@ pybind11::array_t<double> sym_dyadic(const pybind11::array_t<double> &a, const p
 pybind11::array_t<double> auto_dyadic(const pybind11::array_t<double> &input, const bool &copy=true);
 
 //Provides the dyadic product of of two symmetric tensors
-pybind11::array_t<double> dyadic_4vectors_sym(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const std::string  &conv, const bool &copy=true);
+pybind11::array_t<double> dyadic_4vectors_sym(const pybind11::array_t<double> &n_a, const pybind11::array_t<double> &n_b, const std::string  &conv, const bool &copy=true);
 
 //Provides the dyadic product of of two symmetric tensors
 pybind11::array_t<double> dyadic(const pybind11::array_t<double> &a, const pybind11::array_t<double> &b, const bool &copy=true);
