@@ -9,4 +9,5 @@ Continuum Mechanics
    doc_contimech
    doc_criteria
    doc_damage
-   doc_kinematics
+   doc_kinematics 
+   doc_hyperelastic   
