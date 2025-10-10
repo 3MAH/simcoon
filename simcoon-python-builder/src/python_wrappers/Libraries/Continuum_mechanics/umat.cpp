@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 #include <optional>
 
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -105,22 +105,22 @@ namespace simpy {
 		bool use_temp = false;
 		vec vec_T;
 		if (T_py.has_value()) {
-			vec_T = carma::arr_to_col_view(T_py.value());
+			vec_T = simpy::arr_to_col_view(T_py.value());
 			use_temp = true;
 		}
 		else {
 			use_temp = false; 
 		}
 
-		mat list_etot = carma::arr_to_mat_view(etot_py);		
+		mat list_etot = simpy::arr_to_mat_view(etot_py);		
 		int nb_points = list_etot.n_cols; //number of material points
-		mat list_Detot = carma::arr_to_mat_view(Detot_py); 
-		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
-		cube DR = carma::arr_to_cube_view(DR_py); 
+		mat list_Detot = simpy::arr_to_mat_view(Detot_py); 
+		mat list_sigma = simpy::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
+		cube DR = simpy::arr_to_cube_view(DR_py); 
 		cube F0, F1;
 
 		vec props;
-		mat list_props = carma::arr_to_mat_view(props_py);
+		mat list_props = simpy::arr_to_mat_view(props_py);
 		auto shape = props_py.shape();
 
 		bool unique_props = false;
@@ -129,8 +129,8 @@ namespace simpy {
 			unique_props = true;
 		}		
 
-		mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
-		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
+		mat list_statev = simpy::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
+		mat list_Wm = simpy::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
 		cube L(ncomp, ncomp, nb_points);
 		cube Lt(ncomp, ncomp, nb_points);
 		vec sigma_in = zeros(1); //not used
@@ -247,8 +247,8 @@ namespace simpy {
 				break;
 			}
 			case 20: case 21: case 22: case 23: case 24: case 25: {
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);						
+				F0 = simpy::arr_to_cube_view(F0_py);
+				F1 = simpy::arr_to_cube_view(F1_py);						
 				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 4;
 				break;				
@@ -307,7 +307,7 @@ namespace simpy {
 		#ifdef _OPENMP
 		omp_set_num_threads(max_threads);		
 		#endif		
-		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
+		return py::make_tuple(simpy::mat_to_arr(list_sigma, false), simpy::mat_to_arr(list_statev, false), simpy::mat_to_arr(list_Wm, false), simpy::cube_to_arr(Lt, false));
 
 	}
 }
@@ -492,13 +492,13 @@ namespace simpy {
 
 		//py::print("ndim = ", etot_py.ndim());
 		if (etot_py.ndim() == 1) {			
-			vec etot = carma::arr_to_col_view(etot_py);
-			vec Detot = carma::arr_to_col_view(Detot_py); 
-			vec sigma = carma::arr_to_col(sigma_py); //copy data because values are changed by the umat and returned to python
-			mat DR = carma::arr_to_mat_view(DR_py); 
-			vec props = carma::arr_to_col_view(props_py);
-			vec statev = carma::arr_to_col(statev_py); //copy data because values are changed by the umat and returned to python
-			vec Wm = carma::arr_to_col(Wm_py); //copy data because values are changed by the umat and returned to python
+			vec etot = simpy::arr_to_col_view(etot_py);
+			vec Detot = simpy::arr_to_col_view(Detot_py); 
+			vec sigma = simpy::arr_to_col(sigma_py); //copy data because values are changed by the umat and returned to python
+			mat DR = simpy::arr_to_mat_view(DR_py); 
+			vec props = simpy::arr_to_col_view(props_py);
+			vec statev = simpy::arr_to_col(statev_py); //copy data because values are changed by the umat and returned to python
+			vec Wm = simpy::arr_to_col(Wm_py); //copy data because values are changed by the umat and returned to python
 			mat L(ncomp, ncomp);
 			mat Lt(ncomp, ncomp);
 			vec sigma_in = zeros(1); //not used
@@ -525,18 +525,18 @@ namespace simpy {
 				}
 			}
 			//py::print("umat_done");
-			return py::make_tuple(carma::col_to_arr(sigma, false), carma::col_to_arr(statev, false), carma::col_to_arr(Wm, false), carma::mat_to_arr(Lt, false));
+			return py::make_tuple(simpy::col_to_arr(sigma, false), simpy::col_to_arr(statev, false), simpy::col_to_arr(Wm, false), simpy::mat_to_arr(Lt, false));
 		}
 		else if (etot_py.ndim() == 2) {
 			
-			mat etot = carma::arr_to_mat_view(etot_py);
+			mat etot = simpy::arr_to_mat_view(etot_py);
 			int nb_points = etot.n_cols; //number of material points
-			mat Detot = carma::arr_to_mat_view(Detot_py); 
-			mat list_sigma = carma::arr_to_mat(sigma_py); //copy data because values are changed by the umat and returned to python
-			cube DR = carma::arr_to_cube_view(DR_py); 
-			mat list_props = carma::arr_to_mat_view(props_py);
-			mat list_statev = carma::arr_to_mat(statev_py); //copy data because values are changed by the umat and returned to python
-			mat Wm = carma::arr_to_mat(Wm_py); //copy data because values are changed by the umat and returned to python
+			mat Detot = simpy::arr_to_mat_view(Detot_py); 
+			mat list_sigma = simpy::arr_to_mat(sigma_py); //copy data because values are changed by the umat and returned to python
+			cube DR = simpy::arr_to_cube_view(DR_py); 
+			mat list_props = simpy::arr_to_mat_view(props_py);
+			mat list_statev = simpy::arr_to_mat(statev_py); //copy data because values are changed by the umat and returned to python
+			mat Wm = simpy::arr_to_mat(Wm_py); //copy data because values are changed by the umat and returned to python
 			cube L(ncomp, ncomp, nb_points);
 			cube Lt(ncomp, ncomp, nb_points);
 			vec sigma_in = zeros(1); //not used
@@ -567,7 +567,7 @@ namespace simpy {
 					}
 				}
 			}
-			return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(Wm, false), carma::cube_to_arr(Lt, false));
+			return py::make_tuple(simpy::mat_to_arr(list_sigma, false), simpy::mat_to_arr(list_statev, false), simpy::mat_to_arr(Wm, false), simpy::cube_to_arr(Lt, false));
 		}
 	}
 }

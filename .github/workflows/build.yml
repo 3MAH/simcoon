@@ -86,4 +86,4 @@ jobs:
           uv pip install ./build/python-package
 
       - name: Run tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
+        run: ctest --test-dir build ${{ matrix.test-args }} --output-on-failure --extra-verbose

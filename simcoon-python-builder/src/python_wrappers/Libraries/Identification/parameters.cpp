@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 #include <assert.h>
 
 #include <simcoon/Simulation/Identification/parameters.hpp>

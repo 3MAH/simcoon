@@ -2,8 +2,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
@@ -19,23 +19,23 @@ py::array_t<double> sph(const py::array_t<double> &input, const bool &copy) {
 
     if(input.ndim() == 1) {    
         if (input.size() == 6) {
-            vec v = carma::arr_to_col(input);
+            vec v = simpy::arr_to_col(input);
             vec t = simcoon::sph(v);
-            return carma::col_to_arr(t, copy);
+            return simpy::col_to_arr(t, copy);
         }
         else
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6x1 tensor in Voigt notation)");        
     }
     else if(input.ndim() == 2) {
         if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
-            mat m = carma::arr_to_col(input);
+            mat m = simpy::arr_to_col(input);
             mat t = simcoon::sph(m);
-            return carma::mat_to_arr(t, copy);
+            return simpy::mat_to_arr(t, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {    
-            vec v = carma::arr_to_col(input);
+            vec v = simpy::arr_to_col(input);
             vec t = simcoon::sph(v);
-            return carma::col_to_arr(t, copy);
+            return simpy::col_to_arr(t, copy);
         } 
     }         
     else
@@ -47,23 +47,23 @@ py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
 
     if(input.ndim() == 1) {    
         if (input.size() == 6) {
-            vec v = carma::arr_to_col(input);
+            vec v = simpy::arr_to_col(input);
             vec t = simcoon::dev(v);
-            return carma::col_to_arr(t, copy);
+            return simpy::col_to_arr(t, copy);
         }
         else
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6x1 tensor in Voigt notation)");        
     }
     else if(input.ndim() == 2) {
         if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
-            mat m = carma::arr_to_col(input);
+            mat m = simpy::arr_to_col(input);
             mat t = simcoon::dev(m);
-            return carma::mat_to_arr(t, copy);
+            return simpy::mat_to_arr(t, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {    
-            vec v = carma::arr_to_col(input);
+            vec v = simpy::arr_to_col(input);
             vec t = simcoon::dev(v);
-            return carma::col_to_arr(t, copy);
+            return simpy::col_to_arr(t, copy);
         } 
     }         
     else
@@ -72,83 +72,83 @@ py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
 
 //This function returns the trace of the tensor v
 double tr(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::tr(v);
 }
 
 //This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress
 double Mises_stress(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::Mises_stress(v);
 }
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 py::array_t<double> eta_stress(const py::array_t<double> &input, const bool &copy) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     vec t = simcoon::eta_stress(v);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 //Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
 py::array_t<double> eta_norm_stress(const py::array_t<double> &input, const bool &copy) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     vec t = simcoon::eta_norm_stress(v);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 //Provides the strain flow (direction) from a strain tensor (Euclidian norm), according to the Voigt convention for strains
 py::array_t<double> eta_norm_strain(const py::array_t<double> &input, const bool &copy) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     vec t = simcoon::eta_norm_strain(v);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 double norm_stress(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::norm_stress(v);
 }
 
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 double norm_strain(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::norm_strain(v);
 }
 
 //This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains
 double Mises_strain(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::Mises_strain(v);
 }
 
 //This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
 py::array_t<double> eta_strain(const py::array_t<double> &input, const bool &copy) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     vec t = simcoon::eta_strain(v);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 //Returns the secoinput invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J2_stress(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::J2_stress(v);
 }
 
 //Returns the second invariant of the deviatoric part of a second order strain tensor written as a Voigt vector
 double J2_strain(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::J2_strain(v);
 }
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J3_stress(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::J3_stress(v);
 }
 
 //Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J3_strain(const py::array_t<double> &input) {
-    vec v = carma::arr_to_col(input);
+    vec v = simpy::arr_to_col(input);
     return simcoon::J3_strain(v);
 }
 
@@ -170,7 +170,7 @@ double sign(const double &d) {
 //Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u
 py::array_t<double> normal_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy) {
     vec t = simcoon::normal_ellipsoid(u,v,a1,a2,a3);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 //Provides the curvature of an ellipsoid with semi-principal axes of length a1, a2, a3 at the angle u,v.
@@ -180,62 +180,62 @@ double  curvature_ellipsoid(const double &u, const double &v, const double &a1, 
 
 //Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
 py::array_t<double> sigma_int(const py::array_t<double> &input, const double &u, const double &v, const double &a1, const double &a2, const double &a3, const bool &copy) {
-    vec sigma_in = carma::arr_to_col(input);
+    vec sigma_in = simpy::arr_to_col(input);
     vec t = simcoon::sigma_int(sigma_in,u,v,a1,a2,a3);
-    return carma::col_to_arr(t, copy);
+    return simpy::col_to_arr(t, copy);
 }
 
 ///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
 py::array_t<double> p_ikjl(const py::array_t<double> &normal, const bool &copy) {
-    vec a = carma::arr_to_col(normal);
+    vec a = simpy::arr_to_col(normal);
     mat t = simcoon::p_ikjl(a);
-    return carma::mat_to_arr(t, copy);
+    return simpy::mat_to_arr(t, copy);
 }
 
 py::array_t<double> auto_sym_dyadic(const py::array_t<double> &input, const bool &copy) {
-    mat a = carma::arr_to_mat(input);
+    mat a = simpy::arr_to_mat(input);
     mat c = simcoon::auto_sym_dyadic(a);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> sym_dyadic(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
-    mat a_cpp = carma::arr_to_mat(a);
-    mat b_cpp = carma::arr_to_mat(b);    
+    mat a_cpp = simpy::arr_to_mat(a);
+    mat b_cpp = simpy::arr_to_mat(b);    
     mat c = simcoon::sym_dyadic(a_cpp, b_cpp);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> auto_dyadic(const py::array_t<double> &input, const bool &copy) {
-    mat a = carma::arr_to_mat(input);
+    mat a = simpy::arr_to_mat(input);
     mat c = simcoon::auto_dyadic(a);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> dyadic_4vectors_sym(const py::array_t<double> &n_a, const py::array_t<double> &n_b, const std::string &conv, const bool &copy) {
-    vec n_a_cpp = carma::arr_to_col(n_a);
-    vec n_b_cpp = carma::arr_to_col(n_b);
+    vec n_a_cpp = simpy::arr_to_col(n_a);
+    vec n_b_cpp = simpy::arr_to_col(n_b);
     mat c = simcoon::dyadic_4vectors_sym(n_a_cpp, n_b_cpp, conv);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> dyadic(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
-    mat a_cpp = carma::arr_to_mat(a);
-    mat b_cpp = carma::arr_to_mat(b);    
+    mat a_cpp = simpy::arr_to_mat(a);
+    mat b_cpp = simpy::arr_to_mat(b);    
     mat c = simcoon::dyadic(a_cpp, b_cpp);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> auto_sym_dyadic_operator(const py::array_t<double> &input, const bool &copy) {
-    mat a = carma::arr_to_mat(input);
+    mat a = simpy::arr_to_mat(input);
     mat c = simcoon::auto_sym_dyadic_operator(a);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 py::array_t<double> sym_dyadic_operator(const py::array_t<double> &a, const py::array_t<double> &b, const bool &copy) {
-    mat a_cpp = carma::arr_to_mat(a);
-    mat b_cpp = carma::arr_to_mat(b);    
+    mat a_cpp = simpy::arr_to_mat(a);
+    mat b_cpp = simpy::arr_to_mat(b);    
     mat c = simcoon::sym_dyadic_operator(a_cpp, b_cpp);
-    return carma::mat_to_arr(c, copy);
+    return simpy::mat_to_arr(c, copy);
 }
 
 } //namepsace simpy
