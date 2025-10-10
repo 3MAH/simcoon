@@ -13,18 +13,33 @@
 import mock
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+import importlib.util
+from sphinx_gallery.sorting import FileNameSortKey
 
+sys.path.insert(
+    0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
+)
 
-# -- Project information -----------------------------------------------------
+project = "Simcoon"
+copyright = "2025, 3MAH development team"
+author = "3MAH development team"
 
-project = 'Simcoon'
-copyright = '2022, 3MAH'
-author = '3MAH'
+# Respect the release of simcoon
+# Default values
+release = version = "unknown"
 
-# The full version, including alpha/beta/rc tags
-release = '1.0.0'
+# Path to the version file
+version_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "../python-setup/simcoon/__version__.py")
+)
 
+# Load the __version__ variable safely if the file exists
+if os.path.exists(version_path):
+    spec = importlib.util.spec_from_file_location("simcoon_version", version_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    release = getattr(mod, "__version__", "unknown")
+    version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 
@@ -32,60 +47,70 @@ release = '1.0.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.ifconfig',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.coverage",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
+    "sphinx_gallery.gen_gallery",
+    "sphinx_design",
 ]
-
 
 # MOCK_MODULES = ["numpy", "cadquery", "OCP"]
 # for mod_name in MOCK_MODULES:
 #     sys.modules[mod_name] = mock.Mock()
 
-#Ensure index.rst is the master file instead of 'contents.rst'
-master_doc = 'index'
+# Ensure index.rst is the master file instead of 'contents.rst'
+master_doc = "index"
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
+# html_theme = 'sphinxdoc'
+html_logo = "_static/simcoonLogos_ss_fond.png"
 
 html_theme_options = {
-    'canonical_url': 'https://microgen.readthedocs.io/en/latest/',
+    "canonical_url": "https://microgen.readthedocs.io/en/latest/",
     # 'logo_only': False,
     # 'display_version': True,
     # 'prev_next_buttons_location': 'bottom',
-    'style_external_links': True,
+    "style_external_links": True,
     # 'vcs_pageview_mode': '',
-    'style_nav_header_background': '#24445C',
+    "style_nav_header_background": "#24445C",
     # Toc options
-    'collapse_navigation': False,
+    "collapse_navigation": False,
     # 'sticky_navigation': True,
     # 'navigation_depth': 4,
     # 'includehidden': True,
     # 'titles_only': False
 }
 
-html_logo = "_static/simcoon_logo_text_original.png"
-
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
+
+# -- Sphinx Gallery Options
+sphinx_gallery_conf = {
+    # convert rst to md for ipynb
+    "pypandoc": True,
+    # path to your examples scripts
+    "examples_dirs": ["../examples/"],
+    # path where to save gallery generated examples
+    "gallery_dirs": ["examples"],
+    # Pattern to search for example files
+    "filename_pattern": r"\.py",
+    # Sort gallery example by file name instead of number of lines (default)
+    "within_subsection_order": FileNameSortKey,
+    "image_scrapers": ("matplotlib"),
+}
