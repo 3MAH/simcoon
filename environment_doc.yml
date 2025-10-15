@@ -34,5 +34,4 @@ dependencies:
   - sphinx-gallery
   - imageio
   - imageio-ffmpeg
-  - tectonic
-  - dvipng
+  - texlive-core
