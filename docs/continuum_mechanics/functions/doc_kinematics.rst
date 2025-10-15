@@ -1,5 +1,5 @@
 The Kinematics Library
-====================
+=====================================
 
 .. autofunction:: simcoon.simmit.ER_to_F
 .. autofunction:: simcoon.simmit.eR_to_F
