@@ -155,7 +155,7 @@ PYBIND11_MODULE(simmit, m)
     m.def("finite_D", &finite_D, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_D);
     m.def("finite_W", &finite_W, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_W);
     m.def("finite_Omega", &finite_Omega, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_Omega);
-    m.def("finite_DQ", &finite_DQ, "Omega0"_a, "Omega0"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_DQ);
+    m.def("finite_DQ", &finite_DQ, "Omega0"_a, "Omega1"_a, "DTime"_a, "copy"_a = true, simcoon_docs::finite_DQ);
 
     // register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
