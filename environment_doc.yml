@@ -36,3 +36,5 @@ dependencies:
   - imageio-ffmpeg
   - texlive-core
   - mock
+  - matplotlib
+  - pandas
