@@ -67,7 +67,8 @@ jobs:
             texlive-latex-base \
             texlive-latex-extra \
             texlive-fonts-recommended \
-            dvipng        
+            dvipng \
+            cm-super
 
       - name: Build for Linux
         shell: bash -l {0}
