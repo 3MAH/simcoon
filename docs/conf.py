@@ -13,6 +13,7 @@
 import mock
 import os
 import sys
+import matplotlib
 import importlib.util
 import sphinx_gallery
 from sphinx_gallery.sorting import FileNameSortKey
@@ -58,6 +59,14 @@ extensions = [
     "sphinx_gallery.gen_gallery",
     "matplotlib.sphinxext.plot_directive",
 ]
+
+matplotlib.rcParams.update(
+    {
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+    }
+)
 
 # include matplotlib plots
 plot_include_source = True
