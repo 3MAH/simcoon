@@ -8,6 +8,7 @@ Welcome to Simcoon's Documentation
    about.rst
    installation.rst
    external.rst
+   solver.rst
    examples/index
    continuum_mechanics/index
 
