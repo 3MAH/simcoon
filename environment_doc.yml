@@ -35,3 +35,4 @@ dependencies:
   - imageio
   - imageio-ffmpeg
   - texlive-core
+  - mock
