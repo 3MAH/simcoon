@@ -1,150 +1,119 @@
+
 Installation
 ============
 
-On All platforms (Linux/MacOS/Windows) platforms
-----------------
+All Platforms (Linux, macOS, Windows)
+-------------------------------------
 
-The easiest way to install *simcoon* is to create a *conda* environnement: You can utilize the Anaconda GUI or type:
-(for the installation of an environment called "simcoon")
-
-The simplest way to install simcoon is directly with conda:
+The recommended way to install *simcoon* is with *conda*. You can use the Anaconda GUI or run the following commands in your terminal:
 
 .. code-block:: none
 
     conda create --name simcoon
-
-To activate the environment: 
-
-.. code-block:: none
-
     conda activate simcoon
-
-Now you can install *simcoon* using 
-
-.. code-block:: none
-
     conda install -c conda-forge -c set3mah simcoon
 
-That's it! You can start utilizing *simcoon*
+*simcoon* is now ready to use.
 
-Developper installation:
--------------------------
+
+Developer Installation
+---------------------
 
 Prerequisites (using conda)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We still recommand to use a specific environnement :
+It is recommended to use a dedicated environment for development:
 
 .. code-block:: none
     conda create --name simcoon_build
-
-To activate the environment: 
-
-.. code-block:: none
     conda activate simcoon_build
 
-Install required dependencies:
+Install the required dependencies:
 
 .. code-block:: none
     # Compilers and build tools
     conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja uv
-
     # Libraries
     conda install -c conda-forge armadillo boost pybind11 numpy gtest carma
-
     # Python testing and setuptools
     pip install pytest setuptools
-
 
 For x86 architectures, you may also need MKL:
 .. code-block:: none
     conda install -c conda-forge mkl
 
 
+
 Prerequisites (without conda)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1. Install required dependencies using your system's package manager.
+Alternatively, you can install the dependencies using your system's package manager:
 
-- On Debian/Ubuntu:
+- **Debian/Ubuntu:**
 
-.. code-block:: none
-    sudo apt-get install libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+    .. code-block:: none
+            sudo apt-get install libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
 
-- On macOS with Homebrew:
+- **macOS (Homebrew):**
 
-.. code-block:: none
-    brew install armadillo boost googletest
+    .. code-block:: none
+            brew install armadillo boost googletest
 
-- On Windows with vcpkg:
+- **Windows (vcpkg, PowerShell):**
 
-.. code-block:: none
-    #using powershell
-    vcpkg install armadillo boost-config boost-dll gtest
+    .. code-block:: none
+            vcpkg install armadillo boost-config boost-dll gtest
 
-Installation of Simcoon
-~~~~~~~~~~~~~~~~~~~~~~~~
 
-Next, download the Simcoon sources in the github repository of Simcoon_
-.. _Simcoon : https://github.com/3MAH/simcoon or clone or download the repository (recommended):
+Simcoon Installation
+~~~~~~~~~~~~~~~~~~~~
+
+Download the Simcoon source code from the GitHub repository:
+.. _Simcoon : https://github.com/3MAH/simcoon
 
 .. code-block:: none
     git clone https://github.com/3MAH/simcoon.git
     cd simcoon
 
-The last step is to run the installation script:
+To install, you can use the provided script:
 
 .. code-block:: none
     sh Install.sh
 
-or:
+Alternatively, you can build manually:
 
 **Linux/macOS:**
 
 .. code-block:: none
-    # Configure
     cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
-
-    # Build
     cmake --build build
-
-    # Install Python package
     pip install ./build/python-package
 
 **Windows:**
 
 .. code-block:: none
-    # using powershell
-    # Configure
     cmake -S . -B build
-
-    # Build
     cmake --build build --config Release
-
-    # Install Python package
     pip install ./build/python-package
 
-Run tests (All platforms)
-~~~~~~~~~~~~~~~~~~~~~~~
+
+Running Tests (All Platforms)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: none
     ctest --test-dir build --output-on-failure
 
-A build folder will be automatically created in the Simcoon folder. At some point you can decide wether you will install or not the Simcoon library. Make sure you have carefully added thje path to your anaconda environnement.
-Once the installation is done, the executables can be found in the build/bin folder. The use of python wrappers to those executables are however now easier to handle.
+The build folder is created automatically in the Simcoon directory. After installation, executables are located in `build/bin`. Python wrappers are available for easier usage.
 
-Here are some additional information about the prerequisites and the link to get them and their documentation:
+Additional Information
+~~~~~~~~~~~~~~~~~~~~~
 
-
-- Boost_ (at least 1.63), including Boost Python
-.. _Boost : https://www.boost.org
-- Armadillo_ 
-.. _Armadillo : http://arma.sourceforge.net
+- [Boost](https://www.boost.org) (at least 1.63), including Boost Python
+- [Armadillo](http://arma.sourceforge.net)
 
 .. image:: _static/boost_logo.png
 .. image:: _static/Armadillo_logo.png
 
-Note that FTensor_ .. _FTensor : https://bitbucket.org/wlandry/ftensor
-is also utilized by Simcoon but it is integrated to facilitate the installation.
+Note: [FTensor](https://bitbucket.org/wlandry/ftensor) is also used by Simcoon, but it is included in the source for easier installation.
 
 

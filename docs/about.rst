@@ -37,7 +37,7 @@ Several institutions have contributed to the development of simcoon:
 .. raw:: html
 
     <div style="text-align: center;">
-        <img src="_static/UB.png" style="height:80px; margin-right:20px;">
         <img src="_static/UGA.png" style="height:80px; margin-right:20px;">
+        <img src="_static/UB.png" style="height:80px; margin-right:20px;">        
         <img src="_static/CNRS_logo_med.png" style="height:80px;">
     </div>

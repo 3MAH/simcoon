@@ -7,8 +7,8 @@ Welcome to Simcoon's Documentation
 
    about.rst
    installation.rst
-   examples.rst
    external.rst
+   examples/index
    continuum_mechanics/index
 
 Indices and tables

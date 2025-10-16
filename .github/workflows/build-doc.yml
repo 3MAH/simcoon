@@ -53,6 +53,23 @@ jobs:
           conda env update -n simcoon-doc -f environment_doc.yml
         if: steps.cache.outputs.cache-hit != 'true' 
 
+      - name: Remove broken LaTeX from Conda env
+        run: |
+          rm -f $CONDA_PREFIX/bin/latex || true
+          rm -f $CONDA_PREFIX/bin/mktexfmt || true
+          rm -f $CONDA_PREFIX/bin/tlmgr || true
+          hash -r
+
+      - name: Install minimal TeX Live for Matplotlib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-fonts-recommended \
+            dvipng \
+            cm-super
+
       - name: Build for Linux
         shell: bash -l {0}
         run: |

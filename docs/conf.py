@@ -13,12 +13,17 @@
 import mock
 import os
 import sys
+import matplotlib
 import importlib.util
+import sphinx_gallery
 from sphinx_gallery.sorting import FileNameSortKey
 
 sys.path.insert(
     0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
 )
+
+sphinx_gallery.EXAMPLES_DIR = os.path.abspath("../examples")
+print("Sphinx-Gallery examples dir:", sphinx_gallery.EXAMPLES_DIR)
 
 project = "Simcoon"
 copyright = "2025, 3MAH development team"
@@ -52,12 +57,21 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     "sphinx_gallery.gen_gallery",
-    "sphinx_design",
+    "matplotlib.sphinxext.plot_directive",
 ]
 
-# MOCK_MODULES = ["numpy", "cadquery", "OCP"]
-# for mod_name in MOCK_MODULES:
-#     sys.modules[mod_name] = mock.Mock()
+matplotlib.rcParams.update(
+    {
+        "text.usetex": True,
+        "font.family": "serif",
+        "font.serif": ["Computer Modern Roman"],
+    }
+)
+
+# include matplotlib plots
+plot_include_source = True
+plot_formats = [("png", 100), "pdf"]
+plot_html_show_source_link = True
 
 # Ensure index.rst is the master file instead of 'contents.rst'
 master_doc = "index"
@@ -78,6 +92,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 html_theme = "sphinx_rtd_theme"
 # html_theme = 'sphinxdoc'
 html_logo = "_static/simcoonLogos_ss_fond.png"
+
 
 html_theme_options = {
     "canonical_url": "https://microgen.readthedocs.io/en/latest/",
@@ -102,8 +117,6 @@ html_static_path = ["_static"]
 
 # -- Sphinx Gallery Options
 sphinx_gallery_conf = {
-    # convert rst to md for ipynb
-    "pypandoc": True,
     # path to your examples scripts
     "examples_dirs": ["../examples/"],
     # path where to save gallery generated examples
@@ -112,5 +125,7 @@ sphinx_gallery_conf = {
     "filename_pattern": r"\.py",
     # Sort gallery example by file name instead of number of lines (default)
     "within_subsection_order": FileNameSortKey,
-    "image_scrapers": ("matplotlib"),
+    "ignore_pattern": r"/(results|data)$",
+    "copyfile_regex": r"^(data/.+\.(txt|csv|json)|results/.+\.(txt|csv))$",
+    "nested_sections": False,  # disables the extra toctree line
 }
