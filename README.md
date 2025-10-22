@@ -26,7 +26,7 @@ Documentation
 
 Provider      | Status
 --------      | ------
-Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoon/badge/?version=latest&style=plastic)](http://simcoon.readthedocs.io/en/latest)
+Github | [![Documentation Status](https://readthedocs.org/projects/simcoon/badge/?version=latest&style=plastic)](https://3mah.github.io/simcoon-docs/)
 
 
 Building doc :
