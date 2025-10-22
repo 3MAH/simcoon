@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 #include <assert.h>
 
 #include <simcoon/Simulation/Identification/constants.hpp>
@@ -23,7 +23,7 @@ simcoon::constants build_constants_full(const int &mnumber, const double &mvalue
     simcoon::constants a;
     a.number = mnumber;
     a.value = mvalue;
-    a.input_values = carma::arr_to_col(minput_values);
+    a.input_values = simpy::arr_to_col(minput_values);
     a.key = mkey;
     a.ninput_files = mninput_files;
     a.input_files = minput_files.cast<std::vector<std::string>>();
@@ -32,7 +32,7 @@ simcoon::constants build_constants_full(const int &mnumber, const double &mvalue
 
 //------------------------------------------------------
 py::array_t<double> constants_get_input_values(simcoon::constants &self) {
-    return carma::col_to_arr(self.input_values);
+    return simpy::col_to_arr(self.input_values);
 }
 //------------------------------------------------------
 
@@ -45,7 +45,7 @@ py::list constants_get_input_files(simcoon::constants &self) {
 
 //------------------------------------------------------
 void constants_set_input_values(simcoon::constants &self, const py::array_t<double> &minput_values) {
-    self.input_values = carma::arr_to_col(minput_values);
+    self.input_values = simpy::arr_to_col(minput_values);
 }
 //------------------------------------------------------
 

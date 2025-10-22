@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -23,26 +23,26 @@ namespace simpy {
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
+    mat F0_cpp = simpy::arr_to_mat(F0);
+    mat F1_cpp = simpy::arr_to_mat(F1);
     mat DR = zeros(3,3);
     mat D = zeros(3,3);
     mat Omega = zeros(3,3);
     simcoon::logarithmic(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy));
+    return py::make_tuple(simpy::mat_to_arr(D, copy), simpy::mat_to_arr(DR, copy), simpy::mat_to_arr(Omega, copy));
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
+    mat F0_cpp = simpy::arr_to_mat(F0);
+    mat F1_cpp = simpy::arr_to_mat(F1);
     mat DR = zeros(3,3);
     mat D = zeros(3,3);
     mat N_1 = zeros(3,3);
     mat N_2 = zeros(3,3);    
     mat Omega = zeros(3,3);
     simcoon::logarithmic_R(DR, D, N_1, N_2, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
+    return py::make_tuple(simpy::mat_to_arr(D, copy), simpy::mat_to_arr(DR, copy), simpy::mat_to_arr(Omega, copy), simpy::mat_to_arr(N_1, copy), simpy::mat_to_arr(N_2, copy));
 }
 
 
@@ -79,8 +79,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             throw std::invalid_argument("the number of dim of F1 should be the same as F0");
         }
 
-        mat F0_cpp = carma::arr_to_mat_view(F0);
-        mat F1_cpp = carma::arr_to_mat_view(F1);
+        mat F0_cpp = simpy::arr_to_mat_view(F0);
+        mat F1_cpp = simpy::arr_to_mat_view(F1);
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
@@ -119,15 +119,15 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     break;
                 }
             }
-            return py::make_tuple(carma::col_to_arr(de,false), carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::col_to_arr(de,false), simpy::mat_to_arr(D, false), simpy::mat_to_arr(DR, false), simpy::mat_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::mat_to_arr(D, false), simpy::mat_to_arr(DR, false), simpy::mat_to_arr(Omega, false));
         }
         
     }
     else if (F1.ndim() == 3) {
-        cube F1_cpp = carma::arr_to_cube_view(F1);            
+        cube F1_cpp = simpy::arr_to_cube_view(F1);            
         int nb_points = F1_cpp.n_slices;
         cube DR(3,3,nb_points);
         cube D(3,3,nb_points);            
@@ -140,7 +140,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat I = eye(3,3);        
 
         if (F0.ndim() == 2) {
-            mat vec_F0 = carma::arr_to_mat_view(F0);
+            mat vec_F0 = simpy::arr_to_mat_view(F0);
             for (int pt = 0; pt < nb_points; pt++) {
 
         		switch (corate) {
@@ -166,7 +166,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             }
         }
         else if (F0.ndim() == 3) {
-            cube F0_cpp = carma::arr_to_cube_view(F0); 
+            cube F0_cpp = simpy::arr_to_cube_view(F0); 
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
 
@@ -239,20 +239,20 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             }
         }
         if (return_de){	                     
-            return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::mat_to_arr(de, false), simpy::cube_to_arr(D, false), simpy::cube_to_arr(DR, false), simpy::cube_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::cube_to_arr(D, false), simpy::cube_to_arr(DR, false), simpy::cube_to_arr(Omega, false));
         }        
     }
 }
 
 //This function computes the gradient of displacement (Eulerian) from the deformation gradient 
 py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::array_t<double> &Omega, const double &DTime, const bool &copy) {
-    mat D_cpp = carma::arr_to_mat(D);
-    mat Omega_cpp = carma::arr_to_mat(Omega);
+    mat D_cpp = simpy::arr_to_mat(D);
+    mat Omega_cpp = simpy::arr_to_mat(Omega);
     mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
-    return carma::mat_to_arr(Delta_log_strain, copy);
+    return simpy::mat_to_arr(Delta_log_strain, copy);
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
@@ -295,9 +295,9 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
         }
 
-        mat F_cpp = carma::arr_to_mat_view(F);
-        mat Lt_cpp = carma::arr_to_mat_view(Lt);
-        vec stress_cpp = carma::arr_to_col_view(stress);
+        mat F_cpp = simpy::arr_to_mat_view(F);
+        mat Lt_cpp = simpy::arr_to_mat_view(Lt);
+        vec stress_cpp = simpy::arr_to_col_view(stress);
         mat Lt_converted(6,6);
 
         switch (select) {             
@@ -318,12 +318,12 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                 break;
             }                 
         }          
-        return carma::mat_to_arr(Lt_converted,false);
+        return simpy::mat_to_arr(Lt_converted,false);
     }
     else if (Lt.ndim() == 3) {
-        cube F_cpp = carma::arr_to_cube_view(F);
-        cube Lt_cpp = carma::arr_to_cube_view(Lt);
-        mat stress_cpp = carma::arr_to_mat_view(stress);
+        cube F_cpp = simpy::arr_to_cube_view(F);
+        cube Lt_cpp = simpy::arr_to_cube_view(Lt);
+        mat stress_cpp = simpy::arr_to_mat_view(stress);
         int nb_points = Lt_cpp.n_slices;
         cube Lt_converted = zeros(6,6,nb_points);
 
@@ -369,7 +369,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         omp_set_num_threads(max_threads);			                     
         #endif
 */
-        return carma::cube_to_arr(Lt_converted,false);
+        return simpy::cube_to_arr(Lt_converted,false);
     }
 }
 

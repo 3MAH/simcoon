@@ -2,6 +2,15 @@
 
 cmake_minimum_required(VERSION 3.15)
 
+# Set MSVC runtime library policy and configuration BEFORE project()
+# This ensures all targets (simcoon, simmit, tests) use the same CRT
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+# Use dynamic runtime library (/MD) to prevent Windows heap corruption
+# Must be set before project() to affect all targets consistently
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
 project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
@@ -147,57 +156,6 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
-  # Find or fetch carma
-  include(FetchContent)
-
-  # Try to find carma from conda/system first
-  find_package(carma CONFIG QUIET)
-
-  if(carma_FOUND)
-    message(STATUS "Found carma package (CONFIG mode)")
-  else()
-    # If not found via CONFIG, try to find headers directly in conda prefix
-    if(DEFINED ENV{PREFIX})
-      set(CONDA_PREFIX $ENV{PREFIX})
-    elseif(DEFINED ENV{CONDA_PREFIX})
-      set(CONDA_PREFIX $ENV{CONDA_PREFIX})
-    endif()
-
-    if(CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
-      message(STATUS "Found carma headers in conda environment")
-      set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
-
-      # Create carma::carma target from conda installation
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-        )
-      endif()
-      set(carma_FOUND TRUE)
-    else()
-      # Fall back to fetching from GitHub
-      message(STATUS "carma not found, fetching from GitHub")
-      FetchContent_Declare(
-        carma
-        GIT_REPOSITORY https://github.com/RUrlus/carma.git
-        GIT_TAG        v0.8.0
-      )
-      FetchContent_MakeAvailable(carma)
-
-      # Get the source directory and set include path
-      FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
-      set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
-
-      # Ensure carma::carma target exists with proper include directories
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-        )
-      endif()
-    endif()
-  endif()
 
   message(STATUS "Python bindings enabled")
   message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
@@ -240,7 +198,7 @@ message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 
-# Create simcoon shared library
+# Create simcoon library
 add_library(simcoon SHARED)
 
 # Set library version for ABI compatibility tracking

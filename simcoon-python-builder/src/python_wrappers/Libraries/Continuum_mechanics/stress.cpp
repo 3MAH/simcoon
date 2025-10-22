@@ -3,8 +3,8 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
+#include <simcoon/python_wrappers/conversion_helpers.hpp>
 #include <assert.h>
 
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
@@ -112,10 +112,10 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
 
     if(sigma.ndim() == 1) {
         if(sigma.size() == 6) {
-            mat sigma_cpp = simcoon::v2t_stress(carma::arr_to_col(sigma));
-            mat F_cpp = carma::arr_to_mat(F);            
+            mat sigma_cpp = simcoon::v2t_stress(simpy::arr_to_col(sigma));
+            mat F_cpp = simpy::arr_to_mat(F);            
             vec stress = simcoon::t2v_stress(functor_stress_converter(sigma_cpp, F_cpp, J));
-            return carma::col_to_arr(stress, copy);
+            return simpy::col_to_arr(stress, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6");
@@ -123,16 +123,16 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
     }
     else if (sigma.ndim() == 2) {
         if((sigma.shape(0) == 3)&&(sigma.shape(1) == 3)) {
-            mat sigma_cpp = carma::arr_to_mat(sigma);
-            mat F_cpp = carma::arr_to_mat(F);
+            mat sigma_cpp = simpy::arr_to_mat(sigma);
+            mat F_cpp = simpy::arr_to_mat(F);
             mat stress = functor_stress_converter(sigma_cpp, F_cpp, J);
-            return carma::mat_to_arr(stress, copy);
+            return simpy::mat_to_arr(stress, copy);
         }
         else if(sigma.shape(0) == 6) {
             assert(sigma.shape(1) == F.shape(2));
             mat stress = zeros(6,sigma.shape(1));
-            mat sigma_cpp_list = carma::arr_to_mat_view(sigma);
-            cube F_cpp_list = carma::arr_to_cube_view(F);            
+            mat sigma_cpp_list = simpy::arr_to_mat_view(sigma);
+            cube F_cpp_list = simpy::arr_to_cube_view(F);            
 
             for (unsigned int i=0; i < sigma_cpp_list.n_cols; i++) {
                 vec sigma_cpp = sigma_cpp_list.unsafe_col(i);
@@ -144,7 +144,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
                 stress.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J));
             }   
 
-            return carma::mat_to_arr(stress, copy);            
+            return simpy::mat_to_arr(stress, copy);            
         }
         else {
             throw std::invalid_argument("Invalid shape of the two-dimensional array. Expected n rows, 6 columns (1 per component of the symmetric stress tensor)");
