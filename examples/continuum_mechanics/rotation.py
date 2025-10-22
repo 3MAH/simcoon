@@ -14,7 +14,6 @@ import os
 # Rotation API Examples
 # -----------------------
 # These examples demonstrate the main rotation functions available in simcoon.
-# Elastic properties will be evaluated depending on the volume fraction of reinforcement (up to 50% volume fraction).
 
 v = np.array([1.0, 0.0, 0.0])
 m = np.eye(3)
