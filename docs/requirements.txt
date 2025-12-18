@@ -6,3 +6,4 @@ mock
 nbsphinx
 jupyter
 scipy
+pandas
