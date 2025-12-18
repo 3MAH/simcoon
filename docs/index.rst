@@ -11,6 +11,7 @@ Welcome to Simcoon's Documentation
    solver.rst
    examples/index
    continuum_mechanics/index
+   homogenization/index
 
 Indices and tables
 ==================
