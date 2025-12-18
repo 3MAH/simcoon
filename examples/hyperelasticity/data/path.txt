@@ -1,0 +1,59 @@
+#Initial_temperature
+293.5
+#Number_of_blocks
+1
+
+#Block
+1
+#Loading_type
+1
+#Control_type(NLGEOM)
+5
+#Repeat
+1
+#Steps
+1
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.1
+#time
+5.
+#Consigne
+5. 0. 0.
+0. 0.4472135955 0.
+0. 0. 0.4472135955
+#Consigne_T
+T 290
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.5
+#time
+5.
+#Consigne
+1.01 0. 0.
+0. 0.9950371902 0.
+0. 0. 0.9950371902
+#Consigne_T
+T 290
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+5.
+#Consigne
+4. 0. 0.
+0. -0.5527864045 0.
+0. 0. -0.5527864045
+#Consigne_T
+T 290
+
+
