@@ -26,6 +26,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
@@ -268,7 +269,6 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
 void step_meca::generate_kin(const double &mTime, const mat &mF, const double &mT)
 //-------------------------------------------------------------
 {
-    
     unsigned int size_meca = 9;
     assert(control_type > 4);
     for (unsigned int k=0; k<size_meca; k++) {
@@ -314,21 +314,44 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     }
     
     if (mode < 3) {
-        for (int i=0; i<ninc; i++) {
-            times(i) = (BC_Time)/ninc;
-            
-            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                if (control_type == 5) {
-                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-mF(k/3,k%3))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3))/ninc) + mF(k/3,k%3);
-                }
-                else if (control_type == 6) {
-                    mecas(i,k) = inc_coef(i)*(BC_meca(k)-(mF(k/3,k%3)-I2(k/3,k%3)))/ninc;
-                    BC_mecas(i,k) = inc_coef(i)*(i+1)*((BC_meca(k)-mF(k/3,k%3)-I2(k/3,k%3))/ninc) + mF(k/3,k%3) + I2(k/3,k%3);
-                }
-                else {
-                    cout << "ERROR in function generate_kin of step_meca.cpp : control_type should take the value 4 or 5 and not " << control_type << endl;
-                }
+
+        arma::mat F_prev = mF;     // 3x3
+        arma::mat F_target(3,3);
+        for (unsigned int k = 0; k < 9; k++) {
+            F_target(k/3, k%3) = BC_meca(k);
+        }
+
+        // total transformation from previous to target
+        arma::mat F_tilde = F_target * arma::inv(F_prev);
+
+        // polar decomposition of A: A = R_tilde * V_tilde
+        arma::mat V_tilde(3,3), R_tilde(3,3);
+        VR_decomposition(V_tilde, R_tilde, F_tilde);
+
+        // compute logarithms
+        arma::cx_mat logR_tilde = arma::logmat(R_tilde);        // rotation log (complex)
+        arma::mat logV_tilde = arma::logmat_sympd(V_tilde);     // stretch log (real)
+        
+        arma::mat F_i = F_prev;
+
+        for (unsigned int inc = 0; inc < ninc; ++inc) {
+            times(inc) = (BC_Time)/ninc;
+
+            // Build incremental Lie-algebra generator (weighted)
+            arma::cx_mat delta_L = inc_coef(inc) * (logV_tilde + logR_tilde) / ninc;
+
+            // Exponentiate (returns complex), then take real part
+            arma::mat D_i = arma::real(arma::expmat(delta_L));
+
+            // Multiplicative update
+            F_i = D_i * F_i;
+
+            for (unsigned int k = 0; k < 9; k++) {
+                BC_mecas(inc,k) = F_i(k/3, k%3);
+                if (inc == 0)
+                    mecas(inc,k) = F_i(k/3, k%3) - F_prev(k/3, k%3);
+                else
+                    mecas(inc,k) = F_i(k/3, k%3) - BC_mecas(inc-1,k);
             }
         }
     }
@@ -517,13 +540,7 @@ ostream& operator << (ostream& s, const step_meca& stm)
         s << "\tInitial fraction: " << stm.Dn_init << "\tMinimal fraction: " << stm.Dn_mini << "\tIncrement fraction: " << stm.Dn_inc << "\n\t";
 
         if(stm.control_type == 5) {
-            s << "Control: " << stm.control_type << " : Transformation gradient F\n";
-            for(unsigned int k = 0 ; k <size_meca ; k++) {
-                s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
-            }
-        }
-        else if (stm.control_type == 6) {
-            s << "Control: " << stm.control_type << " : gradient of displacement gradU\n";
+            s << "Control: " << stm.control_type << " : Eulerian velocity L\n";
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
             }
@@ -532,6 +549,7 @@ ostream& operator << (ostream& s, const step_meca& stm)
             if(stm.control_type == 1) { s << "Control: " << stm.control_type << " : small strain hyp.\n";}
             if(stm.control_type == 2) { s << "Control: " << stm.control_type << " : Green-Lag / PKII\n";}
             if(stm.control_type == 3) { s << "Control: " << stm.control_type << " : True strain / stress\n";}
+            if(stm.control_type == 4) { s << "Control: " << stm.control_type << " : Biot strain / stress\n";}            
             for(unsigned int k = 0 ; k <size_meca ; k++) {
                 s << ((stm.cBC_meca(temp(k)) == 0) ? "\tE " : "\tS ") << stm.BC_meca(temp(k)) << (((k==0)||(k==2)||(k==5)) ? "\n\t" : "\t");
             }
