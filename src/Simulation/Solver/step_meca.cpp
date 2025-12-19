@@ -315,39 +315,50 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     
     if (mode < 3) {
 
+        // Previous deformation gradient
         arma::mat F_prev = mF;     // 3x3
+
+        // Target deformation gradient
         arma::mat F_target(3,3);
-        for (unsigned int k = 0; k < 9; k++) {
+        for (unsigned int k = 0; k < 9; ++k) {
             F_target(k/3, k%3) = BC_meca(k);
         }
 
-        // total transformation from previous to target
+        // Relative deformation over the step
         arma::mat F_tilde = F_target * arma::inv(F_prev);
 
-        // polar decomposition of A: A = R_tilde * V_tilde
-        arma::mat V_tilde(3,3), R_tilde(3,3);
-        VR_decomposition(V_tilde, R_tilde, F_tilde);
+        // Logarithm of total transformation
+        arma::cx_mat logF = arma::logmat(F_tilde);
 
-        // compute logarithms
-        arma::cx_mat logR_tilde = arma::logmat(R_tilde);        // rotation log (complex)
-        arma::mat logV_tilde = arma::logmat_sympd(V_tilde);     // stretch log (real)
-        
+        // Normalization of incremental weights
+        double wsum = arma::accu(inc_coef);
+
+        // Safety check (optional but recommended)
+        if (wsum <= 0.0) {
+            throw std::runtime_error("Sum of inc_coef must be positive");
+        }
+
+        // Initialize deformation at start of step
         arma::mat F_i = F_prev;
 
         for (unsigned int inc = 0; inc < ninc; ++inc) {
-            times(inc) = (BC_Time)/ninc;
 
-            // Build incremental Lie-algebra generator (weighted)
-            arma::cx_mat delta_L = inc_coef(inc) * (logV_tilde + logR_tilde) / ninc;
+            // Physical time (optional, for post-processing)
+            times(inc) = (inc + 1) * BC_Time / ninc;
 
-            // Exponentiate (returns complex), then take real part
+            // Incremental generator (normalized weights)
+            arma::cx_mat delta_L = (inc_coef(inc) / wsum) * logF;
+
+            // Exponential map
             arma::mat D_i = arma::real(arma::expmat(delta_L));
 
             // Multiplicative update
             F_i = D_i * F_i;
 
-            for (unsigned int k = 0; k < 9; k++) {
+            // Store deformation history
+            for (unsigned int k = 0; k < 9; ++k) {
                 BC_mecas(inc,k) = F_i(k/3, k%3);
+
                 if (inc == 0)
                     mecas(inc,k) = F_i(k/3, k%3) - F_prev(k/3, k%3);
                 else
