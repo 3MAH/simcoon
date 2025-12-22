@@ -26,7 +26,7 @@ Documentation
 
 Provider      | Status
 --------      | ------
-Github | [![Documentation Status](https://readthedocs.org/projects/simcoon/badge/?version=latest&style=plastic)](https://3mah.github.io/simcoon-docs/)
+Read the Docs | [![Documentation Status](https://readthedocs.org/projects/simcoon/badge/?version=latest&style=plastic)](http://simcoon.readthedocs.io/en/latest)
 
 
 Building doc :
@@ -54,11 +54,6 @@ The simplest way to install simcoon is directly with conda:
 conda install -c conda-forge -c set3mah simcoon
 ```
 
-For Python 3.11 or later, you may also need to install libboost:
-```bash
-conda install -c conda-forge libboost
-```
-
 In case of conflicts, create a new conda environment:
 ```bash
 conda create --name simcoon_env
@@ -82,7 +77,7 @@ Install required dependencies:
 conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja
 
 # Libraries
-conda install -c conda-forge armadillo boost pybind11 numpy gtest carma
+conda install -c conda-forge armadillo pybind11 numpy gtest carma
 
 # Python testing
 pip install pytest
@@ -106,19 +101,19 @@ cd simcoon
 - On Debian/Ubuntu:
 
 ```bash
-sudo apt-get install libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+sudo apt-get install libarmadillo-dev libgtest-dev ninja-build
 ```
 
 - On macOS with Homebrew:
 
 ```bash
-brew install armadillo boost googletest
+brew install armadillo googletest
 ```
 
 - On Windows with vcpkg:
 
 ```powershell
-vcpkg install armadillo boost-config boost-dll gtest
+vcpkg install armadillo gtest
 ```
 
 3. Configure and build the project:
