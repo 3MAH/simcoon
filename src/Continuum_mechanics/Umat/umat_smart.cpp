@@ -28,8 +28,7 @@
 #include <vector>
 #include <armadillo>
 #include <memory>
-#define BOOST_DLL_USE_STD_FS  // Forces Boost.DLL to use std::filesystem
-#include <boost/dll.hpp>
+#include <dylib.hpp>
 #include <filesystem>
 
 #include <simcoon/parameter.hpp>
@@ -777,14 +776,15 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
         case 0: {
             //umat_external(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 
-            fs::path lib_path("external");  // Path to the directory with our plugin library
-            fs::path boost_lib_path = lib_path / "umat_plugin_ext";            
+            fs::path lib_path("external");
+            fs::path ext_plugin_path = lib_path / "umat_plugin_ext";
+            static dylib::library ext_lib(ext_plugin_path.string(), dylib::decorations::os_default());  // static keeps it alive
 
-            auto external_umat = boost::dll::import_symbol<umat_plugin_ext_api>(  // Type of imported symbol is between `<` and `>`
-                boost_lib_path,  // Path to the library and library name
-                "external_umat",               // Name of the symbol to import
-                boost::dll::load_mode::append_decorations  // Handles platform-specific library name decorations
-            );     
+            // Get factory and deleter functions
+            auto ext_create = ext_lib.get_function<umat_plugin_ext_api*()>("create_api");
+            auto ext_destroy = ext_lib.get_function<void(umat_plugin_ext_api*)>("destroy_api");
+
+            std::unique_ptr<umat_plugin_ext_api, decltype(ext_destroy)> external_umat(ext_create(), ext_destroy);
 
             external_umat->umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
 
@@ -792,13 +792,17 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
         }
         case 1: {
             //
-            fs::path lib_path("external");  // Path to the directory with our plugin library
-            fs::path boost_lib_path = lib_path / "umat_plugin_aba";            
+            fs::path lib_path("external");
+            fs::path aba_plugin_path = lib_path / "umat_plugin_aba";
 
-            auto abaqus_umat = boost::dll::import_symbol<umat_plugin_aba_api>(boost_lib_path,
-                "abaqus_umat", 
-                boost::dll::load_mode::append_decorations
-            );
+            static dylib::library aba_lib(aba_plugin_path.string());
+
+            auto aba_create = aba_lib.get_function<umat_plugin_aba_api*()>("create_api");
+            auto aba_destroy = aba_lib.get_function<void(umat_plugin_aba_api*)>("destroy_api");
+
+            std::unique_ptr<umat_plugin_aba_api, decltype(aba_destroy)>
+                abaqus_umat(aba_create(), aba_destroy);
+
             abaqus_umat->umat_abaqus(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
             break;
         }
