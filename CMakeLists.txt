@@ -142,13 +142,20 @@ find_package(Armadillo 12.6 REQUIRED)
 
 find_package(GTest REQUIRED)
 
+include(FetchContent)
+FetchContent_Declare(
+    dylib
+    GIT_REPOSITORY "https://github.com/martin-olivier/dylib"
+    GIT_TAG        "v3.0.1"
+)
+
+FetchContent_MakeAvailable(dylib)
+set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
+
 # Python dependencies (only if building Python bindings)
 if(SIMCOON_BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
-
-  # Find or fetch carma
-  include(FetchContent)
 
   # Try to find carma from conda/system first
   find_package(carma CONFIG QUIET)
@@ -267,6 +274,9 @@ target_include_directories(simcoon
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
 
+target_include_directories(simcoon PRIVATE ${dylib_SOURCE_DIR}/include)
+
+
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
 
@@ -286,7 +296,7 @@ if(NOT MSVC)
   )
 endif()
 
-target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
+target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES} PRIVATE dylib)
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
@@ -300,22 +310,22 @@ if(SIMCOON_BUILD_TESTS)
   # Test plugin libraries
   if(NOT MSVC)
     add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-    set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
+
+    set_target_properties(umat_plugin_aba PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
+    )
+
     target_link_libraries(umat_plugin_aba PRIVATE simcoon)
   endif()
+  
+  add_library(umat_plugin_ext SHARED
+    testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
+  )
+  set_target_properties(umat_plugin_ext PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+  )
 
-  add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
-  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "")
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
-  if(MSVC)
-    set_target_properties(umat_plugin_ext PROPERTIES SUFFIX ".dll")
-    set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-  else()
-    set_target_properties(umat_plugin_ext PROPERTIES
-      SUFFIX ""
-      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
-    )
-  endif()
 
   # Add test executables from subdirectory
   add_subdirectory(test)
