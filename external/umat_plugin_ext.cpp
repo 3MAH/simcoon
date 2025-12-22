@@ -1,6 +1,6 @@
-#include <boost/config.hpp> // for BOOST_SYMBOL_EXPORT
 #include <iostream>
 #include <armadillo>
+#include <dylib.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -8,7 +8,13 @@
 using namespace std;
 using namespace arma;
 
-class umat_plugin_ext : public umat_plugin_ext_api {
+#if defined(_WIN32)
+#define LIB_EXPORT __declspec(dllexport)
+#else
+#define LIB_EXPORT
+#endif
+
+class LIB_EXPORT umat_plugin_ext : public umat_plugin_ext_api {
 public:
 
     std::string name() const {
@@ -73,8 +79,14 @@ public:
     
 };
 
-// Exporting `my_namespace::plugin` variable with alias name `plugin`
-// (Has the same effect as `BOOST_DLL_ALIAS(my_namespace::plugin, plugin)`)
-extern "C" BOOST_SYMBOL_EXPORT umat_plugin_ext external_umat;
-umat_plugin_ext external_umat;
+extern "C" LIB_EXPORT umat_plugin_ext_api* create_api()
+{
+    return new umat_plugin_ext();
+}
+
+extern "C" LIB_EXPORT void destroy_api(umat_plugin_ext_api* p)
+{
+    delete p;
+}
+
 

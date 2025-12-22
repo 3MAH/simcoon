@@ -20,7 +20,7 @@
 #include <assert.h>
 #include <string.h>
 #include <armadillo>
-#include <boost/config.hpp> // for BOOST_SYMBOL_EXPORT
+#include <dylib.hpp>
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -32,16 +32,18 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
+#if defined(_WIN32)
+#define LIB_EXPORT __declspec(dllexport)
+#else
+#define LIB_EXPORT
+#endif
+
 //declaration of the extern function to use
 extern "C"{
 	void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc);
 	}
 
-/*umat_plugin_aba::umat_plugin_aba() {
-    std::cout << "Constructing umat_plugin_aba" << std::endl;
-}*/
-
-class umat_plugin_aba : public umat_plugin_aba_api {
+class LIB_EXPORT umat_plugin_aba : public umat_plugin_aba_api {
 public:
 
     std::string name() const {
@@ -105,7 +107,11 @@ public:
    ~umat_plugin_aba() {}
 };
 
-// Exporting `my_namespace::plugin` variable with alias name `abaqus_umat`
-// (Has the same effect as `BOOST_DLL_ALIAS(my_namespace::plugin, abaqus_umat)`)
-extern "C" BOOST_SYMBOL_EXPORT umat_plugin_aba abaqus_umat;
-umat_plugin_aba abaqus_umat;
+// Export create/destroy functions using dylib macros
+extern "C" LIB_EXPORT umat_plugin_aba_api* create_api() {
+    return new umat_plugin_aba();
+}
+
+extern "C" LIB_EXPORT void destroy_api(umat_plugin_aba_api* p) {
+    delete p;
+}
