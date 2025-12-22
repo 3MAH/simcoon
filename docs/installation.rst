@@ -34,7 +34,7 @@ Install the required dependencies:
     # Compilers and build tools
     conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja uv
     # Libraries
-    conda install -c conda-forge armadillo boost pybind11 numpy gtest carma
+    conda install -c conda-forge armadillo pybind11 numpy gtest carma
     # Python testing and setuptools
     pip install pytest setuptools
 
@@ -52,17 +52,17 @@ Alternatively, you can install the dependencies using your system's package mana
 - **Debian/Ubuntu:**
 
     .. code-block:: none
-            sudo apt-get install libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
+            sudo apt-get install libarmadillo-dev libgtest-dev ninja-build
 
 - **macOS (Homebrew):**
 
     .. code-block:: none
-            brew install armadillo boost googletest
+            brew install armadillo googletest
 
 - **Windows (vcpkg, PowerShell):**
 
     .. code-block:: none
-            vcpkg install armadillo boost-config boost-dll gtest
+            vcpkg install armadillo gtest
 
 
 Simcoon Installation
@@ -108,10 +108,8 @@ The build folder is created automatically in the Simcoon directory. After instal
 Additional Information
 ~~~~~~~~~~~~~~~~~~~~~
 
-- [Boost](https://www.boost.org) (at least 1.63), including Boost Python
 - [Armadillo](http://arma.sourceforge.net)
 
-.. image:: _static/boost_logo.png
 .. image:: _static/Armadillo_logo.png
 
 Note: [FTensor](https://bitbucket.org/wlandry/ftensor) is also used by Simcoon, but it is included in the source for easier installation.
