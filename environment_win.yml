@@ -13,7 +13,6 @@ dependencies:
   - numpy>=1.24
   - pip
   - setuptools
-  - boost
   - gtest
   - pybind11
   - armadillo >= 12.6
