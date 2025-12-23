@@ -795,7 +795,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             fs::path lib_path("external");
             fs::path aba_plugin_path = lib_path / "umat_plugin_aba";
 
-            static dylib::library aba_lib(aba_plugin_path.string());
+            static dylib::library aba_lib(aba_plugin_path.string(), dylib::decorations::os_default());
 
             auto aba_create = aba_lib.get_function<umat_plugin_aba_api*()>("create_api");
             auto aba_destroy = aba_lib.get_function<void(umat_plugin_aba_api*)>("destroy_api");
