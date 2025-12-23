@@ -149,6 +149,7 @@ FetchContent_Declare(
     GIT_TAG        "v3.0.1"
 )
 
+set(BUILD_SHARED_LIBS ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
@@ -273,6 +274,9 @@ target_include_directories(simcoon
 
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
+target_include_directories(simcoon PRIVATE
+    ${dylib_SOURCE_DIR}/include
+)
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
@@ -293,7 +297,7 @@ if(NOT MSVC)
   )
 endif()
 
-target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES} PRIVATE dylib)
+target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
@@ -312,7 +316,10 @@ if(SIMCOON_BUILD_TESTS)
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
 
-    target_link_libraries(umat_plugin_aba PRIVATE simcoon dylib)
+    target_include_directories(umat_plugin_aba PRIVATE
+    ${dylib_SOURCE_DIR}/include
+    )
+    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
   endif()
 
   add_library(umat_plugin_ext SHARED
@@ -322,7 +329,10 @@ if(SIMCOON_BUILD_TESTS)
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
   )
 
-  target_link_libraries(umat_plugin_ext PRIVATE simcoon dylib)
+  target_include_directories(umat_plugin_ext PRIVATE
+      ${dylib_SOURCE_DIR}/include
+  )
+  target_link_libraries(umat_plugin_ext PRIVATE simcoon)
 
   # Add test executables from subdirectory
   add_subdirectory(test)
