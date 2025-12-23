@@ -315,13 +315,8 @@ if(SIMCOON_BUILD_TESTS)
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
 
-    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
-    target_include_directories(umat_plugin_aba PRIVATE
-        ${dylib_SOURCE_DIR}/include
-    )    
+    target_link_libraries(umat_plugin_aba PRIVATE simcoon dylib)
   endif()
-
-  
 
   add_library(umat_plugin_ext SHARED
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
@@ -330,10 +325,7 @@ if(SIMCOON_BUILD_TESTS)
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
   )
 
-  target_link_libraries(umat_plugin_ext PRIVATE simcoon)
-  target_include_directories(umat_plugin_ext PRIVATE
-      ${dylib_SOURCE_DIR}/include
-  )  
+  target_link_libraries(umat_plugin_ext PRIVATE simcoon dylib})
 
   # Add test executables from subdirectory
   add_subdirectory(test)
