@@ -274,7 +274,7 @@ target_include_directories(simcoon
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
 
-target_include_directories(simcoon PUBLIC ${dylib_SOURCE_DIR}/include)
+target_include_directories(simcoon PRIVATE ${dylib_SOURCE_DIR}/include)
 
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
@@ -316,8 +316,13 @@ if(SIMCOON_BUILD_TESTS)
     )
 
     target_link_libraries(umat_plugin_aba PRIVATE simcoon)
+    target_include_directories(umat_plugin_aba PRIVATE
+        ${dylib_SOURCE_DIR}/include
+    )    
   endif()
+
   
+
   add_library(umat_plugin_ext SHARED
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
   )
@@ -326,6 +331,9 @@ if(SIMCOON_BUILD_TESTS)
   )
 
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
+  target_include_directories(umat_plugin_ext PRIVATE
+      ${dylib_SOURCE_DIR}/include
+  )  
 
   # Add test executables from subdirectory
   add_subdirectory(test)
