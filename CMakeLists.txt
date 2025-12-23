@@ -274,7 +274,7 @@ target_include_directories(simcoon
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
 
-target_include_directories(simcoon PRIVATE ${dylib_SOURCE_DIR}/include)
+target_include_directories(simcoon PUBLIC ${dylib_SOURCE_DIR}/include)
 
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
