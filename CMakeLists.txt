@@ -150,6 +150,7 @@ FetchContent_Declare(
 )
 
 #set(BUILD_SHARED_LIBS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
