@@ -149,7 +149,7 @@ FetchContent_Declare(
     GIT_TAG        "v3.0.1"
 )
 
-set(BUILD_SHARED_LIBS ON)
+#set(BUILD_SHARED_LIBS ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
