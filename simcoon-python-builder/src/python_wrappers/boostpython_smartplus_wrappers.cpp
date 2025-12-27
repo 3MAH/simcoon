@@ -38,6 +38,8 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_damage.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_kinematics.hpp>
 
+#include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
+
 using namespace std;
 using namespace arma;
 using namespace simpy;
@@ -166,7 +168,11 @@ PYBIND11_MODULE(simmit, m)
 
     // register the hyperelastic library
     m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric invariants");
-    m.def("isochoric_pstretch", &isochoric_pstretch, "input"_a, "input_tensor"_a = "V", "J"_a = 0., "copy"_a = true, "This function computes the isochoric invariants");
+    m.def("isochoric_pstretch", &isochoric_pstretch, "input"_a, "input_tensor"_a = "V", "J"_a = 0., "copy"_a = true, "This function computes the isochoric principal stretches");
+    m.def("tau_iso_hyper_invariants", &tau_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Kirchoff stress tensor");
+    m.def("sigma_iso_hyper_invariants", &sigma_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Cauchy stress tensor");
+    m.def("tau_vol_hyper", &tau_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Kirchoff stress tensor");
+    m.def("sigma_vol_hyper", &sigma_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Cauchy stress tensor");
 
     // register the transfer library
     m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a = true, "This function transforms the strain Voigt vector into a 3*3 strain matrix");
@@ -175,12 +181,12 @@ PYBIND11_MODULE(simmit, m)
     m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a = true, "This function transforms a 3*3 stress matrix into a stress Voigt vector");
 
     // Register the from-python converters for eshelby
-    m.def("Eshelby_sphere", &Eshelby_sphere, "nu"_a, "copy"_a = true, "Eshelby tensor for a sphere");
-    m.def("Eshelby_cylinder", &Eshelby_cylinder, "nu"_a, "copy"_a = true, "Eshelby tensor for a cylinder. The cylinder is oriented in such a way that the axis direction is the 1 direction. a2=a3 here");
-    m.def("Eshelby_prolate", &Eshelby_prolate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, "Eshelby tensor for a prolate ellipsoid. The prolate shape is oriented in such a way that the axis direction is the 1 direction. a1>a2=a3 here");
-    m.def("Eshelby_oblate", &Eshelby_oblate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, "Eshelby tensor for an oblate ellipsoid. The oblate shape is oriented in such a way that the axis direction is the 1 direction. a1<a2=a3 here");
-    m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, "Numerical Eshelby tensor determination");
-    m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, "Numerical Hill Interaction tensor determination");
+    m.def("Eshelby_sphere", &Eshelby_sphere, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_sphere);
+    m.def("Eshelby_cylinder", &Eshelby_cylinder, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_cylinder);
+    m.def("Eshelby_prolate", &Eshelby_prolate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, simcoon_docs::Eshelby_prolate);
+    m.def("Eshelby_oblate", &Eshelby_oblate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, simcoon_docs::Eshelby_oblate);
+    m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
+    m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
 
     // Register the rotation library
     m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a = true, "This function returns a rotated vector (3) according to a rotation matrix");

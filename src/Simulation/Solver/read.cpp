@@ -443,19 +443,7 @@ void read_path(std::vector<block> &blocks, double &T, const string &path_data, c
                             for(unsigned int k = 0 ; k < size_meca ; k++) {
                                 path >> bufferchar;
                                 conver = bufferchar;
-                                if (conver == 70){
-                                    sptr_meca->cBC_meca(k) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_meca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        else if (sptr_meca->control_type == 6) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 85){
+                                if (conver == 76){
                                     sptr_meca->cBC_meca(k) = 0;
                                 }
                                 else if (conver == 48) {
