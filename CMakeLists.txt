@@ -274,9 +274,7 @@ target_include_directories(simcoon
 
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
-target_include_directories(simcoon PRIVATE
-    ${dylib_SOURCE_DIR}/include
-)
+
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
@@ -297,7 +295,7 @@ if(NOT MSVC)
   )
 endif()
 
-target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES})
+target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES} dylib)
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
@@ -316,9 +314,6 @@ if(SIMCOON_BUILD_TESTS)
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
 
-    target_include_directories(umat_plugin_aba PRIVATE
-    ${dylib_SOURCE_DIR}/include
-    )
     target_link_libraries(umat_plugin_aba PRIVATE simcoon)
   endif()
 
@@ -329,9 +324,6 @@ if(SIMCOON_BUILD_TESTS)
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
   )
 
-  target_include_directories(umat_plugin_ext PRIVATE
-      ${dylib_SOURCE_DIR}/include
-  )
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
 
   # Add test executables from subdirectory
