@@ -32,10 +32,16 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-#if defined(_WIN32)
-#define LIB_EXPORT __declspec(dllexport)
+#if defined(_WIN32) || defined(_WIN64)
+    #define LIB_EXPORT __declspec(dllexport)
+#elif defined(__GNUC__) || defined(__clang__)
+    #if __GNUC__ >= 4
+        #define LIB_EXPORT __attribute__((visibility("default")))
+    #else
+        #define LIB_EXPORT
+    #endif
 #else
-#define LIB_EXPORT
+    #define LIB_EXPORT
 #endif
 
 //declaration of the extern function to use
