@@ -296,7 +296,10 @@ if(NOT MSVC)
   )
 endif()
 
-target_link_libraries(simcoon PUBLIC ${ARMADILLO_LIBRARIES} dylib)
+target_link_libraries(simcoon
+    PUBLIC ${ARMADILLO_LIBRARIES}
+    PRIVATE dylib
+)
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
