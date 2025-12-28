@@ -321,11 +321,23 @@ if(SIMCOON_BUILD_TESTS)
   add_library(umat_plugin_ext SHARED
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
   )
-  set_target_properties(umat_plugin_ext PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
-  )
-
+  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "")
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
+  if(MSVC)
+    set_target_properties(umat_plugin_ext PROPERTIES SUFFIX ".dll")
+    set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+    add_dependencies(umat_plugin_ext simcoon)
+    add_custom_command(TARGET umat_plugin_ext POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_BINARY_DIR}/bin
+      ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+    )
+  else()
+    set_target_properties(umat_plugin_ext PROPERTIES
+      SUFFIX ""
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+    )
+  endif()
 
   # Add test executables from subdirectory
   add_subdirectory(test)
