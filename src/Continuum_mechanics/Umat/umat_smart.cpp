@@ -781,10 +781,10 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             using create_fn = umat_plugin_ext_api*();
             using destroy_fn = void(umat_plugin_ext_api*);
 
-            static create_fn ext_create* = ext_lib.get_function<create_fn>("create_api");
-            static destroy_fn ext_destroy* = ext_lib.get_function<destroy_fn>("destroy_api");
+            static create_fn* ext_create = ext_lib.get_function<create_fn>("create_api");
+            static destroy_fn* ext_destroy = ext_lib.get_function<destroy_fn>("destroy_api");
 
-            static std::unique_ptr<umat_plugin_ext_api, destroy_fn> external_umat(
+            static std::unique_ptr<umat_plugin_ext_api, destroy_fn*> external_umat(
                 ext_create(),
                 ext_destroy
             );
@@ -803,7 +803,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             static create_fn* aba_create = aba_lib.get_function<create_fn>("create_api");
             static destroy_fn* aba_destroy = aba_lib.get_function<destroy_fn>("destroy_api");
 
-            static std::unique_ptr<umat_plugin_aba_api, destroy_fn> abaqus_umat(
+            static std::unique_ptr<umat_plugin_aba_api, destroy_fn*> abaqus_umat(
                 aba_create(),
                 aba_destroy
             );
