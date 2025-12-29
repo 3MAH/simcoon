@@ -1,6 +1,5 @@
 #include <iostream>
 #include <armadillo>
-#include <dylib.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>

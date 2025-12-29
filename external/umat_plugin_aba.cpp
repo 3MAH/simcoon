@@ -20,7 +20,6 @@
 #include <assert.h>
 #include <string.h>
 #include <armadillo>
-#include <dylib.hpp>
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>

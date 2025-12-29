@@ -318,13 +318,13 @@ if(SIMCOON_BUILD_TESTS)
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
 
-    target_link_libraries(umat_plugin_aba PRIVATE simcoon dylib)
+    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
   endif()
 
   add_library(umat_plugin_ext SHARED
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
   )
-  target_link_libraries(umat_plugin_ext PRIVATE simcoon dylib)
+  target_link_libraries(umat_plugin_ext PRIVATE simcoon)
   if(MSVC)
     set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
     set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
