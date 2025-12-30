@@ -29,7 +29,6 @@ Provider      | Status
 Documentation | [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=plastic)](https://3mah.github.io/simcoon-docs/)
 
 
-
 Building doc :
 requires doxygen, sphinx, breathe
 
