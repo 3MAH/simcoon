@@ -89,8 +89,7 @@ for i, x in enumerate(concentration):
 # --------------------------------------
 # This is it, now we just need to plot the results.
 # In blue, we plot the effective Young's modulus vs volume fraction curve using the Mori-Tanaka scheme,
-# in red using the Self-Consistent scheme, and with black crosses the experimental data from
-# :cite:`Wang2003`
+# in red using the Self-Consistent scheme, and with black crosses the experimental data from (Wang 2003)
 
 fig = plt.figure()
 plt.xlabel(r"Volume fraction (c)", size=15)

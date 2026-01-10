@@ -1,6 +1,6 @@
 """
 Plasticity with isotropic hardening example
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=============================================
 """
 
 import pylab
@@ -15,7 +15,7 @@ dir = os.path.dirname(os.path.realpath("__file__"))
 plt.rc("text", usetex=True)
 plt.rc("font", family="serif")
 
-###################################################################################
+# ###################################################################################
 # The elastic-plastic (isotropic hardening) constitutive law implemented in Simcoon is a rate independent, isotropic, von Mises type material with power-law isotropic hardening.
 # Eight parameters are required for the thermomechanical version:
 # The parameters required are:
@@ -29,7 +29,7 @@ plt.rc("font", family="serif")
 # 7. The hardening parameter :math:`k`
 # 8. The hardening exponent :math:`m`
 #
-# The constitutive law is given by the set of equations
+# The constitutive law is given by the set of equations :
 #
 # .. math::
 #
@@ -89,7 +89,7 @@ sim.solver(
     outputfile,
 )
 
-###################################################################################
+# ###################################################################################
 # Plotting the results
 # --------------------------------------
 # This is it, now we just need to plot the results.
@@ -98,7 +98,7 @@ sim.solver(
 # - :meth:`Wm_r <simcoon.simmit.Wm_r>` the recoverable mechanical work,
 # - :meth:`Wm_ir <simcoon.simmit.Wm_ir>` the irrecoverable mechanical work,
 # - :meth:`Wm_d <simcoon.simmit.Wm_d>` the dissipated mechanical work.
-###################################################################################
+# ###################################################################################
 
 # prepare the load
 fig = plt.figure()
@@ -135,10 +135,10 @@ plt.legend(loc=2)
 
 plt.show()
 
-###################################################################################
+# ###################################################################################
 # Here we test the increment size effect on the results
 # ----------------------------------------------------------
-###################################################################################
+# ###################################################################################
 
 # Define increments and corresponding filenames
 increments = [1, 10, 100, 1000]
@@ -189,7 +189,7 @@ for path in paths:
         }
     )
 
-###################################################################################
+# ###################################################################################
 # Plotting the results
 # --------------------------------------
 #
@@ -197,7 +197,7 @@ for path in paths:
 # Note the ["D", "o", "x", None] markers used to differentiate the different increment sizes:
 # ["1 increment", "10 increments", "100 increments", "1000 increments"]
 #
-###################################################################################
+# ###################################################################################
 
 fig = plt.figure()
 

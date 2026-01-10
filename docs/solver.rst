@@ -85,6 +85,7 @@ And finally we can call the solver function:
 
 .. code-block:: python
 
+
 	sim.solver(
     umat_name,
     props,
@@ -98,12 +99,12 @@ And finally we can call the solver function:
     path_results,
     pathfile,
     outputfile,
-)
+	)
 
 You can now run your just created python file (you could also create a jupyter notebook, or run the code for linear isotropic materials  that you can download in the examples). You will now find in the 'results' folder a file named *results_ELISO.txt*. Have a look at the existing notebook or in the documentation to know how to analyse the result file.
 
 Define the loading path
------------------------------------------
+-----------------------
 
 If you navigate into the 'data' folder, you shall find the following files:
 
@@ -210,7 +211,7 @@ The struture of the tabular file will be the following:
 	3	0.03	30	30
 	...
 
-The columns define the quantities in the following order : **ninc**, **time**, **S11**, **S22**.
+The columns define the quantities in the following order: **ninc**, **time**, **S11**, **S22**.
 The order of the mechanical quantities is always 11,12,22,13,23,33, and if the temperature is set (with the letter 'T' instead of '0'), the following order is always considered: **ninc**, **time**, **T**, **S11**, **S22** in the case of the biaxial loading.
 
 .. code-block:: none
@@ -220,4 +221,3 @@ The order of the mechanical quantities is always 11,12,22,13,23,33, and if the t
 	2	0.02	295.15	30	30
 	3	0.03	296.15	30	30
 	...
-``

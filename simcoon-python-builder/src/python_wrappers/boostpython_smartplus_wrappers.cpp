@@ -37,6 +37,9 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_criteria.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_damage.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_kinematics.hpp>
+#include <simcoon/docs/Libraries/Continuum_mechanics/doc_recovery_props.hpp>
+#include <simcoon/docs/Libraries/Continuum_mechanics/doc_transfer.hpp>
+#include <simcoon/docs/Libraries/Continuum_mechanics/doc_stress.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
 
@@ -125,16 +128,16 @@ PYBIND11_MODULE(simmit, m)
     m.def("damage_manson", &damage_manson, "S_amp"_a, "C2"_a, "gamma2"_a, simcoon_docs::damage_manson);
 
     // Register the from-python converters for recovery_props
-    m.def("check_symetries", &check_symetries, "input"_a, "tol"_a, "Check the material symetries and the type of elastic response for a given stiffness tensor");
-    m.def("L_iso_props", &L_iso_props, "input"_a, "Return a list of elastic properties for the isotropic case (E,nu) from a stiffness tensor");
-    m.def("M_iso_props", &M_iso_props, "input"_a, "Return a list of elastic properties for the isotropic case (E,nu) from a compliance tensor");
-    m.def("L_isotrans_props", &L_isotrans_props, "input"_a, "axis"_a, "Return a list of elastic properties for the transversely isotropic case (EL,ET,nuTL,nuTT,GLT) from a stiffness tensor");
-    m.def("M_isotrans_props", &M_isotrans_props, "input"_a, "axis"_a, "Return a list of elastic properties for the transversely isotropic case (EL,ET,nuTL,nuTT,GLT) from a compliance tensor");
-    m.def("L_cubic_props", &L_cubic_props, "input"_a, "Return a list of elastic properties for the cubic case (E,nu,G) from a stiffness tensor");
-    m.def("M_cubic_props", &M_cubic_props, "input"_a, "Return a list of elastic properties for the cubic case (E,nu,G) from a compliance tensor");
-    m.def("L_ortho_props", &L_ortho_props, "input"_a, "Return a list of elastic properties for the orthtropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23) from a stiffness tensor");
-    m.def("M_ortho_props", &M_ortho_props, "input"_a, "Return a list of elastic properties for the orthtropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23) from a compliance tensor");
-    m.def("M_aniso_props", &M_aniso_props, "input"_a, "Return a list of elastic properties for the anisotropic case (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23,deviations) from a compliance tensor");
+    m.def("check_symetries", &check_symetries, "input"_a, "tol"_a, simcoon_docs::check_symetries);
+    m.def("L_iso_props", &L_iso_props, "input"_a, simcoon_docs::L_iso_props);
+    m.def("M_iso_props", &M_iso_props, "input"_a, simcoon_docs::M_iso_props);
+    m.def("L_isotrans_props", &L_isotrans_props, "input"_a, "axis"_a, simcoon_docs::L_isotrans_props);
+    m.def("M_isotrans_props", &M_isotrans_props, "input"_a, "axis"_a, simcoon_docs::M_isotrans_props);
+    m.def("L_cubic_props", &L_cubic_props, "input"_a, simcoon_docs::L_cubic_props);
+    m.def("M_cubic_props", &M_cubic_props, "input"_a, simcoon_docs::M_cubic_props);
+    m.def("L_ortho_props", &L_ortho_props, "input"_a, simcoon_docs::L_ortho_props);
+    m.def("M_ortho_props", &M_ortho_props, "input"_a, simcoon_docs::M_ortho_props);
+    m.def("M_aniso_props", &M_aniso_props, "input"_a, simcoon_docs::M_aniso_props);
 
     // Register the L_eff for composites
     m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "Return the elastic stiffness tensor of a composite material");
@@ -175,10 +178,10 @@ PYBIND11_MODULE(simmit, m)
     m.def("sigma_vol_hyper", &sigma_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Cauchy stress tensor");
 
     // register the transfer library
-    m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a = true, "This function transforms the strain Voigt vector into a 3*3 strain matrix");
-    m.def("t2v_strain", &t2v_strain, "input"_a, "copy"_a = true, "This function transforms a 3*3 strain matrix into a strain Voigt vector");
-    m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a = true, "This function transforms the stress Voigt vector into a 3*3 stress matrix");
-    m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a = true, "This function transforms a 3*3 stress matrix into a stress Voigt vector");
+    m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a = true, simcoon_docs::v2t_strain);
+    m.def("t2v_strain", &t2v_strain, "input"_a, "copy"_a = true, simcoon_docs::t2v_strain);
+    m.def("v2t_stress", &v2t_stress, "input"_a, "copy"_a = true, simcoon_docs::v2t_stress);
+    m.def("t2v_stress", &t2v_stress, "input"_a, "copy"_a = true, simcoon_docs::t2v_stress); 
 
     // Register the from-python converters for eshelby
     m.def("Eshelby_sphere", &Eshelby_sphere, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_sphere);
@@ -234,7 +237,7 @@ PYBIND11_MODULE(simmit, m)
     m.def("d2lagrange_pow_1", &d2lagrange_pow_1, "This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1");
 
     // Register the from-python converters for stress
-    m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, "Provides the first Piola Kirchoff stress tensor from the Cauchy stress tensor");
+    m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::stress_convert);
 
     // umat
     m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);

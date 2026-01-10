@@ -16,7 +16,9 @@ import sys
 import matplotlib
 import importlib.util
 import sphinx_gallery
-from sphinx_gallery.sorting import FileNameSortKey
+# NOTE: avoid storing unpicklable objects (like classes/functions) in Sphinx
+# config values, otherwise Sphinx emits config.cache warnings when pickling the
+# environment.
 
 sys.path.insert(
     0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
@@ -52,6 +54,7 @@ if os.path.exists(version_path):
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.mathjax",
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
     "sphinx.ext.napoleon",
@@ -124,7 +127,9 @@ sphinx_gallery_conf = {
     # Pattern to search for example files
     "filename_pattern": r"\.py",
     # Sort gallery example by file name instead of number of lines (default)
-    "within_subsection_order": FileNameSortKey,
+    # Use a dotted-path string instead of the imported class to keep this
+    # configuration picklable.
+    "within_subsection_order": "sphinx_gallery.sorting.FileNameSortKey",
     "ignore_pattern": r"/(results|data)$",
     "copyfile_regex": r"^(data/.+\.(txt|csv|json)|results/.+\.(txt|csv))$",
     "nested_sections": False,  # disables the extra toctree line

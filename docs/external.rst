@@ -2,9 +2,9 @@ External
 ========
 
 Compile an external plugin
-----------------
+--------------------------
 
-Simcoon offers the possibility to develop your own User Material plugin. Note that you can devlop such external plugin using the Simcoon API, but this is not of course mandatory. You can utilize other libraries or API.
+Simcoon offers the possibility to develop your own user material plugin. You can develop such an external plugin using the Simcoon API, but this isn't mandatory. You can also rely on other libraries or APIs.
 Two examples are provided in the folder 'External'.
 
 There is two formats to define your User Material plugin. The first one is based on Armadillo vectors and matrices, and correspond to the classical parameters
@@ -12,7 +12,7 @@ There is two formats to define your User Material plugin. The first one is based
 
 .. code-block:: none
 
-void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc)
+    void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc)
 
 
 
@@ -71,4 +71,4 @@ To compile them you can utilize the following commands (I have used clang as a c
     clang++ -c -fPIC -std=c++14 umat_plugin_aba.cpp
     clang++ -std=c++14 -shared -lsimcoon -larmadillo -o libumat_plugin_aba.dylib umat_plugin_aba.o
 
-The first example is a replica of the 
+The first example is a replica of the ``UMAT_ABAQUS_ELASTIC.for`` interface.

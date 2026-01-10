@@ -1,6 +1,6 @@
 """
 Isotropic elasticity examples
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
 import numpy as np
