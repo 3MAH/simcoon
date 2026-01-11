@@ -20,9 +20,43 @@ namespace simpy {
 py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::array_t<double> &F, const string &converter_key, const double &J, const bool & copy) {
 
     std::map<string, int> list_stress_convert;    
-    list_stress_convert = {{"Cauchy2PKI",0},{"Cauchy2PKII",1},{"Cauchy2Kirchoff",2},{"Kirchoff2Cauchy",3},{"Kirchoff2PKI",4},{"Kirchoff2PKII",5},{"PKI2Kirchoff",6},{"PKII2Kirchoff",7},{"PKI2Cauchy",8},{"PKII2Cauchy",9}};
+    // NOTE: Be strict about keys. Using operator[] would insert unknown keys
+    // with a default value (0), silently mapping to Cauchy2PKI.
+    list_stress_convert = {
+        {"Cauchy2PKI",0},
+        {"Cauchy2PKII",1},
+        // Historically misspelled as Kirchoff in simcoon
+        {"Cauchy2Kirchoff",2},
+        // Common spelling aliases
+        {"Cauchy2Kirchhoff",2},
+        {"Kirchoff2Cauchy",3},
+        {"Kirchhoff2Cauchy",3},
+        {"Kirchoff2PKI",4},
+        {"Kirchhoff2PKI",4},
+        {"Kirchoff2PKII",5},
+        {"Kirchhoff2PKII",5},
+        {"PKI2Kirchoff",6},
+        {"PKI2Kirchhoff",6},
+        {"PKII2Kirchoff",7},
+        {"PKII2Kirchhoff",7},
+        {"PKI2Cauchy",8},
+        {"PKII2Cauchy",9}
+    };
 
-    int select = list_stress_convert[converter_key];
+    const auto it = list_stress_convert.find(converter_key);
+    if (it == list_stress_convert.end()) {
+        throw std::invalid_argument(
+            "Invalid input of the stress converter key: "
+            "Cauchy2PKI, Cauchy2PKII, Cauchy2Kirchoff (or Cauchy2Kirchhoff), "
+            "Kirchoff2Cauchy (or Kirchhoff2Cauchy), "
+            "Kirchoff2PKI (or Kirchhoff2PKI), "
+            "Kirchoff2PKII (or Kirchhoff2PKII), "
+            "PKI2Kirchoff (or PKI2Kirchhoff), "
+            "PKII2Kirchoff (or PKII2Kirchhoff), "
+            "PKI2Cauchy or PKII2Cauchy"
+        );
+    }
+    const int select = it->second;
     mat (*functor_stress_converter)(const mat &, const mat &, const double &);
 
     switch (select) {
