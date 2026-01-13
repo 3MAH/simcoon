@@ -1,8 +1,8 @@
 """Stress transfer: Cauchy → PKI/PKII/Kirchhoff
 ================================================
 
-This example is a small, *hands-on* demo of the stress “transfer” helpers in
-:mod:`simcoon.simmit`.
+This example is an *hands-on* demo of the stress “transfer” helpers in
+:mod:`simcoon.simmit` to switch between different stress measures.
 
 We compute the Cauchy stress for a compressible Neo-Hookean material, then use
 :func:`simcoon.simmit.stress_convert` to obtain other stress measures:
@@ -21,15 +21,14 @@ Throughout the script we use the batch layouts expected by the bindings:
 * stress batches as ``(6, N)``
 * deformation-gradient batches as ``(3, 3, N)``
 
-At the end we plot only the 11 component (Voigt index 0) for a quick comparison.
+At the end we plot only the 11 component (Voigt index 0) for a quick comparison
+between stress measures.
 """
 
 from __future__ import annotations
 
 import numpy as np
-
 from simcoon import simmit as sim
-
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 
@@ -60,9 +59,6 @@ def neo_hookean_cauchy(F: np.ndarray, mu: float, kappa: float) -> np.ndarray:
     dWdI_2_bar = 0.0
     dUdJ = float(kappa) * np.log(J)
 
-    # Current simmit signature:
-    #   sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b, J=0.0, copy=True)
-    #   sigma_vol_hyper(dUdJ, b, J=0.0, copy=True)
     sigma_iso = sim.sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b, J, False)
     sigma_vol = sim.sigma_vol_hyper(dUdJ, b, J, False)
     return np.asarray(sigma_iso + sigma_vol, dtype=float)
@@ -136,31 +132,27 @@ sigma_kirchhoff_batch = sim.stress_convert(
 
 
 # %%
-# Post-processing: print one state and plot σ11
+# Post-processing: quick comparison between stress measures
 #
-# Why do Cauchy and Kirchhoff look identical here?
+# Conversions (same physical state, different stress measures):
 #
-# The Kirchhoff stress is defined as:
+# - Kirchhoff stress:
+#   :math:`\boldsymbol{\tau} = J\,\boldsymbol{\sigma}`
 #
-# .. math::
+# - First Piola–Kirchhoff (PKI):
+#   :math:`\mathbf{P} = J\,\boldsymbol{\sigma}\,\mathbf{F}^{-T}`
 #
-#    \boldsymbol{\tau} = J\,\boldsymbol{\sigma}
+# - Second Piola–Kirchhoff (PKII):
+#   :math:`\mathbf{S} = \mathbf{F}^{-1}\mathbf{P}
+#   = J\,\mathbf{F}^{-1}\boldsymbol{\sigma}\,\mathbf{F}^{-T}`
 #
-# where :math:`J = \det\mathbf{F}` and :math:`\boldsymbol{\sigma}` is the Cauchy stress.
-# So component-wise, :math:`\tau_{11} = J\,\sigma_{11}`.
+# where :math:`\boldsymbol{\sigma}` is the Cauchy stress, :math:`\mathbf{F}` is the
+# deformation gradient, and :math:`J = \det(\mathbf{F})`.
 #
-# In this example we solve the free lateral contraction with a *large* bulk modulus
-# (``kappa``) compared to the shear modulus (``mu``). This makes the response nearly
-# isochoric along the loading path, i.e. :math:`J \approx 1`. As a result,
-# :math:`\tau_{11}` and :math:`\sigma_{11}` almost coincide on the plot.
-#
-# We print below a quick diagnostic of how close :math:`J` stays to 1.
-#
-# For printing/plotting, we transpose to the more human-friendly shape ``(N, 6)``.
-#
-# Note: ``sigma_cauchy_batch[:, i]`` is a non-contiguous *view* (column slice of a
-# C-contiguous ``(6, N)`` array), so we make it contiguous before calling
-# :func:`simcoon.simmit.v2t_stress`.
+# In this demo, the “free contraction” solution with a large bulk modulus
+# (nearly incompressible response) keeps :math:`J \approx 1`, so
+# :math:`\boldsymbol{\tau}` and :math:`\boldsymbol{\sigma}` nearly overlap (up to
+# the factor :math:`J`. We print a simple :math:`J` diagnostic below.
 
 J_vals = np.linalg.det(np.transpose(F_batch, (2, 0, 1)))  # (N,)
 print(f"J deviation: min(J)={J_vals.min():.6f}, max(J)={J_vals.max():.6f}")
