@@ -20,13 +20,14 @@ Throughout this script we use the shapes expected by :func:`stress_convert`:
 We deliberately use a *general* deformation gradient (stretch + shear) to avoid
 special cases where some measures can accidentally coincide.
 
-Notes
------
+"""
+
+###################################################################################
+# Notes
 
 * The Voigt order in simcoon is assumed to be ``[11, 22, 33, 12, 23, 13]``.
 * The conversion keys are validated by the bindings (unknown keys raise).
 
-"""
 
 ###################################################################################
 # Imports
