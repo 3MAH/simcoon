@@ -32,9 +32,7 @@ Notes
 # Imports
 
 from __future__ import annotations
-
 import numpy as np
-
 from simcoon import simmit as sim
 
 ###################################################################################
