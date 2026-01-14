@@ -72,18 +72,19 @@ jobs:
       - name: Create virtual environment
         run: uv venv
 
-      - name: Install Python dependencies
-        run: uv pip install pybind11 numpy pytest
+      - name: Install Python build dependencies
+        run: uv pip install numpy pytest
 
-      - name: Build project
+      - name: Build C++ library and tests
         run: |
-          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          uv run cmake -S . -B build ${{ matrix.cmake-args }} -DSIMCOON_BUILD_PYTHON_BINDINGS=OFF ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
           cmake --build build ${{ matrix.build-args }}
 
-      - name: Install simcoon library
-        run: |
-          cmake --install build --prefix $PWD/install --component python ${{ matrix.build-args }}
-          uv pip install ./build/python-package
-
-      - name: Run tests
+      - name: Run C++ tests
         run: ctest --test-dir build ${{ matrix.test-args }}
+
+      - name: Install Python package
+        run: uv pip install .
+
+      - name: Run Python tests
+        run: uv run pytest simcoon-python-builder/test/ -v
