@@ -25,6 +25,7 @@ jobs:
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
+            pip-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install armadillo boost googletest
@@ -34,6 +35,7 @@ jobs:
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
+            pip-args: ""
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
@@ -43,6 +45,7 @@ jobs:
             cmake-args: ""
             build-args: "--config Release"
             test-args: "--build-config Release"
+            pip-args: "-C cmake.define.CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
@@ -84,7 +87,7 @@ jobs:
         run: ctest --test-dir build ${{ matrix.test-args }}
 
       - name: Install Python package
-        run: uv pip install .
+        run: uv pip install . ${{ matrix.pip-args }}
 
       - name: Run Python tests
         run: uv run pytest simcoon-python-builder/test/ -v
