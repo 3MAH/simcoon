@@ -53,7 +53,7 @@ Key features
 
 New users should begin with:
 
-- :doc:`solver`
+- :doc:`simulation/solver`
 - :doc:`examples/index`
 
 📚 Documentation
@@ -65,7 +65,7 @@ New users should begin with:
    about
    installation
    external
-   solver
+   simulation/index
    examples/index
    continuum_mechanics/index
    homogenization/index   
