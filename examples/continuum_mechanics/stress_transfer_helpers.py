@@ -24,9 +24,9 @@ special cases where some measures can accidentally coincide.
 
 ###################################################################################
 # Notes
-
-* The Voigt order in simcoon is assumed to be ``[11, 22, 33, 12, 23, 13]``.
-* The conversion keys are validated by the bindings (unknown keys raise).
+#
+# * The Voigt order in simcoon is assumed to be ``[11, 22, 33, 12, 23, 13]``.
+# * The conversion keys are validated by the bindings (unknown keys raise).
 
 
 ###################################################################################
