@@ -1,8 +1,17 @@
 # CMakeLists.txt for Python bindings
 # This is called from the parent CMakeLists.txt when SIMCOON_BUILD_PYTHON_BINDINGS is ON
+# Also supports scikit-build-core builds (SKBUILD is defined)
 
-# Option to control Python package installation location
+# Option to control Python package installation location (ignored when SKBUILD is set)
 option(SIMCOON_PYTHON_INSTALL_TO_SOURCE "Install Python package to source tree (development only)" OFF)
+
+# Detect scikit-build-core environment
+if(DEFINED SKBUILD)
+  message(STATUS "Building with scikit-build-core")
+  message(STATUS "  SKBUILD_PROJECT_NAME: ${SKBUILD_PROJECT_NAME}")
+  message(STATUS "  SKBUILD_PROJECT_VERSION: ${SKBUILD_PROJECT_VERSION}")
+  message(STATUS "  SKBUILD_PLATLIB: ${SKBUILD_PLATLIB}")
+endif()
 
 # All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
 
@@ -80,7 +89,13 @@ target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(simmit PRIVATE carma::carma Python3::Module simcoon)
 
 # Determine Python package installation directory
-if(SIMCOON_PYTHON_INSTALL_TO_SOURCE)
+if(DEFINED SKBUILD)
+  # scikit-build-core: install to CMAKE_INSTALL_PREFIX which is already set by scikit-build-core
+  # Python files are handled by wheel.packages in pyproject.toml
+  # We use "." (current directory) since CMAKE_INSTALL_PREFIX already points to the package directory
+  set(PYTHON_INSTALL_DIR ".")
+  message(STATUS "scikit-build-core: Installing to CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
+elseif(SIMCOON_PYTHON_INSTALL_TO_SOURCE)
   message(WARNING "Installing Python package to source tree - recommended for development only")
   set(PYTHON_PACKAGE_ROOT ${CMAKE_SOURCE_DIR}/python-setup)
   set(PYTHON_INSTALL_DIR ${CMAKE_SOURCE_DIR}/python-setup/simcoon)
@@ -90,15 +105,13 @@ else()
   message(STATUS "Python package will be installed to build directory: ${PYTHON_PACKAGE_ROOT}")
 endif()
 
-# Install setup.py and Python source files to create a complete package
-install(FILES ${CMAKE_SOURCE_DIR}/python-setup/setup.py
-        DESTINATION ${PYTHON_PACKAGE_ROOT}
-        COMPONENT python)
-
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/python-setup/simcoon/
-        DESTINATION ${PYTHON_INSTALL_DIR}
-        COMPONENT python
-        FILES_MATCHING PATTERN "*.py")
+# Install Python source files (not needed for scikit-build-core, handled by wheel.packages)
+if(NOT DEFINED SKBUILD)
+  install(DIRECTORY ${CMAKE_SOURCE_DIR}/python-setup/simcoon/
+          DESTINATION ${PYTHON_INSTALL_DIR}
+          COMPONENT python
+          FILES_MATCHING PATTERN "*.py")
+endif()
 
 # Install the Python extension module
 install(TARGETS simmit
@@ -125,20 +138,22 @@ if(WIN32 AND PYTHON_RUNTIME_DLLS)
 endif()
 
 ################################################################################
-# TESTS
+# TESTS (only for non-scikit-build builds)
 
-add_test(NAME simmit_test
-         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
+if(NOT DEFINED SKBUILD)
+  add_test(NAME simmit_test
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
 
-# Set PYTHONPATH so the test can find the simcoon module
-# Point to parent directory of PYTHON_INSTALL_DIR since it contains the 'simcoon' package directory
-get_filename_component(PYTHON_PATH_DIR ${PYTHON_INSTALL_DIR} DIRECTORY)
-if(WIN32)
-  set(PATH_SEP ";")
-else()
-  set(PATH_SEP ":")
+  # Set PYTHONPATH so the test can find the simcoon module
+  # Point to parent directory of PYTHON_INSTALL_DIR since it contains the 'simcoon' package directory
+  get_filename_component(PYTHON_PATH_DIR ${PYTHON_INSTALL_DIR} DIRECTORY)
+  if(WIN32)
+    set(PATH_SEP ";")
+  else()
+    set(PATH_SEP ":")
+  endif()
+  set_tests_properties(simmit_test PROPERTIES
+    ENVIRONMENT "PYTHONPATH=${PYTHON_PATH_DIR}${PATH_SEP}$ENV{PYTHONPATH}"
+  )
 endif()
-set_tests_properties(simmit_test PROPERTIES
-  ENVIRONMENT "PYTHONPATH=${PYTHON_PATH_DIR}${PATH_SEP}$ENV{PYTHONPATH}"
-)

@@ -140,7 +140,10 @@ endif()
 
 find_package(Armadillo 12.6 REQUIRED)
 
-find_package(GTest REQUIRED)
+# GTest is only needed when building tests
+if(SIMCOON_BUILD_TESTS)
+  find_package(GTest REQUIRED)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -419,6 +422,10 @@ endif()
 
 ################################################################################
 # INSTALL TARGETS
+# Skip C++ library installation when building Python wheels (SKBUILD)
+# The Python builder handles installing libsimcoon.so to the wheel package
+
+if(NOT DEFINED SKBUILD)
 
 # Install simcoon library with export
 install(TARGETS simcoon
@@ -484,3 +491,5 @@ if(WIN32)
             COMPONENT Runtime)
   endif()
 endif()
+
+endif() # NOT DEFINED SKBUILD
