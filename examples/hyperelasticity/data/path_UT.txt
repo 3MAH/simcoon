@@ -21,7 +21,7 @@
 #Dn_inc 0.001
 #time
 5.
-#Consigne
+#prescribed_mechanical_state
 E 8.
 S 0. S 0.
 S 0. S 0. S 0.
@@ -29,6 +29,6 @@ S 0. S 0. S 0.
 0. 0. 0.
 0. 0. 0.
 0. 0. 0.
-#Consigne_T
+#prescribed_temperature_state
 T 290
 
