@@ -21,11 +21,11 @@
 #Dn_inc 0.001
 #time
 5.
-#Consigne
+#prescribed_mechanical_state
 1 5 0
 0 1 0
 0 0 1
-#Consigne_T
+#prescribed_temperature_state
 T 290
 
 
