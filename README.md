@@ -118,40 +118,40 @@ vcpkg install armadillo gtest
 
 3. Configure and build the project:
 
-**Linux/macOS:**
+**For Python users** (recommended):
 ```bash
-# Configure
-cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
+pip install .
+```
 
-# Build
+**For C++ development:**
+```bash
+# Configure and build
+cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Install Python package
-pip install ./build/python-package
-```
-
-**Windows:**
-```powershell
-# Configure
-cmake -S . -B build
-
-# Build
-cmake --build build --config Release
-
-# Install Python package
-pip install ./build/python-package
-```
-
-3. (Optional) Run tests:
-```bash
+# Run C++ tests
 ctest --test-dir build --output-on-failure
 ```
 
+#### Development Workflow
+
+For active development with both C++ and Python:
+
+```bash
+# Initial editable install (builds C++ and Python bindings)
+pip install -e .
+
+# After modifying C++ files, rebuild directly (faster than re-running pip)
+cmake --build build/cp*
+
+# Python changes take effect immediately (no rebuild needed)
+```
+
+The editable install creates a build directory at `build/{wheel_tag}` (e.g., `build/cp312-cp312-linux_x86_64`). Subsequent `cmake --build` commands do incremental rebuilds.
+
 #### Build Options
 
-- `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests
-
-**Note**: CMake builds the C++ library only. For Python bindings, use `pip install .` which uses scikit-build-core internally.
+- `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests (CMake only)
 
 #### Notes for macOS
 
