@@ -200,8 +200,8 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
       message(STATUS "carma not found, fetching from GitHub")
       FetchContent_Declare(
         carma
-        GIT_REPOSITORY https://github.com/RUrlus/carma.git
-        GIT_TAG        v0.8.0
+        GIT_REPOSITORY https://github.com/kmarchais/carma.git
+        GIT_TAG        fix/allocator-mismatch-registry
       )
       FetchContent_MakeAvailable(carma)
 
@@ -311,49 +311,6 @@ target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
     PRIVATE dylib
 )
-
-# On Windows with Python bindings, link libsimcoon to carma::carma
-# This ensures libsimcoon uses NumPy's memory allocator (via ARMA_ALIEN_MEM_ALLOC_FUNCTION)
-# which prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
-# This is only needed on Windows due to stricter heap validation.
-# See: https://github.com/RUrlus/carma/issues/89
-#
-# NOTE: This means C++ tests cannot run on Windows with Python bindings enabled,
-# because the NumPy allocator requires Python to be initialized (which pure C++ tests don't do).
-# C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
-if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
-  # Determine if carma::carma is an ALIAS (FetchContent) or IMPORTED (find_package)
-  get_target_property(CARMA_ALIASED carma::carma ALIASED_TARGET)
-  if(CARMA_ALIASED)
-    set(CARMA_REAL_TARGET ${CARMA_ALIASED})
-  else()
-    set(CARMA_REAL_TARGET carma::carma)
-  endif()
-
-  # Clear carma's INTERFACE_PRECOMPILE_HEADERS - it contains absolute paths
-  # from the build machine that don't exist when installed/redistributed
-  get_target_property(CARMA_PCH ${CARMA_REAL_TARGET} INTERFACE_PRECOMPILE_HEADERS)
-  if(CARMA_PCH)
-    set_target_properties(${CARMA_REAL_TARGET} PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
-    message(STATUS "Cleared carma's broken INTERFACE_PRECOMPILE_HEADERS")
-  endif()
-
-  # Link PRIVATE - simcoon uses carma internally, dependents don't need carma headers
-  # (simmit links to carma separately in its own CMakeLists.txt)
-  target_link_libraries(simcoon PRIVATE carma::carma)
-
-  # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
-  # BEFORE any armadillo headers. Without this, simcoon uses malloc instead of NumPy's allocator.
-  if(MSVC)
-    set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
-    if(EXISTS "${CARMA_CNALLOC_H}")
-      message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
-      target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
-    else()
-      message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H} - allocator mismatch may occur")
-    endif()
-  endif()
-endif()
 
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)

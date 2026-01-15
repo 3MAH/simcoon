@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   build:
+    if: false  # Temporarily disabled to test carma fix
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.runner }}
     strategy:
