@@ -90,7 +90,6 @@ install.components = ["python"]
 
 [tool.scikit-build.cmake.define]
 SIMCOON_BUILD_TESTS = "OFF"
-SIMCOON_BUILD_PYTHON_BINDINGS = "ON"
 
 # =============================================================================
 # pytest configuration

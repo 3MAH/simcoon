@@ -149,15 +149,9 @@ ctest --test-dir build --output-on-failure
 
 #### Build Options
 
-- `SIMCOON_BUILD_PYTHON_BINDINGS` (default: ON) - Build Python bindings
 - `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests
 
-To build only the C++ library without Python bindings:
-```bash
-cmake -S . -B build -D SIMCOON_BUILD_PYTHON_BINDINGS=OFF
-cmake --build build
-cmake --install build --prefix /path/to/install
-```
+**Note**: CMake builds the C++ library only. For Python bindings, use `pip install .` which uses scikit-build-core internally.
 
 #### Notes for macOS
 

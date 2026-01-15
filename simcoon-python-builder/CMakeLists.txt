@@ -1,17 +1,7 @@
 # CMakeLists.txt for Python bindings
-# This is called from the parent CMakeLists.txt when SIMCOON_BUILD_PYTHON_BINDINGS is ON
-# Also supports scikit-build-core builds (SKBUILD is defined)
+# This is called from the parent CMakeLists.txt when building with scikit-build-core (pip install)
 
-# Option to control Python package installation location (ignored when SKBUILD is set)
-option(SIMCOON_PYTHON_INSTALL_TO_SOURCE "Install Python package to source tree (development only)" OFF)
-
-# Detect scikit-build-core environment
-if(DEFINED SKBUILD)
-  message(STATUS "Building with scikit-build-core")
-  message(STATUS "  SKBUILD_PROJECT_NAME: ${SKBUILD_PROJECT_NAME}")
-  message(STATUS "  SKBUILD_PROJECT_VERSION: ${SKBUILD_PROJECT_VERSION}")
-  message(STATUS "  SKBUILD_PLATLIB: ${SKBUILD_PLATLIB}")
-endif()
+message(STATUS "Building Python bindings with scikit-build-core")
 
 # All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
 
@@ -80,82 +70,36 @@ endif()
 # Disable precompiled headers for this target (causes issues with carma includes)
 set_target_properties(simmit PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
-# C++ standard inherited from parent (C++20)
-
 # Add include directories for Python wrapper headers
 target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(simmit PRIVATE carma::carma Python3::Module simcoon)
 
-# Determine Python package installation directory
-if(DEFINED SKBUILD)
-  # scikit-build-core: install to CMAKE_INSTALL_PREFIX which is already set by scikit-build-core
-  # Python files are handled by wheel.packages in pyproject.toml
-  # We use "." (current directory) since CMAKE_INSTALL_PREFIX already points to the package directory
-  set(PYTHON_INSTALL_DIR ".")
-  message(STATUS "scikit-build-core: Installing to CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
-elseif(SIMCOON_PYTHON_INSTALL_TO_SOURCE)
-  message(WARNING "Installing Python package to source tree - recommended for development only")
-  set(PYTHON_PACKAGE_ROOT ${CMAKE_SOURCE_DIR}/python-setup)
-  set(PYTHON_INSTALL_DIR ${CMAKE_SOURCE_DIR}/python-setup/simcoon)
-else()
-  set(PYTHON_PACKAGE_ROOT ${CMAKE_BINARY_DIR}/python-package)
-  set(PYTHON_INSTALL_DIR ${CMAKE_BINARY_DIR}/python-package/simcoon)
-  message(STATUS "Python package will be installed to build directory: ${PYTHON_PACKAGE_ROOT}")
-endif()
+################################################################################
+# INSTALL (scikit-build-core handles the wheel packaging)
 
-# Install Python source files (not needed for scikit-build-core, handled by wheel.packages)
-if(NOT DEFINED SKBUILD)
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/python-setup/simcoon/
-          DESTINATION ${PYTHON_INSTALL_DIR}
-          COMPONENT python
-          FILES_MATCHING PATTERN "*.py")
-endif()
-
-# Install the Python extension module
+# Install Python extension module to wheel
 install(TARGETS simmit
-        DESTINATION ${PYTHON_INSTALL_DIR}
+        DESTINATION .
         COMPONENT python)
 
-# Install the simcoon shared library with SOVERSION symlinks
-# Must use install(TARGETS) to get proper symlink handling
+# Install libsimcoon shared library to wheel
 install(TARGETS simcoon
-        LIBRARY DESTINATION ${PYTHON_INSTALL_DIR}
+        LIBRARY DESTINATION .
           COMPONENT python
           NAMELINK_COMPONENT python
-        RUNTIME DESTINATION ${PYTHON_INSTALL_DIR}
+        RUNTIME DESTINATION .
           COMPONENT python)
 
 # Install runtime dependency DLLs on Windows
-# (DLL paths are found and stored by parent CMakeLists.txt)
 if(WIN32 AND PYTHON_RUNTIME_DLLS)
   install(FILES ${PYTHON_RUNTIME_DLLS}
-          DESTINATION ${PYTHON_INSTALL_DIR}
+          DESTINATION .
           COMPONENT python)
   list(LENGTH PYTHON_RUNTIME_DLLS DLL_COUNT)
   message(STATUS "Python package will include ${DLL_COUNT} runtime dependency DLLs")
 endif()
 
-# Generate minimal pyproject.toml for pip install from build/python-package
-# This is only needed for non-scikit-build builds (CMake workflow)
-if(NOT DEFINED SKBUILD AND NOT SIMCOON_PYTHON_INSTALL_TO_SOURCE)
-  file(WRITE ${PYTHON_PACKAGE_ROOT}/pyproject.toml
-"[build-system]
-requires = [\"setuptools\"]
-build-backend = \"setuptools.build_meta\"
-
-[project]
-name = \"simcoon\"
-version = \"${PROJECT_VERSION}\"
-description = \"Simulation in Mechanics and Materials\"
-
-[tool.setuptools]
-packages = [\"simcoon\"]
-package-data = {\"simcoon\" = [\"*.so\", \"*.so.*\", \"*.dylib\", \"libsimcoon*\", \"*.pyd\", \"*.dll\"]}
-")
-  message(STATUS "Generated pyproject.toml for pip install from ${PYTHON_PACKAGE_ROOT}")
-endif()
-
-# Python tests are run separately via pytest (not through CTest)
+# Python tests are run separately via pytest
 # See: pytest simcoon-python-builder/test/ -v
