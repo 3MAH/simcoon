@@ -66,12 +66,6 @@ function(add_simcoon_test test_src)
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
-  # On Windows with Python bindings, libsimcoon links to carma which requires Python symbols.
-  # Link tests to Python so they can resolve these symbols at runtime.
-  if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
-    target_link_libraries(${testName} PRIVATE Python3::Python)
-  endif()
-
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
@@ -315,8 +309,14 @@ target_link_libraries(simcoon
 # which prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
 # This is only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
+#
+# NOTE: This means C++ tests cannot run on Windows with Python bindings enabled,
+# because the NumPy allocator requires Python to be initialized (which pure C++ tests don't do).
+# C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
 if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon PUBLIC carma::carma)
+  # Disable precompiled headers - carma's PCH uses absolute paths that break when installed
+  set_target_properties(simcoon PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 endif()
 
 # Compile public executables (with main functions)
