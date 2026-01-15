@@ -245,9 +245,6 @@ if(MSVC)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/lib")
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/bin")
   endforeach()
-else()
-  # Unix-like systems (Linux, macOS)
-  enable_language(Fortran)
 endif()
 
 message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
@@ -341,6 +338,8 @@ endforeach()
 if(SIMCOON_BUILD_TESTS)
   # Test plugin libraries
   if(NOT MSVC)
+    # Fortran is only needed for Abaqus UMAT plugin tests
+    enable_language(Fortran)
     add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
 
     set_target_properties(umat_plugin_aba PROPERTIES
