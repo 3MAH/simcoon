@@ -12,7 +12,6 @@ env:
 
 jobs:
   build-doc:
-    if: false  # Temporarily disabled to test carma fix
     runs-on: "ubuntu-latest"
     defaults:
       run:

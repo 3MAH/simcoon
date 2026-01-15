@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   Linux:
-    if: false  # Temporarily disabled to test carma fix
     name: Linux
     runs-on: "ubuntu-latest"
     steps:
@@ -69,7 +68,6 @@ jobs:
           retention-days: 7
 
   MacOS:
-    if: false  # Temporarily disabled to test carma fix
     name: MacOS
     runs-on: "macos-latest"
     steps:
@@ -115,7 +113,6 @@ jobs:
           retention-days: 7
 
   Windows:
-    if: false  # Temporarily disabled to test carma fix
     name: Windows
     runs-on: "windows-latest"
     steps:
