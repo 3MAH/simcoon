@@ -66,6 +66,12 @@ function(add_simcoon_test test_src)
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
+  # When Python bindings are enabled, libsimcoon links to carma which requires Python symbols.
+  # Link tests to Python so they can resolve these symbols at runtime.
+  if(SIMCOON_BUILD_PYTHON_BINDINGS)
+    target_link_libraries(${testName} PRIVATE Python3::Python)
+  endif()
+
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
