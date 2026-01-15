@@ -317,10 +317,6 @@ target_link_libraries(simcoon
 # which prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
 # This is only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
-#
-# NOTE: This means C++ tests cannot run on Windows with Python bindings enabled,
-# because the NumPy allocator requires Python to be initialized (which pure C++ tests don't do).
-# C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
 if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
   # Determine if carma::carma is an ALIAS (FetchContent) or IMPORTED (find_package)
   get_target_property(CARMA_ALIASED carma::carma ALIASED_TARGET)

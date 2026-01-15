@@ -136,10 +136,9 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
 
-      # NOTE: C++ tests are skipped on Windows when Python bindings are enabled.
-      # libsimcoon links to carma which uses NumPy's allocator, requiring Python initialization.
-      # Pure C++ tests don't initialize Python, so they crash.
-      # C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
+      - name: Run C++ tests
+        shell: pwsh
+        run: ctest --test-dir build --build-config Release --output-on-failure -E simmit_test
 
       - name: Install Python package
         shell: pwsh
