@@ -66,9 +66,9 @@ function(add_simcoon_test test_src)
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
-  # When Python bindings are enabled, libsimcoon links to carma which requires Python symbols.
+  # On Windows with Python bindings, libsimcoon links to carma which requires Python symbols.
   # Link tests to Python so they can resolve these symbols at runtime.
-  if(SIMCOON_BUILD_PYTHON_BINDINGS)
+  if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
     target_link_libraries(${testName} PRIVATE Python3::Python)
   endif()
 
@@ -310,11 +310,12 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
-# When building Python bindings, link libsimcoon to carma::carma
+# On Windows with Python bindings, link libsimcoon to carma::carma
 # This ensures libsimcoon uses NumPy's memory allocator (via ARMA_ALIEN_MEM_ALLOC_FUNCTION)
-# which prevents heap corruption on Windows when Armadillo objects cross the
-# libsimcoon/simmit boundary. See: https://github.com/RUrlus/carma/issues/89
-if(SIMCOON_BUILD_PYTHON_BINDINGS)
+# which prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
+# This is only needed on Windows due to stricter heap validation.
+# See: https://github.com/RUrlus/carma/issues/89
+if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon PUBLIC carma::carma)
 endif()
 
