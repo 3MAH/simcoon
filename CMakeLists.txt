@@ -27,7 +27,7 @@ message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 include(GNUInstallDirs)
 
 # Options
-option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
 
 # Helper function to set output directories for multi-config generators (MSVC)
@@ -310,25 +310,21 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
-# When building Python bindings, link libsimcoon to carma and use NumPy's memory allocator.
-# This ensures both libsimcoon and simmit use the same allocator, preventing heap issues
-# when Armadillo objects cross the library boundary.
+# On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
+# This prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
+# Only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
-if(SIMCOON_BUILD_PYTHON_BINDINGS)
+if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon PRIVATE carma::carma)
 
   # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
-  # BEFORE any Armadillo headers. Without this, simcoon uses malloc instead of NumPy's allocator.
+  # BEFORE any Armadillo headers.
   set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
   if(EXISTS "${CARMA_CNALLOC_H}")
     message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
-    if(MSVC)
-      target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
-    else()
-      target_compile_options(simcoon PRIVATE "-include" "${CARMA_CNALLOC_H}")
-    endif()
+    target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
   else()
-    message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H} - allocator mismatch may occur")
+    message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H}")
   endif()
 endif()
 

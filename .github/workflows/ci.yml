@@ -1,5 +1,4 @@
-name: Build & Test
-#build and test on the three OS
+name: C++ Build & Test
 
 on:
   workflow_dispatch:
@@ -30,10 +29,10 @@ jobs:
         shell: bash -l {0}
         run: |
           conda config --env --add channels conda-forge
-          conda config --env --add channels set3mah          
+          conda config --env --add channels set3mah
           conda config --env --set channel_priority strict
 
-      - name: Build C++ library and Python bindings
+      - name: Build C++ library
         shell: bash -l {0}
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja \
@@ -41,7 +40,6 @@ jobs:
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
             -Wno-dev
           cmake --build ${{github.workspace}}/build
 
@@ -49,18 +47,8 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
-      - name: Install Python package
-        shell: bash -l {0}
-        run: |
-          cmake --install ${{github.workspace}}/build --component python
-          python -m pip install ${{github.workspace}}/build/python-package
-
-      - name: Run Python tests
-        shell: bash -l {0}
-        run: pytest simcoon-python-builder/test/ -v
-
       - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Linux
@@ -78,7 +66,7 @@ jobs:
           activate-environment: foo
           environment-file: environment_arm64.yml
 
-      - name: Build C++ library and Python bindings
+      - name: Build C++ library
         shell: bash -l {0}
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja \
@@ -86,7 +74,6 @@ jobs:
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
             -Wno-dev
           cmake --build ${{github.workspace}}/build
 
@@ -94,18 +81,8 @@ jobs:
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
-      - name: Install Python package
-        shell: bash -l {0}
-        run: |
-          cmake --install ${{github.workspace}}/build --component python
-          python -m pip install ${{github.workspace}}/build/python-package
-
-      - name: Run Python tests
-        shell: bash -l {0}
-        run: pytest simcoon-python-builder/test/ -v
-
       - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-OSX
@@ -123,16 +100,12 @@ jobs:
           activate-environment: foo
           environment-file: environment_win.yml
 
-      - name: Build C++ library and Python bindings
+      - name: Build C++ library
         shell: pwsh
         run: |
-          $pybind11_dir = python -c "import pybind11; print(pybind11.get_cmake_dir())"
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
-              -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON `
-              -DPython3_EXECUTABLE="$env:CONDA_PREFIX/python.exe" `
-              -Dpybind11_DIR="$pybind11_dir" `
               -Wno-dev
           cmake --build build --config Release
 
@@ -140,18 +113,8 @@ jobs:
         shell: pwsh
         run: ctest --test-dir build --build-config Release --output-on-failure
 
-      - name: Install Python package
-        shell: pwsh
-        run: |
-          cmake --install build --config Release --component python
-          python -m pip install build/python-package
-
-      - name: Run Python tests
-        shell: pwsh
-        run: pytest simcoon-python-builder/test/ -v
-
       - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Win
