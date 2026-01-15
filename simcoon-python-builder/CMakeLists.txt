@@ -157,23 +157,5 @@ package-data = {\"simcoon\" = [\"*.so\", \"*.so.*\", \"*.dylib\", \"libsimcoon*\
   message(STATUS "Generated pyproject.toml for pip install from ${PYTHON_PACKAGE_ROOT}")
 endif()
 
-################################################################################
-# TESTS (only for non-scikit-build builds)
-
-if(NOT DEFINED SKBUILD)
-  add_test(NAME simmit_test
-           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test
-           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/simmit_test/run_test.py)
-
-  # Set PYTHONPATH so the test can find the simcoon module
-  # Point to parent directory of PYTHON_INSTALL_DIR since it contains the 'simcoon' package directory
-  get_filename_component(PYTHON_PATH_DIR ${PYTHON_INSTALL_DIR} DIRECTORY)
-  if(WIN32)
-    set(PATH_SEP ";")
-  else()
-    set(PATH_SEP ":")
-  endif()
-  set_tests_properties(simmit_test PROPERTIES
-    ENVIRONMENT "PYTHONPATH=${PYTHON_PATH_DIR}${PATH_SEP}$ENV{PYTHONPATH}"
-  )
-endif()
+# Python tests are run separately via pytest (not through CTest)
+# See: pytest simcoon-python-builder/test/ -v
