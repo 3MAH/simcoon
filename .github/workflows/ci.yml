@@ -146,12 +146,9 @@ jobs:
           cmake --install build --config Release --component python
           python -m pip install build/python-package
 
-      # TODO: Python tests on Windows conda have heap corruption issues
-      # due to CRT mismatch between conda numpy and our extension.
-      # C++ tests pass, and Python tests pass on Linux/macOS.
-      # - name: Run Python tests
-      #   shell: pwsh
-      #   run: pytest simcoon-python-builder/test/ -v
+      - name: Run Python tests
+        shell: pwsh
+        run: pytest simcoon-python-builder/test/ -v
 
       - name: Upload test logs as artifact
         if: always() # Ensure this step runs even if the tests fail

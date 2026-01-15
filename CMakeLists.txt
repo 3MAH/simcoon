@@ -304,6 +304,14 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
+# When building Python bindings, link libsimcoon to carma::carma
+# This ensures libsimcoon uses NumPy's memory allocator (via ARMA_ALIEN_MEM_ALLOC_FUNCTION)
+# which prevents heap corruption on Windows when Armadillo objects cross the
+# libsimcoon/simmit boundary. See: https://github.com/RUrlus/carma/issues/89
+if(SIMCOON_BUILD_PYTHON_BINDINGS)
+  target_link_libraries(simcoon PUBLIC carma::carma)
+endif()
+
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
 foreach(exe_name ${EXECUTABLES})
