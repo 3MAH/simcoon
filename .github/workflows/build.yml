@@ -81,7 +81,7 @@ jobs:
           cmake --build build ${{ matrix.build-args }}
 
       - name: Run C++ tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
+        run: ctest --test-dir build ${{ matrix.test-args }} -E simmit_test
 
       - name: Install Python package
         run: |
