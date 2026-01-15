@@ -172,6 +172,9 @@ if(DEFINED SKBUILD)
     if(carma_INCLUDE_DIR MATCHES "\\$<")
       set(carma_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
     endif()
+    # Clear carma's INTERFACE_PRECOMPILE_HEADERS - conda packages have absolute paths
+    # from the build machine that don't exist on the user's machine
+    set_target_properties(carma::carma PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
   else()
     # If not found via CONFIG, try to find headers directly in conda prefix
     if(DEFINED ENV{PREFIX})
