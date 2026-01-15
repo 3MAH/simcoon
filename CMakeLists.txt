@@ -314,9 +314,21 @@ target_link_libraries(simcoon
 # because the NumPy allocator requires Python to be initialized (which pure C++ tests don't do).
 # C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
 if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
-  target_link_libraries(simcoon PUBLIC carma::carma)
-  # Disable precompiled headers - carma's PCH uses absolute paths that break when installed
-  set_target_properties(simcoon PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+  # Link PRIVATE - simcoon uses carma internally, dependents don't need carma headers
+  # (simmit links to carma separately in its own CMakeLists.txt)
+  target_link_libraries(simcoon PRIVATE carma::carma)
+
+  # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
+  # BEFORE any armadillo headers. Without this, simcoon uses malloc instead of NumPy's allocator.
+  if(MSVC)
+    set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
+    if(EXISTS "${CARMA_CNALLOC_H}")
+      message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
+      target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
+    else()
+      message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H} - allocator mismatch may occur")
+    endif()
+  endif()
 endif()
 
 # Compile public executables (with main functions)
