@@ -167,6 +167,14 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
 
   if(carma_FOUND)
     message(STATUS "Found carma package (CONFIG mode)")
+    # Get include directory from target for later use
+    get_target_property(carma_INCLUDE_DIR carma::carma INTERFACE_INCLUDE_DIRECTORIES)
+    # Handle generator expressions - get first real path
+    if(carma_INCLUDE_DIR MATCHES "\\$<")
+      # Has generator expressions, try CMAKE_INSTALL_PREFIX
+      set(carma_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+    endif()
+    message(STATUS "carma include directory: ${carma_INCLUDE_DIR}")
   else()
     # If not found via CONFIG, try to find headers directly in conda prefix
     if(DEFINED ENV{PREFIX})
@@ -314,6 +322,22 @@ target_link_libraries(simcoon
 # because the NumPy allocator requires Python to be initialized (which pure C++ tests don't do).
 # C++ functionality is validated on Linux/macOS; Python tests validate Windows integration.
 if(WIN32 AND SIMCOON_BUILD_PYTHON_BINDINGS)
+  # Determine if carma::carma is an ALIAS (FetchContent) or IMPORTED (find_package)
+  get_target_property(CARMA_ALIASED carma::carma ALIASED_TARGET)
+  if(CARMA_ALIASED)
+    set(CARMA_REAL_TARGET ${CARMA_ALIASED})
+  else()
+    set(CARMA_REAL_TARGET carma::carma)
+  endif()
+
+  # Clear carma's INTERFACE_PRECOMPILE_HEADERS - it contains absolute paths
+  # from the build machine that don't exist when installed/redistributed
+  get_target_property(CARMA_PCH ${CARMA_REAL_TARGET} INTERFACE_PRECOMPILE_HEADERS)
+  if(CARMA_PCH)
+    set_target_properties(${CARMA_REAL_TARGET} PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
+    message(STATUS "Cleared carma's broken INTERFACE_PRECOMPILE_HEADERS")
+  endif()
+
   # Link PRIVATE - simcoon uses carma internally, dependents don't need carma headers
   # (simmit links to carma separately in its own CMakeLists.txt)
   target_link_libraries(simcoon PRIVATE carma::carma)
