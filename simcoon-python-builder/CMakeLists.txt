@@ -137,6 +137,26 @@ if(WIN32 AND PYTHON_RUNTIME_DLLS)
   message(STATUS "Python package will include ${DLL_COUNT} runtime dependency DLLs")
 endif()
 
+# Generate minimal pyproject.toml for pip install from build/python-package
+# This is only needed for non-scikit-build builds (CMake workflow)
+if(NOT DEFINED SKBUILD AND NOT SIMCOON_PYTHON_INSTALL_TO_SOURCE)
+  file(WRITE ${PYTHON_PACKAGE_ROOT}/pyproject.toml
+"[build-system]
+requires = [\"setuptools\"]
+build-backend = \"setuptools.build_meta\"
+
+[project]
+name = \"simcoon\"
+version = \"${PROJECT_VERSION}\"
+description = \"Simulation in Mechanics and Materials\"
+
+[tool.setuptools]
+packages = [\"simcoon\"]
+package-data = {\"simcoon\" = [\"*.so\", \"*.so.*\", \"*.pyd\", \"*.dll\"]}
+")
+  message(STATUS "Generated pyproject.toml for pip install from ${PYTHON_PACKAGE_ROOT}")
+endif()
+
 ################################################################################
 # TESTS (only for non-scikit-build builds)
 

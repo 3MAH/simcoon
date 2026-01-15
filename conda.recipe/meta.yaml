@@ -34,7 +34,7 @@ requirements:
     - pybind11
     - python
     - pip
-    - scikit-build-core >=0.11
+    - setuptools
     - libblas
     - liblapack
     - boost >=1.84

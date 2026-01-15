@@ -25,7 +25,6 @@ jobs:
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
-            pip-args: ""
           - os: macos-latest
             sys-package-cache-path: ~/Library/Caches/Homebrew
             sys-package-install-command: brew install armadillo boost googletest
@@ -35,7 +34,6 @@ jobs:
             cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
             build-args: ""
             test-args: ""
-            pip-args: ""
           - os: windows-latest
             sys-package-cache-path: C:\vcpkg\installed
             sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
@@ -45,7 +43,6 @@ jobs:
             cmake-args: ""
             build-args: "--config Release"
             test-args: "--build-config Release"
-            pip-args: "-C cmake.define.CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
@@ -76,18 +73,20 @@ jobs:
         run: uv venv
 
       - name: Install Python build dependencies
-        run: uv pip install numpy pytest
+        run: uv pip install pybind11 numpy pytest
 
-      - name: Build C++ library and tests
+      - name: Build C++ library and Python bindings
         run: |
-          uv run cmake -S . -B build ${{ matrix.cmake-args }} -DSIMCOON_BUILD_PYTHON_BINDINGS=OFF ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+          uv run cmake -S . -B build ${{ matrix.cmake-args }} -DSIMCOON_BUILD_PYTHON_BINDINGS=ON -DCMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
           cmake --build build ${{ matrix.build-args }}
 
       - name: Run C++ tests
         run: ctest --test-dir build ${{ matrix.test-args }}
 
       - name: Install Python package
-        run: uv pip install . ${{ matrix.pip-args }}
+        run: |
+          cmake --install build --component python ${{ matrix.build-args }}
+          uv pip install ./build/python-package
 
       - name: Run Python tests
         run: uv run pytest simcoon-python-builder/test/ -v
