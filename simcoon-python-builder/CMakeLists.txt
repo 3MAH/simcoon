@@ -152,7 +152,7 @@ description = \"Simulation in Mechanics and Materials\"
 
 [tool.setuptools]
 packages = [\"simcoon\"]
-package-data = {\"simcoon\" = [\"*.so\", \"*.so.*\", \"*.pyd\", \"*.dll\"]}
+package-data = {\"simcoon\" = [\"*.so\", \"*.so.*\", \"*.dylib\", \"libsimcoon*\", \"*.pyd\", \"*.dll\"]}
 ")
   message(STATUS "Generated pyproject.toml for pip install from ${PYTHON_PACKAGE_ROOT}")
 endif()
