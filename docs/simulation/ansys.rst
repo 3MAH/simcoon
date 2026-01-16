@@ -40,19 +40,21 @@ Prerequisites
 
 **simcoon Installation**
 
-Ensure simcoon is built and installed:
+Ensure simcoon is built and installed using the provided install script:
 
 .. code-block:: bash
 
     cd simcoon
-    mkdir build && cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/simcoon_install
-    make -j4
-    make install
+    sh Install.sh -n 4
     
-    # Add to your .bashrc or .bash_profile
-    export SIMCOON_DIR=$HOME/simcoon_install
-    export LD_LIBRARY_PATH=$SIMCOON_DIR/lib:$LD_LIBRARY_PATH
+    # The script will:
+    # - Build simcoon with CMake/Ninja
+    # - Install to $CONDA_PREFIX (your conda environment)
+    # - Install the Python package
+    # - Optionally run tests
+    
+    # To skip tests:
+    sh Install.sh -t -n 4
 
 Using usermat_singleM.cpp
 -------------------------
@@ -65,10 +67,10 @@ The ``software/usermat_singleM.cpp`` file provides the same functionality as the
 
     cd simcoon/software
     
-    # Compile to shared library
+    # Compile to shared library (using conda environment)
     g++ -shared -fPIC -std=c++17 -O2 -o libusermat_simcoon.so usermat_singleM.cpp \
-        -I$SIMCOON_DIR/include \
-        -L$SIMCOON_DIR/lib -lsimcoon \
+        -I$CONDA_PREFIX/include \
+        -L$CONDA_PREFIX/lib -lsimcoon \
         -larmadillo -llapack -lblas
 
 **Step 2: Set up library path**
@@ -78,7 +80,7 @@ Ansys searches for libraries in directories specified by ``ANS_USER_PATH``:
 .. code-block:: bash
 
     export ANS_USER_PATH=/path/to/your/usermat/directory
-    export LD_LIBRARY_PATH=$SIMCOON_DIR/lib:$ANS_USER_PATH:$LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$ANS_USER_PATH:$LD_LIBRARY_PATH
 
 **Step 3: Define material in MAPDL**
 
