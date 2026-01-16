@@ -52,3 +52,18 @@ class umat_plugin_aba_api {
 
         virtual ~umat_plugin_aba_api() = default;
 };
+
+class umat_plugin_ans_api {
+    public:
+        virtual std::string name() const = 0;
+
+        virtual void umat_ansys(
+            simcoon::phase_characteristics &,
+            const arma::mat &,
+            const double &, const double &,
+            const int &, const int &,
+            bool &, const int &, double &
+        ) = 0;
+
+        virtual ~umat_plugin_ans_api() = default;
+};
