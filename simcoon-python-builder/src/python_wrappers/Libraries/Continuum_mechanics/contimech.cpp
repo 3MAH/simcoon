@@ -36,10 +36,12 @@ py::array_t<double> sph(const py::array_t<double> &input, const bool &copy) {
             vec v = carma::arr_to_col(input);
             vec t = simcoon::sph(v);
             return carma::col_to_arr(t, copy);
-        } 
-    }         
-    else
-        throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
+        }
+        else {
+            throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
+        }
+    }
+    throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
 }
 
 //This function returns the deviatoric part of v
@@ -64,10 +66,12 @@ py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
             vec v = carma::arr_to_col(input);
             vec t = simcoon::dev(v);
             return carma::col_to_arr(t, copy);
-        } 
-    }         
-    else
-        throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
+        }
+        else {
+            throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
+        }
+    }
+    throw std::invalid_argument("Invalid size of the one or two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
 }
 
 //This function returns the trace of the tensor v
