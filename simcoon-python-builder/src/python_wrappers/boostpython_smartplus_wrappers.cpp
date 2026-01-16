@@ -188,6 +188,7 @@ PYBIND11_MODULE(simmit, m)
     m.def("Eshelby_cylinder", &Eshelby_cylinder, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_cylinder);
     m.def("Eshelby_prolate", &Eshelby_prolate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, simcoon_docs::Eshelby_prolate);
     m.def("Eshelby_oblate", &Eshelby_oblate, "nu"_a, "aspect_ratio"_a, "copy"_a = true, simcoon_docs::Eshelby_oblate);
+    m.def("Eshelby_penny", &Eshelby_penny, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_penny);
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
 

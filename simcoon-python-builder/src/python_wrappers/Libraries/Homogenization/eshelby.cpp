@@ -38,6 +38,12 @@ py::array_t<double> Eshelby_oblate(const double &nu, const double &ar, const boo
     return carma::mat_to_arr(m, copy);    
 }
 
+//	Eshelby tensor determination for a penny-shaped crack (limit of oblate as ar->0). The crack normal is the 1 direction.
+py::array_t<double> Eshelby_penny(const double &nu, const bool &copy) {
+    mat m = simcoon::Eshelby_penny(nu);
+    return carma::mat_to_arr(m, copy);    
+}
+
 //Numerical Eshelby tensor determination
 py::array_t<double> Eshelby(const py::array_t<double> &L, const double &a1, const double &a2, const double &a3, const int &mp, const int &np, const bool &copy) {
     mat L_cpp = carma::arr_to_mat(L);
