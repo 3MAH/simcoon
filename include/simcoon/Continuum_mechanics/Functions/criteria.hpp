@@ -149,6 +149,26 @@ namespace simcoon
             mat P = P_Ani(P_params);
      * @endcode
     */
+    arma::vec dJ2_stress(const arma::vec &v);
+
+    /**
+     * @brief Provides derivative of J2 invariant from the stress vector
+    */
+    arma::vec dJ3_stress(const arma::vec &v);
+
+    /**
+     * @brief Provides derivative of the J3 Invariant
+    */
+    double Drucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
+     * @brief Provides the criteria based on Drucker-Prager criteria and DFA criteria used for Porous SMA
+    */
+    arma::vec dDrucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
+     * @brief Provides the derivative of a made criteria based on Drucker-Prager criteria and DFA criteria used for Porous SMA
+    */
     arma::mat P_Ani(const arma::vec &P_params);
 
     /**
