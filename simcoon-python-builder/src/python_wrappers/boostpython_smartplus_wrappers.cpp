@@ -40,6 +40,7 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_recovery_props.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_transfer.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_stress.hpp>
+#include <simcoon/docs/Libraries/Continuum_mechanics/doc_hyperelastic.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
 
@@ -170,12 +171,12 @@ PYBIND11_MODULE(simmit, m)
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
 
     // register the hyperelastic library
-    m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric invariants");
-    m.def("isochoric_pstretch", &isochoric_pstretch, "input"_a, "input_tensor"_a = "V", "J"_a = 0., "copy"_a = true, "This function computes the isochoric principal stretches");
-    m.def("tau_iso_hyper_invariants", &tau_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Kirchoff stress tensor");
-    m.def("sigma_iso_hyper_invariants", &sigma_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Cauchy stress tensor");
-    m.def("tau_vol_hyper", &tau_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Kirchoff stress tensor");
-    m.def("sigma_vol_hyper", &sigma_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, "This function computes the isochoric part of the Cauchy stress tensor");
+    m.def("isochoric_invariants", &isochoric_invariants, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::isochoric_invariants);
+    m.def("isochoric_pstretch", &isochoric_pstretch, "input"_a, "input_tensor"_a = "V", "J"_a = 0., "copy"_a = true, simcoon_docs::isochoric_pstretch);
+    m.def("tau_iso_hyper_invariants", &tau_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::tau_iso_hyper_invariants);
+    m.def("sigma_iso_hyper_invariants", &sigma_iso_hyper_invariants, "dWdI_1_bar"_a, "dWdI_2_bar"_a, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::sigma_iso_hyper_invariants);
+    m.def("tau_vol_hyper", &tau_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::tau_vol_hyper);
+    m.def("sigma_vol_hyper", &sigma_vol_hyper, "dUdJ"_a, "input"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::sigma_vol_hyper);
 
     // register the transfer library
     m.def("v2t_strain", &v2t_strain, "input"_a, "copy"_a = true, simcoon_docs::v2t_strain);
