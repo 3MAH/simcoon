@@ -1,7 +1,9 @@
 """
 Yield Criteria Examples
-~~~~~~~~~~~~~~~~~~~~~~~~~
-This example demonstrates different yield criteria available in Simcoon.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This example demonstrates different yield criteria available in Simcoon,
+including von Mises, Tresca, Drucker, and anisotropic Hill criteria.
 """
 
 import numpy as np
@@ -10,8 +12,7 @@ import matplotlib.pyplot as plt
 
 ###################################################################################
 # Yield criteria are used to determine when a material begins to yield under
-# a general stress state. Simcoon provides several yield criteria including
-# von Mises, Tresca, Drucker, and anisotropic Hill criteria.
+# a general stress state.
 #
 # The general form of a yield criterion is:
 #
@@ -24,7 +25,8 @@ import matplotlib.pyplot as plt
 
 ###################################################################################
 # Von Mises equivalent stress
-# ---------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The von Mises equivalent stress is defined as:
 #
 # .. math::
@@ -49,7 +51,8 @@ print(
 
 ###################################################################################
 # Tresca equivalent stress
-# ------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The Tresca criterion is based on the maximum shear stress:
 #
 # .. math::
@@ -69,7 +72,8 @@ print(f"Tresca flow direction: {np.array_str(dsigma_Tresca, precision=4)}")
 
 ###################################################################################
 # Drucker equivalent stress
-# -------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The Drucker criterion generalizes the von Mises criterion:
 #
 # .. math::
@@ -93,7 +97,8 @@ print(f"Drucker flow direction: {np.array_str(dsigma_Drucker, precision=4)}")
 
 ###################################################################################
 # Hill anisotropic yield criterion
-# --------------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The Hill criterion extends von Mises to orthotropic materials:
 #
 # .. math::
@@ -121,7 +126,8 @@ print(f"Hill equivalent stress (anisotropic): {sigma_Hill_aniso:.2f} MPa")
 
 ###################################################################################
 # Hill configurational tensor
-# ---------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The Hill criterion can be written in matrix form:
 #
 # .. math::
@@ -136,7 +142,8 @@ print(np.array_str(P_Hill, precision=4, suppress_small=True))
 
 ###################################################################################
 # Yield surface visualization
-# ---------------------------
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # Let's visualize the yield surfaces in the σ11-σ22 plane (plane stress).
 
 theta = np.linspace(0, 2 * np.pi, 360)
@@ -193,8 +200,9 @@ plt.tight_layout()
 plt.show()
 
 ###################################################################################
-# 3D Yield Surfaces in Principal Stress Space
-# -------------------------------------------
+# 3D Yield Surfaces
+# ^^^^^^^^^^^^^^^^^
+#
 # The yield surfaces can be visualized in 3D principal stress space
 # :math:`(\sigma_1, \sigma_2, \sigma_3)`. In this space:
 #
@@ -209,8 +217,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm, colors
 
 ###################################################################################
-# von Mises yield surface in 3D
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The von Mises criterion is independent of hydrostatic stress, forming a
 # cylinder of radius :math:`\sqrt{2/3} \sigma_Y` around the hydrostatic axis.
 
@@ -248,8 +254,6 @@ for i in range(n_z):
         S3_vM[i, j] = p[2]
 
 ###################################################################################
-# Tresca yield surface in 3D
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The Tresca criterion forms a hexagonal prism inscribed within the von Mises
 # cylinder. The hexagon vertices touch the von Mises cylinder.
 
@@ -291,8 +295,6 @@ S2_T_3d = np.array(S2_T_list)
 S3_T_3d = np.array(S3_T_list)
 
 ###################################################################################
-# Plot: 3D yield surfaces
-# ~~~~~~~~~~~~~~~~~~~~~~~
 # Interactive 3D visualization showing von Mises (cylinder) and Tresca (hexagonal
 # prism) yield surfaces along with the hydrostatic axis.
 
@@ -331,8 +333,9 @@ plt.tight_layout()
 plt.show()
 
 ###################################################################################
-# Yield Surfaces in Plane Stress (σ₁₁, σ₂₂)
-# ------------------------------------------
+# Plane Stress (σ₁₁, σ₂₂)
+# ^^^^^^^^^^^^^^^^^^^^^^^
+#
 # In plane stress conditions (:math:`\sigma_{33} = \sigma_{13} = \sigma_{23} = 0`),
 # yield surfaces can be visualized in the :math:`(\sigma_{11}, \sigma_{22})` plane.
 # This is the classical representation for comparing yield criteria.
@@ -431,8 +434,9 @@ plt.tight_layout()
 plt.show()
 
 ###################################################################################
-# Yield Surfaces in Combined Tension-Shear (σ₁₁, σ₁₂)
-# ----------------------------------------------------
+# Tension-Shear (σ₁₁, σ₁₂)
+# ^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # Another important representation is the combined tension-shear space
 # :math:`(\sigma_{11}, \sigma_{12})`, which is relevant for many practical
 # loading conditions.
@@ -544,8 +548,9 @@ plt.tight_layout()
 plt.show()
 
 ###################################################################################
-# Effect of Hill Anisotropy Parameters
-# ------------------------------------
+# Hill Anisotropy Parameters
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
 # The Hill criterion captures anisotropic yielding. Let's see how different
 # parameters affect the yield surface in the :math:`(\sigma_{11}, \sigma_{22})`
 # plane.
@@ -604,8 +609,9 @@ plt.tight_layout()
 plt.show()
 
 ###################################################################################
-# Effect of Drucker Parameter b
-# -----------------------------
+# Drucker Parameter b
+# ^^^^^^^^^^^^^^^^^^^
+#
 # The Drucker criterion with parameter :math:`b` and exponent :math:`n`
 # generalizes von Mises. Let's visualize this in both stress spaces.
 # Valid range for b is approximately :math:`-0.27 \leq b \leq 0.5` for convexity.
