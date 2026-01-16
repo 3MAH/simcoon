@@ -46,19 +46,21 @@ Prerequisites
 
 **simcoon Installation**
 
-Ensure simcoon is built and installed:
+Ensure simcoon is built and installed using the provided install script:
 
 .. code-block:: bash
 
     cd simcoon
-    mkdir build && cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/simcoon_install
-    make -j4
-    make install
+    sh Install.sh -n 4
     
-    # Add to your .bashrc or .bash_profile
-    export SIMCOON_DIR=$HOME/simcoon_install
-    export LD_LIBRARY_PATH=$SIMCOON_DIR/lib:$LD_LIBRARY_PATH
+    # The script will:
+    # - Build simcoon with CMake/Ninja
+    # - Install to $CONDA_PREFIX (your conda environment)
+    # - Install the Python package
+    # - Optionally run tests
+    
+    # To skip tests:
+    sh Install.sh -t -n 4
 
 Using umat_singleM (Recommended)
 --------------------------------
@@ -71,10 +73,10 @@ This is the simplest approach: the model is selected by the **material name** in
 
     cd simcoon/software
     
-    # Compile to shared library
+    # Compile to shared library (using conda environment)
     g++ -shared -fPIC -std=c++17 -O2 -o libumat_simcoon.so umat_singleM.cpp \
-        -I$SIMCOON_DIR/include \
-        -L$SIMCOON_DIR/lib -lsimcoon \
+        -I$CONDA_PREFIX/include \
+        -L$CONDA_PREFIX/lib -lsimcoon \
         -larmadillo -llapack -lblas
 
 **Step 2: Configure Abaqus environment**
@@ -84,10 +86,10 @@ Create or edit your ``abaqus_v6.env`` file:
 .. code-block:: python
 
     import os
-    simcoon_dir = os.environ.get('SIMCOON_DIR', '/path/to/simcoon/install')
+    conda_prefix = os.environ.get('CONDA_PREFIX', '/path/to/conda/env')
     
     # Add library paths
-    os.environ['LD_LIBRARY_PATH'] = simcoon_dir + '/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
+    os.environ['LD_LIBRARY_PATH'] = conda_prefix + '/lib:' + os.environ.get('LD_LIBRARY_PATH', '')
 
 **Step 3: Run Abaqus**
 
