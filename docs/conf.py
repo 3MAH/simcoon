@@ -16,11 +16,26 @@ import sys
 import matplotlib
 import importlib.util
 import sphinx_gallery
-from sphinx_gallery.sorting import FileNameSortKey
+# NOTE: avoid storing unpicklable objects (like classes/functions) in Sphinx
+# config values, otherwise Sphinx emits config.cache warnings when pickling the
+# environment.
 
 sys.path.insert(
     0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
 )
+
+import subprocess
+
+# -- Run Doxygen to generate XML for Breathe ---------------------------------
+# Build the Doxygen XML documentation if it doesn't exist.
+# Note: When using the Makefile, Doxygen is run as a dependency before Sphinx,
+# so this block won't execute. This fallback is useful for:
+# - ReadTheDocs builds
+# - Direct sphinx-build invocations without make
+doxygen_xml_dir = os.path.join(os.path.dirname(__file__), "_build", "doxygen", "xml")
+if not os.path.exists(doxygen_xml_dir):
+    print("Running Doxygen to generate XML for Breathe...")
+    subprocess.call("doxygen Doxyfile", shell=True, cwd=os.path.dirname(__file__))
 
 sphinx_gallery.EXAMPLES_DIR = os.path.abspath("../examples")
 print("Sphinx-Gallery examples dir:", sphinx_gallery.EXAMPLES_DIR)
@@ -52,13 +67,23 @@ if os.path.exists(version_path):
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "sphinx.ext.mathjax",
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
     "sphinx.ext.napoleon",
     "sphinx.ext.autosummary",
     "sphinx_gallery.gen_gallery",
     "matplotlib.sphinxext.plot_directive",
+    "breathe",
 ]
+
+# -- Breathe Configuration ---------------------------------------------------
+# Path to the Doxygen XML output
+breathe_projects = {
+    "simcoon": os.path.join(os.path.dirname(__file__), "_build", "doxygen", "xml")
+}
+breathe_default_project = "simcoon"
+breathe_default_members = ("members", "undoc-members")
 
 matplotlib.rcParams.update(
     {
@@ -124,7 +149,9 @@ sphinx_gallery_conf = {
     # Pattern to search for example files
     "filename_pattern": r"\.py",
     # Sort gallery example by file name instead of number of lines (default)
-    "within_subsection_order": FileNameSortKey,
+    # Use a dotted-path string instead of the imported class to keep this
+    # configuration picklable.
+    "within_subsection_order": "sphinx_gallery.sorting.FileNameSortKey",
     "ignore_pattern": r"/(results|data)$",
     "copyfile_regex": r"^(data/.+\.(txt|csv|json)|results/.+\.(txt|csv))$",
     "nested_sections": False,  # disables the extra toctree line

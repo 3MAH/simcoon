@@ -68,7 +68,8 @@ jobs:
             texlive-latex-extra \
             texlive-fonts-recommended \
             dvipng \
-            cm-super
+            cm-super \
+            doxygen
 
       - name: Build for Linux
         shell: bash -l {0}
@@ -95,11 +96,20 @@ jobs:
         uses: actions/cache@v4
         if: env.USE_CACHE == 'true'
         with:
-          path: docs/build/
-          key: doc-build-${{ hashFiles('python-setup/simcoon/__version__.py') }}
+          path: docs/_build/
+          key: doc-build-${{ hashFiles('python-setup/simcoon/__version__.py') }}-${{ hashFiles('docs/Doxyfile') }}
+
+      - name: Generate Doxygen XML for C++ API
+        run: |
+          cd docs
+          mkdir -p _build/doxygen
+          doxygen Doxyfile
+          echo "Doxygen XML generated successfully"
 
       - name: Build Documentation
-        run: sphinx-build -b html docs docs/build/html
+        run: |
+          cd docs
+          sphinx-build -b html . _build/html
 
       - name: Upload HTML documentation
         if: always()
@@ -107,7 +117,7 @@ jobs:
         with:
           name: docs-build
           path:
-            docs/build/html/
+            docs/_build/html/
             
       - name: Deploy HTML documentation (master)
         if: ${{ github.ref == 'refs/heads/master' }}
@@ -116,7 +126,7 @@ jobs:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
           external_repository: 3MAH/simcoon-docs
           publish_branch: main
-          publish_dir: ./docs/build/html
+          publish_dir: ./docs/_build/html
           force_orphan: true
 
       - name: Deploy HTML documentation (documentation branch)
@@ -126,6 +136,6 @@ jobs:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
           external_repository: 3MAH/simcoon-docs
           publish_branch: main
-          publish_dir: ./docs/build/html
+          publish_dir: ./docs/_build/html
           destination_dir: documentation
           force_orphan: false
