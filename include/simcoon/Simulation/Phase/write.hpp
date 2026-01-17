@@ -15,7 +15,7 @@
  
  */
 
-///@file write
+///@file write.hpp
 ///@brief To write NphasesX.dat and NlayerX.dat
 ///@version 1.0
 
@@ -25,6 +25,16 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 
 namespace simcoon{
+
+/**
+ * @file write.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
     
 /// Function that reads the output parameters
 void write_phase(phase_characteristics &, const std::string & = "data", const std::string & = "Nphases1.dat");
@@ -37,5 +47,8 @@ void write_ellipsoid(phase_characteristics &, const std::string & = "data", cons
 
 /// Function that checks the coherency between the path and the step increments provided
 void write_cylinder(phase_characteristics &, const std::string & = "data", const std::string & = "Ncylinders1.dat");
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

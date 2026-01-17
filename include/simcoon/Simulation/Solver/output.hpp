@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file output.hpp
+ * @brief Solver functions and classes.
+ */
+
+/** @addtogroup solver
+ *  @{
+ */
+
+
 //======================================
 class solver_output
 //======================================
@@ -67,5 +77,8 @@ public :
     
     friend  std::ostream& operator << (std::ostream&, const solver_output&);
 };
+
+
+/** @} */ // end of solver group
 
 } //namespace simcoon

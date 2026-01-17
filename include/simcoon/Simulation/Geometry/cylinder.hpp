@@ -28,6 +28,16 @@
 
 namespace simcoon{
 
+/**
+ * @file cylinder.hpp
+ * @brief Inclusion geometry functions.
+ */
+
+/** @addtogroup geometry
+ *  @{
+ */
+
+
 //======================================
 class cylinder : public geometry
 //======================================
@@ -58,5 +68,8 @@ class cylinder : public geometry
 		
         friend std::ostream& operator << (std::ostream&, const cylinder&);
 };
+
+
+/** @} */ // end of geometry group
 
 } //namespace simcoon

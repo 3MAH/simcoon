@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file isv.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
+
 //======================================
 class isv
 //======================================
@@ -52,5 +62,8 @@ class isv
 
         friend std::ostream& operator << (std::ostream&, const isv&);
 };
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

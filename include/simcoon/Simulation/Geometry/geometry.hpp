@@ -26,9 +26,23 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file geometry.hpp
+ * @brief Inclusion geometry functions.
+ */
+
+/** @addtogroup geometry
+ *  @{
+ */
+
+/**
+ * @brief Base class for defining the geometry of a phase.
+ * 
+ * This class provides a foundation for describing the geometric properties
+ * of material phases in homogenization schemes. Derived classes include
+ * ellipsoid, cylinder, and layer geometries.
+ */
 class geometry
-//======================================
 {
 	private:
 
@@ -36,17 +50,48 @@ class geometry
 
 	public :
 
-        double concentration;
+        double concentration;   ///< Volume fraction of the phase
     
-		geometry(); 	//default constructor
-		geometry(const double &);	//constructor with parameters - allocates memory for statev
+        /**
+         * @brief Default constructor.
+         * @details Initializes an empty geometry object.
+         */
+		geometry();
 
-		geometry(const geometry&);	//Copy constructor
+        /**
+         * @brief Constructor with concentration parameter.
+         * @param c The volume fraction of the phase (double)
+         */
+		geometry(const double &c);
+
+        /**
+         * @brief Copy constructor.
+         * @param geo The geometry object to copy
+         */
+		geometry(const geometry &geo);
+
+        /**
+         * @brief Virtual destructor.
+         */
         virtual ~geometry();
     
-		virtual geometry& operator = (const geometry&);
+        /**
+         * @brief Assignment operator.
+         * @param geo The geometry object to assign
+         * @return Reference to this geometry object
+         */
+		virtual geometry& operator = (const geometry &geo);
 		
-        friend std::ostream& operator << (std::ostream&, const geometry&);
+        /**
+         * @brief Output stream operator.
+         * @param os Output stream
+         * @param geo Geometry object to output
+         * @return Reference to the output stream
+         */
+        friend std::ostream& operator << (std::ostream &os, const geometry &geo);
 };
+
+
+/** @} */ // end of geometry group
 
 } //namespace simcoon

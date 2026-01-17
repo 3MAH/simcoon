@@ -25,6 +25,7 @@
 #pragma once
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
+#include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
 
 extern "C"{
 /**
@@ -117,6 +118,11 @@ extern "C"{
 }
 
 namespace simcoon{
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
 
 /**
  * @brief Set the size of the statev vector, required to store information of an phase_characteristics object
@@ -733,4 +739,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
 */ 
 void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT);
             
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

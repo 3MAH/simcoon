@@ -24,6 +24,16 @@
 #include <armadillo>
 
 namespace simcoon{
+
+/**
+ * @file elastic_isotropic.hpp
+ * @brief Thermomechanical elasticity model.
+ */
+
+/** @addtogroup umat_thermomechanical
+ *  @{
+ */
+
     
     ///@brief The elastic UMAT requires 2 constants:
     ///@brief props[0] : Young modulus
@@ -34,4 +44,7 @@ namespace simcoon{
     
     void umat_elasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
     
+
+/** @} */ // end of umat_thermomechanical group
+
 } //namespace simcoon

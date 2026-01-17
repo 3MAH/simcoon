@@ -25,7 +25,20 @@
 #include <armadillo>
 
 namespace simcoon{
+
+/**
+ * @file damage_LLD_0.hpp
+ * @brief Mechanical damage model.
+ */
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
     
 void umat_damage_LLD_0(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
     
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

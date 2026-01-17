@@ -29,6 +29,16 @@
 
 namespace simcoon{
 
+/**
+ * @file ellipsoid_multi.hpp
+ * @brief Ellipsoidal inclusion homogenization functions.
+ */
+
+/** @addtogroup homogenization
+ *  @{
+ */
+
+
 //======================================
 class ellipsoid_multi : public phase_multi
 //======================================
@@ -73,5 +83,8 @@ protected:
     friend std::ostream& operator << (std::ostream&, const ellipsoid_multi&);
     
 };
+
+
+/** @} */ // end of homogenization group
 
 } //namespace simcoon

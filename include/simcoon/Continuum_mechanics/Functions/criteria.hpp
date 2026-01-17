@@ -15,9 +15,11 @@
 
  */
 
-///@file criteria.hpp
-///@brief Provide function for yield surfaces
-///@version 1.0
+/**
+ * @file criteria.hpp
+ * @brief Functions for yield surfaces and equivalent stress computations.
+ * @version 1.0
+ */
 
 #pragma once
 #include <string.h>
@@ -25,6 +27,10 @@
 
 namespace simcoon
 {
+
+/** @addtogroup criteria
+ *  @{
+ */
 
     /**
      * @brief Provides the Drucker equivalent stress, given its vector representation
@@ -152,7 +158,7 @@ namespace simcoon
     arma::mat P_Ani(const arma::vec &P_params);
 
     /**
-     * @brief Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion \cite Hill.48 in the Voigt format (6x6 matrix), given its vector representation
+     * @brief Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion (Hill, 1948) in the Voigt format (6x6 matrix), given its vector representation
      * @param P_params The vector of parameters
      * @return The anisotropic Hill48 configurational tensor (arma::mat)
      * @details The vector of parameters must be constituted of 6 values, respectively:
@@ -192,7 +198,7 @@ namespace simcoon
             0 & 0 & 0 & 0 & 3 & 0 \\
             0 & 0 & 0 & 0 & 0 & 3 \end{array} \right)
     \f]
-    So that \f$ F = H = G = 1/2 \f$, \f$ = L = M = N = 3/2 \f$
+    So that \f$ F = H = G = 1/2 \f$ and \f$ L = M = N = 3/2 \f$
      * @code
             vec P_params = {0.5,0.6,0.7,3.,3.,3.2};
             mat P = P_Hill(P_params);
@@ -201,7 +207,7 @@ namespace simcoon
     arma::mat P_Hill(const arma::vec &P_params);
 
     /**
-     * @brief Provides an anisotropic configurational tensor considering the quadratic Deshpande–Fleck–Ashby yield criterion \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) in the Voigt format (6x6 matrix), given its vector representation
+     * @brief Provides an anisotropic configurational tensor considering the quadratic Deshpande–Fleck–Ashby yield criterion (Deshpande, Fleck & Ashby, 2001) in the Voigt format (6x6 matrix), given its vector representation
      * @param P_params The vector of parameters
      * @return The anisotropic DFA configurational tensor (arma::mat)
      * @details The vector of parameters must be constituted of 7 values, respectively:
@@ -304,10 +310,10 @@ namespace simcoon
             vec dsigma_Hill = dHill_stress(sigma, P_params);
      * @endcode
     */
-    arma::vec dHill_stress(const arma::vec &, const arma::vec &);
+    arma::vec dHill_stress(const arma::vec &sigma, const arma::vec &P_params);
 
     /**
-     * @brief Provides the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
+     * @brief Provides the Deshpande–Fleck–Ashby (2001) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
      * @param sigma The stress vector
      * @param P_params The vector of parameters
      * @return The DFA anisotropic equivalent stress (double)
@@ -322,7 +328,7 @@ namespace simcoon
     double DFA_stress(const arma::vec &sigma, const arma::vec &P_params);
 
     /**
-     * @brief Provides the derivative of the \cite Deshpande, V. S., Fleck, N. A. and Ashby, M. F. (2001) (DFA) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
+     * @brief Provides the derivative of the Deshpande–Fleck–Ashby (2001) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
      * @param sigma The stress vector
      * @param P_params The vector of parameters
      * @return The derivative of the DFA anisotropic equivalent stress (arma::vec)
@@ -337,7 +343,7 @@ namespace simcoon
             vec dsigma_DFA = dDFA_stress(sigma, P_params);
      * @endcode
     */
-    arma::vec dDFA_stress(const arma::vec &, const arma::vec &);
+    arma::vec dDFA_stress(const arma::vec &sigma, const arma::vec &P_params);
 
     /**
      * @brief Provides the anisotropic equivalent stress, given the stress in a vector format and a vector of parameters \f$ ( P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44},P_{55},P_{66} ) \f$
@@ -370,7 +376,7 @@ namespace simcoon
             vec dsigma_Ani = dAni_stress(sigma, P_params);
      * @endcode
     */
-    arma::vec dAni_stress(const arma::vec &, const arma::vec &);
+    arma::vec dAni_stress(const arma::vec &sigma, const arma::vec &P_params);
 
     // This function computes the selected equivalent stress function
 
@@ -405,5 +411,7 @@ namespace simcoon
      * @endcode
     */
     arma::vec dEq_stress(const arma::vec &sigma, const std::string &type_eq, const arma::vec &P_params = arma::zeros(1));
+
+/** @} */ // end of criteria group
 
 } // namespace simcoon

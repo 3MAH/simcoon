@@ -27,6 +27,16 @@
 
 namespace simcoon{
 
+/**
+ * @file generation.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //======================================
 class generation
 //======================================
@@ -37,23 +47,103 @@ class generation
 
 	public :
     
-        std::vector<individual> pop;
-		
-		generation(); 	//default constructor
-		generation(const int&, const int&, int&, const double & = 0.);	//constructor - allocates memory for statev
-		generation(const generation&);	//Copy constructor
-		~generation();
-		
-		int size() const {return pop.size();}       // returns the number of individuals
+	/**
+	 * @brief Class representing a generation (population) in a genetic algorithm.
+	 *
+	 * A generation is a collection of individuals (candidate solutions) used in evolutionary
+	 * parameter identification. It provides methods for population management, classification,
+	 * and unique id assignment.
+	 *
+	 * @details The class stores:
+	 * - Vector of individuals (pop)
+	 * - Methods for construction, classification, and destruction
+	 */
+	class generation
+	{
+	private:
+	protected:
+	public:
+		std::vector<individual> pop; ///< Population of individuals
 
+		/**
+		 * @brief Default constructor.
+		 */
+		generation();
+
+		/**
+		 * @brief Constructor with population size and parameter count.
+		 * @param npop Number of individuals
+		 * @param nparam Number of parameters per individual
+		 * @param id_start Starting id for individuals
+		 * @param lambda Initial lambda value (default: 0.0)
+		 */
+		generation(const int&, const int&, int&, const double & = 0.);
+
+		/**
+		 * @brief Copy constructor.
+		 * @param gen Generation to copy
+		 */
+		generation(const generation&);
+
+		/**
+		 * @brief Destructor.
+		 */
+		~generation();
+
+		/**
+		 * @brief Get the number of individuals in the population.
+		 * @return Population size
+		 */
+		int size() const {return pop.size();}
+
+		/**
+		 * @brief Construct the population with given size and parameters.
+		 * @param npop Number of individuals
+		 * @param nparam Number of parameters
+		 * @param id_start Starting id
+		 * @param lambda Initial lambda value
+		 */
 		void construct(const int&, const int&, int&, const double & = 0.);
+
+		/**
+		 * @brief Classify individuals by cost (fitness).
+		 */
 		void classify();
+
+		/**
+		 * @brief Assign new unique ids to individuals.
+		 * @param id_start Starting id
+		 */
 		void newid(int &);
+
+		/**
+		 * @brief Destroy the population (clear individuals).
+		 */
+		void destruct();
+
+		/**
+		 * @brief Assignment operator.
+		 * @param gen Generation to assign
+		 * @return Reference to this object
+		 */
+		virtual generation& operator = (const generation&);
+
+		/**
+		 * @brief Stream output operator.
+		 * @param os Output stream
+		 * @param gen Generation to output
+		 * @return Output stream
+		 */
+		friend std::ostream& operator << (std::ostream&, const generation&);
+	};
 		void destruct();
 
 		virtual generation& operator = (const generation&);
 		
 		friend std::ostream& operator << (std::ostream&, const generation&);
 };
+
+
+/** @} */ // end of identification group
 
 } //namespace simcoon

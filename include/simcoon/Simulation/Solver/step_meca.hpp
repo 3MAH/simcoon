@@ -28,6 +28,16 @@
 
 namespace simcoon{
 
+/**
+ * @file step_meca.hpp
+ * @brief Solver functions and classes.
+ */
+
+/** @addtogroup solver
+ *  @{
+ */
+
+
 //======================================
 class step_meca : public step
 //======================================
@@ -65,5 +75,8 @@ protected:
         
     friend  std::ostream& operator << (std::ostream&, const step_meca&);
 };
+
+
+/** @} */ // end of solver group
 
 } //namespace simcoon

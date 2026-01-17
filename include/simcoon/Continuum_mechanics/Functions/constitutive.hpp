@@ -22,14 +22,17 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 namespace simcoon{
 
 /**
-* @file constitutive.hpp
-* @author Yves Chemisky 
-* @section Constitutive library contains all the function helpful to write a constitutive relation of constitutive model
-*/
+ * @file constitutive.hpp
+ * @author Yves Chemisky 
+ * @brief Constitutive library contains all the function helpful to write a constitutive relation of constitutive model
+ */
+
+/** @addtogroup constitutive
+ *  @{
+ */
 
 /**
  * @brief Returns the fourth order identity tensor Ireal written in Voigt notation
- * @param None
  * @return The following 6x6 mat (arma::mat)
 \f[
     I_{real} = \left( \begin{array}{cccccc}
@@ -49,7 +52,6 @@ arma::mat Ireal();
 
 /**
  * @brief Returns the volumic of the identity tensor Ivol written in Voigt notation
- * @param None
  * @return The following 6x6 mat (arma::mat) 
 \f[
     I_{vol} = \left( \begin{array}{cccccc}
@@ -69,7 +71,6 @@ arma::mat Ivol();
 
 /**
  * @brief Returns the deviatoric of the identity tensor Idev written in Voigt notation
- * @param None
  * @return The following 6x6 mat (arma::mat)
 \f[ 
     I_{dev} = I_{real} - I_{vol} = \left( \begin{array}{cccccc}
@@ -89,7 +90,6 @@ arma::mat Idev();
 
 /**
  * @brief Returns the fourth order identity tensor \f$ \widehat{I} \f$ written in Voigt notation
- * @param None
  * @return The following 6x6 mat (arma::mat)
 \f[ 
     \widehat{I} = \left( \begin{array}{cccccc}
@@ -110,7 +110,6 @@ arma::mat Idev();
 
 /**
  * @brief Returns the deviatoric part of the identity tensor, in the form of \f$ \widehat{I} \f$ considering the Voigt notation
- * @param None
  * @return The following 6x6 mat (arma::mat) 
 \f[ 
     I_{dev2} = \left( \begin{array}{cccccc}
@@ -130,7 +129,6 @@ arma::mat Idev2();
 
 /**
  * @brief Returns the expansion vector
- * @param None
  * @return The following 6 vec (arma::vec) 
 \f[ 
     I_{th} = \left( \begin{array}{c}
@@ -150,7 +148,6 @@ arma::vec Ith();
 
 /**
  * @brief Returns the operator from a stress to strain Voigt convention
- * @param None
  * @return The following 6 vec (arma::vec) 
 \f[ 
     I_{r2} = \left( \begin{array}{ccc}
@@ -170,7 +167,6 @@ arma::vec Ir2();
 
 /**
  * @brief Returns the operator from a strain to stress Voigt convention
- * @param None
  * @return The following 6 vec (arma::vec)
 \f[ 
     I_{r05} = \left( \begin{array}{ccc}
@@ -247,11 +243,20 @@ arma::mat L_cubic(const double &C1, const double &C2, const double &C3, const st
         mat Mcubic = M_cubic(C11,C12,C44);
  * @endcode 
 */
-arma::mat M_cubic(const double &C1, const double &C2, const double &C3, const std::string& = "EnuG");
+arma::mat M_cubic(const double &C1, const double &C2, const double &C3, const std::string& conv = "EnuG");
 
 /**
  * @brief Provides the elastic stiffness tensor for an orthotropic material.
- * @param C11, C12, C22, C23, C33, C44, C55, C66, conv
+ * @param C11 first stiffness coefficient (or Ex)
+ * @param C12 second stiffness coefficient (or Ey)
+ * @param C13 third stiffness coefficient (or Ez)
+ * @param C22 fourth stiffness coefficient (or nu_xy)
+ * @param C23 fifth stiffness coefficient (or nu_yz)
+ * @param C33 sixth stiffness coefficient (or nu_xz)
+ * @param C44 seventh stiffness coefficient (or G_xy)
+ * @param C55 eighth stiffness coefficient (or G_yz)
+ * @param C66 ninth stiffness coefficient (or G_xz)
+ * @param conv convention string: "Cii" for stiffness coefficients or "EnuG" for material parameters
  * @return The 6x6 stiffness matrix considering a Voigt notation (arma::mat)
  * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{yz}, \nu_{xz}, G_{xy}, G_{yz}, G_{xz} \f$.
  * The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
@@ -272,7 +277,16 @@ arma::mat L_ortho(const double &C11, const double &C12, const double &C13, const
 
 /**
  * @brief Provides the elastic compliance tensor for an orthotropic material.
- * @param C11, C12, C22, C23, C33, C44, C55, C66, conv
+ * @param C11 first stiffness coefficient (or Ex)
+ * @param C12 second stiffness coefficient (or Ey)
+ * @param C13 third stiffness coefficient (or Ez)
+ * @param C22 fourth stiffness coefficient (or nu_xy)
+ * @param C23 fifth stiffness coefficient (or nu_yz)
+ * @param C33 sixth stiffness coefficient (or nu_xz)
+ * @param C44 seventh stiffness coefficient (or G_xy)
+ * @param C55 eighth stiffness coefficient (or G_yz)
+ * @param C66 ninth stiffness coefficient (or G_xz)
+ * @param conv convention string: "Cii" for stiffness coefficients or "EnuG" for material parameters
  * @return The 6x6 compliance matrix considering a Voigt notation (arma::mat)
  * @details Arguments could be all the stiffness coefficients (\f$ C_{ij} \f$) or the material parameter. In this last case for an orthotropic material the material parameters should be : \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{yz}, \nu_{xz}, G_{xy}, G_{yz}, G_{xz} \f$.
  * The last argument must be set to “Cii” if the inputs are the stiffness coefficients or to “EnuG” if the inputs are the material parameters.
@@ -295,7 +309,7 @@ arma::mat M_ortho(const double &C11, const double &C12, const double &C13, const
  * @brief Provides the elastic stiffness tensor for an isotropic transverse material.
  * @param EL, ET, nuTL, nuTT, GLT, axis
  * @return The 6x6 stiffness matrix considering a Voigt notation (arma::mat)
- * @details Arguments are longitudinal Young modulus \f$ E_L \f$ (EL), transverse young modulus \f$ E_T \f$ (ET), Poisson’s ratio for loading along the longitudinal axis \f$ nu_{TL} \f$ (nuTL), Poisson’s ratio for loading along the transverse axis \f$ \nu_{TT} \f$ (nuTT), shear modulus \f$ G_{LT} \f$ (GLT) and the axis of symmetry.
+ * @details Arguments are longitudinal Young modulus \f$ E_L \f$ (EL), transverse Young modulus \f$ E_T \f$ (ET), Poisson's ratio for loading along the longitudinal axis \f$ \nu_{TL} \f$ (nuTL), Poisson's ratio for loading along the transverse axis \f$ \nu_{TT} \f$ (nuTT), shear modulus \f$ G_{LT} \f$ (GLT) and the axis of symmetry.
  * @code 
         double EL = alead(10000., 100000.);
         double ET = alead(10000., 100000.);
@@ -312,7 +326,7 @@ arma::mat L_isotrans(const double &EL, const double &ET, const double &nuTL, con
  * @brief Provides the elastic compliance tensor for an isotropic transverse material.
  * @param EL, ET, nuTL, nuTT, GLT, axis
  * @return The 6x6 compliance matrix considering a Voigt notation (arma::mat)
- * @details Arguments are longitudinal Young modulus \f$ E_L \f$ (EL), transverse young modulus \f$ E_T \f$ (ET), Poisson’s ratio for loading along the longitudinal axis \f$ nu_{TL} \f$ (nuTL), Poisson’s ratio for loading along the transverse axis \f$ \nu_{TT} \f$ (nuTT), shear modulus \f$ G_{LT} \f$ (GLT) and the axis of symmetry.
+ * @details Arguments are longitudinal Young modulus \f$ E_L \f$ (EL), transverse Young modulus \f$ E_T \f$ (ET), Poisson's ratio for loading along the longitudinal axis \f$ \nu_{TL} \f$ (nuTL), Poisson's ratio for loading along the transverse axis \f$ \nu_{TT} \f$ (nuTT), shear modulus \f$ G_{LT} \f$ (GLT) and the axis of symmetry.
  * @code 
         double EL = alead(10000., 100000.);
         double ET = alead(10000., 100000.);
@@ -326,14 +340,15 @@ arma::mat L_isotrans(const double &EL, const double &ET, const double &nuTL, con
 arma::mat M_isotrans(const double &EL, const double &ET, const double &nuTL, const double &nuTT, const double &GLT, const int &axis);
 
 /**
- * @brief Provides the viscous tensor H an isotropic material.
- * @param etaB, etaS. 
+ * @brief Provides the viscous tensor H for an isotropic material.
+ * @param etaB Bulk viscosity \f$ \eta_B \f$
+ * @param etaS Shear viscosity \f$ \eta_S \f$
  * @return The 6x6 viscous matrix considering a Voigt notation (arma::mat)
 \f[ 
     H_{iso} = \left( \begin{array}{cccccc}
-    \eta_B + 4/3 etaS & \eta_B - 2/3 etaS & \eta_B - 2/3 etaS & 0 & 0 & 0 \\
-    \eta_B - 2/3 etaS & \eta_B + 4/3 etaS & \eta_B - 2/3 etaS & 0 & 0 & 0 \\
-    \eta_B - 2/3 etaS & \eta_B - 2/3 etaS & \eta_B + 4/3 etaS & 0 & 0 & 0 \\
+    \eta_B + \frac{4}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & 0 & 0 & 0 \\
+    \eta_B - \frac{2}{3} \eta_S & \eta_B + \frac{4}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & 0 & 0 & 0 \\
+    \eta_B - \frac{2}{3} \eta_S & \eta_B - \frac{2}{3} \eta_S & \eta_B + \frac{4}{3} \eta_S & 0 & 0 & 0 \\
     0 & 0 & 0 & \eta_S & 0 & 0 \\
     0 & 0 & 0 & 0 & \eta_S & 0 \\
     0 & 0 & 0 & 0 & 0 & \eta_S \end{array} \right)
@@ -383,7 +398,7 @@ arma::vec el_pred(const arma::mat &L, const arma::vec &Eel, const int &ndi=3);
 
 //Return 
 /**
- * @brief Provides the isotropized tangent modulus from the spectral decomposition (see \cite Bornet.etal.2001)
+ * @brief Provides the isotropized tangent modulus from the spectral decomposition (Bornet et al., 2001)
  * @param Lt
  * @return The 6x6 isotropic matrix considering a Voigt notation (arma::mat)
  * @details The returned isotropic tensor is called consistent since for any given strain it return the same stress as the anisotropic version.
@@ -399,5 +414,7 @@ arma::vec el_pred(const arma::mat &L, const arma::vec &Eel, const int &ndi=3);
  * @endcode 
 */
 arma::mat Isotropize(const arma::mat &Lt);
+
+/** @} */ // end of constitutive group
 
 } //namespace simcoon

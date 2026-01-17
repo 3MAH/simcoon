@@ -29,6 +29,16 @@
 
 namespace simcoon{
 
+/**
+ * @file ODF2Nphases.hpp
+ * @brief ODF to N-phases discretization.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //Fill the ODF from a vector of angles, providing a file with the peak informations
 arma::vec get_densities_ODF(const arma::vec &, const std::string &, const std::string &, const bool &);
     
@@ -40,5 +50,8 @@ phase_characteristics discretize_ODF(const phase_characteristics &, ODF &, const
 
 //Writes the Nphases.dat file for multiphase modeling, according to specific ODFs
 //void ODF2Nphases(const arma::Col<int> &, const arma::Col<int> &, const arma::Col<int> &, const std::vector<std::string> &, const arma::mat &, const bool& = false, const double& = 0.);
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

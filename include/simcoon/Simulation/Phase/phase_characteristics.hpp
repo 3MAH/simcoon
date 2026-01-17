@@ -34,9 +34,31 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file phase_characteristics.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
+
+/**
+ * @brief Class representing a material phase with full mechanical state.
+ * 
+ * This class combines geometry, material properties, and state variables to represent
+ * a complete phase in a heterogeneous material. It supports hierarchical structures
+ * for multi-scale modeling, where a phase can contain sub-phases.
+ * 
+ * @details The phase_characteristics class manages:
+ * - Geometric description (shape type and parameters)
+ * - Material properties (UMAT name, elastic constants, etc.)
+ * - State variables in both local and global coordinate systems
+ * - Output streams for results
+ * - Sub-phases for multi-scale homogenization
+ */
 class phase_characteristics
-//======================================
 {
 	private:
 
@@ -44,41 +66,131 @@ class phase_characteristics
 
 	public :
 
-        int shape_type;
-        int sv_type;
-        std::shared_ptr<geometry> sptr_shape; //The shape of the phase
-        std::shared_ptr<phase_multi> sptr_multi; //The multiscale information of the phase
-        std::shared_ptr<material_characteristics> sptr_matprops;
-        std::shared_ptr<state_variables> sptr_sv_global;
-        std::shared_ptr<state_variables> sptr_sv_local;
-        std::shared_ptr<std::ofstream> sptr_out_global;
-        std::shared_ptr<std::ofstream> sptr_out_local;
+        int shape_type; ///< Type of geometric shape (0: sphere, 1: cylinder, 2: ellipsoid, etc.)
+        int sv_type; ///< Type of state variables (0: mechanical, 1: thermomechanical)
+        std::shared_ptr<geometry> sptr_shape; ///< Pointer to the geometric shape of the phase
+        std::shared_ptr<phase_multi> sptr_multi; ///< Pointer to multiscale information
+        std::shared_ptr<material_characteristics> sptr_matprops; ///< Pointer to material properties
+        std::shared_ptr<state_variables> sptr_sv_global; ///< Pointer to state variables in global frame
+        std::shared_ptr<state_variables> sptr_sv_local; ///< Pointer to state variables in local frame
+        std::shared_ptr<std::ofstream> sptr_out_global; ///< Output stream for global results
+        std::shared_ptr<std::ofstream> sptr_out_local; ///< Output stream for local results
     
-        std::vector<phase_characteristics> sub_phases;
-        std::string sub_phases_file;
+        std::vector<phase_characteristics> sub_phases; ///< Vector of sub-phases for multi-scale modeling
+        std::string sub_phases_file; ///< Filename containing sub-phase definitions
     
-		phase_characteristics(); 	//default constructor
+        /**
+         * @brief Default constructor.
+         */
+		phase_characteristics();
     
+        /**
+         * @brief Full constructor with all parameters.
+         * @param shape_type Type of geometric shape
+         * @param sv_type Type of state variables
+         * @param sptr_shape Pointer to geometry
+         * @param sptr_multi Pointer to multiscale information
+         * @param sptr_matprops Pointer to material properties
+         * @param sptr_sv_global Pointer to global state variables
+         * @param sptr_sv_local Pointer to local state variables
+         * @param sptr_out_global Global output stream
+         * @param sptr_out_local Local output stream
+         * @param sub_phases_file File with sub-phase definitions
+         */
         phase_characteristics(const int &, const int &, const std::shared_ptr<geometry> &, const std::shared_ptr<phase_multi> &, const std::shared_ptr<material_characteristics> &, const std::shared_ptr<state_variables> &, const std::shared_ptr<state_variables> &, const std::shared_ptr<std::ofstream> &, const std::shared_ptr<std::ofstream> &, const std::string &);
 
-		phase_characteristics(const phase_characteristics&);	//Copy constructor
+        /**
+         * @brief Copy constructor.
+         * @param pc Phase characteristics to copy
+         */
+		phase_characteristics(const phase_characteristics&);
+        
+        /**
+         * @brief Virtual destructor.
+         */
         virtual ~phase_characteristics();
     
+        /**
+         * @brief Construct the phase with given types.
+         * @param shape_type Type of geometric shape
+         * @param sv_type Type of state variables
+         */
         virtual void construct(const int &, const int &);
+        
+        /**
+         * @brief Construct sub-phases recursively.
+         * @param shape_type Type of geometric shape
+         * @param sv_type Type of state variables
+         * @param n_sub Number of sub-phases
+         */
         virtual void sub_phases_construct(const int &, const int &, const int &);
+        
+        /**
+         * @brief Copy current values to start-of-increment values.
+         */
         virtual void to_start();
+        
+        /**
+         * @brief Set current values from start-of-increment values.
+         * @param control Control flag for selective update
+         */
         virtual void set_start(const int &);
+        
+        /**
+         * @brief Transform state variables from local to global frame.
+         */
         virtual void local2global();
+        
+        /**
+         * @brief Transform state variables from global to local frame.
+         */
         virtual void global2local();
-        virtual void copy(const phase_characteristics&);   //Be warned that the ofstreams are NOT copied
+        
+        /**
+         * @brief Copy from another phase_characteristics (without ofstreams).
+         * @param pc Phase characteristics to copy
+         * @warning Output streams are NOT copied
+         */
+        virtual void copy(const phase_characteristics&);
 
+        /**
+         * @brief Assignment operator.
+         * @param pc Phase characteristics to assign
+         * @return Reference to this object
+         */
 		virtual phase_characteristics& operator = (const phase_characteristics&);
     
+        /**
+         * @brief Define output file for results.
+         * @param path Output directory path
+         * @param filename Base filename (default: "results")
+         * @param outputtype Type of output "global" or "local" (default: "global")
+         */
         virtual void define_output(const std::string &, const std::string & = "results", const std::string & = "global");
+        
+        /**
+         * @brief Write output to file.
+         * @param so Solver output configuration
+         * @param block Current block number
+         * @param step Current step number
+         * @param inc Current increment number
+         * @param sub_inc Current sub-increment number
+         * @param time Current time
+         * @param outputtype Type of output "global" or "local" (default: "global")
+         */
         virtual void output(const solver_output &, const int &, const int &, const int &, const int &, const double &, const std::string & = "global");
     
     
+        /**
+         * @brief Stream output operator.
+         * @param os Output stream
+         * @param pc Phase characteristics to output
+         * @return Output stream
+         */
         friend std::ostream& operator << (std::ostream&, const phase_characteristics&);
 };
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

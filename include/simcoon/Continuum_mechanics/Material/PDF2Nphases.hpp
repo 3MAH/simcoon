@@ -29,6 +29,16 @@
 
 namespace simcoon{
 
+/**
+ * @file PDF2Nphases.hpp
+ * @brief PDF to N-phases discretization.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //Fill the PDF from a vector of parameter, providing a file with the peak informations
 arma::vec get_densities_PDF(const arma::vec &, const std::string &, const std::string &);
     
@@ -40,5 +50,8 @@ phase_characteristics discretize_PDF(const phase_characteristics &, PDF &, const
 
 //Writes the Nphases.dat file for multiphase modeling, according to specific ODFs
 //void PDF2Nphases(const arma::Col<int> &, const arma::Col<int> &, const arma::Col<int> &, const std::vector<std::string> &, const arma::mat &, const bool& = false, const double& = 0.);
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

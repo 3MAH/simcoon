@@ -26,32 +26,87 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file individual.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
+
+/**
+ * @brief Class representing an individual in a genetic algorithm for parameter identification.
+ *
+ * An individual encodes a candidate solution (set of parameters) and its associated cost (fitness).
+ * Used in evolutionary algorithms for model calibration or optimization.
+ *
+ * @details The class stores:
+ * - Parameter vector (p)
+ * - Cost function value (cout)
+ * - Unique identifier (id) and rank in the population
+ * - Lambda: step size or regularization parameter
+ */
 class individual
-//======================================
 {
-	private:
+private:
+protected:
+public:
+	int np; ///< Number of parameters
+	double cout; ///< Cost function value (fitness)
+	int id; ///< Unique identifier
+	int rank; ///< Rank in the population
+	arma::vec p; ///< Parameter vector
+	double lambda; ///< Step or regularization parameter
 
-	protected:
+	/**
+	 * @brief Default constructor.
+	 */
+	individual();
 
-	public :
-		int np;
-        double cout;
-		int id;
-		int rank;		
-        arma::vec p;
-        double lambda;   //The step or Lambda applied
-		
-		individual(); 	//default constructor
-		individual(const int&,const int&,const double&);	//constructor - allocates memory for statev
-		individual(const individual&);	//Copy constructor
-		~individual();
+	/**
+	 * @brief Constructor with number of parameters, id, and lambda.
+	 * @param np Number of parameters
+	 * @param id Unique identifier
+	 * @param lambda Step or regularization parameter
+	 */
+	individual(const int&, const int&, const double&);
 
-		void construct();
+	/**
+	 * @brief Copy constructor.
+	 * @param ind Individual to copy
+	 */
+	individual(const individual&);
 
-		virtual individual& operator = (const individual&);
-		
-        friend std::ostream& operator << (std::ostream&, const individual&);
+	/**
+	 * @brief Destructor.
+	 */
+	~individual();
+
+	/**
+	 * @brief Allocate and initialize parameter vector.
+	 */
+	void construct();
+
+	/**
+	 * @brief Assignment operator.
+	 * @param ind Individual to assign
+	 * @return Reference to this object
+	 */
+	virtual individual& operator = (const individual&);
+
+	/**
+	 * @brief Stream output operator.
+	 * @param os Output stream
+	 * @param ind Individual to output
+	 * @return Output stream
+	 */
+	friend std::ostream& operator << (std::ostream&, const individual&);
 };
     
+
+/** @} */ // end of identification group
+
 } //namespace simcoon

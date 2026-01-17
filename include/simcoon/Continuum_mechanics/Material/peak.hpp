@@ -27,6 +27,16 @@
 
 namespace simcoon{
 
+/**
+ * @file peak.hpp
+ * @brief Peak characteristics for ODF/PDF.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //======================================
 class peak
 //======================================
@@ -61,5 +71,8 @@ class peak
     
         friend std::ostream& operator << (std::ostream&, const peak&);
 };
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

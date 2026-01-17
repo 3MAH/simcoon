@@ -30,6 +30,16 @@
 
 namespace simcoon{
 
+/**
+ * @file phase_multi.hpp
+ * @brief Multi-phase homogenization functions.
+ */
+
+/** @addtogroup homogenization
+ *  @{
+ */
+
+
 //======================================
 class phase_multi
 //======================================
@@ -59,5 +69,8 @@ class phase_multi
 		
         friend std::ostream& operator << (std::ostream&, const phase_multi&);
 };
+
+
+/** @} */ // end of homogenization group
 
 } //namespace simcoon

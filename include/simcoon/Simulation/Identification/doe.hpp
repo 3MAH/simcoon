@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file doe.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //This function computes the test matrix with the parameters of a uniform multidimensional distribution
 arma::mat doe_uniform(const int &, const int &, const std::vector<parameters> &);
 
@@ -38,4 +48,7 @@ arma::mat doe_random(const int &, const int &, const std::vector<parameters> &);
 //This function is utilized to initialize the first generation
 void gen_initialize(generation &, int &, int&, int &, const int &, const int &, const std::vector<parameters> &, const double &);
     
+
+/** @} */ // end of identification group
+
 } //namespace simcoon

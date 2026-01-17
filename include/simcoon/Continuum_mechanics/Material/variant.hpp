@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file variant.hpp
+ * @brief Martensite variant characteristics.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //======================================
 class variant
 //======================================
@@ -52,5 +62,8 @@ class variant
 		
         friend std::ostream& operator << (std::ostream&, const variant&);
 };
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

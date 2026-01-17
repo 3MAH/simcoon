@@ -30,9 +30,28 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file material_characteristics.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
+
+/**
+ * @brief Base class for material characteristics.
+ * 
+ * This class stores material properties and identification information used by constitutive models.
+ * It serves as the parent class for phase_characteristics and other specialized material classes.
+ * 
+ * @details The material is characterized by:
+ * - A UMAT name identifying the constitutive model
+ * - Material orientation angles (Euler angles \f$ \psi, \theta, \phi \f$)
+ * - Material properties vector (elastic constants, hardening parameters, etc.)
+ */
 class material_characteristics
-//======================================
 {
 	private:
 
@@ -40,32 +59,102 @@ class material_characteristics
 
 	public :
 
-		int number;
-        std::string umat_name;
-        int save;   //If the restults of this material being saved or not
-        double psi_mat;
-        double theta_mat;
-        double phi_mat;
+		int number; ///< Material identification number
+        std::string umat_name; ///< Name of the constitutive model (UMAT)
+        int save; ///< Flag indicating if results should be saved (1) or not (0)
+        double psi_mat; ///< First Euler angle for material orientation (rad)
+        double theta_mat; ///< Second Euler angle for material orientation (rad)
+        double phi_mat; ///< Third Euler angle for material orientation (rad)
         
-		int nprops;
-		arma::vec props;
+		int nprops; ///< Number of material properties
+		arma::vec props; ///< Vector of material properties
     
-		material_characteristics(); 	//default constructor
-		material_characteristics(const int &, const bool& = true, const double& = 0.);	//constructor - allocates memory for props
+        /**
+         * @brief Default constructor.
+         */
+		material_characteristics();
+        
+        /**
+         * @brief Constructor allocating memory for material properties.
+         * @param nprops Number of material properties
+         * @param init If true, initialize arrays to zero (default: true)
+         * @param value Initial value for properties (default: 0.0)
+         */
+		material_characteristics(const int &, const bool& = true, const double& = 0.);
     
+        /**
+         * @brief Full constructor with all parameters.
+         * @param number Material identification number
+         * @param umat_name Name of the constitutive model
+         * @param save Flag for saving results
+         * @param psi_mat First Euler angle (rad)
+         * @param theta_mat Second Euler angle (rad)
+         * @param phi_mat Third Euler angle (rad)
+         * @param nprops Number of properties
+         * @param props Properties vector
+         */
         material_characteristics(const int &, const std::string &, const int &, const double &, const double &, const double &, const int &, const arma::vec &);
 
-		material_characteristics(const material_characteristics&);	//Copy constructor
+        /**
+         * @brief Copy constructor.
+         * @param mc Material characteristics to copy
+         */
+		material_characteristics(const material_characteristics&);
+        
+        /**
+         * @brief Virtual destructor.
+         */
         virtual ~material_characteristics();
 
+        /**
+         * @brief Resize arrays to default size.
+         */
 		virtual void resize();
+        
+        /**
+         * @brief Resize arrays for given number of properties.
+         * @param nprops Number of material properties
+         * @param init If true, initialize arrays to zero
+         * @param value Initial value for properties
+         */
 		virtual void resize(const int &, const bool & = true, const double & = 0.);
+        
+        /**
+         * @brief Update all material characteristics.
+         * @param number Material identification number
+         * @param umat_name Name of the constitutive model
+         * @param save Flag for saving results
+         * @param psi_mat First Euler angle (rad)
+         * @param theta_mat Second Euler angle (rad)
+         * @param phi_mat Third Euler angle (rad)
+         * @param nprops Number of properties
+         * @param props Properties vector
+         */
 		virtual void update(const int &, const std::string &, const int &, const double &, const double &, const double &, const int &, const arma::vec &);
-		virtual int dimprops () const {return nprops;}       // returns the number of props, nprops
+        
+        /**
+         * @brief Get the number of material properties.
+         * @return Number of properties (nprops)
+         */
+		virtual int dimprops () const {return nprops;}
     
+        /**
+         * @brief Assignment operator.
+         * @param mc Material characteristics to assign
+         * @return Reference to this object
+         */
 		virtual material_characteristics& operator = (const material_characteristics&);
 		
+        /**
+         * @brief Stream output operator.
+         * @param os Output stream
+         * @param mc Material characteristics to output
+         * @return Output stream
+         */
         friend std::ostream& operator << (std::ostream&, const material_characteristics&);
 };
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

@@ -27,6 +27,16 @@
 
 namespace simcoon{
 
+/**
+ * @file read.hpp
+ * @brief Solver functions and classes.
+ */
+
+/** @addtogroup solver
+ *  @{
+ */
+
+
 arma::Col<int> subdiag2vec();
 
 /// Function that fills the matrix Tdsde for mix strain/stress conditions
@@ -52,5 +62,8 @@ void check_path_output(const std::vector<block> &, const solver_output &);
     
 /// Function that reads the loading path
 void read_path(std::vector<block> &, double &, const std::string & = "data", const std::string & = "path.txt");
+
+
+/** @} */ // end of solver group
 
 } //namespace simcoon

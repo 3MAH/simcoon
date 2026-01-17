@@ -22,9 +22,22 @@
 #include <armadillo>
 
 namespace simcoon{
+
+/**
+ * @file output.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
     
 void output_modulus(const arma::mat &, const int &, arma::vec &);
 
 void output_moduli(const std::vector<arma::mat> &, const int &, arma::vec &);
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

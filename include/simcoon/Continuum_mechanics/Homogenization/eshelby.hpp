@@ -29,6 +29,16 @@
 namespace simcoon{
 
 /**
+ * @file eshelby.hpp
+ * @brief Eshelby tensor computation functions for homogenization.
+ */
+
+/** @addtogroup eshelby
+ *  @{
+ */
+
+
+/**
  * @brief Provides the Eshelby tensor of a spherical inclusion for isotropic linear elasticity.
  * @param nu the Poisson ratio
  * @return Provides the Eshelby tensor of a spherical inclusion for isotropic linear elasticity in the Simcoon
@@ -145,6 +155,30 @@ arma::mat Eshelby_prolate(const double &, const double &);
 */
 arma::mat Eshelby_oblate(const double &, const double &);
 
+/**
+ * @brief Provides the Eshelby tensor of a penny-shaped (crack) inclusion for isotropic linear elasticity
+ * @param nu the Poisson ratio
+ * @return Provides the Eshelby tensor of a penny-shaped (crack) inclusion for isotropic linear elasticity in the Simcoon formalism,
+ * as a function of the Poisson ratio \f$ \nu \f$. This corresponds to the limit case of an oblate spheroid when the aspect ratio
+ * \f$ a_r = \frac{a1}{a2} = \frac{a1}{a3} \rightarrow 0 \f$.
+ * The penny-shaped inclusion is oriented such as the normal to the crack plane is the axis \f$ 1 \f$.
+ * Returns the Eshelby tensor as a mat, according to the conventions of a localisation tensor.
+\f[
+    \mathbf{S}= \begin{array}{cccccc}
+        1 & \frac{\nu}{1-\nu} & \frac{\nu}{1-\nu} & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 1 \end{array} \right)
+\f]
+ * @details Example: 
+ * @code 
+       mat S = Eshelby_penny(nu);
+ * @endcode
+*/
+arma::mat Eshelby_penny(const double &);
+
 //This methods is using the Voigt notations for the tensors.
 void calG(const double &, const double &, const double &, const double &, const double &, const arma::Mat<int> &, const arma::mat &, arma::mat &);
 
@@ -251,9 +285,9 @@ arma::mat T_II(const arma::mat &, const double &, const double &, const double &
 /**
  * @brief Provides a numerical estimation of the Hill interaction tensor of an ellipsoisal, possibly anisotropic inclusion.
  * @param L the stiffness tensor of the considered material
- * @param a1 the aspect ratio in the direction \f$ 1 \f1
- * @param a2 the aspect ratio in the direction \f$ 2 \f1
- * @param a3 the aspect ratio in the direction \f$ 3 \f1
+ * @param a1 the aspect ratio in the direction \f$ 1 \f$
+ * @param a2 the aspect ratio in the direction \f$ 2 \f$
+ * @param a3 the aspect ratio in the direction \f$ 3 \f$
  * @param mp the number of integration points in the direction \f$ 1 \f$
  * @param np the number of integration points in the direction \f$ 2 \f$
  * @return Provides the numerical estimation of the Hill interaction tensor of an ellispoid in the general case of anisotropic media,
@@ -300,5 +334,8 @@ arma::mat T_II(const arma::mat &, const double &, const double &, const double &
  * @endcode
 */
 void points(arma::vec &, arma::vec &, arma::vec &, arma::vec &, const int &, const int &);
+
+
+/** @} */ // end of eshelby group
 
 } //namespace simcoon

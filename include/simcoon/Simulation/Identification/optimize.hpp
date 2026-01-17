@@ -30,6 +30,16 @@
 
 namespace simcoon{
 
+/**
+ * @file optimize.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 ///This function constructs the vector of exp/num
 arma::vec calcV(const std::vector<opti_data> &, const std::vector<opti_data> &, const int &, const int &);
 
@@ -76,5 +86,8 @@ arma::mat LevMarq(const arma::mat &H, const double &lambdaLM, const arma::vec &L
 //This function computes the increment Dp of the parameter vector according to a Levenberg-Marquardt algorithm
 arma::vec calcDp(const arma::mat &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const std::vector<parameters> &, const double &, const double &, const double &, const int &, arma::Col<int>&);
     
+
+/** @} */ // end of identification group
+
 } //namespace simcoon
 

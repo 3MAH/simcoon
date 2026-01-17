@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file Hill_chaboche_ccp.hpp
+ * @brief Mechanical plasticity model.
+ */
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
+
 ///@brief The elastic-plastic UMAT with isotropic hardening requires 6 constants:
 
 ///@brief props[1] : Young modulus
@@ -47,4 +57,7 @@ namespace simcoon{
 
 void umat_hill_chaboche_CCP(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
                                 
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

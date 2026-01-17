@@ -29,6 +29,16 @@
 
 namespace simcoon{
 
+/**
+ * @file PDF.hpp
+ * @brief Probability Distribution Function (PDF) management.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //======================================
 class PDF
 //======================================
@@ -63,5 +73,8 @@ class PDF
     
         friend std::ostream& operator << (std::ostream&, const PDF&);
 };
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

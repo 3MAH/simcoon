@@ -15,7 +15,7 @@
  
  */
 
-///@file factories
+///@file read.hpp
 ///@brief Generation of the complex objects for identification library
 ///@author Chemisky
 ///@version 1.0
@@ -29,6 +29,16 @@
 #include "opti_data.hpp"
 
 namespace simcoon{
+
+/**
+ * @file read.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
 
 //Generation of the parameters from the parameters file
 void read_parameters(const int &, std::vector<parameters> &);
@@ -49,4 +59,7 @@ void ident_control(int &, int &, int &, int &, int &, int &, int &, double &, do
 
 void read_gen(int &, arma::mat &, const int &);
     
+
+/** @} */ // end of identification group
+
 } //namespace simcoon
