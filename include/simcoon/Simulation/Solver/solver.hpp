@@ -70,7 +70,7 @@ namespace simcoon{
  *     solver("ELISO", props, 0, 0., 0., 0., 0, 0);
  * @endcode
  */
-void solver(const std::string &, const arma::vec &, const unsigned int &, const double &, const double &, const double &, const int &, const int &, const double & = 0.5, const double & = 2., const int & = 10, const int & = 100, const int & = 1, const double & = 1.E-6, const double & = 10000., const std::string& = "data", const std::string& = "results", const std::string& = "path.txt", const std::string& = "result_job.txt");
+void solver(const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div = 0.5, const double &mul = 2., const int &miniter = 10, const int &maxiter = 100, const int &inforce_solver = 1, const double &precision = 1.E-6, const double &lambda_eff = 10000., const std::string &path_data = "data", const std::string &path_results = "results", const std::string &pathfile = "path.txt", const std::string &outputfile = "result_job.txt");
 
 
 /** @} */ // end of solver group

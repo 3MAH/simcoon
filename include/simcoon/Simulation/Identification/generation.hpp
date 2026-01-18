@@ -46,23 +46,6 @@ class generation
 	protected:
 
 	public :
-    
-	/**
-	 * @brief Class representing a generation (population) in a genetic algorithm.
-	 *
-	 * A generation is a collection of individuals (candidate solutions) used in evolutionary
-	 * parameter identification. It provides methods for population management, classification,
-	 * and unique id assignment.
-	 *
-	 * @details The class stores:
-	 * - Vector of individuals (pop)
-	 * - Methods for construction, classification, and destruction
-	 */
-	class generation
-	{
-	private:
-	protected:
-	public:
 		std::vector<individual> pop; ///< Population of individuals
 
 		/**
@@ -77,13 +60,13 @@ class generation
 		 * @param id_start Starting id for individuals
 		 * @param lambda Initial lambda value (default: 0.0)
 		 */
-		generation(const int&, const int&, int&, const double & = 0.);
+		generation(const int &npop, const int &nparam, int &id_start, const double &lambda = 0.);
 
 		/**
 		 * @brief Copy constructor.
 		 * @param gen Generation to copy
 		 */
-		generation(const generation&);
+		generation(const generation &gen);
 
 		/**
 		 * @brief Destructor.
@@ -103,7 +86,7 @@ class generation
 		 * @param id_start Starting id
 		 * @param lambda Initial lambda value
 		 */
-		void construct(const int&, const int&, int&, const double & = 0.);
+		void construct(const int &npop, const int &nparam, int &id_start, const double &lambda = 0.);
 
 		/**
 		 * @brief Classify individuals by cost (fitness).
@@ -114,7 +97,7 @@ class generation
 		 * @brief Assign new unique ids to individuals.
 		 * @param id_start Starting id
 		 */
-		void newid(int &);
+		void newid(int &id_start);
 
 		/**
 		 * @brief Destroy the population (clear individuals).
@@ -126,7 +109,7 @@ class generation
 		 * @param gen Generation to assign
 		 * @return Reference to this object
 		 */
-		virtual generation& operator = (const generation&);
+		virtual generation& operator = (const generation &gen);
 
 		/**
 		 * @brief Stream output operator.
@@ -134,13 +117,7 @@ class generation
 		 * @param gen Generation to output
 		 * @return Output stream
 		 */
-		friend std::ostream& operator << (std::ostream&, const generation&);
-	};
-		void destruct();
-
-		virtual generation& operator = (const generation&);
-		
-		friend std::ostream& operator << (std::ostream&, const generation&);
+		friend std::ostream& operator << (std::ostream& os, const generation &gen);
 };
 
 

@@ -60,10 +60,10 @@ protected:
     arma::vec BC_Ts;
     
     step_meca(); 	//default constructor
-    step_meca(const unsigned int &); 	//constructor that allocates BC_meca and cBC_meca
-    step_meca(const int &, const double &, const double &, const double &, const int &, const unsigned int &, const arma::Col<int>&, const arma::vec&, const arma::mat&, const arma::mat&, const double&, const int&, const arma::vec&, const arma::vec&, const arma::mat&, const arma::mat&); //Constructor with parameters
-    
-    step_meca(const step_meca&);	//Copy constructor
+    step_meca(const unsigned int &size); 	//constructor that allocates BC_meca and cBC_meca
+    step_meca(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type, const arma::Col<int>& cBC_meca, const arma::vec& BC_meca, const arma::mat& mecas, const arma::mat& BC_mecas, const double& BC_T, const int& cBC_T, const arma::vec& Ts, const arma::vec& BC_Ts, const arma::mat& BC_w, const arma::mat& BC_R); //Constructor with parameters
+
+    step_meca(const step_meca &s); 	//Copy constructor
     virtual ~step_meca();
     
     using step::generate;
@@ -71,9 +71,9 @@ protected:
     virtual void generate_kin(const double&, const arma::mat &, const double &);
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &, const int &);
     
-    virtual step_meca& operator = (const step_meca&);
-        
-    friend  std::ostream& operator << (std::ostream&, const step_meca&);
+    virtual step_meca& operator = (const step_meca &s);
+
+    friend  std::ostream& operator << (std::ostream& os, const step_meca &s);
 };
 
 

@@ -97,13 +97,13 @@ class phase_characteristics
          * @param sptr_out_local Local output stream
          * @param sub_phases_file File with sub-phase definitions
          */
-        phase_characteristics(const int &, const int &, const std::shared_ptr<geometry> &, const std::shared_ptr<phase_multi> &, const std::shared_ptr<material_characteristics> &, const std::shared_ptr<state_variables> &, const std::shared_ptr<state_variables> &, const std::shared_ptr<std::ofstream> &, const std::shared_ptr<std::ofstream> &, const std::string &);
+        phase_characteristics(const int &shape_type, const int &sv_type, const std::shared_ptr<geometry> &sptr_shape, const std::shared_ptr<phase_multi> &sptr_multi, const std::shared_ptr<material_characteristics> &sptr_matprops, const std::shared_ptr<state_variables> &sptr_sv_global, const std::shared_ptr<state_variables> &sptr_sv_local, const std::shared_ptr<std::ofstream> &sptr_out_global, const std::shared_ptr<std::ofstream> &sptr_out_local, const std::string &sub_phases_file);
 
         /**
          * @brief Copy constructor.
          * @param pc Phase characteristics to copy
          */
-		phase_characteristics(const phase_characteristics&);
+        phase_characteristics(const phase_characteristics &pc);
         
         /**
          * @brief Virtual destructor.
@@ -115,7 +115,7 @@ class phase_characteristics
          * @param shape_type Type of geometric shape
          * @param sv_type Type of state variables
          */
-        virtual void construct(const int &, const int &);
+        virtual void construct(const int &shape_type, const int &sv_type);
         
         /**
          * @brief Construct sub-phases recursively.
@@ -123,7 +123,7 @@ class phase_characteristics
          * @param sv_type Type of state variables
          * @param n_sub Number of sub-phases
          */
-        virtual void sub_phases_construct(const int &, const int &, const int &);
+        virtual void sub_phases_construct(const int &shape_type, const int &sv_type, const int &n_sub);
         
         /**
          * @brief Copy current values to start-of-increment values.
@@ -134,7 +134,7 @@ class phase_characteristics
          * @brief Set current values from start-of-increment values.
          * @param control Control flag for selective update
          */
-        virtual void set_start(const int &);
+        virtual void set_start(const int &control);
         
         /**
          * @brief Transform state variables from local to global frame.
@@ -151,14 +151,14 @@ class phase_characteristics
          * @param pc Phase characteristics to copy
          * @warning Output streams are NOT copied
          */
-        virtual void copy(const phase_characteristics&);
+        virtual void copy(const phase_characteristics& pc);
 
         /**
          * @brief Assignment operator.
          * @param pc Phase characteristics to assign
          * @return Reference to this object
          */
-		virtual phase_characteristics& operator = (const phase_characteristics&);
+        virtual phase_characteristics& operator = (const phase_characteristics& pc);
     
         /**
          * @brief Define output file for results.
@@ -166,7 +166,7 @@ class phase_characteristics
          * @param filename Base filename (default: "results")
          * @param outputtype Type of output "global" or "local" (default: "global")
          */
-        virtual void define_output(const std::string &, const std::string & = "results", const std::string & = "global");
+        virtual void define_output(const std::string &path, const std::string &filename = "results", const std::string &outputtype = "global");
         
         /**
          * @brief Write output to file.
@@ -178,7 +178,7 @@ class phase_characteristics
          * @param time Current time
          * @param outputtype Type of output "global" or "local" (default: "global")
          */
-        virtual void output(const solver_output &, const int &, const int &, const int &, const int &, const double &, const std::string & = "global");
+        virtual void output(const solver_output &so, const int &block, const int &step, const int &inc, const int &sub_inc, const double &time, const std::string &outputtype = "global");
     
     
         /**
@@ -187,7 +187,7 @@ class phase_characteristics
          * @param pc Phase characteristics to output
          * @return Output stream
          */
-        friend std::ostream& operator << (std::ostream&, const phase_characteristics&);
+        friend std::ostream& operator << (std::ostream& os, const phase_characteristics &pc);
 };
 
 

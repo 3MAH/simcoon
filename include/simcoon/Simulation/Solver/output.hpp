@@ -69,13 +69,13 @@ public :
     arma::vec o_tfreq;
     
     solver_output(); 	//default constructor
-    solver_output(const int&);	//Constructor with parameters
-    solver_output(const solver_output &);	//Copy constructor
+    solver_output(const int &o_nb_strain); 	//Constructor with parameters
+    solver_output(const solver_output &so); 	//Copy constructor
     ~solver_output();
     
-    virtual solver_output& operator = (const solver_output&);
-    
-    friend  std::ostream& operator << (std::ostream&, const solver_output&);
+    virtual solver_output& operator = (const solver_output &so);
+
+    friend  std::ostream& operator << (std::ostream& os, const solver_output &so);
 };
 
 

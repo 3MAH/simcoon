@@ -72,13 +72,13 @@ public:
 	 * @param id Unique identifier
 	 * @param lambda Step or regularization parameter
 	 */
-	individual(const int&, const int&, const double&);
+	individual(const int &np, const int &id, const double &lambda);
 
 	/**
 	 * @brief Copy constructor.
 	 * @param ind Individual to copy
 	 */
-	individual(const individual&);
+	individual(const individual &ind);
 
 	/**
 	 * @brief Destructor.
@@ -95,7 +95,7 @@ public:
 	 * @param ind Individual to assign
 	 * @return Reference to this object
 	 */
-	virtual individual& operator = (const individual&);
+	virtual individual& operator = (const individual &ind);
 
 	/**
 	 * @brief Stream output operator.
@@ -103,7 +103,7 @@ public:
 	 * @param ind Individual to output
 	 * @return Output stream
 	 */
-	friend std::ostream& operator << (std::ostream&, const individual&);
+	friend std::ostream& operator << (std::ostream& os, const individual &ind);
 };
     
 

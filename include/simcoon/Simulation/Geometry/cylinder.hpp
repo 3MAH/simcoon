@@ -59,14 +59,14 @@ class cylinder : public geometry
         double phi_geom;    //geometric orientation of the cylinder phi
     
 		cylinder(); 	//default constructor
-        cylinder(const double &, const int &, const int &, const double &,const double &, const double &, const double &, const double &);
+    		cylinder(const double &Lval, const int &coatingof, const int &coatedby, const double &Rval, const double &psi_geom, const double &theta_geom, const double &phi_geom, const double &dummy);
 
 		cylinder(const cylinder&);	//Copy constructor
         virtual ~cylinder();
     
 		virtual cylinder& operator = (const cylinder&);
 		
-        friend std::ostream& operator << (std::ostream&, const cylinder&);
+        friend std::ostream& operator << (std::ostream& os, const cylinder &cyl);
 };
 
 

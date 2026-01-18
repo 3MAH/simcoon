@@ -96,7 +96,7 @@ class state_variables
          * @param init If true, initialize arrays to zero (default: true)
          * @param value Initial value for state variables (default: 0.0)
          */
-		state_variables(const int &, const bool& = true, const double& = 0.);
+        state_variables(const int &nstatev, const bool &init = true, const double &value = 0.);
         
         /**
          * @brief Full constructor with all parameters.
@@ -123,13 +123,13 @@ class state_variables
          * @param statev_start State variables at start
          * @param nb Natural basis
          */
-        state_variables(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &);
+        state_variables(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
         
         /**
          * @brief Copy constructor.
          * @param sv State variables to copy
          */
-		state_variables(const state_variables &);
+        state_variables(const state_variables &sv);
         
         /**
          * @brief Virtual destructor.
@@ -141,14 +141,14 @@ class state_variables
          * @param sv State variables to assign
          * @return Reference to this object
          */
-		virtual state_variables& operator = (const state_variables&);
+        virtual state_variables& operator = (const state_variables& sv);
 		
         /**
          * @brief Copy field values from another state_variables object.
          * @param sv Source state variables
          * @return Reference to this object
          */
-		virtual state_variables& copy_fields (const state_variables&);
+        virtual state_variables& copy_fields (const state_variables& sv);
 
         /**
          * @brief Resize arrays to default size.
@@ -161,12 +161,12 @@ class state_variables
          * @param init If true, initialize arrays to zero
          * @param value Initial value for state variables
          */
-		virtual void resize(const int &, const bool& = true, const double& = 0.);
+        virtual void resize(const int &nstatev, const bool &init = true, const double &value = 0.);
         
         /**
          * @brief Update all state variables with new values.
          */
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &);
+        virtual void update(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
         
         /**
          * @brief Get the number of internal state variables.
@@ -183,7 +183,7 @@ class state_variables
          * @brief Set current values from start-of-increment values.
          * @param control Control flag for selective update
          */
-        virtual void set_start(const int &);
+        virtual void set_start(const int &control);
     
         /**
          * @brief Compute 1st Piola-Kirchhoff stress tensor.
@@ -217,7 +217,7 @@ class state_variables
          * @param phi Third Euler angle (rad)
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_l2g(const state_variables&, const double&, const double&, const double&);
+        virtual state_variables& rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi);
         
         /**
          * @brief Rotate state variables from global to local frame.
@@ -227,7 +227,7 @@ class state_variables
          * @param phi Third Euler angle (rad)
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_g2l(const state_variables&, const double&, const double&, const double&);
+        virtual state_variables& rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi);
     
         /**
          * @brief Stream output operator.
@@ -235,7 +235,7 @@ class state_variables
          * @param sv State variables to output
          * @return Output stream
          */
-        friend std::ostream& operator << (std::ostream&, const state_variables&);
+        friend std::ostream& operator << (std::ostream& os, const state_variables &sv);
 };
 
 

@@ -75,7 +75,7 @@ class block
          * @param type Block type
          * @param control_type Control type
          */
-		block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&);
+        block(const unsigned int &number, const unsigned int &nstep, const unsigned int &ncycle, const unsigned int &type, const unsigned int &control_type);
         
         /**
          * @brief Full constructor with step vector.
@@ -86,13 +86,13 @@ class block
          * @param control_type Control type
          * @param steps Vector of step pointers
          */
-        block(const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const unsigned int&, const std::vector<std::shared_ptr<step> > &);
+        block(const unsigned int &number, const unsigned int &nstep, const unsigned int &ncycle, const unsigned int &type, const unsigned int &control_type, const std::vector<std::shared_ptr<step> > &steps);
         
         /**
          * @brief Copy constructor.
          * @param b Block to copy
          */
-		block(const block&);
+        block(const block &b);
         
         /**
          * @brief Virtual destructor.
@@ -109,7 +109,7 @@ class block
          * @param b Block to assign
          * @return Reference to this object
          */
-		virtual block& operator = (const block&);
+        virtual block& operator = (const block &b);
 		
         /**
          * @brief Stream output operator.
@@ -117,7 +117,7 @@ class block
          * @param b Block to output
          * @return Output stream
          */
-        friend std::ostream& operator << (std::ostream&, const block&);
+        friend std::ostream& operator << (std::ostream& os, const block &b);
 };
 
 

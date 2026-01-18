@@ -72,7 +72,7 @@ class material_characteristics
         /**
          * @brief Default constructor.
          */
-		material_characteristics();
+        material_characteristics();
         
         /**
          * @brief Constructor allocating memory for material properties.
@@ -80,7 +80,7 @@ class material_characteristics
          * @param init If true, initialize arrays to zero (default: true)
          * @param value Initial value for properties (default: 0.0)
          */
-		material_characteristics(const int &, const bool& = true, const double& = 0.);
+        material_characteristics(const int &nprops, const bool &init = true, const double &value = 0.);
     
         /**
          * @brief Full constructor with all parameters.
@@ -93,13 +93,13 @@ class material_characteristics
          * @param nprops Number of properties
          * @param props Properties vector
          */
-        material_characteristics(const int &, const std::string &, const int &, const double &, const double &, const double &, const int &, const arma::vec &);
+        material_characteristics(const int &number, const std::string &umat_name, const int &save, const double &psi_mat, const double &theta_mat, const double &phi_mat, const int &nprops, const arma::vec &props);
 
         /**
          * @brief Copy constructor.
          * @param mc Material characteristics to copy
          */
-		material_characteristics(const material_characteristics&);
+        material_characteristics(const material_characteristics &mc);
         
         /**
          * @brief Virtual destructor.
@@ -117,7 +117,7 @@ class material_characteristics
          * @param init If true, initialize arrays to zero
          * @param value Initial value for properties
          */
-		virtual void resize(const int &, const bool & = true, const double & = 0.);
+        virtual void resize(const int &nprops, const bool &init = true, const double &value = 0.);
         
         /**
          * @brief Update all material characteristics.
@@ -130,7 +130,7 @@ class material_characteristics
          * @param nprops Number of properties
          * @param props Properties vector
          */
-		virtual void update(const int &, const std::string &, const int &, const double &, const double &, const double &, const int &, const arma::vec &);
+        virtual void update(const int &number, const std::string &umat_name, const int &save, const double &psi_mat, const double &theta_mat, const double &phi_mat, const int &nprops, const arma::vec &props);
         
         /**
          * @brief Get the number of material properties.
@@ -143,7 +143,7 @@ class material_characteristics
          * @param mc Material characteristics to assign
          * @return Reference to this object
          */
-		virtual material_characteristics& operator = (const material_characteristics&);
+        virtual material_characteristics& operator = (const material_characteristics &mc);
 		
         /**
          * @brief Stream output operator.
@@ -151,7 +151,7 @@ class material_characteristics
          * @param mc Material characteristics to output
          * @return Output stream
          */
-        friend std::ostream& operator << (std::ostream&, const material_characteristics&);
+        friend std::ostream& operator << (std::ostream& os, const material_characteristics &mc);
 };
 
 

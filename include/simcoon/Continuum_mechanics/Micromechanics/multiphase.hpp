@@ -72,7 +72,7 @@ namespace simcoon{
  *     umat_multi(rve, DR, Time, DTime, 3, 3, start, 0, tnew_dt, 1);
  * @endcode
  */
-void umat_multi(phase_characteristics &, const arma::mat &, const double &,const double &, const int &, const int &, bool &, const unsigned int &, double &, const int &);
+void umat_multi(phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const unsigned int &solver_type, double &tnew_dt, const int &control);
 
 
 /** @} */ // end of micromechanics group

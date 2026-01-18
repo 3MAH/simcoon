@@ -85,13 +85,13 @@ protected:
      * @param mode Loading mode
      * @param control_type Control type
      */
-    step(const int &, const double &, const double &, const double &, const int &, const unsigned int &);
+    step(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type);
     
     /**
      * @brief Copy constructor.
      * @param s Step to copy
      */
-    step(const step &);
+    step(const step &s);
     
     /**
      * @brief Virtual destructor.
@@ -112,14 +112,14 @@ protected:
      * @param Dn Increment fraction (output)
      * @param control Increment control flag
      */
-    virtual void compute_inc(double &, const int &, double &, double &, double &, const int &);
+    virtual void compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
     
     /**
      * @brief Assignment operator.
      * @param s Step to assign
      * @return Reference to this object
      */
-    virtual step& operator = (const step&);
+    virtual step& operator = (const step& s);
     
     /**
      * @brief Stream output operator.
@@ -127,7 +127,7 @@ protected:
      * @param s Step to output
      * @return Output stream
      */
-    friend  std::ostream& operator << (std::ostream&, const step&);
+    friend  std::ostream& operator << (std::ostream& os, const step &s);
 };
 
 
