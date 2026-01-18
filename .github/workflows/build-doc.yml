@@ -55,9 +55,14 @@ jobs:
 
       - name: Remove broken LaTeX from Conda env
         run: |
-          rm -f $CONDA_PREFIX/bin/latex || true
-          rm -f $CONDA_PREFIX/bin/mktexfmt || true
-          rm -f $CONDA_PREFIX/bin/tlmgr || true
+          # Remove or move conda-provided LaTeX binaries only if present in the
+          # conda environment. Move to a .bak instead of deleting to be safe.
+          for bin in latex mktexfmt tlmgr; do
+            if [ -x "${CONDA_PREFIX}/bin/${bin}" ]; then
+              echo "Removing ${CONDA_PREFIX}/bin/${bin}"
+              rm -f "${CONDA_PREFIX}/bin/${bin}" || true
+            fi
+          done
           hash -r
 
       - name: Install minimal TeX Live for Matplotlib
