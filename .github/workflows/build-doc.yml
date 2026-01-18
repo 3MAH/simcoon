@@ -1,0 +1,131 @@
+name: Documentation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ documentation, master ]
+  pull_request:
+    branches: [ documentation, master ]
+
+env:
+  USE_CACHE: "true"
+
+jobs:
+  build-doc:
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -el {0}
+    
+    steps:
+      - uses: actions/checkout@v5
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+          activate-environment: simcoon-doc
+          python-version: "3.12"
+          environment-file: environment.yml
+          channels: conda-forge,set3mah
+
+      - name: Get Date
+        id: get-date
+        run: echo "::set-output name=today::$(/bin/date -u '+%Y%m%d')"
+
+      - name: Cache Conda env
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.CONDA }}/envs
+          key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environment_doc.yml') }}-${{ env.CACHE_NUMBER }}
+        env:
+          # Increase this value to reset cache if environment.yml has not changed
+          CACHE_NUMBER: 0
+        id: cache
+
+      - name: Prepare conda environment
+        shell: bash -l {0}
+        run: |
+          conda config --env --add channels conda-forge
+          conda config --env --add channels set3mah          
+          conda config --env --set channel_priority strict    
+
+      - name: Update environment
+        run: |
+          conda env update -n simcoon-doc -f environment_doc.yml
+        if: steps.cache.outputs.cache-hit != 'true' 
+
+      - name: Remove broken LaTeX from Conda env
+        run: |
+          rm -f $CONDA_PREFIX/bin/latex || true
+          rm -f $CONDA_PREFIX/bin/mktexfmt || true
+          rm -f $CONDA_PREFIX/bin/tlmgr || true
+          hash -r
+
+      - name: Install minimal TeX Live for Matplotlib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-fonts-recommended \
+            dvipng \
+            cm-super
+
+      - name: Build for Linux
+        shell: bash -l {0}
+        run: |
+          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
+            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
+            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
+            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
+            -Wno-dev
+          cmake --build ${{github.workspace}}/build
+          cmake --install build --component python
+          python -m pip install ${{github.workspace}}/build/python-package
+
+      # - name: Cache Sphinx-Gallery Examples
+      #   uses: actions/cache@v4
+      #   if: env.USE_CACHE == 'true'
+      #   with:
+      #     path: examples/
+      #     key: doc-examples-${{ hashFiles('python-setup/simcoon/__version__.py') }}
+
+      - name: Cache Sphinx build directory
+        uses: actions/cache@v4
+        if: env.USE_CACHE == 'true'
+        with:
+          path: docs/build/
+          key: doc-build-${{ hashFiles('python-setup/simcoon/__version__.py') }}
+
+      - name: Build Documentation
+        run: sphinx-build -b html docs docs/build/html
+
+      - name: Upload HTML documentation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-build
+          path:
+            docs/build/html/
+            
+      - name: Deploy HTML documentation (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
+          external_repository: 3MAH/simcoon-docs
+          publish_branch: main
+          publish_dir: ./docs/build/html
+          force_orphan: true
+
+      - name: Deploy HTML documentation (documentation branch)
+        if: ${{ github.ref == 'refs/heads/documentation' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
+          external_repository: 3MAH/simcoon-docs
+          publish_branch: main
+          publish_dir: ./docs/build/html
+          destination_dir: documentation
+          force_orphan: false

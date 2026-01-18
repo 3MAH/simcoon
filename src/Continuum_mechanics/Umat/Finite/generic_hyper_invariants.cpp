@@ -88,7 +88,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
 
     switch (list_potentials[umat_name]) {
         case 0: {
-            // \f$ W = \frac{\mu}{2}*left(\bar{I}_1 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$ 
+            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$ 
             double mu = props(0);
             double kappa = props(1);            
             dWdI_1_bar = 0.5*mu;

@@ -6,16 +6,17 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Ensure Python finds `simcoon` in the correct location
-execute_process(
-    COMMAND python -c "import sys; sys.path.insert(0, 'python-setup'); from simcoon.__version__ import __version__; print(__version__)"
-    OUTPUT_VARIABLE PROJECT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
+# Read version from Python package
+file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
+string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
+set(PROJECT_VERSION ${CMAKE_MATCH_1})
 
-# Print and set the project version
+# Extract major version for SOVERSION
+string(REGEX MATCH "^([0-9]+)" _ ${PROJECT_VERSION})
+set(PROJECT_VERSION_MAJOR ${CMAKE_MATCH_1})
+
+# Print the project version
 message(STATUS "Project version: ${PROJECT_VERSION}")
-set(PROJECT_VERSION ${PROJECT_VERSION})
 
 # Optionally use this version in packaging/configuration
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
@@ -25,20 +26,77 @@ message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
 
-# We default to debugging mode for developers.
-option(DEBUG "Compile with debugging information" OFF)
+# Options
+option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+option(SIMCOON_BUILD_TESTS "Build tests" ON)
+
+# Helper function to set output directories for multi-config generators (MSVC)
+function(set_output_directory target output_dir)
+  set_target_properties(${target} PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${output_dir}
+    LIBRARY_OUTPUT_DIRECTORY ${output_dir}
+    ARCHIVE_OUTPUT_DIRECTORY ${output_dir}
+  )
+  # For multi-config generators
+  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER ${CONFIG_TYPE} CONFIG)
+    set_target_properties(${target} PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY_${CONFIG} ${output_dir}
+      LIBRARY_OUTPUT_DIRECTORY_${CONFIG} ${output_dir}
+      ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} ${output_dir}
+    )
+  endforeach()
+endfunction()
+
+# Helper function to add test executable with proper configuration
+# test_src should be relative to CMAKE_SOURCE_DIR (e.g., "test/Identification/Tidentification.cpp")
+function(add_simcoon_test test_src)
+  get_filename_component(testName ${test_src} NAME_WE)
+  get_filename_component(testFolder ${test_src} DIRECTORY)
+
+  # Strip base directory and intermediate grouping directories to match testBin structure:
+  # test/Identification → Identification
+  # test/Libraries/Continuum_mechanics → Continuum_mechanics
+  # test/Umats/ELISO → Umats/ELISO
+  # test_extern/Umats/UMABA → Umats/UMABA
+  string(REGEX REPLACE "^test/" "" testFolder "${testFolder}")
+  string(REGEX REPLACE "^test_extern/" "" testFolder "${testFolder}")
+  string(REGEX REPLACE "^Libraries/" "" testFolder "${testFolder}")
+
+  add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
+  target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
+
+  set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
+
+  if(MSVC)
+    add_dependencies(${testName} simcoon)
+    add_custom_command(TARGET ${testName} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_BINARY_DIR}/bin
+      ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+    )
+  endif()
+
+  # Create test output directory at build time (not configure time)
+  add_custom_command(TARGET ${testName} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+  )
+
+  # Use generator expression to get correct executable path for multi-config generators
+  add_test(NAME ${testFolder}/${testName}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+    COMMAND $<TARGET_FILE:${testName}>
+  )
+endfunction()
+
 # Build type
 if(NOT CMAKE_BUILD_TYPE)  # Debug by default
     set(CMAKE_BUILD_TYPE Release CACHE STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel"
         FORCE)
 endif()
-if (NOT DEFINED USE_CARMA)
-  set(USE_CARMA True)
-endif()
 
 message(STATUS "Build type ${CMAKE_BUILD_TYPE}")
-message(STATUS "USE_CARMA          = ${USE_CARMA}"         )
 
 # put our local cmake find scripts at the beginning of the cmake
 # module search path
@@ -47,279 +105,388 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 #Setup CMake to run tests
 enable_testing()
 
-#Set executable files and library files
-set(EXECUTABLE_OUTPUT_PATH bin)
-set(LIBRARY_OUTPUT_PATH lib)
-
-#Inclusion of Armadillo
-if (MSVC)
+# Find dependencies
+if(MSVC)
   set(BLA_PKGCONFIG_BLAS True)
 endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
+
+# WORKAROUND for vcpkg BLAS/LAPACK debug/release library confusion on Windows
+# vcpkg's FindBLAS/FindLAPACK modules (MODULE mode) don't respect CMAKE_BUILD_TYPE
+# and may return debug libraries (from vcpkg/debug/lib/) even for Release builds.
+# This causes ABI mismatches, crashes, and performance issues.
+# Only apply fix for non-Debug builds to preserve proper debug library linking.
+# TODO: Consider migrating to CONFIG mode packages (find_package(OpenBLAS CONFIG))
+#       when conda/vcpkg compatibility issues are resolved.
+if(WIN32 AND MSVC AND BLAS_FOUND AND LAPACK_FOUND)
+  if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_FIXED "${BLAS_LIBRARIES}")
+    string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_FIXED "${LAPACK_LIBRARIES}")
+
+    # Only apply if we actually found debug paths (safety check)
+    if(NOT BLAS_LIBRARIES_FIXED STREQUAL BLAS_LIBRARIES)
+      set(BLAS_LIBRARIES ${BLAS_LIBRARIES_FIXED})
+      set(LAPACK_LIBRARIES ${LAPACK_LIBRARIES_FIXED})
+      message(STATUS "Fixed BLAS/LAPACK: Using release libraries for ${CMAKE_BUILD_TYPE} build")
+      message(STATUS "  BLAS: ${BLAS_LIBRARIES}")
+      message(STATUS "  LAPACK: ${LAPACK_LIBRARIES}")
+    endif()
+  else()
+    message(STATUS "Debug build: Using debug BLAS/LAPACK libraries as found")
+  endif()
+endif()
+
 find_package(Armadillo 12.6 REQUIRED)
 
 find_package(GTest REQUIRED)
 
-if (MSVC)
-  if (USE_CARMA)
-    find_package(Carma REQUIRED)
-  endif()
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
-else()
-  include_directories(SYSTEM ${ARMADILLO_INCLUDE_DIRS})  
-endif() 
+include(FetchContent)
+FetchContent_Declare(
+    dylib
+    GIT_REPOSITORY "https://github.com/martin-olivier/dylib"
+    GIT_TAG        "v3.0.1"
+)
 
-#Inclusion of Boost
-find_package(Boost 1.57.0)
-if (Boost_FOUND)
-  include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
+#set(BUILD_SHARED_LIBS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+FetchContent_MakeAvailable(dylib)
+set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
+
+# Python dependencies (only if building Python bindings)
+if(SIMCOON_BUILD_PYTHON_BINDINGS)
+  find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+  find_package(pybind11 REQUIRED)
+
+  # Try to find carma from conda/system first
+  find_package(carma CONFIG QUIET)
+
+  if(carma_FOUND)
+    message(STATUS "Found carma package (CONFIG mode)")
+  else()
+    # If not found via CONFIG, try to find headers directly in conda prefix
+    if(DEFINED ENV{PREFIX})
+      set(CONDA_PREFIX $ENV{PREFIX})
+    elseif(DEFINED ENV{CONDA_PREFIX})
+      set(CONDA_PREFIX $ENV{CONDA_PREFIX})
+    endif()
+
+    if(CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
+      message(STATUS "Found carma headers in conda environment")
+      set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
+
+      # Create carma::carma target from conda installation
+      if(NOT TARGET carma::carma)
+        add_library(carma::carma INTERFACE IMPORTED)
+        set_target_properties(carma::carma PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+        )
+      endif()
+      set(carma_FOUND TRUE)
+    else()
+      # Fall back to fetching from GitHub
+      message(STATUS "carma not found, fetching from GitHub")
+      FetchContent_Declare(
+        carma
+        GIT_REPOSITORY https://github.com/RUrlus/carma.git
+        GIT_TAG        v0.8.0
+      )
+      FetchContent_MakeAvailable(carma)
+
+      # Get the source directory and set include path
+      FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
+      set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
+
+      # Ensure carma::carma target exists with proper include directories
+      if(NOT TARGET carma::carma)
+        add_library(carma::carma INTERFACE IMPORTED)
+        set_target_properties(carma::carma PROPERTIES
+          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+        )
+      endif()
+    endif()
+  endif()
+
+  message(STATUS "Python bindings enabled")
+  message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
+  message(STATUS "PYTHON_INCLUDE_DIRS = ${Python3_INCLUDE_DIRS}")
 endif()
 
-# OpenMP
-#include(FindOpenMP)
-#find_package(OpenMP)
+# Armadillo include directories will be added to targets as needed
 
-# Set the CFLAGS and CXXFLAGS depending on the options the user specified.
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wno-unused-parameter")
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-unused-parameter")
+# Set C++ standard globally
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-if (MSVC) #if windows using visual c++
+# Platform-specific configuration
+if(MSVC)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=") #\Y- to disable precompile header (don't work for an unknown reason)
-  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /std:c++latest /Drestrict=")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}") #do nothing but kept anyway if required to add some options
 
+  # Set default output directories for multi-config generators
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-  # Specify the output directory for each configuration (Debug, Release, etc.)
   foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${CONFIG_TYPE} CONFIG)
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/lib")
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/lib")
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/bin")
   endforeach()
-
-elseif (UNIX AND NOT APPLE)
-  #enable Fortran
-  enable_language(Fortran)
-
-  if (DEBUG)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O0 -Drestrict=")
-      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++20")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20")
-  else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -O3 -Drestrict=")
-      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++20")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20")
-  endif()
 else()
-  #enable Fortran
+  # Unix-like systems (Linux, macOS)
   enable_language(Fortran)
-
-  if (DEBUG)
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -stdlib=libc++ -O0 -fpermissive -Drestrict=")
-      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++20 -stdlib=libc++")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20 -stdlib=libc++")
-  else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -stdlib=libc++ -O3 -fpermissive -Drestrict=")
-      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -std=c++20 -stdlib=libc++")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -std=c++20 -stdlib=libc++")
-  endif()
-endif()
-
-if(OPENMP_FOUND)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 endif()
 
 message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
 message(STATUS "CMAKE_CXX_COMPILER_ID      = ${CMAKE_CXX_COMPILER_ID}"     )
 message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "CMAKE_CXX_FLAGS            = ${CMAKE_CXX_FLAGS}")
+message(STATUS "CMAKE_CXX_STANDARD         = ${CMAKE_CXX_STANDARD}")
 message(STATUS "CMAKE_COMPILER_IS_GNUCXX   = ${CMAKE_COMPILER_IS_GNUCXX}"  )
 message(STATUS "BUILD_SHARED_LIBS          = ${BUILD_SHARED_LIBS}"         )
 message(STATUS "DETECT_HDF5                = ${DETECT_HDF5}"               )
 message(STATUS "ARMADILLO_INCLUDE_DIRS = ${ARMADILLO_INCLUDE_DIRS}")
 message(STATUS "ARMADILLO_LIBRARIES = ${ARMADILLO_LIBRARIES}")
 
-#Inclusion of public headers
-include_directories(include)
+# Create simcoon shared library
+add_library(simcoon SHARED)
 
-# add the binary tree to the search path for include files
-include_directories("${PROJECT_BINARY_DIR}")
-
-#Command file to get all the files in the src/ and include/
-file(GLOB_RECURSE source_files src*/* include/*)
-
-set(objs
- external/umat_externalM.o external/umat_externalT.o
- PROPERTIES
- EXTERNAL_OBJECT true
- GENERATED true
+# Set library version for ABI compatibility tracking
+set_target_properties(simcoon PROPERTIES
+  VERSION ${PROJECT_VERSION}
+  SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
-#Add the files to the lib
-add_library(simcoon SHARED ${source_files})
-#link against armadillo
-if (MSVC AND USE_CARMA)
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-else()
-  target_link_libraries(simcoon ${ARMADILLO_LIBRARIES})
+# Add source files from subdirectory
+add_subdirectory(src)
+
+# Create alias for namespaced usage (simcoon::simcoon)
+add_library(simcoon::simcoon ALIAS simcoon)
+
+# Add include directories to simcoon target
+target_include_directories(simcoon
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Add Armadillo as system headers to suppress warnings
+target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
+
+
+# Define restrict macro (MSVC and GCC/Clang handle restrict differently)
+target_compile_definitions(simcoon PUBLIC restrict=)
+
+# Platform-specific compile options
+if(APPLE)
+  target_compile_options(simcoon PUBLIC -stdlib=libc++)
+  target_link_options(simcoon PUBLIC -stdlib=libc++)
 endif()
 
-#Define lists of executables for compilation
-set (All_exe_to_compile solver identification L_eff Elastic_props ODF PDF)
+# Optimization flags based on build type
+if(NOT MSVC)
+  target_compile_options(simcoon PUBLIC
+    $<$<CONFIG:Debug>:-O0>
+    $<$<CONFIG:Release>:-O3>
+    $<$<CONFIG:RelWithDebInfo>:-O2>
+    $<$<CONFIG:MinSizeRel>:-Os>
+  )
+endif()
 
-#Compile public executable
-foreach (Exe_to_compile ${All_exe_to_compile})
+target_link_libraries(simcoon
+    PUBLIC ${ARMADILLO_LIBRARIES}
+    PRIVATE dylib
+)
 
-	#Add the solver executable
-	add_executable(${Exe_to_compile} software/${Exe_to_compile}.cpp)
-
-	#Link the solver executable with armadillo
-  if (MSVC AND USE_CARMA)
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(${Exe_to_compile} simcoon ${ARMADILLO_LIBRARIES})
-  endif()
-  if(NOT WIN32)
-    target_link_libraries(${Exe_to_compile} -ldl)
-  endif()
-
-endforeach (Exe_to_compile ${All_exe_to_compile})
+# Compile public executables (with main functions)
+set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
+foreach(exe_name ${EXECUTABLES})
+  add_executable(${exe_name} software/${exe_name}.cpp)
+  target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})
+endforeach()
 
 ##Testing
-#Test files are in a separate source directory called test
-file(GLOB_RECURSE TEST_SRCS test/*.cpp)
-file(GLOB_RECURSE TEST_EXTERN test_extern/*.cpp)
+if(SIMCOON_BUILD_TESTS)
+  # Test plugin libraries
+  if(NOT MSVC)
+    add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
 
 if(NOT MSVC)
   set_source_files_properties(testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f PROPERTIES Fortran_PREPROCESS OFF)
   add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-  set_target_properties(umat_plugin_aba PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external)
-  target_link_libraries(umat_plugin_aba simcoon ${ARMADILLO_LIBRARIES})
-endif()
+  set_target_properties(umat_plugin_aba PROPERTIES
+    PREFIX ""
+    SUFFIX ""
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
+  )
 
-if(MSVC)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-  # Specify the output directory for each configuration (Debug, Release, etc.)
-  foreach(CONFIG_TYPE ${CMAKE_CONFIGURATION_TYPES})
-    string(TOUPPER ${CONFIG_TYPE} CONFIG)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external")
-  endforeach()
+  target_link_libraries(umat_plugin_aba PRIVATE simcoon ${ARMADILLO_LIBRARIES})
 endif()
-add_library(umat_plugin_ext SHARED testBin/Umats/UMEXT/external/umat_plugin_ext.cpp)
-if(MSVC)
-  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
-  if (USE_CARMA)
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES} carma::carma)
-  else()
-    target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
   endif()
-else()
-  set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX "" LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
-  target_link_libraries(umat_plugin_ext simcoon ${ARMADILLO_LIBRARIES})
-endif()
 
-#Run through each source
-foreach(testSrc ${TEST_SRCS})
-
-  get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
-  file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test ${testFolder})
-
-  # Extract the filename without an extension (NAME_WE)
-  get_filename_component(testName ${testRel} NAME_WE)
-  get_filename_component(testFolder ${testRel} DIRECTORY)
-
-  #Add compile target
-  add_executable(${testName} ${testSrc})
-
-  if (MSVC AND USE_CARMA)
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main carma::carma)
-  else()
-  	target_link_libraries(${testName} simcoon ${ARMADILLO_LIBRARIES} GTest::gtest GTest::gtest_main)
-  endif()
-  target_include_directories(${testName} PRIVATE ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})    
-
-  # Custom runtime output directory for test binaries
-  set_target_properties(${testName} PROPERTIES 
-      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-      RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-      RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
-
+  add_library(umat_plugin_ext SHARED
+    testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
+  )
+  target_link_libraries(umat_plugin_ext PRIVATE simcoon)
   if(MSVC)
-    add_custom_command(TARGET ${testName} POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_BINARY_DIR}/bin/simcoon.dll  
-        ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
+    set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
+    set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
+    add_dependencies(umat_plugin_ext simcoon)
+    add_custom_command(TARGET umat_plugin_ext POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+      ${CMAKE_BINARY_DIR}/bin
+      ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+    )
+  else()
+    # Use default PREFIX (lib) and SUFFIX (.so on Linux, .dylib on macOS)
+    # to match dylib::decorations::os_default() expectations
+    set_target_properties(umat_plugin_ext PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external
+    )
   endif()
 
-  # Add test with proper working directory and command
-  add_test(NAME ${testFolder}/${testName} 
-          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-          COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
-endforeach(testSrc)
-
-if(NOT MSVC)
-  #Run through each source
-  foreach(testSrc ${TEST_EXTERN})
-
-    get_filename_component(testFolder ${testSrc} REALPATH ${CMAKE_CURRENT_SOURCE_DIR})
-    file(RELATIVE_PATH testRel ${CMAKE_CURRENT_SOURCE_DIR}/test_extern ${testFolder})
-
-    # Extract the filename without an extension (NAME_WE)
-    get_filename_component(testName ${testRel} NAME_WE)
-    get_filename_component(testFolder ${testRel} DIRECTORY)
-
-    #Add compile target
-    add_executable(${testName} ${testSrc})
-
-    target_link_libraries(${testName} simcoon GTest::gtest GTest::gtest_main)
-    target_include_directories(${testName} PRIVATE ${Boost_INCLUDE_DIRS} ${ARMADILLO_INCLUDE_DIRS} ${GTEST_INCLUDE_DIRS})        
-
-    # Custom runtime output directory for test binaries
-    set_target_properties(${testName} PROPERTIES 
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder})
-
-    # Add test with proper working directory and command
-    add_test(NAME ${testFolder}/${testName} 
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/testBin/${testFolder}/${testName})        
-  endforeach(testSrc)
+  # Add test executables from subdirectory
+  add_subdirectory(test)
 endif()
-
-#set_property(TARGET FOR PROPERTY)
-#add_library(ABA OBJECT testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-#set_property(TARGET ABA PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC o umat_plugin_aba -lsimcoon -larmadillo -lgfortran")
-
-#add_library(umat OBJECT software/umat_single.cpp)
-#set_property(TARGET umat PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++20 -DARMA_DONT_USE_WRAPPER")
-
-#add_library(umatT OBJECT software/umat_singleT.cpp)
-#set_property(TARGET umatT PROPERTY COMPILE_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -c -openm -larmadillo -std=c++20 -DARMA_DONT_USE_WRAPPER")
-
 
 ################################################################################
 # INSTALL CONFIGURATION
 
-set(INSTALL_INCLUDE_DIR include)
-set(INSTALL_LIB_DIR lib)
+message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
+message(STATUS "CMAKE_INSTALL_LIBDIR = ${CMAKE_INSTALL_LIBDIR}")
+message(STATUS "CMAKE_INSTALL_INCLUDEDIR = ${CMAKE_INSTALL_INCLUDEDIR}")
+message(STATUS "CMAKE_INSTALL_BINDIR = ${CMAKE_INSTALL_BINDIR}")
 
-# executables destination
-if(NOT INSTALL_BIN_DIR)
-  set(INSTALL_BIN_DIR bin)
+# Find and collect runtime dependency DLLs on Windows (before Python bindings)
+if(WIN32)
+  # Find and install dependency DLLs (BLAS/LAPACK/runtime)
+  set(DEPENDENCY_DLLS
+      "openblas.dll"
+      "liblapack.dll"
+      "libgcc_s_seh-1.dll"
+      "libgfortran-5.dll"
+      "libquadmath-0.dll"
+      "libwinpthread-1.dll"
+  )
+
+  # Search paths: library directories and compiler directory
+  set(DLL_SEARCH_PATHS "")
+  foreach(lib_path ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+    get_filename_component(lib_dir ${lib_path} DIRECTORY)
+    string(REPLACE "/lib" "/bin" bin_dir "${lib_dir}")
+    list(APPEND DLL_SEARCH_PATHS ${bin_dir})
+  endforeach()
+
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    get_filename_component(COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    list(APPEND DLL_SEARCH_PATHS ${COMPILER_DIR})
+  endif()
+
+  list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
+
+  # Collect dependency DLL paths for Python package
+  if(SIMCOON_BUILD_PYTHON_BINDINGS)
+    set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
+  endif()
+
+  # Try to find and store each DLL path
+  foreach(dll_name ${DEPENDENCY_DLLS})
+    set(dll_found FALSE)
+    foreach(search_path ${DLL_SEARCH_PATHS})
+      set(dll_path "${search_path}/${dll_name}")
+      if(EXISTS "${dll_path}")
+        # Store path for Python package (handled by python-builder CMakeLists)
+        if(SIMCOON_BUILD_PYTHON_BINDINGS)
+          list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
+          set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
+        endif()
+        message(STATUS "Found dependency DLL: ${dll_path}")
+        set(dll_found TRUE)
+        break()
+      endif()
+    endforeach()
+
+    if(NOT dll_found)
+      message(WARNING "Dependency DLL not found: ${dll_name}. "
+              "Python package may fail at runtime. "
+              "Search paths: ${DLL_SEARCH_PATHS}")
+    endif()
+  endforeach()
 endif()
 
-message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "INSTALL_LIB_DIR      = ${INSTALL_LIB_DIR}"     )
-message(STATUS "INSTALL_INCLUDE_DIR  = ${INSTALL_INCLUDE_DIR}" )
-message(STATUS "INSTALL_BIN_DIR      = ${INSTALL_BIN_DIR}"    )
+################################################################################
+# PYTHON BINDINGS
+if(SIMCOON_BUILD_PYTHON_BINDINGS)
+  add_subdirectory(simcoon-python-builder)
+endif()
 
-install(DIRECTORY include/ DESTINATION ${INSTALL_INCLUDE_DIR})
-install(TARGETS simcoon)
+################################################################################
+# INSTALL TARGETS
+
+# Install simcoon library with export
+install(TARGETS simcoon
+  EXPORT simcoonTargets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    COMPONENT Runtime
+    NAMELINK_COMPONENT Development
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    COMPONENT Development
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT Runtime
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Install headers
+install(DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT Development
+)
+
+# Install the export set
+install(EXPORT simcoonTargets
+  FILE simcoonTargets.cmake
+  NAMESPACE simcoon::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+  COMPONENT Development
+)
+
+# Generate and install package config files
+include(CMakePackageConfigHelpers)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/simcoonConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfig.cmake"
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfigVersion.cmake"
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/simcoonConfigVersion.cmake"
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/simcoon
+  COMPONENT Development
+)
+
+# Install runtime dependencies on Windows
+if(WIN32)
+  # Install all DLLs from build/bin
+  install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/
+          DESTINATION ${CMAKE_INSTALL_BINDIR}
+          COMPONENT Runtime
+          FILES_MATCHING PATTERN "*.dll")
+
+  # Install dependency DLLs
+  if(PYTHON_RUNTIME_DLLS)
+    install(FILES ${PYTHON_RUNTIME_DLLS}
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+            COMPONENT Runtime)
+  endif()
+endif()

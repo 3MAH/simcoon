@@ -257,7 +257,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     double Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
     
     //definition of Lambdas associated to transformation
-    vec lambdaTF = Hcur*dPrager_stress(sigma, prager_b, prager_n);
+    vec lambdaTF = Hcur*dDrucker_stress(sigma, prager_b, prager_n);
     
     if (Mises_strain(ET) > 1E-6)
         ETMean = dev(ET) / (xi);
@@ -322,7 +322,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     double A_xiR_start = -1.*rhoDs0*(T) + rhoDE0 - 0.5*sum(sigma_start%DM_sig) - sum(sigma_start%Dalpha)*(T-T_init) + HfR;
     
     //Transformation criteria
-    double PhihatF = Hcur*Prager_stress(sigma, prager_b, prager_n);
+    double PhihatF = Hcur*Drucker_stress(sigma, prager_b, prager_n);
     double PhihatR = sum(sigma%ETMean);
     
     //Variables required for the loop
@@ -412,7 +412,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         DM_sig = DM*sigma;
         Dalpha_T = Dalpha*(T+DT);
         
-        lambdaTF = Hcur * dPrager_stress(sigma, prager_b, prager_n);
+        lambdaTF = Hcur * dDrucker_stress(sigma, prager_b, prager_n);
         lambdaTR = -1. * ETMean;
         
         kappa_j[0] = L*(lambdaTF + DM_sig + Dalpha_T);
@@ -458,7 +458,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
         
         //Forward transformation thermodynamic force
-        PhihatF = Hcur*Prager_stress(sigma, prager_b, prager_n);
+        PhihatF = Hcur*Drucker_stress(sigma, prager_b, prager_n);
         A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sigma%DM_sig) + sum(sigma%Dalpha)*(T + DT - T_init) - HfF;
         lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
         YtF = Y0t + D*Hcur*Mises_stress(sigma);
@@ -505,7 +505,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(sigma);
 
         //Related to forward transformation
-        dPhihatFdsigma = dHcurdsigma * Prager_stress(sigma, prager_b, prager_n) + Hcur * dPrager_stress(sigma, prager_b, prager_n);
+        dPhihatFdsigma = dHcurdsigma * Drucker_stress(sigma, prager_b, prager_n) + Hcur * dDrucker_stress(sigma, prager_b, prager_n);
         dPhihatFdxiF = 0.;
         dPhihatFdxiR = 0.;
         

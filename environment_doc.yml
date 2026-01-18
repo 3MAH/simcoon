@@ -1,0 +1,38 @@
+name: fedoo
+
+channels:
+  - conda-forge
+  - set3mah
+
+dependencies:
+  - python=3.12
+  - numpy>=1.26
+# to compile simcoon
+  - cxx-compiler
+  - fortran-compiler
+  - blas
+  - lapack  
+  - mkl
+  - numpy>=1.26
+  - cmake
+  - python
+  - pip
+  - setuptools
+  - gtest
+  - pybind11
+  - armadillo >= 12.6
+  - carma
+  - pytest
+  - ninja
+#for documentation and simcoon tests
+  - scipy
+  - pypandoc
+  - sphinx
+  - sphinx_rtd_theme
+  - sphinx-design
+  - sphinx-gallery
+  - imageio
+  - imageio-ffmpeg
+  - mock
+  - matplotlib
+  - pandas

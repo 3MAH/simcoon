@@ -74,8 +74,8 @@ TEST(Tidentification, identification_layers)
     
     string simul_type = "SOLVE";
     
-    ident_essentials(n_param, n_consts, nfiles, path_data, file_essentials);
-    ident_control(ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, probaMut, pertu, c, p0, lambdaLM, path_data, file_control);
+    ASSERT_NO_THROW(ident_essentials(n_param, n_consts, nfiles, path_data, file_essentials)) << "Failed to read identification essentials - check if file exists";
+    ASSERT_NO_THROW(ident_control(ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, probaMut, pertu, c, p0, lambdaLM, path_data, file_control)) << "Failed to read identification control - check if file exists";
     run_identification(simul_type,n_param, n_consts, nfiles, ngen, aleaspace, apop, spop, ngboys, maxpop, station_nb, station_lim, path_data, path_keys, path_results, materialfile, outputfile, simulfile, probaMut, pertu, c, p0, lambdaLM);
     
     string umat_name;
@@ -86,7 +86,7 @@ TEST(Tidentification, identification_layers)
     double psi_rve = 0.;
     double theta_rve = 0.;
     double phi_rve = 0.;
-    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile);
+    ASSERT_NO_THROW(read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile)) << "Failed to read material properties - check if file exists";
     
     phase_characteristics rve_layer_0;
     phase_characteristics rve_layer_1;

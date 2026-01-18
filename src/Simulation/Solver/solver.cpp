@@ -339,10 +339,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                     }                                    
                                     else {
-                                        sv_M->F1 = sv_M->F0 + Dtinc*v2t(sptr_meca->mecas.row(inc).t());
+                                        sv_M->F1 = v2t(sptr_meca->BC_mecas.row(inc).t());
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         DTime = Dtinc*sptr_meca->times(inc);
-                                        
+                                    
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
                                         mat Omega2 = zeros(3,3);
@@ -393,7 +393,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
 */                                            
                                         }
-
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
                                     }

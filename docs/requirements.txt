@@ -1,4 +1,9 @@
 sphinx
 sphinx-rtd-theme
 sphinxcontrib-napoleon
+matplotlib
 mock
+nbsphinx
+jupyter
+scipy
+pandas
