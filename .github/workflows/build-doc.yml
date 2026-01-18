@@ -119,8 +119,9 @@ jobs:
           path:
             docs/_build/html/
             
-      - name: Deploy HTML documentation (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
+      # Deploy to simcoon-docs/main only for main branch
+      - name: Deploy HTML documentation (main branch)
+        if: ${{ github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
@@ -129,13 +130,13 @@ jobs:
           publish_dir: ./docs/_build/html
           force_orphan: true
 
-      - name: Deploy HTML documentation (documentation branch)
-        if: ${{ github.ref == 'refs/heads/documentation' }}
+      # Deploy to simcoon-docs/PRXX for each pull request
+      - name: Deploy HTML documentation (pull request)
+        if: ${{ github.event_name == 'pull_request' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
           external_repository: 3MAH/simcoon-docs
-          publish_branch: main
+          publish_branch: PR${{ github.event.pull_request.number }}
           publish_dir: ./docs/_build/html
-          destination_dir: documentation
-          force_orphan: false
+          force_orphan: true
