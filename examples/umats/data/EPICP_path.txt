@@ -21,11 +21,11 @@
 #Dn_inc 0.001
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S 1000
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15
 
 #Mode
@@ -35,11 +35,11 @@ T 293.15
 #Dn_inc 0.001
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S -1100
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15
 
 #Mode
@@ -49,11 +49,11 @@ T 293.15
 #Dn_inc 0.001
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S 1200
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15
 
 #Mode
@@ -63,11 +63,11 @@ T 293.15
 #Dn_inc 0.001
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S -1300
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15
 
 #Mode
@@ -77,9 +77,9 @@ T 293.15
 #Dn_inc 0.001
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S 1500
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15

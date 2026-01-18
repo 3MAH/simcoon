@@ -21,9 +21,9 @@
 #Dn_inc 1
 #time
 300
-#Consigne
+#prescribed_mechanical_state
 S 1000
 S 0 S 0
 S 0 S 0 S 0
-#Consigne_T
+#prescribed_temperature_state
 T 293.15
