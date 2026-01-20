@@ -1,7 +1,7 @@
 """
-=========================================================
+=========================================
 Hyperelastic models - use the umat
-=========================================================
+=========================================
 
 In this example, we compare five hyperelastic constitutive laws.
 Each model is run for **uniaxial tension (UT)**,
@@ -89,31 +89,30 @@ from dataclasses import dataclass
 
 ###############################################################################
 # Data structures for material models and loading cases
-# -----------------------------------------------------
+#
 # In this section we define two small helper structures used throughout the
 # example to organize material parameters and the data associated with each
 # loading case.
 #
 # ``Umat`` is a simple dataclass that stores information about one material
-# model. It contains:
-#   - ``name``: the identifier of the material model (e.g., "neo_hookean"),
-#   - ``parameters``: a list of numerical parameters for the constitutive
-#     model,
-#   - ``colors``: a plotting color or style string used when visualizing
-#     results.
+# model. It contains the following fields:
+#
+# - ``name``: the identifier of the material model (e.g., "neo_hookean").
+# - ``parameters``: a list of numerical parameters for the constitutive model.
+# - ``colors``: a plotting color or style string used when visualizing results.
 #
 # ``loading_case`` is a NamedTuple describing one deformation or test scenario.
-# It contains:
-#   - ``name``: a short label for the loading type (e.g. "uniaxial"),
-#   - ``pathfile``: the file path where the analytical or numerical results
-#     for this loading case are stored,
-#   - ``comparison``: a list of tuples, each holding two pandas Series
-#     (typically experimental vs analytical stress–stretch data) that can be
-#     plotted or analyzed together.
+# It contains the following fields:
+#
+# - ``name``: a short label for the loading type (e.g. "uniaxial").
+# - ``pathfile``: the file path where the analytical or numerical results
+#   for this loading case are stored.
+# - ``comparison``: a list of tuples, each holding two pandas Series
+#   (typically experimental vs analytical stress–stretch data) that can be
+#   plotted or analyzed together.
 #
 # These lightweight structures help keep the code clean and make the processing
 # and comparison loops later in the example more readable.
-###############################################################################
 
 
 @dataclass
@@ -131,7 +130,7 @@ class loading_case(NamedTuple):
 
 ###############################################################################
 # Reading experimental and analytical Treloar data
-# ------------------------------------------------
+#
 # This example demonstrates how to load two datasets used for comparing
 # experimental results with analytical predictions of the Treloar model.
 #
@@ -147,8 +146,6 @@ class loading_case(NamedTuple):
 # supplied explicitly because the files contain header lines that we
 # ignore with ``header=0``. Each dataset is read into its own pandas
 # DataFrame for further processing and comparison in later sections.
-#
-###################################################################################
 
 path_data = "comparison"
 comparison_file_exp = "Treloar.txt"
@@ -164,7 +161,7 @@ df_exp = pd.read_csv(
 
 ###############################################################################
 # Defining the material models used for comparison
-# ------------------------------------------------
+#
 # In this section we instantiate several hyperelastic material models using the
 # ``Umat`` dataclass defined earlier. Each model is characterized by:
 #
@@ -183,7 +180,7 @@ df_exp = pd.read_csv(
 #
 # These material models are collected into the list ``list_umats`` for
 # convenient iteration in later sections.
-###############################################################################
+
 
 Neo_Hookean_model = Umat(name="NEOHC", parameters=[0.5673, 1000.0], colors="blue")
 Mooney_Rivlin_model = Umat(
@@ -222,33 +219,29 @@ list_umats = [
 
 ###############################################################################
 # Defining the loading cases for comparison
-# -----------------------------------------
+#
 # Here we create the different deformation modes used to compare the
 # experimental Treloar data with the analytical predictions.
 #
 # Each loading case is represented by a ``loading_case`` NamedTuple that
-# contains:
-#   - ``name``: a short identifier for the deformation mode,
-#   - ``pathfile``: the file describing the deformation path (used later for
-#     analytical evaluations),
-#   - ``comparison``: a list of pairs of pandas Series, typically
-#     (experimental data, analytical data), for the stress component that
-#     corresponds to this loading mode.
+# contains the following fields:
+#
+# - ``name``: a short identifier for the deformation mode.
+# - ``pathfile``: the file describing the deformation path (used later for
+#   analytical evaluations).
+# - ``comparison``: a list of pairs of pandas Series, typically
+#   (experimental data, analytical data), for the stress component that
+#   corresponds to this loading mode.
 #
 # The three classical Treloar tests included here are:
 #
-# **Uniaxial tension (UT)**
-#   Uses the stretch λ₁ and the corresponding stress component P₁.
-#
-# **Pure shear (PS)**
-#   Uses the stretch λ₂ and stress P₂.
-#
-# **Equi-biaxial tension (ET)**
-#   Uses the stretch λ₃ and stress P₃.
+# Uniaxial tension (UT): uses the stretch λ₁ and the corresponding stress component P₁.
+# Pure shear (PS): uses the stretch λ₂ and stress P₂.
+# Equi-biaxial tension (ET): uses the stretch λ₃ and stress P₃.
 #
 # These loading cases are gathered into the list ``loading_cases`` for
 # convenient iteration in subsequent plotting or evaluation steps.
-###############################################################################
+
 
 Uniaxial_tension = loading_case(
     name="UT",
@@ -276,11 +269,11 @@ loading_cases = [Uniaxial_tension, Pure_shear, Equi_biaxial_tension]
 
 ###############################################################################
 # Plot each model separately
-# --------------------------
+#
 # For each hyperelastic model, we create one figure with five subplots:
 # Neo-Hookean, Mooney-Rivlin, Isihara, Gent-Thomas, and Swanson.
 # Treloar experimental data are plotted for comparison.
-###############################################################################
+
 
 models_to_plot = ["NEOHC", "MOORI", "ISHAH", "GETHH", "SWANH"]
 model_colors = {
@@ -294,7 +287,7 @@ model_colors = {
 
 ###############################################################################
 # Plot hyperelastic models in uniaxial tension
-# --------------------------------------------------------
+#
 #
 # In this section, the response of several hyperelastic material models is
 # evaluated under uniaxial tension and compared against Treloar’s experimental
@@ -303,25 +296,24 @@ model_colors = {
 # For each constitutive model contained in ``list_umats``, the following steps
 # are performed:
 #
-# - The model-specific material parameters are retrieved from the ``umat``
-#   object.
+# The model-specific material parameters are retrieved from the ``umat`` object.
 #
-# - A uniaxial loading path is prescribed using the loading history stored
-#   in ``path_UT.txt``.
+# A uniaxial loading path is prescribed using the loading history stored in
+# ``path_UT.txt``.
 #
-# - The constitutive response is computed by calling the solver interface,
-#   which evaluates the Cauchy stress as a function of the applied stretch.
+# The constitutive response is computed by calling the solver interface,
+# which evaluates the Cauchy stress as a function of the applied stretch.
 #
-# - The solver output (i.e, stretch and Nominal stress) is read from the generated result files and the axial
-#   Cauchy stress component is extracted.
+# The solver output (i.e, stretch and Nominal stress) is read from the generated
+# result files and the axial Cauchy stress component is extracted.
 #
-# - The numerical prediction is plotted together with the corresponding
-#   experimental data from Treloar for direct visual comparison.
+# The numerical prediction is plotted together with the corresponding
+# experimental data from Treloar for direct visual comparison.
 #
 # Each subplot corresponds to a single material model. The resulting figure
 # provides a qualitative assessment of the ability of each model to reproduce
 # the uniaxial tension behavior observed experimentally.
-###############################################################################
+
 
 fig, axes = plt.subplots(2, 3, figsize=(12, 8))
 axes = axes.flatten()
@@ -392,7 +384,7 @@ for i, umat in enumerate(list_umats):
     axes[i].grid(True)
     axes[i].legend()
 
-fig.suptitle(f"Uniaxial tension", fontsize=14)
+fig.suptitle("Uniaxial tension", fontsize=14)
 fig.delaxes(axes[5])
 fig.tight_layout()
 
@@ -401,34 +393,26 @@ plt.show()
 
 ###############################################################################
 # Plot hyperelastic models in pure shear
-# --------------------------------------------------
+#
 #
 # In this section, the response of several hyperelastic material models is
 # evaluated under pure shear and compared against Treloar’s experimental
 # data.
 #
-# For each constitutive model contained in ``list_umats``, the following steps
-# are performed:
+# For each constitutive model contained in ``list_umats``, we:
 #
-# - The model-specific material parameters are retrieved from the ``umat``
-#   object.
-#
-# - A uniaxial loading path is prescribed using the loading history stored
-#   in ``path_PS.txt``.
-#
-# - The constitutive response is computed by calling the solver interface,
-#   which evaluates the Cauchy stress as a function of the applied stretch.
-#
-# - The solver output (i.e, stretch and Nominal stress) is read from the generated result files and the axial
-#   Cauchy stress component is extracted.
-#
-# - The numerical prediction is plotted together with the corresponding
-#   experimental data from Treloar for direct visual comparison.
+# 1) retrieve the model-specific material parameters from the ``umat`` object,
+# 2) prescribe a pure shear loading path using the history in ``path_PS.txt``,
+# 3) compute the constitutive response using the solver interface,
+# 4) read the solver output (stretch and nominal stress) and extract the axial
+#    Cauchy stress component,
+# 5) plot the numerical prediction together with the corresponding Treloar
+#    experimental data.
 #
 # Each subplot corresponds to a single material model. The resulting figure
 # provides a qualitative assessment of the ability of each model to reproduce
 # the pure shear behavior observed experimentally.
-###############################################################################
+
 
 Neo_Hookean_model.parameters = [0.3360, 1000.0]
 Mooney_Rivlin_model.parameters = [0.2348, -0.065, 10000.0]
@@ -516,7 +500,7 @@ for i, umat in enumerate(list_umats):
     axes[i].grid(True)
     axes[i].legend()
 
-fig.suptitle(f"Pure shear", fontsize=14)
+fig.suptitle("Pure shear", fontsize=14)
 fig.delaxes(axes[5])
 fig.tight_layout()
 
@@ -525,7 +509,7 @@ plt.show()
 
 ###############################################################################
 # Plot hyperelastic models in equibiaxal tension
-# -----------------------------------------------------------
+#
 #
 # In this section, the response of several hyperelastic material models is
 # evaluated under equibiaxial tension and compared against Treloar’s experimental
@@ -534,25 +518,17 @@ plt.show()
 # For each constitutive model contained in ``list_umats``, the following steps
 # are performed:
 #
-# - The model-specific material parameters are retrieved from the ``umat``
-#   object.
-#
-# - A uniaxial loading path is prescribed using the loading history stored
-#   in ``path_ET.txt``.
-#
-# - The constitutive response is computed by calling the solver interface,
-#   which evaluates the Cauchy stress as a function of the applied stretch.
-#
-# - The solver output (i.e, stretch and Nominal stress) is read from the generated result files and the axial
-#   Cauchy stress component is extracted.
-#
-# - The numerical prediction is plotted together with the corresponding
-#   experimental data from Treloar for direct visual comparison.
+# For each constitutive model contained in ``list_umats``, we retrieve the
+# model-specific material parameters from the ``umat`` object, prescribe an
+# equibiaxial tension loading path using the history in ``path_ET.txt``, run the
+# solver, then post-process the stretch/nominal-stress output to extract the
+# axial Cauchy stress component. Finally, we plot the numerical prediction
+# together with the corresponding Treloar experimental data for comparison.
 #
 # Each subplot corresponds to a single material model. The resulting figure
 # provides a qualitative assessment of the ability of each model to reproduce
 # the equibiaxial tension behavior observed experimentally.
-###############################################################################
+
 
 Neo_Hookean_model.parameters = [0.4104, 1000.0]
 Mooney_Rivlin_model.parameters = [0.1713, 0.0047, 10000.0]
@@ -640,7 +616,7 @@ for i, umat in enumerate(list_umats):
     axes[i].grid(True)
     axes[i].legend()
 
-fig.suptitle(f"Equibiaxial tension", fontsize=14)
+fig.suptitle("Equibiaxial tension", fontsize=14)
 fig.delaxes(axes[5])
 fig.tight_layout()
 

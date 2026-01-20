@@ -396,6 +396,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
 */
         return carma::cube_to_arr(Lt_converted,false);
     }
+    throw std::invalid_argument("Lt.ndim() must be 2 or 3");
 }
 
 

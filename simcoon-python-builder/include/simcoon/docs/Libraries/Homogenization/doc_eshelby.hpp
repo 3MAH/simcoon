@@ -202,6 +202,51 @@ constexpr auto Eshelby_oblate = R"pbdoc(
         print(S)
 )pbdoc";
 
+constexpr auto Eshelby_penny = R"pbdoc(
+    Provides the Eshelby tensor of a penny-shaped (crack) inclusion for isotropic linear elasticity
+
+    Parameters
+    ----------
+    nu : float
+        the Poisson ratio
+
+    Returns
+    -------
+    pybind11::array_t<double>
+        Provides the Eshelby tensor of a penny-shaped (crack) inclusion for isotropic linear elasticity as a numpy array
+        according to the conventions of a localisation tensor, as a function of the Poisson ratio :math:`\nu`.
+        This corresponds to the limit case of an oblate spheroid when the aspect ratio :math:`a_r \rightarrow 0`.
+
+    Notes
+    -----
+    The penny-shaped inclusion is oriented such that the normal to the crack plane is the axis :math:`1`.
+    The Eshelby tensor for penny-shaped (crack) inclusions is defined as:
+
+    .. math::
+
+        \boldsymbol{S}=\left(\begin{matrix}
+        1 & \frac{\nu}{1-\nu} & \frac{\nu}{1-\nu} & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 0 \\
+        0 & 0 & 0 & 0 & 1 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 1 \end{matrix}\right)
+
+    This represents the limiting case where :math:`a_r = \frac{a_1}{a_2} = \frac{a_1}{a_3} \rightarrow 0`,
+    corresponding to a flat disc or crack perpendicular to axis 1.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        nu = 0.3
+        S = sim.Eshelby_penny(nu)
+        print(S)
+)pbdoc";
+
 constexpr auto Eshelby = R"pbdoc(
     Provides a numerical estimation of the Eshelby tensor of an ellipsoisal, possibly anisotropic inclusion, 
 
