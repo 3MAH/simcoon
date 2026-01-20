@@ -101,4 +101,13 @@ testpaths = ["simcoon-python-builder/test"]
 python_files = ["test_*.py", "*_test.py", "run_test.py"]
 addopts = "-v --tb=short"
 
+# =============================================================================
+# uv configuration
+# =============================================================================
+
+[tool.uv]
+# Disable build isolation for editable installs (enables direct cmake rebuilds)
+# Requires build dependencies to be installed first: scikit-build-core, pybind11, numpy
+no-build-isolation-package = ["simcoon"]
+
 

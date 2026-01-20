@@ -49,13 +49,19 @@ jobs:
         run: |
           uv venv
           uv pip install scikit-build-core pybind11 numpy
-          uv pip install -e .[dev] --no-build-isolation
+          uv pip install -e .[dev]
 
       - name: Verify cmake rebuild works (Unix)
         if: runner.os != 'Windows'
         run: |
           touch src/Continuum_mechanics/Functions/constitutive.cpp
           cmake --build build/cp*
+          # Verify import works after cmake rebuild (should not trigger another build)
+          uv run python -c "import simcoon" 2>&1 | tee import.log
+          if grep -q "Building CXX" import.log; then
+            echo "ERROR: Import should not trigger rebuild after cmake --build"
+            exit 1
+          fi
 
       - name: Verify auto-rebuild on import (Unix)
         if: runner.os != 'Windows'

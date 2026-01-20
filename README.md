@@ -141,8 +141,8 @@ For active development with both C++ and Python:
 # Install build dependencies first
 uv pip install scikit-build-core pybind11 numpy
 
-# Editable install with --no-build-isolation (required for cmake rebuilds)
-uv pip install -e .[dev] --no-build-isolation
+# Editable install (uv applies --no-build-isolation automatically via pyproject.toml)
+uv pip install -e .[dev]
 
 # After modifying C++ files, rebuild directly
 cmake --build build/cp*
@@ -150,7 +150,7 @@ cmake --build build/cp*
 # Python changes take effect immediately (no rebuild needed)
 ```
 
-The editable install creates a build directory at `build/{wheel_tag}` (e.g., `build/cp312-cp312-linux_x86_64`). Using `--no-build-isolation` ensures the CMake cache references your actual Python environment (not a temporary one), enabling direct `cmake --build` commands for incremental rebuilds.
+The editable install creates a build directory at `build/{wheel_tag}` (e.g., `build/cp312-cp312-linux_x86_64`). The `[tool.uv]` config in `pyproject.toml` disables build isolation for simcoon, ensuring the CMake cache references your actual Python environment, enabling direct `cmake --build` commands for incremental rebuilds.
 
 **Auto-rebuild on import**: Importing simcoon will automatically trigger a cmake rebuild if C++ files have changed:
 ```bash
@@ -158,7 +158,7 @@ python -c "import simcoon"  # Rebuilds if needed
 uv run python -c "import simcoon"  # Also works
 ```
 
-**Note**: If you add new C++ source files, re-run `uv pip install -e .[dev] --no-build-isolation` to reconfigure.
+**Note**: If you add new C++ source files, re-run `uv pip install -e .[dev]` to reconfigure.
 
 #### Build Options
 
