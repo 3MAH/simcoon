@@ -20,11 +20,11 @@ jobs:
           - os: ubuntu-latest
             sys-package-install-command: |
               sudo apt-get update
-              sudo apt-get install -y libarmadillo-dev libboost-all-dev ninja-build
+              sudo apt-get install -y libarmadillo-dev ninja-build
           - os: macos-latest
-            sys-package-install-command: brew install armadillo boost ninja
+            sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
-            sys-package-install-command: vcpkg install armadillo boost-config boost-dll
+            sys-package-install-command: vcpkg install armadillo
             setup-env-command: |
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
 
