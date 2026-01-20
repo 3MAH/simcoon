@@ -45,10 +45,24 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Install Python package
+      - name: Editable install
         run: |
           uv venv
-          uv pip install .[test]
+          uv pip install scikit-build-core pybind11 numpy
+          uv pip install -e .[dev] --no-build-isolation
+
+      - name: Verify cmake rebuild works (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          touch src/Continuum_mechanics/Functions/constitutive.cpp
+          cmake --build build/cp*
+
+      - name: Verify auto-rebuild on import (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          touch src/Continuum_mechanics/Functions/contimech.cpp
+          uv run python -c "import simcoon" 2>&1 | tee rebuild.log
+          grep -q "Building CXX" rebuild.log || (echo "ERROR: Auto-rebuild did not trigger cmake" && exit 1)
 
       - name: Run Python tests
         run: uv run pytest
