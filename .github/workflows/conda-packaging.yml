@@ -52,7 +52,9 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash -l {0}
         run: |
-          # Install the built package
+          # Create fresh environment and install the built package
+          conda create -n test-install -y python
+          conda activate test-install
           conda install -y ./${{ matrix.target-platform }}/*.conda -c conda-forge -c set3mah
 
           echo "=== Verifying conda package structure ==="
@@ -125,7 +127,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Install the built package
+          # Create fresh environment and install the built package
+          conda create -n test-install -y python
+          conda activate test-install
           conda install -y ./${{ matrix.target-platform }}/*.conda -c conda-forge -c set3mah
 
           Write-Host "=== Verifying conda package structure ==="
