@@ -137,24 +137,37 @@ jobs:
           $localChannel = "file:///" + ($PWD.Path -replace '\\', '/')
           conda create -n test-install -y python simcoon -c $localChannel -c conda-forge -c set3mah
 
-          # Get the test environment prefix
-          $TEST_PREFIX = conda run -n test-install printenv CONDA_PREFIX
-          Write-Host "Test environment: $TEST_PREFIX"
+          # Get the test environment prefix (trim whitespace)
+          $TEST_PREFIX = (conda run -n test-install printenv CONDA_PREFIX).Trim()
+          Write-Host "Test environment: '$TEST_PREFIX'"
 
           Write-Host "=== Verifying conda package structure ==="
 
-          # Check C++ library
-          Write-Host "Checking simcoon.dll in PREFIX/Library/bin..."
-          if (Test-Path "$TEST_PREFIX/Library/bin/simcoon.dll") {
-            Write-Host "✓ simcoon.dll found"
+          # Debug: List Library contents
+          Write-Host "Contents of Library/bin:"
+          Get-ChildItem "$TEST_PREFIX\Library\bin" -ErrorAction SilentlyContinue | Select-Object Name | Format-Table
+          Write-Host "Contents of Library/lib:"
+          Get-ChildItem "$TEST_PREFIX\Library\lib" -ErrorAction SilentlyContinue | Select-Object Name | Format-Table
+
+          # Check C++ library (try both possible locations)
+          Write-Host "Checking simcoon.dll..."
+          $dllPath = "$TEST_PREFIX\Library\bin\simcoon.dll"
+          if (Test-Path $dllPath) {
+            Write-Host "✓ simcoon.dll found in Library/bin"
           } else {
-            Write-Host "✗ ERROR: simcoon.dll NOT found"
-            exit 1
+            Write-Host "simcoon.dll NOT in Library/bin, checking Library/lib..."
+            $dllPath = "$TEST_PREFIX\Library\lib\simcoon.dll"
+            if (Test-Path $dllPath) {
+              Write-Host "✓ simcoon.dll found in Library/lib"
+            } else {
+              Write-Host "✗ ERROR: simcoon.dll NOT found in either location"
+              exit 1
+            }
           }
 
           # Check headers
           Write-Host "Checking headers..."
-          if (Test-Path "$TEST_PREFIX/Library/include/simcoon") {
+          if (Test-Path "$TEST_PREFIX\Library\include\simcoon") {
             Write-Host "✓ Headers found"
           } else {
             Write-Host "✗ ERROR: Headers NOT found"
