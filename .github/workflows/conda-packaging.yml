@@ -46,7 +46,7 @@ jobs:
           CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
         shell: bash -l {0}
         run: |
-          conda install -y conda-build
+          conda install -y conda-build conda-index
           conda build conda.recipe -c conda-forge -c set3mah --output-folder .
           # Index output folder to make it a valid conda channel
           conda index .
