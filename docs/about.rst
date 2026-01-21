@@ -3,7 +3,7 @@ About
 
 Simcoon is a free, open-source library for the simulation of constitutive response of materials.    
 Its primarily objective was the developement of constitutive models for the simulation of heterogeneous materials, but now goes beyond with tools
-to facilitate their full-field simulation. Together with :ref:`microgen <https://microgen.readthedocs.io>` for the CAD and meshing of heterogeneous materials and :ref:`fedoo <https://3mah.github.io/fedoo-docs>` our Finite Element solver,
+to facilitate their full-field simulation. Together with `microgen <https://microgen.readthedocs.io>`_ for the CAD and meshing of heterogeneous materials and `fedoo <https://3mah.github.io/fedoo-docs>`_ our Finite Element solver,
 we offer a comprehensive simulation set for the in-depth analysis of heterogeneous materials.
 
 Simcoon is developed with the aim to be a high-quality scientific library to facilitate the analysis of the complex, non-linear behavior of systems.

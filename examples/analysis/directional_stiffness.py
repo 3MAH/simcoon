@@ -1,6 +1,6 @@
 """
 Effective properties of a cubic material
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+========================================
 
 This tutorial studies the directional stiffness of a cubic material
 """

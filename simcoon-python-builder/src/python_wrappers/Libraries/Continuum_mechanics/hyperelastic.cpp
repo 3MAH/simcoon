@@ -50,6 +50,7 @@ py::array_t<double> isochoric_invariants(const py::array_t<double> &input, const
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 py::array_t<double> isochoric_pstretch(const py::array_t<double> &input, const std::string &input_tensor, const double &J, const bool &copy) {
@@ -102,6 +103,7 @@ py::array_t<double> isochoric_pstretch(const py::array_t<double> &input, const s
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 py::array_t<double> tau_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const py::array_t<double> &input, const double &J, const bool &copy) {
@@ -132,6 +134,7 @@ py::array_t<double> tau_iso_hyper_invariants(const double &dWdI_1_bar, const dou
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 py::array_t<double> sigma_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const py::array_t<double> &input, const double &J, const bool &copy) {
@@ -162,6 +165,7 @@ py::array_t<double> sigma_iso_hyper_invariants(const double &dWdI_1_bar, const d
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 py::array_t<double> tau_vol_hyper(const double &dUdJ, const py::array_t<double> &input, const double &J, const bool &copy) {
@@ -192,6 +196,7 @@ py::array_t<double> tau_vol_hyper(const double &dUdJ, const py::array_t<double> 
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 py::array_t<double> sigma_vol_hyper(const double &dUdJ, const py::array_t<double> &input, const double &J, const bool &copy) {
@@ -222,6 +227,7 @@ py::array_t<double> sigma_vol_hyper(const double &dUdJ, const py::array_t<double
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
         }         
     }
+    throw std::invalid_argument("Invalid array dimensions");
 }
 
 } //namespace simpy
