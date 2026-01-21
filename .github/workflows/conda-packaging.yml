@@ -44,17 +44,19 @@ jobs:
       - name: Conda build
         env:
           CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
+        shell: bash -l {0}
         run: |
           conda install -y conda-build
           conda build conda.recipe -c conda-forge -c set3mah --output-folder .
+          # Index output folder to make it a valid conda channel
+          conda index .
 
       - name: Install and verify package structure (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
         run: |
-          # Create fresh environment and install the built package
-          conda create -n test-install -y python
-          conda install -n test-install -y --use-local simcoon -c conda-forge -c set3mah
+          # Create fresh environment and install the built package using local channel
+          conda create -n test-install -y python simcoon -c file://$PWD -c conda-forge -c set3mah
 
           # Get the test environment prefix
           TEST_PREFIX=$(conda run -n test-install printenv CONDA_PREFIX)
@@ -130,9 +132,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Create fresh environment and install the built package
-          conda create -n test-install -y python
-          conda install -n test-install -y --use-local simcoon -c conda-forge -c set3mah
+          # Create fresh environment and install the built package using local channel
+          $localChannel = "file:///" + ($PWD.Path -replace '\\', '/')
+          conda create -n test-install -y python simcoon -c $localChannel -c conda-forge -c set3mah
 
           # Get the test environment prefix
           $TEST_PREFIX = conda run -n test-install printenv CONDA_PREFIX
