@@ -54,7 +54,7 @@ jobs:
         run: |
           # Create fresh environment and install the built package
           conda create -n test-install -y python
-          conda install -n test-install -y ./${{ matrix.target-platform }}/*.conda -c conda-forge -c set3mah
+          conda install -n test-install -y --use-local simcoon -c conda-forge -c set3mah
 
           # Get the test environment prefix
           TEST_PREFIX=$(conda run -n test-install printenv CONDA_PREFIX)
@@ -132,7 +132,7 @@ jobs:
         run: |
           # Create fresh environment and install the built package
           conda create -n test-install -y python
-          conda install -n test-install -y ./${{ matrix.target-platform }}/*.conda -c conda-forge -c set3mah
+          conda install -n test-install -y --use-local simcoon -c conda-forge -c set3mah
 
           # Get the test environment prefix
           $TEST_PREFIX = conda run -n test-install printenv CONDA_PREFIX
