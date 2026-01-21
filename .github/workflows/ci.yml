@@ -1,4 +1,5 @@
-name: C++ Build & Test
+name: Build & Test
+#build and test on the three OS
 
 on:
   workflow_dispatch:
@@ -32,7 +33,7 @@ jobs:
           conda config --env --add channels set3mah
           conda config --env --set channel_priority strict
 
-      - name: Build C++ library
+      - name: Build for Linux
         shell: bash -l {0}
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja \
@@ -43,12 +44,12 @@ jobs:
             -Wno-dev
           cmake --build ${{github.workspace}}/build
 
-      - name: Run C++ tests
+      - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
       - name: Upload test logs as artifact
-        if: always()
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Linux
@@ -66,7 +67,7 @@ jobs:
           activate-environment: foo
           environment-file: environment_arm64.yml
 
-      - name: Build C++ library
+      - name: Build for MacOS
         shell: bash -l {0}
         run: |
           cmake -S . -B ${{github.workspace}}/build -G Ninja \
@@ -77,12 +78,12 @@ jobs:
             -Wno-dev
           cmake --build ${{github.workspace}}/build
 
-      - name: Run C++ tests
+      - name: Tests
         shell: bash -l {0}
         run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
 
       - name: Upload test logs as artifact
-        if: always()
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-OSX
@@ -100,7 +101,7 @@ jobs:
           activate-environment: foo
           environment-file: environment_win.yml
 
-      - name: Build C++ library
+      - name: Build for Windows
         shell: pwsh
         run: |
           cmake -S . -B build `
@@ -109,12 +110,12 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
 
-      - name: Run C++ tests
+      - name: Tests
         shell: pwsh
-        run: ctest --test-dir build --build-config Release --output-on-failure
+        run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
-        if: always()
+        if: always() # Ensure this step runs even if the tests fail
         uses: actions/upload-artifact@v4
         with:
           name: test-logs-Win

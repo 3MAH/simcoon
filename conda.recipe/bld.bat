@@ -1,4 +1,4 @@
-:: Simcoon build with Python bindings for conda
+:: Simcoon unified build with Python bindings
 cd %SRC_DIR%
 
 :: Set pybind11 path for CMake
