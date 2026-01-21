@@ -110,9 +110,11 @@ if(CONDA_BUILD)
   # Get Python site-packages path
   execute_process(
     COMMAND ${Python3_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_path('purelib'))"
-    OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+    OUTPUT_VARIABLE PYTHON_SITE_PACKAGES_RAW
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
+  # Convert Windows backslashes to forward slashes to avoid CMake escape issues
+  file(TO_CMAKE_PATH "${PYTHON_SITE_PACKAGES_RAW}" PYTHON_SITE_PACKAGES)
   message(STATUS "Python site-packages: ${PYTHON_SITE_PACKAGES}")
 
   # Install simmit.so to site-packages/simcoon/
