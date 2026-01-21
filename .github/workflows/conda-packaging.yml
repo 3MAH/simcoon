@@ -47,9 +47,10 @@ jobs:
         shell: bash -l {0}
         run: |
           conda install -y conda-build conda-index
-          conda build conda.recipe -c conda-forge -c set3mah --output-folder .
+          # Temporarily build only Python 3.13 for faster CI testing
+          conda build conda.recipe -c conda-forge -c set3mah --output-folder . --python=3.13
           # Index output folder to make it a valid conda channel
-          conda index .
+          python -m conda_index .
 
       - name: Install and verify package structure (Unix)
         if: runner.os != 'Windows'
