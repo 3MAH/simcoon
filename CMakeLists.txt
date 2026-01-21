@@ -28,6 +28,21 @@ include(GNUInstallDirs)
 
 # Options
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
+option(SIMCOON_BUILD_PYTHON "Build Python bindings (for conda)" OFF)
+
+# Detect conda build environment
+if(DEFINED ENV{CONDA_BUILD})
+  set(CONDA_BUILD TRUE)
+  set(SIMCOON_BUILD_PYTHON ON)
+  message(STATUS "Conda build detected - enabling Python bindings")
+endif()
+
+# Determine if we're building Python bindings (either via SKBUILD or SIMCOON_BUILD_PYTHON)
+if(DEFINED SKBUILD OR SIMCOON_BUILD_PYTHON)
+  set(BUILD_PYTHON_BINDINGS TRUE)
+else()
+  set(BUILD_PYTHON_BINDINGS FALSE)
+endif()
 
 # Helper function to set output directories for multi-config generators (MSVC)
 function(set_output_directory target output_dir)
@@ -157,7 +172,7 @@ FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
 # Python dependencies (only if building Python bindings)
-if(DEFINED SKBUILD)
+if(BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
@@ -313,7 +328,7 @@ target_link_libraries(simcoon
 # This prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
 # Only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
-if(WIN32 AND DEFINED SKBUILD)
+if(WIN32 AND BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon PRIVATE carma::carma)
 
   # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
@@ -410,7 +425,7 @@ if(WIN32)
   list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
 
   # Collect dependency DLL paths for Python package
-  if(DEFINED SKBUILD)
+  if(BUILD_PYTHON_BINDINGS)
     set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
   endif()
 
@@ -421,7 +436,7 @@ if(WIN32)
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
         # Store path for Python package (handled by python-builder CMakeLists)
-        if(DEFINED SKBUILD)
+        if(BUILD_PYTHON_BINDINGS)
           list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
           set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
@@ -441,7 +456,7 @@ endif()
 
 ################################################################################
 # PYTHON BINDINGS
-if(DEFINED SKBUILD)
+if(BUILD_PYTHON_BINDINGS)
   add_subdirectory(simcoon-python-builder)
 endif()
 
