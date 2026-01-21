@@ -47,8 +47,7 @@ jobs:
         shell: bash -l {0}
         run: |
           conda install -y conda-build conda-index
-          # Temporarily build only Python 3.13 for faster CI testing
-          conda build conda.recipe -c conda-forge -c set3mah --output-folder . --python=3.13
+          conda build conda.recipe -c conda-forge -c set3mah --output-folder .
           # Index output folder to make it a valid conda channel
           python -m conda_index .
 
@@ -140,34 +139,17 @@ jobs:
           # Get the test environment prefix
           $envInfo = conda info --envs | Select-String "test-install"
           $TEST_PREFIX = ($envInfo -split '\s+')[1]
-          Write-Host "Test environment: '$TEST_PREFIX'"
+          Write-Host "Test environment: $TEST_PREFIX"
 
           Write-Host "=== Verifying conda package structure ==="
 
-          # Debug: List top-level contents
-          Write-Host "Top-level contents of environment:"
-          Get-ChildItem $TEST_PREFIX | Select-Object Name
-
-          # Debug: List Library contents
-          Write-Host "Contents of Library:"
-          Get-ChildItem "$TEST_PREFIX\Library" -ErrorAction SilentlyContinue | Select-Object Name
-          Write-Host "Contents of Library/bin (first 10):"
-          Get-ChildItem "$TEST_PREFIX\Library\bin" -ErrorAction SilentlyContinue | Select-Object -First 10 Name
-
           # Check C++ library
           Write-Host "Checking simcoon.dll..."
-          $dllPath = "$TEST_PREFIX\Library\bin\simcoon.dll"
-          if (Test-Path $dllPath) {
+          if (Test-Path "$TEST_PREFIX\Library\bin\simcoon.dll") {
             Write-Host "✓ simcoon.dll found in Library/bin"
           } else {
-            Write-Host "Searching for simcoon.dll anywhere in environment..."
-            $found = Get-ChildItem -Path $TEST_PREFIX -Recurse -Filter "simcoon.dll" -ErrorAction SilentlyContinue
-            if ($found) {
-              Write-Host "Found simcoon.dll at: $($found.FullName)"
-            } else {
-              Write-Host "✗ ERROR: simcoon.dll NOT found anywhere"
-              exit 1
-            }
+            Write-Host "✗ ERROR: simcoon.dll NOT found"
+            exit 1
           }
 
           # Check headers
