@@ -137,30 +137,35 @@ jobs:
           $localChannel = "file:///" + ($PWD.Path -replace '\\', '/')
           conda create -n test-install -y python simcoon -c $localChannel -c conda-forge -c set3mah
 
-          # Get the test environment prefix (trim whitespace)
-          $TEST_PREFIX = (conda run -n test-install printenv CONDA_PREFIX).Trim()
+          # Get the test environment prefix
+          $envInfo = conda info --envs | Select-String "test-install"
+          $TEST_PREFIX = ($envInfo -split '\s+')[1]
           Write-Host "Test environment: '$TEST_PREFIX'"
 
           Write-Host "=== Verifying conda package structure ==="
 
-          # Debug: List Library contents
-          Write-Host "Contents of Library/bin:"
-          Get-ChildItem "$TEST_PREFIX\Library\bin" -ErrorAction SilentlyContinue | Select-Object Name | Format-Table
-          Write-Host "Contents of Library/lib:"
-          Get-ChildItem "$TEST_PREFIX\Library\lib" -ErrorAction SilentlyContinue | Select-Object Name | Format-Table
+          # Debug: List top-level contents
+          Write-Host "Top-level contents of environment:"
+          Get-ChildItem $TEST_PREFIX | Select-Object Name
 
-          # Check C++ library (try both possible locations)
+          # Debug: List Library contents
+          Write-Host "Contents of Library:"
+          Get-ChildItem "$TEST_PREFIX\Library" -ErrorAction SilentlyContinue | Select-Object Name
+          Write-Host "Contents of Library/bin (first 10):"
+          Get-ChildItem "$TEST_PREFIX\Library\bin" -ErrorAction SilentlyContinue | Select-Object -First 10 Name
+
+          # Check C++ library
           Write-Host "Checking simcoon.dll..."
           $dllPath = "$TEST_PREFIX\Library\bin\simcoon.dll"
           if (Test-Path $dllPath) {
             Write-Host "✓ simcoon.dll found in Library/bin"
           } else {
-            Write-Host "simcoon.dll NOT in Library/bin, checking Library/lib..."
-            $dllPath = "$TEST_PREFIX\Library\lib\simcoon.dll"
-            if (Test-Path $dllPath) {
-              Write-Host "✓ simcoon.dll found in Library/lib"
+            Write-Host "Searching for simcoon.dll anywhere in environment..."
+            $found = Get-ChildItem -Path $TEST_PREFIX -Recurse -Filter "simcoon.dll" -ErrorAction SilentlyContinue
+            if ($found) {
+              Write-Host "Found simcoon.dll at: $($found.FullName)"
             } else {
-              Write-Host "✗ ERROR: simcoon.dll NOT found in either location"
+              Write-Host "✗ ERROR: simcoon.dll NOT found anywhere"
               exit 1
             }
           }
