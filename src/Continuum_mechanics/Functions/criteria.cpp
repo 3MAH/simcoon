@@ -72,8 +72,8 @@ namespace simcoon
         assert(b >= 0.);
         assert(n > 0.);  
 
-        double Mises_stress = Mises_stress(v);
-        vec dMises_stress = eta_stress(v);
+        double Mises = Mises_stress(v);
+        vec dMises = eta_stress(v);
 
         double J2 = J2_stress(v);
         double J3 = J3_stress(v);
@@ -85,13 +85,13 @@ namespace simcoon
         double m;
         vec temp;
 
-        if (Mises_stress > 0.)
+        if (Mises > 0.)
         {
             if (n < 10.)
             {
                 m = 1. / n;
 
-                temp = pow((1. + b * J3 / J2_3_2), m) * dMises_stress + Mises_stress * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
+                temp = pow((1. + b * J3 / J2_3_2), m) * dMises + Mises * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
             }
             else
             {
