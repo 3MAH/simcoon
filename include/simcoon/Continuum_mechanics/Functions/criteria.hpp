@@ -102,11 +102,93 @@ namespace simcoon
     arma::vec dTresca_stress(const arma::vec &v);
 
     /**
-     * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix), given its vector representation
-     * @param P_params The vector of parameters
+     * @brief Provides the derivative of the second stress invariant \f$ J_2 \f$ with respect to stress
+     * @param v The stress vector in Voigt notation (6 components)
+     * @return The derivative of \f$ J_2 \f$ with respect to stress (arma::vec)
+     * @details Returns the derivative of the second deviatoric stress invariant:
+    \f[
+        \frac{\partial J_2}{\partial \mathbf{\sigma}} = \mathbf{\sigma}_{dev}
+    \f]
+        where \f$ \mathbf{\sigma}_{dev} \f$ is the deviatoric part of the stress tensor.
+        The second invariant \f$ J_2 \f$ is defined as \f$ J_2 = \frac{1}{2} \mathbf{\sigma}_{dev} : \mathbf{\sigma}_{dev} \f$.
+     * @code
+            vec sigma = randu(6);
+            vec dJ2 = dJ2_stress(sigma);
+     * @endcode
+    */
+    arma::vec dJ2_stress(const arma::vec &v);
+
+    /**
+     * @brief Provides the derivative of the third stress invariant \f$ J_3 \f$ with respect to stress
+     * @param v The stress vector in Voigt notation (6 components)
+     * @return The derivative of \f$ J_3 \f$ with respect to stress (arma::vec)
+     * @details Returns the derivative of the third deviatoric stress invariant:
+    \f[
+        \frac{\partial J_3}{\partial \mathbf{\sigma}} = \mathbf{S} \cdot \mathbf{S} - \frac{1}{3} \text{tr}(\mathbf{S}^2) \mathbf{I}
+    \f]
+        where \f$ \mathbf{S} \f$ is the deviatoric stress tensor and \f$ \mathbf{I} \f$ is the identity tensor.
+        The third invariant \f$ J_3 \f$ is defined as \f$ J_3 = \det(\mathbf{\sigma}_{dev}) \f$.
+     * @code
+            vec sigma = randu(6);
+            vec dJ3 = dJ3_stress(sigma);
+     * @endcode
+    */
+    arma::vec dJ3_stress(const arma::vec &v);
+
+    /**
+     * @brief Provides an anisotropic Drucker-type equivalent stress combining Drucker criteria with DFA anisotropy
+     * @param v The stress vector in Voigt notation (6 components)
+     * @param params The DFA parameters vector (F, G, H, L, M, N, K) - see P_DFA() for details
+     * @param b Parameter controlling the influence of the third invariant \f$ J_3 \f$
+     * @param n Exponent parameter that defines the equivalent stress shape
+     * @return The anisotropic Drucker equivalent stress (double)
+     * @details Returns an anisotropic equivalent stress that combines the Drucker yield criterion
+        with the Deshpande-Fleck-Ashby (DFA) anisotropic formulation:
+    \f[
+        \sigma^{P}_{ani} = \sigma^{DFA} \left( \frac{1 + b \cdot J_3(\mathbf{\sigma})}{(J_2(\mathbf{\sigma}))^{3/2}} \right)^{1/n}
+    \f]
+        where \f$ \sigma^{DFA} \f$ is the DFA anisotropic equivalent stress (see DFA_stress()).
+        This formulation is particularly useful for modeling porous shape memory alloys (SMA).
+        Note that if \f$ n > 10 \f$, the criterion reduces to the DFA stress to avoid numerical instabilities.
+     * @code
+            vec sigma = randu(6);
+            vec params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
+            double b = 1.2;
+            double n = 2.0;
+            double sigma_ani = Drucker_anisotrope_stress(sigma, params, b, n);
+     * @endcode
+    */
+    double Drucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
+     * @brief Provides the derivative of the anisotropic Drucker-type equivalent stress
+     * @param v The stress vector in Voigt notation (6 components)
+     * @param params The DFA parameters vector (F, G, H, L, M, N, K) - see P_DFA() for details
+     * @param b Parameter controlling the influence of the third invariant \f$ J_3 \f$
+     * @param n Exponent parameter that defines the equivalent stress shape
+     * @return The derivative of the anisotropic Drucker equivalent stress (arma::vec)
+     * @details Returns the derivative of the anisotropic Drucker-DFA equivalent stress with respect to stress.
+        This derivative is computed using the chain rule combining the derivatives of the DFA stress,
+        \f$ J_2 \f$, and \f$ J_3 \f$ invariants. It is primarily used to define evolution equations
+        for strain based on an associated flow rule.
+        Note that if \f$ n > 10 \f$, the derivative reduces to the standard stress flow direction
+        \f$ \eta_{stress} \f$ to avoid numerical instabilities.
+     * @code
+            vec sigma = randu(6);
+            vec params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
+            double b = 1.2;
+            double n = 2.0;
+            vec dsigma_ani = dDrucker_anisotrope_stress(sigma, params, b, n);
+     * @endcode
+    */
+    arma::vec dDrucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
+     * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix)
+     * @param P_params The vector of parameters (9 components)
      * @return The anisotropic configurational tensor (arma::mat)
      * @details The vector of parameters must be constituted of 9 values, respectively:
-        \f$ P_{11},P_{22},P_{33},P_{12},P_{13},P_{23},P_{44}=P_{1212},P_{55}=P_{1313},P_{66}=P_{2323} \f$
+        \f$ P_{11}, P_{22}, P_{33}, P_{12}, P_{13}, P_{23}, P_{44}=P_{1212}, P_{55}=P_{1313}, P_{66}=P_{2323} \f$
     \f[
         P_{ani} = \left( \begin{array}{cccccc}
             P_{11} & P_{12} & P_{13} & 0 & 0 & 0 \\
@@ -116,10 +198,9 @@ namespace simcoon
             0 & 0 & 0 & 0 & 2 \, P_{55} & 0 \\
             0 & 0 & 0 & 0 & 0 & 2 \, P_{66} \end{array} \right)
     \f]
-        considering the input stress \f$ \mathbf{\sigma} \f$.
-        Note that the equivalent anisotropic tensor is written as : \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
+        The equivalent anisotropic stress is written as: \f$ \sigma^{eq}_{ani} = \sqrt{ \mathbf{\sigma} : P : \mathbf{\sigma} } \f$
 
-        It reduces to :
+        It reduces to:
     \f[
         \begin{align}
         \sigma^{ani} & = \left( P_{11}\,\sigma_{11}^2 + P_{22}\,\sigma_{22}^2 + P_{33}\,\sigma_{33}^2 \right. \\
@@ -127,16 +208,9 @@ namespace simcoon
          & + \left. 2\,P_{44}\,\sigma_{12}^2 + 2\,P_{55}\,\sigma_{13}^2 + 2\,P_{66}\,\sigma_{23}^2 \right)^{1/2}
         \end{align}
     \f]
-        Considering the Mises equivalent strain
+        For the isotropic Mises equivalent stress, \f$ P \f$ reduces to:
     \f[
-        \begin{align}
-        \sigma^{M} & = \left( \frac{1}{2} \left[ \left( \sigma_{11} - \sigma_{22} \right)^2 + \left( \sigma_{11} - \sigma_{33} \right)^2 + \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
-         & + \left. 6\,\sigma_{12}^2 + 6\,\sigma_{13}^2 + 6\,\sigma_{23}^2 \right)^{1/2}
-        \end{align}
-    \f]
-        In that case, \f$ P \f$ reduces to:
-    \f[
-        P_{ani} = \left( \begin{array}{cccccc}
+        P_{Mises} = \left( \begin{array}{cccccc}
             1 & -1/2 & -1/2 & 0 & 0 & 0 \\
             -1/2 & 1 & -1/2 & 0 & 0 & 0 \\
             -1/2 & -1/2 & 1 & 0 & 0 & 0 \\
@@ -145,29 +219,9 @@ namespace simcoon
             0 & 0 & 0 & 0 & 0 & 3 \end{array} \right)
     \f]
      * @code
-            vec P_params = {1.,1.2,1.3,-0.2,-0.2,-0.33,1.,1.,1.4};
+            vec P_params = {1., 1.2, 1.3, -0.2, -0.2, -0.33, 1., 1., 1.4};
             mat P = P_Ani(P_params);
      * @endcode
-    */
-    arma::vec dJ2_stress(const arma::vec &v);
-
-    /**
-     * @brief Provides derivative of J2 invariant from the stress vector
-    */
-    arma::vec dJ3_stress(const arma::vec &v);
-
-    /**
-     * @brief Provides derivative of the J3 Invariant
-    */
-    double Drucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
-
-    /**
-     * @brief Provides the criteria based on Drucker-Prager criteria and DFA criteria used for Porous SMA
-    */
-    arma::vec dDrucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
-
-    /**
-     * @brief Provides the derivative of a made criteria based on Drucker-Prager criteria and DFA criteria used for Porous SMA
     */
     arma::mat P_Ani(const arma::vec &P_params);
 
