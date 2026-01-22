@@ -118,46 +118,51 @@ vcpkg install armadillo gtest
 
 3. Configure and build the project:
 
-**Linux/macOS:**
+**For Python users** (recommended):
 ```bash
-# Configure
-cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
+pip install .
+```
 
-# Build
+**For C++ development:**
+```bash
+# Configure and build
+cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Install Python package
-pip install ./build/python-package
-```
-
-**Windows:**
-```powershell
-# Configure
-cmake -S . -B build
-
-# Build
-cmake --build build --config Release
-
-# Install Python package
-pip install ./build/python-package
-```
-
-3. (Optional) Run tests:
-```bash
+# Run C++ tests
 ctest --test-dir build --output-on-failure
 ```
 
+#### Development Workflow
+
+For active development with both C++ and Python:
+
+```bash
+# Install build dependencies first
+uv pip install scikit-build-core pybind11 numpy
+
+# Editable install (uv applies --no-build-isolation automatically via pyproject.toml)
+uv pip install -e .[dev]
+
+# After modifying C++ files, rebuild directly
+cmake --build build/cp*
+
+# Python changes take effect immediately (no rebuild needed)
+```
+
+The editable install creates a build directory at `build/{wheel_tag}` (e.g., `build/cp312-cp312-linux_x86_64`). The `[tool.uv]` config in `pyproject.toml` disables build isolation for simcoon, ensuring the CMake cache references your actual Python environment, enabling direct `cmake --build` commands for incremental rebuilds.
+
+**Auto-rebuild on import**: Importing simcoon will automatically trigger a cmake rebuild if C++ files have changed:
+```bash
+python -c "import simcoon"  # Rebuilds if needed
+uv run python -c "import simcoon"  # Also works
+```
+
+**Note**: If you add new C++ source files, re-run `uv pip install -e .[dev]` to reconfigure.
+
 #### Build Options
 
-- `SIMCOON_BUILD_PYTHON_BINDINGS` (default: ON) - Build Python bindings
-- `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests
-
-To build only the C++ library without Python bindings:
-```bash
-cmake -S . -B build -D SIMCOON_BUILD_PYTHON_BINDINGS=OFF
-cmake --build build
-cmake --install build --prefix /path/to/install
-```
+- `SIMCOON_BUILD_TESTS` (default: ON) - Build C++ tests (CMake only)
 
 #### Notes for macOS
 
