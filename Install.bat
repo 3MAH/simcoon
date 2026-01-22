@@ -1,4 +1,4 @@
-:: conda install -c conda-forge git cmake python=3.9 boost -y
+:: conda install -c conda-forge git cmake python=3.9 -y
 
 set PREFIX=%CONDA_PREFIX%
 set SRC_DIR=%cd%

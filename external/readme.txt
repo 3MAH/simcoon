@@ -1,10 +1,10 @@
 
-1. Compile the plugin in /scratch/source/boost_plugin/external
+1. Compile the plugin in the external directory
 clang++ -w -c -std=c++14 -fPIC my_plugin_sum.cpp
 clang++ -w -std=c++14 -shared my_plugin_sum.o -o my_plugin_sum -lsimcoon -larmadillo
 
-2. Compile the software test in /scratch/source/boost_plugin
-clang++ -w -std=c++14 -o test test.cpp -lsimcoon -larmadillo -lboost_system -lboost_filesystem
+2. Compile the software test
+clang++ -w -std=c++14 -o test test.cpp -lsimcoon -larmadillo
 
 
 For the simcoon plugin
