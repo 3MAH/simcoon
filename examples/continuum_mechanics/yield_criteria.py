@@ -7,7 +7,7 @@ including von Mises, Tresca, Drucker, and anisotropic Hill criteria.
 """
 
 import numpy as np
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 
 ###################################################################################

@@ -233,8 +233,8 @@ then
 #    if [ $OS = "Mac" ]
 #    then
 #        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
-#        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
-#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+#        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/_core.so
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/_core.so
 #    fi
     
     cd ${current_dir}/simcoon-python-builder/build

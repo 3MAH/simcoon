@@ -14,7 +14,7 @@ We present one section per model.
 
 import numpy as np
 import pandas as pd
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 import os
 from typing import NamedTuple, List, Tuple

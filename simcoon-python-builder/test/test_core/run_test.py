@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import numpy.typing as npt
-from simcoon import simmit as sim
+from simcoon import _core as sim
 
 
 @pytest.fixture(scope="session")

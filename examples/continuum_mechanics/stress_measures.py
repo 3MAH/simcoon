@@ -2,10 +2,10 @@
 ================================================
 
 This example is an *hands-on* demo of the stress “transfer” helpers in
-:mod:`simcoon.simmit` to switch between different stress measures.
+:mod:`simcoon` to switch between different stress measures.
 
 We compute the Cauchy stress for a compressible Neo-Hookean material, then use
-:func:`simcoon.simmit.stress_convert` to obtain other stress measures:
+:func:`simcoon.stress_convert` to obtain other stress measures:
 
 * First Piola-Kirchhoff stress (PKI)
 * Second Piola-Kirchhoff stress (PKII)
@@ -28,7 +28,7 @@ between stress measures.
 from __future__ import annotations
 
 import numpy as np
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 

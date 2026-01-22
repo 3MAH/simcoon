@@ -6,7 +6,7 @@ the Eshelby tensor across a wide range of aspect ratios.
 """
 
 import numpy as np
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 
 ###################################################################################

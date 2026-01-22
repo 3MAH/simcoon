@@ -1,7 +1,7 @@
 The Damage Library
 ====================
 
-.. autofunction:: simcoon.simmit.damage_weibull
-.. autofunction:: simcoon.simmit.damage_kachanov
-.. autofunction:: simcoon.simmit.damage_miner
-.. autofunction:: simcoon.simmit.damage_manson
+.. autofunction:: simcoon.damage_weibull
+.. autofunction:: simcoon.damage_kachanov
+.. autofunction:: simcoon.damage_miner
+.. autofunction:: simcoon.damage_manson

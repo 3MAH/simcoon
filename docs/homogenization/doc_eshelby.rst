@@ -1,10 +1,10 @@
 The Eshelby Library
 ========================
 
-.. autofunction:: simcoon.simmit.Eshelby_sphere
-.. autofunction:: simcoon.simmit.Eshelby_cylinder
-.. autofunction:: simcoon.simmit.Eshelby_prolate
-.. autofunction:: simcoon.simmit.Eshelby_oblate
-.. autofunction:: simcoon.simmit.Eshelby_penny
-.. autofunction:: simcoon.simmit.Eshelby
-.. autofunction:: simcoon.simmit.T_II
+.. autofunction:: simcoon.Eshelby_sphere
+.. autofunction:: simcoon.Eshelby_cylinder
+.. autofunction:: simcoon.Eshelby_prolate
+.. autofunction:: simcoon.Eshelby_oblate
+.. autofunction:: simcoon.Eshelby_penny
+.. autofunction:: simcoon.Eshelby
+.. autofunction:: simcoon.T_II

@@ -6,7 +6,7 @@ Plasticity with isotropic hardening example
 import pylab
 import numpy as np
 import matplotlib.pyplot as plt
-from simcoon import simmit as sim
+import simcoon as sim
 import os
 
 plt.rcParams["figure.figsize"] = (18, 10)  # configure the figure output size
@@ -46,7 +46,7 @@ plt.rc("font", family="serif")
 # with use of the *convex cutting plane* algorithm (Simo and Hughes, 1998). The updated stress is provided for 1D,
 # plane stress, and generalized plane strain/3D analysis according to the forms of elastic isotropic materials.
 #
-# The updated work, and internal heat production :math:`r` are determined with the algorithm presented in the *simmit* documentation.
+# The updated work, and internal heat production :math:`r` are determined with the algorithm presented in the *simcoon* documentation.
 #
 # As a start we should input the name of the UMAT as well as the list of parameters
 
@@ -94,10 +94,10 @@ sim.solver(
 # --------------------------------------
 # This is it, now we just need to plot the results.
 # In the left, we plot the stress vs strain curve, and in the right the different work terms vs time:
-# - :meth:`Wm <simcoon.simmit.Wm>` the mechanical work,
-# - :meth:`Wm_r <simcoon.simmit.Wm_r>` the recoverable mechanical work,
-# - :meth:`Wm_ir <simcoon.simmit.Wm_ir>` the irrecoverable mechanical work,
-# - :meth:`Wm_d <simcoon.simmit.Wm_d>` the dissipated mechanical work.
+# - :meth:`Wm <simcoon.Wm>` the mechanical work,
+# - :meth:`Wm_r <simcoon.Wm_r>` the recoverable mechanical work,
+# - :meth:`Wm_ir <simcoon.Wm_ir>` the irrecoverable mechanical work,
+# - :meth:`Wm_d <simcoon.Wm_d>` the dissipated mechanical work.
 # ###################################################################################
 
 # prepare the load
