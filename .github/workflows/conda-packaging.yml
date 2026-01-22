@@ -44,9 +44,126 @@ jobs:
       - name: Conda build
         env:
           CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
+        shell: bash -l {0}
         run: |
-          conda install -y conda-build
+          conda install -y conda-build conda-index
           conda build conda.recipe -c conda-forge -c set3mah --output-folder .
+          # Index output folder to make it a valid conda channel
+          python -m conda_index .
+
+      - name: Install and verify package structure (Unix)
+        if: runner.os != 'Windows'
+        shell: bash -l {0}
+        run: |
+          # Create fresh environment and install the built package using local channel
+          conda create -n test-install -y python simcoon -c file://$PWD -c conda-forge -c set3mah
+
+          # Get the test environment prefix
+          TEST_PREFIX=$(conda run -n test-install printenv CONDA_PREFIX)
+          echo "Test environment: $TEST_PREFIX"
+
+          echo "=== Verifying conda package structure ==="
+
+          # Check C++ library in $PREFIX/lib
+          echo "Checking libsimcoon in \$PREFIX/lib..."
+          if [ -f "$TEST_PREFIX/lib/libsimcoon.so" ] || [ -f "$TEST_PREFIX/lib/libsimcoon.dylib" ]; then
+            echo "✓ libsimcoon found in \$PREFIX/lib"
+            ls -la $TEST_PREFIX/lib/libsimcoon*
+          else
+            echo "✗ ERROR: libsimcoon NOT found in \$PREFIX/lib"
+            exit 1
+          fi
+
+          # Check headers in $PREFIX/include
+          echo "Checking headers in \$PREFIX/include/simcoon..."
+          if [ -d "$TEST_PREFIX/include/simcoon" ]; then
+            echo "✓ Headers found in \$PREFIX/include/simcoon"
+            ls $TEST_PREFIX/include/simcoon/ | head -5
+          else
+            echo "✗ ERROR: Headers NOT found in \$PREFIX/include/simcoon"
+            exit 1
+          fi
+
+          # Check CMake config
+          echo "Checking CMake config..."
+          if [ -f "$TEST_PREFIX/lib/cmake/simcoon/simcoonConfig.cmake" ]; then
+            echo "✓ CMake config found"
+          else
+            echo "✗ ERROR: CMake config NOT found"
+            exit 1
+          fi
+
+          # Check Python module in site-packages
+          echo "Checking Python module..."
+          SITE_PACKAGES=$(conda run -n test-install python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
+          if [ -f "$SITE_PACKAGES/simcoon/simmit.so" ] || ls "$SITE_PACKAGES/simcoon"/simmit.cpython*.so 1>/dev/null 2>&1; then
+            echo "✓ simmit.so found in site-packages/simcoon"
+          else
+            echo "✗ ERROR: simmit.so NOT found in site-packages/simcoon"
+            ls -la $SITE_PACKAGES/simcoon/ || true
+            exit 1
+          fi
+
+          # Verify simmit links to system libsimcoon (not bundled)
+          echo "Checking simmit RPATH..."
+          SIMMIT_PATH=$(find $SITE_PACKAGES/simcoon -name "simmit*.so" | head -1)
+          if [ -n "$SIMMIT_PATH" ]; then
+            if command -v readelf &> /dev/null; then
+              readelf -d "$SIMMIT_PATH" | grep -E "(RPATH|RUNPATH)" || echo "(no RPATH/RUNPATH found)"
+            elif command -v otool &> /dev/null; then
+              otool -l "$SIMMIT_PATH" | grep -A2 LC_RPATH || echo "(no LC_RPATH found)"
+            fi
+          fi
+
+          # Verify libsimcoon is NOT bundled in site-packages
+          echo "Checking libsimcoon is NOT bundled in site-packages..."
+          if [ -f "$SITE_PACKAGES/simcoon/libsimcoon.so" ] || [ -f "$SITE_PACKAGES/simcoon/libsimcoon.dylib" ]; then
+            echo "✗ WARNING: libsimcoon found in site-packages (should only be in \$PREFIX/lib)"
+            ls -la $SITE_PACKAGES/simcoon/libsimcoon* || true
+          else
+            echo "✓ libsimcoon correctly NOT bundled in site-packages"
+          fi
+
+          # Test import
+          echo "Testing Python import..."
+          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('✓ Import successful')"
+
+      - name: Install and verify package structure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Create fresh environment and install the built package using local channel
+          $localChannel = "file:///" + ($PWD.Path -replace '\\', '/')
+          conda create -n test-install -y python simcoon -c $localChannel -c conda-forge -c set3mah
+
+          # Get the test environment prefix
+          $envInfo = conda info --envs | Select-String "test-install"
+          $TEST_PREFIX = ($envInfo -split '\s+')[1]
+          Write-Host "Test environment: $TEST_PREFIX"
+
+          Write-Host "=== Verifying conda package structure ==="
+
+          # Check C++ library
+          Write-Host "Checking simcoon.dll..."
+          if (Test-Path "$TEST_PREFIX\Library\bin\simcoon.dll") {
+            Write-Host "✓ simcoon.dll found in Library/bin"
+          } else {
+            Write-Host "✗ ERROR: simcoon.dll NOT found"
+            exit 1
+          }
+
+          # Check headers
+          Write-Host "Checking headers..."
+          if (Test-Path "$TEST_PREFIX\Library\include\simcoon") {
+            Write-Host "✓ Headers found"
+          } else {
+            Write-Host "✗ ERROR: Headers NOT found"
+            exit 1
+          }
+
+          # Test import
+          Write-Host "Testing Python import..."
+          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('Import successful')"
 
       - name: Upload to Anaconda
         if: github.event_name == 'workflow_dispatch'

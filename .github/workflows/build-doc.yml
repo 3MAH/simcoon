@@ -70,19 +70,11 @@ jobs:
             dvipng \
             cm-super
 
-      - name: Build for Linux
+      - name: Install Python package
         shell: bash -l {0}
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
-            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
-            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
-            -Wno-dev
-          cmake --build ${{github.workspace}}/build
-          cmake --install build --component python
-          python -m pip install ${{github.workspace}}/build/python-package
+          python -m pip install --upgrade pip
+          python -m pip install .
 
       # - name: Cache Sphinx-Gallery Examples
       #   uses: actions/cache@v4
