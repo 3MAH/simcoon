@@ -1,0 +1,83 @@
+#Initial_temperature
+293.15
+#Number_of_blocks
+1
+
+#Block
+1
+#Loading_type
+2
+#Repeat
+1
+#Steps
+5
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+300
+#Consigne
+S 1000
+S 0 S 0
+S 0 S 0 S 0
+#Consigne_T
+Q 0
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+300
+#Consigne
+S -1100
+S 0 S 0
+S 0 S 0 S 0
+#Consigne_T
+Q 0
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+300
+#Consigne
+S 1200
+S 0 S 0
+S 0 S 0 S 0
+#Consigne_T
+Q 0
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+300
+#Consigne
+S -1300
+S 0 S 0
+S 0 S 0 S 0
+#Consigne_T
+Q 0
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc 0.001
+#time
+300
+#Consigne
+S 1500
+S 0 S 0
+S 0 S 0 S 0
+#Consigne_T
+Q 0
