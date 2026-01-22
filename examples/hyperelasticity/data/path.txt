@@ -21,11 +21,11 @@
 #Dn_inc 0.1
 #time
 5.
-#Consigne
+#prescribed_mechanical_state
 5. 0. 0.
 0. 0.4472135955 0.
 0. 0. 0.4472135955
-#Consigne_T
+#prescribed_temperature_state
 T 290
 
 #Mode
@@ -35,11 +35,11 @@ T 290
 #Dn_inc 0.5
 #time
 5.
-#Consigne
+#prescribed_mechanical_state
 1.01 0. 0.
 0. 0.9950371902 0.
 0. 0. 0.9950371902
-#Consigne_T
+#prescribed_temperature_state
 T 290
 
 #Mode
@@ -49,11 +49,11 @@ T 290
 #Dn_inc 0.001
 #time
 5.
-#Consigne
+#prescribed_mechanical_state
 4. 0. 0.
 0. -0.5527864045 0.
 0. 0. -0.5527864045
-#Consigne_T
+#prescribed_temperature_state
 T 290
 
 

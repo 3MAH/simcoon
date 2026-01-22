@@ -1,7 +1,7 @@
 """
-=========================================================
+=================================================
 Hyperelastic models - use the API
-=========================================================
+=================================================
 
 In this example, we compare three hyperelastic constitutive laws.
 Each model is run for **uniaxial tension (UT)**,
@@ -22,7 +22,7 @@ from typing import NamedTuple, List, Tuple
 from dataclasses import dataclass
 from scipy.optimize import fsolve
 
-###################################################################################
+# ###################################################################################
 # Several hyperelastic isotropic materials are tested.
 # They are compared to the well-know Traloar experimental data The following
 # model are tested
@@ -90,23 +90,23 @@ from scipy.optimize import fsolve
 
 ###############################################################################
 # Data structures for material models and loading cases
-# -----------------------------------------------------
+#
 # In this section we define a small helper structures used throughout the
 # example to organize material parameters and the data associated with each
 # loading case.
 #
 # ``loading_case`` is a NamedTuple describing one deformation or test scenario.
-# It contains:
-#   - ``name``: a short label for the loading type (e.g. "uniaxial"),
-#   - ``pathfile``: the file path where the analytical or numerical results
-#     for this loading case are stored,
-#   - ``comparison``: a list of tuples, each holding two pandas Series
-#     (typically experimental vs analytical stress–stretch data) that can be
-#     plotted or analyzed together.
+# It contains the following fields:
+#
+# - ``name``: a short label for the loading type (e.g. "uniaxial").
+# - ``pathfile``: the file path where the analytical or numerical results
+#   for this loading case are stored.
+# - ``comparison``: a list of tuples, each holding two pandas Series
+#   (typically experimental vs analytical stress–stretch data) that can be
+#   plotted or analyzed together.
 #
 # These lightweight structures help keep the code clean and make the processing
 # and comparison loops later in the example more readable.
-###############################################################################
 
 
 class loading_case(NamedTuple):
@@ -118,7 +118,7 @@ class loading_case(NamedTuple):
 
 ###############################################################################
 # Reading experimental and analytical Treloar data
-# ------------------------------------------------
+#
 # This example demonstrates how to load two datasets used for comparing
 # experimental results with analytical predictions of the Treloar model.
 #
@@ -134,8 +134,6 @@ class loading_case(NamedTuple):
 # supplied explicitly because the files contain header lines that we
 # ignore with ``header=0``. Each dataset is read into its own pandas
 # DataFrame for further processing and comparison in later sections.
-#
-###################################################################################
 
 path_data = "comparison"
 comparison_file_exp = "Treloar.txt"
@@ -151,30 +149,28 @@ df_exp = pd.read_csv(
 
 ###############################################################################
 # Defining the loading cases for comparison
-# -----------------------------------------
 # Here we create the different deformation modes used to compare the
 # experimental Treloar data with the analytical predictions.
 #
 # Each loading case is represented by a ``loading_case`` NamedTuple that
-# contains:
-#   - ``name``: a short identifier for the deformation mode,
-#   - ``pathfile``: the file describing the deformation path (used later for
-#     analytical evaluations),
-#   - ``comparison``: a list of pairs of pandas Series, typically
-#     (experimental data, analytical data), for the stress component that
-#     corresponds to this loading mode.
+# contains the following fields:
+#
+# - ``name``: a short identifier for the deformation mode.
+# - ``pathfile``: the file describing the deformation path (used later for
+#   analytical evaluations).
+# - ``comparison``: a list of pairs of pandas Series, typically
+#   (experimental data, analytical data), for the stress component that
+#   corresponds to this loading mode.
 #
 # The three classical Treloar tests included here are:
 #
-#   - Uniaxial tension (UT): Uses the stretch :math:`\lambda_1` and the corresponding stress component :math:`P_1`.
-#
-#   - Pure shear (PS): Uses the stretch :math:`\lambda_2` and the corresponding stress component :math:`P_2`.
-#
-#   - Equi-biaxial tension (ET): Uses the stretch :math:`\lambda_3` and the corresponding stress component :math:`P_3`.
+# - Uniaxial tension (UT): Uses the stretch :math:`\lambda_1` and the corresponding stress component :math:`P_1`.
+# - Pure shear (PS): Uses the stretch :math:`\lambda_2` and the corresponding stress component :math:`P_2`.
+# - Equi-biaxial tension (ET): Uses the stretch :math:`\lambda_3` and the corresponding stress component :math:`P_3`.
 #
 # These loading cases are gathered into the list ``loading_cases`` for
 # convenient iteration in subsequent plotting or evaluation steps.
-###############################################################################
+
 
 Uniaxial_tension = loading_case(
     name="UT",
@@ -205,7 +201,6 @@ loading_cases = [Uniaxial_tension, Pure_shear, Equi_biaxial_tension]
 
 ###############################################################################
 # Material model parameters organized by loading case
-# ---------------------------------------------------
 # Parameters are provided for each model and each loading case (UT, ET, PS)
 #
 # This dictionary can be used to dynamically assign parameters to the models
@@ -363,19 +358,16 @@ def dW(model_name, parameters, b, J=0.0):
 
 
 ###############################################################################
-# .. rubric:: Loading case functions to compute PK1
-# -------------------------------------
-# Here we add a decorator and the functions ut_, ps_ and et_ to compute PK1 for the
+# Loading case functions to compute PK1
+# Here we add a decorator and the functions ``ut_``, ``ps_`` and ``et_`` to compute PK1 for the
 # uniaxial tension, pure shear and equibiaxial tension cases
 #
 # Note: Each function uses a root-finding algorithm to determine the
 # transverse stretch that satisfies the equilibrium condition (zero
 # transverse stress) for the given axial stretch.
-#   - For uniaxial tension, we apply stretch :math:`\lambda_1` in the direction :math:`1` and solve for :math:`\lambda_t` in directions :math:`2` and :math:`3` such that :math:`\sigma_{22}` = :math:`\sigma_{33}` = 0.
-#
-#   - For pure shear, we apply stretch :math:`\lambda_1` in the direction :math:`1` and solve for :math:`\lambda_t` such that :math:`\sigma_{22}` = 0, while keeping :math:`\lambda_3` = 1. Note that this corresponds to pure shear in the case of quasi-incompressible hyperelasticity, as the exact pure shear condition would require :math:`\lambda_{2} = \frac{1}{\lambda_1}` as well for incompressible materials.
-#
-#   - For equibiaxial tension, we apply stretch :math:`\lambda_1` in the directions :math:`1` and :math:`2` and solve for :math:`\lambda_t` such that :math:`\sigma_{33}` = 0.
+# - For uniaxial tension, we apply stretch :math:`\lambda_1` in the direction :math:`1` and solve for :math:`\lambda_t` in directions :math:`2` and :math:`3` such that :math:`\sigma_{22}` = :math:`\sigma_{33}` = 0.
+# - For pure shear, we apply stretch :math:`\lambda_1` in the direction :math:`1` and solve for :math:`\lambda_t` such that :math:`\sigma_{22}` = 0, while keeping :math:`\lambda_3` = 1.
+# - For equibiaxial tension, we apply stretch :math:`\lambda_1` in the directions :math:`1` and :math:`2` and solve for :math:`\lambda_t` such that :math:`\sigma_{33}` = 0.
 
 CASE_DISPATCH = {}
 
@@ -492,41 +484,38 @@ def run_case(
 
 ###############################################################################
 # Plot each model separately
-# --------------------------
 # For each hyperelastic model, we create one figure with three subplots:
 # Uniaxial Tension (UT), Pure Shear (PS), and Equi-biaxial Tension (ET).
 # The model parameters are automatically retrieved from `parameters_by_case`.
 # Treloar experimental data and analytical results are plotted for comparison.
-###############################################################################
+
 
 models_to_plot = ["NEOHC", "MOORI", "ISHAH", "GETHH", "SWANS"]
 model_colors = {"NEOHC": "blue", "MOORI": "orange", "ISHAH": "green", "SWANS": "red"}
 
 ###############################################################################
 # Neo-Hookean model plotting
-# -----------------------------------------------------------
 # Here we plot the Neo-Hookean model predictions against the Treloar
 # experimental data for each loading case.
 #
-# --------------------
 # Inputs:
-# - `parameters_by_case['UT'|'PS'|'ET']['NEOHC']`: model parameters [mu, kappa]
-# - `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# - Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# `parameters_by_case['UT'|'PS'|'ET']['NEOHC']`: model parameters [mu, kappa]
+# `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
+# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
 #
 # Outputs:
-# - A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
-# - Overlaid Treloar experimental points for visual comparison.
+# A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
+# Overlaid Treloar experimental points for visual comparison.
 #
 # Notes:
-# - The script computes isochoric and volumetric stress contributions
-#   and assembles the total Cauchy stress used to compute PK1_11.
+# The script computes isochoric and volumetric stress contributions
+# and assembles the total Cauchy stress used to compute PK1_11.
 #
 # Expected figure:
-# - Left: Uniaxial tension PK1_11 vs lambda with Treloar markers
-# - Middle: Pure shear PK1_11 vs lambda with Treloar markers
-# - Right: Equibiaxial tension PK1_11 vs lambda with Treloar markers
-###############################################################################
+# Left: Uniaxial tension PK1_11 vs lambda with Treloar markers
+# Middle: Pure shear PK1_11 vs lambda with Treloar markers
+# Right: Equibiaxial tension PK1_11 vs lambda with Treloar markers
+
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 6))
 
@@ -577,25 +566,23 @@ fig.tight_layout()
 
 ###############################################################################
 # Mooney-Rivlin model plotting
-# -----------------------------------------------------------
 # Here we plot the Mooney-Rivlin model predictions against the Treloar
 # experimental data for each loading case.
 #
 # Sphinx-Gallery notes
-# --------------------
 # Inputs:
-# - `parameters_by_case['UT'|'PS'|'ET']['MOORI']`: model parameters [C10, C01, kappa]
-# - `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# - Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# `parameters_by_case['UT'|'PS'|'ET']['MOORI']`: model parameters [C10, C01, kappa]
+# `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
+# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
 #
 # Outputs:
-# - A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
-# - Overlaid Treloar experimental points for visual comparison.
+# A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
+# Overlaid Treloar experimental points for visual comparison.
 #
 # Notes:
-# - The Mooney-Rivlin model uses two isochoric invariants; the script
-#   passes the computed derivatives to the simcoon stress helper.
-###############################################################################
+# The Mooney-Rivlin model uses two isochoric invariants; the script
+# passes the computed derivatives to the simcoon stress helper.
+
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 6))
 
@@ -645,23 +632,21 @@ fig.tight_layout()
 
 ###############################################################################
 # Swanson model plotting (N, K, then for each series: A, B, alpha, beta)
-# -------------------------------------------------------------------
 # Sphinx-Gallery notes
-# --------------------
 # Inputs:
-# - `parameters_by_case[case]['SWANS']`: flattened series parameters
-#   [N_series, kappa, A1, B1, alpha1, beta1, ...]
-# - `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# - Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# `parameters_by_case[case]['SWANS']`: flattened series parameters
+# [N_series, kappa, A1, B1, alpha1, beta1, ...]
+# `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
+# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
 #
 # Outputs:
-# - A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
-# - Overlaid Treloar experimental points for visual comparison.
+# A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
+# Overlaid Treloar experimental points for visual comparison.
 #
 # Notes:
-# - The Swanson model sums series contributions for the isochoric terms;
-#   ensure `N_series` matches the number of series coefficients provided.
-###############################################################################
+# The Swanson model sums series contributions for the isochoric terms;
+# ensure `N_series` matches the number of series coefficients provided.
+
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 6))
 

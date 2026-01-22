@@ -99,6 +99,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_Nfast.cpp
 
   # Continuum Mechanics - UMAT Core
+  Continuum_mechanics/Umat/fea_transfer.cpp
   Continuum_mechanics/Umat/umat_L_elastic.cpp
   Continuum_mechanics/Umat/umat_smart.cpp
 
