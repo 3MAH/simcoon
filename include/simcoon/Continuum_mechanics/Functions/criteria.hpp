@@ -158,7 +158,7 @@ namespace simcoon
             double sigma_ani = Drucker_anisotrope_stress(sigma, params, b, n);
      * @endcode
     */
-    double Drucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+    double Drucker_ani_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
 
     /**
      * @brief Provides the derivative of the anisotropic Drucker-type equivalent stress
@@ -181,7 +181,7 @@ namespace simcoon
             vec dsigma_ani = dDrucker_anisotrope_stress(sigma, params, b, n);
      * @endcode
     */
-    arma::vec dDrucker_anisotrope_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+    arma::vec dDrucker_ani_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
 
     /**
      * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix)
