@@ -16,7 +16,7 @@ The solver manages the execution of finite element-like simulations with support
 - **step.hpp** - Base class for loading steps
 - **step_meca.hpp** - Mechanical loading steps
 - **step_thermomeca.hpp** - Thermomechanical coupled loading steps
-- **block.hpp** - Block structure for multi-material simulations
+- **block.hpp** - Block structure for multi-steop simulations, incuding repetitive cycles
 - **output.hpp** - Results output management
 - **read.hpp** - Input file parsing
 
@@ -30,13 +30,11 @@ The solver manages the execution of finite element-like simulations with support
   - Coupled thermomechanical loading
 
 - **Solution Methods:**
-  - Explicit time integration
   - Implicit Newton-Raphson
-  - Dynamic implicit (Newmark, HHT-alpha)
   - Adaptive time stepping
 
 - **Output Control:**
-  - Stress-strain curves
+  - Stress-strain results using various measures
   - Internal state variables evolution
   - Energy dissipation tracking
   - Custom output fields
@@ -99,9 +97,7 @@ Inverse analysis tools for material parameter calibration from experimental data
 ##### **identification.hpp**
 Main identification driver supporting multiple optimization algorithms:
 - Genetic Algorithms (GA)
-- Particle Swarm Optimization (PSO)
-- Simulated Annealing
-- Gradient-based methods (Levenberg-Marquardt, BFGS)
+- Gradient-based methods (Levenberg-Marquardt)
 - Hybrid strategies
 
 ##### **Core Components:**
@@ -149,7 +145,6 @@ Optimization algorithm implementations:
 - Cost function evaluation
 - Gradient computation (numerical/analytical)
 - Hessian approximation
-- Line search methods
 
 **optimize.hpp**
 High-level optimization loop:
@@ -163,13 +158,10 @@ Experimental data management:
 - Loading experimental files
 - Data interpolation
 - Weight assignment
-- Multi-objective handling
 
 **doe.hpp** (Design of Experiments)
 Sampling strategies for parameter space exploration:
 - Latin Hypercube Sampling (LHS)
-- Sobol sequences
-- Factorial designs
 - Random sampling
 
 **script.hpp**
@@ -214,33 +206,24 @@ Rotation operations for objective stress integration:
 Lagrange multiplier methods for constrained problems:
 - Exponential penalty functions
 - Power-law penalties
-- Derivatives for sensitivity analysis
+- Derivatives for numerical implementations
 
 **Applications:**
-- Contact mechanics
-- Incompressibility constraints
-- Boundary conditions enforcement
+- Physical constraints (volumic fraction of phases)
 
 #### **stats.hpp**
 Statistical functions for data analysis:
 - Mean, variance, standard deviation
-- Correlation coefficients
 - Probability distributions
-- Error metrics (RMSE, MAE, R²)
 
-#### **solve.hpp**
+#### **solver.hpp**
 Linear system solvers:
-- Direct solvers (LU, Cholesky)
-- Iterative solvers (CG, GMRES)
-- Eigenvalue problems
-- SVD decomposition
+- Quadratic functions
 
 #### **num_solve.hpp**
 Nonlinear equation solvers:
 - Newton-Raphson method
-- Modified Newton methods
-- Line search algorithms
-- Fischer-Burmeister complementarity solver
+- Modified Newton methods using Fischer-Burmeister complementarity functions
 
 **Fischer-Burmeister Function:**
 
@@ -390,10 +373,9 @@ The solver automatically adjusts time step size based on:
 
 ### Parallelization
 
-Some operations support parallel execution:
-- Multiple loading path evaluations
-- Population-based optimization
-- Finite difference gradient computation
+Some operations support parallel execution (using OpenMP):
+- Multiple phase response
+- Population-based optimization (outdated)
 
 ### Checkpointing
 
@@ -470,7 +452,7 @@ Block_1:
    - Goldberg, D. E. (1989). *Genetic Algorithms in Search, Optimization, and Machine Learning*. Addison-Wesley.
 
 2. **Micromechanics and Multi-scale Modeling:**
-   - Cherkaoui, M., & Capolungo, L. (2009). *Atomistic and Continuum Modeling of Nanocrystalline Materials: Deformation Mechanisms and Scale Transition*. Springer.
+   - Qu, J., & Cherkaoui, M. (2006). *Fundamentals of Micromechanics of Solids*. Wiley.
 
 3. **Parameter Identification:**
    - Mahnken, R., & Stein, E. (1996). "Parameter identification for viscoplastic models based on analytical derivatives of a least-squares functional and stability investigations." *International Journal of Plasticity*.
