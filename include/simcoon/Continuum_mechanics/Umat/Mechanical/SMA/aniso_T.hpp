@@ -15,8 +15,8 @@
  
  */
 
-///@file Unified_T.hpp
-///@brief Unified model from:
+///@file Aniso_T.hpp
+///@brief Anisotropic model from:
 ///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
 ///@brief Implemented in 1D-2D-3D
 
@@ -25,7 +25,7 @@
 
 namespace simcoon{
 
-///@brief The unified SMA UMAT for transformation requires 28 constants and 17 statev:
+///@brief The unified SMA UMAT for transformation requires 35 constants and 17 statev:
 ///@brief The mechanical transformation UMAT for SMAs has the following statev and props
 
 ///@brief props[0] : flagT: 0 transformation temperatures linearly extrapolated; 1 : smooth temperatures
@@ -50,12 +50,21 @@ namespace simcoon{
 ///@brief props[19]: n3 : Austenite start smooth exponent
 ///@brief props[20]: n4 : Austenite finish smooth exponent
 ///@brief props[21]: sigmacaliber : Stress at which the slopes CA and CM are identified
+
 ///@brief props[22]: prager_b : Tension-compression asymmetry parameter
 ///@brief props[23]: prager_n : Tension-compression asymmetry exponent
 ///@brief props[24]: c_lambda : penalty function exponent start point
 ///@brief props[25]: p0_lambda : penalty function exponent limit penalty value
 ///@brief props[26]: n_lambda : penalty function power law exponent
 ///@brief props[27]: alpha_lambda : penalty function power law parameter
+
+///@brief props[28]: F_dfa : F parameter of DFA criteria
+///@brief props[29]: G_dfa : G parameter of DFA criteria
+///@brief props[30]: H_dfa : H parameter of DFA criteria
+///@brief props[31]: L_dfa : L parameter of DFA criteria
+///@brief props[32]: M_dfa : M parameter of DFA criteria
+///@brief props[33]: N_dfa : N parameter of DFA criteria
+///@brief props[34]: K_dfa : K parameter of DFA criteria
 
 ///@brief The elastic-plastic UMAT with isotropic hardening requires 14 statev:
 ///@brief statev[0] : T_init : Initial temperature
@@ -77,6 +86,6 @@ namespace simcoon{
 ///@brief statev[15] : a3 : Equilibrium hardening parameter
 ///@brief statev[16] : Y0t : Initial transformation critical value
 
-void umat_sma_unified_T(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
+void umat_sma_aniso_T(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
     
 } //namespace simcoon

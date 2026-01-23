@@ -70,25 +70,28 @@ namespace simcoon
     {
         assert(v.size() == 6);
         assert(b >= 0.);
-        assert(n > 0.);
-        vec vdev = dev(v);
-        mat devstress_t = v2t_stress(vdev);
-        vec square_stressdev = t2v_stress(devstress_t * devstress_t);
-        double m;
+        assert(n > 0.);  
 
+        double Mises = Mises_stress(v);
+        vec dMises = eta_stress(v);
+
+        double J2 = J2_stress(v);
+        double J3 = J3_stress(v);
+        double J2_3_2 = pow(J2, 1.5);
+        double J2_5_2 = pow(J2, 2.5);
+        vec dJ3 = dJ3_stress(v);
+        vec dJ2 = dJ2_stress(v);
+
+        double m;
         vec temp;
 
-        if (Mises_stress(v) > 0.)
+        if (Mises > 0.)
         {
             if (n < 10.)
             {
                 m = 1. / n;
-                temp = sqrt(3.) * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), (m - 1.)) * (0.5 / sqrt(J2_stress(v)) * vdev + b * m / (6. * pow(J2_stress(v), 2.)) * (6. * J2_stress(v) * square_stressdev - 4. * pow(J2_stress(v), 2.) * Ith() + (3. / m - 9.) * J3_stress(v) * vdev));
 
-                for (int i = 3; i < 6; i++)
-                {
-                    temp(i) = 2. * temp(i);
-                }
+                temp = pow((1. + b * J3 / J2_3_2), m) * dMises + Mises * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
             }
             else
             {
@@ -118,6 +121,106 @@ namespace simcoon
     vec dTresca_stress(const vec &v)
     {
         return eta_stress(v);
+    }
+
+    // This function returns the derivative of J2
+    vec dJ2_stress(const vec &v)
+    {
+        vec vdev = (dev(v)%Ir2());  
+
+        return vdev;
+    }
+
+    // This function returns the derivative of J3
+    vec dJ3_stress(const vec &v)
+    {
+        assert(v.size() == 6);
+
+        vec vdev = dev(v);  
+        mat S = v2t_stress(vdev);
+
+        mat SS = S * S;
+
+        double trS2 = accu(S % S);
+
+        mat dJ3_mat = SS - (1.0/3.0) * trS2 * eye<mat>(3,3);
+
+        vec dJ3 = t2v_strain(dJ3_mat);
+
+        return dJ3;
+    }
+    // This function returns the combination of the Drucker equivalent stress by replacing VM by DFA
+    double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
+    {
+        assert(v.size() == 6);
+        assert(b >= 0.);
+        assert(n > 0.);
+        double temp;
+        double m;
+
+        double dfa_stress = DFA_stress(v, params);
+
+        if (dfa_stress > 0.)
+        {
+            if (n < 10.)
+            {
+                m = 1. / n;
+                temp = dfa_stress * pow((1. + b * J3_stress(v) / pow(J2_stress(v), 1.5)), m);
+            }
+            else
+            {
+                m = 0.;
+                temp = dfa_stress;
+            }
+        }
+        else
+        {
+            m = 0.;
+            temp = 0.;
+        }
+        return temp;
+    }
+
+    // This function returns the derivative of the Drucker equivalent stress.
+    vec dDrucker_ani_stress(const vec &v,  const vec &params, const double &b, const double &n)
+    {
+        assert(v.size() == 6);
+        assert(b >= 0.);
+        assert(n > 0.);  
+
+        double Dfa_stress = DFA_stress(v, params);
+        vec dDfa_stress = dDFA_stress(v,params);
+
+        double J2 = J2_stress(v);
+        double J3 = J3_stress(v);
+        double J2_3_2 = pow(J2, 1.5);
+        double J2_5_2 = pow(J2, 2.5);
+        vec dJ3 = dJ3_stress(v);
+        vec dJ2 = dJ2_stress(v);
+
+        double m;
+        vec temp;
+
+        if (Dfa_stress > 0.)
+        {
+            if (n < 10.)
+            {
+                m = 1. / n;
+
+                temp = pow((1. + b * J3 / J2_3_2), m) * dDfa_stress + Dfa_stress * b * m * (pow((1. + b * J3 / J2_3_2), (m-1))* (dJ3/J2_3_2-1.5*J3*dJ2/J2_5_2));
+            }
+            else
+            {
+                m = 0.;
+                temp = eta_stress(v);
+            }
+        }
+        else
+        {
+            m = 0.;
+            temp = zeros(6);
+        }
+        return temp;
     }
 
     mat P_Ani(const vec &params)
