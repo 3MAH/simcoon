@@ -37,7 +37,7 @@ Methods for computing effective properties of heterogeneous materials:
 
 Functions for material property characterization and orientation distribution:
 
-- **ODF** (Orientation Distribution Function) - Crystallographic texture representation
+- **ODF** (Orientation Distribution Function) - Crystallographic texture representation or fiber direction representation
 - **PDF** (Probability Density Function) - Statistical phase distributions
 - **Crystallography** - Crystal structure and slip system definitions
 - **Variant** - Crystallographic variant management for phase transformations
