@@ -101,22 +101,3 @@ jobs:
             anaconda upload "$dir"*.conda --force --no-progress
           done
 
-  upload-release-assets:
-    name: Attach to GitHub Release
-    needs: build-conda
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: conda-*
-          merge-multiple: false
-
-      - name: Upload release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for file in conda-*/*.conda; do
-            echo "Uploading $file to release"
-            gh release upload "${{ github.event.release.tag_name }}" "$file" --repo "${{ github.repository }}"
-          done
