@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build-conda:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+            target-platform: linux-64
+          - os: MacOS
+            runner: macos-latest
+            target-platform: osx-arm64
+          - os: Windows
+            runner: windows-latest
+            target-platform: win-64
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: packaging
+          auto-update-conda: true
+          conda-solver: libmamba
+
+      - name: Conda build
+        shell: bash -l {0}
+        run: |
+          conda install -y conda-build conda-index
+          conda build conda.recipe -c conda-forge -c set3mah --output-folder .
+          python -m conda_index .
+
+      - name: Install and verify package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash -l {0}
+        run: |
+          conda create -n test-install -y python simcoon -c file://$PWD -c conda-forge -c set3mah
+          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('Import successful')"
+
+      - name: Install and verify package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $localChannel = "file:///" + ($PWD.Path -replace '\\', '/')
+          conda create -n test-install -y python simcoon -c $localChannel -c conda-forge -c set3mah
+          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('Import successful')"
+
+      - name: Upload conda package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-${{ matrix.target-platform }}
+          path: ${{ matrix.target-platform }}/*.conda
+          retention-days: 30
+
+  upload-anaconda:
+    name: Upload to Anaconda
+    needs: build-conda
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: conda-*
+          merge-multiple: false
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: upload
+
+      - name: Upload all packages to Anaconda
+        shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          conda install -y anaconda-client
+          for dir in conda-*/; do
+            echo "Uploading packages from $dir"
+            anaconda upload "$dir"*.conda --force --no-progress
+          done
+
+  upload-release-assets:
+    name: Attach to GitHub Release
+    needs: build-conda
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: conda-*
+          merge-multiple: false
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for file in conda-*/*.conda; do
+            echo "Uploading $file to release"
+            gh release upload "${{ github.event.release.tag_name }}" "$file" --repo "${{ github.repository }}"
+          done

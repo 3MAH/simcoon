@@ -1,5 +1,4 @@
 name: Build & Test
-#build and test on the three OS
 
 on:
   workflow_dispatch:
@@ -13,96 +12,61 @@ permissions:
   actions: read
 
 jobs:
-  Linux:
-    name: Linux
-    runs-on: "ubuntu-latest"
+  build-and-test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+            environment-file: environment.yml
+            shell: bash -l {0}
+          - os: MacOS
+            runner: macos-latest
+            environment-file: environment_arm64.yml
+            shell: bash -l {0}
+          - os: Windows
+            runner: windows-latest
+            environment-file: environment_win.yml
+            shell: pwsh
+
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
+
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.12"
-          environment-file: environment.yml
+          python-version: ${{ matrix.os == 'Linux' && '3.12' || '' }}
+          environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
 
-      - name: Prepare conda environment
-        shell: bash -l {0}
+      - name: Prepare conda environment (Unix)
+        if: runner.os != 'Windows'
         run: |
           conda config --env --add channels conda-forge
           conda config --env --add channels set3mah
           conda config --env --set channel_priority strict
 
-      - name: Build for Linux
-        shell: bash -l {0}
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
         run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja \
+          cmake -S . -B ${{ github.workspace }}/build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
             -Wno-dev
-          cmake --build ${{github.workspace}}/build
+          cmake --build ${{ github.workspace }}/build
 
-      - name: Tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
-
-      - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-Linux
-          path: build/Testing/Temporary/LastTest.log
-          retention-days: 7
-
-  MacOS:
-    name: MacOS
-    runs-on: "macos-latest"
-    steps:
-      - uses: actions/checkout@v5
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          miniconda-version: "latest"
-          activate-environment: foo
-          environment-file: environment_arm64.yml
-
-      - name: Build for MacOS
-        shell: bash -l {0}
-        run: |
-          cmake -S . -B ${{github.workspace}}/build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
-            -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
-            -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -Wno-dev
-          cmake --build ${{github.workspace}}/build
-
-      - name: Tests
-        shell: bash -l {0}
-        run: ctest --test-dir ${{github.workspace}}/build --output-on-failure
-
-      - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-logs-OSX
-          path: build/Testing/Temporary/LastTest.log
-          retention-days: 7
-
-  Windows:
-    name: Windows
-    runs-on: "windows-latest"
-    steps:
-      - uses: actions/checkout@v5
-      - uses: conda-incubator/setup-miniconda@v3
-        with:
-          miniconda-version: "latest"
-          activate-environment: foo
-          environment-file: environment_win.yml
-
-      - name: Build for Windows
-        shell: pwsh
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
         run: |
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
@@ -110,14 +74,18 @@ jobs:
               -Wno-dev
           cmake --build build --config Release
 
-      - name: Tests
-        shell: pwsh
+      - name: Tests (Unix)
+        if: runner.os != 'Windows'
+        run: ctest --test-dir ${{ github.workspace }}/build --output-on-failure
+
+      - name: Tests (Windows)
+        if: runner.os == 'Windows'
         run: ctest --test-dir build -C Release --output-on-failure -VV
 
       - name: Upload test logs as artifact
-        if: always() # Ensure this step runs even if the tests fail
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-logs-Win
+          name: test-logs-${{ matrix.os }}
           path: build/Testing/Temporary/LastTest.log
           retention-days: 7
