@@ -17,7 +17,7 @@
 
 ///@file Identification_LM.cpp
 ///@brief main: to identify // SMA model based on several uniaxial tests // Micromechanical parameters in a multiscale model of a composite material
-///@author Yves Chemisky, Fodil Meraghni, Boris Piotrowski, Nicolas Despringre
+///@author Yves Chemisky, Boris Piotrowski, Nicolas Despringre
 ///@version 0.9
 ///@date 01-18-2016
 

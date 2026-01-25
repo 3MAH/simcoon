@@ -17,7 +17,7 @@
 
 ///@file unified_T.hpp
 ///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
+///@brief Constitutive model of TAMU - LEM3 - TIMC - implemented by Y. Chemisky and  D. Chatziathanasiou
 ///@brief Implemented in 1D-2D-3D
 
 #pragma once

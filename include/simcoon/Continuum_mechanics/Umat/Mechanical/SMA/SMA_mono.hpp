@@ -18,7 +18,7 @@
 /**
  * @file sma_mono.hpp
  * @brief Micromechanical monocrystal model for shape memory alloys based on Patoor et al. (1996)
- * @author Y. Chemisky, D. Chatziathanasiou, G. Chatzigeorgiou, F. Meraghni (LEM3-SMART group)
+ * @author Y. Chemisky, D. Chatziathanasiou
  * @version 1.0
  */
 
