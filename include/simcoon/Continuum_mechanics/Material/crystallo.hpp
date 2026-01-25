@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file crystallo.hpp
+ * @brief Crystallography functions.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //This function returns the Shmidt tensor (3x3 matrix)
 arma::mat Schmid(const arma::vec &n, const arma::vec &m);
 
@@ -37,5 +47,8 @@ arma::mat F_nm(const arma::vec &N);
 
 //This function returns the Hill interfacial operator for an isotropic material
 arma::mat Q_nm(const arma::vec &N, const double &mu, const double &lambda);
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

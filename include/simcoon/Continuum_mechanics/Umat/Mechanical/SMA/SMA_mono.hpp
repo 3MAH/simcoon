@@ -15,66 +15,172 @@
  
  */
 
-///@file SMA_mono.hpp
-///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
-///@brief Implemented in 1D-2D-3D
+/**
+ * @file sma_mono.hpp
+ * @brief Micromechanical monocrystal model for shape memory alloys based on Patoor et al. (1996)
+ * @author Y. Chemisky, D. Chatziathanasiou
+ * @version 1.0
+ */
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
 
-///@brief The unified SMA UMAT for transformation requires 25 constants and 17 statev:
-///@brief The mechanical transformation UMAT for SMAs has the following statev and props
+/** @addtogroup umat_mechanical
+ *  @{
+ */
 
-///@brief props[0] : flagT: 0 transformation temperatures linearly extrapolated; 1 : smooth temperatures
-///@brief props[1] : EA: Young's modulus of Austenite
-///@brief props[2] : EM: Young's modulus of Martensite
-///@brief props[3] : nuA : Poisson's ratio of Austenite
-///@brief props[4] : nuM : Poisson's ratio of Martensite
-///@brief props[5] : alphaA_iso : CTE of Austenite
-///@brief props[6] : alphaM_iso : CTE of Martensite
-///@brief props[7] : Hmin : Minimal transformation strain magnitude
-///@brief props[8] : Hmax : Maximal transformation strain magnitude
-///@brief props[9] : k1 : Exponential evolution of transformation strain magnitude
-///@brief props[10] : sigmacrit : Critical stress for change of transformation strain magnitude
-///@brief props[11]: C_A : Slope of martesnite -> austenite parameter
-///@brief props[12]: C_M : Slope of austenite -> martensite parameter
-///@brief props[13]: Ms0 : Martensite start at zero stress
-///@brief props[14]: Mf0 : Martensite finish at zero stress
-///@brief props[15]: As0 : Austenite start at zero stress
-///@brief props[16]: Af0 : Austenite finish at zero stress
-///@brief props[17]: n1 : Martensite start smooth exponent
-///@brief props[18]: n2 : Martensite finish smooth exponent
-///@brief props[19]: n3 : Austenite start smooth exponent
-///@brief props[20]: n4 : Austenite finish smooth exponent
+/**
+ * @brief Micromechanical monocrystal model for SMA based on Patoor et al. (1996)
+ *
+ * @details This function implements the micromechanical monocrystal model of Patoor et al. (1996)
+ * for shape memory alloys. The model describes the martensitic phase transformation in a single
+ * crystal by tracking N individual martensite variants, where N is typically 12 or 24 depending
+ * on the crystallographic system.
+ *
+ * **Key Features:**
+ * - Explicit tracking of N martensite variant volume fractions \f$ f_n \f$ (n = 1, ..., N)
+ * - Crystallographic transformation strains for each variant
+ * - Variant selection driven by resolved thermodynamic driving force
+ * - Inter-variant interactions through hardening matrix
+ * - Applicable to single crystal SMA behavior
+ *
+ * **Physical Background:**
+ *
+ * In single crystal SMAs, the austenite-to-martensite transformation occurs through the formation
+ * of distinct crystallographic variants. For cubic-to-monoclinic transformations (e.g., NiTi),
+ * there are typically 12 or 24 habit plane variants, each characterized by:
+ * - A specific transformation strain tensor \f$ \boldsymbol{\varepsilon}^{tr}_n \f$
+ * - A habit plane normal and transformation direction
+ *
+ * **Variant Volume Fractions:**
+ *
+ * The microstructural state is characterized by N variant volume fractions:
+ * \f[
+ * f_n \geq 0, \quad \sum_{n=1}^{N} f_n \leq 1, \quad f_A = 1 - \sum_{n=1}^{N} f_n
+ * \f]
+ * where:
+ * - \f$ f_n \f$ is the volume fraction of martensite variant n
+ * - \f$ f_A \f$ is the austenite volume fraction
+ * - The total martensite fraction is \f$ \xi = \sum_{n=1}^{N} f_n \f$
+ *
+ * **Transformation Strain:**
+ *
+ * The macroscopic transformation strain is the volume-weighted sum over all variants:
+ * \f[
+ * \boldsymbol{\varepsilon}^{tr} = \sum_{n=1}^{N} f_n \boldsymbol{\varepsilon}^{tr}_n
+ * \f]
+ * where \f$ \boldsymbol{\varepsilon}^{tr}_n \f$ is the crystallographic transformation strain
+ * tensor of variant n, computed from the lattice correspondence.
+ *
+ * **Thermodynamic Driving Force:**
+ *
+ * For each variant n, the driving force for transformation is:
+ * \f[
+ * F_n = \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^{tr}_n - \Delta G^{chem}(T) - \sum_{m=1}^{N} H_{nm} f_m
+ * \f]
+ * where:
+ * - \f$ \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^{tr}_n \f$ is the mechanical driving force
+ * - \f$ \Delta G^{chem}(T) \f$ is the chemical free energy difference (temperature-dependent)
+ * - \f$ H_{nm} \f$ is the interaction matrix describing variant-variant hardening
+ *
+ * **Transformation Criteria:**
+ *
+ * **Forward Transformation (A → M_n):**
+ * \f[
+ * \Phi_n^{fwd} = F_n - F_c^{fwd} \leq 0, \quad \dot{f}_n \geq 0
+ * \f]
+ *
+ * **Reverse Transformation (M_n → A):**
+ * \f[
+ * \Phi_n^{rev} = -F_n - F_c^{rev} \leq 0, \quad \dot{f}_n \leq 0
+ * \f]
+ *
+ * where \f$ F_c^{fwd} \f$ and \f$ F_c^{rev} \f$ are critical driving forces for forward
+ * and reverse transformations.
+ *
+ * **Interaction Matrix:**
+ *
+ * The hardening matrix \f$ H_{nm} \f$ captures:
+ * - Self-hardening (\f$ H_{nn} \f$): resistance to growth of variant n
+ * - Latent hardening (\f$ H_{nm}, n \neq m \f$): interaction between different variants
+ *
+ * **Variant Selection:**
+ *
+ * Under applied stress, variants with favorable orientation (high resolved stress on
+ * transformation system) are preferentially activated. This leads to:
+ * - Single variant formation under uniaxial loading along specific orientations
+ * - Multi-variant microstructures under complex loading
+ * - Texture-dependent macroscopic response
+ *
+ * **Number of Variants:**
+ *
+ * Common crystallographic systems:
+ * - Cubic → Orthorhombic: N = 6 variants
+ * - Cubic → Monoclinic (NiTi): N = 12 or 24 variants
+ * - Cubic → Tetragonal: N = 3 variants
+ *
+ * **State Variables (statev):**
+ *
+ * Total state variables required: \f$ n_{statev} = 1 + N + 6 \f$ (for N variants)
+ *
+ * | Index | Symbol | Description | Units |
+ * |-------|--------|-------------|-------|
+ * | statev[0] | \f$ T_{init} \f$ | Initial/reference temperature | Temperature |
+ * | statev[1] | \f$ f_1 \f$ | Volume fraction of martensite variant 1 | - |
+ * | statev[2] | \f$ f_2 \f$ | Volume fraction of martensite variant 2 | - |
+ * | ... | ... | ... | ... |
+ * | statev[N] | \f$ f_N \f$ | Volume fraction of martensite variant N | - |
+ * | statev[N+1] | \f$ \varepsilon^{tr}_{11} \f$ | Macroscopic transformation strain component 11 | Strain |
+ * | statev[N+2] | \f$ \varepsilon^{tr}_{22} \f$ | Macroscopic transformation strain component 22 | Strain |
+ * | statev[N+3] | \f$ \varepsilon^{tr}_{33} \f$ | Macroscopic transformation strain component 33 | Strain |
+ * | statev[N+4] | \f$ \varepsilon^{tr}_{12} \f$ | Macroscopic transformation strain component 12 | Strain |
+ * | statev[N+5] | \f$ \varepsilon^{tr}_{13} \f$ | Macroscopic transformation strain component 13 | Strain |
+ * | statev[N+6] | \f$ \varepsilon^{tr}_{23} \f$ | Macroscopic transformation strain component 23 | Strain |
+ *
+ * The macroscopic transformation strain is computed as:
+ * \f$ \boldsymbol{\varepsilon}^{tr} = \sum_{n=1}^{N} f_n \boldsymbol{\varepsilon}^{tr}_n \f$
+ *
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
+ * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
+ * @param sigma Cauchy stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param Lt Consistent tangent modulus (6×6 matrix) [output]
+ * @param L Elastic stiffness tensor (6×6 matrix) [output]
+ * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param nprops Number of material properties
+ * @param props Material properties vector
+ * @param nstatev Number of state variables (includes N variant volume fractions)
+ * @param statev State variables vector containing variant fractions [input/output]
+ * @param T Temperature at beginning of increment
+ * @param DT Temperature increment
+ * @param Time Time at beginning of increment
+ * @param DTime Time increment
+ * @param Wm Total mechanical work [output]
+ * @param Wm_r Recoverable (elastic) work [output]
+ * @param Wm_ir Irrecoverable work stored in transformation [output]
+ * @param Wm_d Dissipated work (hysteresis) [output]
+ * @param ndi Number of direct stress components (typically 3)
+ * @param nshr Number of shear stress components (typically 3)
+ * @param start Flag indicating first increment (true) or continuation (false)
+ * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
+ *
+ * @note This model is specifically for **single crystal** SMA behavior
+ * @note For polycrystalline SMAs, use this model within a homogenization scheme
+ * @note The number of variants N depends on the crystallographic transformation system
+ * @note Variant transformation strains must be provided based on crystallographic data
+ *
+ * **References:**
+ * - Patoor, E., Eberhardt, A., & Berveiller, M. (1996). "Micromechanical modelling of
+ *   superelasticity in shape memory alloys." *Journal de Physique IV*, 6(C1), 277-292.
+ * - Patoor, E., Lagoudas, D. C., Entchev, P. B., Brinson, L. C., & Gao, X. (2006).
+ *   "Shape memory alloys, Part I: General properties and modeling of single crystals."
+ *   *Mechanics of Materials*, 38(5-6), 391-429.
+ * - Gall, K., & Sehitoglu, H. (1999). "The role of texture in tension-compression
+ *   asymmetry in polycrystalline NiTi." *International Journal of Plasticity*, 15(1), 69-92.
+ */
+void umat_sma_mono(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
-///@brief props[21]: c_lambda : penalty function exponent start point
-///@brief props[22]: p0_lambda : penalty function exponent limit penalty value
-///@brief props[23]: n_lambda : penalty function power law exponent
-///@brief props[24]: alpha_lambda : penalty function power law parameter
-
-///@brief The elastic-plastic UMAT with isotropic hardening requires 14 statev:
-///@brief statev[0] : T_init : Initial temperature
-///@brief statev[1] : xi : MVF (Martensitic volume fraction)
-///@brief statev[2] : Transformation strain 11: ET(0,0)
-///@brief statev[3] : Transformation strain 22: ET(1,1)
-///@brief statev[4] : Transformation strain 33: ET(2,2)
-///@brief statev[5] : Transformation strain 12: ET(0,1) (*2)
-///@brief statev[6] : Transformation strain 13: ET(0,2) (*2)
-///@brief statev[7] : Transformation strain 23: ET(1,2) (*2)
-
-///@brief statev[8] : xiF : forward MVF
-///@brief statev[9] : xiR : reverse MVF
-///@brief statev[10] : rhoDs0 difference in entropy for the phases (M - A)
-///@brief statev[11] : rhoDs0 difference in internal energy for the phases (M - A)
-///@brief statev[12] : parameter for the stress dependance of transformation limits
-///@brief statev[13] : a1 : forward hardening parameter
-///@brief statev[14] : a2 : reverse hardening parameter
-///@brief statev[15] : a3 : Equilibrium hardening parameter
-///@brief statev[16] : Y0t : Initial transformation critical value
-
-void umat_sma_mono(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
+/** @} */ // end of umat_mechanical group
     
 } //namespace simcoon

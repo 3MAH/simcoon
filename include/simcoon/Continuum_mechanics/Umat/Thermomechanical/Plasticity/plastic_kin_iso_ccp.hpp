@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file plastic_kin_iso_ccp.hpp
+ * @brief Thermomechanical plasticity model.
+ */
+
+/** @addtogroup umat_thermomechanical
+ *  @{
+ */
+
+
 ///@brief The thermomechanical elastic-plastic UMAT with kinematic + isotropic hardening requires 9 constants:
 
 ///@brief props[0] : density
@@ -56,4 +66,7 @@ namespace simcoon{
 
 void umat_plasticity_kin_iso_CCP_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
     
+
+/** @} */ // end of umat_thermomechanical group
+
 } //namespace simcoon

@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file constants.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //======================================
 class constants
 //======================================
@@ -61,5 +71,8 @@ class constants
         friend  std::ostream& operator << (std::ostream&, const constants&);
 
 };
+
+
+/** @} */ // end of identification group
 
 } //namespace simcoon

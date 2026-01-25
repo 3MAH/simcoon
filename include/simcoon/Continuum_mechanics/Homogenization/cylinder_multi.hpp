@@ -30,6 +30,16 @@
 
 namespace simcoon{
 
+/**
+ * @file cylinder_multi.hpp
+ * @brief Cylindrical inclusion homogenization functions.
+ */
+
+/** @addtogroup homogenization
+ *  @{
+ */
+
+
 //======================================
 class cylinder_multi : public phase_multi
 //======================================
@@ -59,5 +69,8 @@ protected:
     friend std::ostream& operator << (std::ostream&, const cylinder_multi&);
     
 };
+
+
+/** @} */ // end of homogenization group
 
 } //namespace simcoon

@@ -29,39 +29,108 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file step.hpp
+ * @brief Solver functions and classes.
+ */
+
+/** @addtogroup solver
+ *  @{
+ */
+
+
+/**
+ * @brief Class representing a loading step within a simulation block.
+ * 
+ * A step defines a portion of the loading path with specified boundary conditions
+ * and time discretization parameters. It controls how the load is applied and
+ * how time increments are managed.
+ * 
+ * @details The step class manages:
+ * - Time discretization (initial, minimum increments)
+ * - Boundary condition mode (stress, strain, or mixed control)
+ * - Loading path definition through external files
+ */
 class step
-//======================================
 {
 private:
     
 protected:
     
 	public :
-    int number;     //Number of the step
-    double Dn_init;    //Initial fraction of the step
-    double Dn_mini;    //Minimal fraction of the step
-    double Dn_inc;    //Maximal fraction of the step
-    int ninc;       //Number of milestones in the step (based on Dnmaxi)
-    int mode;
-    unsigned int control_type;
+    int number; ///< Step identification number
+    double Dn_init; ///< Initial fraction of the step (initial time increment ratio)
+    double Dn_mini; ///< Minimal fraction of the step (minimum time increment ratio)
+    double Dn_inc; ///< Maximum fraction of the step (maximum time increment ratio)
+    int ninc; ///< Number of milestones/increments in the step
+    int mode; ///< Loading mode identifier
+    unsigned int control_type; ///< Control type (0: strain, 1: stress, 2: mixed)
     
-    arma::vec times;
-    double BC_Time;
+    arma::vec times; ///< Vector of time values for the step
+    double BC_Time; ///< Boundary condition application time
     
-    std::string file; //  It is used for input/output values of the loading path
+    std::string file; ///< Input/output file for loading path values
     
-    step(); 	//default constructor
-    step(const int &, const double &, const double &, const double &, const int &, const unsigned int &);	//Constructor with parameters
-    step(const step &);	//Copy constructor
+    /**
+     * @brief Default constructor.
+     */
+    step();
+    
+    /**
+     * @brief Constructor with parameters.
+     * @param number Step identification number
+     * @param Dn_init Initial time increment fraction
+     * @param Dn_mini Minimum time increment fraction
+     * @param Dn_inc Maximum time increment fraction
+     * @param mode Loading mode
+     * @param control_type Control type
+     */
+    step(const int &number, const double &Dn_init, const double &Dn_mini, const double &Dn_inc, const int &mode, const unsigned int &control_type);
+    
+    /**
+     * @brief Copy constructor.
+     * @param s Step to copy
+     */
+    step(const step &s);
+    
+    /**
+     * @brief Virtual destructor.
+     */
     virtual ~step();
    
+    /**
+     * @brief Generate the time discretization for the step.
+     */
     virtual void generate();
-    virtual void compute_inc(double &, const int &, double &, double &, double &, const int &);
     
-    virtual step& operator = (const step&);
+    /**
+     * @brief Compute the next increment parameters.
+     * @param tnew_dt Suggested new time increment ratio (output)
+     * @param inc Current increment number
+     * @param tinc Time increment (output)
+     * @param Dtinc Delta time increment (output)
+     * @param Dn Increment fraction (output)
+     * @param control Increment control flag
+     */
+    virtual void compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
     
-    friend  std::ostream& operator << (std::ostream&, const step&);
+    /**
+     * @brief Assignment operator.
+     * @param s Step to assign
+     * @return Reference to this object
+     */
+    virtual step& operator = (const step& s);
+    
+    /**
+     * @brief Stream output operator.
+     * @param os Output stream
+     * @param s Step to output
+     * @return Output stream
+     */
+    friend  std::ostream& operator << (std::ostream& os, const step &s);
 };
+
+
+/** @} */ // end of solver group
 
 } //namespace simcoon

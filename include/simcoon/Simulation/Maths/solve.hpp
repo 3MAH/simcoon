@@ -24,10 +24,23 @@
 
 namespace simcoon{
 
+/**
+ * @file solve.hpp
+ * @brief Mathematical utility functions.
+ */
+
+/** @addtogroup maths
+ *  @{
+ */
+
+
 arma::vec quadratic(const double &, const double &, const double &);
 
 arma::cx_vec cx_quadratic(const double &, const double &, const double &);
 
 arma::cx_vec cx_quadratic(const arma::cx_double &, const arma::cx_double &, const arma::cx_double &);
+
+
+/** @} */ // end of maths group
 
 } //namespace simcoon    

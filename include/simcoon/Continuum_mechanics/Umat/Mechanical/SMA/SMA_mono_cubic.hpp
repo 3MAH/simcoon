@@ -17,8 +17,7 @@
 
 ///@file SMA_mono_cubic.hpp
 ///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
-///@brief Implemented in 1D-2D-3D
+///@brief Constitutive model of Patoor - 1996, implemented by  Y. Chemisky and  D. Chatziathanasiou
 
 #pragma once
 #include <armadillo>

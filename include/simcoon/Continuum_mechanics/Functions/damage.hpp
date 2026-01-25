@@ -23,10 +23,14 @@
 namespace simcoon{
 
 /**
-* @file damage.hpp
-* @author Yves Chemisky 
-* @section The damage library that computes damage evolution laws
-*/
+ * @file damage.hpp
+ * @author Yves Chemisky 
+ * @brief The damage library that computes damage evolution laws.
+ */
+
+/** @addtogroup damage
+ *  @{
+ */
 
 /**
  * @brief Provides the damage evolution \f$ \delta D \f$ considering a Weibull damage law.
@@ -108,5 +112,7 @@ double damage_miner(const double &S_max, const double &S_mean, const double &S_u
  * @endcode
 */
 double damage_manson(const double &S_amp, const double &C2, const double &gamma2);
+
+/** @} */ // end of damage group
 
 } //namespace simcoon

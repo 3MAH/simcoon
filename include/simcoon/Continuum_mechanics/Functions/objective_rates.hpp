@@ -18,13 +18,17 @@
 /**
  * @file objective_rates.hpp
  * @author Yves Chemisky 
- * @section The objective_rates library contains a set of function that help to define different quantities, depending on a selected objective rate
-*/
+ * @brief The objective_rates library contains a set of functions that help to define different quantities, depending on a selected objective rate.
+ */
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
+
+/** @addtogroup objective_rates
+ *  @{
+ */
 
 /**
  * @brief Computes the increment of rotation, the rate of deformation and the spin using the Jaumann corotational framework.
@@ -82,7 +86,7 @@ void Green_Naghdi(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double &
  *
  * @param[out] DR 3x3 matrix representing the increment of rotation \f$ \Delta \mathbf{R} \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
- * @param[out] Omega 3x3 matrix representing spin rate \mathbf{\Omega}_{\textrm{log}} \f$
+ * @param[out] Omega 3x3 matrix representing spin rate \f$ \mathbf{\Omega}_{\textrm{log}} \f$
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
  * @param[in] F0 transformation gradient \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$
  * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
@@ -686,5 +690,7 @@ arma::mat Dsigma_LieDD_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::m
  * @return (6x6 arma::mat) the tangent modulus that links the Biot stress tensor \f$ \mathbf{T} \f$ and rate of right stretch \f$ \mathbf{U} \f$
 */
 arma::mat DSDE_DBiotStressDU(const arma::mat &DSDE, const arma::mat &U, const arma::mat &S);
+
+/** @} */ // end of objective_rates group
 
 } //namespace simcoon

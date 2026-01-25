@@ -36,6 +36,11 @@
 
 namespace simcoon {
 
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
+
 //=============================================================================
 // ABAQUS UMAT TRANSFER FUNCTIONS
 //=============================================================================
@@ -318,5 +323,8 @@ void smart2ansys_M(double *stress, double *ddsdde,
     const int &ncomp,
     const arma::vec &sigma, const arma::mat &Lt,
     const arma::vec &Wm, const arma::vec &statev_smart);
+
+
+/** @} */ // end of umat_mechanical group
 
 } // namespace simcoon

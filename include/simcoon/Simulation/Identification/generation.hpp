@@ -27,6 +27,16 @@
 
 namespace simcoon{
 
+/**
+ * @file generation.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //======================================
 class generation
 //======================================
@@ -36,24 +46,81 @@ class generation
 	protected:
 
 	public :
-    
-        std::vector<individual> pop;
-		
-		generation(); 	//default constructor
-		generation(const int&, const int&, int&, const double & = 0.);	//constructor - allocates memory for statev
-		generation(const generation&);	//Copy constructor
-		~generation();
-		
-		int size() const {return pop.size();}       // returns the number of individuals
+		std::vector<individual> pop; ///< Population of individuals
 
-		void construct(const int&, const int&, int&, const double & = 0.);
+		/**
+		 * @brief Default constructor.
+		 */
+		generation();
+
+		/**
+		 * @brief Constructor with population size and parameter count.
+		 * @param npop Number of individuals
+		 * @param nparam Number of parameters per individual
+		 * @param id_start Starting id for individuals
+		 * @param lambda Initial lambda value (default: 0.0)
+		 */
+		generation(const int &npop, const int &nparam, int &id_start, const double &lambda = 0.);
+
+		/**
+		 * @brief Copy constructor.
+		 * @param gen Generation to copy
+		 */
+		generation(const generation &gen);
+
+		/**
+		 * @brief Destructor.
+		 */
+		~generation();
+
+		/**
+		 * @brief Get the number of individuals in the population.
+		 * @return Population size
+		 */
+		int size() const {return pop.size();}
+
+		/**
+		 * @brief Construct the population with given size and parameters.
+		 * @param npop Number of individuals
+		 * @param nparam Number of parameters
+		 * @param id_start Starting id
+		 * @param lambda Initial lambda value
+		 */
+		void construct(const int &npop, const int &nparam, int &id_start, const double &lambda = 0.);
+
+		/**
+		 * @brief Classify individuals by cost (fitness).
+		 */
 		void classify();
-		void newid(int &);
+
+		/**
+		 * @brief Assign new unique ids to individuals.
+		 * @param id_start Starting id
+		 */
+		void newid(int &id_start);
+
+		/**
+		 * @brief Destroy the population (clear individuals).
+		 */
 		void destruct();
 
-		virtual generation& operator = (const generation&);
-		
-		friend std::ostream& operator << (std::ostream&, const generation&);
+		/**
+		 * @brief Assignment operator.
+		 * @param gen Generation to assign
+		 * @return Reference to this object
+		 */
+		virtual generation& operator = (const generation &gen);
+
+		/**
+		 * @brief Stream output operator.
+		 * @param os Output stream
+		 * @param gen Generation to output
+		 * @return Output stream
+		 */
+		friend std::ostream& operator << (std::ostream& os, const generation &gen);
 };
+
+
+/** @} */ // end of identification group
 
 } //namespace simcoon

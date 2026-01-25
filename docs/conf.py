@@ -24,6 +24,19 @@ sys.path.insert(
     0, os.path.abspath("../../simcoon-python-builder/include/simcoon/python_wrappers")
 )
 
+import subprocess
+
+# -- Run Doxygen to generate XML for Breathe ---------------------------------
+# Build the Doxygen XML documentation if it doesn't exist.
+# Note: When using the Makefile, Doxygen is run as a dependency before Sphinx,
+# so this block won't execute. This fallback is useful for:
+# - ReadTheDocs builds
+# - Direct sphinx-build invocations without make
+doxygen_xml_dir = os.path.join(os.path.dirname(__file__), "_build", "doxygen", "xml")
+if not os.path.exists(doxygen_xml_dir):
+    print("Running Doxygen to generate XML for Breathe...")
+    subprocess.call("doxygen Doxyfile", shell=True, cwd=os.path.dirname(__file__))
+
 sphinx_gallery.EXAMPLES_DIR = os.path.abspath("../examples")
 print("Sphinx-Gallery examples dir:", sphinx_gallery.EXAMPLES_DIR)
 
@@ -61,7 +74,16 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx_gallery.gen_gallery",
     "matplotlib.sphinxext.plot_directive",
+    "breathe",
 ]
+
+# -- Breathe Configuration ---------------------------------------------------
+# Path to the Doxygen XML output
+breathe_projects = {
+    "simcoon": os.path.join(os.path.dirname(__file__), "_build", "doxygen", "xml")
+}
+breathe_default_project = "simcoon"
+breathe_default_members = ("members", "undoc-members")
 
 matplotlib.rcParams.update(
     {
@@ -86,6 +108,9 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+
+# Suppress specific warnings
+suppress_warnings = ["toc.not_included"]
 
 # -- Options for HTML output -------------------------------------------------
 

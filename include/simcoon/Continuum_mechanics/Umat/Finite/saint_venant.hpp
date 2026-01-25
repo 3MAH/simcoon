@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_isotropic.hpp
+///@file saint_venant.hpp
 ///@brief User subroutine for Isotropic elastic materials in 3D case
 ///@version 1.0
 
@@ -24,6 +24,16 @@
 #include <armadillo>
 
 namespace simcoon{
+
+/**
+ * @file saint_venant.hpp
+ * @brief Finite strain constitutive model.
+ */
+
+/** @addtogroup umat_finite
+ *  @{
+ */
+
 
 ///@brief The elastic UMAT requires 2 constants:
 ///@brief props[0] : Young modulus
@@ -34,4 +44,7 @@ namespace simcoon{
 
 void umat_saint_venant(const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat&, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
                             
+
+/** @} */ // end of umat_finite group
+
 } //namespace simcoon

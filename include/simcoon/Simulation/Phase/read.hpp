@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file read.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
+
 /// Function that generate a phase characteristics object
 void get_phase_charateristics(phase_characteristics &, const std::string &);
     
@@ -40,5 +50,8 @@ void read_ellipsoid(phase_characteristics &, const std::string & = "data", const
 
 /// Function that reads the characteristics of a cylinder
 void read_cylinder(phase_characteristics &, const std::string & = "data", const std::string & = "Ncylinders0.dat");
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

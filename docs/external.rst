@@ -314,7 +314,7 @@ For UMABA format, use ``Name  UMABA`` instead. For Ansys USERMAT, use ``Name  UM
 
 **path.txt**
 
-Standard loading path definition (see :doc:`solver` for details):
+Standard loading path definition (see :doc:`simulation/solver` for details):
 
 .. code-block:: none
 

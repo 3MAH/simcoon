@@ -16,15 +16,19 @@
  */
 
 /**
-* @file contimech.hpp
-* @author Yves Chemisky 
-* @section Contimech library contains Functions that computes continuu mechanical quatities and operations on stress/strains, directions, etc
-*/
+ * @file contimech.hpp
+ * @author Yves Chemisky 
+ * @brief Contimech library contains functions that compute continuum mechanical quantities and operations on stress/strains, directions, etc.
+ */
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
+
+/** @addtogroup contimech
+ *  @{
+ */
 
 /**
  * @brief Returns the deviatoric part of a 3x3 matrix
@@ -221,10 +225,10 @@ double J3_stress(const arma::vec &v);
 double J3_strain(const arma::vec &v);
 
 /**
- * @brief Provides the results of the MacCaulay brackets operator <>+
+ * @brief Provides the results of the MacCaulay brackets operator \f$\langle d \rangle^+\f$
  * @param d The input value (double)
- * @return The value of <d>+ (double)
- * @details This function returns the value if d positive, zero if d is negative (Macaulay brackets <>+)
+ * @return The value of \f$\langle d \rangle^+\f$ (double)
+ * @details This function returns the value if d positive, zero if d is negative (Macaulay brackets \f$\langle d \rangle^+\f$)
  * @code 
     constexpr int MIN = -10;
     constexpr int MAX = 100;
@@ -235,10 +239,10 @@ double J3_strain(const arma::vec &v);
 double Macaulay_p(const double &d);
 
 /**
- * @brief Provides the results of the MacCaulay brackets operator <>-
+ * @brief Provides the results of the MacCaulay brackets operator \f$\langle d \rangle^-\f$
  * @param d The input value (double)
- * @return The value of <d>- (double)
- * @details This function returns the value if d is negative, zero if d is positive (Macaulay brackets <>-)
+ * @return The value of \f$\langle d \rangle^-\f$ (double)
+ * @details This function returns the value if d is negative, zero if d is positive (Macaulay brackets \f$\langle d \rangle^-\f$)
  * @code 
     constexpr int MIN = -10;
     constexpr int MAX = 100;
@@ -497,5 +501,7 @@ arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
  * @endcode
 */
 arma::mat B_klmn(const arma::vec &b_i, const arma::vec &b_j);
+
+/** @} */ // end of contimech group
 
 } //namespace simcoon

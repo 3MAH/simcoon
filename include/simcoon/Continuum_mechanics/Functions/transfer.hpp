@@ -22,10 +22,14 @@
 namespace simcoon{
 
 /**
-* @file transfer.hpp
-* @author Yves Chemisky
-* @brief A set of functions that transforms stress and strain tensors from 3x3 mat into vector with Voigt notation 
-*/
+ * @file transfer.hpp
+ * @author Yves Chemisky
+ * @brief A set of functions that transform stress and strain tensors from 3x3 mat into vector with Voigt notation.
+ */
+
+/** @addtogroup transfer
+ *  @{
+ */
     
 /**
  * @brief Provides the matrix (3x3 arma::mat) version of a strain tensor initially written with Voigt notation (arma::vec size=6)
@@ -319,5 +323,7 @@ arma::mat FTensor4_mat(const FTensor::Tensor4<double,3,3,3,3> &FT4);
  * @endcode
 */
 FTensor::Tensor4<double,3,3,3,3> mat_FTensor4(const arma::mat &L);
+
+/** @} */ // end of transfer group
     
 } //namespace simcoon

@@ -15,13 +15,23 @@
  
  */
 
-///@file lagrange.cpp
+///@file lagrange.hpp
 ///@brief Function that are utilized in constrained problems
 ///@version 1.0
 
 #pragma once
 
 namespace simcoon{
+
+/**
+ * @file lagrange.hpp
+ * @brief Mathematical utility functions.
+ */
+
+/** @addtogroup maths
+ *  @{
+ */
+
 
 //This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)
 double lagrange_exp(const double &, const double &, const double &);
@@ -44,5 +54,8 @@ double dlagrange_pow_1(const double &, const double &, const double &, const dou
 //This function is used to determine the SECOND derivative of a power-law Lagrange Multiplier for problem such x <= 1
 double d2lagrange_pow_1(const double &, const double &, const double &, const double &, const double &);
     
+
+/** @} */ // end of maths group
+
 } //namespace simcoon
 

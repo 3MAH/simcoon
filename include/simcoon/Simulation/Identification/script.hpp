@@ -31,6 +31,16 @@
 
 namespace simcoon{
 
+/**
+ * @file script.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //This function will copy the parameters files
 void copy_parameters(const std::vector<parameters> &, const std::string &, const std::string &);
 
@@ -59,4 +69,7 @@ double calc_cost(const arma::vec &, arma::vec &, const arma::vec &, const std::v
 arma::mat calc_sensi(const individual &, generation &, const std::string &, const int &, const int &, std::vector<parameters> &, std::vector<constants> &, arma::vec &, std::vector<opti_data> &, std::vector<opti_data> &, const std::string &, const std::string &, const std::string &, const std::string &, const int &, const arma::vec &, const std::string&);
 
     
+
+/** @} */ // end of identification group
+
 } //namespace simcoon
