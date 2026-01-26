@@ -138,7 +138,7 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
     double Hp=0.;
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = m*k*pow(p, m-1);
         Hp = k*pow(p, m);
     }
@@ -231,7 +231,7 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
         }
         
         //PLastic part
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
             Hp = k*pow(p, m);
         }
@@ -254,7 +254,7 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
             Lambdav[i] = eta_norm_strain(flow_visco[i]);
             dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             
-            if (DTime > sim_iota) {
+            if (DTime > simcoon::iota) {
                 Phi(i+1) = norm_strain(flow_visco[i]) - Ds_j(i+1)/DTime;
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
@@ -319,7 +319,7 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
     
     for (int i=0; i<N_mec; i++) {
         
-        if(Ds_j(i) > sim_iota)
+        if(Ds_j(i) > simcoon::iota)
             op(i) = 1.;
         
         for (int j = 0; j <N_mec; j++) {

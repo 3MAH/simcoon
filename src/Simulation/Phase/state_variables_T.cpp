@@ -321,7 +321,7 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
     
-  	if(fabs(phi) > sim_iota) {
+  	if(fabs(phi) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, -phi, axis_phi);
         sigma_in_start = rotate_stress(sigma_in_start, -phi, axis_phi);
 		dSdE = rotateL(dSdE, -phi, axis_phi);
@@ -329,7 +329,7 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
         dSdT = rotate_stress(dSdT, -phi, axis_phi);
 		drdE = rotate_strain(drdE, -phi, axis_phi);
 	}
-  	if(fabs(theta) > sim_iota) {
+  	if(fabs(theta) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, -theta, axis_theta);
         sigma_in_start = rotate_stress(sigma_in_start, -theta, axis_theta);
 		dSdE = rotateL(dSdE, -theta, axis_theta);
@@ -337,7 +337,7 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
         dSdT = rotate_stress(dSdT, -theta, axis_theta);
 		drdE = rotate_strain(drdE, -theta, axis_theta);
 	}
-	if(fabs(psi) > sim_iota) {
+	if(fabs(psi) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, -psi, axis_psi);
         sigma_in_start = rotate_stress(sigma_in_start, -psi, axis_psi);
 		dSdE = rotateL(dSdE, -psi, axis_psi);
@@ -371,7 +371,7 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
     
-  	if(fabs(psi) > sim_iota) {
+  	if(fabs(psi) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, psi, axis_psi);
         sigma_in_start = rotate_stress(sigma_in_start, psi, axis_psi);
 		dSdE = rotateL(dSdE, psi, axis_psi);
@@ -380,7 +380,7 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
         drdE = rotate_strain(drdE, psi, axis_psi);
         
 	}			
-	if(fabs(theta) > sim_iota) {
+	if(fabs(theta) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, theta, axis_theta);
         sigma_in_start = rotate_stress(sigma_in_start, theta, axis_theta);
 		dSdE = rotateL(dSdE, theta, axis_theta);
@@ -388,7 +388,7 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
         dSdT = rotate_stress(dSdT, theta, axis_theta);
         drdE = rotate_strain(drdE, theta, axis_theta);
 	}
-	if(fabs(phi) > sim_iota) {
+	if(fabs(phi) > simcoon::iota) {
         sigma_in = rotate_stress(sigma_in, phi, axis_phi);
         sigma_in_start = rotate_stress(sigma_in_start, phi, axis_phi);
 		dSdE = rotateL(dSdE, phi, axis_phi);

@@ -357,11 +357,17 @@ if(SIMCOON_BUILD_TESTS)
     enable_language(Fortran)
     add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
 
-    set_target_properties(umat_plugin_aba PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
-    )
+if(NOT MSVC)
+  set_source_files_properties(testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f PROPERTIES Fortran_PREPROCESS OFF)
+  add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+  set_target_properties(umat_plugin_aba PROPERTIES
+    PREFIX ""
+    SUFFIX ""
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
+  )
 
-    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
+  target_link_libraries(umat_plugin_aba PRIVATE simcoon ${ARMADILLO_LIBRARIES})
+endif()
   endif()
 
   add_library(umat_plugin_ext SHARED

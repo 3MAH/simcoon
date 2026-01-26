@@ -4,8 +4,7 @@
 
 #include <carma>
 #include <armadillo>
-
-
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/hyperelastic.hpp>

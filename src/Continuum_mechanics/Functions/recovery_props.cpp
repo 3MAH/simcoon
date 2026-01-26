@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
@@ -34,9 +35,9 @@ namespace simcoon{
 
 void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym, const double &tol) {
  
-    double max_tol_sim_limit = sim_limit;
-    if(tol > sim_limit) {
-        max_tol_sim_limit = tol;
+    double max_tol_sim = simcoon::limit;
+    if(tol > simcoon::limit) {
+        max_tol_sim = tol;
     }
 
     axis = 0; //Indicate no preferential axis
@@ -92,14 +93,14 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     
     for (unsigned int i=0; i<check_sym.n_rows; i++) {
         for (unsigned int j=0; j<check_sym.n_cols; j++) {
-            if(check_sym(i,j) < max_tol_sim_limit)
+            if(check_sym(i,j) < max_tol_sim)
                 type_sym(i,j) = 1;
             else
                 type_sym(i,j) = 0;
         }
     }
         
-    if (check_L_sym_diff < max_tol_sim_limit)
+    if (check_L_sym_diff < max_tol_sim)
         maj_sym = 1;
     else
         maj_sym = 0;
@@ -366,7 +367,13 @@ vec M_cubic_props(const mat &Mt) {
 
 vec L_ortho_props(const mat &Lt) {
     
-    mat Mt = inv(Lt);
+    mat Mt;
+    try {
+        Mt = inv(Lt);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside L_ortho_props.");
+    } 
     
     double E1 = 1/Mt(0,0);
     double E2 = 1/Mt(1,1);
