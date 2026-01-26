@@ -57,13 +57,13 @@ jobs:
       - name: Build (Unix)
         if: runner.os != 'Windows'
         run: |
-          cmake -S . -B ${{ github.workspace }}/build -G Ninja \
+          cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
             -Wno-dev
-          cmake --build ${{ github.workspace }}/build
+          cmake --build build
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -76,7 +76,7 @@ jobs:
 
       - name: Tests (Unix)
         if: runner.os != 'Windows'
-        run: ctest --test-dir ${{ github.workspace }}/build --output-on-failure
+        run: ctest --test-dir build --output-on-failure
 
       - name: Tests (Windows)
         if: runner.os == 'Windows'
