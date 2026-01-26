@@ -116,9 +116,9 @@ jobs:
           path:
             docs/_build/html/
             
-      # Deploy to simcoon-docs/main only for main branch
-      - name: Deploy HTML documentation (main branch)
-        if: ${{ github.ref == 'refs/heads/main' }}
+      # Deploy to simcoon-docs/main only for master branch
+      - name: Deploy HTML documentation (master branch)
+        if: ${{ github.ref == 'refs/heads/master' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           personal_token: ${{ secrets.SIMCOON_DOC_TOKEN }}
