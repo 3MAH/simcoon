@@ -109,7 +109,7 @@ arma::mat dI2DS(const arma::mat &S);
  * @param S Input tensor (3×3 matrix)
  * @return 3×3 matrix representing the derivative (\f$ \mathbf{S}^2 \f$)
  *
- * @note This invariant definition differs from the classical third principal invariant (determinant).
+ * @note This invariant definition differs from the determinant, which is often selected as the third principal invariant (determinant).
  *       Here \f$ I_3 = \frac{1}{3} \text{tr}(\mathbf{S}^3) \f$
  *
  * @code
