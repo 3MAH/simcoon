@@ -68,7 +68,8 @@ New users should begin with:
    simulation/index
    examples/index
    continuum_mechanics/index
-   homogenization/index   
+   homogenization/index
+   cpp_api/index
 
 Indices and tables
 ==================
