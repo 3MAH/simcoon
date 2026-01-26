@@ -43,7 +43,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: ${{ matrix.os == 'Linux' && '3.12' || '' }}
+          python-version: "3.14"
           environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
 

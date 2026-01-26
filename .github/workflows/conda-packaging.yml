@@ -22,7 +22,9 @@ on:
         required: false
   pull_request:
     paths:
+      - 'conda.recipe/**'
       - '.github/workflows/conda-packaging.yml'
+      - 'environment*.yml'
 
 permissions:
   contents: read
