@@ -29,6 +29,16 @@
 
 namespace simcoon{
 
+/**
+ * @file ODF.hpp
+ * @brief Orientation Distribution Function (ODF) management.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
+
 //======================================
 class ODF
 //======================================
@@ -65,5 +75,8 @@ class ODF
     
         friend std::ostream& operator << (std::ostream&, const ODF&);
 };
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon

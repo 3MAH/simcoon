@@ -28,6 +28,16 @@
 
 namespace simcoon{
 
+/**
+ * @file step_thermomeca.hpp
+ * @brief Solver functions and classes.
+ */
+
+/** @addtogroup solver
+ *  @{
+ */
+
+
 //======================================
 class step_thermomeca : public step
 //======================================
@@ -64,5 +74,8 @@ protected:
         
     friend  std::ostream& operator << (std::ostream&, const step_thermomeca&);
 };
+
+
+/** @} */ // end of solver group
 
 } //namespace simcoon

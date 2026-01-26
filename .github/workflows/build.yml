@@ -1,4 +1,4 @@
-name: Build and Test (Non-Conda)
+name: Python Build & Test
 
 on:
   workflow_dispatch:
@@ -18,45 +18,21 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            sys-package-cache-path: /var/cache/apt/archives
             sys-package-install-command: |
               sudo apt-get update
-              sudo apt-get install -y libarmadillo-dev libboost-all-dev libgtest-dev ninja-build
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
-            build-args: ""
-            test-args: ""
+              sudo apt-get install -y libarmadillo-dev ninja-build
           - os: macos-latest
-            sys-package-cache-path: ~/Library/Caches/Homebrew
-            sys-package-install-command: brew install armadillo boost googletest
-            setup-env-command: |
-              echo "FC=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
-              echo "CMAKE_Fortran_COMPILER=$(brew --prefix gcc)/bin/gfortran" >> $GITHUB_ENV
-            cmake-args: "-D CMAKE_BUILD_TYPE=Release -G Ninja"
-            build-args: ""
-            test-args: ""
+            sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
-            sys-package-cache-path: C:\vcpkg\installed
-            sys-package-install-command: vcpkg install armadillo boost-config boost-dll gtest
+            sys-package-install-command: vcpkg install armadillo
             setup-env-command: |
-              echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
               echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
-            cmake-args: ""
-            build-args: "--config Release"
-            test-args: "--build-config Release"
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v5
-
-      - name: Cache system packages
-        uses: actions/cache@v4
-        with:
-          path: ${{ matrix.sys-package-cache-path }}
-          key: ${{ runner.os }}-sys-packages-v2-${{ hashFiles('.github/workflows/build.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-sys-packages-v2-
 
       - name: Install system dependencies
         if: matrix.sys-package-install-command != ''
@@ -69,21 +45,30 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install Python dependencies
-        run: uv pip install pybind11 numpy pytest
-
-      - name: Build project
+      - name: Editable install
         run: |
-          uv run cmake -S . -B build ${{ matrix.cmake-args }} -D CMAKE_PREFIX_PATH="$(uv run python -m pybind11 --cmakedir)" ${{ matrix.os == 'windows-latest' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
-          cmake --build build ${{ matrix.build-args }}
+          uv venv
+          uv pip install scikit-build-core pybind11 numpy
+          uv pip install -e .[dev]
 
-      - name: Install simcoon library
+      - name: Verify cmake rebuild works (Unix)
+        if: runner.os != 'Windows'
         run: |
-          cmake --install build --prefix $PWD/install --component python ${{ matrix.build-args }}
-          uv pip install ./build/python-package
+          touch src/Continuum_mechanics/Functions/constitutive.cpp
+          cmake --build build/cp*
+          # Verify import works after cmake rebuild (should not trigger another build)
+          uv run python -c "import simcoon" 2>&1 | tee import.log
+          if grep -q "Building CXX" import.log; then
+            echo "ERROR: Import should not trigger rebuild after cmake --build"
+            exit 1
+          fi
 
-      - name: Run tests
-        run: ctest --test-dir build ${{ matrix.test-args }}
+      - name: Verify auto-rebuild on import (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          touch src/Continuum_mechanics/Functions/contimech.cpp
+          uv run python -c "import simcoon" 2>&1 | tee rebuild.log
+          grep -q "Building CXX" rebuild.log || (echo "ERROR: Auto-rebuild did not trigger cmake" && exit 1)
+
+      - name: Run Python tests
+        run: uv run pytest

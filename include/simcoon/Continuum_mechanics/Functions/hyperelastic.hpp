@@ -16,15 +16,19 @@
  */
 
 /**
-* @file hyperelastic.hpp
-* @author Yves Chemisky 
-* @section A set of function that allows various strain transformation (in Finite strains)
-*/
+ * @file hyperelastic.hpp
+ * @author Yves Chemisky 
+ * @brief A set of functions for hyperelastic material models.
+ */
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
+
+/** @addtogroup hyperelastic
+ *  @{
+ */
 
 /**
  * @brief Provides the isochoric strain invariants, from the left Cauchy-Green deformation tensor \f$\mathbf{b}\f$ .
@@ -63,7 +67,7 @@ arma::vec isochoric_invariants(const arma::mat &b, const double &mJ = 0.);
  * \f]
  * where \f$ \bar{\lambda}_i = J^{-1/3} \lambda_i \f$ is the i-th isochoric principal stretch from a principal decomposition of the isochoric part of \f$\mathbf{b}\f$.
  * 
- * @param lambda a column vector of dimension 3 that contains the three principal stretches \lambda_1, \lambda_2 and lambda_3 of the Eulerian stretch tensor \f$ \mathbf{v} \f$..
+ * @param lambda a column vector of dimension 3 that contains the three principal stretches \f$ \lambda_1 \f$, \f$ \lambda_2 \f$ and \f$ \lambda_3 \f$ of the Eulerian stretch tensor \f$ \mathbf{v} \f$.
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
  * @return a column vector of dimension 3 that contains the three isochoric invariants
  * 
@@ -81,9 +85,9 @@ arma::vec isochoric_invariants(const arma::vec &lambda, const double &mJ = 0.);
 /**
  * @brief Provides the isochoric principal stretches \f$ \bar{\lambda}^2_1, \bar{\lambda}^2_2 and \bar{\lambda}^2_3\f$ , from the eulerian stretch tensor \f$ \mathbf{v} \f$.
  *
- *  \f$ \lambda_1, \lambda_2 and lambda_3\f$ are the principal stretches of the Eulerian stretch tensor \f$ \mathbf{v} \f$ and:
+ *  \f$ \lambda_1, \lambda_2 \f$ and \f$ \lambda_3 \f$ are the principal stretches of the Eulerian stretch tensor \f$ \mathbf{v} \f$ and:
  * \f[
-       \f$ \bar{\lambda}_i = J^{-1/3} \lambda_i
+       \bar{\lambda}_i = J^{-1/3} \lambda_i
  * \f]
  * 
  * @param V 3x3 matrix representing the Eulerian stretch tensor \f$ \mathbf{v} \f$.
@@ -105,9 +109,9 @@ arma::vec isochoric_pstretch_from_V(const arma::mat &V, const double &mJ = 0.);
 /**
  * @brief Provides the isochoric principal stretches \f$ \bar{\lambda}^2_1, \bar{\lambda}^2_2 and \bar{\lambda}^2_3\f$ , from the from the left Cauchy-Green tensor \f$ \mathbf{b} \f$.
  *
- *  \f$ \lambda^2_1, \lambda^2_2 and lambda^2_3\f$ are the principal components of the left Cauchy-Green tensor \f$ \mathbf{v} \f$ and:
+ *  \f$ \lambda^2_1, \lambda^2_2 \f$ and \f$ \lambda^2_3 \f$ are the principal components of the left Cauchy-Green tensor \f$ \mathbf{b} \f$ and:
  * \f[
-       \f$ \bar{\lambda}_i = J^{-1/3} \lambda_i
+       \bar{\lambda}_i = J^{-1/3} \lambda_i
  * \f]
  * 
  * @param b 3x3 matrix representing the left Cauchy-Green tensor \f$ \mathbf{b} \f$.
@@ -143,9 +147,9 @@ arma::vec isochoric_pstretch_from_b(const arma::mat &b, const double &mJ = 0.);
 arma::vec isochoric_pstretch(const arma::mat &input, const std::string &input_tensor, const double &mJ = 0.);
 
 /**
- * @brief Principal stretches \f$ \lambda^2_1, \lambda^2_2 and \lambda^2_3\f$ and principal directions, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
+ * @brief Principal stretches \f$ \lambda^2_1, \lambda^2_2 \f$ and \f$ \lambda^2_3\f$ and principal directions, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * 
- * @param lambda_bar  a column vector of dimension 3 that will contain the three isochoric principal stretches
+ * @param lambda a column vector of dimension 3 that will contain the three principal stretches
  * @param n_pvector a 3x3 matrix, where each column is a principal direction vector.
  * @param input 3x3 matrix representing the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * @param input_tensor a string ("b" for the left Cauchy-Green tensor or "V" for the eulerian stretch tensor ) representing the selected input
@@ -156,19 +160,19 @@ arma::vec isochoric_pstretch(const arma::mat &input, const std::string &input_te
  *      mat F = randu(3,3);
  *      mat b = L_Cauchy_Green(F); 
  *      double J = det(F);
- *      vec lambdas_bar;
+ *      vec lambdas;
  *      mat n;
- *      isochoric_pstretch(lambdas_bar, n, "b", J);
+ *      pstretch(lambdas, n, b, "b", J);
  * @endcode
 */
 void pstretch(arma::vec &lambda, arma::mat &n_pvector, const arma::mat &input, const std::string &input_tensor, const double &mJ = 0.);
 
 /**
- * @brief Principal stretches \f$ \lambda^2_1, \lambda^2_2 and \lambda^2_3\f$ and principal directions, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
+ * @brief Principal stretches \f$ \lambda^2_1, \lambda^2_2 \f$ and \f$ \lambda^2_3\f$ and principal directions, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * 
- * @param lambda_bar  a column vector of dimension 3 that will contain the three isochoric principal stretches
+ * @param lambda a column vector of dimension 3 that will contain the three principal stretches
  * @param n_pvector a 3x3 matrix, where each column is a principal direction vector.
- * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonl projector corresponding to a principal vector 
+ * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonal projector corresponding to a principal vector 
  * @param input 3x3 matrix representing the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * @param input_tensor a string ("b" for the left Cauchy-Green tensor or "V" for the eulerian stretch tensor ) representing the selected input
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
@@ -178,9 +182,10 @@ void pstretch(arma::vec &lambda, arma::mat &n_pvector, const arma::mat &input, c
  *      mat F = randu(3,3);
  *      mat b = L_Cauchy_Green(F); 
  *      double J = det(F);
- *      vec lambdas_bar;
+ *      vec lambdas;
  *      mat n;
- *      isochoric_pstretch(lambdas_bar, n, "b", J);
+ *      std::vector<mat> N;
+ *      pstretch(lambdas, n, N, b, "b", J);
  * @endcode
 */
 void pstretch(arma::vec &lambda, arma::mat &n_pvector, std::vector<arma::mat> &N_projectors, const arma::mat &input, const std::string &input_tensor, const double &mJ = 0.);
@@ -207,11 +212,11 @@ void pstretch(arma::vec &lambda, arma::mat &n_pvector, std::vector<arma::mat> &N
 void isochoric_pstretch(arma::vec &lambda_bar, arma::mat &n_pvector, const arma::mat &input, const std::string &input_tensor, const double &mJ = 0.);
 
 /**
- * @brief isochoric principal stretches,  principal directions \f$ \bar{\lambda}^2_1, \bar{\lambda}^2_2 and \bar{\lambda}^2_3\f$, principal directions and principal orthogonal projectors, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
+ * @brief isochoric principal stretches,  principal directions \f$ \bar{\lambda}^2_1, \bar{\lambda}^2_2 \f$ and \f$ \bar{\lambda}^2_3\f$, principal directions and principal orthogonal projectors, from either the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * 
- * @param lambda _bar a column vector of dimension 3 that will contain the three isochoric principal stretches
+ * @param lambda_bar a column vector of dimension 3 that will contain the three isochoric principal stretches
  * @param n_pvector a 3x3 matrix, where each column is a principal direction vector.
- * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonl projector corresponding to a principal vector
+ * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonal projector corresponding to a principal vector
  * @param input 3x3 matrix representing the left Cauchy-Green tensor \f$ \mathbf{b} \f$ or the eulerian stretch tensor \f$ \mathbf{v} \f$.
  * @param input_tensor a string ("b" for the left Cauchy-Green tensor or "V" for the eulerian stretch tensor ) representing the selected input
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
@@ -223,8 +228,8 @@ void isochoric_pstretch(arma::vec &lambda_bar, arma::mat &n_pvector, const arma:
  *      double J = det(F);
  *      vec lambdas_bar;
  *      mat n;
- *      std::vector<double> N(3);
- *      isochoric_pstretch(lambdas_bar, n, N, "b", J);
+ *      std::vector<mat> N(3);
+ *      isochoric_pstretch(lambdas_bar, n, N, b, "b", J);
  * @endcode
 */
 void isochoric_pstretch(arma::vec &lambda_bar, arma::mat &n_pvector, std::vector<arma::mat> &N_projectors, const arma::mat &input, const std::string &input_tensor, const double &mJ = 0.);
@@ -344,12 +349,12 @@ arma::vec delta_coefs(const arma::vec &a_coefs, const arma::vec &b_coefs, const 
  * \f[
     \begin{align}
     \mathbf{\tau}_{\textrm{iso}} = \sum_{i=1}^3 \beta_i \left(\underline{n}_i \otimes \underline{n}_i \right) \\
-    beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
+    \beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
     \end{align}
  * \f]
- * where \f$ \frac{\partial \bar{W} }{\bar{\lambda}_i} } \f$ is derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \bar{\lambda}_i.
+ * where \f$ \frac{\partial \bar{W} }{\partial \bar{\lambda}_i} \f$ is the derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \f$ \bar{\lambda}_i \f$.
  *
- * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energywith respect to the isochoric principal stretches
+ * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energy with respect to the isochoric principal stretches
  * @param b 3x3 matrix representing the left Cauchy-Green deformation tensor \f$\mathbf{b}\f$
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
  * @return 3x3 matrix representing the isochoric part of the Kirchoff stress tensor.
@@ -362,9 +367,9 @@ arma::vec delta_coefs(const arma::vec &a_coefs, const arma::vec &b_coefs, const 
  *      double dWdlambda_bar_1;
  *      double dWdlambda_bar_2;
  *      double dWdlambda_bar_3; 
- *      vec dWdlambda_bar = {dWdlambda_bar_1, dWdlambda_bar_2, dWdlambda_bar_3}
+ *      vec dWdlambda_bar = {dWdlambda_bar_1, dWdlambda_bar_2, dWdlambda_bar_3};
  *      lambda_bar = isochoric_pstretch_from_b(b, J);
- *      mat m_tau_iso = t_iso_hyper_pstretch(dWdlambda_bar, b, J);
+ *      mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, b, J);
  * @endcode
 */
 arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat &b, const double &mJ=0.);
@@ -376,15 +381,14 @@ arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat
  * \f[
     \begin{align}
     \mathbf{\tau}_{\textrm{iso}} = \sum_{i=1}^3 \beta_i \left(\underline{n}_i \otimes \underline{n}_i \right) \\
-    beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
+    \beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
     \end{align}
  * \f]
- * where \f$ \frac{\partial \bar{W} }{\bar{\lambda}_i} } \f$ is derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \bar{\lambda}_i.
+ * where \f$ \frac{\partial \bar{W} }{\partial \bar{\lambda}_i} \f$ is the derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \f$ \bar{\lambda}_i \f$.
  *
- * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energywith respect to the isochoric principal stretches
- * @param lambda_bar  a column vector of dimension 3 that will contain the three isochoric principal stretches
- * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonl projector corresponding to a principal vector 
- * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
+ * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energy with respect to the isochoric principal stretches
+ * @param lambda_bar a column vector of dimension 3 that will contain the three isochoric principal stretches
+ * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonal projector corresponding to a principal vector 
  * @return 3x3 matrix representing the isochoric part of the Kirchoff stress tensor.
  * 
  * @details Example: 
@@ -400,7 +404,7 @@ arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat
  *      mat n;
  *      std::vector<double> N(3);
  *      isochoric_pstretch(lambdas_bar, n, N, "b", J);
- *      mat m_tau_iso = t_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
+ *      mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
  * @endcode
 */
 arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, arma::vec &lambda_bar, std::vector<arma::mat> &N_projectors);
@@ -466,12 +470,12 @@ arma::mat tau_vol_hyper(const double &dUdJ, const arma::mat &b, const double &mJ
  * \f[
     \begin{align}
     \mathbf{\sigma}_{\textrm{iso}} = \frac{1}{J} \sum_{i=1}^3 \beta_i \left(\underline{n}_i \otimes \underline{n}_i \right) \\
-    beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
+    \beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
     \end{align}
  * \f]
- * where \f$ \frac{\partial \bar{W} }{\bar{\lambda}_i} } \f$ is derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \bar{\lambda}_i.
+ * where \f$ \frac{\partial \bar{W} }{\partial \bar{\lambda}_i} \f$ is the derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \f$ \bar{\lambda}_i \f$.
  *
- * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energywith respect to the isochoric principal stretches
+ * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energy with respect to the isochoric principal stretches
  * @param b 3x3 matrix representing the left Cauchy-Green deformation tensor \f$\mathbf{b}\f$
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
  * @return 3x3 matrix representing the isochoric part of the Cauchy stress tensor.
@@ -484,9 +488,9 @@ arma::mat tau_vol_hyper(const double &dUdJ, const arma::mat &b, const double &mJ
  *      double dWdlambda_bar_1;
  *      double dWdlambda_bar_2;
  *      double dWdlambda_bar_3; 
- *      vec dWdlambda_bar = {dWdlambda_bar_1, dWdlambda_bar_2, dWdlambda_bar_3}
+ *      vec dWdlambda_bar = {dWdlambda_bar_1, dWdlambda_bar_2, dWdlambda_bar_3};
  *      lambda_bar = isochoric_pstretch_from_b(b, J);
- *      mat m_tau_iso = sigma_iso_hyper_pstretch(dWdlambda_bar, b, J);
+ *      mat m_sigma_iso = sigma_iso_hyper_pstretch(dWdlambda_bar, b, J);
  * @endcode
 */
 arma::mat sigma_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat &b, const double &mJ=0.);
@@ -497,15 +501,15 @@ arma::mat sigma_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::m
  * The isochoric part of the Cauchy stress tensor is defined as:
  * \f[
     \begin{align}
-    \mathbf{\tau}_{\textrm{iso}} = \sum_{i=1}^3 \beta_i \left(\underline{n}_i \otimes \underline{n}_i \right) \\
-    beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
+    \mathbf{\sigma}_{\textrm{iso}} = \frac{1}{J} \sum_{i=1}^3 \beta_i \left(\underline{n}_i \otimes \underline{n}_i \right) \\
+    \beta_i = \bar{\lambda}_i \frac{\partial W}{\partial \bar{\lambda}_i} - \frac{1}{3} \sum_{j=1}^3 \bar{\lambda}_j \frac{\partial W}{\partial \bar{\lambda}_j}
     \end{align}
  * \f]
- * where \f$ \frac{\partial \bar{W} }{\bar{\lambda}_i} } \f$ is derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \bar{\lambda}_i.
+ * where \f$ \frac{\partial \bar{W} }{\partial \bar{\lambda}_i} \f$ is the derivative of the isochoric strain energy with respect to the i-th isochoric principal stretch \f$ \bar{\lambda}_i \f$.
  *
- * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energywith respect to the isochoric principal stretches
+ * @param dWdlambda_bar A column vector of dimension 3 that contains the derivatives of the isochoric strain energy with respect to the isochoric principal stretches
  * @param lambda_bar  a column vector of dimension 3 that will contain the three isochoric principal stretches
- * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonl projector corresponding to a principal vector 
+ * @param N_projectors a std::vector of 3x3 matrices, each one being an orthogonal projector corresponding to a principal vector 
  * @param J the determinant of the transformation gradient \f$\mathbf{F}\f$ (mandatory since left Cauchy-Green deformation tensor \f$\mathbf{b}\f$ is not provided)
  * @return 3x3 matrix representing the isochoric part of the Cauchy stress tensor.
  * 
@@ -587,18 +591,18 @@ arma::mat sigma_vol_hyper(const double &dUdJ, const arma::mat &b, const double &
  * The isochoric part of the hyperelastic tangent modulus is defined as:
 \f[ 
     \begin{align}    
-        \mathbf{L}^t_{\textrm{iso}} &= \displaystyle \sum_{a,b = 1}^3 \letf( \gamma_{ab} - \delta_{ab} \beta_a \right) 
-               \left( \mathbf{n}_a \otimes \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \right)
-               & + \displaystyle \sum_{a,b=1 \, a \neq b } \frac{\beta_b \lambda_a^2 - \beta_a \lambda_b^2}{\lambda_a^2 - \lambda_b^2}
-               \left(\mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_a \otimes \mathbf{n}_b + \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \otimes \mathbf{n}_a \right) \\
+        \mathbf{L}^t_{\textrm{iso}} &= \displaystyle \sum_{a,b = 1}^3 \left( \gamma_{ab} - \delta_{ab} \beta_a \right) 
+               \left( \mathbf{n}_a \otimes \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \right) \\
+               & + \displaystyle \sum_{a,b=1, \, a \neq b } \frac{\beta_b \lambda_a^2 - \beta_a \lambda_b^2}{\lambda_a^2 - \lambda_b^2}
+               \left(\mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_a \otimes \mathbf{n}_b + \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \otimes \mathbf{n}_a \right)
     \end{align}
 \f]
- * where \f$ \beta_{ij} \f$ and \f$ \gamma_{ij} \f$ depends on the derivatives of the isochoric strain energy with respect to principal stretches and \f$ \mathbf{n}_a \f$ is the a-th principal vector
+ * where \f$ \beta_{ij} \f$ and \f$ \gamma_{ij} \f$ depend on the derivatives of the isochoric strain energy with respect to principal stretches and \f$ \mathbf{n}_a \f$ is the a-th principal vector.
  *
- * @param dWdlambda_bar The derivative of the isochoric strain energy with respect to the first isochoric invariant.
- * @param dW2dlambda_bar2 The second derivative of the isochoric strain energy with respect to the first isochoric invariant. 
- * @param lambda_bar The second derivative of the isochoric strain energy with respect to the first and second isochoric invariant.  
- * @param N_projectors The second derivative of the isochoric strain energy with respect to the second isochoric invariant.  
+ * @param dWdlambda_bar The derivative of the isochoric strain energy with respect to the isochoric principal stretches.
+ * @param dW2dlambda_bar2 The second derivative of the isochoric strain energy with respect to the isochoric principal stretches. 
+ * @param lambda_bar The isochoric principal stretches.  
+ * @param n_pvectors The principal vectors, stacked as columns of a 3x3 matrix.  
  * @param J the determinant of the transformation gradient \f$\mathbf{F}\f$
  * @return 6x6 matrix representing the isochoric part of the hyperelastic tangent modulus.
  * 
@@ -627,16 +631,16 @@ arma::mat L_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat &
  * The isochoric part of the hyperelastic tangent modulus is defined as:
 \f[ 
     \begin{align}    
-        \mathbf{L}^t_{\textrm{iso}} &= \displaystyle \sum_{a,b = 1}^3 \letf( \gamma_{ab} - \delta_{ab} \beta_a \right) 
-               \left( \mathbf{n}_a \otimes \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \right)
-               & + \displaystyle \sum_{a,b=1 \, a \neq b } \frac{\beta_b \lambda_a^2 - \beta_a \lambda_b^2}{\lambda_a^2 - \lambda_b^2}
-               \left(\mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_a \otimes \mathbf{n}_b + \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \otimes \mathbf{n}_a \right) \\
+        \mathbf{L}^t_{\textrm{iso}} &= \displaystyle \sum_{a,b = 1}^3 \left( \gamma_{ab} - \delta_{ab} \beta_a \right) 
+               \left( \mathbf{n}_a \otimes \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \right) \\
+               & + \displaystyle \sum_{a,b=1, \, a \neq b } \frac{\beta_b \lambda_a^2 - \beta_a \lambda_b^2}{\lambda_a^2 - \lambda_b^2}
+               \left(\mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_a \otimes \mathbf{n}_b + \mathbf{n}_a \otimes \mathbf{n}_b \otimes \mathbf{n}_b \otimes \mathbf{n}_a \right)
     \end{align}
 \f]
- * where \f$ \beta_{ij} \f$ and \f$ \gamma_{ij} \f$ depends on the derivatives of the isochoric strain energy with respect to principal stretches and \f$ \mathbf{n}_a \f$ is the a-th principal vector
+ * where \f$ \beta_{ij} \f$ and \f$ \gamma_{ij} \f$ depend on the derivatives of the isochoric strain energy with respect to principal stretches and \f$ \mathbf{n}_a \f$ is the a-th principal vector.
  *
- * @param dWdlambda_bar The derivative of the isochoric strain energy with respect to the first isochoric invariant.
- * @param dW2dlambda_bar2 The second derivative of the isochoric strain energy with respect to the first isochoric invariant. 
+ * @param dWdlambda_bar The derivative of the isochoric strain energy with respect to the isochoric principal stretches.
+ * @param dW2dlambda_bar2 The second derivative of the isochoric strain energy with respect to the isochoric principal stretches. 
  * @param b 3x3 matrix representing the left Cauchy-Green deformation tensor \f$\mathbf{b}\f$ 
  * @param mJ the determinant of the transformation gradient \f$\mathbf{F}\f$ (optional)
  * @return 6x6 matrix representing the isochoric part of the hyperelastic tangent modulus.
@@ -671,7 +675,8 @@ arma::mat L_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat &
  * where \f$ delta_i \f$ depends on the derivatives of the isochoric strain energy, \f$\mathbf{b}\f$ is the
  * left Cauchy-Green deformation tensor and \f$ J \f$ is the determinant of the transformation gradient
  *
- * @param dWdI_2_bar The derivative of the isochoric strain energy with respect to the first isochoric invariant.
+ * @param dWdI_1_bar The derivative of the isochoric strain energy with respect to the first isochoric invariant.
+ * @param dWdI_2_bar The derivative of the isochoric strain energy with respect to the second isochoric invariant.
  * @param dW2dI_11_bar The second derivative of the isochoric strain energy with respect to the first isochoric invariant. 
  * @param dW2dI_12_bar The second derivative of the isochoric strain energy with respect to the first and second isochoric invariant.  
  * @param dW2dI_22_bar The second derivative of the isochoric strain energy with respect to the second isochoric invariant.  
@@ -715,5 +720,7 @@ arma::mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_
  * @endcode
 */
 arma::mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const arma::mat &b, const double &mJ = 0.);
+
+/** @} */ // end of hyperelastic group
 
 } //namespace simcoon

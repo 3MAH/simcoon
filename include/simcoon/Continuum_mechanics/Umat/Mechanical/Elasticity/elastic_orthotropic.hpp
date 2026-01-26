@@ -25,6 +25,16 @@
 
 namespace simcoon{
 
+/**
+ * @file elastic_orthotropic.hpp
+ * @brief Mechanical elasticity model.
+ */
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
+
 ///@brief The elastic UMAT requires 2 constants:
 ///@brief props[0] : Young modulus
 ///@brief props[1] : Poisson ratio
@@ -34,4 +44,7 @@ namespace simcoon{
 
 void umat_elasticity_ortho(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
                               
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

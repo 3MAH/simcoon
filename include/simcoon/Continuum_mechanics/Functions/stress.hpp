@@ -22,10 +22,14 @@
 namespace simcoon{
 
 /**
-* @file stress.hpp
-* @author Yves Chemisky
-* @brief A set of functions that transforms stress measures into anothers (considering finite transformations)
-*/
+ * @file stress.hpp
+ * @author Yves Chemisky
+ * @brief A set of functions that transform stress measures into others (considering finite transformations).
+ */
+
+/** @addtogroup stress
+ *  @{
+ */
 
 /**
  * @brief Provides the first Piola Kirchoff stress tensor \f$ \mathbf{\Sigma} \f$ from the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
@@ -58,7 +62,7 @@ arma::mat Cauchy2PKI(const arma::mat &sigma, const arma::mat &F, const double &J
  * Note that the first Piola Kirchoff stress tensor \f$ \mathbf{\Sigma} \f$ is computed, and the Biot stress is obtained through
  * 
  * \f[
- *      \mathbf{T} = \frac{1}{2} \left( \mathbf{R}^T \cdot mathbf{\Sigma} + mathbf{\Sigma}^T \cdot \mathbf{R} \right)
+ *      \mathbf{T} = \frac{1}{2} \left( \mathbf{R}^T \cdot \mathbf{\Sigma} + \mathbf{\Sigma}^T \cdot \mathbf{R} \right)
  * \f] 
  * 
  *
@@ -285,14 +289,14 @@ arma::mat PKI2Kirchoff(const arma::mat &Sigma, const arma::mat &F, const double 
  * @param S (3x3 arma::mat) the second Piola-Kirchoff stress tensor \f$ \mathbf{S} \f$
  * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param J (double, optional) determinant of the transformation gradient \f$ \textrm{det}\,\mathbf{F} \f$ 
- * @return (3x3 arma::mat) the Kirchoff stress tensor \f$ \mathbf{\tau}
+ * @return (3x3 arma::mat) the Kirchoff stress tensor \f$ \mathbf{\tau} \f$
  * 
  * @details Example: 
  * @code
  *      mat matrand = randu(3,3);
  *      mat PKII = 0.5*(matrand + matrand.t());
  *      mat F = eye(3,3);
- *      mat tau = PKI2Kirchoff(PKII, F);
+ *      mat tau = PKII2Kirchoff(PKII, F);
  * @endcode
 */
 arma::mat PKII2Kirchoff(const arma::mat &S, const arma::mat &F, const double &J = 0.);
@@ -340,5 +344,7 @@ arma::mat PKI2Cauchy(const arma::mat &Sigma, const arma::mat &F, const double &J
  * @endcode
 */
 arma::mat PKII2Cauchy(const arma::mat &S, const arma::mat &F, const double &J = 0.);
+
+/** @} */ // end of stress group
     
 } //namespace simcoon

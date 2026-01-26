@@ -26,6 +26,16 @@
 #include "generation.hpp"
 
 namespace simcoon{
+
+/**
+ * @file methods.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
     
 //Genetic method
 void genetic(generation &, generation &, int &, const double &, const double &, const std::vector<parameters> &);
@@ -39,5 +49,8 @@ void find_best(generation &, generation &, const generation &, const generation 
 
 //Write the results in an output file
 void write_results(std::ofstream &, const std::string &outputfile, const generation &, const int &, const int &, const int &);
+
+
+/** @} */ // end of identification group
 
 } //namespace simcoon

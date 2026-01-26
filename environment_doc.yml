@@ -36,3 +36,5 @@ dependencies:
   - mock
   - matplotlib
   - pandas
+  - breathe
+  - doxygen

@@ -30,7 +30,7 @@ jobs:
         shell: bash -l {0}
         run: |
           conda config --env --add channels conda-forge
-          conda config --env --add channels set3mah          
+          conda config --env --add channels set3mah
           conda config --env --set channel_priority strict
 
       - name: Build for Linux
@@ -41,11 +41,8 @@ jobs:
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
             -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build --component python
-          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
@@ -78,11 +75,8 @@ jobs:
             -DCMAKE_INCLUDE_PATH=$CONDA_PREFIX/include \
             -DCMAKE_LIBRARY_PATH=$CONDA_PREFIX/lib \
             -DCMAKE_INSTALL_PREFIX=$CONDA_PREFIX \
-            -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON \
             -Wno-dev
           cmake --build ${{github.workspace}}/build
-          cmake --install build --component python
-          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: bash -l {0}
@@ -110,17 +104,11 @@ jobs:
       - name: Build for Windows
         shell: pwsh
         run: |
-          $pybind11_dir = python -c "import pybind11; print(pybind11.get_cmake_dir())"
           cmake -S . -B build `
               -DCMAKE_BUILD_TYPE=Release `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
-              -DSIMCOON_BUILD_PYTHON_BINDINGS:BOOL=ON `
-              -DPython3_EXECUTABLE="$env:CONDA_PREFIX/python.exe" `
-              -Dpybind11_DIR="$pybind11_dir" `
               -Wno-dev
           cmake --build build --config Release
-          cmake --install build --config Release --component python
-          python -m pip install ${{github.workspace}}/build/python-package
 
       - name: Tests
         shell: pwsh

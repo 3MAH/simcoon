@@ -18,14 +18,18 @@
 /**
  * @file recovery_props.hpp
  * @author Yves Chemisky 
- * @section A set of function that allow to get the Elastic properties from stiffness/compliance tensors
-*/
+ * @brief A set of functions that allow to get the elastic properties from stiffness/compliance tensors.
+ */
 
 #pragma once
 #include <iostream>
 #include <armadillo>
 
 namespace simcoon{
+
+/** @addtogroup recovery_props
+ *  @{
+ */
 
 /**
  * @brief Check the symmetries of a stiffness matrix \f$ \mathbf{L} \f$, and fill the vector of material properties. 
@@ -288,5 +292,7 @@ arma::vec M_ortho_props(const arma::mat &M);
  * @endcode
 */
 arma::vec M_aniso_props(const arma::mat &M);
+
+/** @} */ // end of recovery_props group
 
 } //namespace simcoon

@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_transversely_isotropic.hpp
+///@file elastic_transverse_isotropic.hpp
 ///@brief User subroutine for transversely isotropic elastic materials in 3D case
 ///@version 1.0
 
@@ -24,6 +24,16 @@
 #include <armadillo>
 
 namespace simcoon{
+
+/**
+ * @file elastic_transverse_isotropic.hpp
+ * @brief Mechanical elasticity model.
+ */
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
     
 ///@brief The elastic UMAT requires 2 constants:
 ///@brief props[0] : Young modulus
@@ -34,4 +44,7 @@ namespace simcoon{
 
 void umat_elasticity_trans_iso(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &);
                                   
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

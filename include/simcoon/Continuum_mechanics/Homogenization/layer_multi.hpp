@@ -28,6 +28,16 @@
 
 namespace simcoon{
 
+/**
+ * @file layer_multi.hpp
+ * @brief Layered composite homogenization functions.
+ */
+
+/** @addtogroup homogenization
+ *  @{
+ */
+
+
 //======================================
 class layer_multi : public phase_multi
 //======================================
@@ -64,5 +74,8 @@ class layer_multi : public phase_multi
         friend std::ostream& operator << (std::ostream&, const layer_multi&);
     
 };
+
+
+/** @} */ // end of homogenization group
 
 } //namespace simcoon

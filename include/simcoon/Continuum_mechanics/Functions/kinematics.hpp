@@ -16,15 +16,19 @@
  */
 
 /**
-* @file kinematics.hpp
-* @author Yves Chemisky 
-* @section A set of function that allows various strain transformation (in Finite strains)
-*/
+ * @file kinematics.hpp
+ * @author Yves Chemisky 
+ * @brief A set of functions for various strain transformations in finite strains.
+ */
 
 #pragma once
 #include <armadillo>
 
 namespace simcoon{
+
+/** @addtogroup kinematics
+ *  @{
+ */
 
 /**
  * @brief Provides the transformation gradient, from the Green-Lagrange strain and the rotation.
@@ -320,15 +324,13 @@ arma::mat finite_L(const arma::mat &F0, const arma::mat &F1, const double &DTime
  * @brief Provides the approximation of the Eulerian symmetric rate tensor from the transformation gradient at time \f$t_0\f$, the transformation gradient at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
  *
  * The Eulerian symmetric rate tensor \f$\mathbf{D}\f$ is related to the transformation gradient \f$\mathbf{F}_0\f$ at time \f$t_0\f$, the transformation gradient \f$\mathbf{F}_1\f$ at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$ by the following equation:
- 
-  * The Eulerian antisymmetric spin tensor \f$\mathbf{W}\f$ is related to the transformation gradient \f$\mathbf{F}_0\f$ at time \f$t_0\f$, the transformation gradient \f$\mathbf{F}_1\f$ at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$ by the following equation:
  * \f[
- *      \mathbf{D} = \frac{1}{2} \left( \mathbf{L} - \mathbf{L}^T \right)
+ *      \mathbf{D} = \frac{1}{2} \left( \mathbf{L} + \mathbf{L}^T \right)
  * \f]
  * 
  * where \f$\mathbf{L}\f$ is the Eulerian velocity tensor. \f$\mathbf{D}\f$ is commonly referred as the rate of deformation (this necessitates although a specific discussion).
  *
- * @param F0 3x3 matrix representing the transformation gradient \f$\mathbf{F_0}\f$ at time \f$t_0\f$
+ * @param F0 3x3 matrix representing the transformation gradient \f$\mathbf{F}_0\f$ at time \f$t_0\f$
  * @param F1 3x3 matrix representing the transformation gradient \f$\mathbf{F}_1\f$ at time \f$t_1\f$
  * @param DTime time difference \f$\Delta t = t_1 - t_0\f$
  * @return 3x3 matrix representing the approximation of the Eulerian symmetric rate tensor \f$\mathbf{D}\f$
@@ -338,7 +340,7 @@ arma::mat finite_L(const arma::mat &F0, const arma::mat &F1, const double &DTime
  * @code
  *      mat F0 = randu(3,3);
  *      mat F1 = randu(3,3);
- *      mat DTime = 0.1;
+ *      double DTime = 0.1;
  *      mat D = finite_D(F0, F1, DTime);
  * @endcode
 */
@@ -421,5 +423,7 @@ arma::mat finite_Omega(const arma::mat &F0, const arma::mat &F1, const double &D
  * @endcode
 */
 arma::mat finite_DQ(const arma::mat &Omega0, const arma::mat &Omega1, const double &DTime);
+
+/** @} */ // end of kinematics group
     
 } //namespace simcoon

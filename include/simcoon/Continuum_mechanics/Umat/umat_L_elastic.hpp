@@ -25,6 +25,19 @@
 
 namespace simcoon{
 
+/**
+ * @file umat_L_elastic.hpp
+ * @brief Linear elastic UMAT.
+ */
+
+/** @addtogroup umat_mechanical
+ *  @{
+ */
+
+
 void get_L_elastic(phase_characteristics &);
     
+
+/** @} */ // end of umat_mechanical group
+
 } //namespace simcoon

@@ -23,13 +23,51 @@
 
 namespace simcoon{
 
-//This function returns a random in number between 0 and a
-int alea(const int &);
+/**
+ * @file random.hpp
+ * @brief Mathematical utility functions.
+ */
 
-//This function returns a random in number between a and b
-int aleab(const int &, const int &);
+/** @addtogroup maths
+ *  @{
+ */
 
-//This function returns a random double number between a and b
-double alead(const double &, const double &);
+/**
+ * @brief Generates a random integer between 0 and a-1.
+ * @param a The upper bound (exclusive) (int)
+ * @return A random integer in the range [0, a-1] (int)
+ * @details Example:
+ * @code
+ *      int r = alea(10);  // Returns a random integer between 0 and 9
+ * @endcode
+ */
+int alea(const int &a);
+
+/**
+ * @brief Generates a random integer between a and b.
+ * @param a The lower bound (inclusive) (int)
+ * @param b The upper bound (inclusive) (int)
+ * @return A random integer in the range [a, b] (int)
+ * @details Example:
+ * @code
+ *      int r = aleab(5, 15);  // Returns a random integer between 5 and 15
+ * @endcode
+ */
+int aleab(const int &a, const int &b);
+
+/**
+ * @brief Generates a random double between a and b.
+ * @param a The lower bound (double)
+ * @param b The upper bound (double)
+ * @return A random double in the range [a, b] (double)
+ * @details Example:
+ * @code
+ *      double r = alead(0.0, 1.0);  // Returns a random double between 0.0 and 1.0
+ * @endcode
+ */
+double alead(const double &a, const double &b);
+
+
+/** @} */ // end of maths group
 
 } //namespace simcoon

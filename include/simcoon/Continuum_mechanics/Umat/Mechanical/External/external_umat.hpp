@@ -15,7 +15,7 @@
  
  */
 
-///@file elastic_isotropic.hpp
+///@file external_umat.hpp
 ///@brief User subroutine for Isotropic elastic materials in 3D case
 ///@version 1.0
 

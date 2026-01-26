@@ -9,48 +9,47 @@ source:
 
 build:
   number: 0
+  # Uses build.sh (Unix) / bld.bat (Windows) for cmake-based build
   script_env:
-  - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
-  - CONDA_BUILD_LOCAL
+    - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
+    - CONDA_BUILD_LOCAL
 
 requirements:
   build:
     - git # [win]
-    - make # [unix]
     - cmake
-    - gtest
+    - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
     - llvm-openmp  # [osx]
-    - libgomp      # [linux]    
+    - libgomp      # [linux]
   host:
     - armadillo >=12.6
     - mkl # [x86]
     - blas # [not win]
     - lapack # [not win]
     - libblas * *netlib # [win]
-    - liblapack * *netlib # [win]        
+    - liblapack * *netlib # [win]
     - carma
     - pybind11
     - python
-    - pip
-    - setuptools
+    - numpy >=2.0
     - libblas
     - liblapack
     - boost >=1.84
-    - ninja
   run:
     - python
-    - numpy>=1.26
+    - numpy >=2.0
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
-    - blas * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
-    - lapack * openblas  # Use OpenBLAS for all other platforms  # [not (osx and arm64) and not x86]    
+    - blas * openblas  # [not (osx and arm64) and not x86]
+    - lapack * openblas  # [not (osx and arm64) and not x86]
     - boost >=1.84
     - armadillo >=12.6 # [not win]
+
 test:
   imports:
     - simcoon

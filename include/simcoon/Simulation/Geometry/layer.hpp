@@ -28,9 +28,23 @@
 
 namespace simcoon{
 
-//======================================
+/**
+ * @file layer.hpp
+ * @brief Inclusion geometry functions.
+ */
+
+/** @addtogroup geometry
+ *  @{
+ */
+
+/**
+ * @brief Class representing a layer geometry for laminate homogenization.
+ * 
+ * This class extends the geometry base class to describe planar layers
+ * for laminate composite homogenization. Each layer has a defined
+ * orientation using Euler angles and links to adjacent layers.
+ */
 class layer : public geometry
-//======================================
 {
 	private:
 
@@ -38,23 +52,55 @@ class layer : public geometry
 
 	public :
     
-        int layerup;
-        int layerdown;
+        int layerup;        ///< Index of the layer above this one (-1 if none)
+        int layerdown;      ///< Index of the layer below this one (-1 if none)
     
-        //a stack of layer have the same direction, it is attributed to each one of them since ther might be several stacks (one per inclusion, for instance..)
-        double psi_geom;
-        double theta_geom;
-        double phi_geom;    
+        double psi_geom;    ///< First Euler angle for layer orientation (radians)
+        double theta_geom;  ///< Second Euler angle for layer orientation (radians)
+        double phi_geom;    ///< Third Euler angle for layer orientation (radians)
     
-		layer(); 	//default constructor
-        layer(const double &, const int &, const int &, const double &,const double &, const double &); //Constructor with parameters
+        /**
+         * @brief Default constructor.
+         */
+		layer();
 
-		layer(const layer&);	//Copy constructor
+        /**
+         * @brief Constructor with full parameters.
+         * @param concentration Volume fraction of the layer
+         * @param layerup Index of the layer above
+         * @param layerdown Index of the layer below
+         * @param psi First Euler angle (radians)
+         * @param theta Second Euler angle (radians)
+         * @param phi Third Euler angle (radians)
+         */
+        layer(const double &concentration, const int &layerup, const int &layerdown, 
+              const double &psi, const double &theta, const double &phi);
+
+        /**
+         * @brief Copy constructor.
+         * @param lay The layer to copy
+         */
+		layer(const layer &lay);
+
+        /**
+         * @brief Virtual destructor.
+         */
         virtual ~layer();
     
-		virtual layer& operator = (const layer&);
+        /**
+         * @brief Assignment operator.
+         * @param lay The layer to assign
+         * @return Reference to this layer
+         */
+		virtual layer& operator = (const layer &lay);
 		
-        friend std::ostream& operator << (std::ostream&, const layer&);
+        /**
+         * @brief Output stream operator.
+         */
+        friend std::ostream& operator << (std::ostream &os, const layer &lay);
 };
+
+
+/** @} */ // end of geometry group
 
 } //namespace simcoon

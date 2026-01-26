@@ -27,8 +27,22 @@ message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
 include(GNUInstallDirs)
 
 # Options
-option(SIMCOON_BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(SIMCOON_BUILD_TESTS "Build tests" ON)
+option(SIMCOON_BUILD_PYTHON "Build Python bindings (for conda)" OFF)
+
+# Detect conda build environment
+if(DEFINED ENV{CONDA_BUILD})
+  set(CONDA_BUILD TRUE)
+  set(SIMCOON_BUILD_PYTHON ON)
+  message(STATUS "Conda build detected - enabling Python bindings")
+endif()
+
+# Determine if we're building Python bindings (either via SKBUILD or SIMCOON_BUILD_PYTHON)
+if(DEFINED SKBUILD OR SIMCOON_BUILD_PYTHON)
+  set(BUILD_PYTHON_BINDINGS TRUE)
+else()
+  set(BUILD_PYTHON_BINDINGS FALSE)
+endif()
 
 # Helper function to set output directories for multi-config generators (MSVC)
 function(set_output_directory target output_dir)
@@ -140,7 +154,10 @@ endif()
 
 find_package(Armadillo 12.6 REQUIRED)
 
-find_package(GTest REQUIRED)
+# GTest is only needed when building tests
+if(SIMCOON_BUILD_TESTS)
+  find_package(GTest REQUIRED)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -155,7 +172,7 @@ FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
 # Python dependencies (only if building Python bindings)
-if(SIMCOON_BUILD_PYTHON_BINDINGS)
+if(BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
@@ -164,6 +181,15 @@ if(SIMCOON_BUILD_PYTHON_BINDINGS)
 
   if(carma_FOUND)
     message(STATUS "Found carma package (CONFIG mode)")
+    # Get include directory from target for force-include
+    get_target_property(carma_INCLUDE_DIR carma::carma INTERFACE_INCLUDE_DIRECTORIES)
+    # Handle generator expressions - extract first real path
+    if(carma_INCLUDE_DIR MATCHES "\\$<")
+      set(carma_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+    endif()
+    # Clear carma's INTERFACE_PRECOMPILE_HEADERS - conda packages have absolute paths
+    # from the build machine that don't exist on the user's machine
+    set_target_properties(carma::carma PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
   else()
     # If not found via CONFIG, try to find headers directly in conda prefix
     if(DEFINED ENV{PREFIX})
@@ -234,9 +260,6 @@ if(MSVC)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/lib")
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG} "${CMAKE_BINARY_DIR}/bin")
   endforeach()
-else()
-  # Unix-like systems (Linux, macOS)
-  enable_language(Fortran)
 endif()
 
 message(STATUS "CMAKE_SYSTEM_NAME          = ${CMAKE_SYSTEM_NAME}"         )
@@ -301,6 +324,24 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
+# On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
+# This prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
+# Only needed on Windows due to stricter heap validation.
+# See: https://github.com/RUrlus/carma/issues/89
+if(WIN32 AND BUILD_PYTHON_BINDINGS)
+  target_link_libraries(simcoon PRIVATE carma::carma)
+
+  # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
+  # BEFORE any Armadillo headers.
+  set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
+  if(EXISTS "${CARMA_CNALLOC_H}")
+    message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
+    target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
+  else()
+    message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H}")
+  endif()
+endif()
+
 # Compile public executables (with main functions)
 set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
 foreach(exe_name ${EXECUTABLES})
@@ -312,6 +353,8 @@ endforeach()
 if(SIMCOON_BUILD_TESTS)
   # Test plugin libraries
   if(NOT MSVC)
+    # Fortran is only needed for Abaqus UMAT plugin tests
+    enable_language(Fortran)
     add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
 
 if(NOT MSVC)
@@ -388,7 +431,7 @@ if(WIN32)
   list(REMOVE_DUPLICATES DLL_SEARCH_PATHS)
 
   # Collect dependency DLL paths for Python package
-  if(SIMCOON_BUILD_PYTHON_BINDINGS)
+  if(BUILD_PYTHON_BINDINGS)
     set(PYTHON_RUNTIME_DLLS "" CACHE INTERNAL "Runtime DLLs needed by Python package")
   endif()
 
@@ -399,7 +442,7 @@ if(WIN32)
       set(dll_path "${search_path}/${dll_name}")
       if(EXISTS "${dll_path}")
         # Store path for Python package (handled by python-builder CMakeLists)
-        if(SIMCOON_BUILD_PYTHON_BINDINGS)
+        if(BUILD_PYTHON_BINDINGS)
           list(APPEND PYTHON_RUNTIME_DLLS "${dll_path}")
           set(PYTHON_RUNTIME_DLLS ${PYTHON_RUNTIME_DLLS} CACHE INTERNAL "Runtime DLLs needed by Python package")
         endif()
@@ -419,12 +462,16 @@ endif()
 
 ################################################################################
 # PYTHON BINDINGS
-if(SIMCOON_BUILD_PYTHON_BINDINGS)
+if(BUILD_PYTHON_BINDINGS)
   add_subdirectory(simcoon-python-builder)
 endif()
 
 ################################################################################
 # INSTALL TARGETS
+# Skip C++ library installation when building Python wheels (SKBUILD)
+# The Python builder handles installing libsimcoon.so to the wheel package
+
+if(NOT DEFINED SKBUILD)
 
 # Install simcoon library with export
 install(TARGETS simcoon
@@ -490,3 +537,5 @@ if(WIN32)
             COMPONENT Runtime)
   endif()
 endif()
+
+endif() # NOT DEFINED SKBUILD

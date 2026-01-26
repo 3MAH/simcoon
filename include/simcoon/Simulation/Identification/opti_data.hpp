@@ -26,6 +26,16 @@
 
 namespace simcoon{
 
+/**
+ * @file opti_data.hpp
+ * @brief Parameter identification functions.
+ */
+
+/** @addtogroup identification
+ *  @{
+ */
+
+
 //======================================
 class opti_data
 //======================================
@@ -62,5 +72,8 @@ class opti_data
 		
         friend  std::ostream& operator << (std::ostream&, const opti_data&);
 };
+
+
+/** @} */ // end of identification group
 
 } //namespace simcoon

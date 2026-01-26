@@ -15,9 +15,9 @@
  
  */
 
-///@file Unified_T.hpp
+///@file unified_T.hpp
 ///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
+///@brief Constitutive model of TAMU - LEM3 - TIMC - implemented by Y. Chemisky and  D. Chatziathanasiou
 ///@brief Implemented in 1D-2D-3D
 
 #pragma once
@@ -25,7 +25,7 @@
 
 namespace simcoon{
 
-///@brief The unified SMA UMAT for transformation requires 25 constants and 17 statev:
+///@brief The unified SMA UMAT for transformation requires 28 constants and 17 statev:
 ///@brief The mechanical transformation UMAT for SMAs has the following statev and props
 
 ///@brief props[0] : flagT: 0 transformation temperatures linearly extrapolated; 1 : smooth temperatures
@@ -49,11 +49,13 @@ namespace simcoon{
 ///@brief props[18]: n2 : Martensite finish smooth exponent
 ///@brief props[19]: n3 : Austenite start smooth exponent
 ///@brief props[20]: n4 : Austenite finish smooth exponent
-
-///@brief props[21]: c_lambda : penalty function exponent start point
-///@brief props[22]: p0_lambda : penalty function exponent limit penalty value
-///@brief props[23]: n_lambda : penalty function power law exponent
-///@brief props[24]: alpha_lambda : penalty function power law parameter
+///@brief props[21]: sigmacaliber : Stress at which the slopes CA and CM are identified
+///@brief props[22]: prager_b : Tension-compression asymmetry parameter
+///@brief props[23]: prager_n : Tension-compression asymmetry exponent
+///@brief props[24]: c_lambda : penalty function exponent start point
+///@brief props[25]: p0_lambda : penalty function exponent limit penalty value
+///@brief props[26]: n_lambda : penalty function power law exponent
+///@brief props[27]: alpha_lambda : penalty function power law parameter
 
 ///@brief The elastic-plastic UMAT with isotropic hardening requires 14 statev:
 ///@brief statev[0] : T_init : Initial temperature

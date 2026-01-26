@@ -28,6 +28,16 @@
 
 namespace simcoon{
 
+/**
+ * @file state_variables_T.hpp
+ * @brief Phase and state variable management.
+ */
+
+/** @addtogroup phase
+ *  @{
+ */
+
+
 //======================================
     class state_variables_T : public state_variables
 //======================================
@@ -76,5 +86,8 @@ namespace simcoon{
     
         friend std::ostream& operator << (std::ostream&, const state_variables_T&);
 };
+
+
+/** @} */ // end of phase group
 
 } //namespace simcoon

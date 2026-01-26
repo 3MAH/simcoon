@@ -26,10 +26,23 @@
 #include <simcoon/Continuum_mechanics/Material/PDF.hpp>
 
 namespace simcoon{
+
+/**
+ * @file read.hpp
+ * @brief Material data reading functions.
+ */
+
+/** @addtogroup material
+ *  @{
+ */
+
     
 /// Function that reads the output parameters
     void read_peak(ODF &, const std::string &, const std::string &);
     
     void read_peak(PDF &, const std::string &, const std::string &);
+
+
+/** @} */ // end of material group
 
 } //namespace simcoon
