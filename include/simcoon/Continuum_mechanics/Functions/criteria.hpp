@@ -301,7 +301,14 @@ namespace simcoon
     \f[
         \begin{align}
         \sigma^{DFA} & = \left( H\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + F\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
-         & + \left. 2\,L\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,N\,\sigma_{23}^2 \right)^{1/2} + K \left( \left( \sigma_{11} + \sigma_{22} + \sigma_{33} \right) /9 \right)^2
+         & + \left. 2\,N\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,L\,\sigma_{23}^2 + \frac{K}{9} \left( \sigma_{11} + \sigma_{22} + \sigma_{33} \right)^2 \right)^{1/2}
+        \end{align}
+    \f]
+        with \f$ p = \frac{1}{3} \textrm{tr} (\sigma) \f$:
+    \f[
+        \begin{align}
+        \sigma^{DFA} & = \left( H\, \left( \sigma_{11} - \sigma_{22} \right)^2 + G\, \left( \sigma_{11} - \sigma_{33} \right)^2 + F\, \left( \sigma_{22} - \sigma_{33} \right)^2 \right. \\
+         & + \left. 2\,N\,\sigma_{12}^2 + 2\,M\,\sigma_{13}^2 + 2\,L\,\sigma_{23}^2 + K\,p^2 \right)^{1/2}
         \end{align}
     \f]
         Considering the full anisotric formulation:
