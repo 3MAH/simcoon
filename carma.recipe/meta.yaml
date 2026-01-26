@@ -13,17 +13,11 @@ requirements:
   build:
     - git # [win]
     - cmake
-    - python
     - {{ compiler('cxx') }}
     - ninja  # [win]
   host:
-    - python
-    - pip
     - armadillo
-    - numpy>=1.24
     - pybind11
   run:
-    - python
     - armadillo
-    - numpy>=1.24
     - pybind11

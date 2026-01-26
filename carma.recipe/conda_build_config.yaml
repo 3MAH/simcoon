@@ -1,9 +1,2 @@
-python:
-  - 3.10
-  - 3.11
-  - 3.12
-  - 3.13
-  - 3.14
-
-numpy:
-  - 1.26
+# No Python matrix needed - carma is a header-only library
+# Package is Python-version independent
