@@ -3,4 +3,4 @@ python:
   - 3.11
   - 3.12
   - 3.13
-  # Python 3.14 not supported yet: libboost-python lacks 3.14 builds on conda-forge
+  - 3.14
