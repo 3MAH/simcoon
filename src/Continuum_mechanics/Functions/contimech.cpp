@@ -530,8 +530,8 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	return C;
 }
 
-///This computes the operator BBBB such that B_i x D x B_j = BBBB x D, considering B_i and B_j are projection tensors of the vectors b_i and b_j
-mat B_klmn(const vec &b_i, const vec &b_j) {
+///This computes the linear operator G^{ij} such that B_i : D : B_j = G^{ij} : D, where B_i and B_j are eigenprojection tensors
+mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 
 	mat Bij = b_i*b_j.t();
 	mat BBBB = zeros(6,6);

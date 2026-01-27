@@ -196,7 +196,7 @@ mat get_BBBB(const mat &F1) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
+                BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
         }
     }
@@ -216,7 +216,7 @@ mat get_BBBB_GN(const mat &F1) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
                 f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
-                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
+                BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
         }
     }

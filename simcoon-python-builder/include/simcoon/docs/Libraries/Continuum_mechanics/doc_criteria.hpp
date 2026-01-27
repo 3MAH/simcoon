@@ -339,7 +339,10 @@ namespace simcoon_docs
 
     .. math::
 
-        \sigma^{DFA} = \left( H\, (\sigma_{11} - \sigma_{22})^2 + G\, (\sigma_{11} - \sigma_{33})^2 + F\, (\sigma_{22} - \sigma_{33})^2 + 2L\,\sigma_{12}^2 + 2M\,\sigma_{13}^2 + 2N\,\sigma_{23}^2 \right)^{1/2} + K \left( \frac{\sigma_{11} + \sigma_{22} + \sigma_{33}}{9} \right)^2
+        \sigma^{DFA} = \left( H\, (\sigma_{11} - \sigma_{22})^2 + G\, (\sigma_{11} - \sigma_{33})^2 + F\, (\sigma_{22} - \sigma_{33})^2 + 2L\,\sigma_{12}^2 + 2M\,\sigma_{13}^2 + 2N\,\sigma_{23}^2 + K\,p^2 \right)^{1/2}
+
+
+    with : :math:`p = \frac{1}{3} \textrm{tr} (\sigma)`
 
     Examples
     --------
