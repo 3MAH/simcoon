@@ -37,7 +37,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
 
       - name: Build sdist
-        run: uv build --sdist
+        run: uvx --from build pyproject-build --sdist
 
       - uses: actions/upload-artifact@v5
         with:
