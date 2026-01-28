@@ -1,8 +1,8 @@
 name: my-env
 
 channels:
-  - set3mah
   - conda-forge
+  - set3mah
 
 dependencies:
   - pkg-config
@@ -16,7 +16,7 @@ dependencies:
   - gtest
   - pybind11
   - armadillo >= 12.6
-  - set3mah::carma
+  - carma
   - pytest
   - ninja
   - mkl

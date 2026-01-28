@@ -4,79 +4,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  Linux:
-    name: Linux
-    runs-on: "ubuntu-latest"
-    steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          activate-environment: packaging
-      - name: Conda build for Linux
-        shell: bash -l {0}
-        run: |
-          conda update --all
-          conda install python=3.11 conda-build anaconda-client conda-verify
-          conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload linux-64/*.conda --force
-          anaconda logout    
-          
-  macos:
-    name: MacOS
-    runs-on: "macos-14"
-    steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
-        with:
-          miniconda-version: "latest"
-          activate-environment: packaging
-      - name: Conda build for MacOS
-        shell: bash -l {0}
-        run: |
-          conda update --all
-          conda install python=3.11 conda-build anaconda-client conda-verify
-          conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload osx-64/*.conda --force
-          anaconda logout              
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Linux
+            runner: ubuntu-latest
+            target-platform: linux-64
+          - os: MacOS
+            runner: macos-latest
+            target-platform: osx-arm64
+          - os: Windows
+            runner: windows-latest
+            target-platform: win-64
 
-  macos-arm64:
-      name: MacOS-arm64
-      runs-on: "macos-14-arm64"
-      steps:
-        - uses: actions/checkout@v2
-        - uses: conda-incubator/setup-miniconda@v2
-          with:
-            miniconda-version: "latest"
-            activate-environment: packaging
-        - name: Conda build for MacOS - arm64
-          shell: bash -l {0}
-          run: |
-            conda update --all
-            conda install python=3.11 conda-build anaconda-client conda-verify
-            conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
-            anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-            anaconda upload osx-arm64/*.conda --force
-            anaconda logout  
-
-        
-  windows:
-    name: Windows
-    runs-on: "windows-latest"
     steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: actions/checkout@v6
+
+      - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniconda-version: "latest"
+          miniconda-version: latest
           activate-environment: packaging
-      - name: Conda build for Windows
-        shell: pwsh
+
+      - name: Conda build and upload
+        shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          conda update --all
-          conda install python=3.11 conda-build anaconda-client conda-verify
-          conda-build carma.recipe -c conda-forge -c set3mah --output-folder  .
-          anaconda login --username ${{ secrets.ANACONDA_USERNAME }} --password ${{ secrets.ANACONDA_PASSWORD }}
-          anaconda upload win-64/*.conda --force
-          anaconda logout                        
+          conda update --all -y
+          conda install -y python=3.11 conda-build anaconda-client conda-verify
+          conda-build carma.recipe -c conda-forge -c set3mah --output-folder .
+          anaconda upload ${{ matrix.target-platform }}/*.conda --force
