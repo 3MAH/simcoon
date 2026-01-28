@@ -644,10 +644,33 @@ def plot_fit_comparison(
 
 if __name__ == "__main__":
     # Locate data file relative to script
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(
-        script_dir, "..", "hyperelasticity", "comparison", "Treloar.txt"
-    )
+    # Try multiple approaches to find the data file (supports both direct
+    # execution and Sphinx-Gallery which does not define __file__)
+    data_filename = os.path.join("hyperelasticity", "comparison", "Treloar.txt")
+    possible_paths = []
+
+    # Try using __file__ if available
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        possible_paths.append(os.path.join(script_dir, "..", data_filename))
+    except NameError:
+        pass
+
+    # Try relative to current working directory (Sphinx-Gallery context)
+    possible_paths.append(os.path.join(os.getcwd(), "..", data_filename))
+    possible_paths.append(os.path.join(os.getcwd(), "examples", data_filename))
+
+    # Find first existing path
+    data_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            data_path = path
+            break
+
+    if data_path is None:
+        raise FileNotFoundError(
+            f"Could not find Treloar.txt data file. Searched: {possible_paths}"
+        )
 
     print("=" * 70)
     print(" MOONEY-RIVLIN PARAMETER IDENTIFICATION")
