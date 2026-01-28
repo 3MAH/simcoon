@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -33,9 +34,10 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_zener_Nfast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
 {
-    
+
+    UNUSED(umat_name);
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
@@ -65,6 +67,7 @@ void umat_zener_Nfast(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
     
     //Define the viscoelastic stiffness
     mat L0 = L_iso(E0, nu0, "Enu");
+    L = L0;
     ///@brief Temperature initialization
     double T_init = statev(0);
     

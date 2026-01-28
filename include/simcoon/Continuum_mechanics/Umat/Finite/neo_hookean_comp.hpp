@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -168,7 +169,7 @@ namespace simcoon{
  * - Holzapfel, G. A. (2000). *Nonlinear Solid Mechanics: A Continuum Approach for Engineering*. Wiley.
  * - Connolly, S. J., et al. (2019). "Automatic differentiation based formulation of computational models." *Computational Mechanics*, 64, 1273-1288.
  */
-void umat_neo_hookean_comp(const arma::vec &Etot, const arma::vec &DEtot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_neo_hookean_comp(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
                             
 
 /** @} */ // end of umat_finite group

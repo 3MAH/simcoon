@@ -23,6 +23,7 @@
  */
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -129,7 +130,7 @@ namespace simcoon{
  * - Teodosiu, C., & Hu, Z. (1998). "Microstructure in the continuum modeling of plastic anisotropy." *Proc. 19th Riso Int. Symp.*, 149-168.
  * - Holmedal, B. (2019). "Bauschinger effect modelled by yield surface distortions." *Int. J. Plasticity*, 123, 86-100.
  */
-void umat_dfa_chaboche_CCP(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_dfa_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 
 /** @} */ // end of umat_mechanical group

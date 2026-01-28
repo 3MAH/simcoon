@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <string>
 #include <iostream>
 #include <armadillo>
 
@@ -147,7 +148,7 @@ namespace simcoon {
  * - Ferry, J. D. (1980). *Viscoelastic Properties of Polymers* (3rd ed.). Wiley.
  * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
  */
-void umat_zener_fast(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_zener_fast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 /** @} */ // end of umat_mechanical group
 

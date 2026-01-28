@@ -21,6 +21,7 @@
 ///@brief Implemented in 1D-2D-3D
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -86,6 +87,6 @@ namespace simcoon{
 ///@brief statev[15] : a3 : Equilibrium hardening parameter
 ///@brief statev[16] : Y0t : Initial transformation critical value
 
-void umat_sma_aniso_T(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
+void umat_sma_aniso_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
     
 } //namespace simcoon
