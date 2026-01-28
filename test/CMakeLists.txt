@@ -27,6 +27,7 @@ set(TEST_SRCS
 
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
+  test/Libraries/Umat/Modular/Tmodular_umat.cpp
 
   # UMATs
   test/Umats/ELISO/TELISO.cpp
