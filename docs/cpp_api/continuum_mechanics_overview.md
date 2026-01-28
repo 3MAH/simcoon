@@ -80,8 +80,7 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 - `damage_weibull` - Weibull statistical damage model
 
 **Shape Memory Alloys (SMA):**
-- `SMA_mono` - Monolithic SMA model
-- `SMA_mono_cubic` - Cubic crystal SMA model
+- `SMA_mono` - Micromechanical monocrystal SMA model (supports SMAMO isotropic, SMAMC cubic symmetry)
 - `unified_T` - Unified thermomechanical SMA model
 
 **Combined:**

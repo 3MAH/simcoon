@@ -23,6 +23,7 @@
  */
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -39,12 +40,24 @@ namespace simcoon{
  * crystal by tracking N individual martensite variants, where N is typically 12 or 24 depending
  * on the crystallographic system.
  *
+ * **Elastic Symmetry Selection:**
+ *
+ * The elastic behavior is determined by the umat_name parameter:
+ *
+ * | umat_name | Symmetry | Elastic Parameters |
+ * |-----------|----------|-------------------|
+ * | SMAMO | Isotropic | E, nu |
+ * | SMAMC | Cubic | C11, C12, C44 |
+ * | SMAOT | Orthotropic | E1, E2, E3, nu12, nu13, nu23, G12, G13, G23 |
+ * | SMATI | Transverse Isotropic | EL, ET, nuTL, nuTT, GLT |
+ *
  * **Key Features:**
  * - Explicit tracking of N martensite variant volume fractions \f$ f_n \f$ (n = 1, ..., N)
  * - Crystallographic transformation strains for each variant
  * - Variant selection driven by resolved thermodynamic driving force
  * - Inter-variant interactions through hardening matrix
  * - Applicable to single crystal SMA behavior
+ * - Supports multiple elastic symmetry types
  *
  * **Physical Background:**
  *
@@ -121,9 +134,40 @@ namespace simcoon{
  * - Cubic → Monoclinic (NiTi): N = 12 or 24 variants
  * - Cubic → Tetragonal: N = 3 variants
  *
+ * **Material Parameters (props):**
+ *
+ * The props vector layout depends on the elastic symmetry (umat_name):
+ *
+ * **SMAMO (Isotropic):** 16 parameters
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | props[0] | E | Young's modulus |
+ * | props[1] | nu | Poisson's ratio |
+ * | props[2] | alpha_iso | Coefficient of thermal expansion |
+ * | props[3] | b | Slope parameter |
+ * | props[4] | g | Shear strain magnitude |
+ * | props[5] | Ms | Martensite start temperature |
+ * | props[6] | Af | Austenite finish temperature |
+ * | props[7] | nvariants | Number of martensite variants |
+ * | props[8-15] | c_lambda0, p0_lambda0, ... | Lagrange multiplier parameters |
+ *
+ * **SMAMC (Cubic):** 17 parameters
+ * | Index | Symbol | Description |
+ * |-------|--------|-------------|
+ * | props[0] | C11 | Elastic constant C11 |
+ * | props[1] | C12 | Elastic constant C12 |
+ * | props[2] | C44 | Elastic constant C44 |
+ * | props[3] | alpha_iso | Coefficient of thermal expansion |
+ * | props[4] | b | Slope parameter |
+ * | props[5] | g | Shear strain magnitude |
+ * | props[6] | Ms | Martensite start temperature |
+ * | props[7] | Af | Austenite finish temperature |
+ * | props[8] | nvariants | Number of martensite variants |
+ * | props[9-16] | c_lambda0, p0_lambda0, ... | Lagrange multiplier parameters |
+ *
  * **State Variables (statev):**
  *
- * Total state variables required: \f$ n_{statev} = 1 + N + 6 \f$ (for N variants)
+ * Total state variables required: \f$ n_{statev} = 1 + N + 7 \f$ (for N variants)
  *
  * | Index | Symbol | Description | Units |
  * |-------|--------|-------------|-------|
@@ -132,16 +176,13 @@ namespace simcoon{
  * | statev[2] | \f$ f_2 \f$ | Volume fraction of martensite variant 2 | - |
  * | ... | ... | ... | ... |
  * | statev[N] | \f$ f_N \f$ | Volume fraction of martensite variant N | - |
- * | statev[N+1] | \f$ \varepsilon^{tr}_{11} \f$ | Macroscopic transformation strain component 11 | Strain |
- * | statev[N+2] | \f$ \varepsilon^{tr}_{22} \f$ | Macroscopic transformation strain component 22 | Strain |
- * | statev[N+3] | \f$ \varepsilon^{tr}_{33} \f$ | Macroscopic transformation strain component 33 | Strain |
- * | statev[N+4] | \f$ \varepsilon^{tr}_{12} \f$ | Macroscopic transformation strain component 12 | Strain |
- * | statev[N+5] | \f$ \varepsilon^{tr}_{13} \f$ | Macroscopic transformation strain component 13 | Strain |
- * | statev[N+6] | \f$ \varepsilon^{tr}_{23} \f$ | Macroscopic transformation strain component 23 | Strain |
+ * | statev[N+1:N+6] | \f$ \varepsilon^{tr} \f$ | Macroscopic transformation strain (Voigt) | Strain |
+ * | statev[N+7] | \f$ \xi \f$ | Total martensite volume fraction | - |
  *
  * The macroscopic transformation strain is computed as:
  * \f$ \boldsymbol{\varepsilon}^{tr} = \sum_{n=1}^{N} f_n \boldsymbol{\varepsilon}^{tr}_n \f$
  *
+ * @param umat_name Name of the constitutive model (SMAMO, SMAMC, SMAOT, SMATI)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
  * @param sigma Cauchy stress tensor (Voigt notation: 6×1 vector) [output]
@@ -149,7 +190,7 @@ namespace simcoon{
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
- * @param props Material properties vector
+ * @param props Material properties vector (layout depends on umat_name)
  * @param nstatev Number of state variables (includes N variant volume fractions)
  * @param statev State variables vector containing variant fractions [input/output]
  * @param T Temperature at beginning of increment
@@ -170,6 +211,11 @@ namespace simcoon{
  * @note The number of variants N depends on the crystallographic transformation system
  * @note Variant transformation strains must be provided based on crystallographic data
  *
+ * @see L_iso() for isotropic stiffness tensor (SMAMO)
+ * @see L_cubic() for cubic stiffness tensor (SMAMC)
+ * @see L_ortho() for orthotropic stiffness tensor (SMAOT)
+ * @see L_isotrans() for transverse isotropic stiffness tensor (SMATI)
+ *
  * **References:**
  * - Patoor, E., Eberhardt, A., & Berveiller, M. (1996). "Micromechanical modelling of
  *   superelasticity in shape memory alloys." *Journal de Physique IV*, 6(C1), 277-292.
@@ -179,7 +225,7 @@ namespace simcoon{
  * - Gall, K., & Sehitoglu, H. (1999). "The role of texture in tension-compression
  *   asymmetry in polycrystalline NiTi." *International Journal of Plasticity*, 15(1), 69-92.
  */
-void umat_sma_mono(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_sma_mono(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 /** @} */ // end of umat_mechanical group
     

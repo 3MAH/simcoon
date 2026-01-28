@@ -72,7 +72,6 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
-  Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono_cubic.cpp
   Continuum_mechanics/Umat/Mechanical/SMA/unified_T.cpp
   Continuum_mechanics/Umat/Mechanical/SMA/aniso_T.cpp
 

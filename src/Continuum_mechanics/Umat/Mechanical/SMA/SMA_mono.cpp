@@ -16,11 +16,12 @@
  */
 
 ///@file sma_mono.cpp
-///@brief User subroutine for monocrystalline SMA
+///@brief User subroutine for monocrystalline SMA with multiple elastic symmetry options
 ///@author Chemisky
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -35,23 +36,20 @@ using namespace arma;
 
 namespace simcoon {
 
-///@brief The elastic UMAT requires 17 constants:
-///@brief props(0) : E
-///@brief props(1) : nu
-///@brief props(2) : alpha_iso
-///@brief props(3) : b      It is the slope that correspond to g
-///@brief props(4) : g      the shear strain
-///@brief props(5) : Ms     Martensitic start temperature
-///@brief props(6) : Af     Austenitic finish temperature
-///@brief props(7) : nvariants  The number of martensitic variants
-///@brief props(8) : c_lambda0
-///@brief props(9) : p0_lambda0
-///@brief props(10) : n_lambda0
-///@brief props(11) : alpha_lambda0
-///@brief props(12) : c_lambda1
-///@brief props(13) : p0_lambda1
-///@brief props(14) : n_lambda1
-///@brief props(15) : alpha_lambda1
+///@brief Unified SMA monocrystal UMAT supporting multiple elastic symmetries
+///@brief The elastic symmetry is determined by umat_name:
+///@brief   SMAMO (isotropic): props(0)=E, props(1)=nu, then common params from props(2)
+///@brief   SMAMC (cubic): props(0)=C11, props(1)=C12, props(2)=C44, then common params from props(3)
+///@brief
+///@brief Common parameters (offset depends on symmetry):
+///@brief   alpha_iso : Coefficient of thermal expansion
+///@brief   b         : Slope parameter (corresponds to g)
+///@brief   g         : Shear strain magnitude
+///@brief   Ms        : Martensite start temperature
+///@brief   Af        : Austenite finish temperature
+///@brief   nvariants : Number of martensite variants
+///@brief   c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0 : Lagrange parameters (variant)
+///@brief   c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1 : Lagrange parameters (total)
 
 /*void Amortissement(double &xi, const double &dxi, const double &xi_start)
 {
@@ -71,40 +69,77 @@ namespace simcoon {
     }
 }*/
 
-void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
-    
+void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
     UNUSED(nshr);
     UNUSED(tnew_dt);
-    
+
 	// ######################  Props #################################
 	//From the props to the material properties
-	double E = props(0);
-	double nu = props(1);
-	double alpha_iso = props(2);
-	double b = props(3);
-    double g = props(4);
-	double Ms = props(5);
-	double Af = props(6);
-	int nvariants = props(7);
-    double c_lambda0 = props(8);
-    double p0_lambda0 = props(9);
-    double n_lambda0 = props(10);
-    double alpha_lambda0 = props(11);
-    double c_lambda1 = props(12);
-    double p0_lambda1 = props(13);
-    double n_lambda1 = props(14);
-    double alpha_lambda1 = props(15);
-	
+    // Property offset depends on elastic symmetry type
+    int offset = 0;
+    double alpha_iso = 0.;
+    double b = 0.;
+    double g = 0.;
+    double Ms = 0.;
+    double Af = 0.;
+    int nvariants = 0;
+    double c_lambda0 = 0.;
+    double p0_lambda0 = 0.;
+    double n_lambda0 = 0.;
+    double alpha_lambda0 = 0.;
+    double c_lambda1 = 0.;
+    double p0_lambda1 = 0.;
+    double n_lambda1 = 0.;
+    double alpha_lambda1 = 0.;
+
+    // Build elastic stiffness tensor based on umat_name
+    if (umat_name == "SMAMO") {
+        // Isotropic elasticity: E, nu
+        double E = props(0);
+        double nu = props(1);
+        L = L_iso(E, nu, "Enu");
+        offset = 2;
+    }
+    else if (umat_name == "SMAMC") {
+        // Cubic elasticity: C11, C12, C44
+        double C11 = props(0);
+        double C12 = props(1);
+        double C44 = props(2);
+        L = L_cubic(C11, C12, C44, "Cii");
+        offset = 3;
+    }
+    else {
+        cout << "Error: Unknown umat_name in umat_sma_mono: " << umat_name << "\n";
+        exit(0);
+    }
+
+    // Extract common parameters using offset
+    alpha_iso = props(offset);
+    b = props(offset + 1);
+    g = props(offset + 2);
+    Ms = props(offset + 3);
+    Af = props(offset + 4);
+    nvariants = int(props(offset + 5));
+    c_lambda0 = props(offset + 6);
+    p0_lambda0 = props(offset + 7);
+    n_lambda0 = props(offset + 8);
+    alpha_lambda0 = props(offset + 9);
+    c_lambda1 = props(offset + 10);
+    p0_lambda1 = props(offset + 11);
+    n_lambda1 = props(offset + 12);
+    alpha_lambda1 = props(offset + 13);
+
     double roS0 = -1.*b*g;
     double romu0 = 0.5*roS0*(Ms + Af);
     double Y0 = 0.5*roS0*(Ms - Af);
-    
+
     //definition of the CTE tensor
-    vec alpha = alpha_iso*Ith();    
+    vec alpha = alpha_iso*Ith();
     std::string data_path= std::getenv("SIMCOON_DATA_PATH") ? std::getenv("SIMCOON_DATA_PATH") : "data" ;
 	mat Hnm = zeros(nvariants, nvariants);
 	Hnm.load(data_path+"/Hnm.inp", raw_ascii);
@@ -157,9 +192,8 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
 	//Rotation of internal variables (tensors)
     ET = rotate_strain(ET, DR);
 
-    //Elstic stiffness tensor
-    L = L_iso(E, nu, "Enu");    
-    
+    // Note: Elastic stiffness tensor L is already constructed based on umat_name
+
     ///@brief Initialization
     if(start)
     {
