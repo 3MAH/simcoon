@@ -9,7 +9,7 @@ which do not exhibit such oscillations.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from simcoon import simmit as sim
+import simcoon as sim
 import os
 
 plt.rcParams["figure.figsize"] = (18, 10)  # configure the figure output size

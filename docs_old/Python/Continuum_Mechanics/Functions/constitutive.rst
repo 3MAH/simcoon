@@ -1,11 +1,11 @@
 The Constitutive Library
 ========================
 
-Import of the simmit module
+Import simcoon
 
     .. code-block:: python
     
-        from simcoon import simmit as sim
+        import simcoon as sim
 
 .. function:: np.ndarray Ireal()
 

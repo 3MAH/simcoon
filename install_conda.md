@@ -11,7 +11,6 @@ conda create --name scientific
 #Install packages
 
 conda install -c conda-forge armadillo
-conda install -c conda-forge boost
 conda install -c conda-forge numpy
 
 
@@ -46,7 +45,7 @@ make test
 To finally it, it is best to copy the additional simcoon include folders (arma2numpy and python_wrappers) files that are in the simcoon-python-builder/include folder in the /path/to/anaconda3/envs/scientific/include, and the arma2numpy library (libarma2numpy.so) in the /path/to/anaconda3/envs/scientific/lib folder manually.
 The last library should be situated in the simcoon-python-builder/build/lib folder (or /build/lib/Relase, or /build/lib/Debug)
 
-Finally you should copy the 'simmit.so' file situated in the simcoon-python-builder/build/lib folder (or /build/lib/Relase, or /build/lib/Debug) in the folder 'python-setup/simcoon'
+Finally you should copy the '_core.so' file situated in the simcoon-python-builder/build/lib folder (or /build/lib/Relase, or /build/lib/Debug) in the folder 'python-setup/simcoon'
 
 Go to he folder 'python-setup/simcoon' and finally run:
 'python setup.py install'

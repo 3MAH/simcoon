@@ -1,4 +1,4 @@
 Stress conversions
 ==================
 
-.. autofunction:: simcoon.simmit.stress_convert
+.. autofunction:: simcoon.stress_convert

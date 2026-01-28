@@ -8,7 +8,7 @@ This tutorial studies the directional stiffness of a cubic material
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
-from simcoon import simmit as sim
+import simcoon as sim
 import os
 
 

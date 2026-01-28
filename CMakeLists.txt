@@ -325,7 +325,7 @@ target_link_libraries(simcoon
 )
 
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
-# This prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
+# This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.
 # Only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
 if(WIN32 AND BUILD_PYTHON_BINDINGS)

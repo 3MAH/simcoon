@@ -1,4 +1,4 @@
-:: conda install -c conda-forge git cmake python=3.9 boost -y
+:: conda install -c conda-forge git cmake python=3.9 -y
 
 set PREFIX=%CONDA_PREFIX%
 set SRC_DIR=%cd%
@@ -55,7 +55,7 @@ cd %SP_DIR%
 mkdir simcoon
 cd simcoon
 type NUL > __init__.py
-xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\simmit.pyd %SP_DIR%\simcoon
+xcopy /s /i %SRC_DIR%\simcoon-python-builder\build\lib\Release\_core.pyd %SP_DIR%\simcoon
 if errorlevel 1 exit 1
 
 REM xcopy /s /i %SRC_DIR%\armadillo\examples\lib_win64\libopenblas.dll %PREFIX%\Library\bin

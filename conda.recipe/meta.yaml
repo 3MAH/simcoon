@@ -36,7 +36,6 @@ requirements:
     - numpy >=2.0
     - libblas
     - liblapack
-    - boost >=1.84
   run:
     - python
     - numpy >=2.0
@@ -47,10 +46,9 @@ requirements:
     - mkl # [x86]
     - blas * openblas  # [not (osx and arm64) and not x86]
     - lapack * openblas  # [not (osx and arm64) and not x86]
-    - boost >=1.84
     - armadillo >=12.6 # [not win]
 
 test:
   imports:
     - simcoon
-    - simcoon.simmit
+    - simcoon._core
