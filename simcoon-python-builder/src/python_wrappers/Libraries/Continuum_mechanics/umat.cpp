@@ -72,15 +72,10 @@ namespace simpy {
 		int id_umat = list_umat[umat_name_py];
 		int arguments_type; //depends on the argument used in the umat
 
-		void (*umat_function)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, arma::vec &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, const int &, double &); 
-		void (*umat_function_2)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &); 
-		void (*umat_function_3)(const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &); 	
-		void (*umat_function_4)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
-		// umat_function_5: signature with umat_name but without F0/F1 (for SMA_mono)
-		void (*umat_function_5)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
-
-		//scalar needed to launch umat
-		const int solver_type = 0;
+		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt)
+		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
+		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt)
+		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);
 		const int ncomp=6;
 		int nshr;
 		if (ndi==3) {
@@ -135,7 +130,6 @@ namespace simpy {
 		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
 		cube L(ncomp, ncomp, nb_points);
 		cube Lt(ncomp, ncomp, nb_points);
-		vec sigma_in = zeros(1); //not used
 		int nprops = list_props.n_rows;
 		int nstatev = list_statev.n_rows;
 
@@ -143,122 +137,102 @@ namespace simpy {
 			case 2: {
 				umat_function = &simcoon::umat_elasticity_iso;
 				arguments_type = 1;
-				//simcoon::umat_elasticity_iso(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 3: {
 				umat_function = &simcoon::umat_elasticity_trans_iso;
 				arguments_type = 1;
-				//simcoon::umat_elasticity_trans_iso(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 4: {
 				umat_function = &simcoon::umat_elasticity_ortho;
 				arguments_type = 1;
-				//simcoon::umat_elasticity_ortho(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 5: {
 				umat_function = &simcoon::umat_plasticity_iso_CCP;
 				arguments_type = 1;
-				//simcoon::umat_plasticity_iso_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 6: {
 				umat_function = &simcoon::umat_plasticity_kin_iso_CCP;
 				arguments_type = 1;
-				//simcoon::umat_plasticity_kin_iso_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 7: {
 				umat_function = &simcoon::umat_plasticity_chaboche_CCP;
 				arguments_type = 1;
-				//simcoon::umat_plasticity_chaboche_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 8: {
-				umat_function_2 = &simcoon::umat_plasticity_hill_isoh_CCP;
-				arguments_type = 2;
-				//simcoon::umat_plasticity_hill_isoh_CCP(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+				umat_function = &simcoon::umat_plasticity_hill_isoh_CCP;
+				arguments_type = 1;
 				break;
 			}
 			case 9: {
 				umat_function = &simcoon::umat_hill_chaboche_CCP;
 				arguments_type = 1;
-				//simcoon::umat_hill_chaboche_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 10: {
 				umat_function = &simcoon::umat_ani_chaboche_CCP;
 				arguments_type = 1;
-				//simcoon::umat_ani_chaboche_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
 			}
 			case 11: {
 				umat_function = &simcoon::umat_dfa_chaboche_CCP;
 				arguments_type = 1;
-				//simcoon::umat_dfa_chaboche_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
-				break;
-			}												
-			case 12: {
-				umat_function_2 = &simcoon::umat_plasticity_hill_isoh_CCP_N;
-				arguments_type = 2;
-				//simcoon::umat_plasticity_hill_isoh_CCP_N(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
-				break;
-			}				
-			case 13: {		
-				umat_function_2 = &simcoon::umat_sma_unified_T;
-				arguments_type = 2;				
-				//simcoon::umat_sma_unified_T(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
 				break;
 			}
-			case 14: {		
-				umat_function_2 = &simcoon::umat_sma_aniso_T;
-				arguments_type = 2;				
-				//simcoon::umat_sma_aniso_T(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+			case 12: {
+				umat_function = &simcoon::umat_plasticity_hill_isoh_CCP_N;
+				arguments_type = 1;
+				break;
+			}
+			case 13: {
+				umat_function = &simcoon::umat_sma_unified_T;
+				arguments_type = 1;
+				break;
+			}
+			case 14: {
+				umat_function = &simcoon::umat_sma_aniso_T;
+				arguments_type = 1;
 				break;
 			}
 			case 15: {
 				umat_function = &simcoon::umat_damage_LLD_0;
 				arguments_type = 1;
-				//simcoon::umat_damage_LLD_0(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 				break;
-			}				
+			}
 			case 16: {
-				umat_function_2 = &simcoon::umat_zener_fast;
-				arguments_type = 2;		
-				//simcoon::umat_zener_fast(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+				umat_function = &simcoon::umat_zener_fast;
+				arguments_type = 1;
 				break;
-			}				
+			}
 			case 17: {
-				umat_function_2 = &simcoon::umat_zener_Nfast;
-				arguments_type = 2;
-				//simcoon::umat_zener_Nfast(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+				umat_function = &simcoon::umat_zener_Nfast;
+				arguments_type = 1;
 				break;
 			}
 			case 18: {
-				umat_function_2 = &simcoon::umat_prony_Nfast;
-				arguments_type = 2;
-				//simcoon::umat_prony_Nfast(etot, Detot, sigma, Lt, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+				umat_function = &simcoon::umat_prony_Nfast;
+				arguments_type = 1;
 				break;
 			}
 			case 19: case 20: {
-				// SMAMO (isotropic) and SMAMC (cubic) both use unified umat_sma_mono
-				umat_function_5 = &simcoon::umat_sma_mono;
-				arguments_type = 5;
+				umat_function = &simcoon::umat_sma_mono;
+				arguments_type = 1;
 				break;
 			}
 			case 21: case 22: case 23: case 24: case 26: {
 				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);						
-				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
-				arguments_type = 4;
-				break;				
-			}				
+				F1 = carma::arr_to_cube_view(F1_py);
+				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
+				arguments_type = 2;
+				break;
+			}
 			default: {
-				//py::print("Error: The choice of Umat could not be found in the umat library \n");
 				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
-				//exit(0);
 			}
 		}
 
@@ -289,23 +263,11 @@ namespace simpy {
 			switch (arguments_type) {
 
 				case 1: {
-					umat_function(etot, Detot, sigma, Lt.slice(pt), L.slice(pt), sigma_in, DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, solver_type, tnew_dt);
+					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 					break;
 				}
 				case 2: {
-					umat_function_2(etot, Detot, sigma, Lt.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
-					break;
-				}
-				case 3: {
-					umat_function_3(etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
-					break;
-				}
-				case 4: {
-					umat_function_4(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
-					break;
-				}
-				case 5: {
-					umat_function_5(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
+					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 					break;
 				}
 			}
