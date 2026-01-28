@@ -42,7 +42,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Finite/generic_hyper_invariants.cpp
   Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.cpp
   Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.cpp
-  Continuum_mechanics/Umat/Finite/mooney_rivlin.cpp
   Continuum_mechanics/Umat/Finite/Neo_hookean_comp.cpp
   Continuum_mechanics/Umat/Finite/Neo_hookean_incomp.cpp
   Continuum_mechanics/Umat/Finite/saint_venant.cpp
