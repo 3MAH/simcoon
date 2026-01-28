@@ -37,6 +37,8 @@
 
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 
+#include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+
 #include <simcoon/Simulation/Maths/rotation.hpp> //for rotate_strain
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
@@ -69,7 +71,7 @@ namespace simpy {
 		//Get the id of umat
 
 		std::map<string, int> list_umat;
-		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",14},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
+		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",14},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"MODUL",30},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 		int id_umat = list_umat[umat_name_py];
 		int arguments_type; //depends on the argument used in the umat
 
@@ -251,6 +253,11 @@ namespace simpy {
 				umat_function_3 = &simcoon::umat_sma_mono_cubic;
 				arguments_type = 3;
 				//simcoon::umat_sma_mono_cubic(umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
+				break;
+			}
+			case 30: {
+				umat_function = &simcoon::umat_modular;
+				arguments_type = 1;
 				break;
 			}
 			case 21: case 22: case 23: case 24: case 26: {

@@ -98,6 +98,17 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_fast.cpp
   Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_Nfast.cpp
 
+  # Continuum Mechanics - UMAT Modular
+  Continuum_mechanics/Umat/Modular/internal_variable.cpp
+  Continuum_mechanics/Umat/Modular/internal_variable_collection.cpp
+  Continuum_mechanics/Umat/Modular/elasticity_module.cpp
+  Continuum_mechanics/Umat/Modular/yield_criterion.cpp
+  Continuum_mechanics/Umat/Modular/hardening.cpp
+  Continuum_mechanics/Umat/Modular/plasticity_mechanism.cpp
+  Continuum_mechanics/Umat/Modular/viscoelastic_mechanism.cpp
+  Continuum_mechanics/Umat/Modular/damage_mechanism.cpp
+  Continuum_mechanics/Umat/Modular/modular_umat.cpp
+
   # Continuum Mechanics - UMAT Core
   Continuum_mechanics/Umat/fea_transfer.cpp
   Continuum_mechanics/Umat/umat_L_elastic.cpp
