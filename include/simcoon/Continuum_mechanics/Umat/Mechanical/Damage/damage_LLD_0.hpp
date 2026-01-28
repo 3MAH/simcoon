@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include <string>
 #include <iostream>
 #include <armadillo>
 
@@ -272,7 +273,7 @@ namespace simcoon{
  * - Matzenmiller, A., Lubliner, J., & Taylor, R. L. (1995). "A constitutive model for anisotropic damage in fiber-composites." *Mechanics of Materials*, 20(2), 125-152.
  * - Pinho, S. T., et al. (2012). "Material and structural response of polymer-matrix fibre-reinforced composites." *Journal of Composite Materials*, 46(19-20), 2313-2341.
  */
-void umat_damage_LLD_0(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_damage_LLD_0(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 
 /** @} */ // end of umat_mechanical group

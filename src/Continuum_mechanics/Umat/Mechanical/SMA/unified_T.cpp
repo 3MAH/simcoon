@@ -23,6 +23,7 @@
 #include <iostream>
 #include <fstream>
 #include <assert.h>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -39,8 +40,9 @@ using namespace arma;
 
 namespace simcoon{
 
-void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
-    
+void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+
+    UNUSED(umat_name);
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
@@ -179,7 +181,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     mat M_A = M_iso(K_A, mu_A, "Kmu");
     mat M_M = M_iso(K_M, mu_M, "Kmu");
     mat M = M_iso(K_eff, mu_eff, "Kmu");
-    mat L = L_iso(K_eff, mu_eff, "Kmu");    
+    L = L_iso(K_eff, mu_eff, "Kmu");    
     mat DM = M_M - M_A;
     
     //definition of the CTE tensor

@@ -131,7 +131,7 @@ namespace simcoon{
  *
  * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (γ = 2ε)
  * @note The consistent tangent modulus Lt ensures quadratic convergence in implicit Newton-Raphson schemes
- * @note For explicit solvers (solver_type=1), use sigma_in instead of Lt
+ * @note The tangent modulus Lt is always computed
  *
  * @see Fischer_Burmeister_m() for the complementarity solver
  * @see L_iso() for isotropic elastic stiffness construction

@@ -93,12 +93,12 @@ class umat_plugin_ext_api {
          * This function is called at each integration point to update stress and
          * compute the consistent tangent modulus.
          *
+         * @param umat_name Name of the constitutive model
          * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1)
          * @param DEtot Strain increment tensor (Voigt notation: 6×1)
          * @param sigma Stress tensor [output] (Voigt notation: 6×1)
          * @param Lt Consistent tangent modulus [output] (6×6)
          * @param L Elastic stiffness tensor [output] (6×6)
-         * @param sigma_in Internal stress for explicit solvers [output] (6×1)
          * @param DR Rotation increment matrix (3×3)
          * @param nprops Number of material properties
          * @param props Material properties vector
@@ -115,17 +115,16 @@ class umat_plugin_ext_api {
          * @param ndi Number of direct stress components
          * @param nshr Number of shear stress components
          * @param start Flag indicating first increment
-         * @param solver_type Solver type (0=implicit, 1=explicit, 2=dynamic)
          * @param tnew_dt Suggested new time step [output]
          */
         virtual void umat_external_M(
-            const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma,
-            arma::mat &Lt, arma::mat &L, arma::vec &sigma_in,
+            const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma,
+            arma::mat &Lt, arma::mat &L,
             const arma::mat &DR, const int &nprops,
             const arma::vec &props, const int &nstatev, arma::vec &statev,
             const double &T, const double &DT, const double &Time, const double &DTime,
             double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d,
-            const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt
+            const int &ndi, const int &nshr, const bool &start, double &tnew_dt
         ) = 0;
 
         /** @brief Virtual destructor for proper cleanup */
