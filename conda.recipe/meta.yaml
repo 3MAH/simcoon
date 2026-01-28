@@ -52,3 +52,4 @@ test:
   imports:
     - simcoon
     - simcoon._core
+    - simcoon.modular
