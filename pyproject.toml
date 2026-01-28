@@ -187,6 +187,5 @@ before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
 # Point CMake to vcpkg (use forward slashes for TOML compatibility)
 environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
 
-# Skip wheel repair - the wheel should already contain all needed DLLs
-# TODO: investigate delvewheel "Unable to find library: simcoon.dll" error
+# Skip wheel repair - CMake installs all needed DLLs directly into the wheel
 repair-wheel-command = ""
