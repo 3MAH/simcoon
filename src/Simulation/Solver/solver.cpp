@@ -29,6 +29,7 @@
 #include <filesystem>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Phase/material_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
@@ -179,9 +180,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     sptr_meca->generate(Time, sv_M->Etot, sv_M->sigma, sv_M->T);
                     
                     Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
-                    
+
                     //jacobian inversion
-                    invK = inv(K);
+                    bool inv_success = inv(invK, K);
+                    if (!inv_success) {
+                        throw simcoon::exception_solver("Singular Jacobian matrix during solver initialization.");
+                    }
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
@@ -260,8 +264,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                         //Application of the Hughes-Winget (1980) algorithm
                                         DTime = Dtinc*sptr_meca->times(inc);
-                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                        
+                                        mat HW_inv;
+                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                        if (!inv_success) {
+                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=2).");
+                                        }
+                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+
                                         sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
                                         sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
                                         
@@ -287,8 +296,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         //Application of the Hughes-Winget (1980) algorithm
                                         DTime = Dtinc*sptr_meca->times(inc);
 
-                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                        
+                                        mat HW_inv;
+                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                        if (!inv_success) {
+                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=3).");
+                                        }
+                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+
                                         sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
                                         sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
 
@@ -318,8 +332,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         //Application of the Hughes-Winget (1980) algorithm
 
                                         DTime = Dtinc*sptr_meca->times(inc);
-                                        DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                        
+                                        mat HW_inv;
+                                        bool inv_success = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                        if (!inv_success) {
+                                            throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (control_type=4).");
+                                        }
+                                        DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+
                                         sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
                                         sv_M->F1 = (sptr_meca->BC_R*DR)*(sv_M->U1);
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
@@ -364,11 +383,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         if(corate_type == 3) {
                                             logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             mat I = eye(3,3);
-                                            mat DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
-                                            
+                                            mat DR_N_inv;
+                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-N_2));
+                                            if (!inv_success) {
+                                                throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=3).");
+                                            }
+                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-N_2));
+
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                             sv_M->etot = rotate_strain(sv_M->etot, DR_N);
-                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);                                            
+                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);
                                             sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
                                         }
                                         if(corate_type == 4) {
@@ -379,19 +403,24 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         if(corate_type == 5) {
                                             logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             mat I = eye(3,3);
-                                            mat DR_N = (inv(I-0.5*DTime*(N_1-D)))*(I+0.5*DTime*(N_1-D));
-                                            
-//                                            cout << "DR_N = \n"  << DR_N << endl;
+                                            mat DR_N_inv;
+                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-D));
+                                            if (!inv_success) {
+                                                throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=5).");
+                                            }
+                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-D));
+
+                                            // Compute inverse of DR_N once for reuse
+                                            mat inv_DR_N;
+                                            inv_success = inv(inv_DR_N, DR_N);
+                                            if (!inv_success) {
+                                                throw simcoon::exception_solver("Singular DR_N matrix in natural basis rotation update (corate_type=5).");
+                                            }
 
                                             mat Detot_nat = Delta_log_strain(D, Omega, DTime);
-                                            sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv(DR_N));
-                                            sv_M->sigma_start = t2v_stress(DR_N*v2t_stress(sv_M->sigma_start)*inv(DR_N));                                            
-                                            sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv(DR_N));
-                                            
-/*                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                            sv_M->etot = t2v_strain()rotate_strain(sv_M->etot, DR_N);
-                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
-*/                                            
+                                            sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv_DR_N);
+                                            sv_M->sigma_start = t2v_stress(DR_N*v2t_stress(sv_M->sigma_start)*inv_DR_N);
+                                            sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv_DR_N);
                                         }
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
@@ -490,17 +519,20 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                             else if (blocks[i].control_type == 4) {
-                                                mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);    
+                                                mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
                                                 mat R = zeros(3,3);
-                                                mat U = zeros(3,3);                                                
+                                                mat U = zeros(3,3);
                                                 RU_decomposition(R,U,sv_M->F1);
                                                 C = DSDE_DBiotStressDU(DSDE, U, v2t_stress(sv_M->PKII));
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                            }                                            
-                                            
+                                            }
+
                                             ///jacobian inversion
-                                            invK = inv(K);
-                                            
+                                            bool inv_success = inv(invK, K);
+                                            if (!inv_success) {
+                                                throw simcoon::exception_solver("Singular Jacobian matrix during Newton-Raphson iteration.");
+                                            }
+
                                             /// Prediction of the component of the strain tensor
                                             Delta = -invK * residual;
                                         }
@@ -531,8 +563,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
                                             DTime = Dtinc*sptr_meca->times(inc);
-                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                            
+                                            mat HW_inv;
+                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                            if (!inv_success_hw) {
+                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=2).");
+                                            }
+                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+
                                             sv_M->F0 = ER_to_F(v2t_strain(sv_M->Etot), sptr_meca->BC_R);
                                             sv_M->F1 = ER_to_F(v2t_strain(sv_M->Etot + sv_M->DEtot), sptr_meca->BC_R*DR);
                                     
@@ -557,9 +594,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->Detot += Delta;
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
-                                            DTime = Dtinc*sptr_meca->times(inc);                                            
-                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
-                                            
+                                            DTime = Dtinc*sptr_meca->times(inc);
+                                            mat HW_inv;
+                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                            if (!inv_success_hw) {
+                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=3).");
+                                            }
+                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+
                                             sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
                                             sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
 
@@ -587,7 +629,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->DT = Dtinc*sptr_meca->Ts(inc);
                                             //Application of the Hughes-Winget (1980) algorithm
                                             DTime = Dtinc*sptr_meca->times(inc);
-                                            DR = inv(eye(3,3)-0.5*DTime*sptr_meca->BC_w)*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
+                                            mat HW_inv;
+                                            bool inv_success_hw = inv(HW_inv, eye(3,3)-0.5*DTime*sptr_meca->BC_w);
+                                            if (!inv_success_hw) {
+                                                throw simcoon::exception_solver("Singular matrix in Hughes-Winget rotation update (NR iteration, control_type=4).");
+                                            }
+                                            DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
                                             sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
                                             sv_M->F1 = (DR*sptr_meca->BC_R)*sv_M->U1;
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;;
@@ -811,11 +858,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //RNL
                     sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[0].steps[0]);
                     sptr_thermomeca->generate(Time, sv_T->Etot, sv_T->sigma, sv_T->T);
-                    
+
                     Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
-                    
+
                     //jacobian inversion
-                    invK = inv(K);
+                    bool inv_success = inv(invK, K);
+                    if (!inv_success) {
+                        throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical solver initialization.");
+                    }
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
@@ -919,10 +969,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             ///Prediction of the strain increment using the tangent modulus given from the umat_ function
                                             //we use the ddsdde (Lt) from the previous increment
                                             Lth_2_K(sv_T->dSdE, sv_T->dSdT, dQdE, dQdT, K, sptr_thermomeca->cBC_meca, sptr_thermomeca->cBC_T, lambda_solver);
-                                            
+
                                             ///jacobian inversion
-                                            invK = inv(K);
-                                            
+                                            bool inv_success = inv(invK, K);
+                                            if (!inv_success) {
+                                                throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical Newton-Raphson iteration.");
+                                            }
+
                                             /// Prediction of the component of the strain tensor
                                             Delta = -invK * residual;
                                         }

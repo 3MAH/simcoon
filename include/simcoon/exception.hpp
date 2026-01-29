@@ -66,6 +66,12 @@ class exception_powmat : public std::runtime_error {
     public:
         explicit exception_powmat(const std::string& msg)
             : std::runtime_error(msg) {}
-    };    
-    
+    };
+
+class exception_solver : public std::runtime_error {
+    public:
+        explicit exception_solver(const std::string& msg)
+            : std::runtime_error(msg) {}
+    };
+
 } //namespace simcoon

@@ -67,6 +67,7 @@ PYBIND11_MODULE(simmit, m)
     py::register_exception<simcoon::exception_logmat_sympd>(m, "CppExceptionLogMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_expmat_sym>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_powmat>(m, "CppExceptionPowMat", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_solver>(m, "CppExceptionSolver", SimcoonError.ptr());
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a = true, simcoon_docs::Ireal);
