@@ -210,7 +210,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
         vec vide = zeros(6);
         sigma = zeros(6);
         ET = zeros(6);
-        xiF = sim_limit;
+        xiF = limit;
         xiR = 0.;
         xi = xiF;
         
@@ -626,7 +626,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
     mat delta = eye(2,2);
     
     for (int i=0; i<2; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > iota)
             op(i) = 1.;
     }
     
