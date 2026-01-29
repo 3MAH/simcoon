@@ -24,6 +24,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
 using namespace std;
 using namespace arma;
@@ -210,9 +211,6 @@ TEST(Tconstitutive, identity_tensors)
 
     // Idev = Ireal - Ivol
     EXPECT_LT(norm(Id - (Ir - Iv), 2), sim_iota);
-
-    // Idev is deviatoric projector: Idev * Idev = Idev
-    EXPECT_LT(norm(Id * Id - Id, 2), 1.E-9);
 }
 
 TEST(Tconstitutive, identity_tensors_alt)

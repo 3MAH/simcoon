@@ -142,7 +142,8 @@ TEST(Thyperelastic, pstretch_with_projectors)
 
     vec lambda;
     mat n_pvector;
-    vector<mat> N_projectors;
+    // N_projectors must be pre-sized to 3 elements
+    vector<mat> N_projectors(3);
     simcoon::pstretch(lambda, n_pvector, N_projectors, b, "b");
 
     // Should have 3 projectors
@@ -245,25 +246,22 @@ TEST(Thyperelastic, L_vol_hyper_symmetry)
     EXPECT_LT(norm(Lvol - Lvol.t(), 2), 1.E-9);
 }
 
-TEST(Thyperelastic, a_b_delta_coefs)
+TEST(Thyperelastic, beta_gamma_coefs_values)
 {
-    // Test invariant-based coefficients
-    double dWdI_1_bar = 1.0;
-    double dWdI_2_bar = 0.0;
-    vec I_bar = {3., 3., 1.};
+    // Test with a known stretch state
+    vec lambda_bar = {1.2, 0.9, 0.926}; // product ~ 1
+    double mu = 100.;
+    vec dWdlambda_bar = mu * lambda_bar;
 
-    vec a = simcoon::a_coefs(dWdI_1_bar, dWdI_2_bar, I_bar);
-    EXPECT_EQ(a.n_elem, (arma::uword)3);
+    vec beta = simcoon::beta_coefs(dWdlambda_bar, lambda_bar);
+    // beta should have 3 components
+    EXPECT_EQ(beta.n_elem, (arma::uword)3);
 
-    double dW2dI_11_bar = 0.;
-    double dW2dI_12_bar = 0.;
-    double dW2dI_22_bar = 0.;
-    vec b = simcoon::b_coefs(dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, I_bar);
-    EXPECT_EQ(b.n_elem, (arma::uword)6);
-
-    mat b_tensor = eye(3, 3);
-    vec delta = simcoon::delta_coefs(a, b, b_tensor);
-    EXPECT_EQ(delta.n_elem, (arma::uword)6);
+    mat dW2dlambda_bar2 = mu * eye(3, 3);
+    mat gamma = simcoon::gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
+    // gamma should be 3x3
+    EXPECT_EQ(gamma.n_rows, (arma::uword)3);
+    EXPECT_EQ(gamma.n_cols, (arma::uword)3);
 }
 
 TEST(Thyperelastic, L_iso_hyper_pstretch_symmetry)
