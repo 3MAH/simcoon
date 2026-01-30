@@ -1032,7 +1032,8 @@ class Solver:
             sv.F1 = scc.eR_to_F(scc.v2t_strain(sv.etot + sv.Detot), sv.R, copy=False)
             # Update Green-Lagrange from F
             GL = scc.Green_Lagrange(sv.F1, copy=False)
-            np.copyto(sv.DEtot, scc.t2v_strain(GL, copy=False))
+            GL_vec = scc.t2v_strain(GL, copy=False)
+            np.copyto(sv.DEtot, GL_vec.ravel())  # Flatten in case of 2D return
             sv.DEtot -= sv.Etot
 
         # Compute objective rate quantities
@@ -1067,10 +1068,16 @@ class Solver:
         # The C++ binding expects Fortran-contiguous arrays:
         # - Vector arrays as 2D (n, 1) column matrices
         # - 3x3 tensors as 3D (3, 3, 1) cubes
-        # Note: UMAT uses Etot/DEtot (Green-Lagrange) for small strain
-        # The binding parameter names are lowercase but map to UMAT's uppercase
-        etot_batch = np.asfortranarray(sv.Etot.reshape(6, 1))
-        Detot_batch = np.asfortranarray(sv.DEtot.reshape(6, 1))
+        # Note: The binding parameter names are lowercase (etot/Detot)
+        # For small_strain (control_type=1): use Green-Lagrange (Etot/DEtot)
+        # For finite strain (control_type>1): use logarithmic strain (etot/Detot)
+        control_type_int = block.get_control_type_int()
+        if control_type_int == 1:  # small_strain - use Green-Lagrange
+            etot_batch = np.asfortranarray(sv.Etot.reshape(6, 1))
+            Detot_batch = np.asfortranarray(sv.DEtot.reshape(6, 1))
+        else:  # finite strain - use logarithmic strain
+            etot_batch = np.asfortranarray(sv.etot.reshape(6, 1))
+            Detot_batch = np.asfortranarray(sv.Detot.reshape(6, 1))
         sigma_batch = np.asfortranarray(sv.sigma.reshape(6, 1))
         F0_batch = np.asfortranarray(sv.F0.reshape(3, 3, 1))
         F1_batch = np.asfortranarray(sv.F1.reshape(3, 3, 1))
