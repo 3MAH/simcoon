@@ -2,11 +2,6 @@
 Micromechanics I/O (Python Module)
 ====================================
 
-.. note::
-   This Python module provides the **recommended** interface for working with
-   micromechanics phase configurations. It replaces the legacy ``.dat`` file formats
-   with modern JSON-based I/O.
-
 Overview
 --------
 
@@ -14,7 +9,6 @@ The ``simcoon.solver.micromechanics`` module provides:
 
 - **Data classes** for phases, layers, ellipsoids, cylinders, and sections
 - **JSON I/O functions** for loading and saving configurations
-- **Legacy conversion** functions for migrating from ``.dat`` files
 - **Standalone operation** without requiring ``simcoon._core`` to be built
 
 Quick Start
@@ -244,28 +238,28 @@ Layers JSON
      ]
    }
 
-Legacy File Conversion
-----------------------
+Cylinders JSON
+^^^^^^^^^^^^^^
 
-Convert from deprecated ``.dat`` files to JSON:
+.. code-block:: json
 
-.. code-block:: python
-
-   from simcoon.solver.micromechanics import (
-       convert_legacy_phases,
-       convert_legacy_layers,
-       convert_legacy_ellipsoids,
-       convert_legacy_cylinders,
-       convert_legacy_sections,
-   )
-
-   # Convert and save to JSON
-   phases = convert_legacy_phases('Nphases0.dat', 'phases.json')
-   layers = convert_legacy_layers('Nlayers0.dat', 'layers.json')
-   ellipsoids = convert_legacy_ellipsoids('Nellipsoids0.dat', 'ellipsoids.json')
-
-   # Or just convert without saving
-   ellipsoids = convert_legacy_ellipsoids('Nellipsoids0.dat')
+   {
+     "cylinders": [
+       {
+         "number": 0,
+         "coatingof": 0,
+         "umat_name": "ELISO",
+         "save": 1,
+         "concentration": 0.3,
+         "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
+         "L": 50.0,
+         "R": 1.0,
+         "geometry_orientation": {"psi": 0, "theta": 0, "phi": 0},
+         "nstatev": 1,
+         "props": {"E": 72000, "nu": 0.22, "alpha": 5e-6}
+       }
+     ]
+   }
 
 Standalone Usage
 ----------------
@@ -286,22 +280,6 @@ This is useful for:
 - Post-processing results
 - CI/CD pipelines that don't need the full simcoon build
 - Teaching and documentation
-
-Deprecated Legacy Format
-------------------------
-
-.. deprecated::
-   The legacy ``.dat`` file formats (``Nphases*.dat``, ``Nlayers*.dat``,
-   ``Nellipsoids*.dat``, ``Ncylinders*.dat``, ``Nsections*.dat``) are deprecated.
-
-   **Why JSON is better:**
-
-   - Self-documenting with named properties (no need to count columns)
-   - Easy programmatic generation and modification
-   - Better validation and error messages
-   - Compatible with web APIs and modern tooling
-
-   **Migration:** Use ``convert_legacy_*()`` functions to migrate existing files.
 
 See Also
 --------
