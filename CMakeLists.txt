@@ -166,9 +166,25 @@ FetchContent_Declare(
     GIT_TAG        "v3.0.1"
 )
 
+# Try to find nlohmann_json from system/conda first, fall back to FetchContent
+find_package(nlohmann_json 3.11 QUIET)
+if(NOT nlohmann_json_FOUND)
+  message(STATUS "nlohmann_json not found, fetching from GitHub")
+  FetchContent_Declare(
+      nlohmann_json
+      GIT_REPOSITORY "https://github.com/nlohmann/json"
+      GIT_TAG        "v3.11.3"
+  )
+else()
+  message(STATUS "Found nlohmann_json: ${nlohmann_json_VERSION}")
+endif()
+
 #set(BUILD_SHARED_LIBS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(dylib)
+if(NOT nlohmann_json_FOUND)
+  FetchContent_MakeAvailable(nlohmann_json)
+endif()
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
 # Python dependencies (only if building Python bindings)
@@ -321,7 +337,7 @@ endif()
 
 target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
-    PRIVATE dylib
+    PRIVATE dylib nlohmann_json::nlohmann_json
 )
 
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
@@ -342,12 +358,9 @@ if(WIN32 AND BUILD_PYTHON_BINDINGS)
   endif()
 endif()
 
-# Compile public executables (with main functions)
-set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
-foreach(exe_name ${EXECUTABLES})
-  add_executable(${exe_name} software/${exe_name}.cpp)
-  target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})
-endforeach()
+# NOTE: Legacy standalone executables (solver, identification, L_eff, Elastic_props, ODF, PDF)
+# have been removed in v2.0. Use the Python API instead for solver workflows.
+# The umat_* source files in software/ are kept for Abaqus/Ansys UMAT builds.
 
 ##Testing
 if(SIMCOON_BUILD_TESTS)
