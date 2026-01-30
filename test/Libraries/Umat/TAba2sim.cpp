@@ -30,7 +30,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
+#include <simcoon/Simulation/Phase/read_json.hpp>
 #include <simcoon/Simulation/Solver/read.hpp>
 
 
@@ -45,8 +45,8 @@ TEST(Taba2sim, read_write)
     srand(time(NULL));
     
     string path_data = "data";
-    string materialfile = "material.dat";    
-    string inputfile = "Nellipsoids0.dat";
+    string materialfile = "material.dat";
+    string inputfile = "ellipsoids0.json";
     
     //double psi_rve = 0.;
     //double theta_rve = 0.;
@@ -110,7 +110,7 @@ TEST(Taba2sim, read_write)
     
     rve.sptr_matprops->update(0, umat_name, 1, 0., 0., 0., nprops, props_smart);
 
-    read_ellipsoid(rve, path_data, inputfile);
+    read_ellipsoid_json(rve, path_data, inputfile);
     size_statev(rve, nstatev_multi);
 
     rve.sptr_matprops->umat_name = umat_name;
