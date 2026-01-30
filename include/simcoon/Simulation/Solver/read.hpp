@@ -18,10 +18,6 @@
 ///@file read.hpp
 ///@brief Solver utility functions for mixed boundary conditions
 ///@version 2.0
-///
-///@note The primary configuration method for v2.0 is JSON via the Python API.
-///      Legacy functions (read_matprops, read_path) are retained for internal
-///      test compatibility but deprecated for new code.
 
 #pragma once
 #include <armadillo>
@@ -31,28 +27,7 @@
 
 namespace simcoon{
 
-/**
- * @file read.hpp
- * @brief Solver utility functions.
- */
-
-/** @addtogroup solver
- *  @{
- */
-
-/**
- * @brief Read material properties from a legacy .dat file.
- * @deprecated Use Python JSON API instead for new code.
- * @param umat_name Output: UMAT name
- * @param nprops Output: Number of properties
- * @param props Output: Properties vector
- * @param nstatev Output: Number of state variables
- * @param psi_rve Output: First Euler angle
- * @param theta_rve Output: Second Euler angle
- * @param phi_rve Output: Third Euler angle
- * @param path_data Directory containing the file
- * @param materialfile Filename
- */
+/// Read material properties from a .dat file (internal use)
 void read_matprops(std::string &umat_name, unsigned int &nprops, arma::vec &props, unsigned int &nstatev,
                    double &psi_rve, double &theta_rve, double &phi_rve,
                    const std::string &path_data, const std::string &materialfile);
@@ -67,8 +42,5 @@ void Lth_2_K(const arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::mat
 
 /// Function that checks the coherency between the path and the step increments provided
 void check_path_output(const std::vector<block> &, const solver_output &);
-
-
-/** @} */ // end of solver group
 
 } //namespace simcoon

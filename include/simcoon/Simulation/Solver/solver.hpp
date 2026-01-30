@@ -16,12 +16,8 @@
  */
 
 ///@file solver.hpp
-///@brief Solver header - see Python API for solver functionality
+///@brief Solver header - use Python simcoon.solver module
 ///@version 2.0
-///
-///@note The legacy C++ solver function that read path.txt/material.dat files
-///      has been removed in v2.0. Use the Python simcoon.solver.Solver class instead.
-///      For direct UMAT calls, use the umat functions in umat_smart.hpp.
 
 #pragma once
 #include <armadillo>
@@ -29,37 +25,7 @@
 
 namespace simcoon{
 
-/**
- * @file solver.hpp
- * @brief Solver header - functionality moved to Python API.
- *
- * @note The legacy solver() function has been removed in v2.0.
- *       Use the Python simcoon.solver.Solver class for material point simulations.
- *
- * Example Python usage:
- * @code
- * from simcoon.solver import Solver, Block, StepMeca
- * import numpy as np
- *
- * props = np.array([210000.0, 0.3])  # E, nu for ELISO
- * step = StepMeca(
- *     DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
- *     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress']
- * )
- * block = Block(steps=[step], umat_name="ELISO", props=props, nstatev=1)
- * solver = Solver(blocks=[block])
- * history = solver.solve()
- * @endcode
- */
-
-/** @addtogroup solver
- *  @{
- */
-
-// NOTE: The legacy solver() function signature has been removed.
-// Use the Python API (simcoon.solver.Solver) for solver workflows.
-// For C++ UMAT integration (Abaqus/Ansys), use the umat functions directly.
-
-/** @} */ // end of solver group
+// Use Python simcoon.solver.Solver class for material point simulations.
+// For C++ UMAT integration (Abaqus/Ansys), use umat functions directly.
 
 } //namespace simcoon
