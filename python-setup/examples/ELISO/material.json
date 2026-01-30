@@ -1,0 +1,14 @@
+{
+  "name": "ELISO",
+  "props": {
+    "E": 70000,
+    "nu": 0.3,
+    "alpha": 1e-5
+  },
+  "nstatev": 1,
+  "orientation": {
+    "psi": 0,
+    "theta": 0,
+    "phi": 0
+  }
+}

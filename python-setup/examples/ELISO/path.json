@@ -1,0 +1,33 @@
+{
+  "initial_temperature": 290,
+  "blocks": [
+    {
+      "type": "mechanical",
+      "control_type": "small_strain",
+      "corate_type": "jaumann",
+      "ncycle": 1,
+      "steps": [
+        {
+          "time": 1.0,
+          "Dn_init": 10,
+          "Dn_mini": 1,
+          "Dn_inc": 100,
+          "DEtot": [0.02, 0, 0, 0, 0, 0],
+          "Dsigma": [0, 0, 0, 0, 0, 0],
+          "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+          "DT": 0
+        },
+        {
+          "time": 1.0,
+          "Dn_init": 10,
+          "Dn_mini": 1,
+          "Dn_inc": 100,
+          "DEtot": [0, 0, 0, 0, 0, 0],
+          "Dsigma": [0, 0, 0, 0, 0, 0],
+          "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+          "DT": 0
+        }
+      ]
+    }
+  ]
+}
