@@ -1,8 +1,5 @@
 """
 Tests for UMAT material models using the Python solver.
-
-These tests replace the legacy C++ gtest tests (TELISO, TELIST, etc.)
-with pytest tests using the JSON-based Python API.
 """
 
 import pytest
@@ -100,7 +97,6 @@ def run_uniaxial_test(umat_name: str, props: np.ndarray, nstatev: int,
 # ELISO Tests - Isotropic Elasticity
 # =============================================================================
 
-@pytest.mark.skip(reason="Python solver integration needs further work")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestELISO:
     """Tests for ELISO (isotropic elastic) material model."""
@@ -204,7 +200,6 @@ class TestELISO:
 # ELIST Tests - Transversely Isotropic Elasticity
 # =============================================================================
 
-@pytest.mark.skip(reason="Python solver integration needs further work")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestELIST:
     """Tests for ELIST (transversely isotropic elastic) material model."""
@@ -286,7 +281,6 @@ class TestELIST:
 # ELORT Tests - Orthotropic Elasticity
 # =============================================================================
 
-@pytest.mark.skip(reason="Python solver integration needs further work")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestELORT:
     """Tests for ELORT (orthotropic elastic) material model."""
@@ -328,7 +322,6 @@ class TestELORT:
 # EPICP Tests - Isotropic Elastoplasticity (Chaboche)
 # =============================================================================
 
-@pytest.mark.skip(reason="Python solver integration needs further work")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestEPICP:
     """Tests for EPICP (isotropic plasticity with Chaboche hardening)."""
@@ -402,18 +395,14 @@ class TestEPICP:
 # MIPLN Tests - Periodic Layers Homogenization
 # =============================================================================
 
-@pytest.mark.skip(reason="Homogenization tests require integration with data path - TODO")
+@pytest.mark.skip(reason="Homogenization tests require JSON phase data")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestMIPLN:
-    """Tests for MIPLN (periodic layers homogenization).
-
-    Note: These tests require the solver to run from a directory with
-    JSON data files. Integration with the Python API needs further work.
-    """
+    """Tests for MIPLN (periodic layers homogenization)."""
 
     def test_laminate_stiffness(self):
         """Test effective stiffness of 50/50 laminate."""
-        # TODO: Implement when homogenization integration is complete
+        # TODO: Implement with JSON phase configuration
         pass
 
 
@@ -421,32 +410,27 @@ class TestMIPLN:
 # MIMTN Tests - Mori-Tanaka Homogenization
 # =============================================================================
 
-@pytest.mark.skip(reason="Homogenization tests require integration with data path - TODO")
+@pytest.mark.skip(reason="Homogenization tests require JSON phase data")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestMIMTN:
-    """Tests for MIMTN (Mori-Tanaka homogenization).
-
-    Note: These tests require the solver to run from a directory with
-    JSON data files. Integration with the Python API needs further work.
-    """
+    """Tests for MIMTN (Mori-Tanaka homogenization)."""
 
     def test_spherical_inclusions(self):
         """Test Mori-Tanaka with spherical inclusions."""
-        # TODO: Implement when homogenization integration is complete
+        # TODO: Implement with JSON phase configuration
         pass
 
 
 # =============================================================================
-# Comparison Tests (against reference data)
+# Comparison Tests (against analytical solutions)
 # =============================================================================
 
-@pytest.mark.skip(reason="Python solver integration needs further work")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
-class TestReferenceComparison:
-    """Tests comparing results against pre-computed reference data."""
+class TestAnalyticalComparison:
+    """Tests comparing results against analytical solutions."""
 
-    def test_eliso_reference(self):
-        """Compare ELISO results against reference."""
+    def test_eliso_linear_response(self):
+        """Compare ELISO results against analytical linear elastic solution."""
         E = 70000.0
         nu = 0.3
         props = np.array([E, nu])
