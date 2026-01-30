@@ -1,4 +1,0 @@
-Geometry
-========
-
-.. toctree::

@@ -1,4 +1,0 @@
-Phase
-=====
-
-.. toctree::
