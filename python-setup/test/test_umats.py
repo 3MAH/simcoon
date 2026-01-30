@@ -12,6 +12,14 @@ from simcoon.solver import (
     Block,
     Solver,
 )
+from simcoon.solver.micromechanics import (
+    Layer,
+    Ellipsoid,
+    MaterialOrientation,
+    GeometryOrientation,
+    save_layers_json,
+    save_ellipsoids_json,
+)
 
 
 # =============================================================================
@@ -395,30 +403,129 @@ class TestEPICP:
 # MIPLN Tests - Periodic Layers Homogenization
 # =============================================================================
 
-@pytest.mark.skip(reason="Homogenization tests require JSON phase data")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestMIPLN:
     """Tests for MIPLN (periodic layers homogenization)."""
 
-    def test_laminate_stiffness(self):
-        """Test effective stiffness of 50/50 laminate."""
-        # TODO: Implement with JSON phase configuration
-        pass
+    def test_laminate_effective_stiffness(self, tmp_path, monkeypatch):
+        """Test effective stiffness of 50/50 laminate using L_eff."""
+        from simcoon.properties import effective_stiffness
+
+        # Create 50/50 laminate with two isotropic materials
+        layers = [
+            Layer(
+                number=0,
+                umat_name='ELISO',
+                concentration=0.5,
+                props=np.array([70000, 0.3, 0]),  # E=70000, nu=0.3
+                material_orientation=MaterialOrientation(0, 0, 0),
+                geometry_orientation=GeometryOrientation(0, 90, -90)
+            ),
+            Layer(
+                number=1,
+                umat_name='ELISO',
+                concentration=0.5,
+                props=np.array([3000, 0.4, 0]),  # E=3000, nu=0.4
+                material_orientation=MaterialOrientation(0, 0, 0),
+                geometry_orientation=GeometryOrientation(0, 90, -90)
+            ),
+        ]
+
+        # Save to JSON (L_eff reads from current working directory)
+        save_layers_json(str(tmp_path / "layers0.json"), layers)
+
+        # Change to temp directory so L_eff can find the JSON files
+        monkeypatch.chdir(tmp_path)
+
+        # Compute effective stiffness
+        # MIPLN expects: nphases, method (0=Voigt, 1=Reuss, 2=Periodic)
+        nphases = 2
+        method = 2  # Periodic homogenization
+        props = np.array([nphases, method])
+
+        L_eff = effective_stiffness('MIPLN', props, nstatev=0)
+
+        # Check that L_eff is a valid 6x6 stiffness matrix
+        assert L_eff.shape == (6, 6), f"Expected 6x6 matrix, got {L_eff.shape}"
+
+        # Stiffness should be positive definite (all eigenvalues > 0)
+        eigenvalues = np.linalg.eigvals(L_eff)
+        assert np.all(eigenvalues > 0), "Stiffness matrix should be positive definite"
+
+        # Effective modulus should be between the two constituents
+        # For laminate in fiber direction (direction 3 for layers)
+        E_soft = 3000
+        E_stiff = 70000
+        # L_33 gives effective modulus in layer stacking direction
+        assert L_eff[2, 2] > E_soft, "Effective stiffness should exceed soft phase"
+        assert L_eff[2, 2] < E_stiff, "Effective stiffness should be less than stiff phase"
 
 
 # =============================================================================
 # MIMTN Tests - Mori-Tanaka Homogenization
 # =============================================================================
 
-@pytest.mark.skip(reason="Homogenization tests require JSON phase data")
 @pytest.mark.skipif(not _has_simcoon_core(), reason="simcoon._core not available")
 class TestMIMTN:
     """Tests for MIMTN (Mori-Tanaka homogenization)."""
 
-    def test_spherical_inclusions(self):
+    def test_spherical_inclusions_effective_stiffness(self, tmp_path, monkeypatch):
         """Test Mori-Tanaka with spherical inclusions."""
-        # TODO: Implement with JSON phase configuration
-        pass
+        from simcoon.properties import effective_stiffness
+
+        # Create composite with spherical inclusions (30% volume fraction)
+        ellipsoids = [
+            Ellipsoid(
+                number=0,
+                coatingof=0,
+                umat_name='ELISO',
+                concentration=0.7,
+                props=np.array([3000, 0.4, 0]),  # Matrix: E=3000, nu=0.4
+                material_orientation=MaterialOrientation(0, 0, 0),
+                geometry_orientation=GeometryOrientation(0, 0, 0),
+                a1=1, a2=1, a3=1  # Sphere
+            ),
+            Ellipsoid(
+                number=1,
+                coatingof=0,
+                umat_name='ELISO',
+                concentration=0.3,
+                props=np.array([70000, 0.3, 0]),  # Inclusions: E=70000, nu=0.3
+                material_orientation=MaterialOrientation(0, 0, 0),
+                geometry_orientation=GeometryOrientation(0, 0, 0),
+                a1=1, a2=1, a3=1  # Sphere
+            ),
+        ]
+
+        # Save to JSON (L_eff reads from current working directory)
+        save_ellipsoids_json(str(tmp_path / "ellipsoids0.json"), ellipsoids)
+
+        # Change to temp directory so L_eff can find the JSON files
+        monkeypatch.chdir(tmp_path)
+
+        # Compute effective stiffness
+        # MIMTN expects: nphases
+        nphases = 2
+        props = np.array([nphases])
+
+        L_eff = effective_stiffness('MIMTN', props, nstatev=0)
+
+        # Check that L_eff is a valid 6x6 stiffness matrix
+        assert L_eff.shape == (6, 6), f"Expected 6x6 matrix, got {L_eff.shape}"
+
+        # For spherical inclusions, result should be isotropic
+        # Check that diagonal terms are approximately equal
+        diag = np.diag(L_eff)
+        assert np.isclose(diag[0], diag[1], rtol=0.01), "Should be isotropic (L11=L22)"
+        assert np.isclose(diag[0], diag[2], rtol=0.01), "Should be isotropic (L11=L33)"
+
+        # Effective modulus should be between matrix and inclusion
+        E_matrix = 3000
+        E_inclusion = 70000
+        # Extract effective E from L_eff (approximate for isotropic)
+        # For isotropic: L11 = E(1-nu)/((1+nu)(1-2nu))
+        assert L_eff[0, 0] > E_matrix, "Effective stiffness should exceed matrix"
+        assert L_eff[0, 0] < E_inclusion, "Effective stiffness should be less than inclusion"
 
 
 # =============================================================================
