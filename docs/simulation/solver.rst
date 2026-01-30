@@ -593,3 +593,79 @@ Thermomechanical loading
     Q 0
 
 This simulates a strain-controlled loading followed by unloading under adiabatic conditions (Q = 0).
+
+JSON-based Configuration (Recommended)
+--------------------------------------
+
+.. note::
+   The text-based ``path.txt`` format is still supported but is being phased out in favor
+   of JSON-based configuration. The JSON format is more readable, easier to programmatically
+   generate, and provides better error messages.
+
+The ``simcoon.solver.io`` module provides JSON I/O for material and path configurations:
+
+Material JSON
+^^^^^^^^^^^^^
+
+.. code-block:: json
+
+   {
+     "name": "ELISO",
+     "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5},
+     "nstatev": 1,
+     "orientation": {"psi": 0, "theta": 0, "phi": 0}
+   }
+
+Path JSON
+^^^^^^^^^
+
+.. code-block:: json
+
+   {
+     "initial_temperature": 293.15,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "small_strain",
+         "corate_type": "jaumann",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 1.0,
+             "Dn_init": 10,
+             "Dn_mini": 1,
+             "Dn_inc": 100,
+             "DEtot": [0.01, 0, 0, 0, 0, 0],
+             "Dsigma": [0, 0, 0, 0, 0, 0],
+             "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "DT": 0
+           }
+         ]
+       }
+     ]
+   }
+
+Usage
+^^^^^
+
+.. code-block:: python
+
+   from simcoon.solver.io import (
+       load_material_json, save_material_json,
+       load_path_json, save_path_json,
+       convert_legacy_material, convert_legacy_path,
+   )
+
+   # Load from JSON
+   material = load_material_json('material.json')
+   path = load_path_json('path.json')
+
+   # Convert legacy files to JSON
+   convert_legacy_material('material.dat', 'material.json')
+   convert_legacy_path('path.txt', 'path.json')
+
+See Also
+--------
+
+- :doc:`micromechanics` - Python micromechanics I/O (phases, ellipsoids, layers)
+- :doc:`output` - Output file configuration
