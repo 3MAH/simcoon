@@ -1,12 +1,13 @@
 """
 Plasticity with Chaboche Hardening Example
 =============================================
+
+This example demonstrates the Chaboche plasticity UMAT using the new Python Solver API.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
-import simcoon as sim
-import os
+from simcoon.solver import Solver, Block, StepMeca
 
 plt.rcParams["figure.figsize"] = (18, 10)
 
@@ -45,44 +46,82 @@ umat_name = "EPCHA"  # 5 character code for Chaboche plasticity
 nstatev = 33  # Number of internal variables
 
 # Material parameters
-E = 140000.0  # Young's modulus (MPa)
-nu = 0.3  # Poisson ratio
-alpha = 1.0e-6  # Thermal expansion coefficient
+E = 140000.0         # Young's modulus (MPa)
+nu = 0.3             # Poisson ratio
+alpha = 1.0e-6       # Thermal expansion coefficient
 sigma_Y = 62.859017  # Initial yield stress (MPa)
-Q = 416.004456  # Isotropic hardening saturation
-b = 4.788635  # Isotropic hardening rate
-C_1 = 30382.293921  # First kinematic hardening modulus
-D_1 = 172.425687  # First kinematic hardening rate
+Q = 416.004456       # Isotropic hardening saturation
+b = 4.788635         # Isotropic hardening rate
+C_1 = 30382.293921   # First kinematic hardening modulus
+D_1 = 172.425687     # First kinematic hardening rate
 C_2 = 195142.490843  # Second kinematic hardening modulus
-D_2 = 3012.614659  # Second kinematic hardening rate
-
-psi_rve = 0.0
-theta_rve = 0.0
-phi_rve = 0.0
-solver_type = 0
-corate_type = 1
+D_2 = 3012.614659    # Second kinematic hardening rate
 
 props = np.array([E, nu, alpha, sigma_Y, Q, b, C_1, D_1, C_2, D_2])
 
-path_data = "data"
-path_results = "results"
-pathfile = "EPCHA_path.txt"
-outputfile = "results_EPCHA.txt"
+###################################################################################
+# Create loading path using the new Python Solver API
+# ---------------------------------------------------
+# Define a cyclic uniaxial loading to demonstrate the Bauschinger effect.
 
-sim.solver(
-    umat_name,
-    props,
-    nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+# Step 1: Tension to 1% strain
+step1 = StepMeca(
+    DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=100,
+    Dn_mini=20,
+    Dn_inc=200,
+    time=1.0
 )
+
+# Step 2: Compression to -1% strain
+step2 = StepMeca(
+    DEtot_end=np.array([-0.02, 0, 0, 0, 0, 0]),  # -2% increment from +1%
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=200,
+    Dn_mini=40,
+    Dn_inc=400,
+    time=2.0
+)
+
+# Step 3: Tension back to +1% strain
+step3 = StepMeca(
+    DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=200,
+    Dn_mini=40,
+    Dn_inc=400,
+    time=2.0
+)
+
+# Create block with material properties
+block = Block(
+    steps=[step1, step2, step3],
+    umat_name=umat_name,
+    props=props,
+    nstatev=nstatev,
+    control_type='small_strain',
+    corate_type='green_naghdi'
+)
+
+# Run the simulation
+solver = Solver(blocks=[block])
+history = solver.solve()
+
+###################################################################################
+# Extract results from history
+# ----------------------------
+
+e11 = np.array([h.Etot[0] for h in history])
+s11 = np.array([h.sigma[0] for h in history])
+time_arr = np.array([i for i in range(len(history))])  # Increment counter as proxy for time
+Wm = np.array([h.Wm[0] for h in history])
+Wm_r = np.array([h.Wm[1] for h in history])
+Wm_ir = np.array([h.Wm[2] for h in history])
+Wm_d = np.array([h.Wm[3] for h in history])
 
 ###################################################################################
 # Plotting the results
@@ -91,19 +130,7 @@ sim.solver(
 # We plot the stress-strain hysteresis loop which shows the cyclic behavior
 # including the Bauschinger effect from kinematic hardening.
 
-outputfile_macro = os.path.join(path_results, "results_EPCHA_global-0.txt")
-
 fig = plt.figure()
-
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q_out, r = np.loadtxt(outputfile_macro, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(
-    outputfile_macro, usecols=(20, 21, 22, 23), unpack=True
-)
 
 # First subplot: Stress vs Strain (hysteresis loop)
 ax1 = fig.add_subplot(1, 2, 1)
@@ -112,18 +139,34 @@ plt.tick_params(axis="both", which="major", labelsize=15)
 plt.xlabel(r"Strain $\varepsilon_{11}$", size=15)
 plt.ylabel(r"Stress $\sigma_{11}$ (MPa)", size=15)
 plt.plot(e11, s11, c="blue", label="Chaboche model")
+plt.title("Stress-Strain Hysteresis Loop")
 plt.legend(loc="best")
 
-# Second subplot: Work terms vs Time
+# Second subplot: Work terms vs Increment
 ax2 = fig.add_subplot(1, 2, 2)
 plt.grid(True)
 plt.tick_params(axis="both", which="major", labelsize=15)
-plt.xlabel("time (s)", size=15)
+plt.xlabel("Increment", size=15)
 plt.ylabel(r"$W_m$", size=15)
-plt.plot(time, Wm, c="black", label=r"$W_m$")
-plt.plot(time, Wm_r, c="green", label=r"$W_m^r$")
-plt.plot(time, Wm_ir, c="blue", label=r"$W_m^{ir}$")
-plt.plot(time, Wm_d, c="red", label=r"$W_m^d$")
+plt.plot(time_arr, Wm, c="black", label=r"$W_m$")
+plt.plot(time_arr, Wm_r, c="green", label=r"$W_m^r$")
+plt.plot(time_arr, Wm_ir, c="blue", label=r"$W_m^{ir}$")
+plt.plot(time_arr, Wm_d, c="red", label=r"$W_m^d$")
+plt.title("Work Terms")
 plt.legend(loc="best")
 
+plt.suptitle("EPCHA - Chaboche Plasticity with Kinematic Hardening")
+plt.tight_layout()
 plt.show()
+
+###################################################################################
+# Note on the Bauschinger effect
+# ------------------------------
+# The hysteresis loop shows the Bauschinger effect: upon load reversal, the
+# material yields at a stress lower than the original yield stress due to
+# the kinematic hardening (back stress) accumulation.
+
+print("\nChaboche Model Results:")
+print(f"Maximum tensile stress: {max(s11):.2f} MPa")
+print(f"Maximum compressive stress: {min(s11):.2f} MPa")
+print(f"Yield asymmetry (Bauschinger effect): {abs(max(s11)) - abs(min(s11)):.2f} MPa")

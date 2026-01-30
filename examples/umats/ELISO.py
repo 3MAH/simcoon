@@ -1,12 +1,13 @@
 """
 Isotropic elasticity examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This example demonstrates the isotropic elastic UMAT using the new Python Solver API.
 """
 
 import numpy as np
-import simcoon as sim
 import matplotlib.pyplot as plt
-import os
+from simcoon.solver import Solver, Block, StepMeca
 
 ###################################################################################
 # In thermoelastic isotropic materials three parameters are required:
@@ -91,55 +92,87 @@ import os
 #    \sigma^{\mathrm{fin}}_{ij} = \sigma^{\mathrm{init}}_{ij} + L_{ijkl}~\Delta\varepsilon^{\mathrm{el}}_{kl}.
 
 
-umat_name = "ELISO"  # This is the 5 character code for the elastic-isotropic subroutine
-nstatev = 1  # The number of scalar variables required, only the initial temperature is stored here
+###################################################################################
+# Define material properties
+# --------------------------
+# ELISO is the 5 character code for the elastic-isotropic subroutine
 
-E = 700000.0
-nu = 0.2
-alpha = 1.0e-5
-
-psi_rve = 0.0
-theta_rve = 0.0
-phi_rve = 0.0
-solver_type = 0
-corate_type = 2
+E = 700000.0      # Young's modulus (MPa)
+nu = 0.2          # Poisson ratio
+alpha = 1.0e-5    # Thermal expansion coefficient
 
 props = np.array([E, nu, alpha])
+nstatev = 1  # Number of internal state variables (only initial temperature stored)
 
-path_data = "data"
-path_results = "results"
-pathfile = "ELISO_path.txt"
-outputfile = "results_ELISO.txt"
+###################################################################################
+# Create loading path using the new Python Solver API
+# ---------------------------------------------------
+# We define a uniaxial tension test with strain control in direction 1
+# and stress-free boundary conditions in the transverse directions.
 
-sim.solver(
-    umat_name,
-    props,
-    nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+# Uniaxial tension: strain in direction 1, stress-free in other directions
+step = StepMeca(
+    DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),  # 1% strain in direction 1
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),    # Target stress increment (for stress-controlled)
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=50,   # Number of increments
+    Dn_mini=10,   # Minimum increments
+    Dn_inc=100,   # Maximum increments
+    time=1.0      # Time for this step
 )
 
-outputfile_macro = os.path.join(path_results, "results_ELISO_global-0.txt")
+# Create block with material properties
+block = Block(
+    steps=[step],
+    umat_name="ELISO",
+    props=props,
+    nstatev=nstatev,
+    control_type='small_strain',
+    corate_type='logarithmic'
+)
+
+###################################################################################
+# Run the simulation
+# ------------------
+
+solver = Solver(blocks=[block])
+history = solver.solve()
+
+###################################################################################
+# Extract results from history
+# ----------------------------
+# The history contains StateVariables objects at each converged increment
+
+e11 = np.array([h.Etot[0] for h in history])
+e22 = np.array([h.Etot[1] for h in history])
+e33 = np.array([h.Etot[2] for h in history])
+s11 = np.array([h.sigma[0] for h in history])
+s22 = np.array([h.sigma[1] for h in history])
+s33 = np.array([h.sigma[2] for h in history])
+
+###################################################################################
+# Plotting the results
+# --------------------
 
 fig = plt.figure()
 
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-
 plt.grid(True)
-
-plt.plot(e11, s11, c="blue")
+plt.plot(e11, s11, c="blue", label="Stress-strain response")
 plt.xlabel("Strain")
 plt.ylabel("Stress (MPa)")
+plt.title("ELISO - Isotropic Elasticity (Uniaxial Tension)")
+plt.legend()
 
 plt.show()
+
+###################################################################################
+# Verify analytical solution
+# --------------------------
+# For uniaxial tension with isotropic elasticity:
+# sigma_11 = E * epsilon_11
+
+print(f"\nVerification:")
+print(f"Applied strain: {e11[-1]:.6f}")
+print(f"Computed stress: {s11[-1]:.2f} MPa")
+print(f"Expected stress (E * epsilon): {E * e11[-1]:.2f} MPa")
+print(f"Relative error: {abs(s11[-1] - E * e11[-1]) / (E * e11[-1]) * 100:.4f}%")

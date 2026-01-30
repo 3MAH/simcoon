@@ -1,16 +1,16 @@
 """
 Plasticity with isotropic hardening example
 =============================================
+
+This example demonstrates the elastic-plastic UMAT with isotropic hardening
+using the new Python Solver API.
 """
 
-import pylab
 import numpy as np
 import matplotlib.pyplot as plt
-import simcoon as sim
-import os
+from simcoon.solver import Solver, Block, StepMeca
 
 plt.rcParams["figure.figsize"] = (18, 10)  # configure the figure output size
-dir = os.path.dirname(os.path.realpath("__file__"))
 
 plt.rc("text", usetex=True)
 plt.rc("font", family="serif")
@@ -51,43 +51,47 @@ plt.rc("font", family="serif")
 # As a start we should input the name of the UMAT as well as the list of parameters
 
 umat_name = "EPICP"  # This is the 5 character code for the elastic-plastic subroutine
-nstatev = 8  # The number of scalar variables required, only the initial temperature is stored here
+nstatev = 8  # The number of scalar variables required
 
-E = 113800
-nu = 0.342
-alpha = 0.86e-5
-sigma_Y = 600
-H = 1600
-beta = 0.25
-
-psi_rve = 0.0
-theta_rve = 0.0
-phi_rve = 0.0
-solver_type = 0
-corate_type = 3
+E = 113800       # Young's modulus (MPa)
+nu = 0.342       # Poisson ratio
+alpha = 0.86e-5  # Thermal expansion coefficient
+sigma_Y = 600    # Yield stress (MPa)
+H = 1600         # Hardening parameter
+beta = 0.25      # Hardening exponent
 
 # Define the properties
 props = np.array([E, nu, alpha, sigma_Y, H, beta])
-path_data = "data"
-path_results = "results"
+
+# ###################################################################################
+# Create loading path using the new Python Solver API
+# ---------------------------------------------------
+# Define a uniaxial tension-compression cycle
+
+# Step 1: Tension to 2% strain
+step1 = StepMeca(
+    DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=100,
+    Dn_mini=20,
+    Dn_inc=200,
+    time=1.0
+)
+
+# Create block with material properties
+block = Block(
+    steps=[step1],
+    umat_name=umat_name,
+    props=props,
+    nstatev=nstatev,
+    control_type='small_strain',
+    corate_type='logarithmic_R'
+)
 
 # Run the simulation
-pathfile = "EPICP_path.txt"
-outputfile = "results_EPICP.txt"
-sim.solver(
-    umat_name,
-    props,
-    nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
-)
+solver = Solver(blocks=[block])
+history = solver.solve()
 
 # ###################################################################################
 # Plotting the results
@@ -100,20 +104,18 @@ sim.solver(
 # - :meth:`Wm_d <simcoon.Wm_d>` the dissipated mechanical work.
 # ###################################################################################
 
-# prepare the load
-fig = plt.figure()
-outputfile_global = "results_EPICP_global-0.txt"
-path = dir + "/results/"
-P_global = path + outputfile_global
-
-# Get the data
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    P_global, usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19), unpack=True
-)
-time, T, Q, r = np.loadtxt(P_global, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(P_global, usecols=(20, 21, 22, 23), unpack=True)
+# Extract data from history
+e11 = np.array([h.Etot[0] for h in history])
+s11 = np.array([h.sigma[0] for h in history])
+time = np.linspace(0, 1, len(history))
+Wm = np.array([h.Wm[0] for h in history])
+Wm_r = np.array([h.Wm[1] for h in history])
+Wm_ir = np.array([h.Wm[2] for h in history])
+Wm_d = np.array([h.Wm[3] for h in history])
 
 # Plot the results
+fig = plt.figure()
+
 ax = fig.add_subplot(1, 2, 1)
 plt.grid(True)
 plt.tick_params(axis="both", which="major", labelsize=15)
@@ -133,6 +135,8 @@ plt.plot(time, Wm_ir, c="blue", label=r"$W_m^{ir}$")
 plt.plot(time, Wm_d, c="red", label=r"$W_m^d$")
 plt.legend(loc=2)
 
+plt.suptitle("EPICP - Plasticity with Isotropic Hardening")
+plt.tight_layout()
 plt.show()
 
 # ###################################################################################
@@ -140,54 +144,50 @@ plt.show()
 # ----------------------------------------------------------
 # ###################################################################################
 
-# Define increments and corresponding filenames
+# Define different increment counts
 increments = [1, 10, 100, 1000]
-outputfile_globals = {}
+data = []
 
 for inc in increments:
-    pathfile = f"EPICP_path_{inc}.txt"
-    outputfile = f"results_EPICP_{inc}.txt"
-    sim.solver(
-        umat_name,
-        props,
-        nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+    step = StepMeca(
+        DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+        Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+        control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+        Dn_init=inc,
+        Dn_mini=max(1, inc // 10),
+        Dn_inc=inc * 2,
+        time=1.0
     )
-    outputfile_globals[inc] = f"results_EPICP_{inc}_global-0.txt"
 
-# Prepare output file names and paths for each increment
-outputfile_globals = {inc: outputfile_globals[inc] for inc in increments}
-paths = [os.path.join(dir, "results", outputfile_globals[inc]) for inc in increments]
+    block = Block(
+        steps=[step],
+        umat_name=umat_name,
+        props=props,
+        nstatev=nstatev,
+        control_type='small_strain',
+        corate_type='logarithmic_R'
+    )
 
-# Load data for each increment into a list of dicts
-data = []
-for path in paths:
-    # Strain and stress components
-    e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-        path, usecols=range(8, 20), unpack=True
-    )
-    # Time and other variables
-    time, T, Q, r = np.loadtxt(path, usecols=range(4, 8), unpack=True)
-    Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(path, usecols=range(20, 24), unpack=True)
-    data.append(
-        {
-            "e11": e11,
-            "s11": s11,
-            "time": time,
-            "Wm": Wm,
-            "Wm_r": Wm_r,
-            "Wm_ir": Wm_ir,
-            "Wm_d": Wm_d,
-        }
-    )
+    solver = Solver(blocks=[block])
+    history = solver.solve()
+
+    e11 = np.array([h.Etot[0] for h in history])
+    s11 = np.array([h.sigma[0] for h in history])
+    time_arr = np.linspace(0, 1, len(history))
+    Wm = np.array([h.Wm[0] for h in history])
+    Wm_r = np.array([h.Wm[1] for h in history])
+    Wm_ir = np.array([h.Wm[2] for h in history])
+    Wm_d = np.array([h.Wm[3] for h in history])
+
+    data.append({
+        "e11": e11,
+        "s11": s11,
+        "time": time_arr,
+        "Wm": Wm,
+        "Wm_r": Wm_r,
+        "Wm_ir": Wm_ir,
+        "Wm_d": Wm_d,
+    })
 
 # ###################################################################################
 # Plotting the results
@@ -254,5 +254,6 @@ for i, d in enumerate(data):
             plt.plot(d["time"], d[wk], c=wc, label=wl)
 plt.legend(loc=2)
 
+plt.suptitle("Increment Size Effect on EPICP Results")
+plt.tight_layout()
 plt.show()
-#

@@ -144,8 +144,8 @@ aspect_ratios = np.logspace(-1, 1, 50)
 E_eff_ar = np.zeros(len(aspect_ratios))
 umat_name = "MIMTN"
 
-# Load ellipsoid phases from JSON
-ellipsoids_file = path_data + "/ellipsoids.json"
+# Load ellipsoid phases from JSON (C++ looks for ellipsoids{num_file}.json)
+ellipsoids_file = path_data + "/ellipsoids0.json"
 ellipsoids = load_ellipsoids_json(ellipsoids_file)
 
 # Store original semi-axes for restoration

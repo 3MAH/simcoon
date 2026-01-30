@@ -1,12 +1,13 @@
 """
 Transversely Isotropic Elasticity Example
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This example demonstrates the transversely isotropic elastic UMAT using the new Python Solver API.
 """
 
 import numpy as np
-import simcoon as sim
 import matplotlib.pyplot as plt
-import os
+from simcoon.solver import Solver, Block, StepMeca
 
 ###################################################################################
 # In transversely isotropic elastic materials, there is a single axis of symmetry.
@@ -52,42 +53,55 @@ umat_name = "ELIST"  # 5 character code for transversely isotropic elastic subro
 nstatev = 1  # Number of internal variables
 
 # Material parameters
-axis = 1  # Symmetry axis
-E_L = 4500.0  # Longitudinal Young's modulus (MPa)
-E_T = 2300.0  # Transverse Young's modulus (MPa)
-nu_TL = 0.05  # Poisson ratio (transverse-longitudinal)
-nu_TT = 0.3  # Poisson ratio (transverse-transverse)
+axis = 1       # Symmetry axis
+E_L = 4500.0   # Longitudinal Young's modulus (MPa)
+E_T = 2300.0   # Transverse Young's modulus (MPa)
+nu_TL = 0.05   # Poisson ratio (transverse-longitudinal)
+nu_TT = 0.3    # Poisson ratio (transverse-transverse)
 G_LT = 2700.0  # Shear modulus (longitudinal-transverse)
 alpha_L = 1.0e-5  # Thermal expansion (longitudinal)
 alpha_T = 2.5e-5  # Thermal expansion (transverse)
 
-psi_rve = 0.0
-theta_rve = 0.0
-phi_rve = 0.0
-solver_type = 0
-corate_type = 1
-
 props = np.array([axis, E_L, E_T, nu_TL, nu_TT, G_LT, alpha_L, alpha_T])
 
-path_data = "data"
-path_results = "results"
-pathfile = "ELIST_path.txt"
-outputfile = "results_ELIST.txt"
+###################################################################################
+# Create loading path using the new Python Solver API
+# ---------------------------------------------------
+# We define a uniaxial tension test along the longitudinal direction (direction 1).
 
-sim.solver(
-    umat_name,
-    props,
-    nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+step = StepMeca(
+    DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),  # 1% strain in direction 1
+    Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=50,
+    Dn_mini=10,
+    Dn_inc=100,
+    time=1.0
 )
+
+block = Block(
+    steps=[step],
+    umat_name=umat_name,
+    props=props,
+    nstatev=nstatev,
+    control_type='small_strain',
+    corate_type='green_naghdi'
+)
+
+# Run the simulation
+solver = Solver(blocks=[block])
+history = solver.solve()
+
+###################################################################################
+# Extract results from history
+# ----------------------------
+
+e11 = np.array([h.Etot[0] for h in history])
+e22 = np.array([h.Etot[1] for h in history])
+e33 = np.array([h.Etot[2] for h in history])
+s11 = np.array([h.sigma[0] for h in history])
+s22 = np.array([h.sigma[1] for h in history])
+s33 = np.array([h.sigma[2] for h in history])
 
 ###################################################################################
 # Plotting the results
@@ -95,20 +109,25 @@ sim.solver(
 #
 # We plot the stress-strain curve in the loading direction (direction 1).
 
-outputfile_macro = os.path.join(path_results, "results_ELIST_global-0.txt")
-
 fig = plt.figure()
-
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
 
 plt.grid(True)
 plt.xlabel(r"Strain $\varepsilon_{11}$")
 plt.ylabel(r"Stress $\sigma_{11}$ (MPa)")
 plt.plot(e11, s11, c="blue", label="Loading direction 1")
+plt.title("ELIST - Transversely Isotropic Elasticity")
 plt.legend(loc="best")
 
 plt.show()
+
+###################################################################################
+# Verify transverse isotropy
+# --------------------------
+
+print("\nVerification of transversely isotropic behavior:")
+print(f"Applied axial strain: {e11[-1]:.6f}")
+print(f"Computed axial stress: {s11[-1]:.2f} MPa")
+print(f"Expected stress (E_L * epsilon): {E_L * e11[-1]:.2f} MPa")
+print(f"Transverse strain e22: {e22[-1]:.6f}")
+print(f"Transverse strain e33: {e33[-1]:.6f}")
+print(f"Poisson effect check (e22 ~ e33 for transverse isotropy): {np.isclose(e22[-1], e33[-1])}")

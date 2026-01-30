@@ -11,7 +11,7 @@ This gallery contains examples demonstrating:
 Phase Configuration
 ^^^^^^^^^^^^^^^^^^^
 
-Phase configurations (ellipsoids, layers, cylinders) can be defined using the
+Phase configurations (ellipsoids, layers, cylinders) are defined using the
 Python ``simcoon.solver.micromechanics`` module with JSON format:
 
 .. code-block:: python
@@ -31,7 +31,3 @@ Python ``simcoon.solver.micromechanics`` module with JSON format:
    save_ellipsoids_json('data/ellipsoids.json', phases)
 
 See ``data/ellipsoids.json`` for the JSON format example.
-
-.. note::
-   The legacy ``.dat`` file formats (``Nellipsoids0.dat``, etc.) are deprecated.
-   Use ``convert_legacy_ellipsoids()`` to migrate existing files to JSON.
