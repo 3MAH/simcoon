@@ -3,7 +3,6 @@ Orientation Distribution Function Module
 ========================================
 
 Tools for working with Orientation Distribution Functions (ODF).
-Replaces the legacy ODF executable.
 
 This module provides:
 - ODF density evaluation

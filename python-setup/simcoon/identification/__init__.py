@@ -1,10 +1,7 @@
 """
 Simcoon Identification Module.
 
-This module provides Python-based material parameter identification and calibration
-tools using scipy.optimize and sklearn for optimization and cost function evaluation.
-
-It replaces the legacy C++ identification functions that have been removed in v2.0.
+Material parameter identification and calibration tools using scipy.optimize.
 
 Classes
 -------

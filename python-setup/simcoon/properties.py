@@ -3,7 +3,6 @@ Elastic Properties Module
 =========================
 
 Tools for computing and analyzing elastic properties of materials.
-Replaces the legacy Elastic_props executable.
 
 This module wraps the C++ constitutive and recovery_props functions
 to provide a convenient Python interface for:

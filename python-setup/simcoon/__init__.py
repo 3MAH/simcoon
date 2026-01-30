@@ -14,11 +14,11 @@ solver
 identification
     Material parameter identification and calibration tools
 properties
-    Elastic properties computation and analysis (replaces Elastic_props)
+    Elastic properties computation and analysis
 odf
-    Orientation Distribution Function tools (replaces ODF executable)
+    Orientation Distribution Function tools
 pdf
-    Probability Distribution Function tools (replaces PDF executable)
+    Probability Distribution Function tools
 parameter
     Parameter management for DOE and optimization
 constant
@@ -50,10 +50,10 @@ Quick Start
 from simcoon._core import *
 from simcoon.__version__ import __version__
 
-# Backward compatibility alias - simmit was the legacy module name
+# Alias for backward compatibility
 from simcoon import _core as simmit
 
-# Import submodules for convenient access
+# Import submodules
 from simcoon import solver
 from simcoon import identification
 from simcoon import properties

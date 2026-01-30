@@ -3,7 +3,6 @@ Probability Distribution Function Module
 ========================================
 
 Tools for working with Probability Distribution Functions (PDF).
-Replaces the legacy PDF executable.
 
 This module provides tools for:
 - Common distribution functions (log-normal, Weibull, etc.)
