@@ -192,8 +192,8 @@ void read_layer_json(phase_characteristics &rve,
     const auto& layers = j["layers"];
     unsigned int nphases = layers.size();
 
-    // Construct sub-phases with layer geometry (type 3)
-    rve.sub_phases_construct(nphases, 3, 1);
+    // Construct sub-phases with layer geometry (type 1)
+    rve.sub_phases_construct(nphases, 1, 1);
 
     for (unsigned int i = 0; i < nphases; i++) {
         const auto& layer_json = layers[i];
@@ -264,8 +264,8 @@ void read_cylinder_json(phase_characteristics &rve,
     const auto& cylinders = j["cylinders"];
     unsigned int nphases = cylinders.size();
 
-    // Construct sub-phases with cylinder geometry (type 1)
-    rve.sub_phases_construct(nphases, 1, 1);
+    // Construct sub-phases with cylinder geometry (type 3)
+    rve.sub_phases_construct(nphases, 3, 1);
 
     for (unsigned int i = 0; i < nphases; i++) {
         const auto& cyl_json = cylinders[i];
