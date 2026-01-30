@@ -1,23 +1,27 @@
 /* This file is part of simcoon.
- 
+
  simcoon is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
- 
+
  simcoon is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
- 
+
  */
 
 ///@file solver.hpp
-///@brief To solver an homogeneous thermomechanical problem
-///@version 1.0
+///@brief Solver header - see Python API for solver functionality
+///@version 2.0
+///
+///@note The legacy C++ solver function that read path.txt/material.dat files
+///      has been removed in v2.0. Use the Python simcoon.solver.Solver class instead.
+///      For direct UMAT calls, use the umat functions in umat_smart.hpp.
 
 #pragma once
 #include <armadillo>
@@ -27,47 +31,34 @@ namespace simcoon{
 
 /**
  * @file solver.hpp
- * @brief Solver functions and classes.
+ * @brief Solver header - functionality moved to Python API.
+ *
+ * @note The legacy solver() function has been removed in v2.0.
+ *       Use the Python simcoon.solver.Solver class for material point simulations.
+ *
+ * Example Python usage:
+ * @code
+ * from simcoon.solver import Solver, Block, StepMeca
+ * import numpy as np
+ *
+ * props = np.array([210000.0, 0.3])  # E, nu for ELISO
+ * step = StepMeca(
+ *     DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
+ *     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress']
+ * )
+ * block = Block(steps=[step], umat_name="ELISO", props=props, nstatev=1)
+ * solver = Solver(blocks=[block])
+ * history = solver.solve()
+ * @endcode
  */
 
 /** @addtogroup solver
  *  @{
  */
 
-
-//function that solves a
-/**
- * @brief Main solver function for homogeneous thermomechanical problems.
- * 
- * @param umat_name Name of the constitutive model (UMAT)
- * @param props Vector of material properties
- * @param nstatev Number of internal state variables
- * @param psi_rve First Euler angle of RVE orientation (rad)
- * @param theta_rve Second Euler angle of RVE orientation (rad)
- * @param phi_rve Third Euler angle of RVE orientation (rad)
- * @param solver_type Type of solver (0: small strain, 1: finite strain)
- * @param corate_type Type of corotational formulation
- * @param div Divisor for time stepping (default: 0.5)
- * @param mul Multiplier for time stepping (default: 2.0)
- * @param miniter Minimum iterations per increment (default: 10)
- * @param maxiter Maximum iterations per increment (default: 100)
- * @param inforce_solver Enforce solver convergence (default: 1)
- * @param precision Convergence tolerance (default: 1e-6)
- * @param lambda_eff Effective stiffness estimate for mixed control (default: 10000)
- * @param path_data Path to data directory (default: "data")
- * @param path_results Path to results directory (default: "results")
- * @param pathfile Name of loading path file (default: "path.txt")
- * @param outputfile Name of output file (default: "result_job.txt")
- * 
- * @details This function drives the simulation by:
- * - Reading the loading path from input files
- * - Managing time stepping with adaptive incrementation
- * - Calling the UMAT for constitutive updates
- * - Writing results to output files
- * 
- */
-void solver(const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div = 0.5, const double &mul = 2., const int &miniter = 10, const int &maxiter = 100, const int &inforce_solver = 1, const double &precision = 1.E-6, const double &lambda_eff = 10000., const std::string &path_data = "data", const std::string &path_results = "results", const std::string &pathfile = "path.txt", const std::string &outputfile = "result_job.txt");
-
+// NOTE: The legacy solver() function signature has been removed.
+// Use the Python API (simcoon.solver.Solver) for solver workflows.
+// For C++ UMAT integration (Abaqus/Ansys), use the umat functions directly.
 
 /** @} */ // end of solver group
 
