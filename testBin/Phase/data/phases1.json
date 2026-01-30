@@ -1,0 +1,40 @@
+{
+  "phases": [
+    {
+      "concentration": 0.8,
+      "material_orientation": {
+        "phi": 0.0,
+        "psi": 0.0,
+        "theta": 0.0
+      },
+      "nprops": 3,
+      "nstatev": 0,
+      "number": 0,
+      "props": [
+        70000.0,
+        0.4,
+        0.0
+      ],
+      "save": 1,
+      "umat_name": "ELISO"
+    },
+    {
+      "concentration": 0.2,
+      "material_orientation": {
+        "phi": 0.0,
+        "psi": 0.0,
+        "theta": 0.0
+      },
+      "nprops": 3,
+      "nstatev": 0,
+      "number": 1,
+      "props": [
+        3000.0,
+        0.4,
+        0.0
+      ],
+      "save": 1,
+      "umat_name": "ELISO"
+    }
+  ]
+}
