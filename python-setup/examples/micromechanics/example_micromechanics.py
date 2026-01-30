@@ -2,22 +2,15 @@
 Example: Micromechanics Homogenization with JSON Configuration
 
 This example demonstrates:
-1. Loading phase configurations from JSON files
-2. Creating phases programmatically
-3. Converting legacy .dat files to JSON
+1. Creating phases programmatically
+2. Saving/loading JSON configurations
+3. Working with layers and ellipsoids
 
 Micromechanics models in Simcoon:
 - MIHEN: Mori-Tanaka with ellipsoidal inclusions
 - MIMTN: Mori-Tanaka with layers (laminates)
 - MISCN: Self-consistent with ellipsoidal inclusions
 - MIPLN: Self-consistent with layers
-
-The micromechanics module can be used without building simcoon._core:
-    from simcoon.solver.micromechanics import (
-        Layer, Ellipsoid,
-        load_layers_json, save_layers_json,
-        load_ellipsoids_json, save_ellipsoids_json,
-    )
 """
 
 import os
@@ -25,8 +18,6 @@ from pathlib import Path
 
 import numpy as np
 
-# Import from the standalone micromechanics module
-# This works without building simcoon._core
 from simcoon.solver.micromechanics import (
     MaterialOrientation,
     GeometryOrientation,
@@ -36,18 +27,15 @@ from simcoon.solver.micromechanics import (
     save_layers_json,
     load_ellipsoids_json,
     save_ellipsoids_json,
-    convert_legacy_layers,
-    convert_legacy_ellipsoids,
 )
 
 
-def example_programmatic_layers():
-    """Create laminate layers programmatically and save to JSON."""
+def example_laminate():
+    """Create a [0/90/0] laminate and save to JSON."""
     print("=" * 60)
-    print("Example 1: Programmatic Layer Definition")
+    print("Example 1: Laminate Definition")
     print("=" * 60)
 
-    # Define a 3-layer laminate: [0/90/0] composite
     layers = [
         Layer(
             number=0,
@@ -84,23 +72,26 @@ def example_programmatic_layers():
     print(f"Created {len(layers)} layers for [0/90/0] laminate:")
     for lyr in layers:
         print(f"  Layer {lyr.number}: c={lyr.concentration}, "
-              f"mat_ori=({lyr.material_orientation.psi}, {lyr.material_orientation.theta}, {lyr.material_orientation.phi})")
+              f"orientation=({lyr.material_orientation.psi}, {lyr.material_orientation.theta}, {lyr.material_orientation.phi})")
 
     save_layers_json('laminate_090.json', layers, prop_names=['E', 'nu', 'alpha'])
     print("\nSaved to laminate_090.json")
 
+    # Reload and verify
+    loaded = load_layers_json('laminate_090.json')
+    print(f"Reloaded {len(loaded)} layers")
+
     return layers
 
 
-def example_programmatic_ellipsoids():
-    """Create ellipsoidal inclusions programmatically and save to JSON."""
+def example_fiber_composite():
+    """Create a glass fiber / epoxy composite."""
     print("\n" + "=" * 60)
-    print("Example 2: Programmatic Ellipsoid Definition")
+    print("Example 2: Fiber Composite")
     print("=" * 60)
 
-    # Glass fiber / Epoxy composite
     ellipsoids = [
-        # Matrix phase (isotropic epoxy)
+        # Matrix (epoxy)
         Ellipsoid(
             number=0,
             coatingof=0,
@@ -108,14 +99,12 @@ def example_programmatic_ellipsoids():
             save=1,
             concentration=0.65,
             material_orientation=MaterialOrientation(psi=0, theta=0, phi=0),
-            a1=1.0,
-            a2=1.0,
-            a3=1.0,
+            a1=1.0, a2=1.0, a3=1.0,  # Sphere
             geometry_orientation=GeometryOrientation(psi=0, theta=0, phi=0),
             nstatev=1,
             props=np.array([3500.0, 0.35, 60e-6])
         ),
-        # Fiber inclusions (prolate spheroids with aspect ratio 20)
+        # Fibers (prolate spheroids, aspect ratio 20)
         Ellipsoid(
             number=1,
             coatingof=0,
@@ -123,69 +112,89 @@ def example_programmatic_ellipsoids():
             save=1,
             concentration=0.35,
             material_orientation=MaterialOrientation(psi=0, theta=0, phi=0),
-            a1=20.0,
-            a2=1.0,
-            a3=1.0,
+            a1=20.0, a2=1.0, a3=1.0,
             geometry_orientation=GeometryOrientation(psi=0, theta=0, phi=0),
             nstatev=1,
             props=np.array([72000.0, 0.22, 5e-6])
         ),
     ]
 
-    print("Glass fiber / Epoxy composite configuration:")
+    print("Glass fiber / Epoxy composite:")
     for ell in ellipsoids:
         print(f"  Phase {ell.number}: {ell.shape_type}, c={ell.concentration}, "
-              f"E={ell.props[0]:.0f} MPa, axes=({ell.a1}, {ell.a2}, {ell.a3})")
+              f"E={ell.props[0]:.0f} MPa")
 
     save_ellipsoids_json('glass_epoxy.json', ellipsoids, prop_names=['E', 'nu', 'alpha'])
     print("\nSaved to glass_epoxy.json")
 
-    # Simple bounds on effective modulus
+    # Voigt-Reuss bounds
     matrix, fibers = ellipsoids
     E_voigt = fibers.concentration * fibers.props[0] + matrix.concentration * matrix.props[0]
     E_reuss = 1 / (fibers.concentration / fibers.props[0] + matrix.concentration / matrix.props[0])
-
-    print(f"\nSimple bounds on effective modulus:")
-    print(f"  Voigt (upper): E = {E_voigt:.0f} MPa")
-    print(f"  Reuss (lower): E = {E_reuss:.0f} MPa")
+    print(f"\nSimple bounds:")
+    print(f"  Voigt: E = {E_voigt:.0f} MPa")
+    print(f"  Reuss: E = {E_reuss:.0f} MPa")
 
     return ellipsoids
 
 
-def example_convert_legacy():
-    """Convert legacy .dat files to JSON format."""
+def example_coated_inclusions():
+    """Create a composite with coated inclusions."""
     print("\n" + "=" * 60)
-    print("Example 3: Convert Legacy Files to JSON")
+    print("Example 3: Coated Inclusions")
     print("=" * 60)
 
-    legacy_dir = Path(__file__).parent.parent.parent.parent / 'testBin' / 'Libraries' / 'Phase' / 'data'
+    ellipsoids = [
+        # Matrix
+        Ellipsoid(
+            number=0,
+            coatingof=0,
+            umat_name="ELISO",
+            concentration=0.6,
+            a1=1.0, a2=1.0, a3=1.0,
+            nstatev=1,
+            props=np.array([3000.0, 0.4, 50e-6])
+        ),
+        # Core (stiff particle)
+        Ellipsoid(
+            number=1,
+            coatingof=0,
+            umat_name="ELISO",
+            concentration=0.2,
+            a1=1.0, a2=1.0, a3=1.0,
+            nstatev=1,
+            props=np.array([400000.0, 0.2, 5e-6])
+        ),
+        # Coating (interphase)
+        Ellipsoid(
+            number=2,
+            coatingof=1,  # Coats phase 1
+            umat_name="ELISO",
+            concentration=0.2,
+            a1=1.0, a2=1.0, a3=1.0,
+            nstatev=1,
+            props=np.array([10000.0, 0.35, 30e-6])
+        ),
+    ]
 
-    legacy_layers = legacy_dir / 'Nlayers0.dat'
-    if legacy_layers.exists():
-        layers = convert_legacy_layers(legacy_layers)
-        save_layers_json('converted_layers.json', layers)
-        print(f"Converted {legacy_layers.name} -> converted_layers.json ({len(layers)} layers)")
-    else:
-        print(f"Legacy file not found: {legacy_layers}")
+    print("Coated particle composite:")
+    for ell in ellipsoids:
+        coating_info = f" (coats phase {ell.coatingof})" if ell.coatingof > 0 else ""
+        print(f"  Phase {ell.number}: c={ell.concentration}, E={ell.props[0]:.0f} MPa{coating_info}")
 
-    legacy_ellipsoids = legacy_dir / 'Nellipsoids0.dat'
-    if legacy_ellipsoids.exists():
-        ellipsoids = convert_legacy_ellipsoids(legacy_ellipsoids)
-        save_ellipsoids_json('converted_ellipsoids.json', ellipsoids)
-        print(f"Converted {legacy_ellipsoids.name} -> converted_ellipsoids.json ({len(ellipsoids)} ellipsoids)")
-    else:
-        print(f"Legacy file not found: {legacy_ellipsoids}")
+    save_ellipsoids_json('coated_particles.json', ellipsoids, prop_names=['E', 'nu', 'alpha'])
+    print("\nSaved to coated_particles.json")
+
+    return ellipsoids
 
 
 if __name__ == '__main__':
-    # Change to the script directory
     script_dir = Path(__file__).parent
     os.chdir(script_dir)
 
-    # Run examples
-    example_programmatic_layers()
-    example_programmatic_ellipsoids()
-    example_convert_legacy()
+    example_laminate()
+    example_fiber_composite()
+    example_coated_inclusions()
 
     print("\n" + "=" * 60)
     print("All examples completed!")
