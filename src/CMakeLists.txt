@@ -109,19 +109,6 @@ target_sources(simcoon PRIVATE
   Simulation/Geometry/geometry.cpp
   Simulation/Geometry/layer.cpp
 
-  # Simulation - Identification
-  Simulation/Identification/constants.cpp
-  Simulation/Identification/doe.cpp
-  Simulation/Identification/generation.cpp
-  Simulation/Identification/identification.cpp
-  Simulation/Identification/individual.cpp
-  Simulation/Identification/methods.cpp
-  Simulation/Identification/opti_data.cpp
-  Simulation/Identification/optimize.cpp
-  Simulation/Identification/parameters.cpp
-  Simulation/Identification/read.cpp
-  Simulation/Identification/script.cpp
-
   # Simulation - Maths
   Simulation/Maths/lagrange.cpp
   Simulation/Maths/num_solve.cpp
@@ -134,17 +121,15 @@ target_sources(simcoon PRIVATE
   Simulation/Phase/material_characteristics.cpp
   Simulation/Phase/output.cpp
   Simulation/Phase/phase_characteristics.cpp
-  Simulation/Phase/read.cpp
+  Simulation/Phase/read_json.cpp
   Simulation/Phase/state_variables.cpp
   Simulation/Phase/state_variables_M.cpp
   Simulation/Phase/state_variables_T.cpp
-  Simulation/Phase/write.cpp
 
   # Simulation - Solver
   Simulation/Solver/block.cpp
   Simulation/Solver/output.cpp
   Simulation/Solver/read.cpp
-  Simulation/Solver/solver.cpp
   Simulation/Solver/step.cpp
   Simulation/Solver/step_meca.cpp
   Simulation/Solver/step_thermomeca.cpp
