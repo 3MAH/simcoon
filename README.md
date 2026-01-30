@@ -21,6 +21,44 @@ Simcoon is mainly developed by faculty and researchers from University of Bordea
 
 Simcoon make use and therefore include the FTensor library (http://www.wlandry.net/Projects/FTensor) for convenience. FTensor is a library that handle complex tensor computations. FTensor is released under the GNU General Public License: GPL, version 2. You can get it there (but is is already included in simcoon): (https://bitbucket.org/wlandry/ftensor)
 
+Quick Start (Python)
+--------------------
+
+Simcoon v2.0 introduces a new Python-based solver API that replaces the legacy file-based C++ solver:
+
+```python
+import numpy as np
+from simcoon.solver import Solver, Block, StepMeca
+
+# Material properties: E, nu, alpha
+props = np.array([210000.0, 0.3, 1e-5])
+
+# Define uniaxial tension loading
+step = StepMeca(
+    DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),  # 1% strain
+    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    Dn_init=50
+)
+
+# Create simulation block
+block = Block(
+    steps=[step],
+    umat_name='ELISO',
+    props=props,
+    nstatev=1
+)
+
+# Run simulation
+solver = Solver(blocks=[block])
+history = solver.solve()
+
+# Extract results
+strain = np.array([h.Etot[0] for h in history])
+stress = np.array([h.sigma[0] for h in history])
+```
+
+For more examples, see `examples/umats/` and the [documentation](https://3mah.github.io/simcoon-docs/).
+
 Documentation
 --------------
 
