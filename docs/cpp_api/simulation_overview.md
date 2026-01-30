@@ -85,8 +85,12 @@ Results management:
 - File format selection
 
 ##### **I/O Operations:**
-- **read.hpp** - Phase file parsing
-- **write.hpp** - State serialization
+- **read.hpp** - Phase file parsing (**deprecated** - use Python JSON interface)
+- **write.hpp** - State serialization (**deprecated** - use Python JSON interface)
+
+> **Note:** The legacy `.dat` file formats are deprecated. New projects should use
+> the Python JSON interface in `simcoon.solver.micromechanics`. See the
+> [Micromechanics I/O documentation](../simulation/micromechanics.rst) for details.
 
 ### 3. **Identification** - Parameter Identification Framework
 
