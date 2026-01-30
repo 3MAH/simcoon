@@ -64,7 +64,45 @@ Create a file ``data/path.json`` for a simple tension test up to 1% strain:
 Running the Simulation
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Load the configurations and run the solver:
+**Option 1: Using Python Solver API (Recommended)**
+
+The Python Solver API provides full control over the simulation:
+
+.. code-block:: python
+
+    from simcoon.solver import Solver, Block, StepMeca
+
+    # Material properties: E, nu, alpha
+    props = np.array([700000, 0.2, 1e-5])
+
+    # Define loading step
+    step = StepMeca(
+        DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
+        control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+        Dn_init=1,
+        Dn_inc=100,
+        time=30.0
+    )
+
+    # Create block
+    block = Block(
+        steps=[step],
+        umat_name='ELISO',
+        props=props,
+        nstatev=1
+    )
+
+    # Run solver
+    solver = Solver(blocks=[block])
+    history = solver.solve()
+
+    # Access results
+    for state in history:
+        print(f"Strain: {state.Etot[0]:.4f}, Stress: {state.sigma[0]:.2f}")
+
+**Option 2: Using JSON Configuration**
+
+Load configurations from JSON files and convert to Python objects:
 
 .. code-block:: python
 
@@ -74,28 +112,22 @@ Load the configurations and run the solver:
     material = load_material_json('data/material.json')
     path = load_path_json('data/path.json')
 
-    # Run the solver
-    sim.solver(
-        material['name'],
-        np.array(list(material['props'].values())),
-        material['nstatev'],
-        material['orientation']['psi'],
-        material['orientation']['theta'],
-        material['orientation']['phi'],
-        0,  # solver_type: Newton-Raphson
-        2,  # corate_type: logarithmic
-        'data',
-        'results',
-        'path.json',
-        'results_ELISO.txt',
-    )
+    # Convert to Block/Step objects and run
+    # (See migration guide for full conversion examples)
 
-The result file ``results_ELISO.txt`` will be created in the ``results`` folder.
-
-Solver parameters
+Python Solver API
 -----------------
 
-The solver function takes the following parameters:
+The ``Solver`` class is the main entry point for running simulations:
+
+.. code-block:: python
+
+    from simcoon.solver import Solver, Block, StepMeca
+
+    solver = Solver(blocks=[block], T_init=293.15)
+    history = solver.solve()
+
+**Solver Parameters:**
 
 .. list-table::
    :header-rows: 1
@@ -104,42 +136,105 @@ The solver function takes the following parameters:
    * - Parameter
      - Type
      - Description
+   * - blocks
+     - List[Block]
+     - List of loading blocks to execute
+   * - T_init
+     - float
+     - Initial temperature (default: 293.15 K)
+
+**Block Parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Parameter
+     - Type
+     - Description
+   * - steps
+     - List[StepMeca]
+     - List of loading steps in the block
    * - umat_name
-     - string
-     - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP')
+     - str
+     - 5-character UMAT code (e.g., 'ELISO', 'EPICP', 'EPKCP')
    * - props
-     - numpy array
+     - np.ndarray
      - Material properties array
    * - nstatev
      - int
      - Number of internal state variables
-   * - psi_rve
+   * - psi
      - float
-     - First Euler angle (in degrees) for material orientation
-   * - theta_rve
+     - First Euler angle (degrees) for material orientation (default: 0)
+   * - theta
      - float
-     - Second Euler angle (in degrees) for material orientation
-   * - phi_rve
+     - Second Euler angle (degrees) for material orientation (default: 0)
+   * - phi
      - float
-     - Third Euler angle (in degrees) for material orientation
+     - Third Euler angle (degrees) for material orientation (default: 0)
+   * - ncycles
+     - int
+     - Number of times to repeat this block (default: 1)
    * - solver_type
      - int
-     - Solver strategy (0: Newton-Raphson)
+     - Solver strategy: 0=Newton-Raphson (default: 0)
+   * - control_type
+     - int
+     - Kinematic framework (see Control Types below)
    * - corate_type
      - int
-     - Corotational spin rate type (see below)
-   * - path_data
-     - string
-     - Path to the folder containing input files
-   * - path_results
-     - string
-     - Path to the folder for output files
-   * - pathfile
-     - string
-     - Name of the loading path JSON file (e.g., 'path.json')
-   * - outputfile
-     - string
-     - Name of the output result file
+     - Corotational spin rate type (see Corotational Types below)
+
+**Control Types (control_type):**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 30 60
+
+   * - Value
+     - Name
+     - Description
+   * - 1
+     - small_strain
+     - Infinitesimal strain (small deformations)
+   * - 2
+     - logarithmic
+     - Logarithmic (true) strain / Kirchhoff stress
+   * - 3
+     - deformation_gradient
+     - Deformation gradient :math:`\mathbf{F}` control
+
+**StepMeca Parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Parameter
+     - Type
+     - Description
+   * - DEtot_end
+     - np.ndarray
+     - Target strain increment [E11, E12, E22, E13, E23, E33]
+   * - Dsigma_end
+     - np.ndarray
+     - Target stress increment (optional)
+   * - control
+     - List[str]
+     - Control type per component: 'strain' or 'stress'
+   * - time
+     - float
+     - Step duration (default: 1.0)
+   * - Dn_init
+     - int
+     - Initial increment count (default: 1)
+   * - Dn_mini
+     - int
+     - Minimum increment for convergence (default: 1)
+   * - Dn_inc
+     - int
+     - Total number of increments (default: 100)
 
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

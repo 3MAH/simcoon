@@ -308,49 +308,47 @@ step1.BC_meca(0) = 0.01;  // 1% strain
 
 ### 3. Execute Simulation
 
-```cpp
-solver(umat_name, props, nstatev, psi, theta, phi);
-```
+**Note:** The C++ `solver()` function has been replaced by the Python Solver API.
+Use `simcoon.solver.Solver` in Python for all new simulations. See the
+[Python Solver documentation](../simulation/solver.rst) for details.
 
 ### 4. Post-process Results
 
-Results are written to output files specified in the control file.
+Results are returned as a list of `StateVariablesM` objects in Python.
 
 ## Parameter Identification Workflow
 
-### 1. Define Parameters to Identify
+**Note:** The C++ identification module is deprecated in v2.0.
+Use Python with `scipy.optimize` for parameter identification:
 
-```cpp
-vector<parameters> params;
-params.push_back({"E", 50000, 100000, "Young"});
-params.push_back({"sigma_Y", 100, 500, "Yield"});
+```python
+from scipy.optimize import minimize, least_squares
+from simcoon.solver import Solver, Block, StepMeca
+import numpy as np
+
+def simulate(params):
+    """Run simulation with given parameters."""
+    E, sigma_Y = params
+    props = np.array([E, 0.3, sigma_Y, ...])
+
+    step = StepMeca(DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]))
+    block = Block(steps=[step], umat_name='EPICP', props=props, nstatev=8)
+    solver = Solver(blocks=[block])
+
+    history = solver.solve()
+    return np.array([h.sigma[0] for h in history])
+
+def cost_function(params, exp_data):
+    """Compute cost between simulation and experiment."""
+    sim_data = simulate(params)
+    return np.sum((sim_data - exp_data)**2)
+
+# Run optimization
+x0 = np.array([200000, 300])  # Initial guess: E, sigma_Y
+bounds = [(50000, 300000), (100, 500)]
+result = minimize(cost_function, x0, args=(exp_data,), bounds=bounds)
+print(f"Optimal parameters: E={result.x[0]:.0f}, sigma_Y={result.x[1]:.1f}")
 ```
-
-### 2. Load Experimental Data
-
-```cpp
-opti_data data;
-data.import("tensile_test.txt");
-data.weight = 1.0;
-```
-
-### 3. Configure Optimization
-
-```cpp
-int method = 0;  // Genetic Algorithm
-int maxiter = 100;
-double tolerance = 1e-6;
-```
-
-### 4. Run Identification
-
-```cpp
-identification(method, params, constants, data_files);
-```
-
-### 5. Retrieve Optimal Parameters
-
-The identified parameters are written to `parameters_results.txt`.
 
 ## Advanced Features
 
@@ -390,45 +388,55 @@ Identification can be checkpointed for:
 
 ## Configuration Files
 
-### Material Properties File
+**Note:** The file-based configuration format is deprecated in v2.0.
+Use JSON configuration with the Python API instead. See [Solver Documentation](../simulation/solver.rst).
 
-Format:
-```
-Number_of_phases
-Phase_1:
-  UMAT_name
-  Number_of_properties
-  prop_1 prop_2 ... prop_n
-  Number_of_statev
-Phase_2:
-  ...
-```
+### JSON Configuration (Recommended)
 
-### Path File
-
-Defines loading sequence:
-```
-Number_of_steps
-Step_1:
-  Type (mechanical/thermomechanical)
-  Number_of_increments
-  Control_type (E/S/T)
-  BC_1 BC_2 BC_3 BC_4 BC_5 BC_6
-  Temperature Temperature_increment
-Step_2:
-  ...
+Material configuration (`material.json`):
+```json
+{
+  "name": "ELISO",
+  "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5},
+  "nstatev": 1,
+  "orientation": {"psi": 0, "theta": 0, "phi": 0}
+}
 ```
 
-### Output File
+Path configuration (`path.json`):
+```json
+{
+  "initial_temperature": 293.15,
+  "blocks": [
+    {
+      "type": "mechanical",
+      "control_type": "small_strain",
+      "ncycle": 1,
+      "steps": [
+        {
+          "time": 30.0,
+          "Dn_init": 1.0,
+          "Dn_inc": 0.01,
+          "DEtot": [0.01, 0, 0, 0, 0, 0],
+          "Dsigma": [0, 0, 0, 0, 0, 0],
+          "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+          "DT": 0
+        }
+      ]
+    }
+  ]
+}
+```
 
-Configures results output:
-```
-Number_of_output_blocks
-Block_1:
-  Output_type (stress/strain/STATEV)
-  Components (space-separated indices)
-  Frequency
-```
+### Legacy File Formats (Deprecated)
+
+The following legacy file formats are deprecated:
+
+- `material.dat` - Text-based material properties
+- `path.txt` - Text-based loading path
+- `output.dat` - Text-based output configuration
+- `solver_essentials.inp` - Solver type configuration
+- `solver_control.inp` - Solver convergence parameters
 
 ## Performance Considerations
 
