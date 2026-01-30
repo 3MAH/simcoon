@@ -5,9 +5,6 @@ This example demonstrates:
 1. Loading material/path from JSON files
 2. Using the Python solver directly (programmatic API)
 3. Plotting stress-strain curves
-
-The Python solver replaces the deprecated C++ solver (sim.solver) with a more
-flexible Python-native implementation.
 """
 
 import numpy as np
