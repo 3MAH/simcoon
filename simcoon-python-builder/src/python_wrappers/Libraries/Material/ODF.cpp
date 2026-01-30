@@ -5,8 +5,7 @@
 #include <armadillo>
 
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
-#include <simcoon/Simulation/Phase/write.hpp>
+#include <simcoon/Simulation/Phase/read_json.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
 #include <simcoon/Continuum_mechanics/Material/read.hpp>
@@ -57,37 +56,37 @@ void ODF_discretization(const int &nphases_rve, const int &num_phase_disc, const
     
     //Here we read everything about the initial rve
     switch (list_umat[rve_init.sptr_matprops->umat_name]) {
-            
+
         case 100: case 101: case 102: case 103: {
             rve_init.construct(2,1); //The rve is supposed to be mechanical only here
-            simcoon::read_ellipsoid(rve_init, path_data_py, rve_init_file_py);
+            simcoon::read_ellipsoid_json(rve_init, path_data_py, rve_init_file_py);
             break;
         }
         case 104: {
             rve_init.construct(1,1); //The rve is supposed to be mechanical only here
-            simcoon::read_layer(rve_init, path_data_py, rve_init_file_py);
+            simcoon::read_layer_json(rve_init, path_data_py, rve_init_file_py);
             break;
         }
     }
-    
+
     simcoon::ODF odf_rve(0, false, angle_min, angle_max);
     simcoon::read_peak(odf_rve, path_data_py, peak_file_py);
-    
+
     simcoon::phase_characteristics rve = discretize_ODF(rve_init, odf_rve, num_phase_disc, nphases_rve, angle_mat);
-    
+
     if(rve.shape_type == 0) {
-        simcoon::write_phase(rve, path_data_py, rve_disc_file_py);
+        simcoon::write_phase_json(rve, path_data_py, rve_disc_file_py);
     }
     if(rve.shape_type == 1) {
-        simcoon::write_layer(rve, path_data_py, rve_disc_file_py);
+        simcoon::write_layer_json(rve, path_data_py, rve_disc_file_py);
     }
     else if(rve.shape_type == 2) {
-        simcoon::write_ellipsoid(rve, path_data_py, rve_disc_file_py);
+        simcoon::write_ellipsoid_json(rve, path_data_py, rve_disc_file_py);
     }
     else if(rve.shape_type == 3) {
-        simcoon::write_cylinder(rve, path_data_py, rve_disc_file_py);
+        simcoon::write_cylinder_json(rve, path_data_py, rve_disc_file_py);
     }
-    
+
     return;
 }
     
