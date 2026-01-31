@@ -19,6 +19,12 @@
 ///@brief JSON-based I/O for phase configurations
 ///@version 1.0
 
+// Define _USE_MATH_DEFINES before cmath for M_PI on Windows MSVC
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
+#include <cmath>
+
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
