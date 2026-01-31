@@ -255,7 +255,7 @@ namespace simpy {
 				//simcoon::umat_sma_mono_cubic(umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt);
 				break;
 			}
-			case 21: case 22: case 23: case 24: case 26: {
+			case 21: case 22: case 23: case 24: case 25: case 26: {
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
@@ -434,7 +434,7 @@ namespace simpy {
 			case 18: { umat_function_2 = &simcoon::umat_prony_Nfast; arguments_type = 2; break; }
 			case 19: { umat_function_3 = &simcoon::umat_sma_mono; arguments_type = 3; break; }
 			case 20: { umat_function_3 = &simcoon::umat_sma_mono_cubic; arguments_type = 3; break; }
-			case 21: case 22: case 23: case 24: case 26: {
+			case 21: case 22: case 23: case 24: case 25: case 26: {
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
