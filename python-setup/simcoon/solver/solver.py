@@ -42,7 +42,7 @@ CONTROL_TYPES = {
 # Lightweight History Point (optimized for minimal memory allocation)
 # =============================================================================
 
-@dataclass
+@dataclass(slots=True)
 class HistoryPoint:
     """
     Lightweight history point storing only essential state variables.
@@ -51,6 +51,8 @@ class HistoryPoint:
     typically accessed after simulation: strain, stress, work, and state variables.
     Using this instead of full StateVariablesM copies reduces memory allocation
     by ~8x per history point.
+
+    Uses __slots__ for faster attribute access and lower memory footprint.
 
     Attributes
     ----------
@@ -877,6 +879,12 @@ class Solver:
         self._props_batch = None  # Allocated per-block (variable size)
         self._statev_batch = None  # Allocated per-block (variable size)
 
+        # Cache function references for hot path (avoids repeated lookups)
+        self._umat_inplace = scc.umat_inplace
+        self._np_copyto = np.copyto
+        self._np_fill_diagonal = np.fill_diagonal
+        self._norm = norm
+
     def solve(self, sv_init: StateVariables = None) -> List[HistoryPoint]:
         """
         Run the full simulation.
@@ -1206,13 +1214,13 @@ class Solver:
             Lt_view = self._Lt_batch
 
         # Call UMAT in-place - modifies sigma, statev, Wm, Lt through views
-        scc.umat_inplace(
+        self._umat_inplace(
             block.umat_name,
             etot_view, Detot_view,
             F0_view, F1_view,
             sigma_view, DR_view,
             self._props_batch, statev_view,
-            float(Time), float(DTime),
+            Time, DTime,
             Wm_view, Lt_view,
             None,  # temp
             3,     # ndi
