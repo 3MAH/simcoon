@@ -73,9 +73,9 @@ step1 = StepMeca(
     DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
-    Dn_init=100,
-    Dn_mini=20,
-    Dn_inc=200,
+    Dn_init=200,
+    Dn_mini=50,
+    Dn_inc=400,
     time=1.0
 )
 
@@ -86,7 +86,7 @@ block = Block(
     props=props,
     nstatev=nstatev,
     control_type='small_strain',
-    corate_type='logarithmic_R'
+    corate_type='jaumann'
 )
 
 # Run the simulation
@@ -144,8 +144,8 @@ plt.show()
 # ----------------------------------------------------------
 # ###################################################################################
 
-# Define different increment counts
-increments = [1, 10, 100, 1000]
+# Define different increment counts (starting at 50 to ensure convergence)
+increments = [50, 100, 200, 500]
 data = []
 
 for inc in increments:
@@ -154,7 +154,7 @@ for inc in increments:
         Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
         control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
         Dn_init=inc,
-        Dn_mini=max(1, inc // 10),
+        Dn_mini=max(10, inc // 5),
         Dn_inc=inc * 2,
         time=1.0
     )
@@ -165,7 +165,7 @@ for inc in increments:
         props=props,
         nstatev=nstatev,
         control_type='small_strain',
-        corate_type='logarithmic_R'
+        corate_type='jaumann'
     )
 
     solver = Solver(blocks=[block])
@@ -202,7 +202,7 @@ for inc in increments:
 fig = plt.figure()
 
 markers = ["D", "o", "x", None]
-labels = ["1 increment", "10 increments", "100 increments", "1000 increments"]
+labels = ["50 increments", "100 increments", "200 increments", "500 increments"]
 colors = ["black", "black", "black", "black"]
 
 # First subplot: Stress vs Strain

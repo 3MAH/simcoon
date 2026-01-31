@@ -62,9 +62,9 @@ step = StepMeca(
     DEtot_end=np.array([0.03, 0, 0, 0, 0, 0]),  # 3% strain
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
-    Dn_init=150,
-    Dn_mini=30,
-    Dn_inc=300,
+    Dn_init=300,
+    Dn_mini=75,
+    Dn_inc=600,
     time=1.0
 )
 
@@ -74,7 +74,7 @@ block = Block(
     props=props,
     nstatev=nstatev,
     control_type='small_strain',
-    corate_type='green_naghdi'
+    corate_type='jaumann'
 )
 
 # Run the simulation

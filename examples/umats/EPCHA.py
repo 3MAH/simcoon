@@ -69,9 +69,9 @@ step1 = StepMeca(
     DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
-    Dn_init=100,
-    Dn_mini=20,
-    Dn_inc=200,
+    Dn_init=200,
+    Dn_mini=50,
+    Dn_inc=400,
     time=1.0
 )
 
@@ -80,9 +80,9 @@ step2 = StepMeca(
     DEtot_end=np.array([-0.02, 0, 0, 0, 0, 0]),  # -2% increment from +1%
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
-    Dn_init=200,
-    Dn_mini=40,
-    Dn_inc=400,
+    Dn_init=400,
+    Dn_mini=100,
+    Dn_inc=800,
     time=2.0
 )
 
@@ -91,9 +91,9 @@ step3 = StepMeca(
     DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
     control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
-    Dn_init=200,
-    Dn_mini=40,
-    Dn_inc=400,
+    Dn_init=400,
+    Dn_mini=100,
+    Dn_inc=800,
     time=2.0
 )
 
@@ -104,7 +104,7 @@ block = Block(
     props=props,
     nstatev=nstatev,
     control_type='small_strain',
-    corate_type='green_naghdi'
+    corate_type='jaumann'
 )
 
 # Run the simulation

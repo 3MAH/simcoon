@@ -172,9 +172,9 @@ def run_hyperelastic_simulation(umat_name, params, stretch_max, loading_type='UT
         DEtot_end=DEtot_end,
         Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
         control=control,
-        Dn_init=100,
-        Dn_mini=20,
-        Dn_inc=200,
+        Dn_init=200,
+        Dn_mini=50,
+        Dn_inc=400,
         time=1.0
     )
 
@@ -184,7 +184,7 @@ def run_hyperelastic_simulation(umat_name, params, stretch_max, loading_type='UT
         props=props,
         nstatev=nstatev,
         control_type='logarithmic',  # Use logarithmic strain for hyperelasticity
-        corate_type='logarithmic'
+        corate_type='jaumann'
     )
 
     solver = Solver(blocks=[block])
