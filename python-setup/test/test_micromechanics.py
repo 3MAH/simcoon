@@ -18,12 +18,17 @@ from simcoon.solver.micromechanics import (
     Layer,
     Ellipsoid,
     Cylinder,
+    Section,
+    load_phases_json,
+    save_phases_json,
     load_layers_json,
     save_layers_json,
     load_ellipsoids_json,
     save_ellipsoids_json,
     load_cylinders_json,
     save_cylinders_json,
+    load_sections_json,
+    save_sections_json,
 )
 
 
@@ -307,6 +312,176 @@ class TestMicromechanicsIntegration:
             loaded = load_layers_json(filepath)
             assert len(loaded) == 4
             assert sum(l.concentration for l in loaded) == pytest.approx(1.0)
+
+
+# =============================================================================
+# Phase Tests
+# =============================================================================
+
+class TestPhase:
+    """Tests for Phase dataclass."""
+
+    def test_default_phase(self):
+        """Test default phase initialization."""
+        phase = Phase()
+        assert phase.number == 0
+        assert phase.umat_name == 'ELISO'
+        assert phase.concentration == 1.0
+        assert phase.save == 1
+
+    def test_phase_with_properties(self):
+        """Test phase with material properties."""
+        phase = Phase(
+            number=1,
+            umat_name='EPICP',
+            props=np.array([70000, 0.3, 0, 300, 1000, 0.5]),
+            concentration=0.4,
+            nstatev=8
+        )
+        assert phase.number == 1
+        assert phase.concentration == 0.4
+        assert phase.nstatev == 8
+
+    def test_phase_with_orientation(self):
+        """Test phase with material orientation."""
+        orient = MaterialOrientation(psi=45.0, theta=30.0, phi=0.0)
+        phase = Phase(
+            number=0,
+            umat_name='ELORT',
+            material_orientation=orient
+        )
+        assert phase.material_orientation.psi == 45.0
+
+
+class TestPhasesJSON:
+    """Tests for phases JSON I/O."""
+
+    def test_save_and_load_phases(self):
+        """Test saving and loading phases to/from JSON."""
+        phases = [
+            Phase(
+                number=0,
+                umat_name='ELISO',
+                props=np.array([70000, 0.3]),
+                concentration=0.6,
+                nstatev=1
+            ),
+            Phase(
+                number=1,
+                umat_name='ELISO',
+                props=np.array([400000, 0.2]),
+                concentration=0.4,
+                nstatev=1
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, 'phases.json')
+            save_phases_json(filepath, phases)
+
+            assert os.path.exists(filepath)
+
+            loaded = load_phases_json(filepath)
+            assert len(loaded) == 2
+            assert loaded[0].concentration == 0.6
+            assert loaded[1].concentration == 0.4
+
+
+# =============================================================================
+# Section Tests
+# =============================================================================
+
+class TestSection:
+    """Tests for Section dataclass."""
+
+    def test_default_section(self):
+        """Test default section initialization."""
+        section = Section()
+        assert section.number == 0
+        assert section.name == 'Section'
+        assert section.umat_name == 'ELISO'
+
+    def test_section_with_properties(self):
+        """Test section with material properties."""
+        section = Section(
+            number=0,
+            name='yarn_weft',
+            umat_name='ELISO',
+            props=np.array([70000, 0.3]),
+            nstatev=1
+        )
+        assert section.name == 'yarn_weft'
+        assert len(section.props) == 2
+
+
+class TestSectionsJSON:
+    """Tests for sections JSON I/O."""
+
+    def test_save_and_load_sections(self):
+        """Test saving and loading sections to/from JSON."""
+        sections = [
+            Section(
+                number=0,
+                name='yarn_0',
+                umat_name='ELISO',
+                props=np.array([70000, 0.3]),
+                nstatev=1
+            ),
+            Section(
+                number=1,
+                name='yarn_1',
+                umat_name='ELISO',
+                props=np.array([400000, 0.2]),
+                nstatev=1
+            ),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            filepath = os.path.join(tmpdir, 'sections.json')
+            save_sections_json(filepath, sections)
+
+            assert os.path.exists(filepath)
+
+            loaded = load_sections_json(filepath)
+            assert len(loaded) == 2
+            assert loaded[0].name == 'yarn_0'
+            assert loaded[1].name == 'yarn_1'
+
+
+# =============================================================================
+# Edge Cases and Error Handling
+# =============================================================================
+
+class TestMicromechanicsEdgeCases:
+    """Tests for edge cases and error handling."""
+
+    def test_empty_props_array(self):
+        """Test geometry with empty properties array."""
+        ell = Ellipsoid(number=0, props=np.array([]))
+        assert len(ell.props) == 0
+
+    def test_large_aspect_ratio(self):
+        """Test ellipsoid with very large aspect ratio (fiber)."""
+        ell = Ellipsoid(
+            number=0,
+            a1=1000.0,
+            a2=1.0,
+            a3=1.0
+        )
+        assert ell.a1 / ell.a2 == 1000.0
+
+    def test_thin_layer(self):
+        """Test very thin layer."""
+        layer = Layer(
+            number=0,
+            concentration=0.001
+        )
+        assert layer.concentration == 0.001
+
+    def test_json_file_not_found(self):
+        """Test loading non-existent JSON file."""
+        with pytest.raises(FileNotFoundError):
+            load_ellipsoids_json('/nonexistent/path.json')
 
 
 if __name__ == "__main__":

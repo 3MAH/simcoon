@@ -15,6 +15,7 @@ from simcoon.solver import (
     Block, Solver,
     Lt_2_K, Lth_2_K,
     CONTROL_TYPES, CORATE_TYPES,
+    HistoryPoint,
 )
 
 
@@ -405,6 +406,287 @@ class TestSolver:
         expected_lateral = -nu * strain_11
         assert np.isclose(final.Etot[1], expected_lateral, rtol=1e-2)
         assert np.isclose(final.Etot[2], expected_lateral, rtol=1e-2)
+
+
+# =============================================================================
+# HistoryPoint Tests
+# =============================================================================
+
+class TestHistoryPoint:
+    """Tests for HistoryPoint class."""
+
+    def test_history_point_from_state(self):
+        """Test creating HistoryPoint from StateVariablesM."""
+        sv = StateVariablesM(nstatev=3)
+        sv.Etot[:] = [0.01, -0.003, -0.003, 0, 0, 0]
+        sv.sigma[:] = [2100.0, 0, 0, 0, 0, 0]
+        sv.Wm[:] = [10.5, 5.0, 3.0, 2.5]
+        sv.statev[:] = [0.001, 0.002, 0.003]
+        sv.T = 350.0
+
+        hp = HistoryPoint.from_state(sv)
+
+        np.testing.assert_array_equal(hp.Etot, sv.Etot)
+        np.testing.assert_array_equal(hp.sigma, sv.sigma)
+        np.testing.assert_array_equal(hp.Wm, sv.Wm)
+        np.testing.assert_array_equal(hp.statev, sv.statev)
+        assert hp.T == 350.0
+
+    def test_history_point_independence(self):
+        """Test that HistoryPoint is independent of source state."""
+        sv = StateVariablesM(nstatev=2)
+        sv.Etot[0] = 0.01
+        sv.sigma[0] = 100.0
+
+        hp = HistoryPoint.from_state(sv)
+
+        # Modify original
+        sv.Etot[0] = 0.02
+        sv.sigma[0] = 200.0
+
+        # HistoryPoint should be unchanged
+        assert hp.Etot[0] == 0.01
+        assert hp.sigma[0] == 100.0
+
+
+# =============================================================================
+# Control Type Mapping Tests
+# =============================================================================
+
+class TestControlMappings:
+    """Tests for control type and corate mappings."""
+
+    def test_control_types_dict(self):
+        """Test CONTROL_TYPES mapping."""
+        assert CONTROL_TYPES['small_strain'] == 1
+        assert CONTROL_TYPES['green_lagrange'] == 2
+        assert CONTROL_TYPES['logarithmic'] == 3
+
+    def test_corate_types_dict(self):
+        """Test CORATE_TYPES mapping."""
+        assert CORATE_TYPES['jaumann'] == 0
+        assert CORATE_TYPES['green_naghdi'] == 1
+        assert CORATE_TYPES['logarithmic'] == 2
+
+
+# =============================================================================
+# Advanced Solver Tests
+# =============================================================================
+
+class TestSolverAdvanced:
+    """Advanced tests for Solver class."""
+
+    @pytest.mark.skipif(
+        not _has_simcoon_core(),
+        reason="simcoon._core not available"
+    )
+    def test_solver_multiple_steps(self):
+        """Test solver with multiple steps in a block."""
+        E = 210000.0
+        nu = 0.3
+        props = np.array([E, nu, 0.0])
+
+        # Loading step
+        step1 = StepMeca(
+            DEtot_end=np.array([0.005, 0, 0, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=5
+        )
+        # Unloading step
+        step2 = StepMeca(
+            DEtot_end=np.array([-0.005, 0, 0, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=5
+        )
+
+        block = Block(
+            steps=[step1, step2],
+            umat_name="ELISO",
+            props=props,
+            nstatev=1
+        )
+
+        solver = Solver(blocks=[block])
+        history = solver.solve()
+
+        # Should have history points from both steps (at least 2)
+        assert len(history) >= 2
+
+        # Final strain should be back to zero
+        final = history[-1]
+        assert np.isclose(final.Etot[0], 0.0, atol=1e-10)
+
+    @pytest.mark.skipif(
+        not _has_simcoon_core(),
+        reason="simcoon._core not available"
+    )
+    def test_solver_cyclic_loading(self):
+        """Test solver with cyclic loading (ncycle > 1)."""
+        E = 210000.0
+        nu = 0.3
+        props = np.array([E, nu, 0.0])
+
+        step1 = StepMeca(
+            DEtot_end=np.array([0.002, 0, 0, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=2
+        )
+        step2 = StepMeca(
+            DEtot_end=np.array([-0.002, 0, 0, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=2
+        )
+
+        block = Block(
+            steps=[step1, step2],
+            umat_name="ELISO",
+            props=props,
+            nstatev=1,
+            ncycle=3  # 3 cycles
+        )
+
+        solver = Solver(blocks=[block])
+        history = solver.solve()
+
+        # 3 cycles * 2 steps * 2 increments each + 1 initial = 13 points
+        assert len(history) == 13
+
+    @pytest.mark.skipif(
+        not _has_simcoon_core(),
+        reason="simcoon._core not available"
+    )
+    def test_solver_pure_shear(self):
+        """Test solver under pure shear loading."""
+        E = 210000.0
+        nu = 0.3
+        props = np.array([E, nu, 0.0])
+
+        shear_strain = 0.01
+        step = StepMeca(
+            DEtot_end=np.array([0, 0, 0, shear_strain, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=5
+        )
+
+        block = Block(
+            steps=[step],
+            umat_name="ELISO",
+            props=props,
+            nstatev=1
+        )
+
+        solver = Solver(blocks=[block])
+        history = solver.solve()
+
+        final = history[-1]
+
+        # Shear modulus G = E / (2 * (1 + nu))
+        G = E / (2 * (1 + nu))
+
+        # Shear stress = 2 * G * shear_strain (factor 2 for engineering strain)
+        expected_shear_stress = G * shear_strain
+        assert np.isclose(final.sigma[3], expected_shear_stress, rtol=1e-3)
+
+    @pytest.mark.skipif(
+        not _has_simcoon_core(),
+        reason="simcoon._core not available"
+    )
+    def test_solver_with_initial_state(self):
+        """Test solver with provided initial state."""
+        E = 210000.0
+        nu = 0.3
+        props = np.array([E, nu, 0.0])
+
+        # Create initial state with pre-strain
+        sv_init = StateVariablesM(nstatev=1)
+        sv_init.Etot[0] = 0.001  # Pre-existing strain
+
+        step = StepMeca(
+            DEtot_end=np.array([0.001, 0, 0, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=5
+        )
+
+        block = Block(
+            steps=[step],
+            umat_name="ELISO",
+            props=props,
+            nstatev=1
+        )
+
+        solver = Solver(blocks=[block])
+        history = solver.solve(sv_init=sv_init)
+
+        # Final strain should include pre-strain
+        final = history[-1]
+        assert np.isclose(final.Etot[0], 0.002, rtol=1e-6)
+
+    @pytest.mark.skipif(
+        not _has_simcoon_core(),
+        reason="simcoon._core not available"
+    )
+    def test_solver_hydrostatic_compression(self):
+        """Test solver under hydrostatic compression."""
+        E = 210000.0
+        nu = 0.3
+        props = np.array([E, nu, 0.0])
+
+        vol_strain = -0.003  # compression
+        step = StepMeca(
+            DEtot_end=np.array([vol_strain, vol_strain, vol_strain, 0, 0, 0]),
+            control=['strain'] * 6,
+            Dn_init=5
+        )
+
+        block = Block(
+            steps=[step],
+            umat_name="ELISO",
+            props=props,
+            nstatev=1
+        )
+
+        solver = Solver(blocks=[block])
+        history = solver.solve()
+
+        final = history[-1]
+
+        # Bulk modulus K = E / (3 * (1 - 2*nu))
+        K = E / (3 * (1 - 2*nu))
+
+        # Pressure = K * volumetric_strain (for small strain)
+        volumetric_strain = 3 * vol_strain
+        expected_pressure = K * volumetric_strain
+
+        # All normal stresses should be equal (hydrostatic)
+        assert np.isclose(final.sigma[0], final.sigma[1], rtol=1e-6)
+        assert np.isclose(final.sigma[1], final.sigma[2], rtol=1e-6)
+
+        # Mean stress should match pressure
+        mean_stress = (final.sigma[0] + final.sigma[1] + final.sigma[2]) / 3
+        assert np.isclose(mean_stress, expected_pressure, rtol=1e-2)
+
+
+# =============================================================================
+# Solver Parameter Tests
+# =============================================================================
+
+class TestSolverParameters:
+    """Tests for Solver parameter handling."""
+
+    def test_solver_custom_tolerance(self):
+        """Test solver with custom tolerance."""
+        solver = Solver(tol=1e-12)
+        assert solver.tol == 1e-12
+
+    def test_solver_custom_max_iter(self):
+        """Test solver with custom max iterations."""
+        solver = Solver(max_iter=50)
+        assert solver.max_iter == 50
+
+    def test_solver_custom_lambda(self):
+        """Test solver with custom lambda_solver."""
+        solver = Solver(lambda_solver=50000.0)
+        assert solver.lambda_solver == 50000.0
 
 
 # =============================================================================
