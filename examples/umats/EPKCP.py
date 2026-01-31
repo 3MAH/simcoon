@@ -59,9 +59,9 @@ props = np.array([E, nu, alpha, sigma_Y, k, m, k_X])
 # Define a uniaxial loading path.
 
 step = StepMeca(
-    DEtot_end=np.array([0.03, 0, 0, 0, 0, 0]),  # 3% strain
+    DEtot_end=np.array([0.03, -0.0045, -0.0045, 0, 0, 0]),  # 3% strain (pure strain control)
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
     Dn_init=300,
     Dn_mini=75,
     Dn_inc=600,

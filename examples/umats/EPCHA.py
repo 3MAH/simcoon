@@ -64,11 +64,11 @@ props = np.array([E, nu, alpha, sigma_Y, Q, b, C_1, D_1, C_2, D_2])
 # ---------------------------------------------------
 # Define a cyclic uniaxial loading to demonstrate the Bauschinger effect.
 
-# Step 1: Tension to 1% strain
+# Step 1: Tension to 1% strain (pure strain control for stability)
 step1 = StepMeca(
-    DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
+    DEtot_end=np.array([0.01, -0.0015, -0.0015, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
     Dn_init=200,
     Dn_mini=50,
     Dn_inc=400,
@@ -77,9 +77,9 @@ step1 = StepMeca(
 
 # Step 2: Compression to -1% strain
 step2 = StepMeca(
-    DEtot_end=np.array([-0.02, 0, 0, 0, 0, 0]),  # -2% increment from +1%
+    DEtot_end=np.array([-0.02, 0.003, 0.003, 0, 0, 0]),  # -2% increment from +1%
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
     Dn_init=400,
     Dn_mini=100,
     Dn_inc=800,
@@ -88,9 +88,9 @@ step2 = StepMeca(
 
 # Step 3: Tension back to +1% strain
 step3 = StepMeca(
-    DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+    DEtot_end=np.array([0.02, -0.003, -0.003, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
     Dn_init=400,
     Dn_mini=100,
     Dn_inc=800,

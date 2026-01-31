@@ -68,11 +68,12 @@ props = np.array([E, nu, alpha, sigma_Y, H, beta])
 # ---------------------------------------------------
 # Define a uniaxial tension-compression cycle
 
-# Step 1: Tension to 2% strain
+# Step 1: Tension to 2% strain (pure strain control for stability)
+# Note: For plasticity, pure strain control is more stable than mixed BC
 step1 = StepMeca(
-    DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+    DEtot_end=np.array([0.02, -0.003, -0.003, 0, 0, 0]),
     Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-    control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+    control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
     Dn_init=200,
     Dn_mini=50,
     Dn_inc=400,
@@ -150,9 +151,9 @@ data = []
 
 for inc in increments:
     step = StepMeca(
-        DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+        DEtot_end=np.array([0.02, -0.003, -0.003, 0, 0, 0]),
         Dsigma_end=np.array([0, 0, 0, 0, 0, 0]),
-        control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+        control=['strain', 'strain', 'strain', 'strain', 'strain', 'strain'],
         Dn_init=inc,
         Dn_mini=max(10, inc // 5),
         Dn_inc=inc * 2,

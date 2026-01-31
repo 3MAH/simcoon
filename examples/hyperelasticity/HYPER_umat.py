@@ -153,18 +153,22 @@ def run_hyperelastic_simulation(umat_name, params, stretch_max, loading_type='UT
     strain_max = np.log(stretch_max)
 
     # Define loading path based on type
+    # Using pure strain control for stability (approximate lateral strains for incompressibility)
     if loading_type == 'UT':
-        # Uniaxial tension: strain in direction 1, stress-free in 2,3
-        DEtot_end = np.array([strain_max, 0, 0, 0, 0, 0])
-        control = ['strain', 'stress', 'stress', 'stress', 'stress', 'stress']
+        # Uniaxial tension: for incompressible, lateral strain ~ -0.5 * axial strain
+        lat_strain = -0.5 * strain_max  # Approximate for incompressible
+        DEtot_end = np.array([strain_max, lat_strain, lat_strain, 0, 0, 0])
+        control = ['strain', 'strain', 'strain', 'strain', 'strain', 'strain']
     elif loading_type == 'PS':
-        # Pure shear: strain in direction 1, constrained in 2, stress-free in 3
-        DEtot_end = np.array([strain_max, 0, 0, 0, 0, 0])
-        control = ['strain', 'strain', 'stress', 'stress', 'stress', 'stress']
+        # Pure shear: constrain direction 2, use incompressibility for direction 3
+        lat_strain = -strain_max  # For pure shear, e33 ~ -e11 (incompressible)
+        DEtot_end = np.array([strain_max, 0, lat_strain, 0, 0, 0])
+        control = ['strain', 'strain', 'strain', 'strain', 'strain', 'strain']
     elif loading_type == 'ET':
-        # Equibiaxial tension: equal strain in 1 and 2, stress-free in 3
-        DEtot_end = np.array([strain_max, strain_max, 0, 0, 0, 0])
-        control = ['strain', 'strain', 'stress', 'stress', 'stress', 'stress']
+        # Equibiaxial tension: for incompressible, e33 ~ -2*e11
+        lat_strain = -2.0 * strain_max  # Approximate for incompressible
+        DEtot_end = np.array([strain_max, strain_max, lat_strain, 0, 0, 0])
+        control = ['strain', 'strain', 'strain', 'strain', 'strain', 'strain']
     else:
         raise ValueError(f"Unknown loading type: {loading_type}")
 
