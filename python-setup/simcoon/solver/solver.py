@@ -37,6 +37,55 @@ CONTROL_TYPES = {
     'gradU': 6,
 }
 
+
+# =============================================================================
+# Lightweight History Point (optimized for minimal memory allocation)
+# =============================================================================
+
+@dataclass
+class HistoryPoint:
+    """
+    Lightweight history point storing only essential state variables.
+
+    This class is optimized for history storage, containing only the fields
+    typically accessed after simulation: strain, stress, work, and state variables.
+    Using this instead of full StateVariablesM copies reduces memory allocation
+    by ~8x per history point.
+
+    Attributes
+    ----------
+    Etot : np.ndarray
+        Green-Lagrange strain tensor in Voigt notation (6,)
+    sigma : np.ndarray
+        Cauchy stress tensor in Voigt notation (6,)
+    Wm : np.ndarray
+        Mechanical work components [Wm, Wm_r, Wm_ir, Wm_d] (4,)
+    statev : np.ndarray
+        Internal state variables vector (nstatev,)
+    R : np.ndarray
+        Rotation tensor (3,3) - for objective rate analysis
+    T : float
+        Current temperature
+    """
+    Etot: np.ndarray
+    sigma: np.ndarray
+    Wm: np.ndarray
+    statev: np.ndarray
+    R: np.ndarray
+    T: float
+
+    @classmethod
+    def from_state(cls, sv: 'StateVariablesM') -> 'HistoryPoint':
+        """Create a HistoryPoint from a StateVariablesM (copies only essential fields)."""
+        return cls(
+            Etot=sv.Etot.copy(),
+            sigma=sv.sigma.copy(),
+            Wm=sv.Wm.copy(),
+            statev=sv.statev.copy(),
+            R=sv.R.copy(),
+            T=sv.T,
+        )
+
 CORATE_TYPES = {
     'jaumann': 0,
     'green_naghdi': 1,
@@ -164,25 +213,47 @@ class StateVariables:
         if self.sigma_start is None:
             self.sigma_start = np.zeros(6)
         if self.F0 is None:
-            self.F0 = np.eye(3)
+            self.F0 = np.eye(3, order='F')
         if self.F1 is None:
-            self.F1 = np.eye(3)
+            self.F1 = np.eye(3, order='F')
         if self.U0 is None:
-            self.U0 = np.eye(3)
+            self.U0 = np.eye(3, order='F')
         if self.U1 is None:
-            self.U1 = np.eye(3)
+            self.U1 = np.eye(3, order='F')
         if self.R is None:
-            self.R = np.eye(3)
+            self.R = np.eye(3, order='F')
         if self.DR is None:
-            self.DR = np.eye(3)
+            self.DR = np.eye(3, order='F')
         if self.statev is None:
             self.statev = np.zeros(max(1, self.nstatev))
         if self.statev_start is None:
             self.statev_start = np.zeros(max(1, self.nstatev))
 
     def copy(self) -> 'StateVariables':
-        """Create a deep copy of this StateVariables object."""
-        return copy.deepcopy(self)
+        """Create a copy of this StateVariables object (optimized, avoids deepcopy)."""
+        return StateVariables(
+            Etot=self.Etot.copy(),
+            DEtot=self.DEtot.copy(),
+            etot=self.etot.copy(),
+            Detot=self.Detot.copy(),
+            PKII=self.PKII.copy(),
+            PKII_start=self.PKII_start.copy(),
+            tau=self.tau.copy(),
+            tau_start=self.tau_start.copy(),
+            sigma=self.sigma.copy(),
+            sigma_start=self.sigma_start.copy(),
+            F0=self.F0.copy(),
+            F1=self.F1.copy(),
+            U0=self.U0.copy(),
+            U1=self.U1.copy(),
+            R=self.R.copy(),
+            DR=self.DR.copy(),
+            T=self.T,
+            DT=self.DT,
+            nstatev=self.nstatev,
+            statev=self.statev.copy(),
+            statev_start=self.statev_start.copy(),
+        )
 
     def copy_to(self, other: 'StateVariables'):
         """
@@ -280,9 +351,41 @@ class StateVariablesM(StateVariables):
         if self.Wm_start is None:
             self.Wm_start = np.zeros(4)
         if self.L is None:
-            self.L = np.zeros((6, 6))
+            self.L = np.zeros((6, 6), order='F')
         if self.Lt is None:
-            self.Lt = np.zeros((6, 6))
+            self.Lt = np.zeros((6, 6), order='F')
+
+    def copy(self) -> 'StateVariablesM':
+        """Create a copy of this StateVariablesM object (optimized, avoids deepcopy)."""
+        return StateVariablesM(
+            Etot=self.Etot.copy(),
+            DEtot=self.DEtot.copy(),
+            etot=self.etot.copy(),
+            Detot=self.Detot.copy(),
+            PKII=self.PKII.copy(),
+            PKII_start=self.PKII_start.copy(),
+            tau=self.tau.copy(),
+            tau_start=self.tau_start.copy(),
+            sigma=self.sigma.copy(),
+            sigma_start=self.sigma_start.copy(),
+            F0=self.F0.copy(),
+            F1=self.F1.copy(),
+            U0=self.U0.copy(),
+            U1=self.U1.copy(),
+            R=self.R.copy(),
+            DR=self.DR.copy(),
+            T=self.T,
+            DT=self.DT,
+            nstatev=self.nstatev,
+            statev=self.statev.copy(),
+            statev_start=self.statev_start.copy(),
+            sigma_in=self.sigma_in.copy(),
+            sigma_in_start=self.sigma_in_start.copy(),
+            Wm=self.Wm.copy(),
+            Wm_start=self.Wm_start.copy(),
+            L=self.L.copy(),
+            Lt=self.Lt.copy(),
+        )
 
     def copy_to(self, other: 'StateVariablesM'):
         """Copy all values from this object to another (in-place)."""
@@ -715,8 +818,8 @@ class Solver:
 
     Attributes
     ----------
-    history : List[StateVariables]
-        History of state variables at each converged increment
+    history : List[HistoryPoint]
+        History of essential state variables at each converged increment
 
     Examples
     --------
@@ -761,7 +864,20 @@ class Solver:
         self._residual = np.zeros(6)
         self._Delta = np.zeros(6)
 
-    def solve(self, sv_init: StateVariables = None) -> List[StateVariables]:
+        # Pre-allocate UMAT batch arrays (Fortran-contiguous for C++ binding)
+        # These are modified in-place by umat_inplace for zero-copy performance
+        self._etot_batch = np.zeros((6, 1), order='F')
+        self._Detot_batch = np.zeros((6, 1), order='F')
+        self._sigma_batch = np.zeros((6, 1), order='F')
+        self._F0_batch = np.zeros((3, 3, 1), order='F')
+        self._F1_batch = np.zeros((3, 3, 1), order='F')
+        self._DR_batch = np.zeros((3, 3, 1), order='F')
+        self._Wm_batch = np.zeros((4, 1), order='F')
+        self._Lt_batch = np.zeros((6, 6, 1), order='F')  # Tangent modulus
+        self._props_batch = None  # Allocated per-block (variable size)
+        self._statev_batch = None  # Allocated per-block (variable size)
+
+    def solve(self, sv_init: StateVariables = None) -> List[HistoryPoint]:
         """
         Run the full simulation.
 
@@ -772,8 +888,9 @@ class Solver:
 
         Returns
         -------
-        List[StateVariables]
-            History of state variables at each converged increment
+        List[HistoryPoint]
+            History of essential state variables at each converged increment.
+            Each HistoryPoint contains: Etot, sigma, Wm, statev, R, T.
         """
         self.history = []
 
@@ -786,8 +903,8 @@ class Solver:
             # Use the provided state directly (no copy)
             sv = sv_init
 
-        # Store initial state (copy needed for history)
-        self.history.append(sv.copy())
+        # Store initial state (lightweight copy for history)
+        self.history.append(HistoryPoint.from_state(sv))
 
         Time = 0.0
         start = True
@@ -879,8 +996,8 @@ class Solver:
                 tinc += Dtinc
                 Time += DTime
 
-                # Store converged state (copy needed for history)
-                self.history.append(sv.copy())
+                # Store converged state (lightweight copy for history)
+                self.history.append(HistoryPoint.from_state(sv))
 
                 # Try to increase step size
                 if ninc > step.Dn_mini:
@@ -1053,58 +1170,55 @@ class Solver:
     def _call_umat(self, block: Block, sv: StateVariables,
                    Time: float, DTime: float):
         """
-        Call the UMAT via pybind11 binding.
+        Call the UMAT via pybind11 binding (zero-copy version).
 
-        Updates sv in-place. Arrays are reshaped for the batched binding
-        (single material point = batch of 1).
+        Updates sv in-place using reshaped views - no array copies needed.
+        The reshape operation creates views that share memory with the original arrays.
         """
-        # Get Wm array (view, no copy)
-        if isinstance(sv, (StateVariablesM, StateVariablesT)):
-            Wm = sv.Wm
-        else:
-            Wm = np.zeros(4)
-
-        # Reshape arrays for batched binding (single point = batch of 1)
-        # The C++ binding expects Fortran-contiguous arrays:
-        # - Vector arrays as 2D (n, 1) column matrices
-        # - 3x3 tensors as 3D (3, 3, 1) cubes
-        # Note: The binding parameter names are lowercase (etot/Detot)
-        # For small_strain (control_type=1): use Green-Lagrange (Etot/DEtot)
-        # For finite strain (control_type>1): use logarithmic strain (etot/Detot)
         control_type_int = block.get_control_type_int()
-        if control_type_int == 1:  # small_strain - use Green-Lagrange
-            etot_batch = np.asfortranarray(sv.Etot.reshape(6, 1))
-            Detot_batch = np.asfortranarray(sv.DEtot.reshape(6, 1))
-        else:  # finite strain - use logarithmic strain
-            etot_batch = np.asfortranarray(sv.etot.reshape(6, 1))
-            Detot_batch = np.asfortranarray(sv.Detot.reshape(6, 1))
-        sigma_batch = np.asfortranarray(sv.sigma.reshape(6, 1))
-        F0_batch = np.asfortranarray(sv.F0.reshape(3, 3, 1))
-        F1_batch = np.asfortranarray(sv.F1.reshape(3, 3, 1))
-        DR_batch = np.asfortranarray(sv.DR.reshape(3, 3, 1))
-        props_batch = np.asfortranarray(block.props.reshape(-1, 1))
-        statev_batch = np.asfortranarray(sv.statev.reshape(-1, 1))
-        Wm_batch = np.asfortranarray(Wm.reshape(4, 1))
 
-        # Call UMAT with batched arrays
-        # Note: temp parameter is an optional array, pass None for isothermal
-        sigma_out, statev_out, Wm_out, Lt_out = scc.umat(
+        # Create reshaped views (no copy - shares memory with sv arrays)
+        if control_type_int == 1:  # small_strain - use Green-Lagrange
+            etot_view = sv.Etot.reshape(6, 1, order='F')
+            Detot_view = sv.DEtot.reshape(6, 1, order='F')
+        else:  # finite strain - use logarithmic strain
+            etot_view = sv.etot.reshape(6, 1, order='F')
+            Detot_view = sv.Detot.reshape(6, 1, order='F')
+
+        sigma_view = sv.sigma.reshape(6, 1, order='F')
+        F0_view = sv.F0.reshape(3, 3, 1, order='F')
+        F1_view = sv.F1.reshape(3, 3, 1, order='F')
+        DR_view = sv.DR.reshape(3, 3, 1, order='F')
+        statev_view = sv.statev.reshape(-1, 1, order='F')
+
+        # Props need to be copied (block.props may not be contiguous)
+        nprops = len(block.props)
+        if self._props_batch is None or self._props_batch.shape[0] != nprops:
+            self._props_batch = np.zeros((nprops, 1), order='F')
+        self._props_batch[:, 0] = block.props
+
+        # Wm and Lt views (for StateVariablesM/T)
+        if isinstance(sv, (StateVariablesM, StateVariablesT)):
+            Wm_view = sv.Wm.reshape(4, 1, order='F')
+            Lt_view = sv.Lt.reshape(6, 6, 1, order='F')
+        else:
+            Wm_view = self._Wm_batch
+            Lt_view = self._Lt_batch
+
+        # Call UMAT in-place - modifies sigma, statev, Wm, Lt through views
+        scc.umat_inplace(
             block.umat_name,
-            etot_batch, Detot_batch, F0_batch, F1_batch, sigma_batch, DR_batch,
-            props_batch, statev_batch,
-            float(Time), float(DTime), Wm_batch,
-            None,  # temp (optional array for thermomechanical)
-            3,     # ndi (3D)
+            etot_view, Detot_view,
+            F0_view, F1_view,
+            sigma_view, DR_view,
+            self._props_batch, statev_view,
+            float(Time), float(DTime),
+            Wm_view, Lt_view,
+            None,  # temp
+            3,     # ndi
             1      # n_threads
         )
-
-        # Update state variables in-place (flatten outputs back to 1D)
-        np.copyto(sv.sigma, sigma_out.ravel())
-        np.copyto(sv.statev, statev_out.ravel())
-
-        if isinstance(sv, (StateVariablesM, StateVariablesT)):
-            np.copyto(sv.Wm, Wm_out.ravel())
-            np.copyto(sv.Lt, Lt_out.reshape(6, 6) if Lt_out.ndim == 3 else Lt_out)
+        # No copy needed - sv.sigma, sv.statev, sv.Wm, sv.Lt already modified!
 
         # Update strain totals (in-place)
         sv.Etot += sv.DEtot

@@ -233,6 +233,12 @@ PYBIND11_MODULE(_core, m)
     // umat
     m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);
 
+    // umat_inplace - in-place modification for solver optimization
+    m.def("umat_inplace", &launch_umat_inplace, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Lt"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 1,
+        "In-place UMAT call - modifies sigma, statev, Wm, Lt arrays directly. "
+        "Arrays must be Fortran-contiguous (order='F') and writeable. "
+        "Faster than umat() for repeated calls as it avoids array allocation.");
+
     // ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);

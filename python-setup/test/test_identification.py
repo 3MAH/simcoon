@@ -33,7 +33,7 @@ class TestParameterSpec:
         from simcoon.identification import ParameterSpec
 
         param = ParameterSpec(name='nu', bounds=(0.2, 0.4))
-        assert param.initial == 0.3
+        assert param.initial == pytest.approx(0.3)
 
     def test_normalization(self):
         """Test parameter normalization."""
@@ -224,7 +224,9 @@ class TestOptimizers:
             seed=42,
         )
 
-        assert result.success
+        # Check solution found (cost near zero and parameters correct)
+        # Note: success may be False if maxiter reached even with good solution
+        assert result.cost < 1e-6
         np.testing.assert_array_almost_equal(result.x, [3.0, 5.0], decimal=1)
 
 

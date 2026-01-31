@@ -7,4 +7,7 @@ using namespace std;
 
 namespace simpy {
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads);
+
+	// In-place version - modifies output arrays directly without copying
+	void launch_umat_inplace(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, py::array_t<double> &statev_py, const float Time, const float DTime, py::array_t<double> &Wm_py, py::array_t<double> &Lt_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads);
 }

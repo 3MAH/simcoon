@@ -103,6 +103,8 @@ from .solver import (
     # Control type mappings
     CONTROL_TYPES,
     CORATE_TYPES,
+    # History storage
+    HistoryPoint,
     # State variable classes
     StateVariables,
     StateVariablesM,
@@ -134,6 +136,8 @@ __all__ = [
     # Control type mappings
     'CONTROL_TYPES',
     'CORATE_TYPES',
+    # History storage
+    'HistoryPoint',
     # State variable classes
     'StateVariables',
     'StateVariablesM',
