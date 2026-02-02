@@ -27,6 +27,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
 using namespace std;
 using namespace arma;
@@ -49,6 +50,24 @@ mat dI2DS(const mat &S) {
 mat dI3DS(const mat &S) {
     return (S*S).t();
 }
+
+//This function returns the derivative of the second invariant of a tensor : J_2 = 1/2 S_ij S_ij from the stress vector v in voigt notation
+mat dJ2DS(const mat &S) {
+
+    mat S_dev = dev(S);  
+    return S_dev;
+}
+
+//This function returns the derivative of the third invariant of a tensor : J_3 = 1/3 S_ij S_jk S_ki from the stress vector v in voigt notation
+mat dJ3DS(const mat &S) {
+
+    mat S_dev = dev(S);
+
+    mat S2 = S_dev * S_dev;
+    double trS2 = trace(S2);
+    return S2 - (trS2 / 3.0) * eye<mat>(3,3);
+}
+
 
 //This function returns the derivative of the trace of a tensor
 mat dtrSdS(const mat &S) {

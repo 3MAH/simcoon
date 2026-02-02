@@ -28,6 +28,7 @@
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 
 using namespace std;
 using namespace arma;
@@ -79,8 +80,13 @@ namespace simcoon
         double J3 = J3_stress(v);
         double J2_3_2 = pow(J2, 1.5);
         double J2_5_2 = pow(J2, 2.5);
-        vec dJ3 = dJ3_stress(v);
-        vec dJ2 = dJ2_stress(v);
+        
+        mat sigma = v2t_stress(v);
+
+        mat dJ2_mat=dJ2DS(sigma);
+        mat dJ3_mat=dJ3DS(sigma);
+        vec dJ2 = t2v_strain(dJ2_mat);
+        vec dJ3 = t2v_strain(dJ3_mat);
 
         double m;
         vec temp;
@@ -123,32 +129,6 @@ namespace simcoon
         return eta_stress(v);
     }
 
-    // This function returns the derivative of J2
-    vec dJ2_stress(const vec &v)
-    {
-        vec vdev = (dev(v)%Ir2());  
-
-        return vdev;
-    }
-
-    // This function returns the derivative of J3
-    vec dJ3_stress(const vec &v)
-    {
-        assert(v.size() == 6);
-
-        vec vdev = dev(v);  
-        mat S = v2t_stress(vdev);
-
-        mat SS = S * S;
-
-        double trS2 = accu(S % S);
-
-        mat dJ3_mat = SS - (1.0/3.0) * trS2 * eye<mat>(3,3);
-
-        vec dJ3 = t2v_strain(dJ3_mat);
-
-        return dJ3;
-    }
     // This function returns the combination of the Drucker equivalent stress by replacing VM by DFA
     double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
     {
@@ -195,8 +175,14 @@ namespace simcoon
         double J3 = J3_stress(v);
         double J2_3_2 = pow(J2, 1.5);
         double J2_5_2 = pow(J2, 2.5);
-        vec dJ3 = dJ3_stress(v);
-        vec dJ2 = dJ2_stress(v);
+
+        mat sigma = v2t_stress(v);
+
+        mat dJ2_mat=dJ2DS(sigma);
+        mat dJ3_mat=dJ3DS(sigma);
+        vec dJ2 = t2v_strain(dJ2_mat);
+        vec dJ3 = t2v_strain(dJ3_mat);
+        
 
         double m;
         vec temp;
