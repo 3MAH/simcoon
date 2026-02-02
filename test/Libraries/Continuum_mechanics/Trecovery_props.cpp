@@ -274,12 +274,89 @@ TEST(Trecovery_props, test_L_isoT_M_isoT_props)
     EXPECT_LT(fabs(GLT - props(4)),1.E-9);
     
     props = M_isotrans_props(Mtest,3);
-    
+
     EXPECT_LT(fabs(EL - props(0)),1.E-9);
     EXPECT_LT(fabs(ET - props(1)),1.E-9);
     EXPECT_LT(fabs(nuTL - props(2)),1.E-9);
     EXPECT_LT(fabs(nuTT - props(3)),1.E-9);
     EXPECT_LT(fabs(GLT - props(4)),1.E-9);
 
+}
+
+TEST(Trecovery_props, L_ortho_props_round_trip)
+{
+    double E1 = 10000.;
+    double E2 = 20000.;
+    double E3 = 30000.;
+    double nu12 = 0.3;
+    double nu13 = 0.3;
+    double nu23 = 0.3;
+    double G12 = 6000.;
+    double G13 = 7000.;
+    double G23 = 8000.;
+
+    // Build L, extract props, rebuild L, compare
+    mat L = L_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    vec props = L_ortho_props(L);
+
+    EXPECT_LT(fabs(E1 - props(0)), 1.E-9);
+    EXPECT_LT(fabs(E2 - props(1)), 1.E-9);
+    EXPECT_LT(fabs(E3 - props(2)), 1.E-9);
+    EXPECT_LT(fabs(nu12 - props(3)), 1.E-9);
+    EXPECT_LT(fabs(nu13 - props(4)), 1.E-9);
+    EXPECT_LT(fabs(nu23 - props(5)), 1.E-9);
+    EXPECT_LT(fabs(G12 - props(6)), 1.E-9);
+    EXPECT_LT(fabs(G13 - props(7)), 1.E-9);
+    EXPECT_LT(fabs(G23 - props(8)), 1.E-9);
+
+    // Rebuild and compare
+    mat L2 = L_ortho(props(0), props(1), props(2), props(3), props(4), props(5), props(6), props(7), props(8), "EnuG");
+    EXPECT_LT(norm(L2 - L, 2), 1.E-9);
+}
+
+TEST(Trecovery_props, M_ortho_props_round_trip)
+{
+    double E1 = 10000.;
+    double E2 = 20000.;
+    double E3 = 30000.;
+    double nu12 = 0.3;
+    double nu13 = 0.3;
+    double nu23 = 0.3;
+    double G12 = 6000.;
+    double G13 = 7000.;
+    double G23 = 8000.;
+
+    mat M = M_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    vec props = M_ortho_props(M);
+
+    EXPECT_LT(fabs(E1 - props(0)), 1.E-9);
+    EXPECT_LT(fabs(E2 - props(1)), 1.E-9);
+    EXPECT_LT(fabs(E3 - props(2)), 1.E-9);
+    EXPECT_LT(fabs(nu12 - props(3)), 1.E-9);
+    EXPECT_LT(fabs(nu13 - props(4)), 1.E-9);
+    EXPECT_LT(fabs(nu23 - props(5)), 1.E-9);
+    EXPECT_LT(fabs(G12 - props(6)), 1.E-9);
+    EXPECT_LT(fabs(G13 - props(7)), 1.E-9);
+    EXPECT_LT(fabs(G23 - props(8)), 1.E-9);
+}
+
+TEST(Trecovery_props, M_aniso_props_basic)
+{
+    // Build an orthotropic compliance and extract aniso props
+    double E1 = 10000.;
+    double E2 = 20000.;
+    double E3 = 30000.;
+    double nu12 = 0.3;
+    double nu13 = 0.3;
+    double nu23 = 0.3;
+    double G12 = 6000.;
+    double G13 = 7000.;
+    double G23 = 8000.;
+
+    mat M = M_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    vec props = M_aniso_props(M);
+
+    // Should return 21 independent components for anisotropic
+    EXPECT_EQ(props.n_elem, (arma::uword)21);
 }
 

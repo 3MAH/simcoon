@@ -433,7 +433,7 @@ mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
     return FTensor4_mat(C_);
 }
 
-mat DSDE_2_DsigmaDe_LieDD(const mat &DSDE, const mat &F) {
+mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
 
     double J = det(F);
     return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);

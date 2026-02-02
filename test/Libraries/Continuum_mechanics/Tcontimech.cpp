@@ -24,6 +24,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 
 using namespace std;
 using namespace arma;
@@ -263,4 +264,116 @@ TEST(Tcontimech, P_ijkl)
     EXPECT_LT(norm(pikjla - Ireal,2),sim_iota);
     EXPECT_LT(norm(pikjlb - ones(6,6),2),sim_iota);
     EXPECT_LT(norm(pikjlc - result,2),sim_iota);
+}
+
+TEST(Tcontimech, norm_stress_strain)
+{
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    // norm_stress should be positive for non-zero input
+    double ns = norm_stress(sigma);
+    EXPECT_GT(ns, 0.);
+
+    // Zero input should give zero norm
+    double ns_zero = norm_stress(zeros(6));
+    EXPECT_LT(fabs(ns_zero), sim_iota);
+
+    // norm_strain should be positive for non-zero input
+    double ne = norm_strain(sigma);
+    EXPECT_GT(ne, 0.);
+
+    // Zero input
+    double ne_zero = norm_strain(zeros(6));
+    EXPECT_LT(fabs(ne_zero), sim_iota);
+}
+
+TEST(Tcontimech, eta_norm_stress_strain)
+{
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    // eta_norm_stress should return 6-component vector
+    vec eta_ns = eta_norm_stress(sigma);
+    EXPECT_EQ(eta_ns.n_elem, (arma::uword)6);
+    // Should be normalized (non-zero norm)
+    EXPECT_GT(norm(eta_ns, 2), 0.);
+
+    // eta_norm_strain
+    vec eta_ne = eta_norm_strain(sigma);
+    EXPECT_EQ(eta_ne.n_elem, (arma::uword)6);
+    EXPECT_GT(norm(eta_ne, 2), 0.);
+}
+
+TEST(Tcontimech, curvature_ellipsoid)
+{
+    double a1 = 1.;
+    double a2 = 1.;
+    double a3 = 1.;
+
+    // For a sphere of radius 1, curvature = 1/R = 1 everywhere
+    double curv = curvature_ellipsoid(0., 0., a1, a2, a3);
+    EXPECT_GT(curv, 0.);
+}
+
+TEST(Tcontimech, dyadic_products)
+{
+    mat a = eye(3, 3);
+    a(0, 0) = 2.;
+
+    // auto_sym_dyadic: should be 6x6, symmetric
+    mat asd = auto_sym_dyadic(a);
+    EXPECT_EQ(asd.n_rows, (arma::uword)6);
+    EXPECT_EQ(asd.n_cols, (arma::uword)6);
+    EXPECT_LT(norm(asd - asd.t(), 2), 1.E-9);
+
+    // sym_dyadic of a with itself should equal auto_sym_dyadic
+    mat sd = sym_dyadic(a, a);
+    EXPECT_LT(norm(sd - asd, 2), 1.E-9);
+
+    // auto_dyadic: should be 6x6
+    mat ad = auto_dyadic(a);
+    EXPECT_EQ(ad.n_rows, (arma::uword)6);
+    EXPECT_EQ(ad.n_cols, (arma::uword)6);
+
+    // dyadic of a with itself should equal auto_dyadic
+    mat d = dyadic(a, a);
+    EXPECT_LT(norm(d - ad, 2), 1.E-9);
+}
+
+TEST(Tcontimech, dyadic_4vectors_sym)
+{
+    vec n_a = {1., 0., 0.};
+    vec n_b = {0., 1., 0.};
+
+    // Result should be 6x6 (conv must be "aabb" or "abab")
+    mat d4v = dyadic_4vectors_sym(n_a, n_b, "aabb");
+    EXPECT_EQ(d4v.n_rows, (arma::uword)6);
+    EXPECT_EQ(d4v.n_cols, (arma::uword)6);
+}
+
+TEST(Tcontimech, sym_dyadic_operators)
+{
+    mat a = eye(3, 3);
+    a(0, 0) = 2.;
+    mat b = eye(3, 3);
+    b(1, 1) = 3.;
+
+    // auto_sym_dyadic_operator (odot operation)
+    mat asdo = auto_sym_dyadic_operator(a);
+    EXPECT_EQ(asdo.n_rows, (arma::uword)6);
+    EXPECT_EQ(asdo.n_cols, (arma::uword)6);
+
+    // sym_dyadic_operator for two tensors
+    mat sdo = sym_dyadic_operator(a, b);
+    EXPECT_EQ(sdo.n_rows, (arma::uword)6);
+    EXPECT_EQ(sdo.n_cols, (arma::uword)6);
+}
+
+TEST(Tcontimech, linearop_eigsym)
+{
+    vec b_i = {1., 0., 0.};
+    vec b_j = {0., 1., 0.};
+
+    mat L = linearop_eigsym(b_i, b_j);
+    EXPECT_EQ(L.n_rows, (arma::uword)6);
+    EXPECT_EQ(L.n_cols, (arma::uword)6);
 }
