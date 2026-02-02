@@ -250,8 +250,10 @@ class TestEPICP:
 
         # After unloading, should have residual plastic strain
         final = history[-1]
-        # Residual strain should be positive (plastic deformation occurred)
-        assert final.Etot[0] > 0.001
+        # For EPICP: statev[1] = accumulated plastic p, statev[2:8] = plastic strain EP
+        # After cyclic loading, plastic strain should be non-zero
+        plastic_strain_11 = final.statev[2]  # EP(0,0)
+        assert plastic_strain_11 > 0.001, f"Expected plastic strain > 0.001, got {plastic_strain_11}"
 
 
 # =============================================================================
