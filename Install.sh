@@ -126,49 +126,12 @@ then
     fi
     Test_OK=$?
 
-    #Create the list of the file to copy after compilation
-    executableToCopy="solver identification L_eff Elastic_props ODF PDF"
-#    objectToCopy="umat_single umat_singleT"
-
     # Copy all important files (+ final message)
+    # NOTE: Legacy executables (solver, identification, L_eff, Elastic_props, ODF, PDF)
+    # have been removed in v2.0. Use the Python API instead.
     if [ $Test_OK -eq 0 ]
     then
         echo "\n---------------------------"
-        
-        #Treatement of object files
-#        for object in ${objectToCopy}
-#        do
-#            #Copy of the "object".o from build/CMakeFiles/umat.dir/software to build/bin
-#            if [ -f ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ]
-#            then
-#                cp ${current_dir}/build/CMakeFiles/umat.dir/software/${object}.cpp.o ${current_dir}/build/bin/${object}.o
-#                echo "${blue}${object}.o${reset} copied in ${blue}${current_dir}/build/bin${reset}"
-#            fi
-#        done
-        
-        #Treatement of executable files
-        for file in ${executableToCopy}
-        do
-            #if debug exists, copy of the file from build/bin/Debug to build/bin
-            if [ -f ${current_dir}/build/bin/Debug/${file} ]
-            then
-                cp ${current_dir}/build/bin/Debug/${file} ${current_dir}/build/bin
-            fi
-
-            #if Release exists, copy of the file from build/bin/Debug to build/bin
-            if [ -f ${current_dir}/build/bin/Release/${file} ]
-            then
-                cp ${current_dir}/build/bin/Release/${file} ${current_dir}/build/bin
-            fi
-            
-            #Copy the file from build/bin to exec
-            cp ${current_dir}/build/bin/${file} ${current_dir}/exec/
-            echo "${blue}${file}${reset} copied in ${blue}${current_dir}/exec${reset}"
-        done
-
-        cp ${current_dir}/build/bin/solver ${current_dir}/examples/elastic-plastic_tension
-        cp ${current_dir}/build/bin/solver ${current_dir}/examples/micromechanics
-        cp ${current_dir}/build/bin/identification ${current_dir}/examples/multi-layer_identification
 
         if [ "${Install_check}" = "OK" ]
         then

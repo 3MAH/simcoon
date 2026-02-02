@@ -351,46 +351,49 @@ Standard loading path definition (see :doc:`simulation/solver` for details):
 Testing External Plugins
 ------------------------
 
-Simcoon includes unit tests to validate external UMAT plugins:
+External UMAT plugins can be tested using the Python API:
+
+.. code-block:: python
+
+    import numpy as np
+    from simcoon.solver import Solver, Block, StepMeca
+
+    # Material properties for your external UMAT
+    props = np.array([...])  # UMAT-specific properties
+
+    # Define loading step (uniaxial tension to 2% strain)
+    step = StepMeca(
+        DEtot_end=np.array([0.02, 0, 0, 0, 0, 0]),
+        control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+        Dn_init=1,
+        Dn_inc=100
+    )
+
+    # Create block with external UMAT
+    block = Block(
+        steps=[step],
+        umat_name='UMEXT',  # or 'UMABA' for Abaqus-compatible
+        props=props,
+        nstatev=1
+    )
+
+    # Run simulation
+    solver = Solver(blocks=[block])
+    history = solver.solve()
+
+    # Access results
+    for state in history:
+        print(f"Strain: {state.Etot[0]:.4f}, Stress: {state.sigma[0]:.2f}")
 
 **TUMEXT Test**
 
-Located in ``test/Umats/UMEXT/``, this test validates the UMEXT plugin format:
-
-.. code-block:: cpp
-
-    // Read configuration files
-    solver_essentials(solver_type, corate_type, path_data, sol_essentials);
-    solver_control(div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, 
-                   maxiter_solver, inforce_solver, precision_solver, 
-                   lambda_solver, path_data, sol_control);
-    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, 
-                  phi_rve, path_data, materialfile);
-    
-    // Run solver with external UMAT
-    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, 
-           solver_type, corate_type, ...);
-    
-    // Compare results against reference
-    mat C, R;
-    C.load("comparison/results_job_global-0.txt");
-    R.load(path_results + "/results_job_global-0.txt");
-    // Verify results match within tolerance
-
-The test data is located in ``testBin/Umats/UMEXT/data/``:
-
-- ``material.dat`` - Material definition with ``Name UMEXT``
-- ``path.txt`` - Loading path (uniaxial tension to 2% strain)
-- ``solver_essentials.inp`` - Solver type configuration
-- ``solver_control.inp`` - Solver convergence parameters
-- ``output.dat`` - Output configuration
+The C++ test located in ``test/Umats/UMEXT/`` validates the UMEXT plugin format.
+Test data is located in ``testBin/Umats/UMEXT/data/``.
 
 **TUMABA Test**
 
 Located in ``test_extern/Umats/UMABA/``, this test validates the Abaqus UMAT compatibility layer.
-The test structure is identical to TUMEXT but uses ``Name UMABA`` in the material file.
-
-The test data is located in ``testBin/Umats/UMABA/data/``.
+Test data is located in ``testBin/Umats/UMABA/data/``.
 
 .. note::
 

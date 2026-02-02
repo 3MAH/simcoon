@@ -10,6 +10,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
 from simcoon import parameter as par
+from simcoon.solver.micromechanics import (
+    Ellipsoid,
+    MaterialOrientation,
+    GeometryOrientation,
+    load_ellipsoids_json,
+    save_ellipsoids_json,
+)
 import os
 
 ###################################################################################
@@ -137,34 +144,35 @@ aspect_ratios = np.logspace(-1, 1, 50)
 E_eff_ar = np.zeros(len(aspect_ratios))
 umat_name = "MIMTN"
 
-# Save original phase file
-phase_file = path_data + "/Nellipsoids0.dat"
-with open(phase_file, "r") as f:
-    original_content = f.read()
+# Load ellipsoid phases from JSON (C++ looks for ellipsoids{num_file}.json)
+ellipsoids_file = path_data + "/ellipsoids0.json"
+ellipsoids = load_ellipsoids_json(ellipsoids_file)
+
+# Store original semi-axes for restoration
+original_a1 = ellipsoids[1].a1
+original_a2 = ellipsoids[1].a2
+original_a3 = ellipsoids[1].a3
 
 print(f"\nComputing effective properties for c={c_reinf * 100:.0f}% reinforcement...")
 for i, ar in enumerate(aspect_ratios):
-    # Read and modify the phase file to set the aspect ratio
-    with open(phase_file, "r") as f:
-        lines = f.readlines()
+    # Modify the reinforcement phase (index 1) semi-axes
+    # a1/a3 = ar, with a2 = a3 = 1
+    ellipsoids[1].a1 = ar
+    ellipsoids[1].a2 = 1.0
+    ellipsoids[1].a3 = 1.0
 
-    # Update semi-axes in reinforcement phase (line 2): a1/a3 = ar, a2 = a3 = 1
-    parts = lines[2].split()
-    parts[8] = str(ar)  # a1
-    parts[9] = "1"  # a2
-    parts[10] = "1"  # a3
-    lines[2] = "\t".join(parts) + "\n"
-
-    with open(phase_file, "w") as f:
-        f.writelines(lines)
+    # Save the modified configuration
+    save_ellipsoids_json(ellipsoids_file, ellipsoids)
 
     L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
     p = sim.L_iso_props(L).flatten()
     E_eff_ar[i] = p[0]
 
-# Restore original phase file
-with open(phase_file, "w") as f:
-    f.write(original_content)
+# Restore original semi-axes
+ellipsoids[1].a1 = original_a1
+ellipsoids[1].a2 = original_a2
+ellipsoids[1].a3 = original_a3
+save_ellipsoids_json(ellipsoids_file, ellipsoids)
 
 # Get reference value for spherical inclusion (ar=1)
 idx_sphere = np.argmin(np.abs(aspect_ratios - 1.0))

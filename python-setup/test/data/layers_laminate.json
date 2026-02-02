@@ -1,0 +1,22 @@
+{
+  "layers": [
+    {
+      "number": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.5,
+      "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "geometry_orientation": {"psi": 0, "theta": 90, "phi": -90},
+      "props": [70000, 0.3, 0]
+    },
+    {
+      "number": 1,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.5,
+      "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "geometry_orientation": {"psi": 0, "theta": 90, "phi": -90},
+      "props": [3000, 0.4, 0]
+    }
+  ]
+}

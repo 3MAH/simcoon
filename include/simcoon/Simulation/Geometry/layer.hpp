@@ -16,9 +16,19 @@
  */
 
 ///@file layer.hpp
-///@brief Characteristics of an layer geometry, which hereditates from:
-///-geometry
-///@version 1.0
+///@brief Characteristics of a layer geometry, which inherits from geometry
+///@version 2.0
+///
+///@details This class represents planar layers for laminate composite
+///      homogenization. Layers are defined by their orientation using
+///      Euler angles and links to adjacent layers.
+///
+///@example Python interface with JSON I/O:
+///      @code{.py}
+///      from simcoon.solver.micromechanics import Layer, GeometryOrientation
+///      layer = Layer(number=0, concentration=0.5,
+///                    geometry_orientation=GeometryOrientation(psi=0, theta=90, phi=-90))
+///      @endcode
 
 #pragma once
 
@@ -30,7 +40,7 @@ namespace simcoon{
 
 /**
  * @file layer.hpp
- * @brief Inclusion geometry functions.
+ * @brief Layer geometry for laminate homogenization.
  */
 
 /** @addtogroup geometry

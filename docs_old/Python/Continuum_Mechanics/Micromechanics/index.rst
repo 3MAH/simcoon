@@ -1,6 +1,0 @@
-Micromechanics
-==============
-
-.. toctree::
-
-    schemes.rst

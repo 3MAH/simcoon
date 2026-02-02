@@ -16,9 +16,19 @@
  */
 
 ///@file ellipsoid.hpp
-///@brief Characteristics of an ellipsoidal phase, which hereditates from:
-///-phase characteristics
-///@version 1.0
+///@brief Characteristics of an ellipsoidal phase, which inherits from geometry
+///@version 2.0
+///
+///@details This class represents ellipsoidal inclusions for micromechanical
+///      homogenization schemes. Ellipsoids are defined by three semi-axes
+///      (a1, a2, a3) and three Euler angles for orientation.
+///
+///@example Python interface with JSON I/O:
+///      @code{.py}
+///      from simcoon.solver.micromechanics import Ellipsoid
+///      ell = Ellipsoid(number=0, concentration=0.3, a1=10, a2=1, a3=1)
+///      print(ell.shape_type)  # "prolate_spheroid"
+///      @endcode
 
 #pragma once
 
@@ -30,7 +40,7 @@ namespace simcoon{
 
 /**
  * @file ellipsoid.hpp
- * @brief Inclusion geometry functions.
+ * @brief Ellipsoidal inclusion geometry for micromechanics.
  */
 
 /** @addtogroup geometry

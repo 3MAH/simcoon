@@ -1,0 +1,52 @@
+{
+  "layers": [
+    {
+      "number": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.8,
+      "material_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 90.0,
+        "phi": -90.0
+      },
+      "nstatev": 1,
+      "props": {
+        "prop_0": 3000.0,
+        "prop_1": 0.4,
+        "prop_2": 0.0
+      },
+      "layerup": -1,
+      "layerdown": -1
+    },
+    {
+      "number": 1,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.2,
+      "material_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 90.0,
+        "phi": -90.0
+      },
+      "nstatev": 1,
+      "props": {
+        "prop_0": 70000.0,
+        "prop_1": 0.3,
+        "prop_2": 0.0
+      },
+      "layerup": -1,
+      "layerdown": -1
+    }
+  ]
+}

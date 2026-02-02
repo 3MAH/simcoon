@@ -15,22 +15,12 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
-// #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
-
-#include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
-#include <simcoon/python_wrappers/Libraries/Solver/solver.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
-
-#include <simcoon/python_wrappers/Libraries/Identification/identification.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/constants.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
+#include <simcoon/python_wrappers/Libraries/Solver/solver_optimized.hpp>
 
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
@@ -43,6 +33,7 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_hyperelastic.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
+#include <simcoon/docs/Libraries/Solver/doc_solver_optimized.hpp>
 
 using namespace std;
 using namespace arma;
@@ -244,16 +235,18 @@ PYBIND11_MODULE(_core, m)
     // umat
     m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);
 
-    // Register the from-python converters for read and solver
-    m.def("read_matprops", &read_matprops);
-    m.def("read_path", &read_path);
-    m.def("solver", &solver);
+    // umat_inplace - in-place modification for solver optimization
+    m.def("umat_inplace", &launch_umat_inplace, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Lt"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 1,
+        "In-place UMAT call - modifies sigma, statev, Wm, Lt arrays directly. "
+        "Arrays must be Fortran-contiguous (order='F') and writeable. "
+        "Faster than umat() for repeated calls as it avoids array allocation.");
 
-    // Register the from-python converters for ODF functions
+    // ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
 
-    // Register the from-python converters for identification
-    m.def("identification", &identification);
-    m.def("calc_cost", &calc_cost, "nfiles"_a, "data_num_name"_a);
+    // Optimized C++ solver
+    m.def("solver_optimized", &solver_optimized,
+        "blocks"_a, "max_iter"_a = 10, "tol"_a = 1e-9, "lambda_solver"_a = 10000.0,
+        simcoon_docs::solver_optimized);
 }

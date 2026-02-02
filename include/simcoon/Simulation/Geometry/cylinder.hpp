@@ -15,10 +15,19 @@
  
  */
 
-///@file ellipsoid.hpp
-///@brief Characteristics of an ellipsoidal phase, which hereditates from:
-///-phase characteristics
-///@version 1.0
+///@file cylinder.hpp
+///@brief Characteristics of a cylindrical phase, which inherits from geometry
+///@version 2.0
+///
+///@details This class represents cylindrical inclusions for micromechanical
+///      homogenization schemes. Cylinders are defined by length L and radius R.
+///
+///@example Python interface with JSON I/O:
+///      @code{.py}
+///      from simcoon.solver.micromechanics import Cylinder
+///      cyl = Cylinder(number=0, concentration=0.3, L=50, R=1)
+///      print(cyl.aspect_ratio)  # 50.0
+///      @endcode
 
 #pragma once
 
@@ -30,17 +39,25 @@ namespace simcoon{
 
 /**
  * @file cylinder.hpp
- * @brief Inclusion geometry functions.
+ * @brief Cylindrical inclusion geometry for micromechanics.
  */
 
 /** @addtogroup geometry
  *  @{
  */
 
-
-//======================================
+/**
+ * @brief Class representing a cylindrical inclusion geometry.
+ *
+ * This class extends the geometry base class to describe cylindrical inclusions
+ * for micromechanical homogenization schemes. The cylinder is defined by its
+ * length L and radius R, with orientation specified by Euler angles.
+ *
+ * The aspect ratio \f$ L/R \f$ determines fiber characteristics:
+ * - High aspect ratio: Long fibers
+ * - Low aspect ratio: Short fibers or disc-like inclusions
+ */
 class cylinder : public geometry
-//======================================
 {
 	private:
 
@@ -48,24 +65,55 @@ class cylinder : public geometry
 
 	public :
 
-        int coatingof;
-        int coatedby;
-    
-        double L;  //geometric parameter of the cylinder (Length)
-        double R;  //geometric parameter of the cylinder (Radius)
-        
-        double psi_geom;    //geometric orientation of the cylinder psi
-        double theta_geom;  //geometric orientation of the cylinder theta
-        double phi_geom;    //geometric orientation of the cylinder phi
-    
-		cylinder(); 	//default constructor
-    		cylinder(const double &Lval, const int &coatingof, const int &coatedby, const double &Rval, const double &psi_geom, const double &theta_geom, const double &phi_geom, const double &dummy);
+        int coatingof;      ///< Index of the phase this cylinder is coating (0 if none)
+        int coatedby;       ///< Index of the phase coating this cylinder (0 if none)
 
-		cylinder(const cylinder&);	//Copy constructor
+        double L;           ///< Length of the cylinder
+        double R;           ///< Radius of the cylinder
+
+        double psi_geom;    ///< First Euler angle for orientation (radians)
+        double theta_geom;  ///< Second Euler angle for orientation (radians)
+        double phi_geom;    ///< Third Euler angle for orientation (radians)
+
+        /**
+         * @brief Default constructor.
+         */
+		cylinder();
+
+        /**
+         * @brief Constructor with full parameters.
+         * @param Lval Length of the cylinder
+         * @param coatingof Index of the phase this cylinder coats
+         * @param coatedby Index of the phase coating this cylinder
+         * @param Rval Radius of the cylinder
+         * @param psi_geom First Euler angle (radians)
+         * @param theta_geom Second Euler angle (radians)
+         * @param phi_geom Third Euler angle (radians)
+         * @param dummy Unused parameter (for compatibility)
+         */
+    	cylinder(const double &Lval, const int &coatingof, const int &coatedby, const double &Rval, const double &psi_geom, const double &theta_geom, const double &phi_geom, const double &dummy);
+
+        /**
+         * @brief Copy constructor.
+         * @param cyl The cylinder to copy
+         */
+		cylinder(const cylinder&);
+
+        /**
+         * @brief Virtual destructor.
+         */
         virtual ~cylinder();
-    
+
+        /**
+         * @brief Assignment operator.
+         * @param cyl The cylinder to assign
+         * @return Reference to this cylinder
+         */
 		virtual cylinder& operator = (const cylinder&);
-		
+
+        /**
+         * @brief Output stream operator.
+         */
         friend std::ostream& operator << (std::ostream& os, const cylinder &cyl);
 };
 

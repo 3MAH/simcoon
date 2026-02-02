@@ -30,7 +30,7 @@
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
+#include <simcoon/Simulation/Phase/read_json.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
@@ -61,7 +61,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     //1 - We need to figure out the type of geometry and read the phase
     if(start) {
         switch (method) {
-                
+
             case 100: case 101: case 102: case 103: {
                 //Definition of the static vectors x,wx,y,wy
                 ellipsoid_multi::mp = phase.sptr_matprops->props(2);
@@ -71,14 +71,14 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
                 ellipsoid_multi::y.set_size(ellipsoid_multi::np);
                 ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
                 points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-                
-                inputfile = "Nellipsoids" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_ellipsoid(phase, path_data, inputfile);
+
+                inputfile = "ellipsoids" + to_string(int(phase.sptr_matprops->props(1))) + ".json";
+                read_ellipsoid_json(phase, path_data, inputfile);
                 break;
             }
             case 104: {
-                inputfile = "Nlayers" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_layer(phase, path_data, inputfile);
+                inputfile = "layers" + to_string(int(phase.sptr_matprops->props(1))) + ".json";
+                read_layer_json(phase, path_data, inputfile);
                 break;
             }
         }

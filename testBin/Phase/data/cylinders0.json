@@ -1,0 +1,26 @@
+{
+  "cylinders": [
+    {
+      "number": 0,
+      "coatingof": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.8,
+      "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "geometry": {"L": 1, "R": 1},
+      "geometry_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "props": [3000, 0.4, 0]
+    },
+    {
+      "number": 1,
+      "coatingof": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.2,
+      "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "geometry": {"L": 50, "R": 1},
+      "geometry_orientation": {"psi": 0, "theta": 0, "phi": 0},
+      "props": [70000, 0.3, 0]
+    }
+  ]
+}

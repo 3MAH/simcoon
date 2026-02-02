@@ -1,0 +1,17 @@
+{
+  "name": "EPICP",
+  "props": {
+    "E": 67538,
+    "nu": 0.349,
+    "alpha": 1e-6,
+    "sigmaY": 300,
+    "k": 1500,
+    "m": 0.3
+  },
+  "nstatev": 8,
+  "orientation": {
+    "psi": 0,
+    "theta": 0,
+    "phi": 0
+  }
+}

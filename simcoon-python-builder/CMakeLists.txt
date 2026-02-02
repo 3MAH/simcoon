@@ -39,12 +39,6 @@ pybind11_add_module(_core
   # Homogenization
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp
 
-  # Identification
-  src/python_wrappers/Libraries/Identification/constants.cpp
-  src/python_wrappers/Libraries/Identification/identification.cpp
-  src/python_wrappers/Libraries/Identification/optimize.cpp
-  src/python_wrappers/Libraries/Identification/parameters.cpp
-
   # Material
   src/python_wrappers/Libraries/Material/ODF.cpp
 
@@ -52,9 +46,8 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Maths/lagrange.cpp
   src/python_wrappers/Libraries/Maths/rotation.cpp
 
-  # Solver
-  src/python_wrappers/Libraries/Solver/read.cpp
-  src/python_wrappers/Libraries/Solver/solver.cpp
+  # Solver (Optimized C++ solver bindings)
+  src/python_wrappers/Libraries/Solver/solver_optimized.cpp
 )
 
 # Set RPATH based on build mode

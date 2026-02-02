@@ -1,24 +1,32 @@
 /* This file is part of simcoon.
- 
+
  simcoon is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
- 
+
  simcoon is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
- 
+
  */
 
 ///@file read.cpp
-///@brief To read from material.dat and path.dat
-///@version 1.0
+///@brief Solver utility functions for mixed boundary conditions
+///@version 2.0
 
+// Define _USE_MATH_DEFINES before cmath for M_PI on Windows MSVC
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
+#include <cmath>
+
+#include <fstream>
+#include <sstream>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -32,8 +40,40 @@ using namespace arma;
 
 namespace simcoon{
 
+void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned int &nstatev,
+                   double &psi_rve, double &theta_rve, double &phi_rve,
+                   const string &path_data, const string &materialfile) {
+
+    string filename = path_data + "/" + materialfile;
+    ifstream propsdata(filename);
+
+    if (!propsdata) {
+        throw runtime_error("Could not open material file: " + filename);
+    }
+
+    string buffer;
+
+    // Skip header line
+    getline(propsdata, buffer);
+
+    // Read material properties
+    propsdata >> umat_name >> nprops >> nstatev >> psi_rve >> theta_rve >> phi_rve;
+
+    // Convert angles from degrees to radians
+    psi_rve *= (M_PI / 180.0);
+    theta_rve *= (M_PI / 180.0);
+    phi_rve *= (M_PI / 180.0);
+
+    props = zeros(nprops);
+    for (unsigned int i = 0; i < nprops; i++) {
+        propsdata >> props(i);
+    }
+
+    propsdata.close();
+}
+
 Col<int> subdiag2vec() {
-    
+
     Col<int> temp;
     temp = zeros<Col<int> >(6);
     temp(0) = 0;
@@ -42,15 +82,15 @@ Col<int> subdiag2vec() {
 	temp(3) = 4;
 	temp(4) = 5;
 	temp(5) = 2;
-    
+
     return temp;
 }
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
+/// Function that fills the matrix K for mixed strain/stress boundary conditions
 void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambda)
 {
 	K = zeros(6,6);
-    
+
     for (int i=0; i<6; i++) {
         if (cBC_meca(i)) {
             K.row(i) = Lt.row(i);
@@ -60,16 +100,16 @@ void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambd
     }
 }
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
+/// Function that fills the matrix K for mixed strain/stress/thermal boundary conditions
 void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col<int> &cBC_meca, const int &cBC_T, const double &lambda)
 {
 	K = zeros(7,7);
-        
+
     K.submat(0, 0, 5, 5) = dSdE;
     K.submat(0, 6, 5, 6) = dSdT;
     K.submat(6, 0, 6, 5) = dQdE;
     K.submat(6, 6, 6, 6) = dQdT;
-    
+
     for (int i=0; i<6; i++) {
         if (cBC_meca(i) == 0) {
             K.row(i) = 0.*K.row(i);
@@ -79,169 +119,6 @@ void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col
     if (cBC_T == 0) {
             K.row(6) = 0.*K.row(6);
             K(6,6) = lambda;
-    }
-}
-
-void solver_essentials(int &solver_type, int &corate_type, const string &path, const string &filename) {
-    string pathfile = path + "/" + filename;
-    ifstream solver_essentials;
-    string buffer;
-    
-    solver_essentials.open(pathfile, ios::in);
-    if(!solver_essentials) {
-        throw runtime_error("Cannot open file " + filename + " in path " + path);
-    }
-    
-    ///Get the control values for the solver
-    solver_essentials >> buffer >> solver_type >> buffer >> corate_type;
-    solver_essentials.close();
-}
-
-void solver_control(double &div_tnew_dt_solver, double &mul_tnew_dt_solver, int &miniter_solver, int &maxiter_solver, int &inforce_solver, double &precision_solver, double &lambda_solver, const string &path, const string &filename) {
-    string pathfile = path + "/" + filename;
-    ifstream solver_control;
-    string buffer;
-    
-    solver_control.open(pathfile, ios::in);
-    if(!solver_control) {
-        throw runtime_error("Cannot open file " + filename + " in path " + path);
-    }
-    
-    ///Get the control values for the solver
-    solver_control >> buffer >> div_tnew_dt_solver;
-    solver_control >> buffer >> mul_tnew_dt_solver;
-    solver_control >> buffer >> miniter_solver;
-    solver_control >> buffer >> maxiter_solver;
-    solver_control >> buffer >> inforce_solver;
-    solver_control >> buffer >> precision_solver;
-    solver_control >> buffer >> lambda_solver;
-    solver_control.close();
-}
-    
-void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned int &nstatev, double &psi_rve, double &theta_rve, double &phi_rve, const string &path_data, const string &materialfile) {
-    ///Material properties reading, use "material.dat" to specify parameters values
-	string buffer;
-	ifstream propsmat;
-    string path_materialfile = path_data + "/" + materialfile;
-	propsmat.open(path_materialfile, ios::in);
-	if(!propsmat) {
-		throw runtime_error("Cannot open material file " + materialfile + " in folder " + path_data);
-	}
-    propsmat >> buffer >> buffer >> umat_name >> buffer >> nprops >> buffer >> nstatev;
-	propsmat.close();
-    	
-	props = zeros(nprops);
-    
-	propsmat.open(path_materialfile, ios::in);
-	if(!propsmat) {
-		throw runtime_error("Cannot reopen material file " + materialfile + " in folder " + path_data);
-	}
-    
-    propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
-    
-    for(unsigned int i=0;i<nprops;i++)
-        propsmat >> buffer >> props(i);
-    
-    psi_rve*=(sim_pi/180.);
-    theta_rve*=(sim_pi/180.);
-    phi_rve*=(sim_pi/180.);
-    
-	propsmat.close();
-}
-
-void read_output(solver_output &so, const int &nblock, const int &nstatev, const string &path_data, const string &outputfile) {
-        
-    string buffer;
-    string file;
-    string path_outputfile = path_data + "/" + outputfile;
-    
-    ifstream cyclic_output;
-	cyclic_output.open(path_outputfile, ios::in);
-	if(cyclic_output)
-	{
-        cyclic_output >> buffer;
-        cyclic_output >> buffer >> so.o_strain_type;
-        cyclic_output >> buffer >> so.o_nb_strain;
-        so.o_strain.zeros(so.o_nb_strain);
-        for (int i=0; i<so.o_nb_strain; i++) {
-            cyclic_output >> so.o_strain(i);
-        }
-        
-        cyclic_output >> buffer >> so.o_stress_type;
-        cyclic_output >> buffer >> so.o_nb_stress;
-        so.o_stress.zeros(so.o_nb_stress);
-        for (int i=0; i<so.o_nb_stress; i++) {
-            cyclic_output >> so.o_stress(i);
-        }
-
-        cyclic_output >> buffer >> so.o_rotation_type;
-        cyclic_output >> buffer >> so.o_tangent_modulus;
-        cyclic_output >> buffer >> so.o_nb_T;
-        
-        ///Selection of the wanted umat statev, use "cyclic.dat" to specify wanted internal variables
-        cyclic_output >> buffer >> buffer;
-        if ((buffer == "all") || (buffer == "All") || (buffer == "ALL")){
-            so.o_wanted_statev.zeros(1);
-            so.o_nw_statev = -1;
-            so.o_wanted_statev(0) = -1;
-        }
-        else if(atoi(buffer.c_str()) != 0){
-            so.o_nw_statev = atoi(buffer.c_str());
-            so.o_wanted_statev.zeros(so.o_nw_statev);
-            so.o_range_statev.zeros(so.o_nw_statev);
-            for (int i = 0; i < so.o_nw_statev; i++){
-                cyclic_output >> buffer >> buffer;
-                if ((buffer == "from") || (buffer == "From") || (buffer == "FROM")){
-                    cyclic_output >> so.o_wanted_statev(i) >> buffer >> so.o_range_statev(i);
-                }
-                else{
-                    so.o_wanted_statev(i) = atoi(buffer.c_str());
-                    so.o_range_statev(i) = so.o_wanted_statev(i);
-                }
-                
-                if(so.o_range_statev(i) > nstatev -1) {
-                    cout << "Error : The range of outputed statev is greater than the actual number of statev!\n";
-                    cout << "Check output file and/or material input file\n" << endl;
-                    
-                    return;
-                }
-            }
-        }
-        else {
-            so.o_nw_statev = 0;
-        }
-        
-        cyclic_output >> buffer >> buffer >> buffer;
-        for(int i = 0 ; i < nblock ; i++){
-            cyclic_output >> buffer >> so.o_type(i);
-            if(so.o_type(i) == 1)
-                cyclic_output >> so.o_nfreq(i);
-            else if(so.o_type(i) == 2)
-                cyclic_output >> so.o_tfreq(i);
-            else
-                cyclic_output >> buffer;
-        }
-        cyclic_output.close();
-    }
-    else {
-//        cout << "The file data/output.dat is not present, so default output is selected\n";
-        so.o_strain_type = 0;
-        so.o_stress_type = 4;
-        so.o_nb_strain = 6;
-        so.o_nb_stress = 6;
-        so.o_strain.zeros(so.o_nb_strain);
-        so.o_stress.zeros(so.o_nb_stress);
-        so.o_strain = {0,1,2,3,4,5};
-        so.o_stress = {0,1,2,3,4,5};
-        so.o_rotation_type = 0;
-        so.o_tangent_modulus = 0;
-        so.o_nb_T = 1;
-        so.o_nw_statev = 0;
-        
-        for(int i = 0 ; i < nblock ; i++){
-            so.o_type(i) = 1;
-            so.o_nfreq(i) = 1;
-        }
     }
 }
 
@@ -319,301 +196,6 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
         }
         
     }
-    
-}
-    
-void read_path(std::vector<block> &blocks, double &T, const string &path_data, const string &pathfile) {
-    
-	/// Reading the loading path file, Path.txt
-    string buffer;
-    string pathfile_inc;
-    int conver;
-    char bufferchar;
-    unsigned int nblock;
-    Col<int> Equiv = subdiag2vec();
-    
-    std::string path_inputfile = path_data + "/" + pathfile;
-    std::ifstream path;
-	path.open(path_inputfile, ios::in);
-	if(!path)
-	{
-		cout << "Error: cannot open the file " << pathfile << " in the folder :" << path_data << "\n";
-	}
-
-	///temperature is initialized
-	path >> buffer >> T >> buffer >> nblock;
-    blocks.resize(nblock);
-    
-    /// Reading path_file
-    for(unsigned int i = 0 ; i < nblock ; i++){
-        
-        path >> buffer >> blocks[i].number >> buffer >> blocks[i].type >> buffer >> blocks[i].control_type >> buffer >> blocks[i].ncycle >> buffer >> blocks[i].nstep;
-
-        if (blocks[i].number != i+1) {
-            cout << "The number of blocks could not be found. Please verify the blocks order in the path file";
-        }
-        
-        blocks[i].generate();
-        
-        switch(blocks[i].type) {
-            case 1: {
-
-                for(unsigned int j = 0; j < blocks[i].nstep; j++){
-                    
-                    path >> buffer >> blocks[i].steps[j]->mode;
-                    blocks[i].steps[j]->number = j+1;
-                    
-                    if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
-                        
-                        shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
-                        sptr_meca->control_type = blocks[i].control_type;
-                        unsigned int size_meca = sptr_meca->BC_meca.n_elem;
-                        
-                        path >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer >> sptr_meca->Dn_inc >> buffer >> sptr_meca->BC_Time >> buffer;
-                        
-                        if (sptr_meca->control_type <= 4) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 83){
-                                    sptr_meca->cBC_meca(Equiv(k)) = 1;
-                                    path >> sptr_meca->BC_meca(Equiv(k));
-                                }
-                                else if (conver == 69){
-                                    sptr_meca->cBC_meca(Equiv(k)) = 0;
-                                    path >> sptr_meca->BC_meca(Equiv(k));
-                                }
-                            }
-                        }
-                        else if (sptr_meca->control_type >= 5) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                sptr_meca->cBC_meca(k) = 0;
-                                path >> sptr_meca->BC_meca(k);
-                            }
-                        }
-                        else {
-                            cout << "Error in read.cpp : read_path. Please provide a valid control_type" << endl;
-                        }
-                        
-                        //Add the rotation for control_type 2 and 3 and 4
-                        if ((sptr_meca->control_type >= 2)&&(sptr_meca->control_type <= 4)) {
-                            path >> buffer;
-                            for(unsigned int i = 0 ; i < 3 ; i++) {
-                                for(unsigned int j = 0 ; j < 3 ; j++) {
-                                    path >> sptr_meca->BC_w(i,j);
-                                }
-                            }
-                        }
-                        
-                        path >> buffer >> bufferchar;
-                        conver = bufferchar;
-                        if (conver == 84){
-                            path >> sptr_meca->BC_T;
-                        }
-                        else
-                            cout << "Error in read.cpp : read_path. This is a mechanical step, only temperature boundary condition is allowed here\n";
-                        
-
-                    }
-                    else if (blocks[i].steps[j]->mode == 3) {
-                        
-                        shared_ptr<step_meca> sptr_meca = std::dynamic_pointer_cast<step_meca>(blocks[i].steps[j]);
-                        sptr_meca->control_type = blocks[i].control_type;
-                        unsigned int size_meca = sptr_meca->BC_meca.n_elem;
-                        
-                        path >> buffer >> pathfile_inc >> buffer >> sptr_meca->Dn_init >> buffer >> sptr_meca->Dn_mini >> buffer;
-                        sptr_meca->file = path_data + "/" + pathfile_inc;
-                        
-                        if (sptr_meca->control_type <= 4) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 83){
-                                    sptr_meca->cBC_meca(Equiv(k)) = 1;
-                                }
-                                else if (conver == 69) {
-                                    sptr_meca->cBC_meca(Equiv(k)) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_meca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        else if (sptr_meca->control_type == 5) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 76){
-                                    sptr_meca->cBC_meca(k) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_meca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        else {
-                            cout << "Error in read.cpp : read_path. Please provide a valid control_type" << endl;
-                        }
-                        
-                        //Note that rotation is supposed to be zero for control_type (BC_R = eye(3,3))
-                        path >> buffer >> bufferchar;
-                        conver = bufferchar;
-                        if (conver == 84){
-                            sptr_meca->cBC_T = 0;                       //This is the classical temperature imposed in the file
-                        }
-                        else if (conver == 48) {                        //This is a special case where the temperature is constant
-                            sptr_meca->cBC_T = 2;
-                        }
-                    }
-                    else {
-                        cout << "Please enter a suitable block mode (1 for linear, 2 for sinusoidal, 3 for user-input)";
-                    }
-                }
-                break;
-            }
-            case 2: {
-                
-                for(unsigned int j = 0; j < blocks[i].nstep; j++){
-                    
-                    path >> buffer >> blocks[i].steps[j]->mode;
-                    blocks[i].steps[j]->number = j+1;
-                    
-                    if ((blocks[i].steps[j]->mode == 1)||(blocks[i].steps[j]->mode == 2)) {
-                        
-                        shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
-                        sptr_thermomeca->control_type = blocks[i].control_type;
-                        unsigned int size_meca = sptr_thermomeca->BC_meca.n_elem;
-                        
-                        path >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer >> sptr_thermomeca->Dn_inc >> buffer >> sptr_thermomeca->BC_Time >> buffer;
-                    
-                        if (sptr_thermomeca->control_type <= 4) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 83){
-                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
-                                    path >> sptr_thermomeca->BC_meca(Equiv(k));
-                                }
-                                else if (conver == 69){
-                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
-                                    path >> sptr_thermomeca->BC_meca(Equiv(k));
-                                }
-                            }
-                        }
-                        if (sptr_thermomeca->control_type >= 5) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                sptr_thermomeca->cBC_meca(k) = 0;
-                                path >> sptr_thermomeca->BC_meca(k);
-                            }
-                        }
-
-                        //Add the rotation for control_type 2 and 3 and 4
-                        if ((sptr_thermomeca->control_type >= 2)&&(sptr_thermomeca->control_type <= 3)) {
-                            path >> buffer;
-                            for(unsigned int i = 0 ; i < 3 ; i++) {
-                                for(unsigned int j = 0 ; j < 3 ; j++) {
-                                    path >> sptr_thermomeca->BC_w(i,j);
-                                }
-                            }
-                        }
-                        
-                        path >> buffer >> bufferchar;
-                        conver = bufferchar;
-                        if (conver == 81){
-                            sptr_thermomeca->cBC_T = 1;
-                            path >> sptr_thermomeca->BC_T;
-                        }
-                        else if (conver == 84){
-                            sptr_thermomeca->cBC_T = 0;
-                            path >> sptr_thermomeca->BC_T;
-                        }
-                        else if (conver == 67) {
-                            sptr_thermomeca->cBC_T = 3;
-                            path >> sptr_thermomeca->BC_T;
-                        }
-                        
-                    }
-                    else if (blocks[i].steps[j]->mode == 3) {
-                        
-                        shared_ptr<step_thermomeca> sptr_thermomeca = std::dynamic_pointer_cast<step_thermomeca>(blocks[i].steps[j]);
-                        unsigned int size_meca = sptr_thermomeca->BC_meca.n_elem;
-                        
-                        path >> buffer >> pathfile_inc >> buffer >> sptr_thermomeca->Dn_init >> buffer >> sptr_thermomeca->Dn_mini >> buffer;
-                        sptr_thermomeca->file = path_data + "/" + pathfile_inc;
-                        
-                        if (sptr_thermomeca->control_type <= 4) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 83){
-                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 1;
-                                }
-                                else if (conver == 69) {
-                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_thermomeca->cBC_meca(Equiv(k)) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        else if (sptr_thermomeca->control_type == 5) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 70){
-                                    sptr_thermomeca->cBC_meca(k) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_thermomeca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        else if (sptr_thermomeca->control_type == 6) {
-                            for(unsigned int k = 0 ; k < size_meca ; k++) {
-                                path >> bufferchar;
-                                conver = bufferchar;
-                                if (conver == 85){
-                                    sptr_thermomeca->cBC_meca(k) = 0;
-                                }
-                                else if (conver == 48) {
-                                    sptr_thermomeca->cBC_meca(k) = 2;      // this is a special stress-controlled one (it is different since it does not read data from the path_inc tabular file)
-                                }
-                            }
-                        }
-                        
-                        path >> buffer >> bufferchar;
-                        conver = bufferchar;
-                        if (conver == 84){
-                            sptr_thermomeca->cBC_T = 0;                       //This is the classical temperature imposed in the file
-                        }
-                        else if (conver == 81){
-                            sptr_thermomeca->cBC_T = 1;                       //This is the classical heat flux quantitt imposed in the file
-                        }
-                        else if (conver == 48) {                        //This is a special case where the temperature is constant
-                            sptr_thermomeca->cBC_T = 2;
-                        }
-                        else if (conver == 67) {                        //This is a special case where the convexion is assumed
-                            sptr_thermomeca->cBC_T = 3;
-                            path >> sptr_thermomeca->BC_T;                              //Get the tau
-                        }
-                        
-                        
-                    }
-                    else {
-                        cout << "Please enter a suitable block mode (1 for linear, 2 for sinusoidal, 3 for user-input)";
-                    }
-                    
-                }
-                break;
-            }
-            default: {
-                cout << "Please enter a valid block type (1 for mechanical, 2 for thermomechanical)\n";
-                break;
-            }
-            
-        }
-    }
-    path.close();
     
 }
 

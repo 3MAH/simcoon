@@ -31,6 +31,7 @@ requirements:
     - libblas * *netlib # [win]
     - liblapack * *netlib # [win]
     - carma
+    - nlohmann_json
     - pybind11
     - python
     - numpy >=2.0

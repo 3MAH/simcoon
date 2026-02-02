@@ -29,7 +29,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
+#include <simcoon/Simulation/Phase/read_json.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
@@ -62,14 +62,14 @@ void get_L_elastic(phase_characteristics &rve)
             ellipsoid_multi::y.set_size(ellipsoid_multi::np);
             ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
             points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-            
-            inputfile = "Nellipsoids" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_ellipsoid(rve, path_data, inputfile);
+
+            string inputfile = "ellipsoids" + to_string(int(rve.sptr_matprops->props(1))) + ".json";
+            read_ellipsoid_json(rve, path_data, inputfile);
             break;
         }
         case 104: {
-            inputfile = "Nlayers" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_layer(rve, path_data, inputfile);
+            string inputfile = "layers" + to_string(int(rve.sptr_matprops->props(1))) + ".json";
+            read_layer_json(rve, path_data, inputfile);
             break;
         }
     }

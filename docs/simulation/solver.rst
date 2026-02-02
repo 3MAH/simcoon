@@ -1,7 +1,7 @@
 Use the solver
 ================================
 
-The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This documentation covers the Python interface, solver parameters, and the structure of input files.
+The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This documentation covers the Python interface, solver parameters, and JSON-based configuration.
 
 Elastic tensile test
 --------------------
@@ -14,99 +14,120 @@ We first import *simcoon* (the Python simulation module of simcoon) and *numpy*:
 
     import numpy as np
     import simcoon as sim
+    from simcoon.solver.io import load_material_json, load_path_json
 
-Next we shall define the material constitutive law to be utilized and the associated material properties. We will pass them as a numpy array:
+Material Configuration (JSON)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: python
+Create a file ``data/material.json``:
 
-    umat_name = 'ELISO'  # This is the 5 character code for the elastic-isotropic subroutine
-    nstatev = 1  # The number of scalar state variables required
+.. code-block:: json
 
-    E = 700000.  # The Young modulus
-    nu = 0.2  # The Poisson coefficient
-    alpha = 1.E-5  # The coefficient of thermal expansion
+   {
+     "name": "ELISO",
+     "props": {"E": 700000, "nu": 0.2, "alpha": 1e-5},
+     "nstatev": 1,
+     "orientation": {"psi": 0, "theta": 0, "phi": 0}
+   }
 
-    # Three Euler angles to represent the material orientation with respect to the reference basis
-    psi_rve = 0.
-    theta_rve = 0.
-    phi_rve = 0.
+Path Configuration (JSON)
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    # Solver parameters
-    solver_type = 0  # Solver strategy (0 for Newton-Raphson)
-    corate_type = 2  # Corotational spin rate type (0: Jaumann, 1: Green-Naghdi, 2: logarithmic)
+Create a file ``data/path.json`` for a simple tension test up to 1% strain:
 
-    props = np.array([E, nu, alpha])
+.. code-block:: json
 
-We shall then define the location of the data input files and the results output file:
+   {
+     "initial_temperature": 293.5,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "small_strain",
+         "corate_type": "logarithmic",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 30.0,
+             "Dn_init": 1.0,
+             "Dn_mini": 0.1,
+             "Dn_inc": 0.01,
+             "DEtot": [0.01, 0, 0, 0, 0, 0],
+             "Dsigma": [0, 0, 0, 0, 0, 0],
+             "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "DT": 0
+           }
+         ]
+       }
+     ]
+   }
 
-.. code-block:: python
+Running the Simulation
+^^^^^^^^^^^^^^^^^^^^^^
 
-    path_data = 'data'
-    path_results = 'results'
-    pathfile = 'path.txt'
-    outputfile = 'results_ELISO.txt'
+**Option 1: Using Python Solver API (Recommended)**
 
-The last part is to define the loading path. Create a folder ``data`` and a text file named ``path.txt`` with the following content:
-
-.. code-block:: none
-
-    #Initial_temperature
-    293.5
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    1    
-    #Repeat
-    1
-    #Steps
-    1
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 0.1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    E 0.01 
-    S 0 S 0
-    S 0 S 0 S 0
-    #temperature_state
-    T 293.5
-
-This corresponds to a pure strain-controlled tension test in direction 1 up to 1% strain, at 293.5K.
-
-Finally, call the solver function:
+The Python Solver API provides full control over the simulation:
 
 .. code-block:: python
 
-    sim.solver(
-        umat_name,
-        props,
-        nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+    from simcoon.solver import Solver, Block, StepMeca
+
+    # Material properties: E, nu, alpha
+    props = np.array([700000, 0.2, 1e-5])
+
+    # Define loading step
+    step = StepMeca(
+        DEtot_end=np.array([0.01, 0, 0, 0, 0, 0]),
+        control=['strain', 'stress', 'stress', 'stress', 'stress', 'stress'],
+        Dn_init=1,
+        Dn_inc=100,
+        time=30.0
     )
 
-The result file ``results_ELISO.txt`` will be created in the ``results`` folder.
+    # Create block
+    block = Block(
+        steps=[step],
+        umat_name='ELISO',
+        props=props,
+        nstatev=1
+    )
 
-Solver parameters
+    # Run solver
+    solver = Solver(blocks=[block])
+    history = solver.solve()
+
+    # Access results
+    for state in history:
+        print(f"Strain: {state.Etot[0]:.4f}, Stress: {state.sigma[0]:.2f}")
+
+**Option 2: Using JSON Configuration**
+
+Load configurations from JSON files and convert to Python objects:
+
+.. code-block:: python
+
+    from simcoon.solver.io import load_material_json, load_path_json
+
+    # Load from JSON
+    material = load_material_json('data/material.json')
+    path = load_path_json('data/path.json')
+
+    # Convert to Block/Step objects and run
+    # (See migration guide for full conversion examples)
+
+Python Solver API
 -----------------
 
-The solver function takes the following parameters:
+The ``Solver`` class is the main entry point for running simulations:
+
+.. code-block:: python
+
+    from simcoon.solver import Solver, Block, StepMeca
+
+    solver = Solver(blocks=[block], T_init=293.15)
+    history = solver.solve()
+
+**Solver Parameters:**
 
 .. list-table::
    :header-rows: 1
@@ -115,42 +136,105 @@ The solver function takes the following parameters:
    * - Parameter
      - Type
      - Description
+   * - blocks
+     - List[Block]
+     - List of loading blocks to execute
+   * - T_init
+     - float
+     - Initial temperature (default: 293.15 K)
+
+**Block Parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Parameter
+     - Type
+     - Description
+   * - steps
+     - List[StepMeca]
+     - List of loading steps in the block
    * - umat_name
-     - string
-     - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP')
+     - str
+     - 5-character UMAT code (e.g., 'ELISO', 'EPICP', 'EPKCP')
    * - props
-     - numpy array
+     - np.ndarray
      - Material properties array
    * - nstatev
      - int
      - Number of internal state variables
-   * - psi_rve
+   * - psi
      - float
-     - First Euler angle (in degrees) for material orientation
-   * - theta_rve
+     - First Euler angle (degrees) for material orientation (default: 0)
+   * - theta
      - float
-     - Second Euler angle (in degrees) for material orientation
-   * - phi_rve
+     - Second Euler angle (degrees) for material orientation (default: 0)
+   * - phi
      - float
-     - Third Euler angle (in degrees) for material orientation
+     - Third Euler angle (degrees) for material orientation (default: 0)
+   * - ncycles
+     - int
+     - Number of times to repeat this block (default: 1)
    * - solver_type
      - int
-     - Solver strategy (0: Newton-Raphson)
+     - Solver strategy: 0=Newton-Raphson (default: 0)
+   * - control_type
+     - int
+     - Kinematic framework (see Control Types below)
    * - corate_type
      - int
-     - Corotational spin rate type (see below)
-   * - path_data
-     - string
-     - Path to the folder containing input files
-   * - path_results
-     - string
-     - Path to the folder for output files
-   * - pathfile
-     - string
-     - Name of the loading path file (default: 'path.txt')
-   * - outputfile
-     - string
-     - Name of the output result file
+     - Corotational spin rate type (see Corotational Types below)
+
+**Control Types (control_type):**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 30 60
+
+   * - Value
+     - Name
+     - Description
+   * - 1
+     - small_strain
+     - Infinitesimal strain (small deformations)
+   * - 2
+     - logarithmic
+     - Logarithmic (true) strain / Kirchhoff stress
+   * - 3
+     - deformation_gradient
+     - Deformation gradient :math:`\mathbf{F}` control
+
+**StepMeca Parameters:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - Parameter
+     - Type
+     - Description
+   * - DEtot_end
+     - np.ndarray
+     - Target strain increment [E11, E12, E22, E13, E23, E33]
+   * - Dsigma_end
+     - np.ndarray
+     - Target stress increment (optional)
+   * - control
+     - List[str]
+     - Control type per component: 'strain' or 'stress'
+   * - time
+     - float
+     - Step duration (default: 1.0)
+   * - Dn_init
+     - int
+     - Initial increment count (default: 1)
+   * - Dn_mini
+     - int
+     - Minimum increment for convergence (default: 1)
+   * - Dn_inc
+     - int
+     - Total number of increments (default: 100)
 
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -174,244 +258,154 @@ The ``corate_type`` parameter controls the corotational formulation used in fini
      - Logarithmic
      - Uses the logarithmic spin rate (recommended for large deformations)
 
-Define the loading path
+JSON Path Configuration
 -----------------------
 
-The loading path is defined in a text file (typically ``path.txt``) located in the ``data`` folder. The file structure is as follows:
+The loading path is defined in a JSON file (e.g., ``path.json``) located in the ``data`` folder.
 
-General structure
+General Structure
 ^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    <T_init>
-    #Number_of_blocks
-    <nblock>
+   {
+     "initial_temperature": 293.15,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "small_strain",
+         "corate_type": "logarithmic",
+         "ncycle": 1,
+         "steps": [...]
+       }
+     ]
+   }
 
-    #Block
-    <block_number>
-    #Loading_type
-    <type>
-    #Control_type(NLGEOM)
-    <control_type>
-    #Repeat
-    <ncycle>
-    #Steps
-    <nstep>
-
-    <step definitions...>
-
-Block parameters
+Block Parameters
 ^^^^^^^^^^^^^^^^
 
-**#Initial_temperature**: The initial temperature of the simulation (in Kelvin).
-
-**#Number_of_blocks**: Total number of loading blocks.
-
-**#Block**: Block number (starting from 1).
-
-**#Loading_type**: Defines the physical problem to solve:
+**type**: Defines the physical problem to solve:
 
 .. list-table::
    :header-rows: 1
-   :widths: 10 90
+   :widths: 30 70
 
    * - Value
      - Description
-   * - 1
+   * - ``"mechanical"``
      - Mechanical problem
-   * - 2
+   * - ``"thermomechanical"``
      - Thermomechanical problem (coupled heat equation)
 
-**#Control_type(NLGEOM)**: Defines the kinematic framework and control variables. NLGEOM (non-linear geometry) is activated for Control_type ≥ 2:
+**control_type**: Defines the kinematic framework and control variables:
 
 .. list-table::
    :header-rows: 1
-   :widths: 10 20 70
+   :widths: 30 70
 
    * - Value
-     - NLGEOM
      - Description
-   * - 1
-     - No
+   * - ``"small_strain"``
      - Infinitesimal strains/stress (small deformations)
-   * - 2
-     - Yes
+   * - ``"lagrangian"``
      - Finite deformation with Lagrangian control (Green-Lagrange strain :math:`\mathbf{E}` / 2nd Piola-Kirchhoff stress :math:`\mathbf{S}`)
-   * - 3
-     - Yes
+   * - ``"logarithmic"``
      - Finite deformation with logarithmic (true) strain :math:`\boldsymbol{\varepsilon}` / Kirchhoff stress :math:`\boldsymbol{\tau}`
-   * - 4
-     - Yes
-     - Finite deformation with Biot strain :math:`\mathbf{U} - \mathbf{I}` / Biot stress :math:`\mathbf{T}_B = \frac{1}{2}(\mathbf{R}^T\mathbf{P} + \mathbf{P}^T\mathbf{R})`
-   * - 5
-     - Yes
-     - Finite deformation with deformation gradient :math:`\mathbf{F}` control (Eulerian velocity L)
-   * - 6
-     - Yes
+   * - ``"biot"``
+     - Finite deformation with Biot strain :math:`\mathbf{U} - \mathbf{I}` / Biot stress
+   * - ``"deformation_gradient"``
+     - Finite deformation with deformation gradient :math:`\mathbf{F}` control
+   * - ``"displacement_gradient"``
      - Finite deformation with displacement gradient :math:`\nabla\mathbf{u}` control
 
-**#Repeat**: Number of times the block is repeated (for cyclic loading).
+**corate_type**: Corotational spin rate type (``"jaumann"``, ``"green_naghdi"``, or ``"logarithmic"``).
 
-**#Steps**: Number of steps within the block.
+**ncycle**: Number of times the block is repeated (for cyclic loading).
 
-Step definitions
+Step Definitions
 ^^^^^^^^^^^^^^^^
 
-Each step starts with a mode definition:
+Each step in the ``"steps"`` array contains:
 
-**#Mode**: Step mode:
+.. code-block:: json
 
-- **1**: Linear evolution
-- **2**: Sinusoidal evolution
-- **3**: Tabular (from a file)
+   {
+     "time": 30.0,
+     "Dn_init": 1.0,
+     "Dn_mini": 0.1,
+     "Dn_inc": 0.01,
+     "DEtot": [0.01, 0, 0, 0, 0, 0],
+     "Dsigma": [0, 0, 0, 0, 0, 0],
+     "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+     "DT": 0
+   }
 
-Linear and sinusoidal steps (Mode 1 and 2)
-""""""""""""""""""""""""""""""""""""""""""
+Step Parameters:
 
-.. code-block:: none
+- **time**: Duration of the step :math:`\Delta t`
+- **Dn_init**: Initial size of the first increment (usually 1.0)
+- **Dn_mini**: Minimal size of an increment for convergence issues
+- **Dn_inc**: Increment size as a fraction of the step (0.01 means 100 increments)
+- **DEtot**: Strain increments [E11, E12, E22, E13, E23, E33]
+- **Dsigma**: Stress increments [S11, S12, S22, S13, S23, S33]
+- **control**: Control type for each component (``"strain"`` or ``"stress"``)
+- **DT**: Temperature increment
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 0.1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    E 0.01 
-    S 0 S 0
-    S 0 S 0 S 0
-    #temperature_state
-    T 293.5
+Finite Deformation with Spin
+""""""""""""""""""""""""""""
 
-Parameters:
+For finite deformation control types that require spin specification:
 
-- **#Dn_init**: Initial size of the first increment (usually 1.0)
-- **#Dn_mini**: Minimal size of an increment for convergence issues
-- **#Dn_inc**: Increment size as a fraction of the step (0.01 means 100 increments)
-- **#time**: Duration of the step :math:`\Delta t`. The time increment is :math:`\delta t = \Delta t \times \delta n`
+.. code-block:: json
 
-Mechanical state specification
-""""""""""""""""""""""""""""""
+   {
+     "time": 30.0,
+     "Dn_init": 1.0,
+     "Dn_mini": 1.0,
+     "Dn_inc": 0.01,
+     "DEtot": [0, 0, 0, 0, 0, 0],
+     "Dsigma": [3.0, 0, 0, 0, 0, 0],
+     "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
+     "spin": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+     "DT": 0
+   }
 
-For **Control_type = 1** (infinitesimal strains), components are organized in symmetric lower triangular form:
+Deformation Gradient Control
+""""""""""""""""""""""""""""
 
-.. code-block:: none
+For deformation gradient control:
 
-    11
-    12 22
-    13 23 33
+.. code-block:: json
 
-The letter **'S'** indicates stress control, **'E'** indicates strain control:
+   {
+     "time": 5.0,
+     "Dn_init": 1.0,
+     "Dn_mini": 1.0,
+     "Dn_inc": 0.1,
+     "F": [[5.0, 0, 0], [0, 0.4472135955, 0], [0, 0, 0.4472135955]],
+     "DT": 0
+   }
 
-.. code-block:: none
+Temperature Control
+"""""""""""""""""""
 
-    E 0.01      # E_11 = 0.01 (strain controlled)
-    S 0 S 0     # S_12 = 0, S_22 = 0 (stress controlled)
-    S 0 S 0 S 0 # S_13 = 0, S_23 = 0, S_33 = 0 (stress controlled)
+For thermomechanical loading:
 
-For **Control_type = 2, 3, 4** (finite deformation with Lagrangian or logarithmic control), the same symmetric format is used for strain/stress components, with an additional **#spin** block for control types 2, 3, and 4:
+- **DT**: Temperature increment for temperature control
+- **DQ**: Heat flux for adiabatic conditions (set to 0 for adiabatic)
 
-.. code-block:: none
+.. code-block:: json
 
-    #mechanical_state
-    S 3.
-    S 0 S 0
-    S 0 S 0 S 0
-    #spin
-    0. 0. 0.
-    0. 0. 0.
-    0. 0. 0.
-
-The spin tensor :math:`\mathbf{W}` is specified as a full 3×3 matrix.
-
-For **Control_type = 5** (deformation gradient control), the deformation gradient :math:`\mathbf{F}` is specified as a full 3×3 matrix:
-
-.. code-block:: none
-
-    #prescribed_mechanical_state
-    5. 0. 0.
-    0. 0.4472135955 0.
-    0. 0. 0.4472135955
-
-.. note::
-
-   The keywords used as labels (e.g., ``#prescribed_mechanical_state``, ``#prescribed_temperature_state``, ``#mechanical_state``) are placeholders. The solver reads past them and parses the values that follow, so any label can be used.
-
-Temperature state specification
-"""""""""""""""""""""""""""""""
-
-For **Loading_type = 1** (mechanical):
-
-.. code-block:: none
-
-    #temperature_state
-    T 293.5
-
-The letter **'T'** indicates the temperature at the end of the step.
-
-For **Loading_type = 2** (thermomechanical), additional options are available:
-
-- **T**: Temperature control (imposed temperature)
-- **Q**: Heat flux control (imposed heat flux to the RVE)
-- **C**: Convection boundary condition
-
-.. code-block:: none
-
-    #prescribed_temperature_state
-    Q 0       # Adiabatic conditions (no heat flux)
-
-Tabular steps (Mode 3)
-""""""""""""""""""""""
-
-For tabular loading, the evolution is read from an external file:
-
-.. code-block:: none
-
-    #Mode
-    3
-    #File
-    tabular_file.txt
-    #Dn_init 1.
-    #Dn_mini 0.01
-    #prescribed_mechanical_state
-    S
-    0  S
-    0  0  0
-    #T_is_set
-    0
-
-The **#prescribed_mechanical_state** block specifies which components are controlled:
-
-- **S**: Stress-controlled component (read from file)
-- **E**: Strain-controlled component (read from file)
-- **0**: Component kept constant
-
-**#T_is_set**: 0 if temperature is constant, T if temperature is read from file.
-
-The tabular file structure:
-
-.. code-block:: none
-
-    0    0.0     10   10        
-    1    0.01    20   20
-    2    0.02    30   30
-    3    0.03    30   30
-    ...
-
-Columns: **ninc**, **time**, followed by the controlled components in order 11, 12, 22, 13, 23, 33.
-
-If temperature is set:
-
-.. code-block:: none
-
-    0    0.0     293.15  10   10        
-    1    0.01    294.15  20   20
-    ...
-
-Columns: **ninc**, **time**, **T**, then mechanical components.
+   {
+     "time": 1.0,
+     "Dn_init": 1.0,
+     "Dn_mini": 1.0,
+     "Dn_inc": 0.01,
+     "DEtot": [0.02, 0, 0, 0, 0, 0],
+     "Dsigma": [0, 0, 0, 0, 0, 0],
+     "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+     "DQ": 0
+   }
 
 Examples
 --------
@@ -419,177 +413,174 @@ Examples
 Cyclic loading (plasticity)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    293.15
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    1
-    #Repeat
-    1
-    #Steps
-    5
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.001
-    #time
-    300
-    #prescribed_mechanical_state
-    S 1000
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    T 293.15
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.001
-    #time
-    300
-    #prescribed_mechanical_state
-    S -1100
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    T 293.15
-
-    ... (additional steps for cyclic loading)
+   {
+     "initial_temperature": 293.15,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "small_strain",
+         "corate_type": "jaumann",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 300,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.001,
+             "DEtot": [0, 0, 0, 0, 0, 0],
+             "Dsigma": [1000, 0, 0, 0, 0, 0],
+             "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
+             "DT": 0
+           },
+           {
+             "time": 300,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.001,
+             "DEtot": [0, 0, 0, 0, 0, 0],
+             "Dsigma": [-1100, 0, 0, 0, 0, 0],
+             "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
+             "DT": 0
+           }
+         ]
+       }
+     ]
+   }
 
 Hyperelasticity with deformation gradient control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    293.5
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    5
-    #Repeat
-    1
-    #Steps
-    1
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.1
-    #time
-    5.
-    #prescribed_mechanical_state
-    5. 0. 0.
-    0. 0.4472135955 0.
-    0. 0. 0.4472135955
-    #prescribed_temperature_state
-    T 290
+   {
+     "initial_temperature": 293.5,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "deformation_gradient",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 5.0,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.1,
+             "F": [[5.0, 0, 0], [0, 0.4472135955, 0], [0, 0, 0.4472135955]],
+             "DT": 0
+           }
+         ]
+       }
+     ]
+   }
 
 This applies a uniaxial stretch with :math:`\lambda_1 = 5` and :math:`\lambda_2 = \lambda_3 = 1/\sqrt{5}` (incompressible).
 
 Finite deformation with spin (logarithmic strain)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    290
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    3
-    #Repeat
-    1
-    #Steps
-    1
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    S 3.
-    S 0 S 0
-    S 0 S 0 S 0
-    #spin
-    0. 0. 0.
-    0. 0. 0.
-    0. 0. 0.
-    #temperature_state
-    T 293.5
+   {
+     "initial_temperature": 290,
+     "blocks": [
+       {
+         "type": "mechanical",
+         "control_type": "logarithmic",
+         "corate_type": "logarithmic",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 30.0,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.01,
+             "DEtot": [0, 0, 0, 0, 0, 0],
+             "Dsigma": [3.0, 0, 0, 0, 0, 0],
+             "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
+             "spin": [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
+             "DT": 0
+           }
+         ]
+       }
+     ]
+   }
 
 Thermomechanical loading
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    290
-    #Number_of_blocks
-    1
+   {
+     "initial_temperature": 290,
+     "blocks": [
+       {
+         "type": "thermomechanical",
+         "control_type": "small_strain",
+         "ncycle": 1,
+         "steps": [
+           {
+             "time": 1.0,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.01,
+             "DEtot": [0.02, 0, 0, 0, 0, 0],
+             "Dsigma": [0, 0, 0, 0, 0, 0],
+             "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "DQ": 0
+           },
+           {
+             "time": 1.0,
+             "Dn_init": 1.0,
+             "Dn_mini": 1.0,
+             "Dn_inc": 0.01,
+             "DEtot": [0, 0, 0, 0, 0, 0],
+             "Dsigma": [0, 0, 0, 0, 0, 0],
+             "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "DQ": 0
+           }
+         ]
+       }
+     ]
+   }
 
-    #Block
-    1
-    #Loading_type
-    2
-    #Control_type(NLGEOM)
-    1
-    #Repeat
-    1
-    #Steps
-    2
+This simulates a strain-controlled loading followed by unloading under adiabatic conditions (DQ = 0).
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.01
-    #time
-    1
-    #prescribed_mechanical_state
-    E 0.02
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    Q 0
+Material JSON Format
+--------------------
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1
-    #Dn_inc 0.01
-    #time
-    1
-    #prescribed_mechanical_state
-    E 0.
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    Q 0
+The ``simcoon.solver.io`` module provides JSON I/O for material configurations:
 
-This simulates a strain-controlled loading followed by unloading under adiabatic conditions (Q = 0).
+.. code-block:: json
+
+   {
+     "name": "ELISO",
+     "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5},
+     "nstatev": 1,
+     "orientation": {"psi": 0, "theta": 0, "phi": 0}
+   }
+
+Usage
+^^^^^
+
+.. code-block:: python
+
+   from simcoon.solver.io import (
+       load_material_json, save_material_json,
+       load_path_json, save_path_json,
+   )
+
+   # Load from JSON
+   material = load_material_json('material.json')
+   path = load_path_json('path.json')
+
+   # Save configurations
+   save_material_json('material.json', material)
+   save_path_json('path.json', path)
+
+See Also
+--------
+
+- :doc:`micromechanics` - Python micromechanics I/O (phases, ellipsoids, layers)
+- :doc:`output` - Output file configuration

@@ -1,0 +1,28 @@
+{
+  "ellipsoids": [
+    {
+      "number": 0,
+      "coatingof": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.8,
+      "material_orientation": {"psi": 0.0, "theta": 0.0, "phi": 0.0},
+      "semi_axes": {"a1": 1.0, "a2": 1.0, "a3": 1.0},
+      "geometry_orientation": {"psi": 0.0, "theta": 0.0, "phi": 0.0},
+      "nstatev": 1,
+      "props": {"E": 2250.0, "nu": 0.19, "alpha": 8.8e-5}
+    },
+    {
+      "number": 1,
+      "coatingof": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.2,
+      "material_orientation": {"psi": 0.0, "theta": 0.0, "phi": 0.0},
+      "semi_axes": {"a1": 1.0, "a2": 1.0, "a3": 1.0},
+      "geometry_orientation": {"psi": 0.0, "theta": 0.0, "phi": 0.0},
+      "nstatev": 1,
+      "props": {"E": 73000.0, "nu": 0.19, "alpha": 5e-7}
+    }
+  ]
+}
