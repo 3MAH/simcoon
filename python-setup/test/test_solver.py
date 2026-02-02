@@ -90,22 +90,27 @@ class TestStateVariables:
         assert sv2.sigma[0] == 200.0
 
     def test_to_start_and_set_start(self):
-        """Test to_start and set_start methods (in-place operations)."""
+        """Test to_start and set_start methods following C++ state_variables pattern.
+
+        C++ pattern:
+        - to_start(): Reset current values TO _start values (for NR rollback)
+        - set_start(corate_type): SET _start from current + advance strain
+        """
         sv = StateVariablesM(nstatev=2)
         sv.sigma[:] = [100.0, 50.0, 50.0, 0.0, 0.0, 0.0]
         sv.statev[:] = [0.001, 0.002]
 
-        # Save to start (in-place copy)
-        sv.to_start()
+        # set_start saves current values to _start and advances strain
+        sv.set_start(0)
         assert np.allclose(sv.sigma_start, sv.sigma)
         assert np.allclose(sv.statev_start, sv.statev)
 
-        # Modify current (in-place)
+        # Modify current (simulate a trial solution in NR)
         sv.sigma[:] = [200.0, 100.0, 100.0, 0.0, 0.0, 0.0]
         sv.statev[:] = [0.003, 0.004]
 
-        # Restore from start (in-place copy)
-        sv.set_start(1)
+        # to_start resets current back TO _start values (rollback)
+        sv.to_start()
         assert np.allclose(sv.sigma, np.array([100.0, 50.0, 50.0, 0.0, 0.0, 0.0]))
         assert np.allclose(sv.statev, np.array([0.001, 0.002]))
 
