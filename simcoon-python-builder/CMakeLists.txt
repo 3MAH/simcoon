@@ -45,6 +45,9 @@ pybind11_add_module(_core
   # Maths
   src/python_wrappers/Libraries/Maths/lagrange.cpp
   src/python_wrappers/Libraries/Maths/rotation.cpp
+
+  # Solver (Optimized C++ solver bindings)
+  src/python_wrappers/Libraries/Solver/solver_optimized.cpp
 )
 
 # Set RPATH based on build mode
