@@ -52,7 +52,7 @@ using namespace simpy;
 
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(simmit, m)
+PYBIND11_MODULE(_core, m)
 {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 

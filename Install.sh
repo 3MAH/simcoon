@@ -95,7 +95,7 @@ fi
 
 #Ask for installation of the simcoon library
 while true; do
-    read -p "Do you want to install simcoon library (necessary to use libsimcoon.so and simmit) ? " yn
+    read -p "Do you want to install simcoon library (necessary to use libsimcoon.so) ? " yn
     case $yn in
         [YyOo]* ) Install_check='OK'; break;;
         [Nn]* ) Install_check='NO'; break;;
@@ -221,7 +221,7 @@ then
 
     cd ..
     cd ..
-    cp ${current_dir}/simcoon-python-builder/build/lib/simmit.so ${current_dir}/python-setup/simcoon/simmit.so
+    cp ${current_dir}/simcoon-python-builder/build/lib/_core.so ${current_dir}/python-setup/simcoon/_core.so
     cd ${current_dir}/python-setup
         
     #Change the current dir and install python library
@@ -233,8 +233,8 @@ then
 #    if [ $OS = "Mac" ]
 #    then
 #        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/libarma2numpy.dylib
-#        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
-#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/simmit.so
+#        install_name_tool -change libarma2numpy.dylib  @rpath/libarma2numpy.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/_core.so
+#        install_name_tool -change libsimcoon.dylib @rpath/libsimcoon.dylib $CONDA_PREFIX/lib/python${python_version}/site-packages/simcoon/_core.so
 #    fi
     
     cd ${current_dir}/simcoon-python-builder/build

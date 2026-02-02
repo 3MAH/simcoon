@@ -2,7 +2,7 @@
 # This is called from the parent CMakeLists.txt when building Python bindings
 #
 # Two modes:
-#   1. SKBUILD (pip install): Bundle libsimcoon with simmit in wheel, RPATH=$ORIGIN
+#   1. SKBUILD (pip install): Bundle libsimcoon with _core in wheel, RPATH=$ORIGIN
 #   2. CONDA_BUILD (conda-build): Link to system libsimcoon, install to site-packages
 
 if(DEFINED SKBUILD)
@@ -156,11 +156,11 @@ file(GLOB_RECURSE test_files_carma test/Carma/*.cpp test/Carma/*.hpp)
 file(GLOB_RECURSE test_files_exception test/exception_test/*.cpp test/exception_test/*.hpp)
 
 ################################################################################
-# SIMCOON PYBIND11 MODULE (simmit)
+# SIMCOON PYBIND11 MODULE (_core)
 
-pybind11_add_module(simmit
+pybind11_add_module(_core
   # Main wrapper
-  src/python_wrappers/boostpython_smartplus_wrappers.cpp
+  src/python_wrappers/python_module.cpp
 
   # Continuum Mechanics
   src/python_wrappers/Libraries/Continuum_mechanics/constitutive.cpp
@@ -201,25 +201,25 @@ pybind11_add_module(simmit
 if(CONDA_BUILD)
   # Conda: link to system libsimcoon in $PREFIX/lib
   if(APPLE)
-    set_target_properties(simmit PROPERTIES
+    set_target_properties(_core PROPERTIES
         INSTALL_RPATH "@loader_path/../../../"
         BUILD_WITH_INSTALL_RPATH ON
     )
   elseif(UNIX)
-    set_target_properties(simmit PROPERTIES
+    set_target_properties(_core PROPERTIES
         INSTALL_RPATH "$ORIGIN/../../../"
         BUILD_WITH_INSTALL_RPATH ON
     )
   endif()
 else()
-  # Wheel: libsimcoon is in same directory as simmit
+  # Wheel: libsimcoon is in same directory as _core
   if(APPLE)
-    set_target_properties(simmit PROPERTIES
+    set_target_properties(_core PROPERTIES
         INSTALL_RPATH "@loader_path"
         BUILD_WITH_INSTALL_RPATH ON
     )
   elseif(UNIX)
-    set_target_properties(simmit PROPERTIES
+    set_target_properties(_core PROPERTIES
         INSTALL_RPATH "$ORIGIN"
         BUILD_WITH_INSTALL_RPATH ON
     )
@@ -228,19 +228,19 @@ endif()
 
 # Set output file extension
 if(MSVC)
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".pyd")
+  set_target_properties(_core PROPERTIES PREFIX "" SUFFIX ".pyd")
 else()
-  set_target_properties(simmit PROPERTIES PREFIX "" SUFFIX ".so")
+  set_target_properties(_core PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 
 # Disable precompiled headers for this target (causes issues with carma includes)
-set_target_properties(simmit PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+set_target_properties(_core PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
 # Add include directories for Python wrapper headers
-target_include_directories(simmit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
-target_link_libraries(simmit PRIVATE carma::carma Python3::Module simcoon)
+target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 
 ################################################################################
 # INSTALL
@@ -257,8 +257,8 @@ if(CONDA_BUILD)
   file(TO_CMAKE_PATH "${PYTHON_SITE_PACKAGES_RAW}" PYTHON_SITE_PACKAGES)
   message(STATUS "Python site-packages: ${PYTHON_SITE_PACKAGES}")
 
-  # Install simmit.so to site-packages/simcoon/
-  install(TARGETS simmit
+  # Install _core.so to site-packages/simcoon/
+  install(TARGETS _core
           LIBRARY DESTINATION ${PYTHON_SITE_PACKAGES}/simcoon
           RUNTIME DESTINATION ${PYTHON_SITE_PACKAGES}/simcoon)
 
@@ -273,7 +273,7 @@ else()
   # Wheel: scikit-build-core handles the wheel packaging
 
   # Install Python extension module to wheel
-  install(TARGETS simmit
+  install(TARGETS _core
           DESTINATION .
           COMPONENT python)
 

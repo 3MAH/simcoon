@@ -6,7 +6,7 @@ Rotation library Examples
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation as R
-from simcoon import simmit as sim
+import simcoon as sim
 import os
 
 
@@ -27,7 +27,7 @@ active = True
 # 1. Rotate a vector using a rotation matrix
 #
 # This example shows how to build a rotation matrix and rotate a vector.
-# It uses :func:`simcoon.simmit.fillR_angle` and :func:`simcoon.simmit.rotate_vec_R`.
+# It uses :func:`simcoon.fillR_angle` and :func:`simcoon.rotate_vec_R`.
 
 
 Rmat = sim.fillR_angle(angle, axis, active, copy)
@@ -40,7 +40,7 @@ print("Rotation matrix (using R):", Rmat)
 # 2. Rotate a vector using angle/axis
 #
 # This example shows how to rotate a vector using an angle and an axis directly.
-# It uses :func:`simcoon.simmit.rotate_vec_angle`.
+# It uses :func:`simcoon.rotate_vec_angle`.
 
 
 v_rot2 = sim.rotate_vec_angle(v, angle, axis, copy)
@@ -51,7 +51,7 @@ print("Rotated vector (using angle/axis):", v_rot2)
 # 3. Rotate a matrix using a rotation matrix
 #
 # This example shows how to rotate a matrix using a rotation matrix.
-# It uses :func:`simcoon.simmit.rotate_mat_R`.
+# It uses :func:`simcoon.rotate_mat_R`.
 
 
 m_rot1 = sim.rotate_mat_R(m, Rmat, copy)
@@ -62,7 +62,7 @@ print("Rotated matrix (using R):\n", m_rot1)
 # 4. Rotate a matrix using angle/axis
 #
 # This example shows how to rotate a matrix using an angle and an axis directly.
-# It uses :func:`simcoon.simmit.rotate_mat_angle`.
+# It uses :func:`simcoon.rotate_mat_angle`.
 
 
 m_rot2 = sim.rotate_mat_angle(m, angle, axis, copy)
@@ -73,7 +73,7 @@ print("Rotated matrix (using angle/axis):\n", m_rot2)
 # 5. Build a rotation matrix from Euler angles
 #
 # This example shows how to create a rotation matrix from Euler angles.
-# It uses :func:`simcoon.simmit.fillR_euler`.
+# It uses :func:`simcoon.fillR_euler`.
 
 psi, theta, phi = np.pi / 6, np.pi / 4, np.pi / 3
 R_euler = sim.fillR_euler(psi, theta, phi, active, "zxz", copy)
@@ -90,7 +90,7 @@ print("Rotation matrix from Euler angles (zxz):\n", R_euler)
 # %%
 # 6. Rotate a stress vector (single and batch)
 #
-# This example uses :func:`simcoon.simmit.rotate_stress_angle`.
+# This example uses :func:`simcoon.rotate_stress_angle`.
 
 stress = np.array([1, 2, 3, 4, 5, 6], dtype=float)
 stress_batch = np.stack([stress, stress * 2], axis=1)
@@ -103,7 +103,7 @@ print("Rotated stress (batch):\n", rot_stress2)
 # %%
 # 7. Rotate a strain vector (single and batch)
 #
-# This example uses :func:`simcoon.simmit.rotate_strain_angle`.
+# This example uses :func:`simcoon.rotate_strain_angle`.
 
 strain = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], dtype=float)
 strain_batch = np.stack([strain, strain * 2], axis=1)
@@ -116,8 +116,8 @@ print("Rotated strain (batch):\n", rot_strain2)
 # %%
 # 8. Rotate a stiffness matrix (L)
 #
-# This example uses both :func:`simcoon.simmit.rotateL_angle` and
-# :func:`simcoon.simmit.rotateL_R`.
+# This example uses both :func:`simcoon.rotateL_angle` and
+# :func:`simcoon.rotateL_R`.
 
 L6 = np.eye(6)
 rotL1 = sim.rotateL_angle(L6, angle, axis, active, copy)
@@ -129,8 +129,8 @@ print("Rotated L (R):\n", rotL2)
 # %%
 # 9. Rotate a compliance matrix (M)
 #
-# This example uses both :func:`simcoon.simmit.rotateM_angle` and
-# :func:`simcoon.simmit.rotateM_R`.
+# This example uses both :func:`simcoon.rotateM_angle` and
+# :func:`simcoon.rotateM_R`.
 
 M6 = np.eye(6)
 rotM1 = sim.rotateM_angle(M6, angle, axis, active, copy)
@@ -142,8 +142,8 @@ print("Rotated M (R):\n", rotM2)
 # %%
 # 10. Rotate a strain concentration matrix (A)
 #
-# This example uses both :func:`simcoon.simmit.rotateA_angle` and
-# :func:`simcoon.simmit.rotateA_R`.
+# This example uses both :func:`simcoon.rotateA_angle` and
+# :func:`simcoon.rotateA_R`.
 
 A6 = np.eye(6)
 rotA1 = sim.rotateA_angle(A6, angle, axis, active, copy)
@@ -155,8 +155,8 @@ print("Rotated A (R):\n", rotA2)
 # %%
 # 11. Rotate a stress concentration matrix (B)
 #
-# This example uses both :func:`simcoon.simmit.rotateB_angle` and
-# :func:`simcoon.simmit.rotateB_R`.
+# This example uses both :func:`simcoon.rotateB_angle` and
+# :func:`simcoon.rotateB_R`.
 
 B6 = np.eye(6)
 rotB1 = sim.rotateB_angle(B6, angle, axis, active, copy)
