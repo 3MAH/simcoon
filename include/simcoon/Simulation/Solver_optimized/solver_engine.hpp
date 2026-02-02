@@ -149,22 +149,9 @@ private:
     // Working state variables
     state_variables_M sv_;
 
-    // Backup buffers for rollback on failed increments
-    // These store the state before attempting an increment
-    arma::vec Etot_backup_;       ///< (6) Green-Lagrange strain backup
-    arma::vec etot_backup_;       ///< (6) Logarithmic strain backup
-    arma::vec sigma_backup_;      ///< (6) Cauchy stress backup
-    arma::vec tau_backup_;        ///< (6) Kirchhoff stress backup
-    arma::vec PKII_backup_;       ///< (6) 2nd Piola-Kirchhoff stress backup
-    arma::vec sigma_in_backup_;   ///< (6) Internal stress backup
-    arma::vec Wm_backup_;         ///< (4) Work backup
-    arma::vec statev_backup_;     ///< (nstatev) State variables backup
-    arma::mat F0_backup_;         ///< (3,3) Deformation gradient start backup
-    arma::mat F1_backup_;         ///< (3,3) Deformation gradient end backup
-    arma::mat U0_backup_;         ///< (3,3) Right stretch start backup
-    arma::mat U1_backup_;         ///< (3,3) Right stretch end backup
-    arma::mat R_backup_;          ///< (3,3) Rotation tensor backup
-    double T_backup_;             ///< Temperature backup
+    // Backup state for rollback on failed increments (legacy C++ pattern)
+    // Stores the complete state before attempting an increment
+    state_variables_M sv_start_;
 
     /**
      * @brief Initialize UMAT for a block.
