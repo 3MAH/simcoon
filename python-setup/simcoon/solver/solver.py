@@ -289,25 +289,43 @@ class StateVariables:
         np.copyto(other.statev_start, self.statev_start)
 
     def to_start(self):
-        """Copy current values to start-of-increment values (in-place)."""
-        np.copyto(self.PKII_start, self.PKII)
-        np.copyto(self.tau_start, self.tau)
-        np.copyto(self.sigma_start, self.sigma)
-        np.copyto(self.statev_start, self.statev)
-
-    def set_start(self, control_type: int = 1):
         """
-        Set current values from start-of-increment values (in-place).
+        Reset current values TO start-of-increment values (for rollback).
 
-        Parameters
-        ----------
-        control_type : int
-            Control type flag for selective update
+        Matches C++ state_variables::to_start() - used to reset trial solution
+        when NR iteration fails or when restarting an increment attempt.
         """
         np.copyto(self.PKII, self.PKII_start)
         np.copyto(self.tau, self.tau_start)
         np.copyto(self.sigma, self.sigma_start)
         np.copyto(self.statev, self.statev_start)
+
+    def set_start(self, corate_type: int = 0):
+        """
+        SET _start values from current converged values and advance state.
+
+        Matches C++ state_variables::set_start() - called after a converged
+        increment to update _start values and advance strain/rotation.
+
+        Parameters
+        ----------
+        corate_type : int
+            Corotational rate type (0=jaumann, 1=green_naghdi, etc.)
+        """
+        # For small strain (corate_type not used), simple copy
+        np.copyto(self.PKII_start, self.PKII)
+        np.copyto(self.tau_start, self.tau)
+        np.copyto(self.sigma_start, self.sigma)
+        np.copyto(self.statev_start, self.statev)
+
+        # Advance strain
+        self.Etot += self.DEtot
+        self.etot += self.Detot
+        self.T += self.DT
+
+        # Update deformation tensors
+        np.copyto(self.F0, self.F1)
+        np.copyto(self.U0, self.U1)
 
 
 @dataclass
@@ -400,16 +418,24 @@ class StateVariablesM(StateVariables):
         np.copyto(other.Lt, self.Lt)
 
     def to_start(self):
-        """Copy current values to start-of-increment values (in-place)."""
-        super().to_start()
-        np.copyto(self.sigma_in_start, self.sigma_in)
-        np.copyto(self.Wm_start, self.Wm)
+        """
+        Reset current values TO start-of-increment values (for rollback).
 
-    def set_start(self, control_type: int = 1):
-        """Set current values from start-of-increment values (in-place)."""
-        super().set_start(control_type)
+        Matches C++ state_variables_M::to_start().
+        """
+        super().to_start()
         np.copyto(self.sigma_in, self.sigma_in_start)
         np.copyto(self.Wm, self.Wm_start)
+
+    def set_start(self, corate_type: int = 0):
+        """
+        SET _start values from current converged values and advance state.
+
+        Matches C++ state_variables_M::set_start().
+        """
+        super().set_start(corate_type)
+        np.copyto(self.sigma_in_start, self.sigma_in)
+        np.copyto(self.Wm_start, self.Wm)
 
 
 @dataclass
@@ -516,18 +542,26 @@ class StateVariablesT(StateVariables):
         np.copyto(other.drdT, self.drdT)
 
     def to_start(self):
-        """Copy current values to start-of-increment values (in-place)."""
-        super().to_start()
-        np.copyto(self.sigma_in_start, self.sigma_in)
-        np.copyto(self.Wm_start, self.Wm)
-        np.copyto(self.Wt_start, self.Wt)
+        """
+        Reset current values TO start-of-increment values (for rollback).
 
-    def set_start(self, control_type: int = 1):
-        """Set current values from start-of-increment values (in-place)."""
-        super().set_start(control_type)
+        Matches C++ state_variables_T::to_start().
+        """
+        super().to_start()
         np.copyto(self.sigma_in, self.sigma_in_start)
         np.copyto(self.Wm, self.Wm_start)
         np.copyto(self.Wt, self.Wt_start)
+
+    def set_start(self, corate_type: int = 0):
+        """
+        SET _start values from current converged values and advance state.
+
+        Matches C++ state_variables_T::set_start().
+        """
+        super().set_start(corate_type)
+        np.copyto(self.sigma_in_start, self.sigma_in)
+        np.copyto(self.Wm_start, self.Wm)
+        np.copyto(self.Wt_start, self.Wt)
 
 
 # =============================================================================
@@ -952,7 +986,9 @@ class Solver:
 
         # Call UMAT (modifies sv in-place)
         self._call_umat(block, sv, Time, DTime)
-        sv.to_start()
+        # Set _start values from current (C++ set_start pattern)
+        # With DEtot=0, this just saves initial state without advancing
+        sv.set_start(0)
 
     def _solve_step(self, block: Block, step: Step, sv: StateVariables,
                     Time: float, control_type_int: int,
@@ -989,8 +1025,8 @@ class Solver:
             Dtinc = min(1.0 / ninc, 1.0 - tinc)
             DTime = Dtinc * step.time
 
-            # Save start state (in-place)
-            sv.to_start()
+            # _start values are already set from previous set_start() or initialization
+            # No explicit save needed here (C++ pattern)
 
             # Try to solve this increment
             converged = self._solve_increment(
@@ -1004,6 +1040,10 @@ class Solver:
                 tinc += Dtinc
                 Time += DTime
 
+                # Advance state: set _start from current + update strain/rotation
+                # (C++ set_start pattern - must be called before recording history)
+                sv.set_start(corate_type_int)
+
                 # Store converged state (lightweight copy for history)
                 self.history.append(HistoryPoint.from_state(sv))
 
@@ -1011,8 +1051,8 @@ class Solver:
                 if ninc > step.Dn_mini:
                     ninc = max(step.Dn_mini, int(ninc * self.div_tnew_dt))
             else:
-                # Reject increment, restore start state (in-place)
-                sv.set_start(control_type_int)
+                # Reject increment, reset current TO _start values (C++ to_start pattern)
+                sv.to_start()
                 ninc = min(step.Dn_inc, int(ninc * self.mul_tnew_dt))
 
                 if ninc >= step.Dn_inc:
@@ -1041,6 +1081,7 @@ class Solver:
                 control_type_int, corate_type_int, DTime
             )
             self._call_umat(block, sv, Time, DTime)
+            # Strain advancement is done by set_start() in _solve_step after convergence
             return True
 
         # Mixed control: Newton-Raphson iteration
@@ -1074,6 +1115,14 @@ class Solver:
             # Update kinematics for finite strain (modifies sv in-place)
             self._update_kinematics(sv, control_type_int, corate_type_int, DTime)
 
+            # Reset state to start-of-increment values before UMAT call
+            # This is critical for NR convergence: each UMAT call should start from
+            # the same initial state (stress, statev, Wm) and only DEtot changes
+            np.copyto(sv.sigma, sv.sigma_start)
+            np.copyto(sv.statev, sv.statev_start)
+            if isinstance(sv, (StateVariablesM, StateVariablesT)):
+                np.copyto(sv.Wm, sv.Wm_start)
+
             # Call UMAT (modifies sv in-place)
             self._call_umat(block, sv, Time, DTime)
 
@@ -1084,6 +1133,7 @@ class Solver:
             error = norm(self._residual)
             compteur += 1
 
+        # Strain advancement is done by set_start() in _solve_step after convergence
         return error <= self.tol
 
     def _compute_residual(self, sv: StateVariables, Dtinc: float,
@@ -1213,6 +1263,9 @@ class Solver:
             Wm_view = self._Wm_batch
             Lt_view = self._Lt_batch
 
+        # Temperature array for UMAT (single value reshaped for batch interface)
+        temp_arr = np.array([sv.T], dtype=np.float64)
+
         # Call UMAT in-place - modifies sigma, statev, Wm, Lt through views
         self._umat_inplace(
             block.umat_name,
@@ -1222,15 +1275,13 @@ class Solver:
             self._props_batch, statev_view,
             Time, DTime,
             Wm_view, Lt_view,
-            None,  # temp
+            temp_arr,  # temp - pass actual temperature
             3,     # ndi
             1      # n_threads
         )
         # No copy needed - sv.sigma, sv.statev, sv.Wm, sv.Lt already modified!
-
-        # Update strain totals (in-place)
-        sv.Etot += sv.DEtot
-        sv.etot += sv.Detot
+        # NOTE: Strain totals are NOT updated here - they are updated after NR convergence
+        # in _solve_increment to avoid accumulating strain during NR iterations
 
         # Update deformation for finite strain
         if block.get_control_type_int() > 1:
