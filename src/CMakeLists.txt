@@ -133,4 +133,8 @@ target_sources(simcoon PRIVATE
   Simulation/Solver/step.cpp
   Simulation/Solver/step_meca.cpp
   Simulation/Solver/step_thermomeca.cpp
+
+  # Simulation - Solver Optimized
+  Simulation/Solver_optimized/umat_dispatch.cpp
+  Simulation/Solver_optimized/solver_engine.cpp
 )
