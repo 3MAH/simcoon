@@ -20,6 +20,7 @@
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
+#include <simcoon/python_wrappers/Libraries/Solver/solver_optimized.hpp>
 
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
@@ -32,6 +33,7 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_hyperelastic.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
+#include <simcoon/docs/Libraries/Solver/doc_solver_optimized.hpp>
 
 using namespace std;
 using namespace arma;
@@ -242,4 +244,9 @@ PYBIND11_MODULE(_core, m)
     // ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
+
+    // Optimized C++ solver
+    m.def("solver_optimized", &solver_optimized,
+        "blocks"_a, "max_iter"_a = 10, "tol"_a = 1e-9, "lambda_solver"_a = 10000.0,
+        simcoon_docs::solver_optimized);
 }
