@@ -24,6 +24,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Ani_chaboche_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/DFA_chaboche_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Generic_chaboche_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_T.hpp>
@@ -69,7 +70,7 @@ namespace simpy {
 		//Get the id of umat
 
 		std::map<string, int> list_umat;
-		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",14},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
+		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",14},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 		int id_umat = list_umat[umat_name_py];
 		int arguments_type; //depends on the argument used in the umat
 
@@ -255,10 +256,15 @@ namespace simpy {
 			}
 			case 21: case 22: case 23: case 24: case 26: {
 				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);						
+				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_4 = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 4;
-				break;				
+				break;
+			}
+			case 27: {
+				umat_function = &simcoon::umat_generic_chaboche_CCP;
+				arguments_type = 1;
+				break;
 			}				
 			default: {
 				//py::print("Error: The choice of Umat could not be found in the umat library \n");

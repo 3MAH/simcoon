@@ -10,7 +10,11 @@ set(TEST_SRCS
   test/Libraries/Continuum_mechanics/Tconstitutive.cpp
   test/Libraries/Continuum_mechanics/Tcontimech.cpp
   test/Libraries/Continuum_mechanics/Tcriteria.cpp
+  test/Libraries/Continuum_mechanics/Tdamage.cpp
+  test/Libraries/Continuum_mechanics/Tderivatives.cpp
   test/Libraries/Continuum_mechanics/Thyperelastic.cpp
+  test/Libraries/Continuum_mechanics/Tkinematics.cpp
+  test/Libraries/Continuum_mechanics/Tnatural_basis.cpp
   test/Libraries/Continuum_mechanics/Tobjective_rates.cpp
   test/Libraries/Continuum_mechanics/Trecovery_props.cpp
   test/Libraries/Continuum_mechanics/Tstress.cpp
@@ -20,7 +24,10 @@ set(TEST_SRCS
   test/Libraries/Homogenization/Teshelby.cpp
 
   # Libraries - Maths
+  test/Libraries/Maths/Tlagrange.cpp
+  test/Libraries/Maths/Tnum_solve.cpp
   test/Libraries/Maths/Trotation.cpp
+  test/Libraries/Maths/Tstats.cpp
 
   # Libraries - Phase
   test/Libraries/Phase/Tphase_characteristics.cpp
@@ -33,6 +40,7 @@ set(TEST_SRCS
   test/Umats/ELIST/TELIST.cpp
   test/Umats/ELORT/TELORT.cpp
   test/Umats/EPCHA/TEPCHA.cpp
+  test/Umats/EPCHG/TEPCHG.cpp
   test/Umats/EPHAC/TEPHAC.cpp
   test/Umats/EPICP/TEPICP.cpp
   test/Umats/EPKCP/TEPKCP.cpp

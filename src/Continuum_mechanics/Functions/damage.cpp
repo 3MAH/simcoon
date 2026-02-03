@@ -27,6 +27,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 
 using namespace std;
@@ -54,15 +55,18 @@ double damage_weibull(const vec &stress, const double &damage, const double &alp
 
 //This function returns damage evolution (/dt) considering Kachanov's creep damage law
 double damage_kachanov(const vec &stress, const vec &strain, const double &damage, const double &A0, const double &r, const string &criterion) {
-		
+
+	// Use Ith() = {1,1,1,0,0,0} to add identity only to normal components
+	vec effective_strain = Ith() + strain;
+
 	if ((criterion == "vonmises")) {
-		return pow(Mises_stress(stress*(1.+strain))/(A0*(1.-damage)),r);
+		return pow(Mises_stress(stress%effective_strain)/(A0*(1.-damage)),r);
 	}
 	else if ((criterion == "hydro")) {
-		return pow(tr(stress*(1.+strain))/(3.*A0*(1.-damage)),r);
+		return pow(tr(stress%effective_strain)/(3.*A0*(1.-damage)),r);
 	}
 	else if ((criterion == "J3")) {
-		return pow(J3_stress(stress*(1.+strain))/(A0*(1.-damage)),r);
+		return pow(J3_stress(stress%effective_strain)/(A0*(1.-damage)),r);
 	}
 	else {
 		cout << "ERROR : criterion name not found in damage.hpp";
