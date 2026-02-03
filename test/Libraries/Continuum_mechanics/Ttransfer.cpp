@@ -177,7 +177,7 @@ TEST(Ttransfer, FTensor_transfer)
     EXPECT_LT(norm(testmat2 - testmat,2),simcoon::iota);
     EXPECT_LT(norm(test_strain - test,2),simcoon::iota);
     EXPECT_LT(norm(test_stress - test,2),simcoon::iota);
-    EXPECT_LT(norm(L2 - L,2),sim_iota);
+    EXPECT_LT(norm(L2 - L,2),simcoon::iota);
 
 }
 

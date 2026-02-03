@@ -35,17 +35,17 @@ TEST(Tlagrange, lagrange_exp_basic)
     double p0 = 100.;
 
     // For h <= -c, result should be 0
-    EXPECT_LT(fabs(lagrange_exp(-0.2, c, p0)), sim_iota);
-    EXPECT_LT(fabs(lagrange_exp(-c, c, p0)), sim_iota);
-    EXPECT_LT(fabs(lagrange_exp(-1.0, c, p0)), sim_iota);
+    EXPECT_LT(fabs(lagrange_exp(-0.2, c, p0)), simcoon::iota);
+    EXPECT_LT(fabs(lagrange_exp(-c, c, p0)), simcoon::iota);
+    EXPECT_LT(fabs(lagrange_exp(-1.0, c, p0)), simcoon::iota);
 
     // For h > -c, result should be non-zero
     double val = lagrange_exp(0., c, p0);
     EXPECT_GT(fabs(val), 0.);
 
     // Derivative should also be 0 for h <= -c
-    EXPECT_LT(fabs(dlagrange_exp(-0.2, c, p0)), sim_iota);
-    EXPECT_LT(fabs(dlagrange_exp(-c, c, p0)), sim_iota);
+    EXPECT_LT(fabs(dlagrange_exp(-0.2, c, p0)), simcoon::iota);
+    EXPECT_LT(fabs(dlagrange_exp(-c, c, p0)), simcoon::iota);
 }
 
 TEST(Tlagrange, lagrange_exp_numerical_derivative)

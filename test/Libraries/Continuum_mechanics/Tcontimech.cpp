@@ -276,7 +276,7 @@ TEST(Tcontimech, norm_stress_strain)
 
     // Zero input should give zero norm
     double ns_zero = norm_stress(zeros(6));
-    EXPECT_LT(fabs(ns_zero), sim_iota);
+    EXPECT_LT(fabs(ns_zero), simcoon::iota);
 
     // norm_strain should be positive for non-zero input
     double ne = norm_strain(sigma);
@@ -284,7 +284,7 @@ TEST(Tcontimech, norm_stress_strain)
 
     // Zero input
     double ne_zero = norm_strain(zeros(6));
-    EXPECT_LT(fabs(ne_zero), sim_iota);
+    EXPECT_LT(fabs(ne_zero), simcoon::iota);
 }
 
 TEST(Tcontimech, eta_norm_stress_strain)
