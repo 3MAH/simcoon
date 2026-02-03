@@ -63,13 +63,16 @@ find_package(Python3 COMPONENTS Interpreter Development NumPy)
 #Inclusion of Armadillo
 if (MSVC)
   find_package(pybind11 REQUIRED)
-  find_package(carma CONFIG REQUIRED)
   find_package(blas REQUIRED)
   find_package(lapack REQUIRED)
-  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})  
+  set(ARMADILLO_LIBRARIES ${ARMADILLO_LIBRARIES} ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 else()
   find_package(pybind11 REQUIRED)
   find_package(Armadillo 12.6 REQUIRED)
+endif()
+
+# carma: Check if target already exists (from parent CMakeLists.txt via FetchContent)
+if(NOT TARGET carma::carma)
   find_package(carma CONFIG REQUIRED)
 endif()
 
@@ -80,7 +83,11 @@ endif()
 if (USE_OPENMP)
   find_package(OpenMP)
 endif()
-find_package(simcoon REQUIRED)
+
+# simcoon: Check if target already exists (from parent CMakeLists.txt)
+if(NOT TARGET simcoon)
+  find_package(simcoon REQUIRED)
+endif()
 
 #${PYTHON_VERSION_MAJOR}${PYTHON_VERSION_MINOR}
 
