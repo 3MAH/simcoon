@@ -146,7 +146,7 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         v = s_j(0);
 
@@ -167,8 +167,8 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
         K(0,0) = dPhidv;
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
         Y_crit(0) = norm_stress(sigma_tildeV1);
-        if (Y_crit(0) < precision_umat) {
-            Y_crit(0) = precision_umat;
+        if (Y_crit(0) < simcoon::precision_umat) {
+            Y_crit(0) = simcoon::precision_umat;
         }
         
         Newton_Raphon(Phi, Y_crit, B, Ds_j, ds_j, error);

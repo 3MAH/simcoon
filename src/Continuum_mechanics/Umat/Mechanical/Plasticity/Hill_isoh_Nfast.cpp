@@ -191,7 +191,7 @@ void umat_plasticity_hill_isoh_CCP_N(const vec &Etot, const vec &DEtot, vec &sig
     double error = 1.;
 
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j;
         for (int i=0; i<N_plas; i++) {

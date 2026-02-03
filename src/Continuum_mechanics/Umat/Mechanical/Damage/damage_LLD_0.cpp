@@ -223,7 +223,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     }
     
     //First we find the plasticity
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         //Plasticity computations
                 //Compute the hardening
@@ -264,7 +264,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
     }
     
-    if(compteur == maxiter_umat)
+    if(compteur == simcoon::maxiter_umat)
         tnew_dt = 0.2;
     
     error = 1.;
@@ -304,7 +304,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     
     
     //So it is forced to enter the damage loop once
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         mat L_tilde = L_ortho(E1,E2,E3,nu12,nu13,nu23,G12,G13,G23, "EnuG");
         
@@ -464,7 +464,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
         G13 = G12_0*(1.-d_12);
     }
     
-    if(compteur == maxiter_umat)
+    if(compteur == simcoon::maxiter_umat)
         tnew_dt = 0.2;
     
     //Update constitutive parameters

@@ -192,7 +192,7 @@ void umat_plasticity_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
         if (p > simcoon::iota)	{

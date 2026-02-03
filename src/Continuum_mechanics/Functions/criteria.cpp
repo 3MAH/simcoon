@@ -300,7 +300,7 @@ namespace simcoon
     double Eq_stress_P(const vec &v, const mat &H)
     {
 
-        if (norm(v, 2) > iota)
+        if (norm(v, 2) > simcoon::iota)
         {
             return pow(sum(v % (H * v)), 0.5);
         }
@@ -313,7 +313,7 @@ namespace simcoon
     vec dEq_stress_P(const vec &v, const mat &H)
     {
 
-        if (norm(v, 2) > iota)
+        if (norm(v, 2) > simcoon::iota)
         {
             return (H * v) / Eq_stress_P(v, H);
         }

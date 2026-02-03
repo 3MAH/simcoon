@@ -274,7 +274,7 @@ void umat_sma_mono(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &
 	if(nactive > 0)
 	{
         
-		for(compteur = 0; ((compteur < maxiter_umat) && (sumPhi/Y0 > precision_umat)); compteur++)
+		for(compteur = 0; ((compteur < simcoon::maxiter_umat) && (sumPhi/Y0 > simcoon::precision_umat)); compteur++)
 		{
             dPhidxi = zeros(nactive, nactive);
 

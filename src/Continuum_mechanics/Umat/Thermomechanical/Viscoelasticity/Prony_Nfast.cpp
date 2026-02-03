@@ -191,7 +191,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     double error = 1.;
 
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         v = s_j;
 
@@ -217,8 +217,8 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         for (int i=0; i<N_prony; i++) {
             B(i, i) = K(i,i);
             Y_crit(i) = norm_strain(flow_visco[i]);
-            if (Y_crit(i) < precision_umat) {
-                Y_crit(i) = precision_umat;
+            if (Y_crit(i) < simcoon::precision_umat) {
+                Y_crit(i) = simcoon::precision_umat;
             }
         }
         

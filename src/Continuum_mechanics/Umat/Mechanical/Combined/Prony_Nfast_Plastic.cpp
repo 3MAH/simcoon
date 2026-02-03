@@ -223,7 +223,7 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
     double error = 1.;
 
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
         for (int i=0; i<N_prony; i++) {
@@ -273,8 +273,8 @@ void umat_prony_Nfast_plastic(const vec &Etot, const vec &DEtot, vec &sigma, mat
         for (int i=0; i<N_prony; i++) {
             B(i+1,i+1) = K(i+1,i+1);
             Y_crit(i+1) = norm_strain(flow_visco[i]);
-            if (Y_crit(i+1) < precision_umat) {
-                Y_crit(i+1) = precision_umat;
+            if (Y_crit(i+1) < simcoon::precision_umat) {
+                Y_crit(i+1) = simcoon::precision_umat;
             }
         }
 

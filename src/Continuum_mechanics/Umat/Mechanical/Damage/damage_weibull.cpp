@@ -81,7 +81,7 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     if(start)
     {
         T_init = T;
-        Damage = precision_umat;
+        Damage = simcoon::precision_umat;
         sigma = zeros(6);
         
         Wm = 0.;
@@ -144,7 +144,7 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         Damage = s_j(0);
         L_tilde = (1.-s_j(0))*L;
