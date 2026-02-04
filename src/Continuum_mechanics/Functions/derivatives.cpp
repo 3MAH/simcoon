@@ -63,7 +63,7 @@ mat dJ3DS(const mat &S) {
 
     mat S_dev = dev(S);
 
-    mat S2 = S_dev * S_dev;
+    mat S2 = (S_dev * S_dev).t();
     double trS2 = trace(S2);
     return S2 - (trS2 / 3.0) * eye<mat>(3,3);
 }
