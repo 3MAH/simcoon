@@ -17,7 +17,6 @@
 
 ///@file aniso_TR.cpp
 ///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
 ///@brief Implemented in 1D-2D-3D
 
 #include <iostream>
@@ -210,7 +209,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
         vec vide = zeros(6);
         sigma = zeros(6);
         ET = zeros(6);
-        xiF = limit;
+        xiF = simcoon::limit;
         xiR = 0.;
         xi = xiF;
         
