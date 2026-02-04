@@ -20,6 +20,7 @@
 ///@version 1.0
 
 #pragma once
+#include <armadillo>
 #if defined(__cpp_lib_math_constants)
     #include <numbers>
     #define HAS_STD_NUMBERS
@@ -34,6 +35,16 @@ constexpr double pi = std::numbers::pi;
 #else
 constexpr double pi = 3.14159265358979323846;
 #endif
+
+/// Convert degrees to radians (scalar)
+constexpr double deg2rad(double deg) { return deg * pi / 180.0; }
+/// Convert radians to degrees (scalar)
+constexpr double rad2deg(double rad) { return rad * 180.0 / pi; }
+
+/// Convert degrees to radians (vector)
+inline arma::vec deg2rad(const arma::vec& deg) { return deg * pi / 180.0; }
+/// Convert radians to degrees (vector)
+inline arma::vec rad2deg(const arma::vec& rad) { return rad * 180.0 / pi; }
 
 constexpr int axis_psi = 3;
 constexpr int axis_theta = 1;

@@ -144,9 +144,9 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
         propsmat >> buffer >> props(i);
     }
 
-    psi_rve *= (simcoon::pi / 180.);
-    theta_rve *= (simcoon::pi / 180.);
-    phi_rve *= (simcoon::pi / 180.);
+    psi_rve = simcoon::deg2rad(psi_rve);
+    theta_rve = simcoon::deg2rad(theta_rve);
+    phi_rve = simcoon::deg2rad(phi_rve);
     
 	propsmat.close();
 }

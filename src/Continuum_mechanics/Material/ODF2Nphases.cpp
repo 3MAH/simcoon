@@ -47,7 +47,7 @@ vec get_densities_ODF(const vec &x, const string &path_data, const string &input
     vec y = zeros(x.n_elem);
     vec x_rad;
     if (!radian) {
-        x_rad = x*(simcoon::pi/180.);
+        x_rad = simcoon::deg2rad(x);
         if(x_rad.min() < 0.) {
             cout << "Error : x.min() < 0. Please provide an angle vector with all angles >=0.";
             return y;

@@ -34,13 +34,9 @@ TEST(Trotation, basic_rotation)
 {
     //Basic rotation
     vec u = {1,1,1};
-    double psi = 23.;
-    double theta = 42.;
-    double phi = 165;
-    
-    psi *= (simcoon::pi/180.);
-    theta *= (simcoon::pi/180.);
-    phi *= (simcoon::pi/180.);
+    double psi = simcoon::deg2rad(23.);
+    double theta = simcoon::deg2rad(42.);
+    double phi = simcoon::deg2rad(165.);
     
     mat R1 = { {cos(psi),-sin(psi),0}, {sin(psi),cos(psi), 0}, {0,0,1}};
     mat R2 = { {1,0,0}, {0,cos(theta),-sin(theta)}, {0,sin(theta),cos(theta)} };
@@ -89,13 +85,9 @@ TEST(Trotation, rotation)
     test(4) = 3.;
     test(5) = 7.;
 
-    double psi = 12.5;
-    double theta = 32.;
-    double phi = -4.5;
-    
-    psi *= (simcoon::pi/180.);
-    theta *= (simcoon::pi/180.);
-    phi *= (simcoon::pi/180.);
+    double psi = simcoon::deg2rad(12.5);
+    double theta = simcoon::deg2rad(32.);
+    double phi = simcoon::deg2rad(-4.5);
     
     //Rotation
     mat R1 = { {cos(psi),-sin(psi),0}, {sin(psi),cos(psi), 0}, {0,0,1}};
