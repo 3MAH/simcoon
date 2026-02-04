@@ -70,8 +70,8 @@ ODF::ODF(const int &nAngle, const bool &nradian, const double &angle_min, const 
     limits(1) = angle_max;
     
     if (radian == false) {
-        limits(0) *= (sim_pi/180.);
-        limits(1) *= (sim_pi/180.);
+        limits(0) = simcoon::deg2rad(limits(0));
+        limits(1) = simcoon::deg2rad(limits(1));
     }
 }
     

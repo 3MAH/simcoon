@@ -200,17 +200,17 @@ TEST(Tconstitutive, identity_tensors)
     // Ireal: identity with 0.5 on shear diagonals
     mat Ir_ref = eye(6, 6);
     for (int i = 3; i < 6; i++) Ir_ref(i, i) = 0.5;
-    EXPECT_LT(norm(Ir - Ir_ref, 2), sim_iota);
+    EXPECT_LT(norm(Ir - Ir_ref, 2), simcoon::iota);
 
     // Ivol: 1/3 for first 3x3 block
     mat Iv_ref = zeros(6, 6);
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
             Iv_ref(i, j) = 1. / 3.;
-    EXPECT_LT(norm(Iv - Iv_ref, 2), sim_iota);
+    EXPECT_LT(norm(Iv - Iv_ref, 2), simcoon::iota);
 
     // Idev = Ireal - Ivol
-    EXPECT_LT(norm(Id - (Ir - Iv), 2), sim_iota);
+    EXPECT_LT(norm(Id - (Ir - Iv), 2), simcoon::iota);
 }
 
 TEST(Tconstitutive, identity_tensors_alt)
@@ -222,10 +222,10 @@ TEST(Tconstitutive, identity_tensors_alt)
     // Ireal2: identity with 2.0 on shear diagonals
     mat Ir2_ref = eye(6, 6);
     for (int i = 3; i < 6; i++) Ir2_ref(i, i) = 2.;
-    EXPECT_LT(norm(Ir2 - Ir2_ref, 2), sim_iota);
+    EXPECT_LT(norm(Ir2 - Ir2_ref, 2), simcoon::iota);
 
     // Idev2 = Ireal2 - Ivol
-    EXPECT_LT(norm(Id2 - (Ir2 - Iv), 2), sim_iota);
+    EXPECT_LT(norm(Id2 - (Ir2 - Iv), 2), simcoon::iota);
 }
 
 TEST(Tconstitutive, Ith_Ir2_Ir05)
@@ -237,21 +237,21 @@ TEST(Tconstitutive, Ith_Ir2_Ir05)
     // Ith = [1,1,1,0,0,0]
     vec th_ref = zeros(6);
     for (int i = 0; i < 3; i++) th_ref(i) = 1.;
-    EXPECT_LT(norm(th - th_ref, 2), sim_iota);
+    EXPECT_LT(norm(th - th_ref, 2), simcoon::iota);
 
     // Ir2 = [1,1,1,2,2,2]
     vec r2_ref = ones(6);
     for (int i = 3; i < 6; i++) r2_ref(i) = 2.;
-    EXPECT_LT(norm(r2 - r2_ref, 2), sim_iota);
+    EXPECT_LT(norm(r2 - r2_ref, 2), simcoon::iota);
 
     // Ir05 = [1,1,1,0.5,0.5,0.5]
     vec r05_ref = ones(6);
     for (int i = 3; i < 6; i++) r05_ref(i) = 0.5;
-    EXPECT_LT(norm(r05 - r05_ref, 2), sim_iota);
+    EXPECT_LT(norm(r05 - r05_ref, 2), simcoon::iota);
 
     // Ir2 % Ir05 = ones(6) (element-wise product)
     vec product = r2 % r05;
-    EXPECT_LT(norm(product - ones(6), 2), sim_iota);
+    EXPECT_LT(norm(product - ones(6), 2), simcoon::iota);
 }
 
 TEST(Tconstitutive, H_iso)

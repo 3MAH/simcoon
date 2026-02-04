@@ -68,7 +68,7 @@ TEST(Tobjective_rates, get_B)
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
@@ -141,7 +141,7 @@ TEST(Tobjective_rates, logarithmic_functions)
     BBBB_(k,l,m,n) = Bij_(k,l)*Bij_(m,n);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));

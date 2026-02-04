@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <armadillo>
 #include <memory>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Geometry/geometry.hpp>
 #include <simcoon/Simulation/Geometry/layer.hpp>
@@ -417,7 +418,13 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 1: {
-                        vec E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_global->Etot)+eye(3,3)) - eye(3,3));
+                        vec E_biot;
+                        try {
+                            E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_global->Etot)+eye(3,3)) - eye(3,3));
+                        } catch (const std::runtime_error &e) {
+                            cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+                            throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside phase_characteristics::output.");
+                        }                                    
                     for (int z=0; z<so.o_nb_strain; z++) {
                         *sptr_out_global << E_biot(so.o_strain(z)) << "\t";
                     }
@@ -660,7 +667,13 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 1: {
-                        vec E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_local->Etot)+eye(3,3)) - eye(3,3));
+                        vec E_biot;
+                        try {
+                            E_biot = t2v_strain(sqrtmat_sympd(2.*v2t_strain(sptr_sv_local->Etot)+eye(3,3)) - eye(3,3));
+                        } catch (const std::runtime_error &e) {
+                            cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+                            throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside phase_characteristics::output.");
+                        }                                    
                     for (int z=0; z<so.o_nb_strain; z++) {
                         *sptr_out_local << E_biot(so.o_strain(z)) << "\t";
                     }

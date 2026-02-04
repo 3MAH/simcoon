@@ -81,7 +81,7 @@ Col<int> checkS(const mat &S) {
 		for(int i=0; i<fabs(S.n_rows);i++) {
 			somme += fabs(S(i,j));
 		}
-		if (somme < sim_limit) {
+		if (somme < simcoon::limit) {
 			problem++;
 			pb_col(j)++;
 			pb_col(S.n_cols)++;
@@ -109,7 +109,7 @@ double calcC(const vec &vexp, vec &vnum, const vec &W) {
     }
     
     for(unsigned int z=0; z<vexp.n_elem; z++) {
-        if (W(z) > sim_iota) {
+        if (W(z) > simcoon::iota) {
             Cout += pow((vexp(z)-vnum(z)), 2.)*W(z);
         }
     }

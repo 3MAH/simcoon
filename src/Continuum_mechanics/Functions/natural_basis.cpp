@@ -19,6 +19,7 @@
 #include <fstream>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
@@ -70,7 +71,12 @@ natural_basis::natural_basis(const std::vector<arma::vec> &mg_i)
         }
     }
     
-    g0ij = inv(g_ij);
+    try {
+        g0ij = inv(g_ij);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside natural_basis constructor.");
+    }   
     
     for (unsigned int i=0; i < 3; i++) {
         for (unsigned int j=0; j<3; j++) {
@@ -130,7 +136,12 @@ void natural_basis::update(const std::vector<arma::vec> &mg_i)
         }
     }
     
-    g0ij = inv(g_ij);
+    try {
+        g0ij = inv(g_ij);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside natural_basis update.");
+    } 
     
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
@@ -158,7 +169,12 @@ void natural_basis::from_F(const arma::mat &F)
         }
     }
     
-    g0ij = inv(g_ij);
+    try {
+        g0ij = inv(g_ij);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside natural_basis from_F.");
+    } 
     
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {

@@ -35,15 +35,15 @@ TEST(Tderivatives, dI1DS_identity)
     // dI1/dS = I (identity) for any input
     mat S = {{1., 2., 3.}, {4., 5., 6.}, {7., 8., 9.}};
     mat result = dI1DS(S);
-    EXPECT_LT(norm(result - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(result - eye(3, 3), 2), simcoon::iota);
 
     // Also for identity input
     mat result2 = dI1DS(eye(3, 3));
-    EXPECT_LT(norm(result2 - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(result2 - eye(3, 3), 2), simcoon::iota);
 
     // Also for zero input
     mat result3 = dI1DS(zeros(3, 3));
-    EXPECT_LT(norm(result3 - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(result3 - eye(3, 3), 2), simcoon::iota);
 }
 
 TEST(Tderivatives, dI2DS_returns_S)
@@ -51,11 +51,11 @@ TEST(Tderivatives, dI2DS_returns_S)
     // dI2/dS = S (the tensor itself)
     mat S = {{2., 1., 0.}, {1., 3., 1.}, {0., 1., 4.}};
     mat result = dI2DS(S);
-    EXPECT_LT(norm(result - S, 2), sim_iota);
+    EXPECT_LT(norm(result - S, 2), simcoon::iota);
 
     // Identity case
     mat result2 = dI2DS(eye(3, 3));
-    EXPECT_LT(norm(result2 - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(result2 - eye(3, 3), 2), simcoon::iota);
 }
 
 TEST(Tderivatives, dI3DS_returns_S_squared_transposed)
@@ -64,7 +64,7 @@ TEST(Tderivatives, dI3DS_returns_S_squared_transposed)
     mat S = {{2., 1., 0.}, {1., 3., 1.}, {0., 1., 4.}};
     mat result = dI3DS(S);
     mat expected = (S * S).t();
-    EXPECT_LT(norm(result - expected, 2), sim_iota);
+    EXPECT_LT(norm(result - expected, 2), simcoon::iota);
 }
 
 TEST(Tderivatives, dtrSdS_identity)
@@ -72,7 +72,7 @@ TEST(Tderivatives, dtrSdS_identity)
     // dtr(S)/dS = I for any input (same as dI1DS)
     mat S = {{5., 2., 1.}, {2., 3., 0.}, {1., 0., 7.}};
     mat result = dtrSdS(S);
-    EXPECT_LT(norm(result - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(result - eye(3, 3), 2), simcoon::iota);
 }
 
 TEST(Tderivatives, ddetSdS_cofactor)

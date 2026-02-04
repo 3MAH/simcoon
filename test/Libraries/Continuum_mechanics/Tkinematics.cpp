@@ -76,7 +76,7 @@ TEST(Tkinematics, displacement_gradients)
     F(0, 1) = 0.05;
 
     mat Lagrangian = G_UdX(F);
-    EXPECT_LT(norm(Lagrangian - (F - eye(3, 3)), 2), sim_iota);
+    EXPECT_LT(norm(Lagrangian - (F - eye(3, 3)), 2), simcoon::iota);
 
     mat Eulerian = G_Udx(F);
     EXPECT_LT(norm(Eulerian - (eye(3, 3) - inv(F)), 2), 1.E-9);
@@ -84,7 +84,7 @@ TEST(Tkinematics, displacement_gradients)
     // Identity F -> both gradients are zero
     mat Lag_id = G_UdX(eye(3, 3));
     mat Eul_id = G_Udx(eye(3, 3));
-    EXPECT_LT(norm(Lag_id, 2), sim_iota);
+    EXPECT_LT(norm(Lag_id, 2), simcoon::iota);
     EXPECT_LT(norm(Eul_id, 2), 1.E-9);
 }
 
@@ -98,19 +98,19 @@ TEST(Tkinematics, Cauchy_Green_tensors)
 
     // Right Cauchy-Green: C = F^T * F (symmetric positive definite)
     mat C = R_Cauchy_Green(F);
-    EXPECT_LT(norm(C - F.t() * F, 2), sim_iota);
-    EXPECT_LT(norm(C - C.t(), 2), sim_iota); // symmetric
+    EXPECT_LT(norm(C - F.t() * F, 2), simcoon::iota);
+    EXPECT_LT(norm(C - C.t(), 2), simcoon::iota); // symmetric
 
     // Left Cauchy-Green: B = F * F^T (symmetric positive definite)
     mat B = L_Cauchy_Green(F);
-    EXPECT_LT(norm(B - F * F.t(), 2), sim_iota);
-    EXPECT_LT(norm(B - B.t(), 2), sim_iota); // symmetric
+    EXPECT_LT(norm(B - F * F.t(), 2), simcoon::iota);
+    EXPECT_LT(norm(B - B.t(), 2), simcoon::iota); // symmetric
 
     // Identity F -> C = B = I
     mat C_id = R_Cauchy_Green(eye(3, 3));
     mat B_id = L_Cauchy_Green(eye(3, 3));
-    EXPECT_LT(norm(C_id - eye(3, 3), 2), sim_iota);
-    EXPECT_LT(norm(B_id - eye(3, 3), 2), sim_iota);
+    EXPECT_LT(norm(C_id - eye(3, 3), 2), simcoon::iota);
+    EXPECT_LT(norm(B_id - eye(3, 3), 2), simcoon::iota);
 }
 
 TEST(Tkinematics, RU_VR_decomposition)

@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
@@ -49,7 +50,13 @@ mat ER_to_F(const mat &E, const mat &R) {
         vec N = N_alpha.col(i);
         U = U + (lambda_alpha(i)*(N*N.t()));
     }*/
-    return (R*sqrtmat_sympd(C));
+
+    try {
+        return (R*sqrtmat_sympd(C));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside ER_to_F.");
+    }            
 }
 
 mat eR_to_F(const mat &e, const mat &R) {
@@ -60,7 +67,13 @@ mat eR_to_F(const mat &e, const mat &R) {
     assert(R.n_rows == 3);
 
     //From e we compute V : e = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat V = expmat_sym(e);
+    mat V;
+    try {
+        V = expmat_sym(e);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in expmat_sym : " << e.what() << endl;
+        throw simcoon::exception_expmat_sym("Error in expmat_sym function inside eR_to_F.");
+    }            
 
     return (V*R);
 }
@@ -72,7 +85,13 @@ mat G_UdX(const mat &F) {
 
 //This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor
 mat G_Udx(const mat &F) {
-    return eye(3,3) - inv(F);
+
+    try {
+        return eye(3,3) - inv(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv : " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside G_Udx.");
+    }        
 }
     
 //This function computes the Right Cauchy-Green C
@@ -88,15 +107,39 @@ mat L_Cauchy_Green(const mat &F) {
 //Provides the RU decomposition of the transformation gradient F
 void RU_decomposition(mat &R, mat &U, const mat &F) {
     mat U2 = F.t()*F;
-    U = sqrtmat_sympd(U2);
-    R = F*inv(U);
+
+    try {
+        U = sqrtmat_sympd(U2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside RU_decomposition.");
+    }                
+
+    try {
+        R = F*inv(U);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside RU_decomposition.");
+    }     
 }
 
 //Provides the VR decomposition of the transformation gradient F
 void VR_decomposition(mat &V, mat &R, const mat &F) {
     mat V2 = F*F.t();
-    V = sqrtmat_sympd(V2);
-    R = inv(V)*F;
+
+    try {
+        V = sqrtmat_sympd(V2);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in sqrtmat_sympd : " << e.what() << endl;
+        throw simcoon::exception_sqrtmat_sympd("Error in sqrtmat_sympd function inside VR_decomposition.");
+    }                
+
+    try {
+        R = inv(V)*F;
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside RU_decomposition.");
+    }     
 }
     
 //This function computes the common Right (or Left) Cauchy-Green invariants
@@ -105,13 +148,18 @@ vec Inv_X(const mat &X) {
     vec I = zeros(3);
     I(0) = trace(X);
     I(1) = 0.5*(pow(trace(X),2.) - trace(X*X));
-    I(2) = det(X);
+    I(2) = det(X);    
     return I;
 }
 
 //This function computes the Cauchy deformation tensor b
 mat Cauchy(const mat &F) {
-    return inv(L_Cauchy_Green(F));
+    try {
+        return inv(L_Cauchy_Green(F));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Cauchy.");
+    }     
 }
     
 //This function computes the Green-Lagrange finite strain tensor E
@@ -126,22 +174,37 @@ mat Euler_Almansi(const mat &F) {
 
 //This function computes the Euler-Almansi finite strain tensor h
 mat Log_strain(const mat &F) {
-    return  0.5*logmat_sympd(L_Cauchy_Green(F));
+    try {
+        return  0.5*logmat_sympd(L_Cauchy_Green(F));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in logmat_sympd: " << e.what() << endl;
+        throw simcoon::exception_logmat_sympd("Error in logmat_sympd function inside Log_strain.");
+    }     
 }
 
 //This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     
     //Definition of L = dot(F)*F^-1
-    return (1./DTime)*(F1-F0)*inv(F1);
+    try {
+        return (1./DTime)*(F1-F0)*inv(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_L.");
+    }   
 }
 
 //This function computes the deformation rate D
 mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
     
     //Definition of L = dot(F)*F^-1
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
-    
+    mat L;
+    try {
+        L = (1./DTime)*(F1-F0)*inv(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_D.");
+    }   
     //Definition of the deformation rate D
     return 0.5*(L+L.t());
     
@@ -151,7 +214,13 @@ mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
     //Definition of L = dot(F)*F^-1
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    mat L;
+    try {
+        L = (1./DTime)*(F1-F0)*inv(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_W.");
+    }   
     
     //Definition of the rotation matrix Q
     return 0.5*(L-L.t());
@@ -175,7 +244,13 @@ mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
 //This function computes the increment of finite rotation
 mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
     
-    return (eye(3,3)+0.5*DTime*Omega0)*(inv(eye(3,3)-0.5*DTime*Omega1));
+    try {
+        return (eye(3,3)+0.5*DTime*Omega0)*(inv(eye(3,3)-0.5*DTime*Omega1));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_DQ.");
+    }   
+    
 }
     
     

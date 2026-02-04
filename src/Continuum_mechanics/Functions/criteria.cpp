@@ -24,6 +24,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -299,7 +300,7 @@ namespace simcoon
     double Eq_stress_P(const vec &v, const mat &H)
     {
 
-        if (norm(v, 2) > sim_iota)
+        if (norm(v, 2) > simcoon::iota)
         {
             return pow(sum(v % (H * v)), 0.5);
         }
@@ -312,7 +313,7 @@ namespace simcoon
     vec dEq_stress_P(const vec &v, const mat &H)
     {
 
-        if (norm(v, 2) > sim_iota)
+        if (norm(v, 2) > simcoon::iota)
         {
             return (H * v) / Eq_stress_P(v, H);
         }

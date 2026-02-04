@@ -43,8 +43,8 @@ TEST(Tcontimech, dev_sph)
     
     mat testsph = (1./3.)*eye(3,3);
     
-    EXPECT_LT(norm(sph(test) - testsph,2),sim_iota);
-    EXPECT_LT(norm(dev(test) - testdev,2),sim_iota);
+    EXPECT_LT(norm(sph(test) - testsph,2),simcoon::iota);
+    EXPECT_LT(norm(dev(test) - testdev,2),simcoon::iota);
 }
 
 TEST(Tcontimech, tr_dev_Mises_eta)
@@ -61,8 +61,8 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     //Test of tr function
     double tr1 = tr(zeros(6));
     double tr2 = tr(test);
-    EXPECT_LT(fabs(tr1 - 0.),sim_iota);
-    EXPECT_LT(fabs(tr2 - 12.),sim_iota);
+    EXPECT_LT(fabs(tr1 - 0.),simcoon::iota);
+    EXPECT_LT(fabs(tr2 - 12.),simcoon::iota);
 
     //Test of dev function
     vec vide = zeros(6);
@@ -76,12 +76,12 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     testdev(3) = 8.;
     testdev(4) = 3.;
     testdev(5) = 7.;
-    EXPECT_LT(fabs(trdev2 - 0.),sim_iota);
-    EXPECT_LT(norm(dev2 - testdev,2),sim_iota);
+    EXPECT_LT(fabs(trdev2 - 0.),simcoon::iota);
+    EXPECT_LT(norm(dev2 - testdev,2),simcoon::iota);
     
     //Test of Mises_stress function
     double dstress = 3.*sqrt(42.);
-    EXPECT_LT(fabs(Mises_stress(test) - dstress),sim_iota);
+    EXPECT_LT(fabs(Mises_stress(test) - dstress),simcoon::iota);
 
     //Test of eta_stress function
     dev1 = eta_stress(zeros(6));
@@ -93,18 +93,18 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     testeta(3) = 8.*2;
     testeta(4) = 3.*2;
     testeta(5) = 7.*2;
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - (3./2.)*testeta/dstress,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - (3./2.)*testeta/dstress,2),simcoon::iota);
     
     //Test of Mises_strain function
     double dstrain = sqrt(46.);
-    EXPECT_LT(fabs(Mises_strain(test) - dstrain),sim_iota);
+    EXPECT_LT(fabs(Mises_strain(test) - dstrain),simcoon::iota);
 
     //Test of eta_strain function
     dev1 = eta_strain(zeros(6));
     dev2 = eta_strain(test);
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - (2./3.)*testdev/dstrain,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - (2./3.)*testdev/dstrain,2),simcoon::iota);
     
 }
     
@@ -122,26 +122,26 @@ TEST(Tcontimech, J2_J3)
 	//Test of J2_stress function
     double J2_stress1 = J2_stress(zeros(6));
     double J2_stress2 = J2_stress(test);
-    EXPECT_LT(fabs(J2_stress1),sim_iota);
-    EXPECT_LT(fabs(J2_stress2 - 126.),sim_iota);
+    EXPECT_LT(fabs(J2_stress1),simcoon::iota);
+    EXPECT_LT(fabs(J2_stress2 - 126.),simcoon::iota);
 	
 	//Test of J2_strain function
 	double J2_strain1 = J2_strain(zeros(6));
 	double J2_strain2 = J2_strain(test);
-    EXPECT_LT(fabs(J2_strain1),sim_iota);
-    EXPECT_LT(fabs(J2_strain2 - 34.5),sim_iota);
+    EXPECT_LT(fabs(J2_strain1),simcoon::iota);
+    EXPECT_LT(fabs(J2_strain2 - 34.5),simcoon::iota);
 
 	//Test of J3_stress function
 	double J3_stress1 = J3_stress(zeros(6));
 	double J3_stress2 = J3_stress(test);
-    EXPECT_LT(fabs(J3_stress1),sim_iota);
-    EXPECT_LT(fabs(J3_stress2 - 226.),sim_iota);
+    EXPECT_LT(fabs(J3_stress1),simcoon::iota);
+    EXPECT_LT(fabs(J3_stress2 - 226.),simcoon::iota);
 
 	//Test of J3_stress function
 	double J3_strain1 = J3_strain(zeros(6));
 	double J3_strain2 = J3_strain(test);
-    EXPECT_LT(fabs(J3_strain1),sim_iota);
-    EXPECT_LT(fabs(J3_strain2 - 14.5),sim_iota);
+    EXPECT_LT(fabs(J3_strain1),simcoon::iota);
+    EXPECT_LT(fabs(J3_strain2 - 14.5),simcoon::iota);
 
 }
 
@@ -172,21 +172,21 @@ TEST(Tcontimech, ellipsoid)
     vec sigma_in = {4., 5., 6., 2., 1., 1.5};
     vec test_sig_int = {5.,2.5};
     vec normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     
     u = 0.;
-    v =sim_pi/2.;
+    v =simcoon::pi/2.;
     test = { 1, 0, 0 };
     normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     
-    u =sim_pi/2.;
-    v =sim_pi/2.;
+    u =simcoon::pi/2.;
+    v =simcoon::pi/2.;
     test = { 0, 1, 0 };
     normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     vec sig_int = sigma_int(sigma_in,u,v,a1,a2,a3);
-    EXPECT_LT(norm(sig_int-test_sig_int,2),sim_iota);
+    EXPECT_LT(norm(sig_int-test_sig_int,2),simcoon::iota);
 }
 
 TEST(Tcontimech, P_ijkl)
@@ -261,9 +261,9 @@ TEST(Tcontimech, P_ijkl)
 	mat pikjla = p_ikjl(a);
 	mat pikjlb = p_ikjl(b);
 
-    EXPECT_LT(norm(pikjla - Ireal,2),sim_iota);
-    EXPECT_LT(norm(pikjlb - ones(6,6),2),sim_iota);
-    EXPECT_LT(norm(pikjlc - result,2),sim_iota);
+    EXPECT_LT(norm(pikjla - Ireal,2),simcoon::iota);
+    EXPECT_LT(norm(pikjlb - ones(6,6),2),simcoon::iota);
+    EXPECT_LT(norm(pikjlc - result,2),simcoon::iota);
 }
 
 TEST(Tcontimech, norm_stress_strain)
@@ -276,7 +276,7 @@ TEST(Tcontimech, norm_stress_strain)
 
     // Zero input should give zero norm
     double ns_zero = norm_stress(zeros(6));
-    EXPECT_LT(fabs(ns_zero), sim_iota);
+    EXPECT_LT(fabs(ns_zero), simcoon::iota);
 
     // norm_strain should be positive for non-zero input
     double ne = norm_strain(sigma);
@@ -284,7 +284,7 @@ TEST(Tcontimech, norm_stress_strain)
 
     // Zero input
     double ne_zero = norm_strain(zeros(6));
-    EXPECT_LT(fabs(ne_zero), sim_iota);
+    EXPECT_LT(fabs(ne_zero), simcoon::iota);
 }
 
 TEST(Tcontimech, eta_norm_stress_strain)

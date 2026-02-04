@@ -21,8 +21,8 @@
 
 #include <gtest/gtest.h>
 #include <armadillo>
-
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 
@@ -51,12 +51,25 @@ TEST(Thyperelastic, isochoric_invariants)
 
     mat b_rand = simcoon::v2t_strain(randu(6))+eye(3,3);
 
-    double J = sqrt(det(b_rand));
+    double J;
+    try {
+        J = sqrt(det(b_rand));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Thyperelastic.");
+    }      
     
     mat b_bar = pow(J,-2./3.)*b_rand;
     vec I = zeros(3);    
+
     I(0) = trace(b_bar);
-    I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    mat b_bar2;
+    try {
+        I(1) = 0.5*(pow(trace(b_bar),2.)-trace(powmat(b_bar,2)));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_powmat("Error in powmat function inside Thyperelastic.");
+    }            
     I(2) = 1.;
 
     vec I_rand = simcoon::isochoric_invariants(b_rand);     
@@ -96,7 +109,14 @@ TEST(Thyperelastic, isochoric_pstretch)
 
     mat V_rand = simcoon::v2t_strain(randu(6)) + eye(3,3);
     mat b_rand = powmat(V_rand,2);    
-    double J = det(V_rand);    
+
+    double J;
+    try {
+        J = det(V_rand);    
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Thyperelastic.");
+    }      
 
     vec lambda = eig_sym(V_rand);
     vec lambda_bar = pow(J,-1./3.)*lambda;

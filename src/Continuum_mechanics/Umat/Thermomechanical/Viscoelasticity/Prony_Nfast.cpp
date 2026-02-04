@@ -191,7 +191,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     double error = 1.;
 
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         v = s_j;
 
@@ -201,7 +201,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
             dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             kappa_j[i] = L_i[i]*Lambdav[i];
             
-            if (DTime > sim_iota) {
+            if (DTime > simcoon::iota) {
                 Phi(i) = norm_strain(flow_visco[i]) - Ds_j(i)/DTime;
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
@@ -217,8 +217,8 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         for (int i=0; i<N_prony; i++) {
             B(i, i) = K(i,i);
             Y_crit(i) = norm_strain(flow_visco[i]);
-            if (Y_crit(i) < precision_umat) {
-                Y_crit(i) = precision_umat;
+            if (Y_crit(i) < simcoon::precision_umat) {
+                Y_crit(i) = simcoon::precision_umat;
             }
         }
         
@@ -271,7 +271,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     for (int i=0; i<N_prony; i++) {
         
-        if(Ds_j(i) > sim_iota)
+        if(Ds_j(i) > simcoon::iota)
             op(i) = 1.;
         
         for (int j = 0; j <N_prony; j++) {

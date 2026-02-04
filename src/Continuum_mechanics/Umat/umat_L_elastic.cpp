@@ -138,7 +138,7 @@ void get_L_elastic(phase_characteristics &rve)
             int nbiter=0;
             double error = 1.;
             
-            while ((error > precision_micro)&&(nbiter <= maxiter_micro)) {
+            while ((error > simcoon::precision_micro)&&(nbiter <= simcoon::maxiter_micro)) {
                 Lt_n = umat_M->Lt;
                 for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                     get_L_elastic(rve.sub_phases[i]);

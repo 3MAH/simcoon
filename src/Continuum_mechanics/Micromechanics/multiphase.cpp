@@ -99,7 +99,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     std::vector<vec> DE_N(nphases); //Table that stores all the previous increments of strain
     
 	//Convergence loop, localization
-	while ((error > precision_micro)&&(nbiter <= maxiter_micro)) {
+	while ((error > simcoon::precision_micro)&&(nbiter <= simcoon::maxiter_micro)) {
 	  
         for(int i=0; i<nphases; i++) {
             auto sv_r = std::dynamic_pointer_cast<state_variables_M>(phase.sub_phases[i].sptr_sv_global);

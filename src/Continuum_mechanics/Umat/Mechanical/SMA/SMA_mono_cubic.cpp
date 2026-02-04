@@ -24,6 +24,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -174,7 +175,7 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
         ET = vide;
         xi = 0.;
         for(int i=0; i<nvariants; i++) {
-            xin(i) = sim_limit;
+            xin(i) = simcoon::limit;
             xi += xin(i);
         }
         
@@ -279,7 +280,7 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
 	if(nactive > 0)
 	{
         
-		for(compteur = 0; ((compteur < maxiter_umat) && (sumPhi/Y0 > precision_umat)); compteur++)
+		for(compteur = 0; ((compteur < simcoon::maxiter_umat) && (sumPhi/Y0 > simcoon::precision_umat)); compteur++)
 		{
             dPhidxi = zeros(nactive, nactive);
 
@@ -324,13 +325,18 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
             // Assemble the derivatives (CCP algorithm)
             dPhidxi += dPhidsigma*(-1.*L*lambda);
             
-			if(fabs(det(dPhidxi)) > 0.)
+			try {
+				if(fabs(det(dPhidxi)) > 0.)
                 dxin = -1.*inv(dPhidxi)*Phi;
             else {
                 //pnewdt = 0.1;
 //                Phi = zeros(nactive);
                 dxin = zeros(nactive);
             }
+			} catch (const std::runtime_error &e) {
+				cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+				throw simcoon::exception_inv("Error in inv function inside umat_sma_mono_cubic.");
+			}   
             
             dxi = 0.;
             for(int i=0; i<nactive; i++) {
@@ -394,17 +400,20 @@ void umat_sma_mono_cubic(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
 			Lt_eff = L;
 		
         //Computation of the tangent modulus !
-//		if((fabs(det(dPhidxi)) > 0.)&&(fabs(xi - xi_start) > 1.E-5)) {
-		if(fabs(det(dPhidxi)) > 0.) {
-            Lt = L + ((L*lambda)*(inv(dPhidxi))*(dPhidsigma*L));
-        }
-        else
-            Lt = L;
-       
-		vec eigval = eig_sym(Lt);  								     		
-		
+		try {
+			if(fabs(det(dPhidxi)) > 0.) {
+				Lt = L + ((L*lambda)*(inv(dPhidxi))*(dPhidsigma*L));
+			}
+			else
+				Lt = L;
+		} catch (const std::runtime_error &e) {
+			cerr << "Error in det or inv: throw inv exception " << e.what() << endl;
+			throw simcoon::exception_inv("Error in inv function inside umat_sma_mono_cubic.");
+		}   
+
 		///Note : To use with Self-consistent micromechanics only!
-/*		while(eigval(0) < 0.) {
+/*		vec eigval = eig_sym(Lt);  								     				
+		while(eigval(0) < 0.) {
 				Lt = 0.99*Lt + 0.01*Lt_eff;
 				eigval = eig_sym(Lt);			
 		}       */

@@ -38,11 +38,11 @@ TEST(Tcriteria, Aniso)
 
     // Check that Tresca is equal to 400 in that case
     double test_tresca = Tresca_stress(sigma);
-    EXPECT_LT(test_tresca - 400., sim_iota);
+    EXPECT_LT(test_tresca - 400., simcoon::iota);
 
     // Check that Drucker is equal to 400 in that case
     double test_prager = Drucker_stress(sigma, b, n);
-    EXPECT_LT(test_prager - 400., sim_iota);
+    EXPECT_LT(test_prager - 400., simcoon::iota);
 }
 
 TEST(Tcriteria, Hill_stress_isotropic_limit)

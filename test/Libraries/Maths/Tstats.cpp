@@ -121,7 +121,7 @@ TEST(Tstats, ODF_functions)
     EXPECT_LT(fabs(odf_at_mean - 1.0), 1.E-6);
 
     // ODF_sd at Theta = mean + pi/2 should return 0
-    double odf_at_perp = ODF_sd(0.5 * sim_pi, 0., params);
+    double odf_at_perp = ODF_sd(0.5 * simcoon::pi, 0., params);
     EXPECT_LT(fabs(odf_at_perp), 1.E-6);
 
     // ODF_hard should be positive at the mean
@@ -148,7 +148,7 @@ TEST(Tstats, Gaussian)
     EXPECT_GT(g_peak, g_away);
 
     // Known value: Gaussian(0,0,1,1) = 1/(sqrt(2*pi)) ~ 0.3989
-    double expected = 1.0 / (sigma * sqrt(2.0 * sim_pi));
+    double expected = 1.0 / (sigma * sqrt(2.0 * simcoon::pi));
     EXPECT_LT(fabs(g_peak - expected), 1.E-9);
 
     // Symmetry: G(x) = G(-x) for mean=0
@@ -169,7 +169,7 @@ TEST(Tstats, Lorentzian)
     EXPECT_GT(l_peak, l_away);
 
     // Known value: L(0,0,1,1) = 1*1/(2*pi*(0 + 0.25)) = 1/(0.5*pi) = 2/pi
-    double expected = ampl * gamma / (2.0 * sim_pi * pow(gamma / 2.0, 2.0));
+    double expected = ampl * gamma / (2.0 * simcoon::pi * pow(gamma / 2.0, 2.0));
     EXPECT_LT(fabs(l_peak - expected), 1.E-9);
 
     // Symmetry

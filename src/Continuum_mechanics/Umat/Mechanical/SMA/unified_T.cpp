@@ -193,7 +193,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         vec vide = zeros(6);
         sigma = zeros(6);
         ET = zeros(6);
-        xiF = sim_limit;
+        xiF = simcoon::limit;
         xiR = 0.;
         xi = xiF;
         
@@ -402,7 +402,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         K_eff = (K_A*K_M) / (xi*K_A + (1. - xi)*K_M);
         mu_eff = (mu_A*mu_M) / (xi*mu_A + (1. - xi)*mu_M);
@@ -579,7 +579,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
         DETF += ds_j(0)*lambdaTF;
         DETR += -1.*ds_j(1)*lambdaTR;
         
-        if((Mises_strain(ET) > precision_umat)&&(xi > precision_umat))
+        if((Mises_strain(ET) > simcoon::precision_umat)&&(xi > simcoon::precision_umat))
         {
             ETMean = dev(ET) / (xi);
         }
@@ -609,7 +609,7 @@ void umat_sma_unified_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, 
     mat delta = eye(2,2);
     
     for (int i=0; i<2; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
     

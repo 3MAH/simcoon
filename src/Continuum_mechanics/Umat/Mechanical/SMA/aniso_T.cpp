@@ -17,7 +17,6 @@
 
 ///@file aniso_TR.cpp
 ///@brief Unified model from:
-///@brief Constitutive model of SMART LEM3 group - D. Chatziathanasiou, Y. Chemisky, G. Chatzigeorgiou, F. meraghni
 ///@brief Implemented in 1D-2D-3D
 
 #include <iostream>
@@ -210,7 +209,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
         vec vide = zeros(6);
         sigma = zeros(6);
         ET = zeros(6);
-        xiF = sim_limit;
+        xiF = simcoon::limit;
         xiR = 0.;
         xi = xiF;
         
@@ -419,7 +418,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         K_eff = (K_A*K_M) / (xi*K_A + (1. - xi)*K_M);
         mu_eff = (mu_A*mu_M) / (xi*mu_A + (1. - xi)*mu_M);
@@ -596,7 +595,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
         DETF += ds_j(0)*lambdaTF;
         DETR += -1.*ds_j(1)*lambdaTR;
         
-        if((Mises_strain(ET) > precision_umat)&&(xi > precision_umat))
+        if((Mises_strain(ET) > simcoon::precision_umat)&&(xi > simcoon::precision_umat))
         {
             ETMean = dev(ET) / (xi);
         }
@@ -626,7 +625,7 @@ void umat_sma_aniso_T(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, co
     mat delta = eye(2,2);
     
     for (int i=0; i<2; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
     

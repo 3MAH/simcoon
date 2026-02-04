@@ -103,7 +103,7 @@ int main() {
     string npeaksfile = "Npeaks" + to_string(int(num_file_npeaks)) + ".dat";
     read_peak(pdf_rve, path_data, npeaksfile);
     
-    vec x = linspace<vec>(parameter_min, parameter_max-sim_iota, 100 );
+    vec x = linspace<vec>(parameter_min, parameter_max-simcoon::iota, 100 );
     cout << "x = " << x.t() << endl;
     
     vec y = get_densities_PDF(x, path_data, npeaksfile);

@@ -132,19 +132,21 @@ void read_matprops(string &umat_name, unsigned int &nprops, vec &props, unsigned
     	
 	props = zeros(nprops);
     
-	propsmat.open(path_materialfile, ios::in);
-	if(!propsmat) {
-		throw runtime_error("Cannot reopen material file " + materialfile + " in folder " + path_data);
-	}
-    
+    propsmat.open(path_materialfile, ios::in);
+    if(!propsmat) {
+        throw runtime_error("Cannot reopen material file " + materialfile + " in folder " + path_data);
+    }
+
+    // Read orientation angles and properties from material file
     propsmat >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> buffer >> psi_rve >> buffer >> theta_rve >> buffer >> phi_rve >> buffer;
-    
-    for(unsigned int i=0;i<nprops;i++)
+
+    for (unsigned int i = 0; i < nprops; i++) {
         propsmat >> buffer >> props(i);
-    
-    psi_rve*=(sim_pi/180.);
-    theta_rve*=(sim_pi/180.);
-    phi_rve*=(sim_pi/180.);
+    }
+
+    psi_rve = simcoon::deg2rad(psi_rve);
+    theta_rve = simcoon::deg2rad(theta_rve);
+    phi_rve = simcoon::deg2rad(phi_rve);
     
 	propsmat.close();
 }
@@ -272,7 +274,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                             }
                         }
                         else if(so.o_type(i) == 2) {
-                            if((fmod(1, so.o_tfreq(i)) > sim_limit)||(fmod(so.o_tfreq(i), sptr_meca->Dn_inc) > 0.)) {
+                            if((fmod(1, so.o_tfreq(i)) > simcoon::limit)||(fmod(so.o_tfreq(i), sptr_meca->Dn_inc) > 0.)) {
                                 cout << "The output tfreq is not compatible with the time of increments of the step)" << endl;
                                 break;
                             }
@@ -303,7 +305,7 @@ void check_path_output(const std::vector<block> &blocks, const solver_output &so
                             }
                         }
                         else if(so.o_type(i) == 2) {
-                            if((fmod(1, so.o_tfreq(i)) > sim_limit)||(fmod(so.o_tfreq(i), sptr_thermomeca->Dn_inc) > 0.)) {
+                            if((fmod(1, so.o_tfreq(i)) > simcoon::limit)||(fmod(so.o_tfreq(i), sptr_thermomeca->Dn_inc) > 0.)) {
                                 cout << "The output tfreq is not compatible with the time of increments of the step)" << endl;
                                 break;
                             }

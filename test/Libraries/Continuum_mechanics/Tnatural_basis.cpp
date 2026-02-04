@@ -35,11 +35,11 @@ TEST(Tnatural_basis, default_constructor)
     natural_basis nb;
     // Default: all vectors zero, metrics zero
     for (int i = 0; i < 3; i++) {
-        EXPECT_LT(norm(nb.g_i[i], 2), sim_iota);
-        EXPECT_LT(norm(nb.g0i[i], 2), sim_iota);
+        EXPECT_LT(norm(nb.g_i[i], 2), simcoon::iota);
+        EXPECT_LT(norm(nb.g0i[i], 2), simcoon::iota);
     }
-    EXPECT_LT(norm(nb.g_ij, 2), sim_iota);
-    EXPECT_LT(norm(nb.g0ij, 2), sim_iota);
+    EXPECT_LT(norm(nb.g_ij, 2), simcoon::iota);
+    EXPECT_LT(norm(nb.g0ij, 2), simcoon::iota);
 }
 
 TEST(Tnatural_basis, cartesian_constructor)
@@ -124,11 +124,11 @@ TEST(Tnatural_basis, copy_constructor)
     natural_basis nb1(basis);
     natural_basis nb2(nb1);
 
-    EXPECT_LT(norm(nb2.g_ij - nb1.g_ij, 2), sim_iota);
-    EXPECT_LT(norm(nb2.g0ij - nb1.g0ij, 2), sim_iota);
+    EXPECT_LT(norm(nb2.g_ij - nb1.g_ij, 2), simcoon::iota);
+    EXPECT_LT(norm(nb2.g0ij - nb1.g0ij, 2), simcoon::iota);
     for (int i = 0; i < 3; i++) {
-        EXPECT_LT(norm(nb2.g_i[i] - nb1.g_i[i], 2), sim_iota);
-        EXPECT_LT(norm(nb2.g0i[i] - nb1.g0i[i], 2), sim_iota);
+        EXPECT_LT(norm(nb2.g_i[i] - nb1.g_i[i], 2), simcoon::iota);
+        EXPECT_LT(norm(nb2.g0i[i] - nb1.g0i[i], 2), simcoon::iota);
     }
 }
 
@@ -143,8 +143,8 @@ TEST(Tnatural_basis, assignment_operator)
     natural_basis nb2;
     nb2 = nb1;
 
-    EXPECT_LT(norm(nb2.g_ij - nb1.g_ij, 2), sim_iota);
-    EXPECT_LT(norm(nb2.g0ij - nb1.g0ij, 2), sim_iota);
+    EXPECT_LT(norm(nb2.g_ij - nb1.g_ij, 2), simcoon::iota);
+    EXPECT_LT(norm(nb2.g0ij - nb1.g0ij, 2), simcoon::iota);
 }
 
 TEST(Tnatural_basis, stream_operator)

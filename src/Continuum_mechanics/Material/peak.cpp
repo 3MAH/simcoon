@@ -117,25 +117,25 @@ double peak::get_density_ODF(const double &theta)
             break;
         }
         case 2: {
-            return ODF_hard(theta, mean, s_dev, ampl) + ODF_hard(theta - sim_pi, mean, s_dev, ampl) + ODF_hard(theta + sim_pi, mean, s_dev, ampl);
+            return ODF_hard(theta, mean, s_dev, ampl) + ODF_hard(theta - simcoon::pi, mean, s_dev, ampl) + ODF_hard(theta + simcoon::pi, mean, s_dev, ampl);
             break;
         }
         case 3: {
-            return Gaussian(theta, mean, s_dev, ampl) + Gaussian(theta - sim_pi, mean, s_dev, ampl) + Gaussian(theta + sim_pi, mean, s_dev, ampl);
+            return Gaussian(theta, mean, s_dev, ampl) + Gaussian(theta - simcoon::pi, mean, s_dev, ampl) + Gaussian(theta + simcoon::pi, mean, s_dev, ampl);
             break;
         }
         case 4: {
-            return Lorentzian(theta, mean, width, ampl) + Lorentzian(theta - sim_pi, mean, width, ampl) + Lorentzian(theta + sim_pi, mean, width, ampl);
+            return Lorentzian(theta, mean, width, ampl) + Lorentzian(theta - simcoon::pi, mean, width, ampl) + Lorentzian(theta + simcoon::pi, mean, width, ampl);
             break;
         }
         case 5: {
-            return PseudoVoigt(theta, mean, s_dev, width, ampl, params) + PseudoVoigt(theta - sim_pi, mean, s_dev, width, ampl, params) + PseudoVoigt(theta + sim_pi, mean, s_dev, width, ampl, params);
+            return PseudoVoigt(theta, mean, s_dev, width, ampl, params) + PseudoVoigt(theta - simcoon::pi, mean, s_dev, width, ampl, params) + PseudoVoigt(theta + simcoon::pi, mean, s_dev, width, ampl, params);
             break;
         }
         case 6: {
             assert(width > 0.);
             double inv_width = 1./width;
-            return Pearson7(theta, mean, inv_width, params) + Pearson7(theta - sim_pi, mean, inv_width, params) + Pearson7(theta + sim_pi, mean, inv_width, params);
+            return Pearson7(theta, mean, inv_width, params) + Pearson7(theta - simcoon::pi, mean, inv_width, params) + Pearson7(theta + simcoon::pi, mean, inv_width, params);
             break;
         }
         case 7: {
