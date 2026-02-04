@@ -20,6 +20,7 @@
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
+#include <simcoon/python_wrappers/Libraries/Maths/rotation_class.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
@@ -243,6 +244,9 @@ PYBIND11_MODULE(_core, m)
     m.def("rotate_stress_R", &rotate_stress_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = false, "Return the rotated stress matrix using voigt notations according to a rotation matrix");
     m.def("rotate_l2g_stress", &rotate_l2g_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated stress matrix using voigt notations from local to global frame");
     m.def("rotate_g2l_stress", &rotate_g2l_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated stress matrix using voigt notations from global to local frame");
+
+    // Register the Rotation class
+    register_rotation_class(m);
 
     // Register the from-python converters for lagrange
     m.def("lagrange_exp", &lagrange_exp, "This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)");

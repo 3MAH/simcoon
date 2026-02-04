@@ -27,6 +27,7 @@ set(TEST_SRCS
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp
   test/Libraries/Maths/Trotation.cpp
+  test/Libraries/Maths/TRotationClass.cpp
   test/Libraries/Maths/Tstats.cpp
 
   # Libraries - Phase
