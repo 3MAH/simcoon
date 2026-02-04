@@ -5,7 +5,7 @@ Plasticity with Isotropic and Kinematic Hardening Example
 
 import numpy as np
 import matplotlib.pyplot as plt
-from simcoon import simmit as sim
+import simcoon as sim
 import os
 
 plt.rcParams["figure.figsize"] = (18, 10)

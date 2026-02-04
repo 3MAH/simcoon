@@ -15,7 +15,7 @@ We present one section per model.
 from math import fabs
 import numpy as np
 import pandas as pd
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 import os
 from typing import NamedTuple, List, Tuple
@@ -501,7 +501,7 @@ model_colors = {"NEOHC": "blue", "MOORI": "orange", "ISHAH": "green", "SWANS": "
 # Inputs:
 # `parameters_by_case['UT'|'PS'|'ET']['NEOHC']`: model parameters [mu, kappa]
 # `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# Simcoon Python bindings (`simcoon`) for stress helpers
 #
 # Outputs:
 # A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
@@ -573,7 +573,7 @@ fig.tight_layout()
 # Inputs:
 # `parameters_by_case['UT'|'PS'|'ET']['MOORI']`: model parameters [C10, C01, kappa]
 # `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# Simcoon Python bindings (`simcoon`) for stress helpers
 #
 # Outputs:
 # A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.
@@ -637,7 +637,7 @@ fig.tight_layout()
 # `parameters_by_case[case]['SWANS']`: flattened series parameters
 # [N_series, kappa, A1, B1, alpha1, beta1, ...]
 # `comparison/Treloar.txt`: experimental Treloar data (lambda, P_MPa)
-# Simcoon Python bindings (`simcoon.simmit`) for stress helpers
+# Simcoon Python bindings (`simcoon`) for stress helpers
 #
 # Outputs:
 # A figure with 3 subplots (UT, PS, ET) showing PK1_11 vs lambda.

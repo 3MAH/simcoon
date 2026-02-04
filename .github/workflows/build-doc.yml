@@ -18,7 +18,7 @@ jobs:
         shell: bash -el {0}
     
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniconda-version: "latest"
@@ -29,10 +29,10 @@ jobs:
 
       - name: Get Date
         id: get-date
-        run: echo "::set-output name=today::$(/bin/date -u '+%Y%m%d')"
+        run: echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
 
       - name: Cache Conda env
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.CONDA }}/envs
           key: conda-${{ runner.os }}--${{ runner.arch }}--${{ steps.get-date.outputs.today }}-${{ hashFiles('environment_doc.yml') }}-${{ env.CACHE_NUMBER }}

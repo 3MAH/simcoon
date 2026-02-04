@@ -161,7 +161,7 @@ mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec 
 
     mat gamma = zeros(3,3);
     mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + (dWdlambda_bar*lambda_bar.t())%ones(3,3);
-    vec factor_sum_col = (-1./3.)*sum(factor,0);
+    vec factor_sum_col = ((-1./3.)*sum(factor,0)).t();  // sum along dim 0 returns row vec, transpose to col
     vec factor_sum_row = (-1./3.)*sum(factor,1);
 
     for(unsigned int i=0; i<3; i++) {
@@ -178,7 +178,7 @@ mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec 
 
 mat tau_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const double &mJ) {
     vec lambda_bar = zeros(3);
-    vec n_pvectors = zeros(3);
+    mat n_pvectors = zeros(3,3);
     std::vector<mat> N_projectors(3);
     isochoric_pstretch(lambda_bar, n_pvectors, N_projectors, b, "b", mJ);
     vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
@@ -205,9 +205,9 @@ mat sigma_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &b, const doubl
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
-    }  
+    }
     vec lambda_bar = zeros(3);
-    vec n_pvectors = zeros(3);
+    mat n_pvectors = zeros(3,3);
     std::vector<mat> N_projectors(3);
     isochoric_pstretch(lambda_bar, n_pvectors, N_projectors, b, "b", mJ);
     vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
@@ -384,11 +384,11 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
     double J=mJ;
     if (fabs(mJ) < sim_iota) {
         J = sqrt(det(b));
-    }    
+    }
     vec lambda = eig_sym(b);
 
     vec lambda_bar = zeros(3);
-    vec n_pvectors = zeros(3);
+    mat n_pvectors = zeros(3,3);
     isochoric_pstretch(lambda_bar, n_pvectors, b, "b", J);
 
     vec beta = beta_coefs(dWdlambda_bar, lambda_bar);

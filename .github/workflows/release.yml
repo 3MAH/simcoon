@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+
+jobs:
+  conda-packaging:
+    uses: ./.github/workflows/conda-packaging.yml
+    with:
+      upload: true
+      ref: ${{ inputs.tag || github.ref }}
+    secrets:
+      ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}

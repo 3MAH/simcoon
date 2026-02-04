@@ -32,7 +32,7 @@ jobs:
     name: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install system dependencies
         if: matrix.sys-package-install-command != ''
@@ -43,7 +43,7 @@ jobs:
         run: ${{ matrix.setup-env-command }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
 
       - name: Editable install
         run: |

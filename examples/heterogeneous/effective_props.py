@@ -8,7 +8,7 @@ composite material considering spherical reinforcement.
 
 import numpy as np
 import matplotlib.pyplot as plt
-from simcoon import simmit as sim
+import simcoon as sim
 from simcoon import parameter as par
 import os
 

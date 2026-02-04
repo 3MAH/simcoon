@@ -8,12 +8,12 @@ Elastic tensile test
 
 Probably the first thing you would like to do with Simcoon is to simulate the mechanical response corresponding to a simple tension test, considering an elastic isotropic material.
 
-We first import *simmit* (the Python simulation module of simcoon) and *numpy*:
+We first import *simcoon* (the Python simulation module of simcoon) and *numpy*:
 
 .. code-block:: python
 
     import numpy as np
-    from simcoon import simmit as sim
+    import simcoon as sim
 
 Next we shall define the material constitutive law to be utilized and the associated material properties. We will pass them as a numpy array:
 
