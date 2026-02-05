@@ -76,8 +76,8 @@ Converting Between Representations
    rotvec_deg = r.as_rotvec(degrees=True)
 
    # To Voigt rotation matrices
-   QS = r.as_QS()  # 6×6 for stress
-   QE = r.as_QE()  # 6×6 for strain
+   QS = r.as_voigt_stress_rotation()  # 6×6 for stress
+   QE = r.as_voigt_strain_rotation()  # 6×6 for strain
 
    # To scipy.spatial.transform.Rotation (requires scipy)
    scipy_rot = r.to_scipy()
@@ -124,6 +124,12 @@ Applying Rotations
    # Compliance matrix (6×6)
    M = smc.M_iso([210e9, 0.3], "Enu")
    M_rot = r.apply_compliance(M)
+
+   # Strain localization tensor (6×6): A' = QE * A * QS^T
+   A_global = r.apply_localization_strain(A_local)
+
+   # Stress localization tensor (6×6): B' = QS * B * QE^T
+   B_global = r.apply_localization_stress(B_local)
 
 Composing Rotations
 ~~~~~~~~~~~~~~~~~~~
@@ -211,7 +217,7 @@ Active vs Passive Rotations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``active`` parameter on Voigt methods (``apply_stress``, ``apply_strain``,
-``apply_stiffness``, ``apply_compliance``, ``as_QS``, ``as_QE``) controls the
+``apply_stiffness``, ``apply_compliance``, ``as_voigt_stress_rotation``, ``as_voigt_strain_rotation``) controls the
 rotation convention:
 
 - **active=True** (default): **Alibi** rotation — rotates the physical object

@@ -25,6 +25,7 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Simulation/Maths/rotation_class.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
@@ -237,37 +238,26 @@ void state_variables_M::set_start(const int &corate_type)
 state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
-    
+
     state_variables::rotate_l2g(sv, psi, theta, phi);
-    
+
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
-    
+
     Wm = sv.Wm;
     Wm_start = sv.Wm_start;
-    
+
 	L = sv.L;
 	Lt = sv.Lt;
-    
-  	if(fabs(phi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -phi, simcoon::axis_phi);
-        sigma_in_start = rotate_stress(sigma_in_start, -phi, simcoon::axis_phi);
-		L = rotateL(L, -phi, simcoon::axis_phi);
-		Lt = rotateL(Lt, -phi, simcoon::axis_phi);
-	}
-  	if(fabs(theta) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -theta, simcoon::axis_theta);
-        sigma_in_start = rotate_stress(sigma_in_start, -theta, simcoon::axis_theta);
-		Lt = rotateL(Lt, -theta, simcoon::axis_theta);
-		L = rotateL(L, -theta, simcoon::axis_theta);
-	}
-	if(fabs(psi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -psi, simcoon::axis_psi);
-        sigma_in_start = rotate_stress(sigma_in_start, -psi, simcoon::axis_psi);
-		Lt = rotateL(Lt, -psi, simcoon::axis_psi);
-		L = rotateL(L, -psi, simcoon::axis_psi);        
-	}
-    
+
+    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
+    if (!rot.is_identity()) {
+        sigma_in = rot.apply_stress(sigma_in);
+        sigma_in_start = rot.apply_stress(sigma_in_start);
+        L = rot.apply_stiffness(L);
+        Lt = rot.apply_stiffness(Lt);
+    }
+
 	return *this;
 }
 
@@ -277,35 +267,24 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
 {
 
     state_variables::rotate_g2l(sv, psi, theta, phi);
-    
+
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
-    
+
     Wm = sv.Wm;
     Wm_start = sv.Wm_start;
 
     L = sv.L;
     Lt = sv.Lt;
-    
-  	if(fabs(psi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, psi, simcoon::axis_psi);
-        sigma_in_start = rotate_stress(sigma_in_start, psi, simcoon::axis_psi);
-		L = rotateL(L, psi, simcoon::axis_psi);
-		Lt = rotateL(Lt, psi, simcoon::axis_psi);
-	}			
-	if(fabs(theta) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, theta, simcoon::axis_theta);
-        sigma_in_start = rotate_stress(sigma_in_start, theta, simcoon::axis_theta);
-		L = rotateL(L, theta, simcoon::axis_theta);
-		Lt = rotateL(Lt, theta, simcoon::axis_theta);
-	}
-	if(fabs(phi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, phi, simcoon::axis_phi);
-        sigma_in_start = rotate_stress(sigma_in_start, phi, simcoon::axis_phi);
-		L = rotateL(L, phi, simcoon::axis_phi);
-		Lt = rotateL(Lt, phi, simcoon::axis_phi);
+
+    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
+    if (!rot.is_identity()) {
+        sigma_in = rot.apply_stress(sigma_in);
+        sigma_in_start = rot.apply_stress(sigma_in_start);
+        L = rot.apply_stiffness(L);
+        Lt = rot.apply_stiffness(Lt);
     }
-    
+
 	return *this;
 }
 

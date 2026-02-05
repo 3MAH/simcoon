@@ -27,6 +27,7 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Simulation/Maths/rotation_class.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
@@ -320,32 +321,19 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wt = sv.Wt;
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
-    
-  	if(fabs(phi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -phi, simcoon::axis_phi);
-        sigma_in_start = rotate_stress(sigma_in_start, -phi, simcoon::axis_phi);
-		dSdE = rotateL(dSdE, -phi, simcoon::axis_phi);
-		dSdEt = rotateL(dSdEt, -phi, simcoon::axis_phi);
-        dSdT = rotate_stress(dSdT, -phi, simcoon::axis_phi);
-		drdE = rotate_strain(drdE, -phi, simcoon::axis_phi);
-	}
-  	if(fabs(theta) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -theta, simcoon::axis_theta);
-        sigma_in_start = rotate_stress(sigma_in_start, -theta, simcoon::axis_theta);
-		dSdE = rotateL(dSdE, -theta, simcoon::axis_theta);
-		dSdEt = rotateL(dSdEt, -theta, simcoon::axis_theta);
-        dSdT = rotate_stress(dSdT, -theta, simcoon::axis_theta);
-		drdE = rotate_strain(drdE, -theta, simcoon::axis_theta);
-	}
-	if(fabs(psi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, -psi, simcoon::axis_psi);
-        sigma_in_start = rotate_stress(sigma_in_start, -psi, simcoon::axis_psi);
-		dSdE = rotateL(dSdE, -psi, simcoon::axis_psi);
-		dSdEt = rotateL(dSdEt, -psi, simcoon::axis_psi);
-        dSdT = rotate_stress(dSdT, -psi, simcoon::axis_psi);
-		drdE = rotate_strain(drdE, -psi, simcoon::axis_psi);
-	}
-    
+
+    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
+    if (!rot.is_identity()) {
+        sigma_in = rot.apply_stress(sigma_in);
+        sigma_in_start = rot.apply_stress(sigma_in_start);
+        dSdE = rot.apply_stiffness(dSdE);
+        dSdEt = rot.apply_stiffness(dSdEt);
+        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
+        dSdT = dSdT_v.as_row();
+        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
+        drdE = drdE_v.as_row();
+    }
+
 	return *this;
 }
 
@@ -355,10 +343,10 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
 {
 
     state_variables::rotate_g2l(sv, psi, theta, phi);
-    
+
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
-    
+
     dSdE = sv.dSdE;
     dSdEt = sv.dSdEt;
     dSdT = sv.dSdT;
@@ -370,33 +358,19 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
     Wt = sv.Wt;
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
-    
-  	if(fabs(psi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, psi, simcoon::axis_psi);
-        sigma_in_start = rotate_stress(sigma_in_start, psi, simcoon::axis_psi);
-		dSdE = rotateL(dSdE, psi, simcoon::axis_psi);
-		dSdEt = rotateL(dSdEt, psi, simcoon::axis_psi);
-        dSdT = rotate_stress(dSdT, psi, simcoon::axis_psi);
-        drdE = rotate_strain(drdE, psi, simcoon::axis_psi);
-        
-	}			
-	if(fabs(theta) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, theta, simcoon::axis_theta);
-        sigma_in_start = rotate_stress(sigma_in_start, theta, simcoon::axis_theta);
-		dSdE = rotateL(dSdE, theta, simcoon::axis_theta);
-		dSdEt = rotateL(dSdEt, theta, simcoon::axis_theta);
-        dSdT = rotate_stress(dSdT, theta, simcoon::axis_theta);
-        drdE = rotate_strain(drdE, theta, simcoon::axis_theta);
-	}
-	if(fabs(phi) > simcoon::iota) {
-        sigma_in = rotate_stress(sigma_in, phi, simcoon::axis_phi);
-        sigma_in_start = rotate_stress(sigma_in_start, phi, simcoon::axis_phi);
-		dSdE = rotateL(dSdE, phi, simcoon::axis_phi);
-		dSdEt = rotateL(dSdEt, phi, simcoon::axis_phi);
-        dSdT = rotate_stress(dSdT, phi, simcoon::axis_phi);
-        drdE = rotate_strain(drdE, phi, simcoon::axis_phi);
+
+    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
+    if (!rot.is_identity()) {
+        sigma_in = rot.apply_stress(sigma_in);
+        sigma_in_start = rot.apply_stress(sigma_in_start);
+        dSdE = rot.apply_stiffness(dSdE);
+        dSdEt = rot.apply_stiffness(dSdEt);
+        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
+        dSdT = dSdT_v.as_row();
+        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
+        drdE = drdE_v.as_row();
     }
-    
+
 	return *this;
 }
 

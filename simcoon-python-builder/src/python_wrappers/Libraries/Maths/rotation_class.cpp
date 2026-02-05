@@ -330,9 +330,9 @@ void register_rotation_class(py::module_& m) {
                 Rotation vector (axis * angle)
             )doc")
 
-        .def("as_QS",
+        .def("as_voigt_stress_rotation",
             [](const simcoon::Rotation& self, bool active) {
-                return carma::mat_to_arr(mat(self.as_QS(active)));
+                return carma::mat_to_arr(mat(self.as_voigt_stress_rotation(active)));
             },
             py::arg("active") = true,
             R"doc(
@@ -349,9 +349,9 @@ void register_rotation_class(py::module_& m) {
                 6x6 stress rotation matrix (QS)
             )doc")
 
-        .def("as_QE",
+        .def("as_voigt_strain_rotation",
             [](const simcoon::Rotation& self, bool active) {
-                return carma::mat_to_arr(mat(self.as_QE(active)));
+                return carma::mat_to_arr(mat(self.as_voigt_strain_rotation(active)));
             },
             py::arg("active") = true,
             R"doc(
@@ -511,6 +511,54 @@ void register_rotation_class(py::module_& m) {
             -------
             ndarray
                 Rotated compliance matrix: QE * M * QE^T
+            )doc")
+
+        .def("apply_localization_strain",
+            [](const simcoon::Rotation& self, py::array_t<double> A, bool active) {
+                validate_matrix_size(A, 6, 6, "A");
+                mat A_cpp = carma::arr_to_mat(A);
+                mat result = self.apply_localization_strain(A_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("A"), py::arg("active") = true,
+            R"doc(
+            Apply rotation to a 6x6 strain localization tensor.
+
+            Parameters
+            ----------
+            A : array_like
+                6x6 strain localization tensor in Voigt notation
+            active : bool, optional
+                If True (default), active rotation
+
+            Returns
+            -------
+            ndarray
+                Rotated strain localization tensor: QE * A * QS^T
+            )doc")
+
+        .def("apply_localization_stress",
+            [](const simcoon::Rotation& self, py::array_t<double> B, bool active) {
+                validate_matrix_size(B, 6, 6, "B");
+                mat B_cpp = carma::arr_to_mat(B);
+                mat result = self.apply_localization_stress(B_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("B"), py::arg("active") = true,
+            R"doc(
+            Apply rotation to a 6x6 stress localization tensor.
+
+            Parameters
+            ----------
+            B : array_like
+                6x6 stress localization tensor in Voigt notation
+            active : bool, optional
+                If True (default), active rotation
+
+            Returns
+            -------
+            ndarray
+                Rotated stress localization tensor: QS * B * QE^T
             )doc")
 
         // Operations

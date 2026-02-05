@@ -165,9 +165,9 @@ Conversion Methods
      - Return Euler angles [psi, theta, phi]
    * - ``as_rotvec(degrees)``
      - Return rotation vector (axis × angle)
-   * - ``as_QS(active)``
+   * - ``as_voigt_stress_rotation(active)``
      - Return 6×6 stress rotation matrix
-   * - ``as_QE(active)``
+   * - ``as_voigt_strain_rotation(active)``
      - Return 6×6 strain rotation matrix
 
 Apply Methods
@@ -202,6 +202,10 @@ Apply Methods
      - Rotate 6×6 stiffness matrix: QS·L·QS\ :sup:`T`
    * - ``apply_compliance(M, active)``
      - Rotate 6×6 compliance matrix: QE·M·QE\ :sup:`T`
+   * - ``apply_localization_strain(A, active)``
+     - Rotate 6×6 strain localization tensor: QE·A·QS\ :sup:`T`
+   * - ``apply_localization_stress(B, active)``
+     - Rotate 6×6 stress localization tensor: QS·B·QE\ :sup:`T`
 
 The ``active`` parameter controls whether the rotation is **active** (alibi, rotating the object)
 or **passive** (alias, rotating the coordinate system).

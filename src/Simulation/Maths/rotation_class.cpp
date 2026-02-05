@@ -432,7 +432,7 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
     return axis * angle;
 }
 
-mat::fixed<6,6> Rotation::as_QS(bool active) const {
+mat::fixed<6,6> Rotation::as_voigt_stress_rotation(bool active) const {
     mat R = as_matrix();
     mat QS_dyn = fillQS(R, active);
     mat::fixed<6,6> QS;
@@ -440,7 +440,7 @@ mat::fixed<6,6> Rotation::as_QS(bool active) const {
     return QS;
 }
 
-mat::fixed<6,6> Rotation::as_QE(bool active) const {
+mat::fixed<6,6> Rotation::as_voigt_strain_rotation(bool active) const {
     mat R = as_matrix();
     mat QE_dyn = fillQE(R, active);
     mat::fixed<6,6> QE;
@@ -504,7 +504,7 @@ mat Rotation::apply_tensor(const mat& m, bool inverse) const {
 // =============================================================================
 
 vec::fixed<6> Rotation::apply_stress(const vec::fixed<6>& sigma, bool active) const {
-    mat::fixed<6,6> QS = as_QS(active);
+    mat::fixed<6,6> QS = as_voigt_stress_rotation(active);
     vec::fixed<6> result;
     result = QS * sigma;
     return result;
@@ -519,7 +519,7 @@ vec Rotation::apply_stress(const vec& sigma, bool active) const {
 }
 
 vec::fixed<6> Rotation::apply_strain(const vec::fixed<6>& epsilon, bool active) const {
-    mat::fixed<6,6> QE = as_QE(active);
+    mat::fixed<6,6> QE = as_voigt_strain_rotation(active);
     vec::fixed<6> result;
     result = QE * epsilon;
     return result;
@@ -534,7 +534,7 @@ vec Rotation::apply_strain(const vec& epsilon, bool active) const {
 }
 
 mat::fixed<6,6> Rotation::apply_stiffness(const mat::fixed<6,6>& L, bool active) const {
-    mat::fixed<6,6> QS = as_QS(active);
+    mat::fixed<6,6> QS = as_voigt_stress_rotation(active);
     mat::fixed<6,6> result;
     result = QS * L * QS.t();
     return result;
@@ -549,7 +549,7 @@ mat Rotation::apply_stiffness(const mat& L, bool active) const {
 }
 
 mat::fixed<6,6> Rotation::apply_compliance(const mat::fixed<6,6>& M, bool active) const {
-    mat::fixed<6,6> QE = as_QE(active);
+    mat::fixed<6,6> QE = as_voigt_strain_rotation(active);
     mat::fixed<6,6> result;
     result = QE * M * QE.t();
     return result;
@@ -561,6 +561,38 @@ mat Rotation::apply_compliance(const mat& M, bool active) const {
     }
     mat R = as_matrix();
     return rotateM(M, R, active);
+}
+
+mat::fixed<6,6> Rotation::apply_localization_strain(const mat::fixed<6,6>& A, bool active) const {
+    mat R = as_matrix();
+    mat A_dyn = rotateA(mat(A), R, active);
+    mat::fixed<6,6> result;
+    result = A_dyn;
+    return result;
+}
+
+mat Rotation::apply_localization_strain(const mat& A, bool active) const {
+    if (A.n_rows != 6 || A.n_cols != 6) {
+        throw invalid_argument("Strain localization tensor must be 6x6");
+    }
+    mat R = as_matrix();
+    return rotateA(A, R, active);
+}
+
+mat::fixed<6,6> Rotation::apply_localization_stress(const mat::fixed<6,6>& B, bool active) const {
+    mat R = as_matrix();
+    mat B_dyn = rotateB(mat(B), R, active);
+    mat::fixed<6,6> result;
+    result = B_dyn;
+    return result;
+}
+
+mat Rotation::apply_localization_stress(const mat& B, bool active) const {
+    if (B.n_rows != 6 || B.n_cols != 6) {
+        throw invalid_argument("Stress localization tensor must be 6x6");
+    }
+    mat R = as_matrix();
+    return rotateB(B, R, active);
 }
 
 // =============================================================================

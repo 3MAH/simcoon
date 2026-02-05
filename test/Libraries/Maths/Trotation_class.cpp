@@ -195,25 +195,25 @@ TEST(TRotationClass, as_rotvec_roundtrip)
     EXPECT_TRUE(r.equals(r2, 1.E-9));
 }
 
-TEST(TRotationClass, as_QS_consistency)
+TEST(TRotationClass, as_voigt_stress_rotation_vs_fillQS)
 {
-    // Test that as_QS matches existing fillQS function
+    // Test that as_voigt_stress_rotation matches existing fillQS function
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
     mat::fixed<3,3> R = r.as_matrix();
 
-    mat::fixed<6,6> QS_class = r.as_QS(true);
+    mat::fixed<6,6> QS_class = r.as_voigt_stress_rotation(true);
     mat QS_func = fillQS(mat(R), true);
 
     EXPECT_LT(norm(mat(QS_class) - QS_func, "fro"), 1.E-9);
 }
 
-TEST(TRotationClass, as_QE_consistency)
+TEST(TRotationClass, as_voigt_strain_rotation_vs_fillQE)
 {
-    // Test that as_QE matches existing fillQE function
+    // Test that as_voigt_strain_rotation matches existing fillQE function
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
     mat::fixed<3,3> R = r.as_matrix();
 
-    mat::fixed<6,6> QE_class = r.as_QE(true);
+    mat::fixed<6,6> QE_class = r.as_voigt_strain_rotation(true);
     mat QE_func = fillQE(mat(R), true);
 
     EXPECT_LT(norm(mat(QE_class) - QE_func, "fro"), 1.E-9);
@@ -417,6 +417,42 @@ TEST(TRotationClass, apply_compliance_consistency)
     mat M_func = rotateM(M, mat(R), true);
 
     EXPECT_LT(norm(mat(M_class) - M_func, "fro"), 1.E-9);
+}
+
+// =============================================================================
+// Apply Methods (Localization Tensors)
+// =============================================================================
+
+TEST(TRotationClass, apply_localization_strain_consistency)
+{
+    Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
+    mat::fixed<3,3> R = r.as_matrix();
+
+    // Create a strain localization tensor
+    mat A = eye(6, 6) + 0.1 * randu(6, 6);
+    mat::fixed<6,6> A_fixed;
+    A_fixed = A;
+
+    mat::fixed<6,6> A_class = r.apply_localization_strain(A_fixed, true);
+    mat A_func = rotateA(A, mat(R), true);
+
+    EXPECT_LT(norm(mat(A_class) - A_func, "fro"), 1.E-9);
+}
+
+TEST(TRotationClass, apply_localization_stress_consistency)
+{
+    Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
+    mat::fixed<3,3> R = r.as_matrix();
+
+    // Create a stress localization tensor
+    mat B = eye(6, 6) + 0.1 * randu(6, 6);
+    mat::fixed<6,6> B_fixed;
+    B_fixed = B;
+
+    mat::fixed<6,6> B_class = r.apply_localization_stress(B_fixed, true);
+    mat B_func = rotateB(B, mat(R), true);
+
+    EXPECT_LT(norm(mat(B_class) - B_func, "fro"), 1.E-9);
 }
 
 // =============================================================================

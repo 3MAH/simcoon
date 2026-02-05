@@ -229,14 +229,14 @@ public:
      * @param active If true (default), active rotation; if false, passive
      * @return 6x6 stress rotation matrix (QS)
      */
-    arma::mat::fixed<6,6> as_QS(bool active = true) const;
+    arma::mat::fixed<6,6> as_voigt_stress_rotation(bool active = true) const;
 
     /**
      * @brief Get 6x6 rotation matrix for strain tensors in Voigt notation.
      * @param active If true (default), active rotation; if false, passive
      * @return 6x6 strain rotation matrix (QE)
      */
-    arma::mat::fixed<6,6> as_QE(bool active = true) const;
+    arma::mat::fixed<6,6> as_voigt_strain_rotation(bool active = true) const;
 
     // =========================================================================
     // Apply Methods (3D objects)
@@ -342,6 +342,38 @@ public:
      * @return Rotated compliance matrix
      */
     arma::mat apply_compliance(const arma::mat& M, bool active = true) const;
+
+    /**
+     * @brief Apply rotation to a 6x6 strain localization tensor.
+     * @param A 6x6 strain localization tensor in Voigt notation
+     * @param active If true (default), active rotation
+     * @return Rotated strain localization tensor: QE * A * QS^T
+     */
+    arma::mat::fixed<6,6> apply_localization_strain(const arma::mat::fixed<6,6>& A, bool active = true) const;
+
+    /**
+     * @brief Apply rotation to a strain localization tensor (dynamic size).
+     * @param A 6x6 strain localization tensor
+     * @param active If true, active rotation
+     * @return Rotated strain localization tensor
+     */
+    arma::mat apply_localization_strain(const arma::mat& A, bool active = true) const;
+
+    /**
+     * @brief Apply rotation to a 6x6 stress localization tensor.
+     * @param B 6x6 stress localization tensor in Voigt notation
+     * @param active If true (default), active rotation
+     * @return Rotated stress localization tensor: QS * B * QE^T
+     */
+    arma::mat::fixed<6,6> apply_localization_stress(const arma::mat::fixed<6,6>& B, bool active = true) const;
+
+    /**
+     * @brief Apply rotation to a stress localization tensor (dynamic size).
+     * @param B 6x6 stress localization tensor
+     * @param active If true, active rotation
+     * @return Rotated stress localization tensor
+     */
+    arma::mat apply_localization_stress(const arma::mat& B, bool active = true) const;
 
     // =========================================================================
     // Operations
