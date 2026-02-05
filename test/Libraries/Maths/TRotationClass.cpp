@@ -65,7 +65,7 @@ TEST(TRotationClass, default_constructor)
 TEST(TRotationClass, from_quat)
 {
     // Test with a known quaternion (90 degrees around z-axis)
-    double angle = sim_pi / 2.0;
+    double angle = simcoon::pi / 2.0;
     double s = sin(angle / 2.0);
     double c = cos(angle / 2.0);
     vec::fixed<4> q = {0, 0, s, c};
@@ -98,9 +98,9 @@ TEST(TRotationClass, from_matrix)
 
 TEST(TRotationClass, from_euler_zxz)
 {
-    double psi = 23.0 * (sim_pi / 180.0);
-    double theta = 42.0 * (sim_pi / 180.0);
-    double phi = 165.0 * (sim_pi / 180.0);
+    double psi = 23.0 * (simcoon::pi / 180.0);
+    double theta = 42.0 * (simcoon::pi / 180.0);
+    double phi = 165.0 * (simcoon::pi / 180.0);
 
     // Use existing fillR to get expected result
     mat R_expected = fillR(psi, theta, phi, true, "zxz");
@@ -114,9 +114,9 @@ TEST(TRotationClass, from_euler_zxz)
 
 TEST(TRotationClass, from_euler_zyz)
 {
-    double psi = 23.0 * (sim_pi / 180.0);
-    double theta = 42.0 * (sim_pi / 180.0);
-    double phi = 165.0 * (sim_pi / 180.0);
+    double psi = 23.0 * (simcoon::pi / 180.0);
+    double theta = 42.0 * (simcoon::pi / 180.0);
+    double phi = 165.0 * (simcoon::pi / 180.0);
 
     mat R_expected = fillR(psi, theta, phi, true, "zyz");
 
@@ -130,7 +130,7 @@ TEST(TRotationClass, from_euler_degrees)
 {
     // Test with degrees flag
     Rotation r1 = Rotation::from_euler(90.0, 0.0, 0.0, "zxz", true, true);
-    Rotation r2 = Rotation::from_euler(sim_pi/2.0, 0.0, 0.0, "zxz", true, false);
+    Rotation r2 = Rotation::from_euler(simcoon::pi/2.0, 0.0, 0.0, "zxz", true, false);
 
     EXPECT_TRUE(r1.equals(r2, 1.E-9));
 }
@@ -138,7 +138,7 @@ TEST(TRotationClass, from_euler_degrees)
 TEST(TRotationClass, from_axis_angle)
 {
     // Test rotation around z-axis
-    double angle = sim_pi / 4.0;  // 45 degrees
+    double angle = simcoon::pi / 4.0;  // 45 degrees
 
     Rotation r = Rotation::from_axis_angle(angle, 3, false);
     mat::fixed<3,3> R_actual = r.as_matrix();
@@ -151,7 +151,7 @@ TEST(TRotationClass, from_axis_angle)
 TEST(TRotationClass, from_rotvec)
 {
     // Rotation vector: 45 degrees around z-axis
-    double angle = sim_pi / 4.0;
+    double angle = simcoon::pi / 4.0;
     vec::fixed<3> rotvec = {0, 0, angle};
 
     Rotation r = Rotation::from_rotvec(rotvec, false);
@@ -226,7 +226,7 @@ TEST(TRotationClass, as_QE_consistency)
 TEST(TRotationClass, apply_vector)
 {
     // 90 degree rotation around z-axis
-    Rotation r = Rotation::from_axis_angle(sim_pi / 2.0, 3);
+    Rotation r = Rotation::from_axis_angle(simcoon::pi / 2.0, 3);
 
     vec::fixed<3> v = {1, 0, 0};
     vec::fixed<3> v_rot = r.apply(v);
@@ -239,7 +239,7 @@ TEST(TRotationClass, apply_vector)
 
 TEST(TRotationClass, apply_vector_inverse)
 {
-    Rotation r = Rotation::from_axis_angle(sim_pi / 2.0, 3);
+    Rotation r = Rotation::from_axis_angle(simcoon::pi / 2.0, 3);
 
     vec::fixed<3> v = {1, 0, 0};
     vec::fixed<3> v_rot = r.apply(v, false);
@@ -343,7 +343,7 @@ TEST(TRotationClass, composition_inplace)
 TEST(TRotationClass, magnitude)
 {
     // 45 degree rotation
-    double angle = sim_pi / 4.0;
+    double angle = simcoon::pi / 4.0;
     Rotation r = Rotation::from_axis_angle(angle, 3);
 
     EXPECT_NEAR(r.magnitude(), angle, 1.E-9);
@@ -353,7 +353,7 @@ TEST(TRotationClass, magnitude)
 TEST(TRotationClass, slerp)
 {
     Rotation r1 = Rotation::identity();
-    Rotation r2 = Rotation::from_axis_angle(sim_pi / 2.0, 3);
+    Rotation r2 = Rotation::from_axis_angle(simcoon::pi / 2.0, 3);
 
     // t=0 should give r1
     Rotation r_t0 = r1.slerp(r2, 0.0);
@@ -365,7 +365,7 @@ TEST(TRotationClass, slerp)
 
     // t=0.5 should give 45 degrees rotation
     Rotation r_t5 = r1.slerp(r2, 0.5);
-    EXPECT_NEAR(r_t5.magnitude(), sim_pi / 4.0, 1.E-9);
+    EXPECT_NEAR(r_t5.magnitude(), simcoon::pi / 4.0, 1.E-9);
 }
 
 TEST(TRotationClass, equals)
@@ -398,7 +398,7 @@ TEST(TRotationClass, small_angle)
 TEST(TRotationClass, rotation_180_degrees)
 {
     // 180 degree rotation around z-axis
-    Rotation r = Rotation::from_axis_angle(sim_pi, 3);
+    Rotation r = Rotation::from_axis_angle(simcoon::pi, 3);
 
     vec::fixed<3> v = {1, 0, 0};
     vec::fixed<3> v_rot = r.apply(v);

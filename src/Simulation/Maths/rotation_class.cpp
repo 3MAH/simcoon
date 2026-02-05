@@ -70,7 +70,7 @@ void parse_euler_convention(const string& conv, int& axis1, int& axis2, int& axi
 // Normalize a quaternion to unit length
 vec::fixed<4> normalize_quat(const vec::fixed<4>& q) {
     double n = norm(q);
-    if (n < sim_iota) {
+    if (n < simcoon::iota) {
         // Return identity quaternion if input is near zero
         return {0.0, 0.0, 0.0, 1.0};
     }
@@ -180,9 +180,9 @@ Rotation Rotation::from_euler(double psi, double theta, double phi,
                               const string& conv, bool intrinsic, bool degrees) {
     // Convert to radians if needed
     if (degrees) {
-        psi *= sim_pi / 180.0;
-        theta *= sim_pi / 180.0;
-        phi *= sim_pi / 180.0;
+        psi *= simcoon::pi / 180.0;
+        theta *= simcoon::pi / 180.0;
+        phi *= simcoon::pi / 180.0;
     }
 
     // Handle "user" convention using the existing fillR function
@@ -235,14 +235,14 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
     double angle = norm(rotvec);
 
     if (degrees) {
-        angle *= sim_pi / 180.0;
+        angle *= simcoon::pi / 180.0;
     }
 
-    if (angle < sim_iota) {
+    if (angle < simcoon::iota) {
         return identity();
     }
 
-    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / sim_pi : norm(rotvec));
+    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / simcoon::pi : norm(rotvec));
     double half_angle = angle / 2.0;
     double s = sin(half_angle);
     double c = cos(half_angle);
@@ -260,7 +260,7 @@ Rotation Rotation::from_rotvec(const vec& rotvec, bool degrees) {
 
 Rotation Rotation::from_axis_angle(double angle, int axis, bool degrees) {
     if (degrees) {
-        angle *= sim_pi / 180.0;
+        angle *= simcoon::pi / 180.0;
     }
 
     int ax_idx = axis_to_index(axis);
@@ -282,8 +282,8 @@ Rotation Rotation::random() {
 
     double sqrt1_u0 = sqrt(1.0 - u(0));
     double sqrt_u0 = sqrt(u(0));
-    double two_pi_u1 = 2.0 * sim_pi * u(1);
-    double two_pi_u2 = 2.0 * sim_pi * u(2);
+    double two_pi_u1 = 2.0 * simcoon::pi * u(1);
+    double two_pi_u2 = 2.0 * simcoon::pi * u(2);
 
     vec::fixed<4> q = {
         sqrt1_u0 * sin(two_pi_u1),
@@ -361,7 +361,7 @@ vec::fixed<3> Rotation::as_euler(const string& conv, bool intrinsic, bool degree
         // Proper Euler angles (e.g., zxz, zyz)
         double sy = sqrt(R_work(i,j)*R_work(i,j) + R_work(i,k)*R_work(i,k));
 
-        if (sy > sim_iota) {
+        if (sy > simcoon::iota) {
             angles(0) = atan2(R_work(i,j), sign*R_work(i,k));
             angles(1) = atan2(sy, R_work(i,i));
             angles(2) = atan2(R_work(j,i), -sign*R_work(k,i));
@@ -375,7 +375,7 @@ vec::fixed<3> Rotation::as_euler(const string& conv, bool intrinsic, bool degree
         // Tait-Bryan angles (e.g., xyz, zyx)
         double cy = sqrt(R_work(i,i)*R_work(i,i) + R_work(j,i)*R_work(j,i));
 
-        if (cy > sim_iota) {
+        if (cy > simcoon::iota) {
             angles(0) = atan2(sign*R_work(k,j), R_work(k,k));
             angles(1) = atan2(-sign*R_work(k,i), cy);
             angles(2) = atan2(sign*R_work(j,i), R_work(i,i));
@@ -393,7 +393,7 @@ vec::fixed<3> Rotation::as_euler(const string& conv, bool intrinsic, bool degree
     }
 
     if (degrees) {
-        angles *= 180.0 / sim_pi;
+        angles *= 180.0 / simcoon::pi;
     }
 
     return angles;
@@ -406,7 +406,7 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
 
     double sin_half = norm(qv);
 
-    if (sin_half < sim_iota) {
+    if (sin_half < simcoon::iota) {
         // Near identity rotation
         vec::fixed<3> result = {0.0, 0.0, 0.0};
         return result;
@@ -416,17 +416,17 @@ vec::fixed<3> Rotation::as_rotvec(bool degrees) const {
     double angle = 2.0 * atan2(sin_half, qw);
 
     // Normalize to [-pi, pi]
-    if (angle > sim_pi) {
-        angle -= 2.0 * sim_pi;
-    } else if (angle < -sim_pi) {
-        angle += 2.0 * sim_pi;
+    if (angle > simcoon::pi) {
+        angle -= 2.0 * simcoon::pi;
+    } else if (angle < -simcoon::pi) {
+        angle += 2.0 * simcoon::pi;
     }
 
     // Axis is normalized qv
     vec::fixed<3> axis = qv / sin_half;
 
     if (degrees) {
-        angle *= 180.0 / sim_pi;
+        angle *= 180.0 / simcoon::pi;
     }
 
     return axis * angle;
@@ -576,7 +576,7 @@ double Rotation::magnitude(bool degrees) const {
     double angle = 2.0 * acos(min(abs(_quat(3)), 1.0));
 
     if (degrees) {
-        angle *= 180.0 / sim_pi;
+        angle *= 180.0 / simcoon::pi;
     }
 
     return angle;

@@ -15,6 +15,31 @@ namespace py = pybind11;
 
 namespace simpy {
 
+namespace {
+    // Validation helper functions for professional solver integration
+
+    void validate_vector_size(const py::array_t<double>& arr, size_t expected, const string& name) {
+        if (arr.ndim() != 1) {
+            throw invalid_argument(name + " must be a 1D array, got " + to_string(arr.ndim()) + "D");
+        }
+        if (static_cast<size_t>(arr.size()) != expected) {
+            throw invalid_argument(name + " must have " + to_string(expected) +
+                " elements, got " + to_string(arr.size()));
+        }
+    }
+
+    void validate_matrix_size(const py::array_t<double>& arr, size_t rows, size_t cols, const string& name) {
+        if (arr.ndim() != 2) {
+            throw invalid_argument(name + " must be a 2D array, got " + to_string(arr.ndim()) + "D");
+        }
+        auto shape = arr.shape();
+        if (static_cast<size_t>(shape[0]) != rows || static_cast<size_t>(shape[1]) != cols) {
+            throw invalid_argument(name + " must have shape (" + to_string(rows) + ", " +
+                to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
+        }
+    }
+} // anonymous namespace
+
 void register_rotation_class(py::module_& m) {
     py::class_<simcoon::Rotation>(m, "Rotation",
         R"doc(
@@ -57,6 +82,7 @@ void register_rotation_class(py::module_& m) {
 
         .def_static("from_quat",
             [](py::array_t<double> quat) {
+                validate_vector_size(quat, 4, "quat");
                 vec q = carma::arr_to_col(quat);
                 return simcoon::Rotation::from_quat(q);
             },
@@ -78,6 +104,7 @@ void register_rotation_class(py::module_& m) {
 
         .def_static("from_matrix",
             [](py::array_t<double> R) {
+                validate_matrix_size(R, 3, 3, "R");
                 mat R_mat = carma::arr_to_mat(R);
                 return simcoon::Rotation::from_matrix(R_mat);
             },
@@ -129,6 +156,7 @@ void register_rotation_class(py::module_& m) {
 
         .def_static("from_rotvec",
             [](py::array_t<double> rotvec, bool degrees) {
+                validate_vector_size(rotvec, 3, "rotvec");
                 vec rv = carma::arr_to_col(rotvec);
                 return simcoon::Rotation::from_rotvec(rv, degrees);
             },
@@ -171,6 +199,67 @@ void register_rotation_class(py::module_& m) {
 
         .def_static("random", &simcoon::Rotation::random,
             "Create a uniformly distributed random rotation")
+
+        .def_static("from_scipy",
+            [](py::object scipy_rot) {
+                py::array_t<double> q = scipy_rot.attr("as_quat")().cast<py::array_t<double>>();
+                validate_vector_size(q, 4, "scipy_rot.as_quat()");
+                vec qv = carma::arr_to_col(q);
+                return simcoon::Rotation::from_quat(qv);
+            },
+            py::arg("scipy_rot"),
+            R"doc(
+            Create rotation from a scipy.spatial.transform.Rotation object.
+
+            Converts via unit quaternion (scalar-last convention shared by both
+            libraries), so there is no trigonometric or matrix conversion overhead.
+
+            Parameters
+            ----------
+            scipy_rot : scipy.spatial.transform.Rotation
+                A scipy Rotation object
+
+            Returns
+            -------
+            Rotation
+                Rotation object
+
+            Example
+            -------
+            >>> from scipy.spatial.transform import Rotation as R
+            >>> scipy_rot = R.from_euler('z', 45, degrees=True)
+            >>> r = smc.Rotation.from_scipy(scipy_rot)
+            )doc")
+
+        .def("to_scipy",
+            [](const simcoon::Rotation& self) {
+                py::module_ sp_rot = py::module_::import("scipy.spatial.transform");
+                py::object R_class = sp_rot.attr("Rotation");
+                vec q(self.as_quat());
+                py::array_t<double> q_arr = carma::col_to_arr(q);
+                // scipy expects shape (4,), carma returns (4,1)
+                q_arr = q_arr.attr("flatten")().cast<py::array_t<double>>();
+                return R_class.attr("from_quat")(q_arr);
+            },
+            R"doc(
+            Convert to a scipy.spatial.transform.Rotation object.
+
+            Converts via unit quaternion (scalar-last convention shared by both
+            libraries), so there is no trigonometric or matrix conversion overhead.
+
+            Requires scipy to be installed.
+
+            Returns
+            -------
+            scipy.spatial.transform.Rotation
+                Equivalent scipy Rotation object
+
+            Example
+            -------
+            >>> r = smc.Rotation.from_axis_angle(np.pi/4, 3)
+            >>> scipy_rot = r.to_scipy()
+            >>> scipy_rot.as_euler('zxz', degrees=True)
+            )doc")
 
         // Conversion methods
         .def("as_quat",
@@ -282,6 +371,7 @@ void register_rotation_class(py::module_& m) {
         // Apply methods
         .def("apply",
             [](const simcoon::Rotation& self, py::array_t<double> v, bool inverse) {
+                validate_vector_size(v, 3, "v");
                 vec v_cpp = carma::arr_to_col(v);
                 vec result = self.apply(v_cpp, inverse);
                 return carma::col_to_arr(result);
@@ -305,6 +395,7 @@ void register_rotation_class(py::module_& m) {
 
         .def("apply_tensor",
             [](const simcoon::Rotation& self, py::array_t<double> m, bool inverse) {
+                validate_matrix_size(m, 3, 3, "m");
                 mat m_cpp = carma::arr_to_mat(m);
                 mat result = self.apply_tensor(m_cpp, inverse);
                 return carma::mat_to_arr(result);
@@ -328,6 +419,7 @@ void register_rotation_class(py::module_& m) {
 
         .def("apply_stress",
             [](const simcoon::Rotation& self, py::array_t<double> sigma, bool active) {
+                validate_vector_size(sigma, 6, "sigma");
                 vec sigma_cpp = carma::arr_to_col(sigma);
                 vec result = self.apply_stress(sigma_cpp, active);
                 return carma::col_to_arr(result);
@@ -351,6 +443,7 @@ void register_rotation_class(py::module_& m) {
 
         .def("apply_strain",
             [](const simcoon::Rotation& self, py::array_t<double> epsilon, bool active) {
+                validate_vector_size(epsilon, 6, "epsilon");
                 vec epsilon_cpp = carma::arr_to_col(epsilon);
                 vec result = self.apply_strain(epsilon_cpp, active);
                 return carma::col_to_arr(result);
@@ -374,6 +467,7 @@ void register_rotation_class(py::module_& m) {
 
         .def("apply_stiffness",
             [](const simcoon::Rotation& self, py::array_t<double> L, bool active) {
+                validate_matrix_size(L, 6, 6, "L");
                 mat L_cpp = carma::arr_to_mat(L);
                 mat result = self.apply_stiffness(L_cpp, active);
                 return carma::mat_to_arr(result);
@@ -397,6 +491,7 @@ void register_rotation_class(py::module_& m) {
 
         .def("apply_compliance",
             [](const simcoon::Rotation& self, py::array_t<double> M, bool active) {
+                validate_matrix_size(M, 6, 6, "M");
                 mat M_cpp = carma::arr_to_mat(M);
                 mat result = self.apply_compliance(M_cpp, active);
                 return carma::mat_to_arr(result);
