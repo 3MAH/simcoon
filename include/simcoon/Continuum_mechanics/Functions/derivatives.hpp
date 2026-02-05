@@ -120,6 +120,54 @@ arma::mat dI2DS(const arma::mat &S);
 arma::mat dI3DS(const arma::mat &S);
 
 /**
+ * @brief Computes the derivative of the second invariant of the deviatoric tensor
+ *
+ * @details The second invariant of the deviatoric part of the tensor \f$\mathbf{S}\f$ is
+ * \f[
+ * J_2 = \frac{1}{2} S_{ij} S_{ij}
+ * \f]
+ * Its derivative with respect to \f$\mathbf{S}\f$ in Voigt notation is simply the deviatoric part:
+ * \f[
+ * \frac{\partial J_2}{\partial \mathbf{S}} = \mathbf{S}^{\text{dev}}
+ * \f]
+ *
+ * @param S Input 3×3 stress tensor
+ * @return 3×3 matrix representing the derivative of J2
+ *
+ * @see dev() for computing the deviatoric part of a tensor
+ *
+ * @code
+ * arma::mat S = arma::randu(3,3);
+ * arma::mat dJ2 = dJ2DS(S);  // Returns the deviatoric part of S
+ * @endcode
+ */
+arma::mat dJ2DS(const arma::mat &S);
+
+/**
+ * @brief Computes the derivative of the third invariant of the deviatoric tensor
+ *
+ * @details The third invariant of the deviatoric part of the tensor \f$\mathbf{S}\f$ is
+ * \f[
+ * J_3 = \frac{1}{3} S_{ij} S_{jk} S_{ki}
+ * \f]
+ * Its derivative with respect to \f$\mathbf{S}\f$ in Voigt notation is:
+ * \f[
+ * \frac{\partial J_3}{\partial \mathbf{S}} = \mathbf{S}^2 - \frac{1}{3} \text{tr}(\mathbf{S}^2) \mathbf{I}
+ * \f]
+ * where \f$\mathbf{S}\f$ is the deviatoric part of the input tensor.
+ *
+ * @param S Input 3×3 stress tensor
+ * @return 3×3 matrix representing the derivative of J3
+ *
+ * @see dev() for computing the deviatoric part of a tensor
+ *
+ * @code
+ * arma::mat S = arma::randu(3,3);
+ * arma::mat dJ3 = dJ3DS(S);  // Returns the derivative of the third invariant
+ * @endcode
+ */
+arma::mat dJ3DS(const arma::mat &S);
+/**
  * @brief Computes the derivative of the trace with respect to the tensor
  *
  * @details This is equivalent to dI1DS(). The trace derivative is:

@@ -25,7 +25,7 @@
 
 namespace simcoon{
 
-///@brief The unified SMA UMAT for transformation requires 35 constants and 17 statev:
+///@brief The aniso SMA UMAT for transformation requires 35 constants and 17 statev:
 ///@brief The mechanical transformation UMAT for SMAs has the following statev and props
 
 ///@brief props[0] : flagT: 0 transformation temperatures linearly extrapolated; 1 : smooth temperatures
