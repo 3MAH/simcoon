@@ -49,6 +49,11 @@ Creating Rotations
    # Random rotation (uniform distribution)
    r = smc.Rotation.random()
 
+   # From a scipy.spatial.transform.Rotation (requires scipy)
+   from scipy.spatial.transform import Rotation as R
+   scipy_rot = R.from_euler('z', 45, degrees=True)
+   r = smc.Rotation.from_scipy(scipy_rot)
+
 Converting Between Representations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -73,6 +78,9 @@ Converting Between Representations
    # To Voigt rotation matrices
    QS = r.as_QS()  # 6×6 for stress
    QE = r.as_QE()  # 6×6 for strain
+
+   # To scipy.spatial.transform.Rotation (requires scipy)
+   scipy_rot = r.to_scipy()
 
 Applying Rotations
 ~~~~~~~~~~~~~~~~~~
@@ -173,6 +181,90 @@ Utility Methods
    # Check equality
    r2 = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
    are_equal = r.equals(r2, tol=1e-12)
+
+Scipy Interoperability
+~~~~~~~~~~~~~~~~~~~~~
+
+Both simcoon and scipy use the scalar-last quaternion convention ``[qx, qy, qz, qw]``,
+so conversion between the two is done via quaternion transfer with no trigonometric
+or matrix computation overhead. Scipy is an **optional** dependency — it is only
+imported when ``to_scipy()`` is called.
+
+.. code-block:: python
+
+   from scipy.spatial.transform import Rotation as R
+
+   # scipy → simcoon
+   scipy_rot = R.from_euler('z', 45, degrees=True)
+   r = smc.Rotation.from_scipy(scipy_rot)
+
+   # simcoon → scipy
+   r = smc.Rotation.from_axis_angle(np.pi/4, 3)
+   scipy_rot = r.to_scipy()
+
+   # Round-trip is lossless
+   q_original = scipy_rot.as_quat()
+   q_roundtrip = smc.Rotation.from_scipy(scipy_rot).to_scipy().as_quat()
+   # q_original == q_roundtrip
+
+Active vs Passive Rotations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``active`` parameter on Voigt methods (``apply_stress``, ``apply_strain``,
+``apply_stiffness``, ``apply_compliance``, ``as_QS``, ``as_QE``) controls the
+rotation convention:
+
+- **active=True** (default): **Alibi** rotation — rotates the physical object
+  while the coordinate system stays fixed.
+- **active=False**: **Alias** rotation — rotates the coordinate system while the
+  object stays fixed. This is equivalent to the inverse active rotation.
+
+.. code-block:: python
+
+   r = smc.Rotation.from_axis_angle(np.pi/4, 3)
+
+   # Active: rotate the stress tensor itself
+   sigma_active = r.apply_stress(sigma, active=True)
+
+   # Passive: express the same stress in a rotated coordinate system
+   sigma_passive = r.apply_stress(sigma, active=False)
+
+Input Validation
+~~~~~~~~~~~~~~~~
+
+All methods that accept NumPy arrays validate the input shape and raise
+``ValueError`` with a descriptive message if the dimensions are wrong:
+
+.. code-block:: python
+
+   r = smc.Rotation.from_axis_angle(np.pi/4, 3)
+
+   r.apply(np.array([1.0, 2.0]))
+   # ValueError: v must have 3 elements, got 2
+
+   r.apply_stress(np.array([1.0, 2.0, 3.0]))
+   # ValueError: sigma must have 6 elements, got 3
+
+   smc.Rotation.from_matrix(np.eye(4))
+   # ValueError: R must have shape (3, 3), got (4, 4)
+
+   r.apply_stiffness(np.eye(3))
+   # ValueError: L must have shape (6, 6), got (3, 3)
+
+Expected input shapes:
+
+- ``from_quat``: 1D array, 4 elements
+- ``from_matrix``: 2D array, shape (3, 3)
+- ``from_rotvec``: 1D array, 3 elements
+- ``apply``: 1D array, 3 elements
+- ``apply_tensor``: 2D array, shape (3, 3)
+- ``apply_stress``, ``apply_strain``: 1D array, 6 elements
+- ``apply_stiffness``, ``apply_compliance``: 2D array, shape (6, 6)
+
+.. note::
+
+   Quaternions ``q`` and ``-q`` represent the same rotation. The ``equals()``
+   method accounts for this antipodal equivalence.
 
 Euler Angle Conventions
 -----------------------

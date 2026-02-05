@@ -548,6 +548,7 @@ where :math:`\Omega = \arccos(q_0 \cdot q_1)` is the angle between the quaternio
 See Also
 ========
 
-- :doc:`../continuum_mechanics/functions/kinematics` - Finite strain kinematics
-- :doc:`../continuum_mechanics/functions/constitutive` - Constitutive matrices
-- :doc:`../continuum_mechanics/functions/transfer` - Voigt/tensor conversions
+- :doc:`/continuum_mechanics/functions/doc_kinematics` - Finite strain kinematics
+- :doc:`/continuum_mechanics/functions/doc_constitutive` - Constitutive matrices
+- :doc:`/continuum_mechanics/functions/doc_transfer` - Voigt/tensor conversions
+- :doc:`/continuum_mechanics/functions/doc_rotation` - Python user documentation

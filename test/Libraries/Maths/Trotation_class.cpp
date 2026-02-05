@@ -15,7 +15,7 @@
 
  */
 
-///@file TRotationClass.cpp
+///@file Trotation_class.cpp
 ///@brief Test for the Rotation class
 ///@version 1.0
 
@@ -376,6 +376,191 @@ TEST(TRotationClass, equals)
 
     EXPECT_TRUE(r1.equals(r2, 1.E-9));
     EXPECT_FALSE(r1.equals(r3, 1.E-9));
+}
+
+TEST(TRotationClass, apply_tensor)
+{
+    // Rotate a symmetric 3x3 tensor
+    Rotation r = Rotation::from_axis_angle(simcoon::pi / 2.0, 3);
+    mat::fixed<3,3> R = r.as_matrix();
+
+    // Diagonal tensor
+    mat::fixed<3,3> T = {{100, 10, 0}, {10, 50, 0}, {0, 0, 25}};
+
+    mat::fixed<3,3> T_rot = r.apply_tensor(T);
+
+    // Verify R * T * R^T
+    mat::fixed<3,3> T_expected;
+    T_expected = R * T * R.t();
+    EXPECT_LT(norm(T_rot - T_expected, "fro"), 1.E-9);
+
+    // Inverse should recover original
+    mat::fixed<3,3> T_back = r.apply_tensor(T_rot, true);
+    EXPECT_LT(norm(T - T_back, "fro"), 1.E-9);
+}
+
+TEST(TRotationClass, apply_compliance_consistency)
+{
+    Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
+    mat::fixed<3,3> R = r.as_matrix();
+
+    // Create a compliance matrix
+    mat M = eye(6, 6) * 0.01;
+    M(0,1) = M(1,0) = -0.003;
+    M(0,2) = M(2,0) = -0.003;
+    M(1,2) = M(2,1) = -0.003;
+
+    mat::fixed<6,6> M_fixed;
+    M_fixed = M;
+
+    mat::fixed<6,6> M_class = r.apply_compliance(M_fixed, true);
+    mat M_func = rotateM(M, mat(R), true);
+
+    EXPECT_LT(norm(mat(M_class) - M_func, "fro"), 1.E-9);
+}
+
+// =============================================================================
+// Additional Factory Method Tests
+// =============================================================================
+
+TEST(TRotationClass, from_axis_angle_x)
+{
+    double angle = simcoon::pi / 3.0;  // 60 degrees around x
+    Rotation r = Rotation::from_axis_angle(angle, 1);
+    mat::fixed<3,3> R_actual = r.as_matrix();
+    mat R_expected = fillR(angle, 1, true);
+
+    EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
+}
+
+TEST(TRotationClass, from_axis_angle_y)
+{
+    double angle = simcoon::pi / 5.0;  // 36 degrees around y
+    Rotation r = Rotation::from_axis_angle(angle, 2);
+    mat::fixed<3,3> R_actual = r.as_matrix();
+    mat R_expected = fillR(angle, 2, true);
+
+    EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
+}
+
+// =============================================================================
+// Additional Euler Convention Tests
+// =============================================================================
+
+TEST(TRotationClass, from_euler_xyz)
+{
+    double psi = 0.4, theta = 0.6, phi = 0.8;
+
+    // Build reference from individual axis rotations (extrinsic xyz = intrinsic zyx)
+    Rotation rx = Rotation::from_axis_angle(psi, 1);
+    Rotation ry = Rotation::from_axis_angle(theta, 2);
+    Rotation rz = Rotation::from_axis_angle(phi, 3);
+
+    // Intrinsic xyz: apply x, then y', then z''
+    // Quaternion order: rz * ry * rx
+    Rotation r_ref = rz * ry * rx;
+    Rotation r_xyz = Rotation::from_euler(psi, theta, phi, "xyz", true, false);
+
+    EXPECT_TRUE(r_ref.equals(r_xyz, 1.E-9));
+}
+
+TEST(TRotationClass, from_euler_zyx)
+{
+    double psi = 0.3, theta = 0.5, phi = 0.2;
+
+    Rotation rz = Rotation::from_axis_angle(psi, 3);
+    Rotation ry = Rotation::from_axis_angle(theta, 2);
+    Rotation rx = Rotation::from_axis_angle(phi, 1);
+
+    // Intrinsic zyx: apply z, then y', then x''
+    Rotation r_ref = rx * ry * rz;
+    Rotation r_zyx = Rotation::from_euler(psi, theta, phi, "zyx", true, false);
+
+    EXPECT_TRUE(r_ref.equals(r_zyx, 1.E-9));
+}
+
+TEST(TRotationClass, from_euler_xyx)
+{
+    double psi = 0.4, theta = 0.7, phi = 0.9;
+
+    Rotation rx1 = Rotation::from_axis_angle(psi, 1);
+    Rotation ry  = Rotation::from_axis_angle(theta, 2);
+    Rotation rx2 = Rotation::from_axis_angle(phi, 1);
+
+    // Intrinsic xyx: apply x, then y', then x''
+    Rotation r_ref = rx2 * ry * rx1;
+    Rotation r_xyx = Rotation::from_euler(psi, theta, phi, "xyx", true, false);
+
+    EXPECT_TRUE(r_ref.equals(r_xyx, 1.E-9));
+}
+
+TEST(TRotationClass, euler_roundtrip_xyz)
+{
+    double psi_in = 0.3, theta_in = 0.5, phi_in = 0.2;
+    Rotation r = Rotation::from_euler(psi_in, theta_in, phi_in, "xyz", true, false);
+    vec::fixed<3> angles = r.as_euler("xyz", true, false);
+
+    Rotation r2 = Rotation::from_euler(angles(0), angles(1), angles(2), "xyz", true, false);
+    EXPECT_TRUE(r.equals(r2, 1.E-9));
+}
+
+TEST(TRotationClass, euler_extrinsic_vs_intrinsic)
+{
+    double a = 0.4, b = 0.6, c = 0.8;
+
+    // Extrinsic XYZ = Intrinsic ZYX (reversed)
+    Rotation r_ext = Rotation::from_euler(a, b, c, "xyz", false, false);
+    Rotation r_int = Rotation::from_euler(c, b, a, "zyx", true, false);
+
+    EXPECT_TRUE(r_ext.equals(r_int, 1.E-9));
+}
+
+// =============================================================================
+// Gimbal Lock Tests
+// =============================================================================
+
+TEST(TRotationClass, gimbal_lock_zxz_theta_zero)
+{
+    // theta=0 for zxz: psi and phi are not individually recoverable
+    double psi = 0.5, theta = 0.0, phi = 0.3;
+    Rotation r = Rotation::from_euler(psi, theta, phi, "zxz", true, false);
+
+    // Round-trip through euler should still give the same rotation
+    vec::fixed<3> angles = r.as_euler("zxz", true, false);
+    Rotation r2 = Rotation::from_euler(angles(0), angles(1), angles(2), "zxz", true, false);
+
+    EXPECT_TRUE(r.equals(r2, 1.E-9));
+}
+
+TEST(TRotationClass, gimbal_lock_zxz_theta_pi)
+{
+    // theta=pi for zxz: another singular configuration
+    double psi = 0.5, theta = simcoon::pi, phi = 0.3;
+    Rotation r = Rotation::from_euler(psi, theta, phi, "zxz", true, false);
+
+    // The rotation itself must be valid
+    mat::fixed<3,3> R = r.as_matrix();
+    EXPECT_LT(norm(R * R.t() - eye(3,3), "fro"), 1.E-9);
+    EXPECT_NEAR(det(R), 1.0, 1.E-9);
+
+    // Round-trip should preserve the rotation
+    vec::fixed<3> angles = r.as_euler("zxz", true, false);
+    Rotation r2 = Rotation::from_euler(angles(0), angles(1), angles(2), "zxz", true, false);
+    EXPECT_TRUE(r.equals(r2, 1.E-9));
+}
+
+TEST(TRotationClass, gimbal_lock_xyz_theta_pi_half)
+{
+    // theta=pi/2 for xyz (Tait-Bryan): gimbal lock
+    double psi = 0.4, theta = simcoon::pi / 2.0, phi = 0.6;
+    Rotation r = Rotation::from_euler(psi, theta, phi, "xyz", true, false);
+
+    mat::fixed<3,3> R = r.as_matrix();
+    EXPECT_LT(norm(R * R.t() - eye(3,3), "fro"), 1.E-9);
+
+    vec::fixed<3> angles = r.as_euler("xyz", true, false);
+    Rotation r2 = Rotation::from_euler(angles(0), angles(1), angles(2), "xyz", true, false);
+    EXPECT_TRUE(r.equals(r2, 1.E-9));
 }
 
 // =============================================================================
