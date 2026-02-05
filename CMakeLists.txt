@@ -173,7 +173,7 @@ set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
 # Python dependencies (only if building Python bindings)
 if(BUILD_PYTHON_BINDINGS)
-  find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+  find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
   # Try to find carma from conda/system first
@@ -325,7 +325,7 @@ target_link_libraries(simcoon
 )
 
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
-# This prevents heap corruption when Armadillo objects cross the libsimcoon/simmit boundary.
+# This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.
 # Only needed on Windows due to stricter heap validation.
 # See: https://github.com/RUrlus/carma/issues/89
 if(WIN32 AND BUILD_PYTHON_BINDINGS)
@@ -355,13 +355,14 @@ if(SIMCOON_BUILD_TESTS)
   if(NOT MSVC)
     # Fortran is only needed for Abaqus UMAT plugin tests
     enable_language(Fortran)
-    add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.for testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
-
+    set_source_files_properties(testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f PROPERTIES Fortran_PREPROCESS OFF)
+    add_library(umat_plugin_aba SHARED testBin/Umats/UMABA/external/UMAT_ABAQUS_ELASTIC.f testBin/Umats/UMABA/external/umat_plugin_aba.cpp)
+    # Use default PREFIX (lib) and SUFFIX (.so on Linux, .dylib on macOS)
+    # to match dylib::decorations::os_default() expectations
     set_target_properties(umat_plugin_aba PROPERTIES
       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMABA/external
     )
-
-    target_link_libraries(umat_plugin_aba PRIVATE simcoon)
+    target_link_libraries(umat_plugin_aba PRIVATE simcoon ${ARMADILLO_LIBRARIES})
   endif()
 
   add_library(umat_plugin_ext SHARED

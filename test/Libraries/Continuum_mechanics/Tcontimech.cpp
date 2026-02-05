@@ -24,6 +24,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 
 using namespace std;
 using namespace arma;
@@ -42,8 +43,8 @@ TEST(Tcontimech, dev_sph)
     
     mat testsph = (1./3.)*eye(3,3);
     
-    EXPECT_LT(norm(sph(test) - testsph,2),sim_iota);
-    EXPECT_LT(norm(dev(test) - testdev,2),sim_iota);
+    EXPECT_LT(norm(sph(test) - testsph,2),simcoon::iota);
+    EXPECT_LT(norm(dev(test) - testdev,2),simcoon::iota);
 }
 
 TEST(Tcontimech, tr_dev_Mises_eta)
@@ -60,8 +61,8 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     //Test of tr function
     double tr1 = tr(zeros(6));
     double tr2 = tr(test);
-    EXPECT_LT(fabs(tr1 - 0.),sim_iota);
-    EXPECT_LT(fabs(tr2 - 12.),sim_iota);
+    EXPECT_LT(fabs(tr1 - 0.),simcoon::iota);
+    EXPECT_LT(fabs(tr2 - 12.),simcoon::iota);
 
     //Test of dev function
     vec vide = zeros(6);
@@ -75,12 +76,12 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     testdev(3) = 8.;
     testdev(4) = 3.;
     testdev(5) = 7.;
-    EXPECT_LT(fabs(trdev2 - 0.),sim_iota);
-    EXPECT_LT(norm(dev2 - testdev,2),sim_iota);
+    EXPECT_LT(fabs(trdev2 - 0.),simcoon::iota);
+    EXPECT_LT(norm(dev2 - testdev,2),simcoon::iota);
     
     //Test of Mises_stress function
     double dstress = 3.*sqrt(42.);
-    EXPECT_LT(fabs(Mises_stress(test) - dstress),sim_iota);
+    EXPECT_LT(fabs(Mises_stress(test) - dstress),simcoon::iota);
 
     //Test of eta_stress function
     dev1 = eta_stress(zeros(6));
@@ -92,18 +93,18 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     testeta(3) = 8.*2;
     testeta(4) = 3.*2;
     testeta(5) = 7.*2;
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - (3./2.)*testeta/dstress,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - (3./2.)*testeta/dstress,2),simcoon::iota);
     
     //Test of Mises_strain function
     double dstrain = sqrt(46.);
-    EXPECT_LT(fabs(Mises_strain(test) - dstrain),sim_iota);
+    EXPECT_LT(fabs(Mises_strain(test) - dstrain),simcoon::iota);
 
     //Test of eta_strain function
     dev1 = eta_strain(zeros(6));
     dev2 = eta_strain(test);
-    EXPECT_LT(norm(dev1,2),sim_iota);
-    EXPECT_LT(norm(dev2 - (2./3.)*testdev/dstrain,2),sim_iota);
+    EXPECT_LT(norm(dev1,2),simcoon::iota);
+    EXPECT_LT(norm(dev2 - (2./3.)*testdev/dstrain,2),simcoon::iota);
     
 }
     
@@ -121,26 +122,26 @@ TEST(Tcontimech, J2_J3)
 	//Test of J2_stress function
     double J2_stress1 = J2_stress(zeros(6));
     double J2_stress2 = J2_stress(test);
-    EXPECT_LT(fabs(J2_stress1),sim_iota);
-    EXPECT_LT(fabs(J2_stress2 - 126.),sim_iota);
+    EXPECT_LT(fabs(J2_stress1),simcoon::iota);
+    EXPECT_LT(fabs(J2_stress2 - 126.),simcoon::iota);
 	
 	//Test of J2_strain function
 	double J2_strain1 = J2_strain(zeros(6));
 	double J2_strain2 = J2_strain(test);
-    EXPECT_LT(fabs(J2_strain1),sim_iota);
-    EXPECT_LT(fabs(J2_strain2 - 34.5),sim_iota);
+    EXPECT_LT(fabs(J2_strain1),simcoon::iota);
+    EXPECT_LT(fabs(J2_strain2 - 34.5),simcoon::iota);
 
 	//Test of J3_stress function
 	double J3_stress1 = J3_stress(zeros(6));
 	double J3_stress2 = J3_stress(test);
-    EXPECT_LT(fabs(J3_stress1),sim_iota);
-    EXPECT_LT(fabs(J3_stress2 - 226.),sim_iota);
+    EXPECT_LT(fabs(J3_stress1),simcoon::iota);
+    EXPECT_LT(fabs(J3_stress2 - 226.),simcoon::iota);
 
 	//Test of J3_stress function
 	double J3_strain1 = J3_strain(zeros(6));
 	double J3_strain2 = J3_strain(test);
-    EXPECT_LT(fabs(J3_strain1),sim_iota);
-    EXPECT_LT(fabs(J3_strain2 - 14.5),sim_iota);
+    EXPECT_LT(fabs(J3_strain1),simcoon::iota);
+    EXPECT_LT(fabs(J3_strain2 - 14.5),simcoon::iota);
 
 }
 
@@ -171,21 +172,21 @@ TEST(Tcontimech, ellipsoid)
     vec sigma_in = {4., 5., 6., 2., 1., 1.5};
     vec test_sig_int = {5.,2.5};
     vec normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     
     u = 0.;
-    v =sim_pi/2.;
+    v =simcoon::pi/2.;
     test = { 1, 0, 0 };
     normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     
-    u =sim_pi/2.;
-    v =sim_pi/2.;
+    u =simcoon::pi/2.;
+    v =simcoon::pi/2.;
     test = { 0, 1, 0 };
     normal = normal_ellipsoid(u,v,a1,a2,a3);
-    EXPECT_LT(norm(normal-test,2),sim_iota);
+    EXPECT_LT(norm(normal-test,2),simcoon::iota);
     vec sig_int = sigma_int(sigma_in,u,v,a1,a2,a3);
-    EXPECT_LT(norm(sig_int-test_sig_int,2),sim_iota);
+    EXPECT_LT(norm(sig_int-test_sig_int,2),simcoon::iota);
 }
 
 TEST(Tcontimech, P_ijkl)
@@ -260,7 +261,119 @@ TEST(Tcontimech, P_ijkl)
 	mat pikjla = p_ikjl(a);
 	mat pikjlb = p_ikjl(b);
 
-    EXPECT_LT(norm(pikjla - Ireal,2),sim_iota);
-    EXPECT_LT(norm(pikjlb - ones(6,6),2),sim_iota);
-    EXPECT_LT(norm(pikjlc - result,2),sim_iota);
+    EXPECT_LT(norm(pikjla - Ireal,2),simcoon::iota);
+    EXPECT_LT(norm(pikjlb - ones(6,6),2),simcoon::iota);
+    EXPECT_LT(norm(pikjlc - result,2),simcoon::iota);
+}
+
+TEST(Tcontimech, norm_stress_strain)
+{
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    // norm_stress should be positive for non-zero input
+    double ns = norm_stress(sigma);
+    EXPECT_GT(ns, 0.);
+
+    // Zero input should give zero norm
+    double ns_zero = norm_stress(zeros(6));
+    EXPECT_LT(fabs(ns_zero), simcoon::iota);
+
+    // norm_strain should be positive for non-zero input
+    double ne = norm_strain(sigma);
+    EXPECT_GT(ne, 0.);
+
+    // Zero input
+    double ne_zero = norm_strain(zeros(6));
+    EXPECT_LT(fabs(ne_zero), simcoon::iota);
+}
+
+TEST(Tcontimech, eta_norm_stress_strain)
+{
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    // eta_norm_stress should return 6-component vector
+    vec eta_ns = eta_norm_stress(sigma);
+    EXPECT_EQ(eta_ns.n_elem, (arma::uword)6);
+    // Should be normalized (non-zero norm)
+    EXPECT_GT(norm(eta_ns, 2), 0.);
+
+    // eta_norm_strain
+    vec eta_ne = eta_norm_strain(sigma);
+    EXPECT_EQ(eta_ne.n_elem, (arma::uword)6);
+    EXPECT_GT(norm(eta_ne, 2), 0.);
+}
+
+TEST(Tcontimech, curvature_ellipsoid)
+{
+    double a1 = 1.;
+    double a2 = 1.;
+    double a3 = 1.;
+
+    // For a sphere of radius 1, curvature = 1/R = 1 everywhere
+    double curv = curvature_ellipsoid(0., 0., a1, a2, a3);
+    EXPECT_GT(curv, 0.);
+}
+
+TEST(Tcontimech, dyadic_products)
+{
+    mat a = eye(3, 3);
+    a(0, 0) = 2.;
+
+    // auto_sym_dyadic: should be 6x6, symmetric
+    mat asd = auto_sym_dyadic(a);
+    EXPECT_EQ(asd.n_rows, (arma::uword)6);
+    EXPECT_EQ(asd.n_cols, (arma::uword)6);
+    EXPECT_LT(norm(asd - asd.t(), 2), 1.E-9);
+
+    // sym_dyadic of a with itself should equal auto_sym_dyadic
+    mat sd = sym_dyadic(a, a);
+    EXPECT_LT(norm(sd - asd, 2), 1.E-9);
+
+    // auto_dyadic: should be 6x6
+    mat ad = auto_dyadic(a);
+    EXPECT_EQ(ad.n_rows, (arma::uword)6);
+    EXPECT_EQ(ad.n_cols, (arma::uword)6);
+
+    // dyadic of a with itself should equal auto_dyadic
+    mat d = dyadic(a, a);
+    EXPECT_LT(norm(d - ad, 2), 1.E-9);
+}
+
+TEST(Tcontimech, dyadic_4vectors_sym)
+{
+    vec n_a = {1., 0., 0.};
+    vec n_b = {0., 1., 0.};
+
+    // Result should be 6x6 (conv must be "aabb" or "abab")
+    mat d4v = dyadic_4vectors_sym(n_a, n_b, "aabb");
+    EXPECT_EQ(d4v.n_rows, (arma::uword)6);
+    EXPECT_EQ(d4v.n_cols, (arma::uword)6);
+}
+
+TEST(Tcontimech, sym_dyadic_operators)
+{
+    mat a = eye(3, 3);
+    a(0, 0) = 2.;
+    mat b = eye(3, 3);
+    b(1, 1) = 3.;
+
+    // auto_sym_dyadic_operator (odot operation)
+    mat asdo = auto_sym_dyadic_operator(a);
+    EXPECT_EQ(asdo.n_rows, (arma::uword)6);
+    EXPECT_EQ(asdo.n_cols, (arma::uword)6);
+
+    // sym_dyadic_operator for two tensors
+    mat sdo = sym_dyadic_operator(a, b);
+    EXPECT_EQ(sdo.n_rows, (arma::uword)6);
+    EXPECT_EQ(sdo.n_cols, (arma::uword)6);
+}
+
+TEST(Tcontimech, linearop_eigsym)
+{
+    vec b_i = {1., 0., 0.};
+    vec b_j = {0., 1., 0.};
+
+    mat L = linearop_eigsym(b_i, b_j);
+    EXPECT_EQ(L.n_rows, (arma::uword)6);
+    EXPECT_EQ(L.n_cols, (arma::uword)6);
 }

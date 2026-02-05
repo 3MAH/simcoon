@@ -5,7 +5,7 @@ This example demonstrates Eshelby tensor computations for various inclusion shap
 """
 
 import numpy as np
-from simcoon import simmit as sim
+import simcoon as sim
 import matplotlib.pyplot as plt
 
 ###################################################################################

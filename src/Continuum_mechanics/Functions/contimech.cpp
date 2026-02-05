@@ -257,9 +257,9 @@ double Macaulay_n(const double &d) {
 //This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
 double sign(const double &d) {
     
-    if ((d < sim_iota)&&(fabs(d) > sim_iota))
+    if ((d < simcoon::iota)&&(fabs(d) > simcoon::iota))
         return -1.;
-    else if(d > sim_iota)
+    else if(d > simcoon::iota)
         return 1.;
     else
         return 0.;
@@ -355,28 +355,16 @@ mat p_ikjl(const vec &a) {
 mat auto_sym_dyadic(const mat &A) {
 //T
     vec A_v = t2v_sym(A);
-    mat C = zeros(6,6);
 
-    for (unsigned int i=0; i<6; i++) {
-        for (unsigned int j=0; j<6; j++) {
-            C(i,j) = A_v(i)*A_v(j);
-        }
-    }
-    return C;
+	return A_v * A_v.t();
 }
 
 mat sym_dyadic(const mat &A, const mat &B) {
 
     vec A_v = t2v_sym(A);
     vec B_v = t2v_sym(B);
-    mat C = zeros(6,6);
-
-    for (unsigned int i=0; i<6; i++) {
-        for (unsigned int j=0; j<6; j++) {
-            C(i,j) = A_v(i)*B_v(j);
-        }
-    }
-    return C;
+	
+	return A_v * B_v.t();
 }
 
 mat auto_dyadic(const mat &A) {

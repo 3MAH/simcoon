@@ -2,13 +2,29 @@ name: Conda packaging
 
 on:
   workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload packages to Anaconda'
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      upload:
+        description: 'Upload packages to Anaconda'
+        type: boolean
+        default: true
+      ref:
+        description: 'Git ref to checkout'
+        type: string
+        required: false
+    secrets:
+      ANACONDA_API_TOKEN:
+        required: false
   pull_request:
     paths:
-      - "CMakeLists.txt"
-      - "**/CMakeLists.txt"
-      - "conda.recipe/**"
-      - ".github/workflows/conda-packaging.yml"
-      - "environment*.yml"
+      - 'conda.recipe/**'
+      - '.github/workflows/conda-packaging.yml'
+      - 'environment*.yml'
 
 permissions:
   contents: read
@@ -33,7 +49,10 @@ jobs:
             target-platform: win-64
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
       - uses: conda-incubator/setup-miniconda@v3
         with:
           miniforge-version: latest
@@ -42,8 +61,6 @@ jobs:
           conda-solver: libmamba
 
       - name: Conda build
-        env:
-          CONDA_BUILD_LOCAL: ${{ github.event_name == 'pull_request' && '1' || '' }}
         shell: bash -l {0}
         run: |
           conda install -y conda-build conda-index
@@ -96,17 +113,17 @@ jobs:
           # Check Python module in site-packages
           echo "Checking Python module..."
           SITE_PACKAGES=$(conda run -n test-install python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
-          if [ -f "$SITE_PACKAGES/simcoon/simmit.so" ] || ls "$SITE_PACKAGES/simcoon"/simmit.cpython*.so 1>/dev/null 2>&1; then
-            echo "✓ simmit.so found in site-packages/simcoon"
+          if [ -f "$SITE_PACKAGES/simcoon/_core.so" ] || ls "$SITE_PACKAGES/simcoon"/_core.cpython*.so 1>/dev/null 2>&1; then
+            echo "✓ _core.so found in site-packages/simcoon"
           else
-            echo "✗ ERROR: simmit.so NOT found in site-packages/simcoon"
+            echo "✗ ERROR: _core.so NOT found in site-packages/simcoon"
             ls -la $SITE_PACKAGES/simcoon/ || true
             exit 1
           fi
 
-          # Verify simmit links to system libsimcoon (not bundled)
-          echo "Checking simmit RPATH..."
-          SIMMIT_PATH=$(find $SITE_PACKAGES/simcoon -name "simmit*.so" | head -1)
+          # Verify _core links to system libsimcoon (not bundled)
+          echo "Checking _core RPATH..."
+          SIMMIT_PATH=$(find $SITE_PACKAGES/simcoon -name "_core*.so" | head -1)
           if [ -n "$SIMMIT_PATH" ]; then
             if command -v readelf &> /dev/null; then
               readelf -d "$SIMMIT_PATH" | grep -E "(RPATH|RUNPATH)" || echo "(no RPATH/RUNPATH found)"
@@ -126,7 +143,7 @@ jobs:
 
           # Test import
           echo "Testing Python import..."
-          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('✓ Import successful')"
+          conda run -n test-install python -c "import simcoon; import simcoon._core; print('✓ Import successful')"
 
       - name: Install and verify package structure (Windows)
         if: runner.os == 'Windows'
@@ -163,10 +180,11 @@ jobs:
 
           # Test import
           Write-Host "Testing Python import..."
-          conda run -n test-install python -c "import simcoon; import simcoon.simmit; print('Import successful')"
+          conda run -n test-install python -c "import simcoon; import simcoon._core; print('Import successful')"
 
       - name: Upload to Anaconda
-        if: github.event_name == 'workflow_dispatch'
+        if: inputs.upload
+        shell: bash -l {0}
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |

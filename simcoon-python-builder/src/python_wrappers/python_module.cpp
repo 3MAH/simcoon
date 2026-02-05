@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <simcoon/exception.hpp>
+
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/constitutive.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/contimech.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/transfer.hpp>
@@ -50,9 +52,22 @@ using namespace simpy;
 
 using namespace pybind11::literals;
 
-PYBIND11_MODULE(simmit, m)
+PYBIND11_MODULE(_core, m)
 {
     m.doc() = "pybind11 example plugin"; // optional module docstring
+
+    // Create a Python-visible base exception for all your custom errors
+    py::object SimcoonError = py::register_exception<std::runtime_error>(m, "SimcoonError", PyExc_RuntimeError);
+
+    // Register the exception translator
+    py::register_exception<simcoon::exception_eig_sym>(m, "CppExceptionEigSym", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_det>(m, "CppExceptionDet", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_inv>(m, "CppExceptionInv", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_sqrtmat_sympd>(m, "CppExceptionSqrtMatSym", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_logmat_sympd>(m, "CppExceptionLogMatSym", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_expmat_sym>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_powmat>(m, "CppExceptionPowMat", SimcoonError.ptr());
+    py::register_exception<simcoon::exception_solver>(m, "CppExceptionSolver", SimcoonError.ptr());
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a = true, simcoon_docs::Ireal);

@@ -113,17 +113,17 @@ mat fillR(const double &psi, const double &theta, const double &phi, const bool 
     }
     else if(conv == "user") {
             
-        mat R1 = fillR(psi, axis_psi, active);
-        mat R2 = fillR(theta, axis_theta, active);
-        mat R3 = fillR(phi, axis_phi, active);
+        mat R1 = fillR(psi, simcoon::axis_psi, active);
+        mat R2 = fillR(theta, simcoon::axis_theta, active);
+        mat R3 = fillR(phi, simcoon::axis_phi, active);
         
         R = R3*R2*R1;
     }
     else {
         cout << "error in Simulation/Maths/rotation.cpp: please provide a consistent convention for Euler rotation, i.e. zxz or zyz. The by-default convention has been utilized (as defined in parameter.hpp)" << endl;
-        mat R1 = fillR(psi, axis_psi, active);
-        mat R2 = fillR(theta, axis_theta, active);
-        mat R3 = fillR(phi, axis_phi, active);
+        mat R1 = fillR(psi, simcoon::axis_psi, active);
+        mat R2 = fillR(theta, simcoon::axis_theta, active);
+        mat R3 = fillR(phi, simcoon::axis_phi, active);
         
         R = R3*R2*R1;
     }
@@ -660,14 +660,14 @@ vec rotate_strain(const vec &V, const mat &DR, const bool &active) {
 mat rotate_l2g_strain(const vec &E, const double &psi, const double &theta, const double &phi) {
     
     mat E_temp = E;
-    if(fabs(phi) > sim_iota) {
-        E_temp = rotate_strain(E_temp, -phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, -phi, simcoon::axis_phi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        E_temp = rotate_strain(E_temp, -theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, -theta, simcoon::axis_theta, false);
     }
-    if(fabs(psi) > sim_iota) {
-        E_temp = rotate_strain(E_temp, -psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, -psi, simcoon::axis_psi, false);
     }
     
     return E_temp;
@@ -677,14 +677,14 @@ mat rotate_l2g_strain(const vec &E, const double &psi, const double &theta, cons
 mat rotate_g2l_strain(const vec &E, const double &psi, const double &theta, const double &phi) {
     
     mat E_temp = E;
-    if(fabs(psi) > sim_iota) {
-        E_temp = rotate_strain(E_temp, psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, psi, simcoon::axis_psi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        E_temp = rotate_strain(E_temp, theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, theta, simcoon::axis_theta, false);
     }
-    if(fabs(phi) > sim_iota) {
-        E_temp = rotate_strain(E_temp, phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        E_temp = rotate_strain(E_temp, phi, simcoon::axis_phi, false);
     }
     
     return E_temp;
@@ -694,14 +694,14 @@ mat rotate_g2l_strain(const vec &E, const double &psi, const double &theta, cons
 mat rotate_l2g_stress(const vec &S, const double &psi, const double &theta, const double &phi) {
     
     mat S_temp = S;
-    if(fabs(phi) > sim_iota) {
-        S_temp = rotate_stress(S_temp, -phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, -phi, simcoon::axis_phi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        S_temp = rotate_stress(S_temp, -theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, -theta, simcoon::axis_theta, false);
     }
-    if(fabs(psi) > sim_iota) {
-        S_temp = rotate_stress(S_temp, -psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, -psi, simcoon::axis_psi, false);
     }
     
     return S_temp;
@@ -711,14 +711,14 @@ mat rotate_l2g_stress(const vec &S, const double &psi, const double &theta, cons
 mat rotate_g2l_stress(const vec &S, const double &psi, const double &theta, const double &phi) {
     
     mat S_temp = S;
-    if(fabs(psi) > sim_iota) {
-        S_temp = rotate_stress(S_temp, psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, psi, simcoon::axis_psi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        S_temp = rotate_stress(S_temp, theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, theta, simcoon::axis_theta, false);
     }
-    if(fabs(phi) > sim_iota) {
-        S_temp = rotate_stress(S_temp, phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        S_temp = rotate_stress(S_temp, phi, simcoon::axis_phi, false);
     }
     
     return S_temp;
@@ -728,14 +728,14 @@ mat rotate_g2l_stress(const vec &S, const double &psi, const double &theta, cons
 mat rotate_l2g_L(const mat &Lt, const double &psi, const double &theta, const double &phi) {
     
     mat Lt_temp = Lt;
-  	if(fabs(phi) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, -phi, axis_phi, false);
+  	if(fabs(phi) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, -phi, simcoon::axis_phi, false);
 	}
-  	if(fabs(theta) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, -theta, axis_theta, false);
+  	if(fabs(theta) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, -theta, simcoon::axis_theta, false);
 	}
-	if(fabs(psi) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, -psi, axis_psi, false);
+	if(fabs(psi) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, -psi, simcoon::axis_psi, false);
 	}
     
 	return Lt_temp;
@@ -745,14 +745,14 @@ mat rotate_l2g_L(const mat &Lt, const double &psi, const double &theta, const do
 mat rotate_g2l_L(const mat &Lt, const double &psi, const double &theta, const double &phi) {
     
     mat Lt_temp = Lt;
-  	if(fabs(psi) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, psi, axis_psi, false);
+  	if(fabs(psi) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, psi, simcoon::axis_psi, false);
 	}
-	if(fabs(theta) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, theta, axis_theta, false);
+	if(fabs(theta) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, theta, simcoon::axis_theta, false);
 	}
-	if(fabs(phi) > sim_iota) {
-		Lt_temp = rotateL(Lt_temp, phi, axis_phi, false);
+	if(fabs(phi) > simcoon::iota) {
+		Lt_temp = rotateL(Lt_temp, phi, simcoon::axis_phi, false);
     }
     
 	return Lt_temp;
@@ -762,14 +762,14 @@ mat rotate_g2l_L(const mat &Lt, const double &psi, const double &theta, const do
 mat rotate_l2g_M(const mat &M, const double &psi, const double &theta, const double &phi) {
     
     mat M_temp = M;
-    if(fabs(phi) > sim_iota) {
-        M_temp = rotateM(M_temp, -phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        M_temp = rotateM(M_temp, -phi, simcoon::axis_phi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        M_temp = rotateM(M_temp, -theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        M_temp = rotateM(M_temp, -theta, simcoon::axis_theta, false);
     }
-    if(fabs(psi) > sim_iota) {
-        M_temp = rotateM(M_temp, -psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        M_temp = rotateM(M_temp, -psi, simcoon::axis_psi, false);
     }
     
     return M_temp;
@@ -779,14 +779,14 @@ mat rotate_l2g_M(const mat &M, const double &psi, const double &theta, const dou
 mat rotate_g2l_M(const mat &M, const double &psi, const double &theta, const double &phi) {
     
     mat M_temp = M;
-    if(fabs(psi) > sim_iota) {
-        M_temp = rotateM(M_temp, psi, axis_psi, false);
+    if(fabs(psi) > simcoon::iota) {
+        M_temp = rotateM(M_temp, psi, simcoon::axis_psi, false);
     }
-    if(fabs(theta) > sim_iota) {
-        M_temp = rotateM(M_temp, theta, axis_theta, false);
+    if(fabs(theta) > simcoon::iota) {
+        M_temp = rotateM(M_temp, theta, simcoon::axis_theta, false);
     }
-    if(fabs(phi) > sim_iota) {
-        M_temp = rotateM(M_temp, phi, axis_phi, false);
+    if(fabs(phi) > simcoon::iota) {
+        M_temp = rotateM(M_temp, phi, simcoon::axis_phi, false);
     }
     
     return M_temp;
@@ -796,14 +796,14 @@ mat rotate_g2l_M(const mat &M, const double &psi, const double &theta, const dou
 mat rotate_l2g_A(const mat &A, const double &psi, const double &theta, const double &phi) {
     
     mat A_temp = A;
-  	if(fabs(phi) > sim_iota) {
-		A_temp = rotateA(A_temp, -phi, axis_phi, false);
+  	if(fabs(phi) > simcoon::iota) {
+		A_temp = rotateA(A_temp, -phi, simcoon::axis_phi, false);
 	}
-  	if(fabs(theta) > sim_iota) {
-		A_temp = rotateA(A_temp, -theta, axis_theta, false);
+  	if(fabs(theta) > simcoon::iota) {
+		A_temp = rotateA(A_temp, -theta, simcoon::axis_theta, false);
 	}
-	if(fabs(psi) > sim_iota) {
-		A_temp = rotateA(A_temp, -psi, axis_psi, false);
+	if(fabs(psi) > simcoon::iota) {
+		A_temp = rotateA(A_temp, -psi, simcoon::axis_psi, false);
 	}
     
 	return A_temp;
@@ -813,14 +813,14 @@ mat rotate_l2g_A(const mat &A, const double &psi, const double &theta, const dou
 mat rotate_g2l_A(const mat &A, const double &psi, const double &theta, const double &phi) {
     
     mat A_temp = A;
-  	if(fabs(psi) > sim_iota) {
-		A_temp = rotateA(A_temp, psi, axis_psi, false);
+  	if(fabs(psi) > simcoon::iota) {
+		A_temp = rotateA(A_temp, psi, simcoon::axis_psi, false);
 	}
-	if(fabs(theta) > sim_iota) {
-		A_temp = rotateA(A_temp, theta, axis_theta, false);
+	if(fabs(theta) > simcoon::iota) {
+		A_temp = rotateA(A_temp, theta, simcoon::axis_theta, false);
 	}
-	if(fabs(phi) > sim_iota) {
-		A_temp = rotateA(A_temp, phi, axis_phi, false);
+	if(fabs(phi) > simcoon::iota) {
+		A_temp = rotateA(A_temp, phi, simcoon::axis_phi, false);
     }
     
 	return A_temp;
@@ -830,14 +830,14 @@ mat rotate_g2l_A(const mat &A, const double &psi, const double &theta, const dou
 mat rotate_l2g_B(const mat &B, const double &psi, const double &theta, const double &phi) {
     
     mat B_temp = B;
-  	if(fabs(phi) > sim_iota) {
-		B_temp = rotateB(B_temp, -phi, axis_phi, false);
+  	if(fabs(phi) > simcoon::iota) {
+		B_temp = rotateB(B_temp, -phi, simcoon::axis_phi, false);
 	}
-  	if(fabs(theta) > sim_iota) {
-		B_temp = rotateB(B_temp, -theta, axis_theta, false);
+  	if(fabs(theta) > simcoon::iota) {
+		B_temp = rotateB(B_temp, -theta, simcoon::axis_theta, false);
 	}
-	if(fabs(psi) > sim_iota) {
-		B_temp = rotateB(B_temp, -psi, axis_psi, false);
+	if(fabs(psi) > simcoon::iota) {
+		B_temp = rotateB(B_temp, -psi, simcoon::axis_psi, false);
 	}
     
 	return B_temp;
@@ -847,14 +847,14 @@ mat rotate_l2g_B(const mat &B, const double &psi, const double &theta, const dou
 mat rotate_g2l_B(const mat &B, const double &psi, const double &theta, const double &phi) {
     
     mat B_temp = B;
-  	if(fabs(psi) > sim_iota) {
-		B_temp = rotateB(B_temp, psi, axis_psi, false);
+  	if(fabs(psi) > simcoon::iota) {
+		B_temp = rotateB(B_temp, psi, simcoon::axis_psi, false);
 	}
-	if(fabs(theta) > sim_iota) {
-		B_temp = rotateB(B_temp, theta, axis_theta, false);
+	if(fabs(theta) > simcoon::iota) {
+		B_temp = rotateB(B_temp, theta, simcoon::axis_theta, false);
 	}
-	if(fabs(phi) > sim_iota) {
-		B_temp = rotateB(B_temp, phi, axis_phi, false);
+	if(fabs(phi) > simcoon::iota) {
+		B_temp = rotateB(B_temp, phi, simcoon::axis_phi, false);
     }
     
 	return B_temp;

@@ -20,7 +20,7 @@ The Criteria Library
         double m = 0.5;
         double sigma_Prager = Prager_stress(sigma, b, n);
 
-.. function:: vec dPrager_stress(const vec &v, const double &b, const double &n)
+.. function:: vec dDrucker_stress(const vec &v, const double &b, const double &n)
 
     Returns the derivative of the Prager equivalent stress with respect to stress. It main use is to define evolution equations for strain based on an associated rule of a convex yield surface
 
@@ -29,7 +29,7 @@ The Criteria Library
         vec sigma = randu(6);
         double b = 1.2;
         double m = 0.5;
-        vec dsigma_Pragerdsigma = dPrager_stress(sigma, b, n);
+        vec dsigma_Pragerdsigma = dDrucker_stress(sigma, b, n);
 
 .. function:: double Tresca(const vec &v)
 
@@ -57,7 +57,7 @@ The Criteria Library
         vec sigma = randu(6);
         double b = 1.2;
         double m = 0.5;
-        vec dsigma_Pragerdsigma = dPrager_stress(sigma, b, n);
+        vec dsigma_Pragerdsigma = dDrucker_stress(sigma, b, n);
 
 .. function:: mat P_Ani(const vec &params);
 

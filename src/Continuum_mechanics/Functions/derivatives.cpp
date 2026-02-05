@@ -25,8 +25,10 @@
 #include <armadillo>
 #include <simcoon/FTensor.hpp>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
 using namespace std;
 using namespace arma;
@@ -50,6 +52,24 @@ mat dI3DS(const mat &S) {
     return (S*S).t();
 }
 
+//This function returns the derivative of the second invariant of a tensor : J_2 = 1/2 S_ij S_ij from the stress vector v in voigt notation
+mat dJ2DS(const mat &S) {
+
+    mat S_dev = dev(S);  
+    return S_dev;
+}
+
+//This function returns the derivative of the third invariant of a tensor : J_3 = 1/3 S_ij S_jk S_ki from the stress vector v in voigt notation
+mat dJ3DS(const mat &S) {
+
+    mat S_dev = dev(S);
+
+    mat S2 = (S_dev * S_dev).t();
+    double trS2 = trace(S2);
+    return S2 - (trS2 / 3.0) * eye<mat>(3,3);
+}
+
+
 //This function returns the derivative of the trace of a tensor
 mat dtrSdS(const mat &S) {
     UNUSED(S);
@@ -58,13 +78,26 @@ mat dtrSdS(const mat &S) {
 
 //This function returns the derivative of the determinant of a tensor
 mat ddetSdS(const mat &S) {
-    return det(S)*(inv(S)).t();
+
+    try {
+        return det(S)*(inv(S)).t();
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det or inv (combined expression), error inv is thrown: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside ddetSdS.");
+    }    
 }
 
 mat dinvSdSsym(const mat &S) {
 
-    mat invS = inv(S);
-    
+    mat invS;
+
+    try {
+        invS = inv(S);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv : " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside dinvSdSsym.");
+    }    
+
     Tensor2<double,3,3> invS_ = mat_FTensor2(invS);
     Tensor4<double,3,3,3,3> dinvSdSsym_;
     

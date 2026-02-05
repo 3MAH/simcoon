@@ -144,7 +144,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     double Hp=0.;
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = m*k*pow(p, m-1);
         Hp = k*pow(p, m);
     }
@@ -194,10 +194,10 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
             Hp = k*pow(p, m);
         }
@@ -246,7 +246,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     mat delta = eye(1,1);
     
     for (int i=0; i<1; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
         op(i) = 1.;
     }
     

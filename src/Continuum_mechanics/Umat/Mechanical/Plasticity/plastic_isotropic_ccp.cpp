@@ -140,7 +140,7 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     double Hp=0.;
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = m*k*pow(p, m-1);
         Hp = k*pow(p, m);
     }
@@ -184,10 +184,10 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
             Hp = k*pow(p, m);
         }

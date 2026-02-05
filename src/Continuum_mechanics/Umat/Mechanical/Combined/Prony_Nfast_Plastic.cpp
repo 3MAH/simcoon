@@ -141,7 +141,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     double Hp=0.;
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = m*k*pow(p, m-1);
         Hp = k*pow(p, m);
     }
@@ -226,7 +226,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     double error = 1.;
 
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
         for (int i=0; i<N_prony; i++) {
@@ -234,7 +234,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
         }
         
         //PLastic part
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
             Hp = k*pow(p, m);
         }
@@ -257,7 +257,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
             Lambdav[i] = eta_norm_strain(flow_visco[i]);
             dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             
-            if (DTime > sim_iota) {
+            if (DTime > simcoon::iota) {
                 Phi(i+1) = norm_strain(flow_visco[i]) - Ds_j(i+1)/DTime;
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
@@ -276,8 +276,8 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
         for (int i=0; i<N_prony; i++) {
             B(i+1,i+1) = K(i+1,i+1);
             Y_crit(i+1) = norm_strain(flow_visco[i]);
-            if (Y_crit(i+1) < precision_umat) {
-                Y_crit(i+1) = precision_umat;
+            if (Y_crit(i+1) < simcoon::precision_umat) {
+                Y_crit(i+1) = simcoon::precision_umat;
             }
         }
 
@@ -322,7 +322,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     
     for (int i=0; i<N_mec; i++) {
         
-        if(Ds_j(i) > sim_iota)
+        if(Ds_j(i) > simcoon::iota)
             op(i) = 1.;
         
         for (int j = 0; j <N_mec; j++) {

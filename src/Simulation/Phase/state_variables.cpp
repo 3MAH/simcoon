@@ -498,59 +498,59 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-  	if(fabs(phi) > sim_iota) {
-		Etot = rotate_strain(Etot, -phi, axis_phi);
-		DEtot = rotate_strain(DEtot, -phi, axis_phi);
-		etot = rotate_strain(etot, -phi, axis_phi);
-		Detot = rotate_strain(Detot, -phi, axis_phi);
-		PKII = rotate_stress(PKII, -phi, axis_phi);
-		PKII_start = rotate_stress(PKII_start, -phi, axis_phi);
-		tau = rotate_stress(tau, -phi, axis_phi);
-		tau_start = rotate_stress(tau_start, -phi, axis_phi);
-		sigma = rotate_stress(sigma, -phi, axis_phi);
-		sigma_start = rotate_stress(sigma_start, -phi, axis_phi);
-        F0 = rotate_mat(F0, -phi, axis_phi);
-        F1 = rotate_mat(F1, -phi, axis_phi);
-        U0 = rotate_mat(U0, -phi, axis_phi);
-        U1 = rotate_mat(U1, -phi, axis_phi);        
-        R = rotate_mat(R, -phi, axis_phi);
-        DR = rotate_mat(DR, -phi, axis_phi);
+  	if(fabs(phi) > simcoon::iota) {
+		Etot = rotate_strain(Etot, -phi, simcoon::axis_phi);
+		DEtot = rotate_strain(DEtot, -phi, simcoon::axis_phi);
+		etot = rotate_strain(etot, -phi, simcoon::axis_phi);
+		Detot = rotate_strain(Detot, -phi, simcoon::axis_phi);
+		PKII = rotate_stress(PKII, -phi, simcoon::axis_phi);
+		PKII_start = rotate_stress(PKII_start, -phi, simcoon::axis_phi);
+		tau = rotate_stress(tau, -phi, simcoon::axis_phi);
+		tau_start = rotate_stress(tau_start, -phi, simcoon::axis_phi);
+		sigma = rotate_stress(sigma, -phi, simcoon::axis_phi);
+		sigma_start = rotate_stress(sigma_start, -phi, simcoon::axis_phi);
+        F0 = rotate_mat(F0, -phi, simcoon::axis_phi);
+        F1 = rotate_mat(F1, -phi, simcoon::axis_phi);
+        U0 = rotate_mat(U0, -phi, simcoon::axis_phi);
+        U1 = rotate_mat(U1, -phi, simcoon::axis_phi);        
+        R = rotate_mat(R, -phi, simcoon::axis_phi);
+        DR = rotate_mat(DR, -phi, simcoon::axis_phi);
 	}
-  	if(fabs(theta) > sim_iota) {
-		Etot = rotate_strain(Etot, -theta, axis_theta);
-		DEtot = rotate_strain(DEtot, -theta, axis_theta);
-		etot = rotate_strain(etot, -theta, axis_theta);
-		Detot = rotate_strain(Detot, -theta, axis_theta);
-		PKII = rotate_stress(PKII, -theta, axis_theta);
-		PKII_start = rotate_stress(PKII_start, -theta, axis_theta);
-		tau = rotate_stress(tau, -theta, axis_theta);
-		tau_start = rotate_stress(tau_start, -theta, axis_theta);
-		sigma = rotate_stress(sigma, -theta, axis_theta);
-		sigma_start = rotate_stress(sigma_start, -theta, axis_theta);
-        F0 = rotate_mat(F0, -theta, axis_theta);
-        F1 = rotate_mat(F1, -theta, axis_theta);
-        U0 = rotate_mat(U0, -theta, axis_theta);
-        U1 = rotate_mat(U1, -theta, axis_theta);
-        R = rotate_mat(R, -theta, axis_theta);
-        DR = rotate_mat(DR, -theta, axis_theta);
+  	if(fabs(theta) > simcoon::iota) {
+		Etot = rotate_strain(Etot, -theta, simcoon::axis_theta);
+		DEtot = rotate_strain(DEtot, -theta, simcoon::axis_theta);
+		etot = rotate_strain(etot, -theta, simcoon::axis_theta);
+		Detot = rotate_strain(Detot, -theta, simcoon::axis_theta);
+		PKII = rotate_stress(PKII, -theta, simcoon::axis_theta);
+		PKII_start = rotate_stress(PKII_start, -theta, simcoon::axis_theta);
+		tau = rotate_stress(tau, -theta, simcoon::axis_theta);
+		tau_start = rotate_stress(tau_start, -theta, simcoon::axis_theta);
+		sigma = rotate_stress(sigma, -theta, simcoon::axis_theta);
+		sigma_start = rotate_stress(sigma_start, -theta, simcoon::axis_theta);
+        F0 = rotate_mat(F0, -theta, simcoon::axis_theta);
+        F1 = rotate_mat(F1, -theta, simcoon::axis_theta);
+        U0 = rotate_mat(U0, -theta, simcoon::axis_theta);
+        U1 = rotate_mat(U1, -theta, simcoon::axis_theta);
+        R = rotate_mat(R, -theta, simcoon::axis_theta);
+        DR = rotate_mat(DR, -theta, simcoon::axis_theta);
 	}
-	if(fabs(psi) > sim_iota) {
-		Etot = rotate_strain(Etot, -psi, axis_psi);
-		DEtot = rotate_strain(DEtot, -psi, axis_psi);
-		etot = rotate_strain(etot, -psi, axis_psi);
-		Detot = rotate_strain(Detot, -psi, axis_psi);
-		PKII = rotate_stress(PKII, -psi, axis_psi);
-		PKII_start = rotate_stress(PKII_start, -psi, axis_psi);
-		tau = rotate_stress(tau, -psi, axis_psi);
-		tau_start = rotate_stress(tau_start, -psi, axis_psi);
-		sigma = rotate_stress(sigma, -psi, axis_psi);
-		sigma_start = rotate_stress(sigma_start, -psi, axis_psi);
-        F0 = rotate_mat(F0, -psi, axis_psi);
-        F1 = rotate_mat(F1, -psi, axis_psi);
-        U0 = rotate_mat(U0, -psi, axis_psi);
-        U1 = rotate_mat(U1, -psi, axis_psi);
-        R = rotate_mat(R, -psi, axis_psi);
-        DR = rotate_mat(DR, -psi, axis_psi);
+	if(fabs(psi) > simcoon::iota) {
+		Etot = rotate_strain(Etot, -psi, simcoon::axis_psi);
+		DEtot = rotate_strain(DEtot, -psi, simcoon::axis_psi);
+		etot = rotate_strain(etot, -psi, simcoon::axis_psi);
+		Detot = rotate_strain(Detot, -psi, simcoon::axis_psi);
+		PKII = rotate_stress(PKII, -psi, simcoon::axis_psi);
+		PKII_start = rotate_stress(PKII_start, -psi, simcoon::axis_psi);
+		tau = rotate_stress(tau, -psi, simcoon::axis_psi);
+		tau_start = rotate_stress(tau_start, -psi, simcoon::axis_psi);
+		sigma = rotate_stress(sigma, -psi, simcoon::axis_psi);
+		sigma_start = rotate_stress(sigma_start, -psi, simcoon::axis_psi);
+        F0 = rotate_mat(F0, -psi, simcoon::axis_psi);
+        F1 = rotate_mat(F1, -psi, simcoon::axis_psi);
+        U0 = rotate_mat(U0, -psi, simcoon::axis_psi);
+        U1 = rotate_mat(U1, -psi, simcoon::axis_psi);
+        R = rotate_mat(R, -psi, simcoon::axis_psi);
+        DR = rotate_mat(DR, -psi, simcoon::axis_psi);
 	}
     
 	return *this;
@@ -583,59 +583,59 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;    
     
-  	if(fabs(psi) > sim_iota) {
-		Etot = rotate_strain(Etot, psi, axis_psi);
-		DEtot = rotate_strain(DEtot, psi, axis_psi);
-		etot = rotate_strain(etot, psi, axis_psi);
-		Detot = rotate_strain(Detot, psi, axis_psi);
-		PKII = rotate_stress(PKII, psi, axis_psi);
-		PKII_start = rotate_stress(PKII_start, psi, axis_psi);
-		tau = rotate_stress(tau, psi, axis_psi);
-		tau_start = rotate_stress(tau_start, psi, axis_psi);
-		sigma = rotate_stress(sigma, psi, axis_psi);
-		sigma_start = rotate_stress(sigma_start, psi, axis_psi);
-        F0 = rotate_mat(F0, psi, axis_psi);
-        F1 = rotate_mat(F1, psi, axis_psi);
-        U0 = rotate_mat(U0, psi, axis_psi);
-        U1 = rotate_mat(U1, psi, axis_psi);
-        R = rotate_mat(R, psi, axis_psi);
-        DR = rotate_mat(DR, psi, axis_psi);
+  	if(fabs(psi) > simcoon::iota) {
+		Etot = rotate_strain(Etot, psi, simcoon::axis_psi);
+		DEtot = rotate_strain(DEtot, psi, simcoon::axis_psi);
+		etot = rotate_strain(etot, psi, simcoon::axis_psi);
+		Detot = rotate_strain(Detot, psi, simcoon::axis_psi);
+		PKII = rotate_stress(PKII, psi, simcoon::axis_psi);
+		PKII_start = rotate_stress(PKII_start, psi, simcoon::axis_psi);
+		tau = rotate_stress(tau, psi, simcoon::axis_psi);
+		tau_start = rotate_stress(tau_start, psi, simcoon::axis_psi);
+		sigma = rotate_stress(sigma, psi, simcoon::axis_psi);
+		sigma_start = rotate_stress(sigma_start, psi, simcoon::axis_psi);
+        F0 = rotate_mat(F0, psi, simcoon::axis_psi);
+        F1 = rotate_mat(F1, psi, simcoon::axis_psi);
+        U0 = rotate_mat(U0, psi, simcoon::axis_psi);
+        U1 = rotate_mat(U1, psi, simcoon::axis_psi);
+        R = rotate_mat(R, psi, simcoon::axis_psi);
+        DR = rotate_mat(DR, psi, simcoon::axis_psi);
 	}
-	if(fabs(theta) > sim_iota) {
-		Etot = rotate_strain(Etot, theta, axis_theta);
-		DEtot = rotate_strain(DEtot, theta, axis_theta);
-		etot = rotate_strain(etot, theta, axis_theta);
-		Detot = rotate_strain(Detot, theta, axis_theta);
-		PKII = rotate_stress(PKII, theta, axis_theta);
-		PKII_start = rotate_stress(PKII_start, theta, axis_theta);
-		tau = rotate_stress(tau, theta, axis_theta);
-		tau_start = rotate_stress(tau_start, theta, axis_theta);
-		sigma = rotate_stress(sigma, theta, axis_theta);
-		sigma_start = rotate_stress(sigma_start, theta, axis_theta);
-        F0 = rotate_mat(F0, theta, axis_theta);
-        F1 = rotate_mat(F1, theta, axis_theta);
-        U0 = rotate_mat(U0, theta, axis_theta);
-        U1 = rotate_mat(U1, theta, axis_theta);
-        R = rotate_mat(R, theta, axis_theta);
-        DR = rotate_mat(DR, theta, axis_theta);
+	if(fabs(theta) > simcoon::iota) {
+		Etot = rotate_strain(Etot, theta, simcoon::axis_theta);
+		DEtot = rotate_strain(DEtot, theta, simcoon::axis_theta);
+		etot = rotate_strain(etot, theta, simcoon::axis_theta);
+		Detot = rotate_strain(Detot, theta, simcoon::axis_theta);
+		PKII = rotate_stress(PKII, theta, simcoon::axis_theta);
+		PKII_start = rotate_stress(PKII_start, theta, simcoon::axis_theta);
+		tau = rotate_stress(tau, theta, simcoon::axis_theta);
+		tau_start = rotate_stress(tau_start, theta, simcoon::axis_theta);
+		sigma = rotate_stress(sigma, theta, simcoon::axis_theta);
+		sigma_start = rotate_stress(sigma_start, theta, simcoon::axis_theta);
+        F0 = rotate_mat(F0, theta, simcoon::axis_theta);
+        F1 = rotate_mat(F1, theta, simcoon::axis_theta);
+        U0 = rotate_mat(U0, theta, simcoon::axis_theta);
+        U1 = rotate_mat(U1, theta, simcoon::axis_theta);
+        R = rotate_mat(R, theta, simcoon::axis_theta);
+        DR = rotate_mat(DR, theta, simcoon::axis_theta);
 	}
-	if(fabs(phi) > sim_iota) {
-		Etot = rotate_strain(Etot, phi, axis_phi);
-		DEtot = rotate_strain(DEtot, phi, axis_phi);
-		etot = rotate_strain(etot, phi, axis_phi);
-		Detot = rotate_strain(Detot, phi, axis_phi);
-		PKII = rotate_stress(PKII, phi, axis_phi);
-		PKII_start = rotate_stress(PKII_start, phi, axis_phi);
-		tau = rotate_stress(tau, phi, axis_phi);
-		tau_start = rotate_stress(tau_start, phi, axis_phi);
-		sigma = rotate_stress(sigma, phi, axis_phi);
-		sigma_start = rotate_stress(sigma_start, phi, axis_phi);
-        F0 = rotate_mat(F0, phi, axis_phi);
-        F1 = rotate_mat(F1, phi, axis_phi);
-        U0 = rotate_mat(U0, phi, axis_phi);
-        U1 = rotate_mat(U1, phi, axis_phi);
-        R = rotate_mat(R, phi, axis_phi);
-        DR = rotate_mat(DR, phi, axis_phi);
+	if(fabs(phi) > simcoon::iota) {
+		Etot = rotate_strain(Etot, phi, simcoon::axis_phi);
+		DEtot = rotate_strain(DEtot, phi, simcoon::axis_phi);
+		etot = rotate_strain(etot, phi, simcoon::axis_phi);
+		Detot = rotate_strain(Detot, phi, simcoon::axis_phi);
+		PKII = rotate_stress(PKII, phi, simcoon::axis_phi);
+		PKII_start = rotate_stress(PKII_start, phi, simcoon::axis_phi);
+		tau = rotate_stress(tau, phi, simcoon::axis_phi);
+		tau_start = rotate_stress(tau_start, phi, simcoon::axis_phi);
+		sigma = rotate_stress(sigma, phi, simcoon::axis_phi);
+		sigma_start = rotate_stress(sigma_start, phi, simcoon::axis_phi);
+        F0 = rotate_mat(F0, phi, simcoon::axis_phi);
+        F1 = rotate_mat(F1, phi, simcoon::axis_phi);
+        U0 = rotate_mat(U0, phi, simcoon::axis_phi);
+        U1 = rotate_mat(U1, phi, simcoon::axis_phi);
+        R = rotate_mat(R, phi, simcoon::axis_phi);
+        DR = rotate_mat(DR, phi, simcoon::axis_phi);
     }
     
 	return *this;

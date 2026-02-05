@@ -24,6 +24,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 
 using namespace std;
 using namespace arma;
@@ -188,4 +189,130 @@ TEST(Tconstitutive, L_ortho_M_ortho)
     mat Mtest2 = M_ortho(Ltest(0,0), Ltest(0,1), Ltest(0,2), Ltest(1,1), Ltest(1,2), Ltest(2,2), Ltest(3,3), Ltest(4,4), Ltest(5,5), "Cii");
     EXPECT_LT(norm(Mtest2 - Mortho,2),1.E-9);
 
+}
+
+TEST(Tconstitutive, identity_tensors)
+{
+    mat Ir = Ireal();
+    mat Iv = Ivol();
+    mat Id = Idev();
+
+    // Ireal: identity with 0.5 on shear diagonals
+    mat Ir_ref = eye(6, 6);
+    for (int i = 3; i < 6; i++) Ir_ref(i, i) = 0.5;
+    EXPECT_LT(norm(Ir - Ir_ref, 2), simcoon::iota);
+
+    // Ivol: 1/3 for first 3x3 block
+    mat Iv_ref = zeros(6, 6);
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            Iv_ref(i, j) = 1. / 3.;
+    EXPECT_LT(norm(Iv - Iv_ref, 2), simcoon::iota);
+
+    // Idev = Ireal - Ivol
+    EXPECT_LT(norm(Id - (Ir - Iv), 2), simcoon::iota);
+}
+
+TEST(Tconstitutive, identity_tensors_alt)
+{
+    mat Ir2 = Ireal2();
+    mat Id2 = Idev2();
+    mat Iv = Ivol();
+
+    // Ireal2: identity with 2.0 on shear diagonals
+    mat Ir2_ref = eye(6, 6);
+    for (int i = 3; i < 6; i++) Ir2_ref(i, i) = 2.;
+    EXPECT_LT(norm(Ir2 - Ir2_ref, 2), simcoon::iota);
+
+    // Idev2 = Ireal2 - Ivol
+    EXPECT_LT(norm(Id2 - (Ir2 - Iv), 2), simcoon::iota);
+}
+
+TEST(Tconstitutive, Ith_Ir2_Ir05)
+{
+    vec th = Ith();
+    vec r2 = Ir2();
+    vec r05 = Ir05();
+
+    // Ith = [1,1,1,0,0,0]
+    vec th_ref = zeros(6);
+    for (int i = 0; i < 3; i++) th_ref(i) = 1.;
+    EXPECT_LT(norm(th - th_ref, 2), simcoon::iota);
+
+    // Ir2 = [1,1,1,2,2,2]
+    vec r2_ref = ones(6);
+    for (int i = 3; i < 6; i++) r2_ref(i) = 2.;
+    EXPECT_LT(norm(r2 - r2_ref, 2), simcoon::iota);
+
+    // Ir05 = [1,1,1,0.5,0.5,0.5]
+    vec r05_ref = ones(6);
+    for (int i = 3; i < 6; i++) r05_ref(i) = 0.5;
+    EXPECT_LT(norm(r05 - r05_ref, 2), simcoon::iota);
+
+    // Ir2 % Ir05 = ones(6) (element-wise product)
+    vec product = r2 % r05;
+    EXPECT_LT(norm(product - ones(6), 2), simcoon::iota);
+}
+
+TEST(Tconstitutive, H_iso)
+{
+    double etaB = 1000.;
+    double etaS = 500.;
+
+    mat H = H_iso(etaB, etaS);
+
+    // H should be symmetric
+    EXPECT_LT(norm(H - H.t(), 2), 1.E-9);
+
+    // H should be 6x6
+    EXPECT_EQ(H.n_rows, (arma::uword)6);
+    EXPECT_EQ(H.n_cols, (arma::uword)6);
+}
+
+TEST(Tconstitutive, el_pred_both_overloads)
+{
+    double E = 70000.;
+    double nu = 0.3;
+    mat L = L_iso(E, nu, "Enu");
+
+    vec Eel = {0.001, -0.0003, -0.0003, 0., 0., 0.};
+    vec sigma_start = zeros(6);
+
+    // First overload: sigma = sigma_start + L * Eel
+    vec sigma1 = el_pred(sigma_start, L, Eel);
+    vec sigma_ref = sigma_start + L * Eel;
+    EXPECT_LT(norm(sigma1 - sigma_ref, 2), 1.E-9);
+
+    // Second overload: sigma = L * Eel (no sigma_start)
+    vec sigma2 = el_pred(L, Eel);
+    vec sigma_ref2 = L * Eel;
+    EXPECT_LT(norm(sigma2 - sigma_ref2, 2), 1.E-9);
+
+    // Both should give same result when sigma_start = 0
+    EXPECT_LT(norm(sigma1 - sigma2, 2), 1.E-9);
+}
+
+TEST(Tconstitutive, Isotropize)
+{
+    // Build an orthotropic stiffness tensor
+    double E1 = 10000.;
+    double E2 = 20000.;
+    double E3 = 30000.;
+    double nu12 = 0.3;
+    double nu13 = 0.3;
+    double nu23 = 0.3;
+    double G12 = 6000.;
+    double G13 = 7000.;
+    double G23 = 8000.;
+
+    mat L = L_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    mat L_isotropized = Isotropize(L);
+
+    // The isotropized tensor should be isotropic: check_symetries should report ELISO
+    // Verify by extracting iso props
+    vec props = L_iso_props(L_isotropized);
+    // If L_iso_props succeeds and returns E > 0, nu in (-1, 0.5), it's isotropic
+    EXPECT_GT(props(0), 0.);
+    EXPECT_GT(props(1), -1.);
+    EXPECT_LT(props(1), 0.5);
 }

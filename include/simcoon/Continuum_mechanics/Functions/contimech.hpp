@@ -615,7 +615,7 @@ arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
                 BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
             }

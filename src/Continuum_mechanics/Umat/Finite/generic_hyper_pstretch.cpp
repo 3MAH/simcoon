@@ -25,6 +25,7 @@
 #include <armadillo>
 #include <math.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
@@ -66,7 +67,13 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     double dUdJ = 0.;
     double dU2dJ2 = 0.;
 
-    double J = det(F1);  
+    double J;
+    try {
+        J = det(F1);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside umat_generic_hyper_pstretch.");
+    }     
 
     vec dWdlambda_bar = zeros(3);
     mat dW2dlambda_bar2 = eye(3,3);    

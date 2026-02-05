@@ -26,6 +26,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
@@ -158,7 +159,7 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     if (mode == 2) {
         double sum_ = 0.;
         for(int k = 0 ; k < ninc ; k++){
-            inc_coef(k) =  cos(sim_pi+ (k+1)*2.*sim_pi/(ninc+1))+1.;
+            inc_coef(k) =  cos(simcoon::pi+ (k+1)*2.*simcoon::pi/(ninc+1))+1.;
             sum_ += inc_coef(k);
         }
         inc_coef = inc_coef*ninc/sum_;
@@ -307,7 +308,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     if (mode == 2) {
         double sum_ = 0.;
         for(int k = 0 ; k < ninc ; k++){
-            inc_coef(k) =  cos(sim_pi+ (k+1)*2.*sim_pi/(ninc+1))+1.;
+            inc_coef(k) =  cos(simcoon::pi+ (k+1)*2.*simcoon::pi/(ninc+1))+1.;
             sum_ += inc_coef(k);
         }
         inc_coef = inc_coef*ninc/sum_;
@@ -325,7 +326,12 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         }
 
         // Relative deformation over the step
-        arma::mat F_tilde = F_target * arma::inv(F_prev);
+        arma::mat F_prev_inv;
+        bool inv_success = arma::inv(F_prev_inv, F_prev);
+        if (!inv_success) {
+            throw simcoon::exception_solver("Singular deformation gradient F_prev in step_meca::generate_kin.");
+        }
+        arma::mat F_tilde = F_target * F_prev_inv;
 
         // Logarithm of total transformation
         arma::cx_mat logF = arma::logmat(F_tilde);

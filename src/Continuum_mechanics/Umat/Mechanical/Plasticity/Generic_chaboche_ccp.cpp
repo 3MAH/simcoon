@@ -224,7 +224,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     //Additional parameters and variables
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         for (int i=0; i<N_iso_hard; i++) {        
             dHpdp += b[i]*(Q[i]-Hp);
         }
@@ -321,10 +321,10 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = 0.;
             for (int i=0; i<N_iso_hard; i++) {        
                 dHpdp += b[i]*(Q[i]-Hp);

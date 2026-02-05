@@ -24,6 +24,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <math.h>
 #include <string.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 
 using namespace std;
@@ -384,7 +385,12 @@ mat M_ortho(const double &C11, const double &C12, const double &C13, const doubl
 	    L(4,4) = C55;
 	    L(5,5) = C66;
 		
-        M = inv(L);
+		try {
+			M = inv(L);
+		} catch (const std::runtime_error &e) {
+			cerr << "Error in inv: " << e.what() << endl;
+			throw simcoon::exception_inv("Error in inv function inside M_ortho.");
+		}     
 	}
     
     else if (conv == "EnuG") {

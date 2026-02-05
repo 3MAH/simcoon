@@ -3,11 +3,11 @@ Stress transfer library examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This example demonstrates the stress transfer helpers exposed in
-:mod:`simcoon.simmit`.
+:mod:`simcoon`.
 
 The goal is to show (in a single place) how to use:
 
-* :func:`simcoon.simmit.stress_convert` for stress-measure conversions
+* :func:`simcoon.stress_convert` for stress-measure conversions
 * the batch conventions expected by the Python bindings
 
 **Batch conventions**
@@ -34,7 +34,7 @@ special cases where some measures can accidentally coincide.
 
 from __future__ import annotations
 import numpy as np
-from simcoon import simmit as sim
+import simcoon as sim
 
 ###################################################################################
 # Helper: pretty printing

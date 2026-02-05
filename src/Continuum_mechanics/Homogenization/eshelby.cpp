@@ -281,13 +281,13 @@ mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3,
 	
 	for (int i=0; i<3; i++) {
 		for (int j=0; j<6; j++) {
-			S(i,j) = S(i,j)*(1./(8.*sim_pi));
+			S(i,j) = S(i,j)*(1./(8.*simcoon::pi));
 		}
 	}
 
 	for (int i=3; i<6; i++) {
 		for (int j=0; j<6; j++) {
-			S(i,j) = S(i,j)*(1./(4.*sim_pi));
+			S(i,j) = S(i,j)*(1./(4.*simcoon::pi));
 		}
 	}   
     return S;
@@ -377,13 +377,13 @@ mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, co
 	
 	for (int i=0; i<3; i++) {
 		for (int j=0; j<6; j++) {
-			T_II(i,j) = T_II(i,j)*(1./(8.*sim_pi));
+			T_II(i,j) = T_II(i,j)*(1./(8.*simcoon::pi));
 		}
 	}
     
 	for (int i=3; i<6; i++) {
 		for (int j=0; j<6; j++) {
-			T_II(i,j) = T_II(i,j)*(1./(4.*sim_pi));
+			T_II(i,j) = T_II(i,j)*(1./(4.*simcoon::pi));
 		}
 	}    
     return T_II;
@@ -404,7 +404,7 @@ void points(vec &x, vec &wx, vec &y, vec &wy, const int &mp, const int &np)
 {
     
 	double x1=0.;
-	double x2=2.*sim_pi;
+	double x2=2.*simcoon::pi;
 	int n=0;
 	int m=0;
 	double p1=0.;
@@ -433,10 +433,10 @@ void points(vec &x, vec &wx, vec &y, vec &wy, const int &mp, const int &np)
 		
 		//Loop over the desired roots
 		for (int i=1; i<=m; i++) {
-			z=cos(sim_pi*(i-0.25)/(n+0.5));
+			z=cos(simcoon::pi*(i-0.25)/(n+0.5));
 			z1=0.;
 
-			while(fabs(z-z1)>sim_iota) {
+			while(fabs(z-z1)>simcoon::iota) {
 				
 				p1 = 1.;
 				p2 = 0.;

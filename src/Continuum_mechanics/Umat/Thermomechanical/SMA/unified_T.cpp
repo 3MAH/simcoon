@@ -590,7 +590,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
         DETF += ds_j(0)*lambdaTF;
         DETR += -1.*ds_j(1)*lambdaTR;
-
+        
         if((Mises_strain(ET) > simcoon::precision_umat)&&(xi > simcoon::precision_umat))
         {
             ETMean = dev(ET) / (xi);

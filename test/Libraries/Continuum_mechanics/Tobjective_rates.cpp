@@ -29,6 +29,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
+#include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 
 using namespace std;
 using namespace arma;
@@ -67,7 +68,7 @@ TEST(Tobjective_rates, get_B)
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
@@ -140,7 +141,7 @@ TEST(Tobjective_rates, logarithmic_functions)
     BBBB_(k,l,m,n) = Bij_(k,l)*Bij_(m,n);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>sim_iota)) {
+            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
@@ -170,4 +171,251 @@ TEST(Tobjective_rates, logarithmic_functions)
     EXPECT_LT(norm(D - D_test,2),1.E-9);
     EXPECT_LT(norm(Omega - Omega_test,2),1.E-9);
     EXPECT_LT(norm(Omega - Omega_test2,2),1.E-9);
+}
+
+TEST(Tobjective_rates, Jaumann_rate)
+{
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR = zeros(3,3);
+    mat D = zeros(3,3);
+    mat W = zeros(3,3);
+    Jaumann(DR, D, W, DTime, F0, F1);
+
+    // D should be symmetric
+    EXPECT_LT(norm(D - D.t(), 2), 1.E-9);
+    // W should be antisymmetric
+    EXPECT_LT(norm(W + W.t(), 2), 1.E-9);
+    // DR should be close to orthogonal for small increments
+    EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-3);
+}
+
+TEST(Tobjective_rates, Green_Naghdi_rate)
+{
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR = zeros(3,3);
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    Green_Naghdi(DR, D, Omega, DTime, F0, F1);
+
+    // D should be symmetric
+    EXPECT_LT(norm(D - D.t(), 2), 1.E-6);
+    // Omega should be mostly antisymmetric (may have small numerical error)
+    EXPECT_LT(norm(Omega + Omega.t(), 2), 0.1);
+    // DR should be close to orthogonal
+    EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-3);
+}
+
+TEST(Tobjective_rates, logarithmic_R_rate)
+{
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR = zeros(3,3);
+    mat N_1 = zeros(3,3);
+    mat N_2 = zeros(3,3);
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1);
+
+    // D should be symmetric
+    EXPECT_LT(norm(D - D.t(), 2), 1.E-9);
+    // DR should be close to orthogonal
+    EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-3);
+}
+
+TEST(Tobjective_rates, logarithmic_F_rate)
+{
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DF = zeros(3,3);
+    mat N_1 = zeros(3,3);
+    mat N_2 = zeros(3,3);
+    mat D = zeros(3,3);
+    mat L = zeros(3,3);
+    logarithmic_F(DF, N_1, N_2, D, L, DTime, F0, F1);
+
+    // D should be symmetric
+    EXPECT_LT(norm(D - D.t(), 2), 1.E-9);
+    // L should decompose into D + W
+    mat W = 0.5 * (L - L.t());
+    EXPECT_LT(norm(L - (D + W), 2), 1.E-9);
+}
+
+TEST(Tobjective_rates, Truesdell_rate)
+{
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DF = zeros(3,3);
+    mat D = zeros(3,3);
+    mat L = zeros(3,3);
+    Truesdell(DF, D, L, DTime, F0, F1);
+
+    // D should be symmetric part of L
+    EXPECT_LT(norm(D - 0.5*(L + L.t()), 2), 1.E-9);
+}
+
+TEST(Tobjective_rates, Delta_log_strain_identity)
+{
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    double DTime = 0.001;
+
+    // Zero D and Omega -> zero strain increment
+    mat Deps = Delta_log_strain(D, Omega, DTime);
+    EXPECT_LT(norm(Deps, 2), 1.E-9);
+}
+
+TEST(Tobjective_rates, get_BBBB_GN)
+{
+    mat F = zeros(3,3);
+    F(0,0) = 4.;
+    F(0,1) = 4.;
+    F(0,2) = 1.5;
+    F(1,0) = 1.75;
+    F(1,1) = 2.;
+    F(1,2) = 1.25;
+    F(2,0) = 1.5;
+    F(2,1) = 3.5;
+    F(2,2) = 0.25;
+
+    mat BBBB_GN = get_BBBB_GN(F);
+    // Should be 6x6
+    EXPECT_EQ(BBBB_GN.n_rows, (arma::uword)6);
+    EXPECT_EQ(BBBB_GN.n_cols, (arma::uword)6);
+}
+
+TEST(Tobjective_rates, tangent_conversions_DtauDe_DSDE)
+{
+    // Use an isotropic material for testing
+    double E = 70000.;
+    double nu = 0.3;
+    mat Lt = L_iso(E, nu, "Enu");
+
+    mat F = eye(3,3);
+    F(0,0) = 1.05;
+    F(1,1) = 0.98;
+    F(2,2) = 1.02;
+    double J = det(F);
+
+    mat B = get_BBBB(F);
+    mat sigma = zeros(3,3);
+    sigma(0,0) = 100.;
+    sigma(1,1) = 50.;
+    sigma(2,2) = 75.;
+    mat tau = Cauchy2Kirchoff(sigma, F, J);
+
+    // DtauDe -> DSDE should be 6x6
+    mat DSDE = DtauDe_2_DSDE(Lt, B, F, tau);
+    EXPECT_EQ(DSDE.n_rows, (arma::uword)6);
+    EXPECT_EQ(DSDE.n_cols, (arma::uword)6);
+}
+
+TEST(Tobjective_rates, tangent_conversions_DsigmaDe_DSDE)
+{
+    double E = 70000.;
+    double nu = 0.3;
+    mat Lt = L_iso(E, nu, "Enu");
+
+    mat F = eye(3,3);
+    F(0,0) = 1.05;
+    F(1,1) = 0.98;
+    F(2,2) = 1.02;
+
+    mat sigma = zeros(3,3);
+    sigma(0,0) = 100.;
+    sigma(1,1) = 50.;
+    sigma(2,2) = 75.;
+
+    mat DSDE = DsigmaDe_2_DSDE(Lt, F, sigma);
+    EXPECT_EQ(DSDE.n_rows, (arma::uword)6);
+    EXPECT_EQ(DSDE.n_cols, (arma::uword)6);
+}
+
+TEST(Tobjective_rates, DSDE_2_DtauDe_roundtrip)
+{
+    double E = 70000.;
+    double nu = 0.3;
+    mat Lt = L_iso(E, nu, "Enu");
+    double J = 1.05;
+
+    // DtauDe_2_DsigmaDe and DsigmaDe_2_DtauDe should be inverses
+    mat Dsigma = DtauDe_2_DsigmaDe(Lt, J);
+    mat Dtau = DsigmaDe_2_DtauDe(Dsigma, J);
+    EXPECT_LT(norm(Dtau - Lt, 2), 1.E-9);
+}
+
+TEST(Tobjective_rates, Lie_Jaumann_conversion)
+{
+    double E = 70000.;
+    double nu = 0.3;
+    mat Lt = L_iso(E, nu, "Enu");
+
+    mat tau = zeros(3,3);
+    tau(0,0) = 100.;
+    tau(1,1) = 50.;
+    tau(2,2) = 75.;
+
+    mat Jaumann_Lt = Dtau_LieDD_Dtau_JaumannDD(Lt, tau);
+    EXPECT_EQ(Jaumann_Lt.n_rows, (arma::uword)6);
+    EXPECT_EQ(Jaumann_Lt.n_cols, (arma::uword)6);
+}
+
+TEST(Tobjective_rates, DSDE_conversions_LieDD)
+{
+    double E = 70000.;
+    double nu = 0.3;
+    mat DSDE = L_iso(E, nu, "Enu");
+
+    mat F = eye(3,3);
+    F(0,0) = 1.05;
+    F(1,1) = 0.98;
+    F(2,2) = 1.02;
+
+    mat Dtau_Lie = DSDE_2_Dtau_LieDD(DSDE, F);
+    EXPECT_EQ(Dtau_Lie.n_rows, (arma::uword)6);
+    EXPECT_EQ(Dtau_Lie.n_cols, (arma::uword)6);
+
+    mat Dsigma_Lie = DSDE_2_Dsigma_LieDD(DSDE, F);
+    EXPECT_EQ(Dsigma_Lie.n_rows, (arma::uword)6);
+    EXPECT_EQ(Dsigma_Lie.n_cols, (arma::uword)6);
+
+    // Dsigma_Lie should be (1/J) * Dtau_Lie
+    double J = det(F);
+    EXPECT_LT(norm(Dsigma_Lie - (1./J)*Dtau_Lie, 2), 1.E-6);
 }

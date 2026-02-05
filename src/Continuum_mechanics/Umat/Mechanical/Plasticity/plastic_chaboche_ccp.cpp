@@ -170,7 +170,7 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     //Additional parameters and variables
     double dHpdp=0.;
     
-    if (p > sim_iota)	{
+    if (p > simcoon::iota)	{
         dHpdp = b*(Q-Hp);
     }
     else {
@@ -223,10 +223,10 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     double error = 1.;
     
     //Loop
-    for (compteur = 0; ((compteur < maxiter_umat) && (error > precision_umat)); compteur++) {
+    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > sim_iota)	{
+        if (p > simcoon::iota)	{
             dHpdp = b*(Q-Hp);
         }
         else {

@@ -114,7 +114,7 @@ constexpr auto tau_iso_hyper_invariants = R"pbdoc(
     .. code-block:: python
 
         import numpy as np
-        from simcoon import simmit as sim
+        import simcoon as sim
 
         # Neo-Hookean material: W = (mu/2)(I1_bar - 3)
         # dW/dI1_bar = mu/2, dW/dI2_bar = 0
@@ -160,7 +160,7 @@ constexpr auto sigma_iso_hyper_invariants = R"pbdoc(
     .. code-block:: python
 
         import numpy as np
-        from simcoon import simmit as sim
+        import simcoon as sim
 
         # Neo-Hookean material: W = (mu/2)(I1_bar - 3)
         mu = 1000.0  # Shear modulus in Pa
@@ -204,7 +204,7 @@ constexpr auto tau_vol_hyper = R"pbdoc(
     .. code-block:: python
 
         import numpy as np
-        from simcoon import simmit as sim
+        import simcoon as sim
 
         # Volumetric penalty: U(J) = (kappa/2)(J-1)^2
         # dU/dJ = kappa(J-1)
@@ -250,7 +250,7 @@ constexpr auto sigma_vol_hyper = R"pbdoc(
     .. code-block:: python
 
         import numpy as np
-        from simcoon import simmit as sim
+        import simcoon as sim
 
         # Volumetric penalty: U(J) = (kappa/2)(J-1)^2
         # dU/dJ = kappa(J-1)
