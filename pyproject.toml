@@ -171,8 +171,9 @@ before-all = "brew install armadillo openblas ninja"
 # Build for arm64 only (native on Apple Silicon runners)
 archs = ["arm64"]
 
-# Deployment target (must match Homebrew library targets)
-environment = { MACOSX_DEPLOYMENT_TARGET = "15.0" }
+# Deployment target for Apple Silicon (arm64 started with macOS 11.0 Big Sur)
+# Using 14.0 for compatibility with macOS Sonoma and later
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 
 # delocate bundles shared libraries
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
