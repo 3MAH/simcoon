@@ -173,7 +173,7 @@ set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
 # Python dependencies (only if building Python bindings)
 if(BUILD_PYTHON_BINDINGS)
-  find_package(Python3 COMPONENTS Interpreter Development NumPy REQUIRED)
+  find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
   # Try to find carma from conda/system first
