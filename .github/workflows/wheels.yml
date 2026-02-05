@@ -7,6 +7,10 @@ on:
         description: 'Publish to TestPyPI'
         type: boolean
         default: false
+      publish_pypi:
+        description: 'Publish to PyPI'
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -111,13 +115,16 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   # =========================================================================
-  # Publish to PyPI (release tags only)
+  # Publish to PyPI (release tags OR manual trigger)
   # =========================================================================
   publish_pypi:
     name: Publish to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Logic: Run if it's a v* tag push OR if manually triggered via dispatch with checkbox
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true')
     environment:
       name: pypi
       url: https://pypi.org/p/simcoon
