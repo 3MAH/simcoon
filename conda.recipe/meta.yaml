@@ -1,4 +1,4 @@
-{% set version = load_file_regex('../pyproject.toml', '(?ms)^\\[project\\].*?^version\\s*=\\s*"([^"]+)"', from_recipe_dir=True).group(1) %}
+{% set version = load_file_regex(load_file='../pyproject.toml', regex_pattern='(?ms)^\\[project\\].*?^version\\s*=\\s*"([^"]+)"', from_recipe_dir=True).group(1) %}
 
 package:
   name: simcoon
