@@ -127,7 +127,6 @@ target_sources(simcoon PRIVATE
   Simulation/Maths/num_solve.cpp
   Simulation/Maths/random.cpp
   Simulation/Maths/rotation.cpp
-  Simulation/Maths/rotation_class.cpp
   Simulation/Maths/solve.cpp
   Simulation/Maths/stats.cpp
 
