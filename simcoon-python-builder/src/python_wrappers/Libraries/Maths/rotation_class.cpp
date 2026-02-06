@@ -6,7 +6,7 @@
 #include <carma>
 #include <armadillo>
 
-#include <simcoon/Simulation/Maths/rotation_class.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation_class.hpp>
 
 using namespace std;
@@ -514,52 +514,52 @@ void register_rotation_class(py::module_& m) {
                 Rotated compliance matrix: QE * M * QE^T
             )doc")
 
-        .def("apply_localization_strain",
+        .def("apply_strain_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> A, bool active) {
                 validate_matrix_size(A, 6, 6, "A");
                 mat A_cpp = carma::arr_to_mat(A);
-                mat result = self.apply_localization_strain(A_cpp, active);
+                mat result = self.apply_strain_concentration(A_cpp, active);
                 return carma::mat_to_arr(result);
             },
             py::arg("A"), py::arg("active") = true,
             R"doc(
-            Apply rotation to a 6x6 strain localization tensor.
+            Apply rotation to a 6x6 strain concentration tensor.
 
             Parameters
             ----------
             A : array_like
-                6x6 strain localization tensor in Voigt notation
+                6x6 strain concentration tensor in Voigt notation
             active : bool, optional
                 If True (default), active rotation
 
             Returns
             -------
             ndarray
-                Rotated strain localization tensor: QE * A * QS^T
+                Rotated strain concentration tensor: QE * A * QS^T
             )doc")
 
-        .def("apply_localization_stress",
+        .def("apply_stress_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> B, bool active) {
                 validate_matrix_size(B, 6, 6, "B");
                 mat B_cpp = carma::arr_to_mat(B);
-                mat result = self.apply_localization_stress(B_cpp, active);
+                mat result = self.apply_stress_concentration(B_cpp, active);
                 return carma::mat_to_arr(result);
             },
             py::arg("B"), py::arg("active") = true,
             R"doc(
-            Apply rotation to a 6x6 stress localization tensor.
+            Apply rotation to a 6x6 stress concentration tensor.
 
             Parameters
             ----------
             B : array_like
-                6x6 stress localization tensor in Voigt notation
+                6x6 stress concentration tensor in Voigt notation
             active : bool, optional
                 If True (default), active rotation
 
             Returns
             -------
             ndarray
-                Rotated stress localization tensor: QS * B * QE^T
+                Rotated stress concentration tensor: QS * B * QE^T
             )doc")
 
         // Operations
