@@ -120,12 +120,7 @@ mat fillR(const double &psi, const double &theta, const double &phi, const bool 
         R = R3*R2*R1;
     }
     else {
-        cout << "error in Simulation/Maths/rotation.cpp: please provide a consistent convention for Euler rotation, i.e. zxz or zyz. The by-default convention has been utilized (as defined in parameter.hpp)" << endl;
-        mat R1 = fillR(psi, simcoon::axis_psi, active);
-        mat R2 = fillR(theta, simcoon::axis_theta, active);
-        mat R3 = fillR(phi, simcoon::axis_phi, active);
-        
-        R = R3*R2*R1;
+        throw std::invalid_argument("error in Simulation/Maths/rotation.cpp: invalid Euler convention '" + conv + "'. Supported conventions: zxz, zyz, xyz, xzy, yxz, yzx, zxy, zyx, xyx, xzx, yxy, yzy, user");
     }
     
     return R;

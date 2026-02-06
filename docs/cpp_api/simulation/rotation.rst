@@ -142,7 +142,7 @@ The ``from_euler`` and ``as_euler`` methods support multiple conventions:
 
 .. code-block:: cpp
 
-   // Intrinsic ZXZ Euler angles (default in simcoon)
+   // Intrinsic ZXZ Euler angles
    Rotation r1 = Rotation::from_euler(psi, theta, phi, "zxz", true, false);
 
    // Extrinsic XYZ (aerospace convention)

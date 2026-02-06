@@ -25,8 +25,8 @@ Creating Rotations
    # Identity rotation (no rotation)
    r = smc.Rotation.identity()
 
-   # From Euler angles (default: zxz convention, intrinsic, radians)
-   r = smc.Rotation.from_euler(psi, theta, phi)
+   # From Euler angles (convention must be specified)
+   r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
 
    # From Euler angles with options
    r = smc.Rotation.from_euler(psi, theta, phi, conv="xyz", intrinsic=False, degrees=True)
@@ -279,7 +279,7 @@ Simcoon supports multiple Euler angle conventions:
 
 **Proper Euler angles** (axis sequence where first = last):
 
-- ``zxz`` (default in simcoon)
+- ``zxz``
 - ``zyz``
 - ``xyx``, ``xzx``
 - ``yxy``, ``yzy``
@@ -296,7 +296,7 @@ Simcoon supports multiple Euler angle conventions:
 
 .. code-block:: python
 
-   # Intrinsic ZXZ (simcoon default)
+   # Intrinsic ZXZ
    r1 = smc.Rotation.from_euler(psi, theta, phi, "zxz", intrinsic=True)
 
    # Extrinsic XYZ (aerospace convention)
