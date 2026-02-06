@@ -23,6 +23,7 @@
  */
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon {
@@ -147,7 +148,7 @@ namespace simcoon {
  * - Voce, E. (1948). "The relationship between stress and strain for homogeneous deformation." *J. Inst. Met.*, 74, 537-562.
  * - Barlat, F., et al. (2003). "Plane stress yield function for aluminum alloy sheets." *Int. J. Plasticity*, 19(9), 1297-1319.
  */
-void umat_plasticity_hill_isoh_CCP_N(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_plasticity_hill_isoh_CCP_N(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 /** @} */ // end of umat_mechanical group
 
