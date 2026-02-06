@@ -56,11 +56,8 @@ PYBIND11_MODULE(_core, m)
 {
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
-    // Create a Python-visible base exception for all simcoon errors.
-    // Using simcoon::simcoon_error (not std::runtime_error) so that the global
-    // pybind11 exception translator only catches simcoon exceptions, not those
-    // from other pybind11 modules like matplotlib's ft2font.
-    py::object SimcoonError = py::register_exception<simcoon::simcoon_error>(m, "SimcoonError", PyExc_RuntimeError);
+    // Create a Python-visible base exception for all your custom errors
+    py::object SimcoonError = py::register_exception<std::runtime_error>(m, "SimcoonError", PyExc_RuntimeError);
 
     // Register the exception translator
     py::register_exception<simcoon::exception_eig_sym>(m, "CppExceptionEigSym", SimcoonError.ptr());
