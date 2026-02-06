@@ -2,7 +2,7 @@ The Rotation Library
 ====================
 
 The rotation library provides comprehensive tools for 3D rotations in continuum mechanics.
-Simcoon 2.0 introduces a powerful ``Rotation`` class alongside the existing rotation functions.
+The ``Rotation`` class provides a powerful object-oriented interface for all rotation operations.
 
 .. contents:: Contents
    :local:
@@ -301,55 +301,6 @@ Simcoon supports multiple Euler angle conventions:
 
    # Extrinsic XYZ (aerospace convention)
    r2 = smc.Rotation.from_euler(roll, pitch, yaw, "xyz", intrinsic=False)
-
-Rotation Free Functions
------------------------
-
-The following functions provide direct rotation operations without creating a ``Rotation`` object.
-
-Vector and Matrix Rotation
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.rotate_vec_R
-
-.. autofunction:: simcoon.rotate_vec_angle
-
-.. autofunction:: simcoon.rotate_mat_R
-
-.. autofunction:: simcoon.rotate_mat_angle
-
-Stress and Strain Rotation
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.rotate_stress_angle
-
-.. autofunction:: simcoon.rotate_stress_R
-
-.. autofunction:: simcoon.rotate_strain_angle
-
-.. autofunction:: simcoon.rotate_strain_R
-
-Stiffness and Compliance Rotation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.rotate_stiffness_angle
-
-.. autofunction:: simcoon.rotate_stiffness_R
-
-.. autofunction:: simcoon.rotate_compliance_angle
-
-.. autofunction:: simcoon.rotate_compliance_R
-
-Strain and Stress Concentration Tensor Rotation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.rotate_strain_concentration_angle
-
-.. autofunction:: simcoon.rotate_strain_concentration_R
-
-.. autofunction:: simcoon.rotate_stress_concentration_angle
-
-.. autofunction:: simcoon.rotate_stress_concentration_R
 
 Practical Examples
 ------------------

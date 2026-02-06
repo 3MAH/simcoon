@@ -3,8 +3,8 @@ The Rotation Module
 ==================
 
 The Rotation module provides comprehensive tools for 3D rotations in continuum mechanics
-applications. It includes both a modern **Rotation class** (inspired by ``scipy.spatial.transform.Rotation``)
-and **free functions** for tensor rotation in Voigt notation.
+applications. It provides a modern **Rotation class** (inspired by ``scipy.spatial.transform.Rotation``)
+for all rotation operations including tensor rotation in Voigt notation.
 
 .. contents:: Table of Contents
    :local:
@@ -21,8 +21,7 @@ unit quaternions as the internal representation. This design provides:
 - **Multiple representations**: Easy conversion between quaternions, matrices, Euler angles, and rotation vectors
 - **Voigt notation support**: Direct application to stress/strain tensors and stiffness/compliance matrices
 
-The existing free functions are preserved for backward compatibility and provide direct
-operations on matrices and vectors.
+The C++ free functions remain available for direct operations on matrices and vectors.
 
 The Rotation Class
 ==================
@@ -237,8 +236,8 @@ Operations
 Rotation Free Functions
 =======================
 
-The following free functions provide direct rotation operations without creating a ``Rotation``
-object. They are preserved for backward compatibility and direct matrix operations.
+The following C++ free functions provide direct rotation operations without creating a ``Rotation``
+object. They are used internally and available in the C++ API.
 
 Vector and Matrix Rotation
 --------------------------
@@ -300,43 +299,6 @@ Strain and Stress Concentration Tensor Rotation
 .. doxygenfunction:: simcoon::rotate_stress_concentration(const arma::mat&, const arma::mat&, const bool&)
    :project: simcoon
 
-Python Functions
-================
-
-The following functions are available in Python for direct rotation operations:
-
-.. autofunction:: simcoon.rotate_vec_R
-
-.. autofunction:: simcoon.rotate_vec_angle
-
-.. autofunction:: simcoon.rotate_mat_R
-
-.. autofunction:: simcoon.rotate_mat_angle
-
-.. autofunction:: simcoon.rotate_stress_angle
-
-.. autofunction:: simcoon.rotate_stress_R
-
-.. autofunction:: simcoon.rotate_strain_angle
-
-.. autofunction:: simcoon.rotate_strain_R
-
-.. autofunction:: simcoon.rotate_stiffness_angle
-
-.. autofunction:: simcoon.rotate_stiffness_R
-
-.. autofunction:: simcoon.rotate_compliance_angle
-
-.. autofunction:: simcoon.rotate_compliance_R
-
-.. autofunction:: simcoon.rotate_strain_concentration_angle
-
-.. autofunction:: simcoon.rotate_strain_concentration_R
-
-.. autofunction:: simcoon.rotate_stress_concentration_angle
-
-.. autofunction:: simcoon.rotate_stress_concentration_R
-
 Examples
 ========
 
@@ -356,13 +318,9 @@ Rotating material properties from local to global coordinates:
    # Material orientation: Euler angles (radians)
    psi, theta, phi = 0.5, 0.3, 0.7
 
-   # Method 1: Using Rotation class
+   # Using Rotation class
    r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
    L_global = r.apply_stiffness(L_local)
-
-   # Method 2: Using free function with rotation matrix
-   R = smc.Rotation.from_euler(psi, theta, phi, "zxz").as_matrix()
-   L_global = smc.rotate_stiffness_R(L_local, R)
 
 Example 2: Stress Transformation
 --------------------------------

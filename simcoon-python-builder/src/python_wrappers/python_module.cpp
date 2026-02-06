@@ -19,7 +19,6 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation_class.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
@@ -46,7 +45,6 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_hyperelastic.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
-#include <simcoon/docs/Libraries/Maths/doc_rotation.hpp>
 
 using namespace std;
 using namespace arma;
@@ -209,24 +207,6 @@ PYBIND11_MODULE(_core, m)
     m.def("Eshelby_penny", &Eshelby_penny, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_penny);
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
-
-    // Register the rotation library
-    m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a = true, simcoon_docs::rotate_vec_R);
-    m.def("rotate_vec_angle", &rotate_vec_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, simcoon_docs::rotate_vec_angle);
-    m.def("rotate_mat_R", &rotate_mat_R, "input"_a, "R"_a, "copy"_a = true, simcoon_docs::rotate_mat_R);
-    m.def("rotate_mat_angle", &rotate_mat_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, simcoon_docs::rotate_mat_angle);
-    m.def("rotate_stiffness_angle", &rotate_stiffness_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 stiffness matrix according to an angle and an axis");
-    m.def("rotate_stiffness_R", &rotate_stiffness_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 stiffness matrix according to a rotation matrix");
-    m.def("rotate_compliance_angle", &rotate_compliance_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 compliance matrix according to an angle and an axis");
-    m.def("rotate_compliance_R", &rotate_compliance_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 compliance matrix according to a rotation matrix");
-    m.def("rotate_strain_concentration_angle", &rotate_strain_concentration_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 strain concentration tensor according to an angle and an axis");
-    m.def("rotate_strain_concentration_R", &rotate_strain_concentration_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 strain concentration tensor according to a rotation matrix");
-    m.def("rotate_stress_concentration_angle", &rotate_stress_concentration_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 stress concentration tensor according to an angle and an axis");
-    m.def("rotate_stress_concentration_R", &rotate_stress_concentration_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6x6 stress concentration tensor according to a rotation matrix");
-    m.def("rotate_strain_angle", &rotate_strain_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = false, "Return the rotated strain vector using Voigt notation according to an angle and an axis");
-    m.def("rotate_strain_R", &rotate_strain_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = false, "Return the rotated strain vector using Voigt notation according to a rotation matrix");
-    m.def("rotate_stress_angle", &rotate_stress_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = false, "Return the rotated stress vector using Voigt notation according to an angle and an axis");
-    m.def("rotate_stress_R", &rotate_stress_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = false, "Return the rotated stress vector using Voigt notation according to a rotation matrix");
 
     // Register the Rotation class
     register_rotation_class(m);

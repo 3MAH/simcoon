@@ -19,56 +19,56 @@ v = np.array([1.0, 0.0, 0.0])
 m = np.eye(3)
 angle = np.pi / 4  # 45 degrees
 axis = 2  # y-axis (1=x, 2=y, 3=z)
-copy = True
 active = True
 
 
 # %%
-# 1. Rotate a vector using a rotation matrix
+# 1. Rotate a vector using the Rotation class
 #
-# This example shows how to build a rotation matrix using the Rotation class
-# and rotate a vector.
-# It uses :class:`simcoon.Rotation` and :func:`simcoon.rotate_vec_R`.
+# This example shows how to build a rotation from an angle and axis
+# and rotate a vector using :meth:`simcoon.Rotation.apply`.
 
 
 rot = sim.Rotation.from_axis_angle(angle, axis)
 Rmat = rot.as_matrix()
-v_rot1 = sim.rotate_vec_R(v, Rmat, copy)
-print("Rotated vector (using R):", v_rot1)
-print("Rotation matrix (using R):", Rmat)
+v_rot1 = rot.apply(v)
+print("Rotated vector:", v_rot1)
+print("Rotation matrix:", Rmat)
 
 
 # %%
-# 2. Rotate a vector using angle/axis
+# 2. Rotate a vector using a different constructor
 #
-# This example shows how to rotate a vector using an angle and an axis directly.
-# It uses :func:`simcoon.rotate_vec_angle`.
+# This example shows how to create a rotation from Euler angles
+# and rotate a vector using :meth:`simcoon.Rotation.apply`.
 
 
-v_rot2 = sim.rotate_vec_angle(v, angle, axis, copy)
-print("Rotated vector (using angle/axis):", v_rot2)
+rot2 = sim.Rotation.from_axis_angle(angle, axis)
+v_rot2 = rot2.apply(v)
+print("Rotated vector:", v_rot2)
 
 
 # %%
-# 3. Rotate a matrix using a rotation matrix
+# 3. Rotate a matrix (3x3 tensor)
 #
-# This example shows how to rotate a matrix using a rotation matrix.
-# It uses :func:`simcoon.rotate_mat_R`.
+# This example shows how to rotate a 3x3 tensor using
+# :meth:`simcoon.Rotation.apply_tensor`.
 
 
-m_rot1 = sim.rotate_mat_R(m, Rmat, copy)
-print("Rotated matrix (using R):\n", m_rot1)
+m_rot1 = rot.apply_tensor(m)
+print("Rotated matrix:\n", m_rot1)
 
 
 # %%
-# 4. Rotate a matrix using angle/axis
+# 4. Rotate a matrix using a rotation from Euler angles
 #
-# This example shows how to rotate a matrix using an angle and an axis directly.
-# It uses :func:`simcoon.rotate_mat_angle`.
+# This example shows how to rotate a matrix using a rotation
+# created from Euler angles.
 
 
-m_rot2 = sim.rotate_mat_angle(m, angle, axis, copy)
-print("Rotated matrix (using angle/axis):\n", m_rot2)
+rot_euler = sim.Rotation.from_axis_angle(angle, axis)
+m_rot2 = rot_euler.apply_tensor(m)
+print("Rotated matrix:\n", m_rot2)
 
 
 # %%
@@ -90,81 +90,63 @@ print("Rotation matrix from Euler angles (zxz):\n", R_euler)
 
 
 # %%
-# 6. Rotate a stress vector (single and batch)
+# 6. Rotate a stress vector
 #
-# This example uses :func:`simcoon.rotate_stress_angle`.
+# This example uses :meth:`simcoon.Rotation.apply_stress`.
 
 stress = np.array([1, 2, 3, 4, 5, 6], dtype=float)
-stress_batch = np.stack([stress, stress * 2], axis=1)
-rot_stress1 = sim.rotate_stress_angle(stress, angle, axis, active, copy)
-rot_stress2 = sim.rotate_stress_angle(stress_batch, angle, axis, active, copy)
-print("Rotated stress (single):", rot_stress1)
-print("Rotated stress (batch):\n", rot_stress2)
+rot_stress1 = rot.apply_stress(stress, active)
+print("Rotated stress:", rot_stress1)
 
 
 # %%
-# 7. Rotate a strain vector (single and batch)
+# 7. Rotate a strain vector
 #
-# This example uses :func:`simcoon.rotate_strain_angle`.
+# This example uses :meth:`simcoon.Rotation.apply_strain`.
 
 strain = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], dtype=float)
-strain_batch = np.stack([strain, strain * 2], axis=1)
-rot_strain1 = sim.rotate_strain_angle(strain, angle, axis, active, copy)
-rot_strain2 = sim.rotate_strain_angle(strain_batch, angle, axis, active, copy)
-print("Rotated strain (single):", rot_strain1)
-print("Rotated strain (batch):\n", rot_strain2)
+rot_strain1 = rot.apply_strain(strain, active)
+print("Rotated strain:", rot_strain1)
 
 
 # %%
 # 8. Rotate a stiffness matrix (L)
 #
-# This example uses both :func:`simcoon.rotate_stiffness_angle` and
-# :func:`simcoon.rotate_stiffness_R`.
+# This example uses :meth:`simcoon.Rotation.apply_stiffness`.
 
 L6 = np.eye(6)
-rotL1 = sim.rotate_stiffness_angle(L6, angle, axis, active, copy)
-rotL2 = sim.rotate_stiffness_R(L6, Rmat, active, copy)
-print("Rotated L (angle):\n", rotL1)
-print("Rotated L (R):\n", rotL2)
+rotL1 = rot.apply_stiffness(L6, active)
+print("Rotated L:\n", rotL1)
 
 
 # %%
 # 9. Rotate a compliance matrix (M)
 #
-# This example uses both :func:`simcoon.rotate_compliance_angle` and
-# :func:`simcoon.rotate_compliance_R`.
+# This example uses :meth:`simcoon.Rotation.apply_compliance`.
 
 M6 = np.eye(6)
-rotM1 = sim.rotate_compliance_angle(M6, angle, axis, active, copy)
-rotM2 = sim.rotate_compliance_R(M6, Rmat, active, copy)
-print("Rotated M (angle):\n", rotM1)
-print("Rotated M (R):\n", rotM2)
+rotM1 = rot.apply_compliance(M6, active)
+print("Rotated M:\n", rotM1)
 
 
 # %%
 # 10. Rotate a strain concentration tensor (A)
 #
-# This example uses both :func:`simcoon.rotate_strain_concentration_angle` and
-# :func:`simcoon.rotate_strain_concentration_R`.
+# This example uses :meth:`simcoon.Rotation.apply_strain_concentration`.
 
 A6 = np.eye(6)
-rotA1 = sim.rotate_strain_concentration_angle(A6, angle, axis, active, copy)
-rotA2 = sim.rotate_strain_concentration_R(A6, Rmat, active, copy)
-print("Rotated A (angle):\n", rotA1)
-print("Rotated A (R):\n", rotA2)
+rotA1 = rot.apply_strain_concentration(A6, active)
+print("Rotated A:\n", rotA1)
 
 
 # %%
 # 11. Rotate a stress concentration tensor (B)
 #
-# This example uses both :func:`simcoon.rotate_stress_concentration_angle` and
-# :func:`simcoon.rotate_stress_concentration_R`.
+# This example uses :meth:`simcoon.Rotation.apply_stress_concentration`.
 
 B6 = np.eye(6)
-rotB1 = sim.rotate_stress_concentration_angle(B6, angle, axis, active, copy)
-rotB2 = sim.rotate_stress_concentration_R(B6, Rmat, active, copy)
-print("Rotated B (angle):\n", rotB1)
-print("Rotated B (R):\n", rotB2)
+rotB1 = rot.apply_stress_concentration(B6, active)
+print("Rotated B:\n", rotB1)
 
 
 # %%
@@ -187,12 +169,8 @@ print(x)
 
 alpha = np.pi / 4.0
 
-rot_matrix = np.array(
-    [[np.cos(alpha), -np.sin(alpha), 0.0], [np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]]
-)
+rot_z = sim.Rotation.from_axis_angle(alpha, 3)
 
-L_rotate = sim.rotate_stiffness_R(L, rot_matrix)
-L_rotate_angle = sim.rotate_stiffness_angle(L, alpha, axis=3)
+L_rotate = rot_z.apply_stiffness(L)
 
 print(np.array_str(L_rotate, suppress_small=True))
-print(np.array_str(L_rotate_angle, suppress_small=True))
