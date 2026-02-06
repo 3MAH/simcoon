@@ -6,8 +6,8 @@ channels:
 
 dependencies:
   - pkg-config
-  - libblas * *netlib
-  - liblapack * *netlib
+  - libblas * *mkl
+  - liblapack * *mkl
   - cmake>=3.30
   - python
   - numpy>=1.24
