@@ -50,7 +50,7 @@ pybind11_add_module(_core
 
   # Maths
   src/python_wrappers/Libraries/Maths/lagrange.cpp
-  src/python_wrappers/Libraries/Maths/rotation_class.cpp
+  src/python_wrappers/Libraries/Maths/rotation.cpp
 
   # Solver
   src/python_wrappers/Libraries/Solver/read.cpp

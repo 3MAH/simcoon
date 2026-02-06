@@ -7,7 +7,7 @@
 #include <armadillo>
 
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/python_wrappers/Libraries/Maths/rotation_class.hpp>
+#include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 
 using namespace std;
 using namespace arma;
@@ -40,7 +40,7 @@ namespace {
     }
 } // anonymous namespace
 
-void register_rotation_class(py::module_& m) {
+void register_rotation(py::module_& m) {
     py::class_<simcoon::Rotation>(m, "Rotation",
         R"doc(
         A class representing 3D rotations using unit quaternions.
