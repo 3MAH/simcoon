@@ -62,8 +62,8 @@ jobs:
           - os: ubuntu-24.04-arm
             cibw_archs: "aarch64"
 
-          # macOS Apple Silicon only (use macos-14 for MACOSX_DEPLOYMENT_TARGET=14.0 compatibility)
-          - os: macos-14
+          # macOS Apple Silicon only
+          - os: macos-latest
             cibw_archs: "arm64"
 
           # Windows x64
