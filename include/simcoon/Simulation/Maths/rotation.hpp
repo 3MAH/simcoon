@@ -103,15 +103,16 @@ arma::mat fillR(const double &angle, const int &axis, const bool &active = true)
  * @param psi First Euler angle in radians (double)
  * @param theta Second Euler angle in radians (double)
  * @param phi Third Euler angle in radians (double)
- * @param active If true (default), active (alibi) rotation; if false, passive (alias) rotation (bool)
- * @param conv The Euler angle convention: "zxz" (default), "zyz", "xyz", etc. Use "user" for custom convention (std::string)
+ * @param active If true, active (alibi) rotation; if false, passive (alias) rotation (bool)
+ * @param conv The Euler angle convention: "zxz", "zyz", "xyz", "xzy", "yxz", "yzx", "zxy", "zyx",
+ *             "xyx", "xzx", "yxy", "yzy", or "user" (std::string)
  * @return The 3x3 rotation matrix (arma::mat)
  * @details Example:
  * @code
  *      mat R = fillR(M_PI/4., M_PI/6., M_PI/3., true, "zxz");
  * @endcode
  */
-arma::mat fillR(const double &psi, const double &theta, const double &phi, const bool &active = true, const std::string &conv = "zxz");
+arma::mat fillR(const double &psi, const double &theta, const double &phi, const bool &active, const std::string &conv);
     
 /**
  * @brief Generates a 6x6 rotation matrix for stress tensors in Voigt notation.

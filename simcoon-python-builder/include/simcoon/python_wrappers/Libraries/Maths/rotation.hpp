@@ -19,8 +19,8 @@ pybind11::array_t<double> rotate_mat_angle(const pybind11::array_t<double> &inpu
 //This function returns the 3*3 rotation matrix according to an angle, an axis and depending if it is active or passive rotation
 pybind11::array_t<double> fillR_angle(const double &angle, const int &axis, const bool &active=true, const bool &copy=true);
     
-//This function returns the 3*3 rotation matrix according to the three Euler angles, depending if it is active or passive rotation and the Euler convention (ex :"zxz")
-pybind11::array_t<double> fillR_euler(const double &psi, const double &theta, const double &phi, const bool &active=true, const std::string &conv="zxz", const bool &copy=true);
+//This function returns the 3*3 rotation matrix according to the three Euler angles, depending if it is active or passive rotation and the Euler convention (ex: "zxz", "xyz", "zyz", etc.)
+pybind11::array_t<double> fillR_euler(const double &psi, const double &theta, const double &phi, const bool &active, const std::string &conv, const bool &copy=true);
     
 //This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from an angle and an axis
 pybind11::array_t<double> fillQS_angle(const double &angle, const int &axis, const bool &active=true, const bool &copy=true);

@@ -145,7 +145,7 @@ public:
      * @return Rotation object
      */
     static Rotation from_euler(double psi, double theta, double phi,
-                               const std::string& conv = "zxz",
+                               const std::string& conv,
                                bool intrinsic = true, bool degrees = false);
 
     /**
@@ -157,7 +157,7 @@ public:
      * @return Rotation object
      */
     static Rotation from_euler(const arma::vec::fixed<3>& angles,
-                               const std::string& conv = "zxz",
+                               const std::string& conv,
                                bool intrinsic = true, bool degrees = false);
 
     /**
@@ -214,7 +214,7 @@ public:
      * @param degrees If true, return angles in degrees
      * @return 3-element vector of Euler angles [psi, theta, phi]
      */
-    arma::vec::fixed<3> as_euler(const std::string& conv = "zxz",
+    arma::vec::fixed<3> as_euler(const std::string& conv,
                                   bool intrinsic = true, bool degrees = false) const;
 
     /**

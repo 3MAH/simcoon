@@ -127,7 +127,7 @@ void register_rotation_class(py::module_& m) {
             py::overload_cast<double, double, double, const string&, bool, bool>(
                 &simcoon::Rotation::from_euler),
             py::arg("psi"), py::arg("theta"), py::arg("phi"),
-            py::arg("conv") = "zxz", py::arg("intrinsic") = true, py::arg("degrees") = false,
+            py::arg("conv"), py::arg("intrinsic") = true, py::arg("degrees") = false,
             R"doc(
             Create rotation from Euler angles.
 
@@ -139,9 +139,9 @@ void register_rotation_class(py::module_& m) {
                 Second Euler angle
             phi : float
                 Third Euler angle
-            conv : str, optional
+            conv : str
                 Euler angle convention: "zxz", "zyz", "xyz", "xzy", "yxz", "yzx", "zxy", "zyx",
-                "xyx", "xzx", "yxy", "yzy", or "user". Default is "zxz".
+                "xyx", "xzx", "yxy", "yzy", or "user".
             intrinsic : bool, optional
                 If True (default), intrinsic rotations (rotating frame);
                 if False, extrinsic rotations (fixed frame)
@@ -292,14 +292,15 @@ void register_rotation_class(py::module_& m) {
             [](const simcoon::Rotation& self, const string& conv, bool intrinsic, bool degrees) {
                 return carma::col_to_arr(vec(self.as_euler(conv, intrinsic, degrees)));
             },
-            py::arg("conv") = "zxz", py::arg("intrinsic") = true, py::arg("degrees") = false,
+            py::arg("conv"), py::arg("intrinsic") = true, py::arg("degrees") = false,
             R"doc(
             Get rotation as Euler angles.
 
             Parameters
             ----------
-            conv : str, optional
-                Euler angle convention. Default is "zxz".
+            conv : str
+                Euler angle convention: "zxz", "zyz", "xyz", "xzy", "yxz", "yzx", "zxy", "zyx",
+                "xyx", "xzx", "yxy", "yzy", or "user".
             intrinsic : bool, optional
                 If True (default), return intrinsic angles; if False, extrinsic
             degrees : bool, optional

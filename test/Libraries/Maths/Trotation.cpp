@@ -129,7 +129,7 @@ TEST(Trotation, rotation)
     assert(axis_theta == 1);
     assert(axis_phi == 3);
 
-    mat Rp2 = fillR(psi,theta,phi);
+    mat Rp2 = fillR(psi,theta,phi, true, "user");
     mat Rp3 = fillR(psi,theta,phi, true, "zxz");
     
     mat a1 = rotate_mat(a, R);

@@ -46,6 +46,7 @@
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_hyperelastic.hpp>
 
 #include <simcoon/docs/Libraries/Homogenization/doc_eshelby.hpp>
+#include <simcoon/docs/Libraries/Maths/doc_rotation.hpp>
 
 using namespace std;
 using namespace arma;
@@ -210,16 +211,16 @@ PYBIND11_MODULE(_core, m)
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
 
     // Register the rotation library
-    m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a = true, "This function returns a rotated vector (3) according to a rotation matrix");
-    m.def("rotate_vec_angle", &rotate_vec_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, "This function returns a rotated vector (3) according to an angle and an axis");
-    m.def("rotate_mat_R", &rotate_mat_R, "input"_a, "R"_a, "copy"_a = true, "This function returns a rotated matrix (3x3) according to a rotation matrix");
-    m.def("rotate_mat_angle", &rotate_mat_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, "This function returns a rotated matrix (3x3) according to an angle and an axis");
-    m.def("fillR_angle", &fillR_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 3*3 rotation matrix according to an angle, an axis and depending if it is active or passive rotation");
-    m.def("fillR_euler", &fillR_euler, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "conv"_a = "zxz", "copy"_a = true, "This function returns the 3*3 rotation matrix according to the three Euler angles, depending if it is active or passive rotation and the Euler convention (ex :zxz)");
-    m.def("fillQS_angle", &fillQS_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from an angle and an axis");
-    m.def("fillQS_R", &fillQS_R, "R"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from a rotation matrix");
-    m.def("fillQE_angle", &fillQE_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from an angle and an axis");
-    m.def("fillQE_R", &fillQE_R, "R"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from a rotation matrix");
+    m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a = true, simcoon_docs::rotate_vec_R);
+    m.def("rotate_vec_angle", &rotate_vec_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, simcoon_docs::rotate_vec_angle);
+    m.def("rotate_mat_R", &rotate_mat_R, "input"_a, "R"_a, "copy"_a = true, simcoon_docs::rotate_mat_R);
+    m.def("rotate_mat_angle", &rotate_mat_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, simcoon_docs::rotate_mat_angle);
+    m.def("fillR_angle", &fillR_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, simcoon_docs::fillR_angle);
+    m.def("fillR_euler", &fillR_euler, "psi"_a, "theta"_a, "phi"_a, "active"_a, "conv"_a, "copy"_a = true, simcoon_docs::fillR_euler);
+    m.def("fillQS_angle", &fillQS_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, simcoon_docs::fillQS_angle);
+    m.def("fillQS_R", &fillQS_R, "R"_a, "active"_a = true, "copy"_a = true, simcoon_docs::fillQS_R);
+    m.def("fillQE_angle", &fillQE_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, simcoon_docs::fillQE_angle);
+    m.def("fillQE_R", &fillQE_R, "R"_a, "active"_a = true, "copy"_a = true, simcoon_docs::fillQE_R);
     m.def("rotateL_angle", &rotateL_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stiffness matrix according to an angle and an axis");
     m.def("rotateL_R", &rotateL_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stiffness matrix according to a rotation matrix");
     m.def("rotate_l2g_L", &rotate_l2g_L, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 stiffness matrix from local to global frame");
