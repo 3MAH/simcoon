@@ -35,7 +35,7 @@ C++ API
 
 .. code-block:: cpp
 
-   #include <simcoon/Simulation/Maths/rotation_class.hpp>
+   #include <simcoon/Simulation/Maths/rotation.hpp>
 
    using namespace simcoon;
 
@@ -202,10 +202,10 @@ Apply Methods
      - Rotate 6×6 stiffness matrix: QS·L·QS\ :sup:`T`
    * - ``apply_compliance(M, active)``
      - Rotate 6×6 compliance matrix: QE·M·QE\ :sup:`T`
-   * - ``apply_localization_strain(A, active)``
-     - Rotate 6×6 strain localization tensor: QE·A·QS\ :sup:`T`
-   * - ``apply_localization_stress(B, active)``
-     - Rotate 6×6 stress localization tensor: QS·B·QE\ :sup:`T`
+   * - ``apply_strain_concentration(A, active)``
+     - Rotate 6×6 strain concentration tensor: QE·A·QS\ :sup:`T`
+   * - ``apply_stress_concentration(B, active)``
+     - Rotate 6×6 stress concentration tensor: QS·B·QE\ :sup:`T`
 
 The ``active`` parameter controls whether the rotation is **active** (alibi, rotating the object)
 or **passive** (alias, rotating the coordinate system).
@@ -240,32 +240,6 @@ Rotation Free Functions
 The following free functions provide direct rotation operations without creating a ``Rotation``
 object. They are preserved for backward compatibility and direct matrix operations.
 
-Rotation Matrix Generation
---------------------------
-
-.. doxygenfunction:: simcoon::fillR(const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::fillR(const double&, const double&, const double&, const bool&, const std::string&)
-   :project: simcoon
-
-Voigt Rotation Matrices
------------------------
-
-The 6×6 rotation matrices for Voigt notation stress and strain tensors:
-
-.. doxygenfunction:: simcoon::fillQS(const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::fillQS(const arma::mat&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::fillQE(const double&, const int&, const bool&)
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::fillQE(const arma::mat&, const bool&)
-   :project: simcoon
-
 Vector and Matrix Rotation
 --------------------------
 
@@ -299,63 +273,37 @@ Stress and Strain Rotation
 Stiffness and Compliance Rotation
 ---------------------------------
 
-.. doxygenfunction:: simcoon::rotateL(const arma::mat&, const double&, const int&, const bool&)
+.. doxygenfunction:: simcoon::rotate_stiffness(const arma::mat&, const double&, const int&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotateL(const arma::mat&, const arma::mat&, const bool&)
+.. doxygenfunction:: simcoon::rotate_stiffness(const arma::mat&, const arma::mat&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotateM(const arma::mat&, const double&, const int&, const bool&)
+.. doxygenfunction:: simcoon::rotate_compliance(const arma::mat&, const double&, const int&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotateM(const arma::mat&, const arma::mat&, const bool&)
+.. doxygenfunction:: simcoon::rotate_compliance(const arma::mat&, const arma::mat&, const bool&)
    :project: simcoon
 
-Local-to-Global and Global-to-Local Transformations
----------------------------------------------------
+Strain and Stress Concentration Tensor Rotation
+------------------------------------------------
 
-These functions use Euler angles to transform between local and global coordinate systems:
-
-.. doxygenfunction:: simcoon::rotate_l2g_strain
+.. doxygenfunction:: simcoon::rotate_strain_concentration(const arma::mat&, const double&, const int&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotate_g2l_strain
+.. doxygenfunction:: simcoon::rotate_strain_concentration(const arma::mat&, const arma::mat&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotate_l2g_stress
+.. doxygenfunction:: simcoon::rotate_stress_concentration(const arma::mat&, const double&, const int&, const bool&)
    :project: simcoon
 
-.. doxygenfunction:: simcoon::rotate_g2l_stress
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_l2g_L
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_g2l_L
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_l2g_M
-   :project: simcoon
-
-.. doxygenfunction:: simcoon::rotate_g2l_M
+.. doxygenfunction:: simcoon::rotate_stress_concentration(const arma::mat&, const arma::mat&, const bool&)
    :project: simcoon
 
 Python Functions
 ================
 
 The following functions are available in Python for direct rotation operations:
-
-.. autofunction:: simcoon.fillR_angle
-
-.. autofunction:: simcoon.fillR_euler
-
-.. autofunction:: simcoon.fillQS_angle
-
-.. autofunction:: simcoon.fillQS_R
-
-.. autofunction:: simcoon.fillQE_angle
-
-.. autofunction:: simcoon.fillQE_R
 
 .. autofunction:: simcoon.rotate_vec_R
 
@@ -373,13 +321,21 @@ The following functions are available in Python for direct rotation operations:
 
 .. autofunction:: simcoon.rotate_strain_R
 
-.. autofunction:: simcoon.rotateL_angle
+.. autofunction:: simcoon.rotate_stiffness_angle
 
-.. autofunction:: simcoon.rotateL_R
+.. autofunction:: simcoon.rotate_stiffness_R
 
-.. autofunction:: simcoon.rotateM_angle
+.. autofunction:: simcoon.rotate_compliance_angle
 
-.. autofunction:: simcoon.rotateM_R
+.. autofunction:: simcoon.rotate_compliance_R
+
+.. autofunction:: simcoon.rotate_strain_concentration_angle
+
+.. autofunction:: simcoon.rotate_strain_concentration_R
+
+.. autofunction:: simcoon.rotate_stress_concentration_angle
+
+.. autofunction:: simcoon.rotate_stress_concentration_R
 
 Examples
 ========
@@ -404,8 +360,9 @@ Rotating material properties from local to global coordinates:
    r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
    L_global = r.apply_stiffness(L_local)
 
-   # Method 2: Using free function
-   L_global = smc.rotate_l2g_L(L_local, psi, theta, phi)
+   # Method 2: Using free function with rotation matrix
+   R = smc.Rotation.from_euler(psi, theta, phi, "zxz").as_matrix()
+   L_global = smc.rotate_stiffness_R(L_local, R)
 
 Example 2: Stress Transformation
 --------------------------------
@@ -433,7 +390,7 @@ Combining multiple rotations:
 
 .. code-block:: cpp
 
-   #include <simcoon/Simulation/Maths/rotation_class.hpp>
+   #include <simcoon/Simulation/Maths/rotation.hpp>
 
    using namespace simcoon;
 

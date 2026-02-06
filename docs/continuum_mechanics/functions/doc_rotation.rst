@@ -125,11 +125,11 @@ Applying Rotations
    M = smc.M_iso([210e9, 0.3], "Enu")
    M_rot = r.apply_compliance(M)
 
-   # Strain localization tensor (6×6): A' = QE * A * QS^T
-   A_global = r.apply_localization_strain(A_local)
+   # Strain concentration tensor (6×6): A' = QE * A * QS^T
+   A_global = r.apply_strain_concentration(A_local)
 
-   # Stress localization tensor (6×6): B' = QS * B * QE^T
-   B_global = r.apply_localization_stress(B_local)
+   # Stress concentration tensor (6×6): B' = QS * B * QE^T
+   B_global = r.apply_stress_concentration(B_local)
 
 Composing Rotations
 ~~~~~~~~~~~~~~~~~~~
@@ -302,28 +302,10 @@ Simcoon supports multiple Euler angle conventions:
    # Extrinsic XYZ (aerospace convention)
    r2 = smc.Rotation.from_euler(roll, pitch, yaw, "xyz", intrinsic=False)
 
-Rotation Functions
-------------------
+Rotation Free Functions
+-----------------------
 
 The following functions provide direct rotation operations without creating a ``Rotation`` object.
-
-Rotation Matrix Generation
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.fillR_angle
-
-.. autofunction:: simcoon.fillR_euler
-
-Voigt Rotation Matrices
-~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: simcoon.fillQS_angle
-
-.. autofunction:: simcoon.fillQS_R
-
-.. autofunction:: simcoon.fillQE_angle
-
-.. autofunction:: simcoon.fillQE_R
 
 Vector and Matrix Rotation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -350,32 +332,24 @@ Stress and Strain Rotation
 Stiffness and Compliance Rotation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: simcoon.rotateL_angle
+.. autofunction:: simcoon.rotate_stiffness_angle
 
-.. autofunction:: simcoon.rotateL_R
+.. autofunction:: simcoon.rotate_stiffness_R
 
-.. autofunction:: simcoon.rotateM_angle
+.. autofunction:: simcoon.rotate_compliance_angle
 
-.. autofunction:: simcoon.rotateM_R
+.. autofunction:: simcoon.rotate_compliance_R
 
-Local-Global Transformations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Strain and Stress Concentration Tensor Rotation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: simcoon.rotate_l2g_L
+.. autofunction:: simcoon.rotate_strain_concentration_angle
 
-.. autofunction:: simcoon.rotate_g2l_L
+.. autofunction:: simcoon.rotate_strain_concentration_R
 
-.. autofunction:: simcoon.rotate_l2g_M
+.. autofunction:: simcoon.rotate_stress_concentration_angle
 
-.. autofunction:: simcoon.rotate_g2l_M
-
-.. autofunction:: simcoon.rotate_l2g_strain
-
-.. autofunction:: simcoon.rotate_g2l_strain
-
-.. autofunction:: simcoon.rotate_l2g_stress
-
-.. autofunction:: simcoon.rotate_g2l_stress
+.. autofunction:: simcoon.rotate_stress_concentration_R
 
 Practical Examples
 ------------------
