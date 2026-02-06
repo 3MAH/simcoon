@@ -23,7 +23,6 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
-#include <simcoon/Simulation/Maths/rotation_class.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 
 using namespace std;
@@ -80,17 +79,15 @@ TEST(TRotationClass, from_quat)
 
 TEST(TRotationClass, from_matrix)
 {
-    // Create a rotation matrix using existing fillR function
+    // Create a rotation matrix using Rotation class from_euler
     double psi = 0.5;
     double theta = 0.3;
     double phi = 0.7;
 
-    mat R_expected = fillR(psi, theta, phi, true, "zxz");
+    Rotation r_ref = Rotation::from_euler(psi, theta, phi, "zxz");
+    mat::fixed<3,3> R_expected = r_ref.as_matrix();
 
-    mat::fixed<3,3> R_fixed;
-    R_fixed = R_expected;
-
-    Rotation r = Rotation::from_matrix(R_fixed);
+    Rotation r = Rotation::from_matrix(R_expected);
     mat::fixed<3,3> R_actual = r.as_matrix();
 
     EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
@@ -102,14 +99,16 @@ TEST(TRotationClass, from_euler_zxz)
     double theta = 42.0 * (simcoon::pi / 180.0);
     double phi = 165.0 * (simcoon::pi / 180.0);
 
-    // Use existing fillR to get expected result
-    mat R_expected = fillR(psi, theta, phi, true, "zxz");
+    // Build reference from individual axis rotations (intrinsic zxz)
+    Rotation rz1 = Rotation::from_axis_angle(psi, 3);
+    Rotation rx  = Rotation::from_axis_angle(theta, 1);
+    Rotation rz2 = Rotation::from_axis_angle(phi, 3);
+    Rotation r_ref = rz2 * rx * rz1;
 
-    // Create rotation using Rotation class
+    // Create rotation using from_euler
     Rotation r = Rotation::from_euler(psi, theta, phi, "zxz", true, false);
-    mat::fixed<3,3> R_actual = r.as_matrix();
 
-    EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
+    EXPECT_TRUE(r.equals(r_ref, 1.E-9));
 }
 
 TEST(TRotationClass, from_euler_zyz)
@@ -118,12 +117,15 @@ TEST(TRotationClass, from_euler_zyz)
     double theta = 42.0 * (simcoon::pi / 180.0);
     double phi = 165.0 * (simcoon::pi / 180.0);
 
-    mat R_expected = fillR(psi, theta, phi, true, "zyz");
+    // Build reference from individual axis rotations (intrinsic zyz)
+    Rotation rz1 = Rotation::from_axis_angle(psi, 3);
+    Rotation ry  = Rotation::from_axis_angle(theta, 2);
+    Rotation rz2 = Rotation::from_axis_angle(phi, 3);
+    Rotation r_ref = rz2 * ry * rz1;
 
     Rotation r = Rotation::from_euler(psi, theta, phi, "zyz", true, false);
-    mat::fixed<3,3> R_actual = r.as_matrix();
 
-    EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
+    EXPECT_TRUE(r.equals(r_ref, 1.E-9));
 }
 
 TEST(TRotationClass, from_euler_degrees)
@@ -143,7 +145,8 @@ TEST(TRotationClass, from_axis_angle)
     Rotation r = Rotation::from_axis_angle(angle, 3, false);
     mat::fixed<3,3> R_actual = r.as_matrix();
 
-    mat R_expected = fillR(angle, 3, true);
+    // Build expected rotation matrix for z-axis rotation
+    mat R_expected = {{cos(angle), -sin(angle), 0}, {sin(angle), cos(angle), 0}, {0, 0, 1}};
 
     EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
 }
@@ -155,11 +158,11 @@ TEST(TRotationClass, from_rotvec)
     vec::fixed<3> rotvec = {0, 0, angle};
 
     Rotation r = Rotation::from_rotvec(rotvec, false);
-    mat::fixed<3,3> R_actual = r.as_matrix();
 
-    mat R_expected = fillR(angle, 3, true);
+    // Should match axis-angle construction
+    Rotation r_expected = Rotation::from_axis_angle(angle, 3);
 
-    EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
+    EXPECT_TRUE(r.equals(r_expected, 1.E-9));
 }
 
 // =============================================================================
@@ -195,28 +198,34 @@ TEST(TRotationClass, as_rotvec_roundtrip)
     EXPECT_TRUE(r.equals(r2, 1.E-9));
 }
 
-TEST(TRotationClass, as_voigt_stress_rotation_vs_fillQS)
+TEST(TRotationClass, as_voigt_stress_rotation)
 {
-    // Test that as_voigt_stress_rotation matches existing fillQS function
+    // Test that voigt stress rotation matrix correctly transforms stress vectors
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
-    mat::fixed<3,3> R = r.as_matrix();
 
-    mat::fixed<6,6> QS_class = r.as_voigt_stress_rotation(true);
-    mat QS_func = fillQS(mat(R), true);
+    mat::fixed<6,6> QS = r.as_voigt_stress_rotation(true);
+    vec::fixed<6> sigma = {100, 50, 0, 25, 0, 0};
 
-    EXPECT_LT(norm(mat(QS_class) - QS_func, "fro"), 1.E-9);
+    // QS applied to stress should match apply_stress
+    vec::fixed<6> sigma_QS = QS * sigma;
+    vec::fixed<6> sigma_apply = r.apply_stress(sigma, true);
+
+    EXPECT_LT(norm(sigma_QS - sigma_apply), 1.E-9);
 }
 
-TEST(TRotationClass, as_voigt_strain_rotation_vs_fillQE)
+TEST(TRotationClass, as_voigt_strain_rotation)
 {
-    // Test that as_voigt_strain_rotation matches existing fillQE function
+    // Test that voigt strain rotation matrix correctly transforms strain vectors
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
-    mat::fixed<3,3> R = r.as_matrix();
 
-    mat::fixed<6,6> QE_class = r.as_voigt_strain_rotation(true);
-    mat QE_func = fillQE(mat(R), true);
+    mat::fixed<6,6> QE = r.as_voigt_strain_rotation(true);
+    vec::fixed<6> epsilon = {0.01, -0.005, -0.005, 0.002, 0.001, 0.003};
 
-    EXPECT_LT(norm(mat(QE_class) - QE_func, "fro"), 1.E-9);
+    // QE applied to strain should match apply_strain
+    vec::fixed<6> epsilon_QE = QE * epsilon;
+    vec::fixed<6> epsilon_apply = r.apply_strain(epsilon, true);
+
+    EXPECT_LT(norm(epsilon_QE - epsilon_apply), 1.E-9);
 }
 
 // =============================================================================
@@ -290,7 +299,7 @@ TEST(TRotationClass, apply_stiffness_consistency)
     L_fixed = L;
 
     mat::fixed<6,6> L_class = r.apply_stiffness(L_fixed, true);
-    mat L_func = rotateL(L, mat(R), true);
+    mat L_func = rotate_stiffness(L, mat(R), true);
 
     EXPECT_LT(norm(mat(L_class) - L_func, "fro"), 1.E-9);
 }
@@ -414,43 +423,43 @@ TEST(TRotationClass, apply_compliance_consistency)
     M_fixed = M;
 
     mat::fixed<6,6> M_class = r.apply_compliance(M_fixed, true);
-    mat M_func = rotateM(M, mat(R), true);
+    mat M_func = rotate_compliance(M, mat(R), true);
 
     EXPECT_LT(norm(mat(M_class) - M_func, "fro"), 1.E-9);
 }
 
 // =============================================================================
-// Apply Methods (Localization Tensors)
+// Apply Methods (Concentration Tensors)
 // =============================================================================
 
-TEST(TRotationClass, apply_localization_strain_consistency)
+TEST(TRotationClass, apply_strain_concentration_consistency)
 {
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
     mat::fixed<3,3> R = r.as_matrix();
 
-    // Create a strain localization tensor
+    // Create a strain concentration tensor
     mat A = eye(6, 6) + 0.1 * randu(6, 6);
     mat::fixed<6,6> A_fixed;
     A_fixed = A;
 
-    mat::fixed<6,6> A_class = r.apply_localization_strain(A_fixed, true);
-    mat A_func = rotateA(A, mat(R), true);
+    mat::fixed<6,6> A_class = r.apply_strain_concentration(A_fixed, true);
+    mat A_func = rotate_strain_concentration(A, mat(R), true);
 
     EXPECT_LT(norm(mat(A_class) - A_func, "fro"), 1.E-9);
 }
 
-TEST(TRotationClass, apply_localization_stress_consistency)
+TEST(TRotationClass, apply_stress_concentration_consistency)
 {
     Rotation r = Rotation::from_euler(0.5, 0.3, 0.7, "zxz");
     mat::fixed<3,3> R = r.as_matrix();
 
-    // Create a stress localization tensor
+    // Create a stress concentration tensor
     mat B = eye(6, 6) + 0.1 * randu(6, 6);
     mat::fixed<6,6> B_fixed;
     B_fixed = B;
 
-    mat::fixed<6,6> B_class = r.apply_localization_stress(B_fixed, true);
-    mat B_func = rotateB(B, mat(R), true);
+    mat::fixed<6,6> B_class = r.apply_stress_concentration(B_fixed, true);
+    mat B_func = rotate_stress_concentration(B, mat(R), true);
 
     EXPECT_LT(norm(mat(B_class) - B_func, "fro"), 1.E-9);
 }
@@ -464,7 +473,9 @@ TEST(TRotationClass, from_axis_angle_x)
     double angle = simcoon::pi / 3.0;  // 60 degrees around x
     Rotation r = Rotation::from_axis_angle(angle, 1);
     mat::fixed<3,3> R_actual = r.as_matrix();
-    mat R_expected = fillR(angle, 1, true);
+
+    // Expected: rotation around x-axis
+    mat R_expected = {{1, 0, 0}, {0, cos(angle), -sin(angle)}, {0, sin(angle), cos(angle)}};
 
     EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
 }
@@ -474,7 +485,9 @@ TEST(TRotationClass, from_axis_angle_y)
     double angle = simcoon::pi / 5.0;  // 36 degrees around y
     Rotation r = Rotation::from_axis_angle(angle, 2);
     mat::fixed<3,3> R_actual = r.as_matrix();
-    mat R_expected = fillR(angle, 2, true);
+
+    // Expected: rotation around y-axis
+    mat R_expected = {{cos(angle), 0, sin(angle)}, {0, 1, 0}, {-sin(angle), 0, cos(angle)}};
 
     EXPECT_LT(norm(R_expected - R_actual, "fro"), 1.E-9);
 }

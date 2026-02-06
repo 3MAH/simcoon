@@ -27,7 +27,6 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/rotation_class.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;

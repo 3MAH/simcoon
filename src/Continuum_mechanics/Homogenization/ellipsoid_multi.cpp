@@ -27,7 +27,6 @@
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/rotation_class.hpp>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
@@ -144,7 +143,7 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
       cerr << "Error in inv: " << e.what() << endl;
       throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT.");
     }
-    T = rot.apply_localization_strain(T_loc, true);
+    T = rot.apply_strain_concentration(T_loc, true);
 }
 
 //-------------------------------------
@@ -164,7 +163,7 @@ void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid 
       throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT_is.");
     }
 
-    T = rot.apply_localization_strain(T_loc, true);
+    T = rot.apply_strain_concentration(T_loc, true);
 }
 
 //-------------------------------------
@@ -186,7 +185,7 @@ void ellipsoid_multi::fillT_mec_in(const mat& L_m, const mat& L, const ellipsoid
       throw simcoon::exception_inv("Error in inv function inside ellipsoid_multi::fillT_mec_in.");
     }
 
-    T = rot.apply_localization_strain(T_loc, true);
+    T = rot.apply_strain_concentration(T_loc, true);
     T_in = rot.apply_compliance(T_in_loc, true);
 }
     
