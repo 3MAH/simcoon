@@ -26,52 +26,61 @@
 
 namespace simcoon {
 
-class exception_eig_sym : public std::runtime_error {
+// Base exception for all simcoon errors. Using this (instead of std::runtime_error)
+// in the pybind11 exception translator avoids hijacking exceptions from other
+// pybind11 modules (e.g. matplotlib's ft2font).
+class simcoon_error : public std::runtime_error {
 public:
-    explicit exception_eig_sym(const std::string& msg)
+    explicit simcoon_error(const std::string& msg)
         : std::runtime_error(msg) {}
 };
 
-class exception_det : public std::runtime_error {
+class exception_eig_sym : public simcoon_error {
+public:
+    explicit exception_eig_sym(const std::string& msg)
+        : simcoon_error(msg) {}
+};
+
+class exception_det : public simcoon_error {
     public:
         explicit exception_det(const std::string& msg)
-            : std::runtime_error(msg) {}
+            : simcoon_error(msg) {}
     };
 
-class exception_inv : public std::runtime_error {
+class exception_inv : public simcoon_error {
     public:
         explicit exception_inv(const std::string& msg)
-            : std::runtime_error(msg) {}
-    };    
+            : simcoon_error(msg) {}
+    };
 
-class exception_sqrtmat_sympd : public std::runtime_error {
+class exception_sqrtmat_sympd : public simcoon_error {
     public:
         explicit exception_sqrtmat_sympd(const std::string& msg)
-            : std::runtime_error(msg) {}
+            : simcoon_error(msg) {}
     };
-    
-class exception_logmat_sympd : public std::runtime_error {
+
+class exception_logmat_sympd : public simcoon_error {
     public:
         explicit exception_logmat_sympd(const std::string& msg)
-            : std::runtime_error(msg) {}
-    };    
-    
-class exception_expmat_sym : public std::runtime_error {
+            : simcoon_error(msg) {}
+    };
+
+class exception_expmat_sym : public simcoon_error {
     public:
         explicit exception_expmat_sym(const std::string& msg)
-            : std::runtime_error(msg) {}
+            : simcoon_error(msg) {}
     };
 
-class exception_powmat : public std::runtime_error {
+class exception_powmat : public simcoon_error {
     public:
         explicit exception_powmat(const std::string& msg)
-            : std::runtime_error(msg) {}
+            : simcoon_error(msg) {}
     };
 
-class exception_solver : public std::runtime_error {
+class exception_solver : public simcoon_error {
     public:
         explicit exception_solver(const std::string& msg)
-            : std::runtime_error(msg) {}
+            : simcoon_error(msg) {}
     };
 
 } //namespace simcoon
