@@ -107,4 +107,82 @@ addopts = "-v --tb=short"
 # Requires build dependencies to be installed first: scikit-build-core, pybind11, numpy
 no-build-isolation-package = ["simcoon"]
 
+# =============================================================================
+# cibuildwheel configuration
+# =============================================================================
 
+[tool.cibuildwheel]
+# Build for CPython 3.10-3.14
+build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
+
+# Skip unsupported configurations
+skip = [
+    "*-musllinux*",      # musl libc: complex C++ deps don't support musl
+    "pp*",               # PyPy: pybind11/numpy compatibility issues
+    "*-win32",           # 32-bit Windows: not supported
+    "*_i686",            # 32-bit Linux: not supported
+    "*-macosx_x86_64",   # macOS Intel: not supported
+]
+
+# Build verbosity
+build-verbosity = 1
+
+# Test configuration
+test-requires = ["pytest>=7.0", "numpy>=2.0"]
+test-command = "pytest {project}/simcoon-python-builder/test -v --tb=short"
+
+# -----------------------------------------------------------------------------
+# Linux configuration
+# -----------------------------------------------------------------------------
+
+[tool.cibuildwheel.linux]
+# Use manylinux_2_28 for C++20 compiler support (GCC 12+) and newer tools
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+
+# Install dependencies before build
+before-all = [
+    "dnf install -y epel-release",
+    "dnf install -y cmake ninja-build openblas-devel lapack-devel wget",
+    # Build Armadillo from source (manylinux packages are too old)
+    "wget -q https://sourceforge.net/projects/arma/files/armadillo-14.0.2.tar.xz",
+    "tar -xf armadillo-14.0.2.tar.xz",
+    "cd armadillo-14.0.2 && cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DDETECT_HDF5=OFF -DBUILD_SHARED_LIBS=ON && cmake --build build && cmake --install build",
+]
+
+# Environment for finding installed dependencies
+environment = { CMAKE_PREFIX_PATH = "/usr/local", LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
+
+# auditwheel bundles shared libraries
+repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+
+# -----------------------------------------------------------------------------
+# macOS configuration (arm64 only)
+# -----------------------------------------------------------------------------
+
+[tool.cibuildwheel.macos]
+# Install dependencies via Homebrew
+before-all = "brew install armadillo openblas ninja"
+
+# Build for arm64 only (native on Apple Silicon runners)
+archs = ["arm64"]
+
+# Deployment target (must match Homebrew library targets)
+environment = { MACOSX_DEPLOYMENT_TARGET = "15.0" }
+
+# delocate bundles shared libraries
+repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
+
+# -----------------------------------------------------------------------------
+# Windows configuration
+# -----------------------------------------------------------------------------
+
+[tool.cibuildwheel.windows]
+# Install dependencies via vcpkg
+before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
+
+# Point CMake to vcpkg (use forward slashes for TOML compatibility)
+environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+
+# Skip wheel repair - CMake installs all needed DLLs directly into the wheel
+repair-wheel-command = ""
