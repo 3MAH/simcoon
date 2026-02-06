@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
-version = "1.10.0"
+version = "2.0.0.dev0"
 description = "Simulation in Mechanics and Materials: Interactive Tools - A library for the simulation of multiphysics systems and heterogeneous materials"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
