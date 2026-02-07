@@ -157,11 +157,14 @@ before-all = [
     "cd armadillo-code-${ARMADILLO_VERSION} && cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON && cmake --build build && cmake --install build",
 ]
 
-# Environment for finding installed dependencies
-environment = { LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
-
 # auditwheel bundles shared libraries
 repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
+
+# Add Linux-specific runtime search path without replacing global environment.
+[[tool.cibuildwheel.overrides]]
+select = "*-manylinux*"
+inherit.environment = "append"
+environment = { LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
 
 # -----------------------------------------------------------------------------
 # macOS configuration (arm64 only)
