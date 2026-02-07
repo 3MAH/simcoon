@@ -6,22 +6,31 @@ project(simcoon LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Read version from Python package
+# Read version from Python package.
+# Accept PEP 440 dev releases like 1.10.1.dev0, but keep a numeric core
+# version for CMake fields that expect dotted integers.
 file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
-string(REGEX MATCH "__version__ = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _ ${VERSION_FILE})
-set(PROJECT_VERSION ${CMAKE_MATCH_1})
+string(REGEX MATCH "__version__ = \"(([0-9]+\\.[0-9]+\\.[0-9]+)(\\.dev[0-9]+)?)\"" _ ${VERSION_FILE})
+
+if(NOT CMAKE_MATCH_1)
+  message(FATAL_ERROR "Could not parse __version__ from python-setup/simcoon/__version__.py")
+endif()
+
+set(PYTHON_PACKAGE_VERSION "${CMAKE_MATCH_1}")
+set(PROJECT_VERSION "${CMAKE_MATCH_2}")
 
 # Extract major version for SOVERSION
 string(REGEX MATCH "^([0-9]+)" _ ${PROJECT_VERSION})
 set(PROJECT_VERSION_MAJOR ${CMAKE_MATCH_1})
 
-# Print the project version
+# Print versions
 message(STATUS "Project version: ${PROJECT_VERSION}")
+message(STATUS "Python package version: ${PYTHON_PACKAGE_VERSION}")
 
 # Optionally use this version in packaging/configuration
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 
-message(STATUS "Configuring ${PROJECT_NAME} ${PROJECT_VERSION}")
+message(STATUS "Configuring ${PROJECT_NAME} ${PYTHON_PACKAGE_VERSION}")
 
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
