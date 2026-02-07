@@ -17,6 +17,10 @@ on:
         description: 'Publish to TestPyPI'
         type: boolean
         default: false
+      publish_pypi:
+        description: 'Publish to PyPI'
+        type: boolean
+        default: false
   pull_request:
     branches: [master]
     paths:
@@ -126,7 +130,9 @@ jobs:
     name: Publish to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_call' && inputs.publish_pypi
+    if: |
+      (github.event_name == 'workflow_call' && inputs.publish_pypi) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true')
     environment:
       name: pypi
       url: https://pypi.org/p/simcoon
@@ -144,3 +150,5 @@ jobs:
         run: ls -la dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
