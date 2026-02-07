@@ -19,8 +19,8 @@ requirements:
     - git # [win]
     - cmake
     - ninja
-    - { { compiler('cxx') } }
-    - { { compiler('fortran') } } # [not win]
+    - {{ compiler('cxx') }}
+    - {{ compiler('fortran') }} # [not win]
     - llvm-openmp # [osx]
     - libgomp # [linux]
   host:
