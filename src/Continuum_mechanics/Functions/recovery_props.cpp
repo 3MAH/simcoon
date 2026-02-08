@@ -58,29 +58,29 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     //Check reflexions
     //reflexion around the z axis - symmetry plane xy
     Q = { {1,0,0}, {0,1,0}, {0,0,-1} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(2,0) = norm(L_sym - L_test,2);
     //reflexion around the y axis - symmetry plane xz
     Q = { {1,0,0}, {0,-1,0}, {0,0,1} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(1,0) = norm(L_sym - L_test,2);
     //reflexion around the x axis - symmetry plane yz
     Q = { {-1,0,0}, {0,1,0}, {0,0,1} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(0,0) = norm(L_sym - L_test,2);
     
     //Check 90deg rotations
     //90 rotation around the z axis
     Q = { {0,1,0}, {-1,0,0}, {0,0,1} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(2,1) = norm(L_sym - L_test,2);
     //90 rotation around the y axis
     Q = { {0,0,1}, {0,1,0}, {-1,0,0} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(1,1) = norm(L_sym - L_test,2);
     //90 rotation around the x axis
     Q = { {1,0,0}, {0,0,1}, {0,-1,0} };
-    L_test = rotateL(L_sym, Q);
+    L_test = rotate_stiffness(L_sym, Q);
     check_sym(0,1) = norm(L_sym - L_test,2);
 
     //Check equality between constants

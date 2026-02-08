@@ -6,6 +6,7 @@ Continuum Mechanics generic functions
    :caption: Contents:
 
    doc_constitutive
+   doc_rotation
    doc_contimech
    doc_criteria
    doc_transfer
