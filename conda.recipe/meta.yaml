@@ -23,8 +23,8 @@ requirements:
     - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
-    - llvm-openmp  # [osx]
-    - libgomp      # [linux]
+    - llvm-openmp # [osx]
+    - libgomp # [linux]
   host:
     - armadillo >=12.6
     - mkl # [x86]
@@ -46,8 +46,8 @@ requirements:
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
-    - blas * openblas  # [not (osx and arm64) and not x86]
-    - lapack * openblas  # [not (osx and arm64) and not x86]
+    - blas * openblas # [not (osx and arm64) and not x86]
+    - lapack * openblas # [not (osx and arm64) and not x86]
     - armadillo >=12.6 # [not win]
 
 test:

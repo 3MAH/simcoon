@@ -61,7 +61,41 @@ conda activate simcoon_env
 conda install -c conda-forge -c set3mah simcoon
 ```
 
-### Option 2: Build from Source
+### Option 2: Install from PyPI
+
+```bash
+pip install simcoon
+```
+
+Prebuilt wheels are available for:
+- Linux (x86_64, aarch64)
+- macOS (arm64, requires macOS 14.0+)
+- Windows (x64)
+
+**If no compatible wheel is available** (e.g., older macOS versions), pip will attempt to build from source. In this case, install Armadillo (>= 12.6) first — it is the only system dependency not bundled in the wheels.
+
+Using conda (requires `--no-build-isolation` so CMake can find conda packages):
+```bash
+conda install -c conda-forge armadillo
+pip install scikit-build-core pybind11 numpy  # build dependencies
+pip install simcoon --no-binary simcoon --no-build-isolation
+```
+
+Using Homebrew (macOS):
+```bash
+brew install armadillo
+pip install simcoon --no-binary simcoon
+```
+
+Using apt (Debian/Ubuntu):
+```bash
+sudo apt-get install libarmadillo-dev
+pip install simcoon --no-binary simcoon
+```
+
+BLAS and LAPACK are found automatically (Accelerate on macOS, system libraries on Linux).
+
+### Option 3: Build from Source
 
 #### Prerequisites
 
