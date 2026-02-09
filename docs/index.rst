@@ -67,6 +67,7 @@ New users should begin with:
    external
    simulation/index
    examples/index
+   ashby/index
    continuum_mechanics/index
    homogenization/index
    cpp_api/index
