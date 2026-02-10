@@ -2,35 +2,33 @@
 
 cmake_minimum_required(VERSION 3.15)
 
-project(simcoon LANGUAGES C CXX)
+# Read version from pyproject.toml ([project].version)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml" PYPROJECT_FILE)
+string(REGEX MATCH "\\[project\\][^[]*" PYPROJECT_PROJECT_SECTION "${PYPROJECT_FILE}")
+string(REGEX MATCH "\nversion[ \t]*=[ \t]*\"([^\"]+)\"" _ "${PYPROJECT_PROJECT_SECTION}")
+if(NOT CMAKE_MATCH_1)
+  message(FATAL_ERROR "Could not extract [project].version from pyproject.toml")
+endif()
+set(SIMCOON_VERSION "${CMAKE_MATCH_1}")
+
+# CMake project() version must be numeric; derive ABI version from PEP 440 version.
+string(REGEX MATCH "^([0-9]+\\.[0-9]+\\.[0-9]+)" _ "${SIMCOON_VERSION}")
+if(NOT CMAKE_MATCH_1)
+  message(FATAL_ERROR "Could not derive numeric CMake version (X.Y.Z) from '${SIMCOON_VERSION}'")
+endif()
+set(SIMCOON_ABI_VERSION "${CMAKE_MATCH_1}")
+
+project(simcoon VERSION ${SIMCOON_ABI_VERSION} LANGUAGES C CXX)
 include(CheckIncludeFileCXX)
 include(CheckLibraryExists)
 
-# Read version from Python package.
-# Accept PEP 440 dev releases like 1.10.1.dev0, but keep a numeric core
-# version for CMake fields that expect dotted integers.
-file(READ "python-setup/simcoon/__version__.py" VERSION_FILE)
-string(REGEX MATCH "__version__ = \"(([0-9]+\\.[0-9]+\\.[0-9]+)(\\.dev[0-9]+)?)\"" _ ${VERSION_FILE})
-
-if(NOT CMAKE_MATCH_1)
-  message(FATAL_ERROR "Could not parse __version__ from python-setup/simcoon/__version__.py")
-endif()
-
-set(PYTHON_PACKAGE_VERSION "${CMAKE_MATCH_1}")
-set(PROJECT_VERSION "${CMAKE_MATCH_2}")
-
-# Extract major version for SOVERSION
-string(REGEX MATCH "^([0-9]+)" _ ${PROJECT_VERSION})
-set(PROJECT_VERSION_MAJOR ${CMAKE_MATCH_1})
-
-# Print versions
-message(STATUS "Project version: ${PROJECT_VERSION}")
-message(STATUS "Python package version: ${PYTHON_PACKAGE_VERSION}")
+# Print the project version
+message(STATUS "Project version: ${SIMCOON_VERSION} (ABI: ${PROJECT_VERSION})")
 
 # Optionally use this version in packaging/configuration
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VERSION ${SIMCOON_VERSION})
 
-message(STATUS "Configuring ${PROJECT_NAME} ${PYTHON_PACKAGE_VERSION}")
+message(STATUS "Configuring ${PROJECT_NAME} ${SIMCOON_VERSION}")
 
 # Adhere to GNU filesystem layout conventions
 include(GNUInstallDirs)
@@ -286,7 +284,7 @@ add_library(simcoon SHARED)
 
 # Set library version for ABI compatibility tracking
 set_target_properties(simcoon PROPERTIES
-  VERSION ${PROJECT_VERSION}
+  VERSION ${SIMCOON_VERSION}
   SOVERSION ${PROJECT_VERSION_MAJOR}
 )
 
