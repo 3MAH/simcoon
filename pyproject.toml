@@ -60,6 +60,11 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 dev = [
     "pytest>=7.0",
 ]
+ashby = [
+    "mp-api>=0.39",
+    "scipy>=1.7",
+    "matplotlib>=3.5",
+]
 
 # =============================================================================
 # scikit-build-core configuration
