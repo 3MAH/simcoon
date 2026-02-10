@@ -239,7 +239,7 @@ void umat_plasticity_kin_iso_CCP(const string &umat_name, const vec &Etot, const
     mat delta = eye(1,1);
 
     for (int i=0; i<1; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
 

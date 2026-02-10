@@ -297,7 +297,7 @@ void umat_ani_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &
     mat delta = eye(1,1);
 
     for (int i=0; i<1; i++) {
-        if(Ds_j[i] > sim_iota)
+        if(Ds_j[i] > simcoon::iota)
             op(i) = 1.;
     }
 
