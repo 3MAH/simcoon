@@ -6,7 +6,7 @@
 #include <carma>
 #include <armadillo>
 
-#include <simcoon/parameter.hpp>
+#include <simcoon/omp_compat.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>

@@ -7,6 +7,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/omp_compat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 

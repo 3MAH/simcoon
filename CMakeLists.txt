@@ -133,7 +133,6 @@ endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(OpenMP)
 
 # WORKAROUND for vcpkg BLAS/LAPACK debug/release library confusion on Windows
 # vcpkg's FindBLAS/FindLAPACK modules (MODULE mode) don't respect CMAKE_BUILD_TYPE
