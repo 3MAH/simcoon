@@ -419,3 +419,130 @@ TEST(Tobjective_rates, DSDE_conversions_LieDD)
     double J = det(F);
     EXPECT_LT(norm(Dsigma_Lie - (1./J)*Dtau_Lie, 2), 1.E-6);
 }
+
+TEST(Tobjective_rates, Hughes_Winget_identity)
+{
+    // Zero spin -> result should be identity
+    mat Omega = zeros(3,3);
+    double DTime = 0.001;
+    mat DR = Hughes_Winget(Omega, DTime);
+    EXPECT_LT(norm(DR - eye(3,3), 2), 1.E-12);
+}
+
+TEST(Tobjective_rates, Hughes_Winget_orthogonal)
+{
+    // Antisymmetric Omega -> DR should be orthogonal (DR^T * DR = I)
+    mat Omega = zeros(3,3);
+    Omega(0,1) =  0.1;
+    Omega(0,2) = -0.05;
+    Omega(1,0) = -0.1;
+    Omega(1,2) =  0.08;
+    Omega(2,0) =  0.05;
+    Omega(2,1) = -0.08;
+    double DTime = 0.001;
+
+    mat DR = Hughes_Winget(Omega, DTime);
+    EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-6);
+}
+
+TEST(Tobjective_rates, Hughes_Winget_consistency)
+{
+    // Jaumann DR should match Hughes_Winget(W, DTime)
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR_J = zeros(3,3);
+    mat D_J = zeros(3,3);
+    mat W_J = zeros(3,3);
+    Jaumann(DR_J, D_J, W_J, DTime, F0, F1);
+
+    mat DR_HW = Hughes_Winget(W_J, DTime);
+    EXPECT_LT(norm(DR_J - DR_HW, 2), 1.E-12);
+}
+
+TEST(Tobjective_rates, all_rates_same_D)
+{
+    // All 6 rate functions should produce the same D tensor
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR_j = zeros(3,3), D_j = zeros(3,3), W_j = zeros(3,3);
+    Jaumann(DR_j, D_j, W_j, DTime, F0, F1);
+
+    mat DR_gn = zeros(3,3), D_gn = zeros(3,3), Omega_gn = zeros(3,3);
+    Green_Naghdi(DR_gn, D_gn, Omega_gn, DTime, F0, F1);
+
+    mat DR_log = zeros(3,3), D_log = zeros(3,3), Omega_log = zeros(3,3);
+    logarithmic(DR_log, D_log, Omega_log, DTime, F0, F1);
+
+    mat DR_lr = zeros(3,3), N1_lr = zeros(3,3), N2_lr = zeros(3,3), D_lr = zeros(3,3), Omega_lr = zeros(3,3);
+    logarithmic_R(DR_lr, N1_lr, N2_lr, D_lr, Omega_lr, DTime, F0, F1);
+
+    mat DF_tr = zeros(3,3), D_tr = zeros(3,3), L_tr = zeros(3,3);
+    Truesdell(DF_tr, D_tr, L_tr, DTime, F0, F1);
+
+    mat DF_lf = zeros(3,3), N1_lf = zeros(3,3), N2_lf = zeros(3,3), D_lf = zeros(3,3), L_lf = zeros(3,3);
+    logarithmic_F(DF_lf, N1_lf, N2_lf, D_lf, L_lf, DTime, F0, F1);
+
+    EXPECT_LT(norm(D_j - D_gn, 2), 1.E-9);
+    EXPECT_LT(norm(D_j - D_log, 2), 1.E-9);
+    EXPECT_LT(norm(D_j - D_lr, 2), 1.E-9);
+    EXPECT_LT(norm(D_j - D_tr, 2), 1.E-9);
+    EXPECT_LT(norm(D_j - D_lf, 2), 1.E-9);
+}
+
+TEST(Tobjective_rates, Truesdell_logF_same_DF)
+{
+    // Truesdell and logarithmic_F should produce the same DF (both use Hughes-Winget on L)
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DF_tr = zeros(3,3), D_tr = zeros(3,3), L_tr = zeros(3,3);
+    Truesdell(DF_tr, D_tr, L_tr, DTime, F0, F1);
+
+    mat DF_lf = zeros(3,3), N1_lf = zeros(3,3), N2_lf = zeros(3,3), D_lf = zeros(3,3), L_lf = zeros(3,3);
+    logarithmic_F(DF_lf, N1_lf, N2_lf, D_lf, L_lf, DTime, F0, F1);
+
+    EXPECT_LT(norm(DF_tr - DF_lf, 2), 1.E-12);
+    EXPECT_LT(norm(L_tr - L_lf, 2), 1.E-12);
+}
+
+TEST(Tobjective_rates, logR_logF_same_N1)
+{
+    // logarithmic_R and logarithmic_F should produce the same N_1 (same f_log spectral function)
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = 1.01;
+    F1(0,1) = 0.005;
+    F1(1,0) = -0.005;
+    F1(1,1) = 1.02;
+    F1(2,2) = 0.98;
+    double DTime = 0.001;
+
+    mat DR_lr = zeros(3,3), N1_lr = zeros(3,3), N2_lr = zeros(3,3), D_lr = zeros(3,3), Omega_lr = zeros(3,3);
+    logarithmic_R(DR_lr, N1_lr, N2_lr, D_lr, Omega_lr, DTime, F0, F1);
+
+    mat DF_lf = zeros(3,3), N1_lf = zeros(3,3), N2_lf = zeros(3,3), D_lf = zeros(3,3), L_lf = zeros(3,3);
+    logarithmic_F(DF_lf, N1_lf, N2_lf, D_lf, L_lf, DTime, F0, F1);
+
+    EXPECT_LT(norm(N1_lr - N1_lf, 2), 1.E-12);
+    EXPECT_LT(norm(N2_lr - N2_lf, 2), 1.E-12);
+}
