@@ -190,7 +190,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
 {
     UNUSED(solver_type);
     std::map<string, int> list_umat;
-    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9}};
+    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMAUT",9},{"SMANI",9},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
 
     rve.global2local();
     auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
@@ -312,7 +312,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",17},{"EPHAC",18},{"EPANI",19},{"EPDFA",20},{"EPCHG",21},{"EPHIN",22},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"SMANI",8},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",17},{"EPHAC",18},{"EPANI",19},{"EPDFA",20},{"EPCHG",21},{"EPHIN",22},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
     
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);

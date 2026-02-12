@@ -61,7 +61,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     bool cubic_elasticity = false;
     bool aniso_criteria = false;
 
-    if (umat_name == "SMADI") {
+    if ((umat_name == "SMADI") || (umat_name == "SMAUT")) { //TODO_2.0: remove SMAUT after 2.0 release
         cubic_elasticity = false;
         aniso_criteria = false;
     }
@@ -69,7 +69,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         cubic_elasticity = true;
         aniso_criteria = false;
     }
-    else if (umat_name == "SMAAI") {
+    else if (umat_name == "SMAAI" || umat_name == "SMANI") { //TODO_2.0: remove SMANI after 2.0 release
         cubic_elasticity = false;
         aniso_criteria = true;
     }
