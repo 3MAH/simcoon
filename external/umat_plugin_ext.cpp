@@ -26,8 +26,9 @@ public:
         return "umext";
     }
 
-    void umat_external_M(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt) {
-    
+    void umat_external_M(const std::string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+
+        UNUSED(umat_name);
         UNUSED(Etot);
         UNUSED(DR);
         UNUSED(nprops);
@@ -37,9 +38,9 @@ public:
         UNUSED(DTime);
         UNUSED(nshr);
         UNUSED(tnew_dt);
-        
+
         double T_init = statev(0);
-        
+
         //From the props to the material properties
         double E = props(0);
         double nu = props(1);
@@ -47,38 +48,33 @@ public:
 
         //Elastic stiffness tensor
         L = simcoon::L_iso(E, nu, "Enu");
-        
+
         ///@brief Initialization
         if(start)
         {
             T_init = T;
             sigma = zeros(6);
-            
+
             Wm = 0.;
             Wm_r = 0.;
             Wm_ir = 0.;
             Wm_d = 0.;
         }
-        
+
         vec sigma_start = sigma;
-        
-        //Compute the elastic strain and the related stress	
+
+        //Compute the elastic strain and the related stress
         vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
         sigma = simcoon::el_pred(L, Eel, ndi);
-        
-        if((solver_type == 0)||(solver_type==2)) {
-            Lt = L;
-        }
-        else if(solver_type == 1) {
-            sigma_in = zeros(6);
-        }
-        
+
+        Lt = L;
+
         //Computation of the mechanical and thermal work quantities
         Wm += 0.5*sum((sigma_start+sigma)%DEtot);
         Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
         Wm_ir += 0.;
         Wm_d += 0.;
-        
+
         statev(0) = T_init;
     }
     
