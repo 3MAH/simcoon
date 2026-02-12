@@ -13,6 +13,10 @@ build:
   script_env:
     - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
     - CONDA_BUILD_LOCAL
+  ignore_run_exports:
+    - libblas
+    - liblapack
+    - libcblas
 
 requirements:
   build:
