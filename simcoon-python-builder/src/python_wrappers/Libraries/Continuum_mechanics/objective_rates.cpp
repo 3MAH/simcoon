@@ -50,11 +50,11 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de, const unsigned int &n_threads) {
     std::map<string, int> list_corate;
-    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3}, {"gn",1},{"log",2},{"log_R",3}};
+    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3},{"truesdell",4},{"logarithmic_F",5}, {"gn",1},{"log",2},{"log_R",3},{"log_F",5}};
 	int corate = list_corate[corate_name];
 
-    void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &); 
-    void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);     
+    void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &);
+    void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);
     switch (corate) {
 
         case 0: {
@@ -72,7 +72,15 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         case 3: {
             corate_function_2 = &simcoon::logarithmic_R;
             break;
-        }        
+        }
+        case 4: {
+            corate_function = &simcoon::Truesdell;
+            break;
+        }
+        case 5: {
+            corate_function_2 = &simcoon::logarithmic_F;
+            break;
+        }
     }
     
     if (F1.ndim() == 2) {            
@@ -91,11 +99,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
 
 		switch (corate) {
 
-            case 0: case 1: case 2: {
+            case 0: case 1: case 2: case 4: {
                 corate_function(DR, D, Omega, DTime, F0_cpp, F1_cpp);
                 break;
             }
-            case 3: {
+            case 3: case 5: {
                 corate_function_2(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
                 break;
             }
@@ -106,22 +114,27 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             vec de = zeros(6);
 
     		switch (corate) {
-                case 0: case 1: case 2: {
-                //could use simcoon::Delta_log_strain(D, Omega, DTime) but it would recompute DR (waste of time).
-                //vec de = simcoon::t2v_strain(simcoon::Delta_log_strain(D, Omega, DTime));                 
+                case 0: case 1: case 2: case 4: {
                     de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
                     break;
                 }
                 case 3: {
-                    mat I = eye(3,3);
-                    try {
-                        DR_N = (inv(I-0.5*DTime*(N_1-N_2)))*(I+0.5*DTime*(N_1-N_2));
-                    } catch (const std::runtime_error &e) {
-                        cerr << "Error in inv: " << e.what() << endl;
-                        throw simcoon::exception_inv("Error in inv function inside objective_rate.");
-                    }                        
+                    DR_N = simcoon::Hughes_Winget(N_1-N_2, DTime);
                     de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
                     de = simcoon::rotate_strain(de, DR_N);
+                    break;
+                }
+                case 5: {
+                    mat De_mat = (0.5*DTime)*(D+(DR*D*DR.t()));
+                    DR_N = simcoon::Hughes_Winget(N_1-D, DTime);
+                    mat inv_DR_N;
+                    try {
+                        inv_DR_N = inv(DR_N);
+                    } catch (const std::runtime_error &e) {
+                        cerr << "Error in inv: " << e.what() << endl;
+                        throw simcoon::exception_inv("Error in inv function inside objective_rate (inv_DR_N).");
+                    }
+                    de = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                     break;
                 }
             }
@@ -151,11 +164,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             for (int pt = 0; pt < nb_points; pt++) {
 
         		switch (corate) {
-                    case 0: case 1: case 2: {
+                    case 0: case 1: case 2: case 4: {
                         corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                         if (return_de) {
                             vec de_col = de.unsafe_col(pt);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                         }
                         break;
                     }
@@ -163,15 +176,20 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                         if (return_de) {
                             vec de_col = de.unsafe_col(pt);
-                            mat DR_N = zeros(3,3);                                       
-                            try {
-                                DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                            } catch (const std::runtime_error &e) {
-                                cerr << "Error in inv: " << e.what() << endl;
-                                throw simcoon::exception_inv("Error in inv function inside objective_rate.");
-                            }                                                  
+                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
                             de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                             de_col = simcoon::rotate_strain(de_col, DR_N);
+                        }
+                        break;
+                    }
+                    case 5: {
+                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                        if (return_de) {
+                            vec de_col = de.unsafe_col(pt);
+                            mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
+                            mat inv_DR_N = inv(DR_N);
+                            de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                         }
                         break;
                     }
@@ -192,11 +210,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 for (int pt = 0; pt < nb_points; pt++) {
 
             		switch (corate) {
-                        case 0: case 1: case 2: {
+                        case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                             if (return_de) {
                                 vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                             }
                             break;
                         }
@@ -204,22 +222,27 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                             if (return_de) {
                                 vec de_col = de.unsafe_col(pt);
-                                mat DR_N;
-                                try {
-                                    DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                                } catch (const std::runtime_error &e) {
-                                    cerr << "Error in inv: " << e.what() << endl;
-                                    throw simcoon::exception_inv("Error in inv function inside objective_rate.");
-                                }                                                                    
+                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
                                 de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                                 de_col = simcoon::rotate_strain(de_col, DR_N);
+                            }
+                            break;
+                        }
+                        case 5: {
+                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);
+                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
+                                mat inv_DR_N = inv(DR_N);
+                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                             }
                             break;
                         }
                     }
                 }
                 #ifdef _OPENMP
-                omp_set_num_threads(max_threads);			
+                omp_set_num_threads(max_threads);
     			#endif
             }
             else {
@@ -231,35 +254,40 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
     			#endif
                 for (int pt = 0; pt < nb_points; pt++) {
 
-            		switch (corate) {                    
-                        case 0: case 1: case 2: {
+            		switch (corate) {
+                        case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
                             if (return_de) {
                                 vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));                                                          
+                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                             }
                             break;
                         }
                         case 3: {
                             corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
                             if (return_de) {
-                                vec de_col = de.unsafe_col(pt); 
-                                mat DR_N;
-                                try {
-                                    DR_N = (inv(I-0.5*DTime*(N_1.slice(pt)-N_2.slice(pt))))*(I+0.5*DTime*(N_1.slice(pt)-N_2.slice(pt)));
-                                } catch (const std::runtime_error &e) {
-                                    cerr << "Error in inv: " << e.what() << endl;
-                                    throw simcoon::exception_inv("Error in inv function inside objective_rate.");
-                                }                                                                    
+                                vec de_col = de.unsafe_col(pt);
+                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
                                 de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de.col(pt), DR_N);
+                                de_col = simcoon::rotate_strain(de_col, DR_N);
+                            }
+                            break;
+                        }
+                        case 5: {
+                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
+                            if (return_de) {
+                                vec de_col = de.unsafe_col(pt);
+                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
+                                mat inv_DR_N = inv(DR_N);
+                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                             }
                             break;
                         }
                     }
                 }
                 #ifdef _OPENMP
-                omp_set_num_threads(max_threads);	
+                omp_set_num_threads(max_threads);
     			#endif
             }
         }
@@ -283,16 +311,16 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
     std::map<string, int> list_Lt_convert;
-    list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}};
+    list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
 	int select = list_Lt_convert [converter_key];
-    mat (*convert_function)(const mat &, const mat &, const mat &); 
-    mat (*convert_function2)(const mat &, const mat &);     
+    mat (*convert_function)(const mat &, const mat &, const mat &);
+    mat (*convert_function2)(const mat &, const mat &);
 
     switch (select) {
         case 0: {
-            convert_function2 = &simcoon::Dsigma_LieDD_2_DSDE;        
+            convert_function2 = &simcoon::Dsigma_LieDD_2_DSDE;
             break;
-        }        
+        }
         case 1: {
             convert_function = &simcoon::DsigmaDe_2_DSDE;
             break;
@@ -302,17 +330,37 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             break;
         }
         case 3: {
-            convert_function2 = &simcoon::Dsigma_LieDD_Dsigma_JaumannDD;            
+            convert_function2 = &simcoon::Dsigma_LieDD_Dsigma_JaumannDD;
             break;
         }
         case 4: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD;            
+            convert_function = &simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD;
             break;
         }
         case 5: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_logarithmicDD;            
+            convert_function = &simcoon::Dsigma_LieDD_Dsigma_logarithmicDD;
             break;
-        }                
+        }
+        case 6: {
+            convert_function = &simcoon::DsigmaDe_GreenNaghdiDD_2_DSDE;
+            break;
+        }
+        case 7: {
+            convert_function = &simcoon::DSDE_2_Dsigma_GreenNaghdiDD;
+            break;
+        }
+        case 8: {
+            convert_function = &simcoon::DSDE_2_Dsigma_JaumannDD;
+            break;
+        }
+        case 9: {
+            convert_function2 = &simcoon::DSDE_2_Dsigma_LieDD;
+            break;
+        }
+        case 10: {
+            convert_function = &simcoon::DSDE_2_Dsigma_logarithmicDD;
+            break;
+        }
     }
 
     if (Lt.ndim() == 2) {            
@@ -322,15 +370,16 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
 
         mat F_cpp = carma::arr_to_mat_view(F);
         mat Lt_cpp = carma::arr_to_mat_view(Lt);
-        vec stress_cpp = carma::arr_to_col_view(stress);
+        vec stress_v = carma::arr_to_col_view(stress);
+        mat stress_cpp = simcoon::v2t_stress(stress_v);
         mat Lt_converted(6,6);
 
-        switch (select) {             
-            case 0: {
+        switch (select) {
+            case 0: case 9: {
                 Lt_converted = convert_function2(Lt_cpp, F_cpp);
                 break;
             }
-            case 1: case 2: {
+            case 1: case 2: case 6: case 7: case 8: case 10: {
                 Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
                 break;
             }
@@ -341,8 +390,8 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             case 4: case 5: {
                 Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
                 break;
-            }                 
-        }          
+            }
+        }
         return carma::mat_to_arr(Lt_converted,false);
     }
     else if (Lt.ndim() == 3) {
@@ -363,20 +412,20 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         omp_set_max_active_levels(3);
         #pragma omp parallel for shared(Lt_converted, Lt_cpp, F_cpp)
         #endif
-*/        
+*/
 
         for (int pt = 0; pt < nb_points; pt++) {
-            //vec stress_pt = stress_cpp.unsafe_col(pt); 
+            //vec stress_pt = stress_cpp.unsafe_col(pt);
             stress_pt = simcoon::v2t_stress(stress_cpp.unsafe_col(pt));
-            switch (select) {             
-                case 0: {
+            switch (select) {
+                case 0: case 9: {
                     Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), F_cpp.slice(pt));
                     break;
                 }
-                case 1: case 2: {
+                case 1: case 2: case 6: case 7: case 8: case 10: {
                     Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
                     break;
-                }                
+                }
                 case 3: {
                     Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), stress_pt);
                     break;
@@ -384,7 +433,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                 case 4: case 5: {
                     Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
                     break;
-                }                      
+                }
             }          
         }
 /*        #ifdef _OPENMP
