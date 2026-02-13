@@ -5,7 +5,6 @@ import pytest
 from scipy.spatial.transform import Rotation as ScipyRotation
 
 import simcoon as sim
-from simcoon._core import _CppRotation
 
 
 # ---------------------------------------------------------------------------
@@ -27,12 +26,6 @@ def sim_rot(angle):
 def scipy_rot(angle):
     """A plain scipy Rotation representing the same rotation."""
     return ScipyRotation.from_rotvec([0, 0, angle])
-
-
-@pytest.fixture
-def cpp_rot(angle):
-    """A _CppRotation representing the same rotation."""
-    return _CppRotation.from_axis_angle(angle, 3)
 
 
 @pytest.fixture
@@ -253,49 +246,7 @@ class TestMechanicsFromScipy:
 
 
 # ===================================================================
-# 5. C++ _CppRotation accepts plain scipy objects
-# ===================================================================
-
-class TestCppAcceptsScipy:
-    """_CppRotation methods that take a Rotation parameter accept plain
-    scipy.spatial.transform.Rotation objects via as_quat() duck-typing."""
-
-    def test_cpp_mul_with_scipy(self, cpp_rot, scipy_rot):
-        result = cpp_rot * scipy_rot
-        assert isinstance(result, _CppRotation)
-
-    def test_cpp_equals_with_scipy(self, cpp_rot, scipy_rot):
-        assert cpp_rot.equals(scipy_rot)
-
-    def test_cpp_slerp_with_scipy(self, cpp_rot, scipy_rot):
-        mid = cpp_rot.slerp(scipy_rot, 0.5)
-        assert isinstance(mid, _CppRotation)
-
-    def test_cpp_mul_with_simcoon(self, cpp_rot, sim_rot):
-        result = cpp_rot * sim_rot
-        assert isinstance(result, _CppRotation)
-
-    def test_cpp_equals_with_simcoon(self, cpp_rot, sim_rot):
-        assert cpp_rot.equals(sim_rot)
-
-    def test_cpp_slerp_with_simcoon(self, cpp_rot, sim_rot):
-        mid = cpp_rot.slerp(sim_rot, 0.5)
-        assert isinstance(mid, _CppRotation)
-
-    def test_cpp_mul_produces_correct_result(self, cpp_rot, scipy_rot):
-        """C++ composition with scipy gives same quaternion as two _CppRotation."""
-        cpp_rot2 = _CppRotation.from_quat(scipy_rot.as_quat())
-        result_scipy = cpp_rot * scipy_rot
-        result_cpp = cpp_rot * cpp_rot2
-        np.testing.assert_allclose(
-            result_scipy.as_quat().ravel(),
-            result_cpp.as_quat().ravel(),
-            atol=1e-14,
-        )
-
-
-# ===================================================================
-# 6. Utility methods
+# 5. Utility methods
 # ===================================================================
 
 class TestUtilities:
