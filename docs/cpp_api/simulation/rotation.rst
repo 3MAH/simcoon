@@ -71,9 +71,9 @@ Python API
    import simcoon as smc
    import numpy as np
 
-   # Create rotations
+   # Create rotations (scipy factory methods + simcoon's from_axis_angle)
    r1 = smc.Rotation.identity()
-   r2 = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
+   r2 = smc.Rotation.from_euler('ZXZ', [0.5, 0.3, 0.7])
    r3 = smc.Rotation.from_axis_angle(np.pi/4, 3)
    r4 = smc.Rotation.from_matrix(R)
    r5 = smc.Rotation.random()
@@ -81,7 +81,7 @@ Python API
    # Convert to different representations
    R = r2.as_matrix()
    q = r2.as_quat()
-   euler = r2.as_euler("zxz")
+   euler = r2.as_euler('ZXZ')
    rotvec = r2.as_rotvec()
 
    # Apply to vectors and tensors
@@ -94,7 +94,7 @@ Python API
    r_inv = r2.inv()
 
    # Interpolation
-   r_mid = r2.slerp(r3, 0.5)
+   r_mid = r2.slerp_to(r3, 0.5)
 
 Factory Methods
 ---------------
@@ -111,8 +111,8 @@ Factory Methods
      - Create from quaternion [qx, qy, qz, qw] (scalar-last)
    * - ``from_matrix(R)``
      - Create from 3x3 rotation matrix
-   * - ``from_euler(psi, theta, phi, conv, intrinsic, degrees)``
-     - Create from Euler angles with specified convention
+   * - ``from_euler(seq, angles, degrees)``
+     - Create from Euler angles (scipy convention, e.g. ``'ZXZ'``)
    * - ``from_rotvec(rotvec, degrees)``
      - Create from rotation vector (axis × angle)
    * - ``from_axis_angle(angle, axis, degrees)``
@@ -220,13 +220,13 @@ Operations
      - Description
    * - ``inv()``
      - Return inverse rotation
-   * - ``magnitude(degrees)``
-     - Return rotation angle
+   * - ``magnitude()``
+     - Return rotation angle in radians
    * - ``r1 * r2``
      - Compose rotations (apply r2 first, then r1)
    * - ``r1 *= r2``
      - Compose in-place
-   * - ``slerp(other, t)``
+   * - ``slerp_to(other, t)``
      - Spherical linear interpolation (t ∈ [0, 1])
    * - ``equals(other, tol)``
      - Check equality within tolerance
@@ -319,7 +319,7 @@ Rotating material properties from local to global coordinates:
    psi, theta, phi = 0.5, 0.3, 0.7
 
    # Using Rotation class
-   r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
+   r = smc.Rotation.from_euler('ZXZ', [psi, theta, phi])
    L_global = r.apply_stiffness(L_local)
 
 Example 2: Stress Transformation
@@ -336,7 +336,7 @@ Transforming stress from global to local coordinates:
    sigma_global = np.array([100.0, 50.0, 25.0, 10.0, 5.0, 2.0])
 
    # Create rotation from orientation
-   r = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
+   r = smc.Rotation.from_euler('ZXZ', [0.5, 0.3, 0.7])
 
    # Transform to local coordinates (inverse rotation)
    sigma_local = r.inv().apply_stress(sigma_global)
@@ -377,16 +377,19 @@ Smooth interpolation between two orientations using SLERP:
 
    import simcoon as smc
    import numpy as np
+   from scipy.spatial.transform import Slerp
 
    # Start and end orientations
    r_start = smc.Rotation.identity()
-   r_end = smc.Rotation.from_euler(np.pi/2, np.pi/4, 0, "zxz")
+   r_end = smc.Rotation.from_euler('ZXZ', [np.pi/2, np.pi/4, 0])
 
    # Interpolate at 10 steps
+   key_rots = smc.Rotation.concatenate([r_start, r_end])
+   slerp = Slerp([0, 1], key_rots)
    for t in np.linspace(0, 1, 10):
-       r_t = r_start.slerp(r_end, t)
+       r_t = slerp(t)
        R = r_t.as_matrix()
-       print(f"t={t:.1f}: angle={r_t.magnitude(degrees=True):.1f}°")
+       print(f"t={t:.1f}: angle={np.degrees(r_t.magnitude()):.1f}°")
 
 Theory
 ======
