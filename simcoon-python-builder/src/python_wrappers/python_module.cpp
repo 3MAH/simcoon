@@ -19,6 +19,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/tensor.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
@@ -211,41 +212,11 @@ PYBIND11_MODULE(_core, m)
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
 
-    // Register the rotation library
-    m.def("rotate_vec_R", &rotate_vec_R, "input"_a, "R"_a, "copy"_a = true, "This function returns a rotated vector (3) according to a rotation matrix");
-    m.def("rotate_vec_angle", &rotate_vec_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, "This function returns a rotated vector (3) according to an angle and an axis");
-    m.def("rotate_mat_R", &rotate_mat_R, "input"_a, "R"_a, "copy"_a = true, "This function returns a rotated matrix (3x3) according to a rotation matrix");
-    m.def("rotate_mat_angle", &rotate_mat_angle, "input"_a, "angle"_a, "axis"_a, "copy"_a = true, "This function returns a rotated matrix (3x3) according to an angle and an axis");
-    m.def("fillR_angle", &fillR_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 3*3 rotation matrix according to an angle, an axis and depending if it is active or passive rotation");
-    m.def("fillR_euler", &fillR_euler, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "conv"_a = "zxz", "copy"_a = true, "This function returns the 3*3 rotation matrix according to the three Euler angles, depending if it is active or passive rotation and the Euler convention (ex :zxz)");
-    m.def("fillQS_angle", &fillQS_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from an angle and an axis");
-    m.def("fillQS_R", &fillQS_R, "R"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'stress' from a rotation matrix");
-    m.def("fillQE_angle", &fillQE_angle, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from an angle and an axis");
-    m.def("fillQE_R", &fillQE_R, "R"_a, "active"_a = true, "copy"_a = true, "This function returns the 6*6 rotation arma::matrix of a arma::vector of type 'strain' from a rotation matrix");
-    m.def("rotateL_angle", &rotateL_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stiffness matrix according to an angle and an axis");
-    m.def("rotateL_R", &rotateL_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stiffness matrix according to a rotation matrix");
-    m.def("rotate_l2g_L", &rotate_l2g_L, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 stiffness matrix from local to global frame");
-    m.def("rotate_g2l_L", &rotate_g2l_L, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 stiffness matrix from global to local frame");
-    m.def("rotateM_angle", &rotateM_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 compliance matrix according to an angle and an axis");
-    m.def("rotateM_R", &rotateM_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 compliance matrix according to a rotation matrix");
-    m.def("rotate_l2g_M", &rotate_l2g_M, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 compliance matrix from local to global frame");
-    m.def("rotate_g2l_M", &rotate_g2l_M, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 compliance matrix from global to local frame");
-    m.def("rotateA_angle", &rotateA_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 strain concentration matrix according to an angle and an axis");
-    m.def("rotateA_R", &rotateA_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 strain concentration matrix according to a rotation matrix");
-    m.def("rotate_l2g_A", &rotate_l2g_A, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 strain concentration matrix from local to global frame");
-    m.def("rotate_g2l_A", &rotate_g2l_A, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 strain concentration matrix from global to local frame");
-    m.def("rotateB_angle", &rotateB_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stress concentration matrix according to an angle and an axis");
-    m.def("rotateB_R", &rotateB_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = true, "Return the rotated 6*6 stress concentration matrix according to a rotation matrix");
-    m.def("rotate_l2g_B", &rotate_l2g_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 stress concentration matrix from local to global frame");
-    m.def("rotate_g2l_B", &rotate_g2l_B, "input"_a, "psi"_a, "theta"_a, "phi"_a, "active"_a = true, "Return the rotated 6*6 stress concentration matrix from global to local frame");
-    m.def("rotate_strain_angle", &rotate_strain_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = false, "Return the rotated strain matrix using voigt notations according to an angle and an axis");
-    m.def("rotate_strain_R", &rotate_strain_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = false, "Return the rotated strain matrix using voigt notations according to a rotation matrix");
-    m.def("rotate_l2g_strain", &rotate_l2g_strain, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated strain matrix using voigt notations from local to global frame");
-    m.def("rotate_g2l_strain", &rotate_g2l_strain, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated strain matrix using voigt notations from global to local frame");
-    m.def("rotate_stress_angle", &rotate_stress_angle, "input"_a, "angle"_a, "axis"_a, "active"_a = true, "copy"_a = false, "Return the rotated stress matrix using voigt notations according to an angle and an axis");
-    m.def("rotate_stress_R", &rotate_stress_R, "input"_a, "R"_a, "active"_a = true, "copy"_a = false, "Return the rotated stress matrix using voigt notations according to a rotation matrix");
-    m.def("rotate_l2g_stress", &rotate_l2g_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated stress matrix using voigt notations from local to global frame");
-    m.def("rotate_g2l_stress", &rotate_g2l_stress, "input"_a, "psi"_a, "theta"_a, "phi"_a, "copy"_a = true, "Return the rotated stress matrix using voigt notations from global to local frame");
+    // Register tensor2 and tensor4 classes
+    register_tensor(m);
+
+    // Register the Rotation class
+    register_rotation(m);
 
     // Register the from-python converters for lagrange
     m.def("lagrange_exp", &lagrange_exp, "This function is used to determine an exponential Lagrange Multiplier (like contact in Abaqus)");

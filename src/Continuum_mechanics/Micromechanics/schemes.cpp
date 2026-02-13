@@ -386,8 +386,9 @@ void dE_Periodic_Layer(phase_characteristics &phase, const int &nbiter) {
         sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
         lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
-        Lt_loc = rotate_g2l_L(sv_r->Lt, lay->psi_geom, lay->theta_geom, lay->phi_geom);
-        
+        Rotation rot_layer = Rotation::from_euler(lay->psi_geom, lay->theta_geom, lay->phi_geom, "zxz");
+        Lt_loc = rot_layer.inv().apply_stiffness(sv_r->Lt);
+
         lay_multi->Dnn(0,0) = Lt_loc(0,0);
         lay_multi->Dnn(0,1) = Lt_loc(0,3);
         lay_multi->Dnn(0,2) = Lt_loc(0,4);
@@ -397,8 +398,8 @@ void dE_Periodic_Layer(phase_characteristics &phase, const int &nbiter) {
         lay_multi->Dnn(2,0) = Lt_loc(4,0);
         lay_multi->Dnn(2,1) = Lt_loc(4,3);
         lay_multi->Dnn(2,2) = Lt_loc(4,4);
-        
-        mat sigma_local = rotate_g2l_stress(sv_r->sigma, lay->psi_geom, lay->theta_geom, lay->phi_geom);
+
+        vec sigma_local = rot_layer.inv().apply_stress(sv_r->sigma);
         lay_multi->sigma_hat(0) = sigma_local(0);
         lay_multi->sigma_hat(1) = sigma_local(3);
         lay_multi->sigma_hat(2) = sigma_local(4);
@@ -449,11 +450,12 @@ void dE_Periodic_Layer(phase_characteristics &phase, const int &nbiter) {
         }        
         lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
         
-        mat dEtot_local = zeros(6);
+        vec dEtot_local = zeros(6);
         dEtot_local(0) = lay_multi->dzdx1(0);
         dEtot_local(3) = lay_multi->dzdx1(1);
         dEtot_local(4) = lay_multi->dzdx1(2);
-        mat dEtot_global = rotate_l2g_strain(dEtot_local, lay->psi_geom, lay->theta_geom, lay->phi_geom);
+        Rotation rot_l2g = Rotation::from_euler(lay->psi_geom, lay->theta_geom, lay->phi_geom, "zxz");
+        vec dEtot_global = rot_l2g.apply_strain(dEtot_local);
         
         sv_r->DEtot += dEtot_global;
     }
@@ -475,7 +477,10 @@ void Lt_Periodic_Layer(phase_characteristics &phase) {
         sv_r = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
         lay_multi = std::dynamic_pointer_cast<layer_multi>(r.sptr_multi);
         lay = std::dynamic_pointer_cast<layer>(r.sptr_shape);
-        Lt_loc = rotate_g2l_L(sv_r->Lt, lay->psi_geom, lay->theta_geom, lay->phi_geom);
+        {
+        Rotation rot = Rotation::from_euler(lay->psi_geom, lay->theta_geom, lay->phi_geom, "zxz");
+        Lt_loc = rot.inv().apply_stiffness(sv_r->Lt);
+        }
         
         lay_multi->Dnn(0,0) = Lt_loc(0,0);
         lay_multi->Dnn(0,1) = Lt_loc(0,3);
@@ -558,7 +563,10 @@ void Lt_Periodic_Layer(phase_characteristics &phase) {
         A_loc(4,4) += lay_multi->dXn(2,2);
         A_loc(4,5) += lay_multi->dXt(2,2);
 
-        lay_multi->A = rotate_l2g_A(A_loc, lay->psi_geom, lay->theta_geom, lay->phi_geom);
+        {
+        Rotation rot = Rotation::from_euler(lay->psi_geom, lay->theta_geom, lay->phi_geom, "zxz");
+        lay_multi->A = rot.apply_strain_concentration(A_loc);
+        }
     }
     
 }

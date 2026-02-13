@@ -4,7 +4,7 @@
 
 namespace simpy {
 
-// Function to register the Rotation class with pybind11
-void register_rotation(pybind11::module_& m);
+// Function to register tensor2 and tensor4 classes with pybind11
+void register_tensor(pybind11::module_& m);
 
 } // namespace simpy

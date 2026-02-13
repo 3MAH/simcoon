@@ -18,6 +18,7 @@ set(TEST_SRCS
   test/Libraries/Continuum_mechanics/Tobjective_rates.cpp
   test/Libraries/Continuum_mechanics/Trecovery_props.cpp
   test/Libraries/Continuum_mechanics/Tstress.cpp
+  test/Libraries/Continuum_mechanics/Ttensor.cpp
   test/Libraries/Continuum_mechanics/Ttransfer.cpp
 
   # Libraries - Homogenization
@@ -27,6 +28,7 @@ set(TEST_SRCS
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp
   test/Libraries/Maths/Trotation.cpp
+  test/Libraries/Maths/Trotation_class.cpp
   test/Libraries/Maths/Tstats.cpp
 
   # Libraries - Phase
