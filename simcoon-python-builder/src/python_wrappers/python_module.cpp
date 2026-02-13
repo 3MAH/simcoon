@@ -19,6 +19,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/tensor.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
@@ -207,6 +208,9 @@ PYBIND11_MODULE(_core, m)
     m.def("Eshelby_penny", &Eshelby_penny, "nu"_a, "copy"_a = true, simcoon_docs::Eshelby_penny);
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
+
+    // Register tensor2 and tensor4 classes
+    register_tensor(m);
 
     // Register the Rotation class
     register_rotation(m);
