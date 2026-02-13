@@ -10,6 +10,45 @@ directly, while simcoon adds continuum-mechanics methods for Voigt-notation tens
    :local:
    :depth: 2
 
+Architecture
+------------
+
+The rotation system is organized in three layers:
+
+**C++ core** (``simcoon::Rotation`` in ``include/simcoon/Simulation/Maths/rotation.hpp``):
+   The full rotation class with quaternion internals, all factory methods, conversions,
+   algebra (composition, inverse, SLERP), and the Voigt mechanics operations. This is
+   what C++ code uses directly.
+
+**pybind11 bridge** (``_CppRotation``):
+   A minimal binding that exposes only what the Python layer needs from C++: a single
+   factory method (``from_quat``) and the nine mechanics operations (``apply_stress``,
+   ``apply_stiffness``, etc.). Everything else — creation, conversion, composition,
+   interpolation — is handled by scipy on the Python side.
+
+**Python class** (``simcoon.Rotation``):
+   Inherits from ``scipy.spatial.transform.Rotation``. Users get the full scipy API
+   for free (factory methods, conversions, batch operations, ``mean()``, ``Slerp``,
+   ``RotationSpline``). The mechanics methods delegate to C++ by converting the
+   quaternion on each call:
+
+.. code-block:: text
+
+   r.apply_stiffness(L)
+       |
+       v
+   Python:  self._to_cpp()  -->  _CppRotation.from_quat(self.as_quat())
+       |                              ^ scipy provides the quaternion
+       v
+   C++:     simcoon::Rotation::from_quat(q)  -->  .apply_stiffness(L)
+       |
+       v
+   Python:  returns 6x6 numpy array
+
+The quaternion transfer (4 doubles) is negligible. This design avoids duplicating
+scipy's well-tested rotation algebra while keeping the performance-critical Voigt
+operations in C++.
+
 The Rotation Class
 ------------------
 
@@ -234,10 +273,6 @@ library), you can upgrade it to a ``simcoon.Rotation`` with ``from_scipy()``:
    # Upgrade to simcoon.Rotation to unlock mechanics methods
    r = smc.Rotation.from_scipy(scipy_rot)
    L_rot = r.apply_stiffness(L)   # now available
-
-The C++ layer also accepts plain scipy ``Rotation`` objects directly wherever
-a rotation parameter is expected (composition, ``equals``, ``slerp``), so
-mixing scipy and simcoon rotations in the same expression works seamlessly.
 
 Active vs Passive Rotations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
