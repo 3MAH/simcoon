@@ -2,7 +2,9 @@ The Rotation Library
 ====================
 
 The rotation library provides comprehensive tools for 3D rotations in continuum mechanics.
-The ``Rotation`` class provides a powerful object-oriented interface for all rotation operations.
+The ``Rotation`` class inherits from ``scipy.spatial.transform.Rotation``, so all scipy
+features (batch operations, ``mean()``, ``Slerp``, ``RotationSpline``, etc.) are available
+directly, while simcoon adds continuum-mechanics methods for Voigt-notation tensors.
 
 .. contents:: Contents
    :local:
@@ -11,11 +13,14 @@ The ``Rotation`` class provides a powerful object-oriented interface for all rot
 The Rotation Class
 ------------------
 
-The ``Rotation`` class provides an object-oriented interface for working with 3D rotations.
-It uses unit quaternions internally for numerical stability and efficient composition.
+The ``Rotation`` class extends ``scipy.spatial.transform.Rotation`` with methods for
+rotating stress, strain, stiffness, and compliance tensors.  It uses unit quaternions
+internally for numerical stability and efficient composition.
 
 Creating Rotations
 ~~~~~~~~~~~~~~~~~~
+
+All scipy factory methods are available and return a ``simcoon.Rotation`` instance:
 
 .. code-block:: python
 
@@ -25,11 +30,11 @@ Creating Rotations
    # Identity rotation (no rotation)
    r = smc.Rotation.identity()
 
-   # From Euler angles (convention must be specified)
-   r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
+   # From Euler angles (scipy convention: uppercase = intrinsic)
+   r = smc.Rotation.from_euler('ZXZ', [psi, theta, phi])
 
-   # From Euler angles with options
-   r = smc.Rotation.from_euler(psi, theta, phi, conv="xyz", intrinsic=False, degrees=True)
+   # From Euler angles in degrees, extrinsic
+   r = smc.Rotation.from_euler('xyz', [roll, pitch, yaw], degrees=True)
 
    # From rotation matrix
    R = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]])  # 90° around x
@@ -43,23 +48,18 @@ Creating Rotations
    rotvec = np.array([0, 0, np.pi/2])  # 90° around z
    r = smc.Rotation.from_rotvec(rotvec)
 
-   # From axis and angle
+   # From axis and angle (simcoon-specific)
    r = smc.Rotation.from_axis_angle(np.pi/2, 3)  # 90° around z (axis 3)
 
    # Random rotation (uniform distribution)
    r = smc.Rotation.random()
-
-   # From a scipy.spatial.transform.Rotation (requires scipy)
-   from scipy.spatial.transform import Rotation as R
-   scipy_rot = R.from_euler('z', 45, degrees=True)
-   r = smc.Rotation.from_scipy(scipy_rot)
 
 Converting Between Representations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   r = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
+   r = smc.Rotation.from_euler('ZXZ', [0.5, 0.3, 0.7])
 
    # To rotation matrix
    R = r.as_matrix()  # 3×3 numpy array
@@ -67,20 +67,17 @@ Converting Between Representations
    # To quaternion
    q = r.as_quat()  # [qx, qy, qz, qw]
 
-   # To Euler angles
-   angles = r.as_euler("zxz")  # [psi, theta, phi]
-   angles_deg = r.as_euler("zxz", degrees=True)
+   # To Euler angles (scipy convention)
+   angles = r.as_euler('ZXZ')  # [psi, theta, phi]
+   angles_deg = r.as_euler('ZXZ', degrees=True)
 
    # To rotation vector
    rotvec = r.as_rotvec()
    rotvec_deg = r.as_rotvec(degrees=True)
 
-   # To Voigt rotation matrices
+   # To Voigt rotation matrices (simcoon-specific)
    QS = r.as_voigt_stress_rotation()  # 6×6 for stress
    QE = r.as_voigt_strain_rotation()  # 6×6 for strain
-
-   # To scipy.spatial.transform.Rotation (requires scipy)
-   scipy_rot = r.to_scipy()
 
 Applying Rotations
 ~~~~~~~~~~~~~~~~~~
@@ -155,63 +152,92 @@ Composing Rotations
 Interpolating Rotations
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-SLERP (Spherical Linear Interpolation) provides smooth interpolation:
+SLERP (Spherical Linear Interpolation) is available via scipy's ``Slerp`` class:
 
 .. code-block:: python
 
-   r_start = smc.Rotation.identity()
-   r_end = smc.Rotation.from_euler(np.pi/2, np.pi/4, 0, "zxz")
+   from scipy.spatial.transform import Slerp
 
-   # Interpolate at t=0.5 (halfway)
-   r_mid = r_start.slerp(r_end, 0.5)
+   r_start = smc.Rotation.identity()
+   r_end = smc.Rotation.from_euler('ZXZ', [np.pi/2, np.pi/4, 0])
+
+   key_rots = smc.Rotation.concatenate([r_start, r_end])
+   slerp = Slerp([0, 1], key_rots)
 
    # Interpolate along path
    for t in np.linspace(0, 1, 11):
-       r_t = r_start.slerp(r_end, t)
-       print(f"t={t:.1f}: angle={r_t.magnitude(degrees=True):.1f}°")
+       r_t = slerp(t)
+       print(f"t={t:.1f}: angle={np.degrees(r_t.magnitude()):.1f}°")
+
+   # Or use the convenience method
+   r_mid = r_start.slerp_to(r_end, 0.5)
 
 Utility Methods
 ~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   r = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
+   r = smc.Rotation.from_euler('ZXZ', [0.5, 0.3, 0.7])
 
    # Get rotation magnitude (angle)
    angle = r.magnitude()  # radians
-   angle_deg = r.magnitude(degrees=True)
+   angle_deg = np.degrees(r.magnitude())
 
    # Check if identity
    is_id = r.is_identity()
 
-   # Check equality
-   r2 = smc.Rotation.from_euler(0.5, 0.3, 0.7, "zxz")
+   # Check equality (accounts for quaternion sign ambiguity)
+   r2 = smc.Rotation.from_euler('ZXZ', [0.5, 0.3, 0.7])
    are_equal = r.equals(r2, tol=1e-12)
 
-Scipy Interoperability
-~~~~~~~~~~~~~~~~~~~~~
+Scipy Integration
+~~~~~~~~~~~~~~~~~
 
-Both simcoon and scipy use the scalar-last quaternion convention ``[qx, qy, qz, qw]``,
-so conversion between the two is done via quaternion transfer with no trigonometric
-or matrix computation overhead. Scipy is an **optional** dependency — it is only
-imported when ``to_scipy()`` is called.
+Since ``simcoon.Rotation`` inherits from ``scipy.spatial.transform.Rotation``,
+all scipy features work directly:
 
 .. code-block:: python
 
    from scipy.spatial.transform import Rotation as R
 
-   # scipy → simcoon
-   scipy_rot = R.from_euler('z', 45, degrees=True)
-   r = smc.Rotation.from_scipy(scipy_rot)
-
-   # simcoon → scipy
+   # simcoon.Rotation IS a scipy Rotation
    r = smc.Rotation.from_axis_angle(np.pi/4, 3)
-   scipy_rot = r.to_scipy()
+   isinstance(r, R)  # True
 
-   # Round-trip is lossless
-   q_original = scipy_rot.as_quat()
-   q_roundtrip = smc.Rotation.from_scipy(scipy_rot).to_scipy().as_quat()
-   # q_original == q_roundtrip
+   # All scipy methods work directly
+   r.as_mrp()           # Modified Rodrigues parameters
+   r.as_davenport(...)  # Davenport angles
+
+   # Batch operations
+   rots = smc.Rotation.random(100)
+   rots.mean()
+
+   # RotationSpline
+   from scipy.spatial.transform import RotationSpline
+   times = [0, 1, 2, 3]
+   key_rots = smc.Rotation.random(4)
+   spline = RotationSpline(times, key_rots)
+   r_interp = spline(1.5)
+
+**Passing plain scipy Rotations to simcoon:**
+
+If you already have a ``scipy.spatial.transform.Rotation`` (e.g. from another
+library), you can upgrade it to a ``simcoon.Rotation`` with ``from_scipy()``:
+
+.. code-block:: python
+
+   from scipy.spatial.transform import Rotation as R
+
+   # Created somewhere else, e.g. by a third-party library
+   scipy_rot = R.from_euler('z', 45, degrees=True)
+
+   # Upgrade to simcoon.Rotation to unlock mechanics methods
+   r = smc.Rotation.from_scipy(scipy_rot)
+   L_rot = r.apply_stiffness(L)   # now available
+
+The C++ layer also accepts plain scipy ``Rotation`` objects directly wherever
+a rotation parameter is expected (composition, ``equals``, ``slerp``), so
+mixing scipy and simcoon rotations in the same expression works seamlessly.
 
 Active vs Passive Rotations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -238,31 +264,22 @@ rotation convention:
 Input Validation
 ~~~~~~~~~~~~~~~~
 
-All methods that accept NumPy arrays validate the input shape and raise
+All mechanics methods that accept NumPy arrays validate the input shape and raise
 ``ValueError`` with a descriptive message if the dimensions are wrong:
 
 .. code-block:: python
 
    r = smc.Rotation.from_axis_angle(np.pi/4, 3)
 
-   r.apply(np.array([1.0, 2.0]))
-   # ValueError: v must have 3 elements, got 2
-
    r.apply_stress(np.array([1.0, 2.0, 3.0]))
    # ValueError: sigma must have 6 elements, got 3
-
-   smc.Rotation.from_matrix(np.eye(4))
-   # ValueError: R must have shape (3, 3), got (4, 4)
 
    r.apply_stiffness(np.eye(3))
    # ValueError: L must have shape (6, 6), got (3, 3)
 
 Expected input shapes:
 
-- ``from_quat``: 1D array, 4 elements
-- ``from_matrix``: 2D array, shape (3, 3)
-- ``from_rotvec``: 1D array, 3 elements
-- ``apply``: 1D array, 3 elements
+- ``apply``: 1D array, 3 elements (or Nx3 array for batch)
 - ``apply_tensor``: 2D array, shape (3, 3)
 - ``apply_stress``, ``apply_strain``: 1D array, 6 elements
 - ``apply_stiffness``, ``apply_compliance``: 2D array, shape (6, 6)
@@ -275,32 +292,26 @@ Expected input shapes:
 Euler Angle Conventions
 -----------------------
 
-Simcoon supports multiple Euler angle conventions:
+Simcoon uses scipy's Euler angle conventions:
+
+- **Uppercase** letters (``'ZXZ'``, ``'XYZ'``, etc.) → intrinsic rotations (rotating frame)
+- **Lowercase** letters (``'zxz'``, ``'xyz'``, etc.) → extrinsic rotations (fixed frame)
 
 **Proper Euler angles** (axis sequence where first = last):
 
-- ``zxz``
-- ``zyz``
-- ``xyx``, ``xzx``
-- ``yxy``, ``yzy``
+- ``ZXZ``, ``ZYZ``, ``XYX``, ``XZX``, ``YXY``, ``YZY``
 
 **Tait-Bryan angles** (all axes different):
 
-- ``xyz`` (roll-pitch-yaw)
-- ``xzy``, ``yxz``, ``yzx``, ``zxy``, ``zyx``
-
-**Intrinsic vs Extrinsic:**
-
-- **Intrinsic** (default): rotations about axes of the rotating frame
-- **Extrinsic**: rotations about fixed world axes
+- ``XYZ`` (roll-pitch-yaw), ``XZY``, ``YXZ``, ``YZX``, ``ZXY``, ``ZYX``
 
 .. code-block:: python
 
    # Intrinsic ZXZ
-   r1 = smc.Rotation.from_euler(psi, theta, phi, "zxz", intrinsic=True)
+   r1 = smc.Rotation.from_euler('ZXZ', [psi, theta, phi])
 
-   # Extrinsic XYZ (aerospace convention)
-   r2 = smc.Rotation.from_euler(roll, pitch, yaw, "xyz", intrinsic=False)
+   # Extrinsic xyz (same physical rotation as intrinsic ZYX)
+   r2 = smc.Rotation.from_euler('xyz', [roll, pitch, yaw])
 
 Practical Examples
 ------------------
@@ -341,8 +352,8 @@ Example 2: Stress Transformation in a Rotated Element
    # Element orientation (Euler angles)
    psi, theta, phi = np.radians([30, 45, 60])
 
-   # Create rotation
-   r = smc.Rotation.from_euler(psi, theta, phi, "zxz")
+   # Create rotation (scipy convention: uppercase = intrinsic)
+   r = smc.Rotation.from_euler('ZXZ', [psi, theta, phi])
 
    # Transform stress to local element coordinates
    sigma_local = r.inv().apply_stress(sigma_global)
@@ -359,15 +370,12 @@ Example 3: Averaging Orientations
    import numpy as np
 
    # Generate random orientations
-   rotations = [smc.Rotation.random() for _ in range(10)]
+   rotations = smc.Rotation.random(10)
 
-   # Approximate mean using iterative SLERP
-   r_mean = rotations[0]
-   for i, r in enumerate(rotations[1:], 2):
-       t = 1.0 / i  # Weight for new rotation
-       r_mean = r_mean.slerp(r, t)
+   # Use scipy's built-in mean
+   r_mean = rotations.mean()
 
-   print("Mean rotation angle:", r_mean.magnitude(degrees=True), "degrees")
+   print("Mean rotation angle:", np.degrees(r_mean.magnitude()), "degrees")
 
 See Also
 --------

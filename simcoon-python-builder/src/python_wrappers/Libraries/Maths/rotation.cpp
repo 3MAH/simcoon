@@ -41,7 +41,7 @@ namespace {
 } // anonymous namespace
 
 void register_rotation(py::module_& m) {
-    py::class_<simcoon::Rotation>(m, "Rotation",
+    py::class_<simcoon::Rotation>(m, "_CppRotation",
         R"doc(
         A class representing 3D rotations using unit quaternions.
 
@@ -199,67 +199,6 @@ void register_rotation(py::module_& m) {
 
         .def_static("random", &simcoon::Rotation::random,
             "Create a uniformly distributed random rotation")
-
-        .def_static("from_scipy",
-            [](py::object scipy_rot) {
-                py::array_t<double> q = scipy_rot.attr("as_quat")().cast<py::array_t<double>>();
-                validate_vector_size(q, 4, "scipy_rot.as_quat()");
-                vec qv = carma::arr_to_col(q);
-                return simcoon::Rotation::from_quat(qv);
-            },
-            py::arg("scipy_rot"),
-            R"doc(
-            Create rotation from a scipy.spatial.transform.Rotation object.
-
-            Converts via unit quaternion (scalar-last convention shared by both
-            libraries), so there is no trigonometric or matrix conversion overhead.
-
-            Parameters
-            ----------
-            scipy_rot : scipy.spatial.transform.Rotation
-                A scipy Rotation object
-
-            Returns
-            -------
-            Rotation
-                Rotation object
-
-            Example
-            -------
-            >>> from scipy.spatial.transform import Rotation as R
-            >>> scipy_rot = R.from_euler('z', 45, degrees=True)
-            >>> r = smc.Rotation.from_scipy(scipy_rot)
-            )doc")
-
-        .def("to_scipy",
-            [](const simcoon::Rotation& self) {
-                py::module_ sp_rot = py::module_::import("scipy.spatial.transform");
-                py::object R_class = sp_rot.attr("Rotation");
-                vec q(self.as_quat());
-                py::array_t<double> q_arr = carma::col_to_arr(q);
-                // scipy expects shape (4,), carma returns (4,1)
-                q_arr = q_arr.attr("flatten")().cast<py::array_t<double>>();
-                return R_class.attr("from_quat")(q_arr);
-            },
-            R"doc(
-            Convert to a scipy.spatial.transform.Rotation object.
-
-            Converts via unit quaternion (scalar-last convention shared by both
-            libraries), so there is no trigonometric or matrix conversion overhead.
-
-            Requires scipy to be installed.
-
-            Returns
-            -------
-            scipy.spatial.transform.Rotation
-                Equivalent scipy Rotation object
-
-            Example
-            -------
-            >>> r = smc.Rotation.from_axis_angle(np.pi/4, 3)
-            >>> scipy_rot = r.to_scipy()
-            >>> scipy_rot.as_euler('zxz', degrees=True)
-            )doc")
 
         // Conversion methods
         .def("as_quat",
@@ -582,15 +521,45 @@ void register_rotation(py::module_& m) {
                 Rotation angle
             )doc")
 
-        .def("__mul__", &simcoon::Rotation::operator*,
+        .def("__mul__",
+            [](const simcoon::Rotation& self, py::object other) {
+                if (py::isinstance<simcoon::Rotation>(other)) {
+                    return self * other.cast<simcoon::Rotation>();
+                }
+                // Accept any object with as_quat() (e.g. simcoon.Rotation scipy subclass)
+                py::array_t<double> q = other.attr("as_quat")().cast<py::array_t<double>>();
+                validate_vector_size(q, 4, "other.as_quat()");
+                return self * simcoon::Rotation::from_quat(carma::arr_to_col(q));
+            },
             py::arg("other"),
             "Compose this rotation with another (self * other)")
 
-        .def("__imul__", &simcoon::Rotation::operator*=,
+        .def("__imul__",
+            [](simcoon::Rotation& self, py::object other) -> simcoon::Rotation& {
+                if (py::isinstance<simcoon::Rotation>(other)) {
+                    self *= other.cast<simcoon::Rotation>();
+                } else {
+                    py::array_t<double> q = other.attr("as_quat")().cast<py::array_t<double>>();
+                    validate_vector_size(q, 4, "other.as_quat()");
+                    self *= simcoon::Rotation::from_quat(carma::arr_to_col(q));
+                }
+                return self;
+            },
             py::arg("other"),
             "Compose this rotation with another in-place")
 
-        .def("slerp", &simcoon::Rotation::slerp,
+        .def("slerp",
+            [](const simcoon::Rotation& self, py::object other, double t) {
+                simcoon::Rotation other_rot;
+                if (py::isinstance<simcoon::Rotation>(other)) {
+                    other_rot = other.cast<simcoon::Rotation>();
+                } else {
+                    py::array_t<double> q = other.attr("as_quat")().cast<py::array_t<double>>();
+                    validate_vector_size(q, 4, "other.as_quat()");
+                    other_rot = simcoon::Rotation::from_quat(carma::arr_to_col(q));
+                }
+                return self.slerp(other_rot, t);
+            },
             py::arg("other"), py::arg("t"),
             R"doc(
             Spherical linear interpolation between this rotation and another.
@@ -608,7 +577,18 @@ void register_rotation(py::module_& m) {
                 Interpolated rotation
             )doc")
 
-        .def("equals", &simcoon::Rotation::equals,
+        .def("equals",
+            [](const simcoon::Rotation& self, py::object other, double tol) {
+                simcoon::Rotation other_rot;
+                if (py::isinstance<simcoon::Rotation>(other)) {
+                    other_rot = other.cast<simcoon::Rotation>();
+                } else {
+                    py::array_t<double> q = other.attr("as_quat")().cast<py::array_t<double>>();
+                    validate_vector_size(q, 4, "other.as_quat()");
+                    other_rot = simcoon::Rotation::from_quat(carma::arr_to_col(q));
+                }
+                return self.equals(other_rot, tol);
+            },
             py::arg("other"), py::arg("tol") = 1e-12,
             R"doc(
             Check if this rotation equals another within tolerance.
@@ -642,13 +622,7 @@ void register_rotation(py::module_& m) {
                 True if this is the identity rotation
             )doc")
 
-        .def("__repr__",
-            [](const simcoon::Rotation& self) {
-                vec::fixed<4> q = self.as_quat();
-                return "<Rotation: quat=[" +
-                    to_string(q(0)) + ", " + to_string(q(1)) + ", " +
-                    to_string(q(2)) + ", " + to_string(q(3)) + "]>";
-            });
+        ;
 }
 
 } // namespace simpy
