@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -63,9 +64,10 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
+void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
 {
-    
+
+    UNUSED(umat_name);
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
@@ -272,46 +274,40 @@ void umat_plasticity_chaboche_CCP(const vec &Etot, const vec &DEtot, vec &sigma,
     vec Da_1 = a_1 - a_1start;
     vec Da_2 = a_2 - a_2start;
         
-    if((solver_type == 0)||(solver_type==2)) {
-    
-		//Computation of the tangent modulus
-		mat Bhat = zeros(1, 1);
-		Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-		vec op = zeros(1);
-		mat delta = eye(1,1);
-    
-		for (int i=0; i<1; i++) {
-			if(Ds_j[i] > simcoon::iota)
-				op(i) = 1.;
-		}
-    
-		mat Bbar = zeros(1,1);
-		for (int i = 0; i < 1; i++) {
-			for (int j = 0; j < 1; j++) {
-				Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-			}
-		}
-    
-		mat invBbar = zeros(1, 1);
-		mat invBhat = zeros(1, 1);
-		invBbar = inv(Bbar);
-		for (int i = 0; i < 1; i++) {
-			for (int j = 0; j < 1; j++) {
-				invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-			}
-		}
-    
-		std::vector<vec> P_epsilon(1);
-		P_epsilon[0] = invBhat(0, 0)*(L*dPhidsigma);
-		std::vector<double> P_theta(1);
-		P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
-		
-		Lt = L - (kappa_j[0]*P_epsilon[0].t());
-	}
-    else if(solver_type == 1) {
-        sigma_in = -L*EP;
+    //Computation of the tangent modulus
+    mat Bhat = zeros(1, 1);
+    Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
+
+    vec op = zeros(1);
+    mat delta = eye(1,1);
+
+    for (int i=0; i<1; i++) {
+        if(Ds_j[i] > simcoon::iota)
+            op(i) = 1.;
     }
+
+    mat Bbar = zeros(1,1);
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < 1; j++) {
+            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
+        }
+    }
+
+    mat invBbar = zeros(1, 1);
+    mat invBhat = zeros(1, 1);
+    invBbar = inv(Bbar);
+    for (int i = 0; i < 1; i++) {
+        for (int j = 0; j < 1; j++) {
+            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
+        }
+    }
+
+    std::vector<vec> P_epsilon(1);
+    P_epsilon[0] = invBhat(0, 0)*(L*dPhidsigma);
+    std::vector<double> P_theta(1);
+    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
+
+    Lt = L - (kappa_j[0]*P_epsilon[0].t());
     
     double A_p = -Hp;
     vec A_a1 = -X_1;

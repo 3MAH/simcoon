@@ -57,10 +57,6 @@ namespace simcoon{
  * - Long fiber reinforced polymers
  * - Carbon fiber composites
  *
- * **Coordinate System:**
- * - The cylinder axis is aligned with the local x₃ direction
- * - The cross-section is circular in the x₁-x₂ plane
- *
  * **Concentration Tensors:**
  *
  * The strain concentration relates macroscopic to local strain:

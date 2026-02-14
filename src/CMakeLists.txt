@@ -42,7 +42,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Finite/generic_hyper_invariants.cpp
   Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.cpp
   Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.cpp
-  Continuum_mechanics/Umat/Finite/mooney_rivlin.cpp
   Continuum_mechanics/Umat/Finite/Neo_hookean_comp.cpp
   Continuum_mechanics/Umat/Finite/Neo_hookean_incomp.cpp
   Continuum_mechanics/Umat/Finite/saint_venant.cpp
@@ -72,9 +71,7 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
-  Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono_cubic.cpp
   Continuum_mechanics/Umat/Mechanical/SMA/unified_T.cpp
-  Continuum_mechanics/Umat/Mechanical/SMA/aniso_T.cpp
 
   # Continuum Mechanics - UMAT Mechanical Viscoelasticity
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.cpp

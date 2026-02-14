@@ -20,6 +20,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -38,9 +39,10 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_hypoelasticity_ortho(const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt)
-{  	
+void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+{
 
+    UNUSED(umat_name);
     UNUSED(Etot);
     UNUSED(DR);
     UNUSED(nprops);
@@ -94,12 +96,7 @@ void umat_hypoelasticity_ortho(const vec &Etot, const vec &DEtot, const mat &F0,
     vec DEel = DEtot - alpha*DT;
     sigma = el_pred(sigma_start, L, DEel);
     
-    if((solver_type == 0)||(solver_type==2)) {
-        Lt = L;
-	}
-    else if(solver_type == 1) {
-        sigma_in = zeros(6);
-    }
+    Lt = L;
         
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
