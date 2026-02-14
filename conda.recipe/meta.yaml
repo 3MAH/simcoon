@@ -15,6 +15,10 @@ build:
   script_env:
     - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
     - CONDA_BUILD_LOCAL
+  ignore_run_exports:
+    - libblas
+    - liblapack
+    - libcblas
 
 requirements:
   build:
@@ -35,6 +39,7 @@ requirements:
     - carma
     - pybind11
     - python
+    - python_abi {{ python }} *_cp{{ python | replace(".", "") }}  # Could be removed when https://github.com/conda/conda-build/issues/5843 is solved
     - numpy >=2.0
     - libblas
     - liblapack
@@ -54,3 +59,4 @@ test:
   imports:
     - simcoon
     - simcoon._core
+
