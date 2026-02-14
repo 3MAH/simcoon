@@ -251,7 +251,19 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside Truesdell (DF).");
-    }  
+    }
+}
+
+mat Hughes_Winget(const mat &Omega, const double &DTime) {
+    mat I = eye(3,3);
+    mat DR;
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Hughes_Winget.");
+    }
+    return DR;
 }
 
 mat get_BBBB(const mat &F1) {
@@ -393,7 +405,7 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     
     I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
     Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -421,7 +433,7 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
     Index<'M', 3> M;
     Index<'N', 3> N;
 
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -454,7 +466,7 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     Index<'N', 3> N;
     
     Dtau_LieDD_(i,j,k,l) = Dtau_JaumannDD_(i,j,k,l) - 0.5*tau_(k,j)*delta_(i,l) - 0.5*tau_(l,j)*delta_(i,k) - 0.5*tau_(i,l)*delta_(j,k) - 0.5*tau_(i,k)*delta_(j,l);
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -468,7 +480,7 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma)
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
     }     
-    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
@@ -480,35 +492,52 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
-    }     
+    }
     mat B = get_BBBB(F);
-    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
-    
-    double J;    
+
+    double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside Dsigma_LieDD_2_DSDE.");
-    }     
-    return J*Dtau_LieDD_2_DSDE(Lt, F);
+    }
+    return Dtau_LieDD_2_DSDE(J*Lt, F);
 }
 
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
-    
+
     double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_JaumannDD_2_DSDE.");
-    }     
-    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
+    }
+    return DtauDe_JaumannDD_2_DSDE(J*Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
+mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+
+    mat B = get_BBBB_GN(F);
+    return DtauDe_2_DSDE(Lt, B, F, tau);
+}
+
+mat DsigmaDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DsigmaDe_GreenNaghdiDD_2_DSDE.");
+    }
+    return DtauDe_GreenNaghdiDD_2_DSDE(J*Lt, F, Cauchy2Kirchoff(sigma, F, J));
+}
 
 mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
     
@@ -617,15 +646,52 @@ mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 }
 
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
-    
+
     double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_JaumannDD.");
-    }   
+    }
     return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+mat DSDE_2_Dtau_GreenNaghdiDD(const mat &DSDE, const mat &F, const mat &tau) {
+
+    mat Dtau_LieDD = DSDE_2_Dtau_LieDD(DSDE, F);
+    return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
+}
+
+mat DSDE_2_Dsigma_GreenNaghdiDD(const mat &DSDE, const mat &F, const mat &sigma) {
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_GreenNaghdiDD.");
+    }
+    return (1./J)*DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+// Standard logarithmic reverse convenience functions
+mat DSDE_2_Dtau_logarithmicDD(const mat &DSDE, const mat &F, const mat &tau) {
+
+    mat Dtau_LieDD = DSDE_2_Dtau_LieDD(DSDE, F);
+    return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
+}
+
+mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma) {
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_logarithmicDD.");
+    }
+    return (1./J)*DSDE_2_Dtau_logarithmicDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
