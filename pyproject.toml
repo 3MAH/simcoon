@@ -169,7 +169,7 @@ environment = { LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
 [tool.cibuildwheel.macos]
 # Build Armadillo from source against Apple Accelerate (not Homebrew's OpenBLAS)
 before-all = [
-    "brew install ninja",
+    "brew install ninja libomp",
     "curl -sL -o armadillo-code-${ARMADILLO_VERSION}.tar.gz https://gitlab.com/conradsnicta/armadillo-code/-/archive/${ARMADILLO_VERSION}/armadillo-code-${ARMADILLO_VERSION}.tar.gz",
     "tar -xf armadillo-code-${ARMADILLO_VERSION}.tar.gz",
     "cd armadillo-code-${ARMADILLO_VERSION} && cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON -DALLOW_OPENBLAS_MACOS=OFF && cmake --build build && sudo cmake --install build",
@@ -178,6 +178,8 @@ before-all = [
 # Build for arm64 only (native on Apple Silicon runners)
 archs = ["arm64"]
 
+# Point CMake to Homebrew's libomp (Apple Clang doesn't ship OpenMP)
+environment = { OpenMP_ROOT = "/opt/homebrew/opt/libomp" }
 
 # delocate bundles shared libraries
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"

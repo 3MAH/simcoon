@@ -6,10 +6,7 @@
 #include <carma>
 #include <armadillo>
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
+#include <simcoon/omp_compat.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -186,8 +183,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(n_threads);
-                omp_set_max_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)    
+                omp_set_active_levels(3);
+                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)
     			#endif
                 for (int pt = 0; pt < nb_points; pt++) {
 
@@ -226,7 +223,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP                
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
-                omp_set_max_active_levels(3);
+                omp_set_active_levels(3);
                 #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
     			#endif
                 for (int pt = 0; pt < nb_points; pt++) {

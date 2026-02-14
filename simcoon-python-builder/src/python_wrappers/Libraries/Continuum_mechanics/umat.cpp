@@ -6,11 +6,8 @@
 #include <carma>
 #include <armadillo>
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 #include <simcoon/parameter.hpp>
+#include <simcoon/omp_compat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
@@ -276,7 +273,7 @@ namespace simpy {
 		#ifdef _OPENMP
 			int max_threads = omp_get_max_threads();
 			omp_set_num_threads(n_threads);
-			omp_set_max_active_levels(3);
+			omp_set_active_levels(3);
 			#pragma omp parallel for shared(Lt, L, DR)
 		#endif
 		for (int pt = 0; pt < nb_points; pt++) {
