@@ -152,8 +152,16 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -161,8 +169,16 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double g_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
+                } else {
+                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
+                    g_z = s*(-1./4. + 3.*s/16.);
+                }
+                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -177,23 +193,23 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     mat R1;
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
-    
-    if(DTime > simcoon::iota) {    
+
+    if(DTime > simcoon::iota) {
         try {
             L = (1./DTime)*(F1-F0)*inv(F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_F (L).");
-        }          
-    }   
-    
+        }
+    }
+
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
-    
+
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
-    
+
     vec bi = zeros(3);
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
@@ -204,12 +220,20 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
     Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
-    
+
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -217,8 +241,16 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double g_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
+                } else {
+                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
+                    g_z = s*(-1./4. + 3.*s/16.);
+                }
+                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -268,8 +300,14 @@ mat get_BBBB(const mat &F1) {
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+            if (i!=j) {
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
                 BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
         }
@@ -291,7 +329,7 @@ mat get_BBBB_GN(const mat &F1) {
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
+            if (i!=j) {
                 f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
                 BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
@@ -334,8 +372,16 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat N = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: h(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
