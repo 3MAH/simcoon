@@ -195,12 +195,12 @@ Rotation operations for objective stress integration:
 - Active/passive rotation conventions
 
 **Key Functions:**
-- `fillR_euler()` - Construct rotation matrix from Euler angles (ZXZ, ZYZ conventions)
-- `fillR_angle()` - Rotation matrix from axis-angle representation
+- `Rotation::from_euler()` - Construct rotation from Euler angles (ZXZ, ZYZ, XYZ, etc.)
+- `Rotation::from_axis_angle()` - Rotation from axis-angle representation
 - `rotate_strain()` - Rotate strain tensor (Voigt notation)
 - `rotate_stress()` - Rotate stress tensor (Voigt notation)
-- `rotateL()` - Rotate stiffness matrix
-- `rotateM()` - Rotate compliance matrix
+- `rotate_stiffness()` - Rotate stiffness matrix
+- `rotate_compliance()` - Rotate compliance matrix
 
 #### **lagrange.hpp**
 Lagrange multiplier methods for constrained problems:
