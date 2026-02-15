@@ -349,8 +349,8 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
 
         for (unsigned int inc = 0; inc < ninc; ++inc) {
 
-            // Physical time (optional, for post-processing)
-            times(inc) = (inc + 1) * BC_Time / ninc;
+            // Incremental time for this sub-step
+            times(inc) = BC_Time / ninc;
 
             // Incremental generator (normalized weights)
             arma::cx_mat delta_L = (inc_coef(inc) / wsum) * logF;
