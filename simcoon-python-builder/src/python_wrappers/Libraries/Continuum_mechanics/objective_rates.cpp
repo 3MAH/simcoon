@@ -379,16 +379,12 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
                 Lt_converted = convert_function2(Lt_cpp, F_cpp);
                 break;
             }
-            case 1: case 2: case 6: case 7: case 8: case 10: {
+            case 1: case 2: case 4: case 5: case 6: case 7: case 8: case 10: {
                 Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
                 break;
             }
             case 3: {
                 Lt_converted = convert_function2(Lt_cpp, stress_cpp);
-                break;
-            }
-            case 4: case 5: {
-                Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
                 break;
             }
         }
