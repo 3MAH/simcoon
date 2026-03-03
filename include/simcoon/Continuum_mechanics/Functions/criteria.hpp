@@ -107,39 +107,7 @@ namespace simcoon
     */
     arma::vec dTresca_stress(const arma::vec &v);
 
-    /**
-     * @brief Provides the derivative of the second stress invariant \f$ J_2 \f$ with respect to stress
-     * @param v The stress vector in Voigt notation (6 components)
-     * @return The derivative of \f$ J_2 \f$ with respect to stress (arma::vec)
-     * @details Returns the derivative of the second deviatoric stress invariant:
-    \f[
-        \frac{\partial J_2}{\partial \mathbf{\sigma}} = \mathbf{\sigma}_{dev}
-    \f]
-        where \f$ \mathbf{\sigma}_{dev} \f$ is the deviatoric part of the stress tensor.
-        The second invariant \f$ J_2 \f$ is defined as \f$ J_2 = \frac{1}{2} \mathbf{\sigma}_{dev} : \mathbf{\sigma}_{dev} \f$.
-     * @code
-            vec sigma = randu(6);
-            vec dJ2 = dJ2_stress(sigma);
-     * @endcode
-    */
-    arma::vec dJ2_stress(const arma::vec &v);
 
-    /**
-     * @brief Provides the derivative of the third stress invariant \f$ J_3 \f$ with respect to stress
-     * @param v The stress vector in Voigt notation (6 components)
-     * @return The derivative of \f$ J_3 \f$ with respect to stress (arma::vec)
-     * @details Returns the derivative of the third deviatoric stress invariant:
-    \f[
-        \frac{\partial J_3}{\partial \mathbf{\sigma}} = \mathbf{S} \cdot \mathbf{S} - \frac{1}{3} \text{tr}(\mathbf{S}^2) \mathbf{I}
-    \f]
-        where \f$ \mathbf{S} \f$ is the deviatoric stress tensor and \f$ \mathbf{I} \f$ is the identity tensor.
-        The third invariant \f$ J_3 \f$ is defined as \f$ J_3 = \det(\mathbf{\sigma}_{dev}) \f$.
-     * @code
-            vec sigma = randu(6);
-            vec dJ3 = dJ3_stress(sigma);
-     * @endcode
-    */
-    arma::vec dJ3_stress(const arma::vec &v);
 
     /**
      * @brief Provides an anisotropic Drucker-type equivalent stress combining Drucker criteria with DFA anisotropy

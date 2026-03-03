@@ -102,6 +102,11 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 ################################################################################
 # INSTALL
 
