@@ -2,12 +2,13 @@ External
 ========
 
 Simcoon offers the possibility to develop your own user material plugin that can be loaded at runtime by the solver.
-You can develop such an external plugin using the Simcoon API. Two plugin formats are available:
+You can develop such an external plugin using the Simcoon API. Three plugin formats are available:
 
 - **UMEXT** (``umat_plugin_ext_api``): Native simcoon format using Armadillo vectors and matrices
 - **UMABA** (``umat_plugin_aba_api``): Abaqus UMAT-compatible format for existing Fortran/C++ UMATs
+- **UMANS** (``umat_plugin_ans_api``): ANSYS USERMAT-compatible format for existing Fortran/C++ USERMATs
 
-Both examples are provided in the ``external/`` folder.
+Examples are provided in the ``external/`` folder.
 
 UMEXT Plugin Format
 -------------------
@@ -24,14 +25,14 @@ Your plugin must inherit from ``umat_plugin_ext_api`` and implement the followin
         std::string name() const override {
             return "umext";  // Material name used in material.dat
         }
-    
+
         void umat_external_M(
-            const arma::vec &Etot,      // Total strain at end of increment
+            const std::string &umat_name, // Material model name
+            const arma::vec &Etot,      // Total strain at beginning of increment
             const arma::vec &DEtot,     // Strain increment
             arma::vec &sigma,           // Stress tensor (in/out)
             arma::mat &Lt,              // Tangent modulus (output)
             arma::mat &L,               // Elastic stiffness (output)
-            arma::vec &sigma_in,        // Internal stress (output)
             const arma::mat &DR,        // Rotation increment matrix
             const int &nprops,          // Number of material properties
             const arma::vec &props,     // Material properties
@@ -48,7 +49,6 @@ Your plugin must inherit from ``umat_plugin_ext_api`` and implement the followin
             const int &ndi,             // Number of direct stress components
             const int &nshr,            // Number of shear stress components
             const bool &start,          // True if first increment
-            const int &solver_type,     // Solver type (0=Newton, 1=RNL)
             double &tnew_dt             // Suggested time step ratio
         ) override;
     };
@@ -146,7 +146,7 @@ kstep           step number
 kinc            increment number
 ==============  ==========
 
-The file ``external/umat_plugin_aba.cpp`` provides a complete example, and ``external/UMAT_ABAQUS_ELASTIC.for`` is a sample Fortran UMAT.
+The file ``external/umat_plugin_aba.cpp`` provides a complete example, and ``external/UMAT_ABAQUS_ELASTIC.f`` is a sample Fortran UMAT.
 
 UMANS Plugin Format (Ansys Compatibility)
 -----------------------------------------
@@ -259,7 +259,7 @@ For UMABA plugins (with Fortran UMAT):
 
 .. code-block:: bash
 
-    gfortran -c -fPIC UMAT_ABAQUS_ELASTIC.for -o umat_fortran.o
+    gfortran -c -fPIC UMAT_ABAQUS_ELASTIC.f -o umat_fortran.o
     clang++ -c -fPIC -std=c++14 umat_plugin_aba.cpp -I/path/to/simcoon/include
     clang++ -std=c++14 -shared -lsimcoon -larmadillo -lgfortran -o libumat_plugin_aba.dylib umat_plugin_aba.o umat_fortran.o
 
@@ -406,7 +406,7 @@ To run the external UMAT tests:
 
     # Build simcoon with tests
     mkdir build && cd build
-    cmake .. -DBUILD_TESTING=ON
+    cmake .. -DSIMCOON_BUILD_TESTS=ON
     make
     
     # Run UMEXT test

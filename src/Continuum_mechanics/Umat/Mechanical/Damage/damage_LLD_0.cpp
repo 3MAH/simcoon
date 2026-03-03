@@ -22,6 +22,7 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
@@ -46,8 +47,9 @@ namespace simcoon {
 ///@param props(5) : lambdaD Damage evolution parameter lambda
 ///@param props(6) : deltaD Damage evolution parameter delta
 
-void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt) {
-    
+void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+
+    UNUSED(umat_name);
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
@@ -480,8 +482,7 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
     Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
     sigma = el_pred(L_tilde, Eel, ndi);
     
-    if((solver_type == 0)||(solver_type == 2)) {
-    
+    {
 		//Tangent modulus
 		mat B = L*inv(L_tilde);         //stress "localization factor" in damage
 		
@@ -618,9 +619,6 @@ void umat_damage_LLD_0(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, m
 		P_epsilon[2] = invBhat(0, 2)*dPhi_d_22d_sigma + invBhat(1, 2)*dPhi_d_12d_sigma + invBhat(2, 2)*dPhi_p_tsd_sigma;
 		
 		Lt = L_tilde - (kappa_j[0]*P_epsilon[0].t() + kappa_j[1]*P_epsilon[1].t() + kappa_j[2]*P_epsilon[2].t());
-    }
-    else if(solver_type == 1) {
-        sigma_in = -L*(Etot - Eel);
     }
     
     statev(0) = Tinit;
