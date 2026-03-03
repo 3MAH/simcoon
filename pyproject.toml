@@ -175,7 +175,7 @@ before-all = [
     "curl -sfL -o openmp-${LIBOMP_VERSION}.src.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VERSION}/openmp-${LIBOMP_VERSION}.src.tar.xz",
     "curl -sfL -o cmake-${LIBOMP_VERSION}.src.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VERSION}/cmake-${LIBOMP_VERSION}.src.tar.xz",
     "tar -xf openmp-${LIBOMP_VERSION}.src.tar.xz && tar -xf cmake-${LIBOMP_VERSION}.src.tar.xz",
-    "cmake -S openmp-${LIBOMP_VERSION}.src -B openmp-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET}",
+    "cmake -S openmp-${LIBOMP_VERSION}.src -B openmp-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_MODULE_PATH=$(pwd)/cmake-${LIBOMP_VERSION}.src/Modules",
     "ninja -C openmp-build && sudo ninja -C openmp-build install",
     "curl -sfL -o armadillo-code-${ARMADILLO_VERSION}.tar.gz https://gitlab.com/conradsnicta/armadillo-code/-/archive/${ARMADILLO_VERSION}/armadillo-code-${ARMADILLO_VERSION}.tar.gz",
     "tar -xf armadillo-code-${ARMADILLO_VERSION}.tar.gz",
