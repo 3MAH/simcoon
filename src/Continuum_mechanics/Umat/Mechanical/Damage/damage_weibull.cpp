@@ -15,6 +15,7 @@
 #include <iostream>
 #include <fstream>
 #include <math.h>
+#include <string>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -40,8 +41,9 @@ namespace simcoon {
 ///@param props(5) : lambdaD Damage evolution parameter lambda
 ///@param props(6) : deltaD Damage evolution parameter delta
     
-void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, vec &sigma_in, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt) {
-                
+void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+
+    UNUSED(umat_name);
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
@@ -49,8 +51,6 @@ void umat_damage_weibull(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt,
     UNUSED(nshr);
     UNUSED(tnew_dt);
     UNUSED(DR);
-    UNUSED(sigma_in);
-    UNUSED(solver_type);
     
     //From the props to the material properties
     double E = props(0);

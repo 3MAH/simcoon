@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -97,12 +98,12 @@ namespace simcoon{
  * |-------|--------|-------------|-------|
  * | statev[0] | \f$ T_{init} \f$ | Initial/reference temperature | Temperature |
  *
+ * @param umat_name Name of the constitutive model (ELORT)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1)
  * @param sigma Stress tensor [output] (Voigt notation: 6×1)
  * @param Lt Tangent modulus (= L for linear elasticity) [output] (6×6)
  * @param L Elastic stiffness tensor [output] (6×6)
- * @param sigma_in Internal stress for explicit solvers [output] (6×1)
  * @param DR Rotation increment matrix (3×3)
  * @param nprops Number of material properties (12)
  * @param props Material properties vector
@@ -119,7 +120,6 @@ namespace simcoon{
  * @param ndi Number of direct stress components
  * @param nshr Number of shear stress components
  * @param start Flag indicating first increment
- * @param solver_type Solver type (0=implicit, 1=explicit)
  * @param tnew_dt Suggested new time step [output]
  *
  * @note Material axes must be aligned with global axes. For rotated materials,
@@ -128,7 +128,7 @@ namespace simcoon{
  *
  * @see L_ortho() for orthotropic stiffness tensor construction
  */
-void umat_elasticity_ortho(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_elasticity_ortho(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
 
 
 /** @} */ // end of umat_mechanical group
