@@ -178,11 +178,14 @@ before-all = [
 # Build for arm64 only (native on Apple Silicon runners)
 archs = ["arm64"]
 
-# Point CMake to Homebrew's libomp (Apple Clang doesn't ship OpenMP)
-environment = { OpenMP_ROOT = "/opt/homebrew/opt/libomp" }
-
 # delocate bundles shared libraries
 repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
+
+# Point CMake to Homebrew's libomp without replacing global environment (ARMADILLO_VERSION, etc.)
+[[tool.cibuildwheel.overrides]]
+select = "*-macosx*"
+inherit.environment = "append"
+environment = { OpenMP_ROOT = "/opt/homebrew/opt/libomp" }
 
 # -----------------------------------------------------------------------------
 # Windows configuration
