@@ -40,6 +40,61 @@ class Rotation(ScipyRotation):
     """
 
     # ------------------------------------------------------------------
+    # Ensure subclass type is preserved (scipy >= 1.17 may not propagate cls)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _ensure_cls(cls, result):
+        """Wrap a scipy Rotation in this class if needed."""
+        if type(result) is cls:
+            return result
+        return cls.from_quat(result.as_quat())
+
+    @classmethod
+    def from_quat(cls, quat):
+        r = super().from_quat(quat)
+        if type(r) is not cls:
+            r.__class__ = cls
+        return r
+
+    @classmethod
+    def from_matrix(cls, matrix):
+        return cls._ensure_cls(super().from_matrix(matrix))
+
+    @classmethod
+    def from_rotvec(cls, rotvec, degrees=False):
+        return cls._ensure_cls(super().from_rotvec(rotvec, degrees=degrees))
+
+    @classmethod
+    def from_euler(cls, seq, angles, degrees=False):
+        return cls._ensure_cls(super().from_euler(seq, angles, degrees=degrees))
+
+    @classmethod
+    def from_mrp(cls, mrp):
+        return cls._ensure_cls(super().from_mrp(mrp))
+
+    @classmethod
+    def identity(cls, num=None):
+        return cls._ensure_cls(super().identity(num))
+
+    @classmethod
+    def random(cls, num=None, random_state=None):
+        return cls._ensure_cls(super().random(num, random_state))
+
+    @classmethod
+    def concatenate(cls, rotations):
+        return cls._ensure_cls(super().concatenate(rotations))
+
+    def inv(self):
+        return type(self)._ensure_cls(super().inv())
+
+    def __mul__(self, other):
+        return type(self)._ensure_cls(super().__mul__(other))
+
+    def __getitem__(self, indexer):
+        return type(self)._ensure_cls(super().__getitem__(indexer))
+
+    # ------------------------------------------------------------------
     # Simcoon-specific factory methods
     # ------------------------------------------------------------------
 
