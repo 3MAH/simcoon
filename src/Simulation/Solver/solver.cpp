@@ -401,26 +401,21 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
                                         if(corate_type == 5) {
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            mat DF = zeros(3,3);
+                                            logarithmic_F(DF, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            // Omega contains L (velocity gradient), not the log spin
+                                            // Compute the log spin: Omega_log = W + N_1
+                                            mat W = 0.5*(Omega - Omega.t());
+                                            Omega = W + N_1;
+                                            // DR = Cayley(Omega_log) — orthogonal rotation
                                             mat I = eye(3,3);
-                                            mat DR_N_inv;
-                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-D));
-                                            if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=5).");
+                                            try {
+                                                sv_M->DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+                                            } catch (const std::runtime_error &e) {
+                                                cerr << "Error in inv: " << e.what() << endl;
+                                                throw simcoon::exception_solver("Singular matrix in log_F DR computation (corate_type=5).");
                                             }
-                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-D));
-
-                                            // Compute inverse of DR_N once for reuse
-                                            mat inv_DR_N;
-                                            inv_success = inv(inv_DR_N, DR_N);
-                                            if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular DR_N matrix in natural basis rotation update (corate_type=5).");
-                                            }
-
-                                            mat Detot_nat = Delta_log_strain(D, Omega, DTime);
-                                            sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv_DR_N);
-                                            sv_M->sigma_start = t2v_stress(DR_N*v2t_stress(sv_M->sigma_start)*inv_DR_N);
-                                            sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv_DR_N);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
