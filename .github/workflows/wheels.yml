@@ -13,6 +13,10 @@ on:
         default: false
   workflow_dispatch:
     inputs:
+      publish_pypi:
+        description: 'Publish to PyPI'
+        type: boolean
+        default: false
       publish_testpypi:
         description: 'Publish to TestPyPI'
         type: boolean
@@ -126,7 +130,9 @@ jobs:
     name: Publish to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_call' && inputs.publish_pypi
+    if: |
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true') ||
+      (github.event_name == 'workflow_call' && inputs.publish_pypi)
     environment:
       name: pypi
       url: https://pypi.org/p/simcoon
