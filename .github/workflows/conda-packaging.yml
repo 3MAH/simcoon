@@ -145,6 +145,14 @@ jobs:
           echo "Testing Python import..."
           conda run -n test-install python -c "import simcoon; import simcoon._core; print('✓ Import successful')"
 
+      - name: Test compatibility with common packages (Unix)
+        if: runner.os != 'Windows'
+        shell: bash -l {0}
+        run: |
+          echo "=== Testing simcoon + matplotlib coinstallation ==="
+          conda install -n test-install -y matplotlib -c conda-forge
+          conda run -n test-install python -c "import simcoon; import matplotlib; print('✓ simcoon + matplotlib compatible')"
+
       - name: Install and verify package structure (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -181,6 +189,14 @@ jobs:
           # Test import
           Write-Host "Testing Python import..."
           conda run -n test-install python -c "import simcoon; import simcoon._core; print('Import successful')"
+
+      - name: Test compatibility with common packages (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Testing simcoon + matplotlib coinstallation ==="
+          conda install -n test-install -y matplotlib -c conda-forge
+          conda run -n test-install python -c "import simcoon; import matplotlib; print('simcoon + matplotlib compatible')"
 
       - name: Upload to Anaconda
         if: inputs.upload
