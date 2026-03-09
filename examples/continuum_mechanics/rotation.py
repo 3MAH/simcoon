@@ -1,13 +1,16 @@
 """
 Rotation library Examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The simcoon ``Rotation`` class inherits from ``scipy.spatial.transform.Rotation``,
+so all scipy factory methods and operations are available directly.  Plain scipy
+``Rotation`` objects can be upgraded with ``from_scipy()`` or passed directly to
+C++ methods that accept rotations.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as ScipyRotation
 import simcoon as sim
-import os
 
 
 # %%
@@ -19,65 +22,58 @@ v = np.array([1.0, 0.0, 0.0])
 m = np.eye(3)
 angle = np.pi / 4  # 45 degrees
 axis = 2  # y-axis (1=x, 2=y, 3=z)
-copy = True
 active = True
 
 
 # %%
-# 1. Rotate a vector using a rotation matrix
+# 1. Rotate a vector using the Rotation class
 #
-# This example shows how to build a rotation matrix and rotate a vector.
-# It uses :func:`simcoon.fillR_angle` and :func:`simcoon.rotate_vec_R`.
+# This example shows how to build a rotation from an angle and axis
+# and rotate a vector using :meth:`simcoon.Rotation.apply`.
 
-
-Rmat = sim.fillR_angle(angle, axis, active, copy)
-v_rot1 = sim.rotate_vec_R(v, Rmat, copy)
-print("Rotated vector (using R):", v_rot1)
-print("Rotation matrix (using R):", Rmat)
+rot = sim.Rotation.from_axis_angle(angle, axis)
+Rmat = rot.as_matrix()
+v_rot1 = rot.apply(v)
+print("Rotated vector:", v_rot1)
+print("Rotation matrix:\n", Rmat)
 
 
 # %%
-# 2. Rotate a vector using angle/axis
+# 2. Rotate a vector using Euler angles (scipy syntax)
 #
-# This example shows how to rotate a vector using an angle and an axis directly.
-# It uses :func:`simcoon.rotate_vec_angle`.
+# Uppercase letters indicate intrinsic rotations (rotating frame).
+# Lowercase letters indicate extrinsic rotations (fixed frame).
 
-
-v_rot2 = sim.rotate_vec_angle(v, angle, axis, copy)
-print("Rotated vector (using angle/axis):", v_rot2)
+rot2 = sim.Rotation.from_euler("ZXZ", [np.pi / 6, np.pi / 4, np.pi / 3])
+v_rot2 = rot2.apply(v)
+print("Rotated vector:", v_rot2)
 
 
 # %%
-# 3. Rotate a matrix using a rotation matrix
+# 3. Rotate a matrix (3x3 tensor)
 #
-# This example shows how to rotate a matrix using a rotation matrix.
-# It uses :func:`simcoon.rotate_mat_R`.
+# This example shows how to rotate a 3x3 tensor using
+# :meth:`simcoon.Rotation.apply_tensor`.
 
-
-m_rot1 = sim.rotate_mat_R(m, Rmat, copy)
-print("Rotated matrix (using R):\n", m_rot1)
+m_rot1 = rot.apply_tensor(m)
+print("Rotated matrix:\n", m_rot1)
 
 
 # %%
-# 4. Rotate a matrix using angle/axis
-#
-# This example shows how to rotate a matrix using an angle and an axis directly.
-# It uses :func:`simcoon.rotate_mat_angle`.
+# 4. Rotate a matrix using a rotation from Euler angles
 
-
-m_rot2 = sim.rotate_mat_angle(m, angle, axis, copy)
-print("Rotated matrix (using angle/axis):\n", m_rot2)
+rot_euler = sim.Rotation.from_euler("ZXZ", [np.pi / 6, np.pi / 4, np.pi / 3])
+m_rot2 = rot_euler.apply_tensor(m)
+print("Rotated matrix:\n", m_rot2)
 
 
 # %%
 # 5. Build a rotation matrix from Euler angles
-#
-# This example shows how to create a rotation matrix from Euler angles.
-# It uses :func:`simcoon.fillR_euler`.
 
 psi, theta, phi = np.pi / 6, np.pi / 4, np.pi / 3
-R_euler = sim.fillR_euler(psi, theta, phi, active, "zxz", copy)
-print("Rotation matrix from Euler angles (zxz):\n", R_euler)
+r_euler = sim.Rotation.from_euler("ZXZ", [psi, theta, phi])
+R_euler = r_euler.as_matrix()
+print("Rotation matrix from Euler angles (ZXZ):\n", R_euler)
 
 
 # %%
@@ -88,81 +84,63 @@ print("Rotation matrix from Euler angles (zxz):\n", R_euler)
 
 
 # %%
-# 6. Rotate a stress vector (single and batch)
+# 6. Rotate a stress vector
 #
-# This example uses :func:`simcoon.rotate_stress_angle`.
+# This example uses :meth:`simcoon.Rotation.apply_stress`.
 
 stress = np.array([1, 2, 3, 4, 5, 6], dtype=float)
-stress_batch = np.stack([stress, stress * 2], axis=1)
-rot_stress1 = sim.rotate_stress_angle(stress, angle, axis, active, copy)
-rot_stress2 = sim.rotate_stress_angle(stress_batch, angle, axis, active, copy)
-print("Rotated stress (single):", rot_stress1)
-print("Rotated stress (batch):\n", rot_stress2)
+rot_stress1 = rot.apply_stress(stress, active)
+print("Rotated stress:", rot_stress1)
 
 
 # %%
-# 7. Rotate a strain vector (single and batch)
+# 7. Rotate a strain vector
 #
-# This example uses :func:`simcoon.rotate_strain_angle`.
+# This example uses :meth:`simcoon.Rotation.apply_strain`.
 
 strain = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], dtype=float)
-strain_batch = np.stack([strain, strain * 2], axis=1)
-rot_strain1 = sim.rotate_strain_angle(strain, angle, axis, active, copy)
-rot_strain2 = sim.rotate_strain_angle(strain_batch, angle, axis, active, copy)
-print("Rotated strain (single):", rot_strain1)
-print("Rotated strain (batch):\n", rot_strain2)
+rot_strain1 = rot.apply_strain(strain, active)
+print("Rotated strain:", rot_strain1)
 
 
 # %%
 # 8. Rotate a stiffness matrix (L)
 #
-# This example uses both :func:`simcoon.rotateL_angle` and
-# :func:`simcoon.rotateL_R`.
+# This example uses :meth:`simcoon.Rotation.apply_stiffness`.
 
 L6 = np.eye(6)
-rotL1 = sim.rotateL_angle(L6, angle, axis, active, copy)
-rotL2 = sim.rotateL_R(L6, Rmat, active, copy)
-print("Rotated L (angle):\n", rotL1)
-print("Rotated L (R):\n", rotL2)
+rotL1 = rot.apply_stiffness(L6, active)
+print("Rotated L:\n", rotL1)
 
 
 # %%
 # 9. Rotate a compliance matrix (M)
 #
-# This example uses both :func:`simcoon.rotateM_angle` and
-# :func:`simcoon.rotateM_R`.
+# This example uses :meth:`simcoon.Rotation.apply_compliance`.
 
 M6 = np.eye(6)
-rotM1 = sim.rotateM_angle(M6, angle, axis, active, copy)
-rotM2 = sim.rotateM_R(M6, Rmat, active, copy)
-print("Rotated M (angle):\n", rotM1)
-print("Rotated M (R):\n", rotM2)
+rotM1 = rot.apply_compliance(M6, active)
+print("Rotated M:\n", rotM1)
 
 
 # %%
-# 10. Rotate a strain concentration matrix (A)
+# 10. Rotate a strain concentration tensor (A)
 #
-# This example uses both :func:`simcoon.rotateA_angle` and
-# :func:`simcoon.rotateA_R`.
+# This example uses :meth:`simcoon.Rotation.apply_strain_concentration`.
 
 A6 = np.eye(6)
-rotA1 = sim.rotateA_angle(A6, angle, axis, active, copy)
-rotA2 = sim.rotateA_R(A6, Rmat, active, copy)
-print("Rotated A (angle):\n", rotA1)
-print("Rotated A (R):\n", rotA2)
+rotA1 = rot.apply_strain_concentration(A6, active)
+print("Rotated A:\n", rotA1)
 
 
 # %%
-# 11. Rotate a stress concentration matrix (B)
+# 11. Rotate a stress concentration tensor (B)
 #
-# This example uses both :func:`simcoon.rotateB_angle` and
-# :func:`simcoon.rotateB_R`.
+# This example uses :meth:`simcoon.Rotation.apply_stress_concentration`.
 
 B6 = np.eye(6)
-rotB1 = sim.rotateB_angle(B6, angle, axis, active, copy)
-rotB2 = sim.rotateB_R(B6, Rmat, active, copy)
-print("Rotated B (angle):\n", rotB1)
-print("Rotated B (R):\n", rotB2)
+rotB1 = rot.apply_stress_concentration(B6, active)
+print("Rotated B:\n", rotB1)
 
 
 # %%
@@ -184,14 +162,112 @@ x = sim.L_cubic_props(L)
 print(x)
 
 alpha = np.pi / 4.0
-
-rot_matrix = np.array(
-    [[np.cos(alpha), -np.sin(alpha), 0.0], [np.sin(alpha), np.cos(alpha), 0], [0, 0, 1]]
-)
-# print(R)
-
-L_rotate = sim.rotateL_R(L, rot_matrix)
-L_rotate_angle = sim.rotateL_angle(L, alpha, axis=3)
-
+rot_z = sim.Rotation.from_axis_angle(alpha, 3)
+L_rotate = rot_z.apply_stiffness(L)
 print(np.array_str(L_rotate, suppress_small=True))
-print(np.array_str(L_rotate_angle, suppress_small=True))
+
+
+# %%
+# Scipy interoperability
+#
+# ``simcoon.Rotation`` inherits from ``scipy.spatial.transform.Rotation``,
+# so every scipy feature is available.  Plain scipy ``Rotation`` objects can
+# be upgraded to ``simcoon.Rotation`` via ``from_scipy()`` to unlock the
+# mechanics methods.
+
+
+# %%
+# 13. simcoon.Rotation IS a scipy Rotation
+#
+# Type checks and scipy methods work directly.
+
+r = sim.Rotation.from_axis_angle(np.pi / 4, 3)
+print("isinstance(r, ScipyRotation):", isinstance(r, ScipyRotation))
+print("Quaternion:", r.as_quat())
+print("Rotation vector:", r.as_rotvec())
+print("Euler ZXZ:", r.as_euler("ZXZ", degrees=True))
+
+
+# %%
+# 14. Upgrade a plain scipy Rotation to simcoon
+#
+# Use ``from_scipy()`` to add mechanics capabilities to an existing scipy
+# rotation (e.g. one returned by a third-party library).
+
+scipy_rot = ScipyRotation.from_euler("z", 45, degrees=True)
+print("Type before:", type(scipy_rot))
+
+smc_rot = sim.Rotation.from_scipy(scipy_rot)
+print("Type after:", type(smc_rot))
+
+# The quaternion is preserved exactly
+print("Quaternions match:", np.allclose(scipy_rot.as_quat(), smc_rot.as_quat()))
+
+# Now mechanics methods are available
+L_iso = sim.L_iso([70000, 0.3], "Enu")
+L_rotated = smc_rot.apply_stiffness(L_iso)
+print("Rotated stiffness L[0,0]:", L_rotated[0, 0])
+
+
+# %%
+# 15. Verify scipy and simcoon produce the same rotation
+#
+# A simcoon rotation and a scipy rotation built from the same parameters
+# give identical stiffness results.
+
+angle_test = np.pi / 6
+r_sim = sim.Rotation.from_axis_angle(angle_test, 3)
+r_scipy = sim.Rotation.from_scipy(ScipyRotation.from_rotvec([0, 0, angle_test]))
+
+L_sim = r_sim.apply_stiffness(L_iso)
+L_scipy = r_scipy.apply_stiffness(L_iso)
+print("Stiffness matrices match:", np.allclose(L_sim, L_scipy))
+
+
+# %%
+# 16. Compose simcoon and scipy rotations
+#
+# Because simcoon.Rotation inherits ``__mul__`` from scipy, composition
+# with either type works directly.
+
+r1 = sim.Rotation.from_axis_angle(np.pi / 4, 3)  # simcoon
+r2 = ScipyRotation.from_euler("x", 30, degrees=True)  # plain scipy
+
+r_composed = r1 * r2  # returns simcoon.Rotation
+print("Composed type:", type(r_composed))
+print("Composed is simcoon Rotation:", isinstance(r_composed, sim.Rotation))
+
+
+# %%
+# 17. Batch rotations and mean (scipy features)
+#
+# Generate random orientations and compute their mean — all scipy batch
+# operations work out of the box.
+
+rots = sim.Rotation.random(100)
+r_mean = rots.mean()
+print("Mean rotation type:", type(r_mean))
+print("Mean rotation angle:", np.degrees(r_mean.magnitude()), "degrees")
+
+
+# %%
+# 18. Slerp interpolation
+#
+# Use scipy's ``Slerp`` class for multi-keyframe interpolation, or the
+# convenience ``slerp_to()`` method for simple two-rotation interpolation.
+
+from scipy.spatial.transform import Slerp
+
+r_start = sim.Rotation.identity()
+r_end = sim.Rotation.from_axis_angle(np.pi / 2, 3)
+
+# Via scipy Slerp class
+key_rots = sim.Rotation.concatenate([r_start, r_end])
+slerp = Slerp([0, 1], key_rots)
+for t in [0.0, 0.25, 0.5, 0.75, 1.0]:
+    r_t = slerp(t)
+    print(f"  t={t:.2f}: angle = {np.degrees(r_t.magnitude()):.1f} deg")
+
+# Via convenience method
+r_mid = r_start.slerp_to(r_end, 0.5)
+print("Midpoint angle:", np.degrees(r_mid.magnitude()), "degrees")
