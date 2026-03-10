@@ -41,6 +41,7 @@ requirements:
   run:
     - python
     - numpy >=2.0
+    - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
