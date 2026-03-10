@@ -23,6 +23,7 @@ requirements:
     - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - {{ stdlib('c') }}
     - llvm-openmp # [osx]
     - libgomp # [linux]
   host:
