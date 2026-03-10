@@ -1,0 +1,63 @@
+name: Fedoo Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, fix/openMP]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  fedoo-integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        fedoo-version: ["0.7.0", "0.6.1", "0.6.0"]
+        os:
+          - name: Linux
+            runner: ubuntu-latest
+            sys-deps: |
+              sudo apt-get update
+              sudo apt-get install -y libarmadillo-dev ninja-build
+          - name: macOS
+            runner: macos-latest
+            sys-deps: brew install armadillo ninja libomp
+
+    runs-on: ${{ matrix.os.runner }}
+    name: ${{ matrix.os.name }} / fedoo ${{ matrix.fedoo-version }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: ${{ matrix.os.sys-deps }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build simcoon wheel and install with fedoo
+        run: |
+          uv venv
+          uv pip install scikit-build-core pybind11 numpy
+          uv pip install . --no-build-isolation
+          uv pip install "fedoo==${{ matrix.fedoo-version }}" pytest
+
+      - name: Verify OpenMP is not duplicated (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Check that _core.so links to system libomp via RPATH, not a bundled one
+          uv run python -c "
+          import simcoon._core as c, os, pathlib
+          core = pathlib.Path(c.__file__)
+          pkg = core.parent
+          bundled = list(pkg.glob('*libomp*'))
+          assert not bundled, f'libomp should NOT be bundled in the wheel: {bundled}'
+          print('OK: no bundled libomp found in', pkg)
+          "
+
+      - name: Run fedoo integration tests
+        run: uv run pytest tests/test_fedoo_integration.py -v
