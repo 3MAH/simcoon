@@ -36,14 +36,8 @@ def _apply_compression_bc(pb, mesh, disp_z):
     pb.bc.add("Dirichlet", mesh.find_nodes("Z", mesh.bounding_box.zmax), "DispZ", disp_z)
 
 
-# ── Test 1: Non-linear UMAT (EPICP) ─ small strain ─ exercises OpenMP ──
-
 def test_epicp_small_strain():
-    """Elastoplastic EPICP umat under small-strain compression.
-
-    This exercises the OpenMP-parallelised umat call (multi-point
-    stress integration) with a non-linear material (plasticity).
-    """
+    """Elastoplastic EPICP umat, small strain (exercises OpenMP)."""
     mesh = _make_cube("epicp_ss")
     props = np.array([200e3, 0.3, 0.0, 300.0, 1000.0, 0.5])
     mat = fedoo.constitutivelaw.Simcoon("EPICP", props, name="epicp_ss_mat")
@@ -58,20 +52,12 @@ def test_epicp_small_strain():
 
     disp = pb.get_disp("DispZ")
     assert np.max(np.abs(disp)) == pytest.approx(0.01, abs=1e-8)
-
-    # Verify plastic deformation occurred (statev[1] = accumulated plastic strain p)
     p = asm.sv["Statev"][1]
     assert np.max(p) > 0, "Expected plastic deformation"
 
 
-# ── Test 2: Non-linear geometry (Neo-Hookean) ─ tangent modulus transfer ──
-
 def test_neohookean_nlgeom():
-    """Neo-Hookean hyperelastic under large-strain compression.
-
-    This exercises non-linear geometry (nlgeom=True) which involves
-    deformation gradient transfer and tangent modulus computation.
-    """
+    """Neo-Hookean hyperelastic, large strain (tangent modulus transfer)."""
     mesh = _make_cube("neohc_nl")
     props = np.array([80e3, 400e3])  # mu, kappa
     mat = fedoo.constitutivelaw.Simcoon("NEOHC", props, name="neohc_nl_mat")
@@ -86,23 +72,12 @@ def test_neohookean_nlgeom():
 
     disp = pb.get_disp("DispZ")
     assert np.max(np.abs(disp)) == pytest.approx(0.1, abs=1e-8)
-
-    # Verify deformation gradient was tracked
     F = asm.sv["F"]
-    assert F is not None
-    assert not np.allclose(F, np.eye(3).reshape(3, 3, 1)), \
-        "Deformation gradient should differ from identity"
+    assert not np.allclose(F, np.eye(3).reshape(3, 3, 1))
 
-
-# ── Test 3: EPICP + nlgeom ─ OpenMP umat + tangent modulus + large strain ──
 
 def test_epicp_nlgeom():
-    """Elastoplastic EPICP under large-strain compression.
-
-    This is the most demanding test: non-linear material (OpenMP umat)
-    combined with non-linear geometry (deformation gradient and tangent
-    modulus transfer between fedoo and simcoon).
-    """
+    """EPICP + large strain (OpenMP umat + tangent modulus + F transfer)."""
     mesh = _make_cube("epicp_nl")
     props = np.array([200e3, 0.3, 0.0, 300.0, 1000.0, 0.5])
     mat = fedoo.constitutivelaw.Simcoon("EPICP", props, name="epicp_nl_mat")
@@ -117,40 +92,25 @@ def test_epicp_nlgeom():
 
     disp = pb.get_disp("DispZ")
     assert np.max(np.abs(disp)) == pytest.approx(0.05, abs=1e-8)
-
-    # Verify plastic deformation
     p = asm.sv["Statev"][1]
     assert np.max(p) > 0, "Expected plastic deformation"
-
-    # Verify deformation gradient was tracked
     F = asm.sv["F"]
     assert not np.allclose(F, np.eye(3).reshape(3, 3, 1))
-
-    # Verify tangent matrix is populated and symmetric
     Lt = asm.sv["TangentMatrix"]
-    assert Lt is not None
     sym_err = np.abs(Lt - Lt.transpose((1, 0, 2))).max()
     assert sym_err < 1e-3, f"Tangent matrix not symmetric (err={sym_err})"
 
 
-# ── Test 4: Direct sim.umat call with explicit n_threads ──
-
 @pytest.mark.parametrize("n_threads", [1, 2, 4])
 def test_umat_openmp_threads(n_threads):
-    """Call sim.umat directly with explicit n_threads to verify OpenMP works.
-
-    With multiple Gauss points the umat loop is OpenMP-parallelised.
-    Results must be identical regardless of thread count.
-    """
-    n_gauss = 64  # simulate 64 Gauss points (like 8 hex8 elements)
+    """Direct sim.umat with explicit n_threads to verify OpenMP."""
+    n_gauss = 64
     props = np.asfortranarray(
         np.tile([200e3, 0.3, 0.0, 300.0, 1000.0, 0.5], (n_gauss, 1)).T
     )
-
     etot = np.zeros((6, n_gauss), order="F")
-    # Apply a uniaxial strain increment that exceeds yield
     Detot = np.zeros((6, n_gauss), order="F")
-    Detot[2, :] = 5e-3  # eps_zz increment
+    Detot[2, :] = 5e-3
 
     sigma = np.zeros((6, n_gauss), order="F")
     statev = np.zeros((8, n_gauss), order="F")
@@ -165,9 +125,6 @@ def test_umat_openmp_threads(n_threads):
         0.0, 1.0, Wm, n_threads=n_threads,
     )
 
-    # All Gauss points have identical input → identical output
     assert np.allclose(stress[:, 0:1], stress, atol=1e-6), \
         f"Stress not uniform across Gauss points with n_threads={n_threads}"
-
-    # Should have yielded (sigma_Y = 300 MPa, E*eps = 200e3*5e-3 = 1000 MPa)
-    assert sv[1, 0] > 0, "Expected plastic strain with n_threads={n_threads}"
+    assert sv[1, 0] > 0, f"Expected plastic strain with n_threads={n_threads}"

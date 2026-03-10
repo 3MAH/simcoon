@@ -72,3 +72,9 @@ jobs:
 
       - name: Run Python tests
         run: uv run pytest
+
+      - name: Install fedoo and run integration tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          uv pip install "fedoo==0.8.0"
+          uv run pytest tests/test_fedoo_integration.py -v

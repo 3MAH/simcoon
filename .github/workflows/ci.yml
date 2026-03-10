@@ -89,3 +89,10 @@ jobs:
           name: test-logs-${{ matrix.os }}
           path: build/Testing/Temporary/LastTest.log
           retention-days: 7
+
+      - name: Install simcoon + fedoo and run integration tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          pip install . --no-build-isolation
+          pip install "fedoo==0.8.0" pytest
+          pytest tests/test_fedoo_integration.py -v
