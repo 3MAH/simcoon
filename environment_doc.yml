@@ -38,3 +38,4 @@ dependencies:
   - pandas
   - breathe
   - doxygen
+  - scikit-learn

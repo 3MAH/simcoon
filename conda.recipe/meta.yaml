@@ -1,11 +1,13 @@
+{% set version = load_file_regex(load_file='../pyproject.toml', regex_pattern='(?ms)^\\[project\\].*?^version\\s*=\\s*"([^"]+)"', from_recipe_dir=True).group(1) %}
+
 package:
   name: simcoon
-  version: 1.10.1
+  version: {{ version }}
 
 source:
-  git_url: https://github.com/3MAH/simcoon.git # [not environ.get('CONDA_BUILD_LOCAL')]
-  path: .. # [environ.get('CONDA_BUILD_LOCAL')]
-  #git_tag: 1.10.1  # Uncomment for specific release builds
+  git_url: https://github.com/3MAH/simcoon.git  # [not environ.get('CONDA_BUILD_LOCAL')]
+  path: ..  # [environ.get('CONDA_BUILD_LOCAL')]
+  #git_tag: {{ version }}  # Uncomment for specific release builds
 
 build:
   number: 0
@@ -25,6 +27,7 @@ requirements:
     - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - {{ stdlib('c') }}  # [linux]
     - llvm-openmp # [osx]
     - libgomp # [linux]
   host:
@@ -44,6 +47,7 @@ requirements:
   run:
     - python
     - numpy >=2.0
+    - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]

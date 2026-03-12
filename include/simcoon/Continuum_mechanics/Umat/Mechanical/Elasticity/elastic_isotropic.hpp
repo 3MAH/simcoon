@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -122,12 +123,12 @@ namespace simcoon{
  *
  * Total state variables required: \f$ n_{statev} = 1 \f$
  *
+ * @param umat_name Name of the constitutive model (ELISO)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
  * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
@@ -144,7 +145,6 @@ namespace simcoon{
  * @param ndi Number of direct stress components (typically 3)
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
- * @param solver_type Solver type: 0=implicit, 1=explicit, 2=dynamic implicit
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
  *
  * @note This model is restricted to small strains (< 1%)
@@ -169,12 +169,11 @@ namespace simcoon{
  * vec sigma = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
- * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_elasticity_iso(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+ * umat_elasticity_iso("ELISO", Etot, DEtot, sigma, Lt, L, DR,
  *                     3, props, 1, statev, 25.0, 5.0, 0.0, 1.0,
- *                     Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
+ *                     Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
  *
  * // Expected stress: sigma(0) ≈ E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
  * @endcode
@@ -184,7 +183,7 @@ namespace simcoon{
  * - Bower, A. F. (2009). *Applied Mechanics of Solids*. CRC Press.
  * - Gurtin, M. E. (1981). *An Introduction to Continuum Mechanics*. Academic Press.
  */
-void umat_elasticity_iso(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_elasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
                             
 
 /** @} */ // end of umat_mechanical group

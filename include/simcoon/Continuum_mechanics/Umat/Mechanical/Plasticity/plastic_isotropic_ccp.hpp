@@ -22,6 +22,7 @@
 ///@version 1.0
 
 #pragma once
+#include <string>
 #include <armadillo>
 
 namespace simcoon{
@@ -104,12 +105,12 @@ namespace simcoon{
  * | statev[6] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (×2 in Voigt) | - |
  * | statev[7] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (×2 in Voigt) | - |
  *
+ * @param umat_name Name of the constitutive model (EPICP)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
  * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
@@ -126,12 +127,11 @@ namespace simcoon{
  * @param ndi Number of direct stress components (typically 3)
  * @param nshr Number of shear stress components (typically 3)
  * @param start Flag indicating first increment (true) or continuation (false)
- * @param solver_type Solver type: 0=implicit, 1=explicit, 2=dynamic implicit
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
  *
  * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (γ = 2ε)
  * @note The consistent tangent modulus Lt ensures quadratic convergence in implicit Newton-Raphson schemes
- * @note For explicit solvers (solver_type=1), use sigma_in instead of Lt
+ * @note The tangent modulus Lt is always computed
  *
  * @see Fischer_Burmeister_m() for the complementarity solver
  * @see L_iso() for isotropic elastic stiffness construction
@@ -144,17 +144,16 @@ namespace simcoon{
  * vec sigma = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
- * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  * vec props = {70000, 0.3, 1e-5, 200, 500, 0.2};
  * vec statev = zeros(8);
  *
- * umat_plasticity_iso_CCP(Etot, DEtot, sigma, Lt, L, sigma_in, DR, 6, props, 8, statev,
+ * umat_plasticity_iso_CCP("EPICP", Etot, DEtot, sigma, Lt, L, DR, 6, props, 8, statev,
  *                         20.0, 0.0, 0.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d,
- *                         3, 3, true, 0, tnew_dt);
+ *                         3, 3, true, tnew_dt);
  * @endcode
  */
-void umat_plasticity_iso_CCP(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+void umat_plasticity_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
     
 
 /** @} */ // end of umat_mechanical group

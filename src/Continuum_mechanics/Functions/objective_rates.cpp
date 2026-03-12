@@ -152,8 +152,16 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -161,8 +169,16 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double g_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
+                } else {
+                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
+                    g_z = s*(-1./4. + 3.*s/16.);
+                }
+                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -177,23 +193,23 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     mat R1;
     RU_decomposition(R0,U0,F0);
     RU_decomposition(R1,U1,F1);
-    
-    if(DTime > simcoon::iota) {    
+
+    if(DTime > simcoon::iota) {
         try {
             L = (1./DTime)*(F1-F0)*inv(F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_F (L).");
-        }          
-    }   
-    
+        }
+    }
+
     //decomposition of L
     D = 0.5*(L+L.t());
     mat W = 0.5*(L-L.t());
-    
+
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
-    
+
     vec bi = zeros(3);
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
@@ -204,12 +220,20 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
     Bi_proj[1] = Bi.col(1)*(Bi.col(1)).t();
     Bi_proj[2] = Bi.col(2)*(Bi.col(2)).t();
-    
+
     N_1 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_1+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N_1 += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -217,8 +241,16 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     N_2 = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N_2+=((1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5))))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double g_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    g_z = (1.-(pow(bi(i)/bi(j),0.5)))/(1.+(pow(bi(i)/bi(j),0.5)));
+                } else {
+                    // Taylor expansion: g(r) = -s/4 + 3s^2/16 + O(s^3) where s = r - 1
+                    g_z = s*(-1./4. + 3.*s/16.);
+                }
+                N_2 += g_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -251,7 +283,19 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside Truesdell (DF).");
-    }  
+    }
+}
+
+mat Hughes_Winget(const mat &Omega, const double &DTime) {
+    mat I = eye(3,3);
+    mat DR;
+    try {
+        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Hughes_Winget.");
+    }
+    return DR;
 }
 
 mat get_BBBB(const mat &F1) {
@@ -268,8 +312,14 @@ mat get_BBBB(const mat &F1) {
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+            if (i!=j) {
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: f(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
                 BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
         }
@@ -291,7 +341,7 @@ mat get_BBBB_GN(const mat &F1) {
     double f_z = 0.;
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
+            if (i!=j) {
                 f_z = (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
                 BBBB = BBBB + f_z*linearop_eigsym(Bi.col(i),Bi.col(j));
             }
@@ -334,8 +384,16 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat N = zeros(3,3);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                N+=((1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j)))*Bi_proj[i]*D*Bi_proj[j];
+            if (i!=j) {
+                double f_z = 0.;
+                double s = bi(i)/bi(j) - 1.;
+                if (fabs(s) > 1.e-4) {
+                    f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
+                } else {
+                    // Taylor expansion: h(r) = -s/6 + s^2/12 + O(s^3) where s = r - 1
+                    f_z = s*(-1./6. + s/12.);
+                }
+                N += f_z*Bi_proj[i]*D*Bi_proj[j];
             }
         }
     }
@@ -393,7 +451,7 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     
     I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
     Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -421,7 +479,7 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
     Index<'M', 3> M;
     Index<'N', 3> N;
 
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -454,7 +512,7 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     Index<'N', 3> N;
     
     Dtau_LieDD_(i,j,k,l) = Dtau_JaumannDD_(i,j,k,l) - 0.5*tau_(k,j)*delta_(i,l) - 0.5*tau_(l,j)*delta_(i,k) - 0.5*tau_(i,l)*delta_(j,k) - 0.5*tau_(i,k)*delta_(j,l);
-    DSDE_(L,H,M,N) = invF_(l,N)*(invF_(k,M)*(invF_(j,H)*(invF_(i,L)*Dtau_LieDD_(i,j,k,l))));
+    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
     return FTensor4_mat(DSDE_);
 }
 
@@ -468,7 +526,7 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma)
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
     }     
-    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
@@ -480,35 +538,52 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
-    }     
+    }
     mat B = get_BBBB(F);
-    return J*DtauDe_2_DSDE(Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
-    
-    double J;    
+
+    double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside Dsigma_LieDD_2_DSDE.");
-    }     
-    return J*Dtau_LieDD_2_DSDE(Lt, F);
+    }
+    return Dtau_LieDD_2_DSDE(J*Lt, F);
 }
 
 mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
-    
+
     double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_JaumannDD_2_DSDE.");
-    }     
-    return J*DtauDe_JaumannDD_2_DSDE(Lt, F, Cauchy2Kirchoff(sigma, F, J));
+    }
+    return DtauDe_JaumannDD_2_DSDE(J*Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
+mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+
+    mat B = get_BBBB_GN(F);
+    return DtauDe_2_DSDE(Lt, B, F, tau);
+}
+
+mat DsigmaDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DsigmaDe_GreenNaghdiDD_2_DSDE.");
+    }
+    return DtauDe_GreenNaghdiDD_2_DSDE(J*Lt, F, Cauchy2Kirchoff(sigma, F, J));
+}
 
 mat DtauDe_2_DsigmaDe(const mat &Lt, const double &J) {
     
@@ -617,15 +692,52 @@ mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 }
 
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
-    
+
     double J;
     try {
         J = det(F);
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_JaumannDD.");
-    }   
+    }
     return (1./J)*DSDE_2_Dtau_JaumannDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+mat DSDE_2_Dtau_GreenNaghdiDD(const mat &DSDE, const mat &F, const mat &tau) {
+
+    mat Dtau_LieDD = DSDE_2_Dtau_LieDD(DSDE, F);
+    return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
+}
+
+mat DSDE_2_Dsigma_GreenNaghdiDD(const mat &DSDE, const mat &F, const mat &sigma) {
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_GreenNaghdiDD.");
+    }
+    return (1./J)*DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+// Standard logarithmic reverse convenience functions
+mat DSDE_2_Dtau_logarithmicDD(const mat &DSDE, const mat &F, const mat &tau) {
+
+    mat Dtau_LieDD = DSDE_2_Dtau_LieDD(DSDE, F);
+    return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
+}
+
+mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma) {
+
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_logarithmicDD.");
+    }
+    return (1./J)*DSDE_2_Dtau_logarithmicDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau

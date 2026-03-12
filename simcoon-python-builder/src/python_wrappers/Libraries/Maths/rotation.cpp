@@ -1,5 +1,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 
 #include <string>
 #include <carma>
@@ -10,307 +11,140 @@
 
 using namespace std;
 using namespace arma;
-namespace py=pybind11;
+namespace py = pybind11;
 
 namespace simpy {
 
-py::array_t<double> rotate_vec_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &copy) {
-    vec v_cpp = carma::arr_to_col(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    vec rotated_v = simcoon::rotate_vec(v_cpp,R_cpp);   
-    return carma::col_to_arr(rotated_v, copy);
-}
-
-py::array_t<double> rotate_vec_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &copy) {
-    vec v_cpp = carma::arr_to_col(input);
-    vec rotated_v = simcoon::rotate_vec(v_cpp,angle,axis);     
-    return carma::col_to_arr(rotated_v, copy);
-}
-
-py::array_t<double> rotate_mat_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &copy) {
-    mat m_cpp = carma::arr_to_mat(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    mat rotated_m = simcoon::rotate_mat(m_cpp,R_cpp);
-    return carma::mat_to_arr(rotated_m, copy);
-}
-
-py::array_t<double> rotate_mat_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &copy) {    
-    mat m_cpp = carma::arr_to_mat(input);
-    mat rotated_m = simcoon::rotate_mat(m_cpp,angle,axis);    
-    return carma::mat_to_arr(rotated_m, copy);
-}
-
-py::array_t<double> fillR_angle(const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat R = simcoon::fillR(angle,axis,active);
-    return carma::mat_to_arr(R, copy);
-}
-    
-//This function returns the 3*3 rotation matrix
-py::array_t<double> fillR_euler(const double &psi, const double &theta, const double &phi, const bool &active, const string &conv, const bool &copy) {
-    mat R = simcoon::fillR(psi,theta,phi,active,conv);
-    return carma::mat_to_arr(R, copy);
-}
-
-//This function returns the 6*6 rotation matrix of a vector of type 'stress'
-py::array_t<double> fillQS_angle(const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat QS = simcoon::fillQS(angle,axis,active);
-    return carma::mat_to_arr(QS, copy);
-}
-
-//This function returns the 6*6 rotation matrix of a vector of type 'stress'
-py::array_t<double> fillQS_R(const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat R_cpp = carma::arr_to_mat(R);
-    mat QS = simcoon::fillQS(R_cpp,active);
-    return carma::mat_to_arr(QS, copy);
-}
-    
-//This function returns the 6*6 rotation matrix of a vector of type 'strain'
-py::array_t<double> fillQE_angle(const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat QE = simcoon::fillQE(angle,axis,active);
-    return carma::mat_to_arr(QE, copy);
-}
-
-//This function returns the 6*6 rotation matrix of a vector of type 'strain'
-py::array_t<double> fillQE_R(const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat R_cpp = carma::arr_to_mat(R);
-    mat QE = simcoon::fillQE(R_cpp,active);
-    return carma::mat_to_arr(QE, copy);
-}
-
-//This function rotates a 6*6 stiffness matrix (L)
-py::array_t<double> rotateL_angle(const py::array_t<double> &input, const double &angle, const int & axis, const bool &active, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(input);
-    mat rotated_L = simcoon::rotateL(L_cpp,angle,axis,active); 
-    return carma::mat_to_arr(rotated_L, copy);
-}
-
-//This function rotates a 6*6 stiffness matrix (L)
-py::array_t<double> rotateL_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    mat rotated_L = simcoon::rotateL(L_cpp,R_cpp,active);
-    return carma::mat_to_arr(rotated_L, copy);
-}
-
-//This function rotates a 6*6 compliance matrix (M)
-py::array_t<double> rotateM_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat M_cpp = carma::arr_to_mat(input);
-    mat rotated_M = simcoon::rotateM(M_cpp,angle,axis,active);
-    return carma::mat_to_arr(rotated_M, copy);
-}
-
-//This function rotates a 6*6 compliance matrix (M)
-py::array_t<double> rotateM_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat M_cpp = carma::arr_to_mat(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    mat rotated_M = simcoon::rotateM(M_cpp,R_cpp,active);
-    return carma::mat_to_arr(rotated_M);
-}
-
-//This function rotates a 6*6 strain concentration (A)
-py::array_t<double> rotateA_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat A_cpp = carma::arr_to_mat(input);
-    mat rotated_A = simcoon::rotateA(A_cpp,angle,axis,active);
-    return carma::mat_to_arr(rotated_A, copy);
-}
-
-//This function rotates a 6*6 strain concentration (A)
-py::array_t<double> rotateA_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat A_cpp = carma::arr_to_mat(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    mat rotated_A = simcoon::rotateA(A_cpp,R_cpp,active);  
-    return carma::mat_to_arr(rotated_A, copy);
-}
-
-//This function rotates a 6*6 stress concentration (B)
-py::array_t<double> rotateB_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    mat B_cpp = carma::arr_to_mat(input);
-    mat rotated_B = simcoon::rotateB(B_cpp,angle,axis,active);  
-    return carma::mat_to_arr(rotated_B, copy);
-}
-
-//This function rotates a 6*6 stress concentration (B)
-py::array_t<double> rotateB_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    mat B_cpp = carma::arr_to_mat(input);
-    mat R_cpp = carma::arr_to_mat(R);
-    mat rotated_B = simcoon::rotateB(B_cpp,R_cpp,active);
-    return carma::mat_to_arr(rotated_B, copy);
-}
-
-//This function rotates stress vectors - Can be used with stack of arrays (vectorized)
-py::array_t<double> rotate_stress_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    if (input.ndim()==1){
-        vec v = carma::arr_to_col(input);
-        vec rotated_stress = simcoon::rotate_stress(v,angle,axis,active);
-        return carma::col_to_arr(rotated_stress, copy);
-    }
-    else if (input.ndim() == 2){
-        mat m = carma::arr_to_mat_view(input);
-        int nb_points = m.n_cols;
-        mat rotated_stress(6,nb_points); 
-        for (int pt = 0; pt < nb_points; pt++) {
-            vec v = m.unsafe_col(pt);
-            rotated_stress.col(pt) = simcoon::rotate_stress(v,angle,axis,active);
+namespace {
+    void validate_vector_size(const py::array_t<double>& arr, size_t expected, const string& name) {
+        if (arr.ndim() != 1) {
+            throw invalid_argument(name + " must be a 1D array, got " + to_string(arr.ndim()) + "D");
         }
-        return carma::mat_to_arr(rotated_stress, copy);
-    }
-    else{
-        throw std::invalid_argument("input.ndim should be 1 or 2");
-    }
-}
-                 
-//This function rotates stress vectors - Can be used with stack of arrays (vectorized)
-py::array_t<double> rotate_stress_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    if (input.ndim()==1){
-        vec v = carma::arr_to_col(input);
-        mat R_cpp = carma::arr_to_mat(R);
-        vec rotated_stress = simcoon::rotate_stress(v,R_cpp,active);
-        return carma::col_to_arr(rotated_stress, copy);
-    }
-    else if (input.ndim() == 2){
-        mat m = carma::arr_to_mat_view(input);
-        cube R_cpp = carma::arr_to_cube_view(R);
-        int nb_points = m.n_cols;
-        mat rotated_stress(6,nb_points); 
-        for (int pt = 0; pt < nb_points; pt++) {
-            vec v = m.unsafe_col(pt);
-            rotated_stress.col(pt) = simcoon::rotate_stress(v,R_cpp.slice(pt),active);
+        if (static_cast<size_t>(arr.size()) != expected) {
+            throw invalid_argument(name + " must have " + to_string(expected) +
+                " elements, got " + to_string(arr.size()));
         }
-        return carma::mat_to_arr(rotated_stress, copy);
     }
-    else{
-        throw std::invalid_argument("input.ndim should be 1 or 2");
-    }
-}
 
-//This function rotates strain vectors - Can be used with stack of arrays (vectorized)
-py::array_t<double> rotate_strain_angle(const py::array_t<double> &input, const double &angle, const int &axis, const bool &active, const bool &copy) {
-    if (input.ndim()==1){
-        vec v = carma::arr_to_col(input);
-        vec rotated_strain = simcoon::rotate_strain(v,angle,axis,active);
-        return carma::col_to_arr(rotated_strain, copy);
-    }
-    else if (input.ndim() == 2){
-        mat m = carma::arr_to_mat_view(input);
-        int nb_points = m.n_cols;
-        mat rotated_strain(6,nb_points); 
-        for (int pt = 0; pt < nb_points; pt++) {
-            vec v = m.unsafe_col(pt);
-            rotated_strain.col(pt) = simcoon::rotate_strain(v,angle,axis,active);
+    void validate_matrix_size(const py::array_t<double>& arr, size_t rows, size_t cols, const string& name) {
+        if (arr.ndim() != 2) {
+            throw invalid_argument(name + " must be a 2D array, got " + to_string(arr.ndim()) + "D");
         }
-        return carma::mat_to_arr(rotated_strain, copy);
-    }
-    else{
-        throw std::invalid_argument("input.ndim should be 1 or 2");
-    }
-}
-
-//This function rotates strain vectors - Can be used with stack of arrays (vectorized)
-py::array_t<double> rotate_strain_R(const py::array_t<double> &input, const py::array_t<double> &R, const bool &active, const bool &copy) {
-    if (input.ndim()==1){
-        vec v = carma::arr_to_col(input);
-        mat R_cpp = carma::arr_to_mat(R);
-        vec rotated_strain = simcoon::rotate_strain(v,R_cpp,active);
-        return carma::col_to_arr(rotated_strain, copy);
-    }
-    else if (input.ndim() == 2){
-        mat m = carma::arr_to_mat_view(input);
-        cube R_cpp = carma::arr_to_cube_view(R);
-        int nb_points = m.n_cols;
-        mat rotated_strain(6,nb_points); 
-        for (int pt = 0; pt < nb_points; pt++) {
-            vec v = m.unsafe_col(pt);
-            rotated_strain.col(pt) = simcoon::rotate_strain(v,R_cpp.slice(pt),active);
+        auto shape = arr.shape();
+        if (static_cast<size_t>(shape[0]) != rows || static_cast<size_t>(shape[1]) != cols) {
+            throw invalid_argument(name + " must have shape (" + to_string(rows) + ", " +
+                to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
         }
-        return carma::mat_to_arr(rotated_strain, copy);
     }
-    else{
-        throw std::invalid_argument("input.ndim should be 1 or 2");
-    }
+} // anonymous namespace
+
+void register_rotation(py::module_& m) {
+    py::class_<simcoon::Rotation>(m, "_CppRotation",
+        R"doc(
+        Internal C++ rotation backend using unit quaternions (scalar-last).
+
+        End users should use ``simcoon.Rotation`` instead, which inherits from
+        ``scipy.spatial.transform.Rotation`` and delegates mechanics operations
+        to this class.
+        )doc")
+
+        // The only factory method needed — Python Rotation._to_cpp() uses this
+        .def_static("from_quat",
+            [](py::array_t<double> quat) {
+                validate_vector_size(quat, 4, "quat");
+                vec q = carma::arr_to_col(quat);
+                return simcoon::Rotation::from_quat(q);
+            },
+            py::arg("quat"),
+            "Create rotation from quaternion [qx, qy, qz, qw] (scalar-last)")
+
+        // Voigt rotation matrices
+        .def("as_voigt_stress_rotation",
+            [](const simcoon::Rotation& self, bool active) {
+                return carma::mat_to_arr(mat(self.as_voigt_stress_rotation(active)));
+            },
+            py::arg("active") = true,
+            "Get 6x6 rotation matrix for stress tensors in Voigt notation")
+
+        .def("as_voigt_strain_rotation",
+            [](const simcoon::Rotation& self, bool active) {
+                return carma::mat_to_arr(mat(self.as_voigt_strain_rotation(active)));
+            },
+            py::arg("active") = true,
+            "Get 6x6 rotation matrix for strain tensors in Voigt notation")
+
+        // Apply methods — the core mechanics operations
+        .def("apply_tensor",
+            [](const simcoon::Rotation& self, py::array_t<double> m, bool inverse) {
+                validate_matrix_size(m, 3, 3, "m");
+                mat m_cpp = carma::arr_to_mat(m);
+                mat result = self.apply_tensor(m_cpp, inverse);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("m"), py::arg("inverse") = false,
+            "Apply rotation to a 3x3 tensor: R * m * R^T")
+
+        .def("apply_stress",
+            [](const simcoon::Rotation& self, py::array_t<double> sigma, bool active) {
+                validate_vector_size(sigma, 6, "sigma");
+                vec sigma_cpp = carma::arr_to_col(sigma);
+                vec result = self.apply_stress(sigma_cpp, active);
+                return carma::col_to_arr(result);
+            },
+            py::arg("sigma"), py::arg("active") = true,
+            "Apply rotation to a 6-component stress vector in Voigt notation")
+
+        .def("apply_strain",
+            [](const simcoon::Rotation& self, py::array_t<double> epsilon, bool active) {
+                validate_vector_size(epsilon, 6, "epsilon");
+                vec epsilon_cpp = carma::arr_to_col(epsilon);
+                vec result = self.apply_strain(epsilon_cpp, active);
+                return carma::col_to_arr(result);
+            },
+            py::arg("epsilon"), py::arg("active") = true,
+            "Apply rotation to a 6-component strain vector in Voigt notation")
+
+        .def("apply_stiffness",
+            [](const simcoon::Rotation& self, py::array_t<double> L, bool active) {
+                validate_matrix_size(L, 6, 6, "L");
+                mat L_cpp = carma::arr_to_mat(L);
+                mat result = self.apply_stiffness(L_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("L"), py::arg("active") = true,
+            "Apply rotation to a 6x6 stiffness matrix")
+
+        .def("apply_compliance",
+            [](const simcoon::Rotation& self, py::array_t<double> M, bool active) {
+                validate_matrix_size(M, 6, 6, "M");
+                mat M_cpp = carma::arr_to_mat(M);
+                mat result = self.apply_compliance(M_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("M"), py::arg("active") = true,
+            "Apply rotation to a 6x6 compliance matrix")
+
+        .def("apply_strain_concentration",
+            [](const simcoon::Rotation& self, py::array_t<double> A, bool active) {
+                validate_matrix_size(A, 6, 6, "A");
+                mat A_cpp = carma::arr_to_mat(A);
+                mat result = self.apply_strain_concentration(A_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("A"), py::arg("active") = true,
+            "Apply rotation to a 6x6 strain concentration tensor")
+
+        .def("apply_stress_concentration",
+            [](const simcoon::Rotation& self, py::array_t<double> B, bool active) {
+                validate_matrix_size(B, 6, 6, "B");
+                mat B_cpp = carma::arr_to_mat(B);
+                mat result = self.apply_stress_concentration(B_cpp, active);
+                return carma::mat_to_arr(result);
+            },
+            py::arg("B"), py::arg("active") = true,
+            "Apply rotation to a 6x6 stress concentration tensor")
+
+        ;
 }
 
-//This function rotates strain vectors from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_strain(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    vec E_cpp = carma::arr_to_col(input);
-    vec rotated_E = simcoon::rotate_l2g_strain(E_cpp,psi,theta,phi);
-    return carma::col_to_arr(rotated_E, copy);
-}
-
-//This function rotates strain vectors from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_strain(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    vec E_cpp = carma::arr_to_col(input);
-    vec rotated_E = simcoon::rotate_g2l_strain(E_cpp,psi,theta,phi);
-    return carma::col_to_arr(rotated_E, copy);
-}
-
-//This function rotates stress vectors from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_stress(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
- vec S_cpp = carma::arr_to_col(input);
- vec rotated_S = simcoon::rotate_l2g_strain(S_cpp,psi,theta,phi);
- return carma::col_to_arr(rotated_S, copy);
-}
-
-//This function rotates stress vectors from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_stress(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
- vec S_cpp = carma::arr_to_col(input);
- vec rotated_S = simcoon::rotate_g2l_stress(S_cpp,psi,theta,phi);
- return carma::col_to_arr(rotated_S, copy);
-}
-
-//This function rotates stiffness matrices (L) from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_L(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(input);
-    mat rotated_L = simcoon::rotate_l2g_L(L_cpp,psi,theta,phi);
-    return carma::mat_to_arr(rotated_L, copy);
-}
-
-//This function rotates stiffness matrices (L) from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_L(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(input);
-    mat rotated_L = simcoon::rotate_g2l_L(L_cpp,psi,theta,phi);
-    return carma::mat_to_arr(rotated_L, copy);
-}
-
-//This function rotates compliance matrices (M) from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_M(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat M_cpp = carma::arr_to_mat(input);
-    mat rotated_M = simcoon::rotate_l2g_M(M_cpp,psi,theta,phi);
-    return carma::mat_to_arr(rotated_M, copy);
-}
-
-//This function rotates compliance matrices (M) from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_M(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat M_cpp = carma::arr_to_mat(input);
-    mat rotated_M = simcoon::rotate_g2l_M(M_cpp,psi,theta,phi);   
-    return carma::mat_to_arr(rotated_M, copy);
-}
-
-//This function rotates strain concentration matrices (A) from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_A(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat A_cpp = carma::arr_to_mat(input);
-    mat rotated_A = simcoon::rotate_l2g_A(A_cpp,psi,theta,phi);   
-    return carma::mat_to_arr(rotated_A, copy);
-}
-
-//This function rotates strain concentration matrices (A) from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_A(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat A_cpp = carma::arr_to_mat(input);
-    mat rotated_A = simcoon::rotate_g2l_A(A_cpp,psi,theta,phi);    
-    return carma::mat_to_arr(rotated_A, copy);
-}
-
-//This function rotates stress concentration matrices (B) from a local to global set of coordinates (using Euler angles)
-py::array_t<double> rotate_l2g_B(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat B_cpp = carma::arr_to_mat(input);
-    mat rotated_B = simcoon::rotate_l2g_B(B_cpp,psi,theta,phi); 
-    return carma::mat_to_arr(rotated_B, copy);
-}
-
-//This function rotates stress concentration matrices (B) from a global to local set of coordinates (using Euler angles)
-py::array_t<double> rotate_g2l_B(const py::array_t<double> &input, const double &psi, const double &theta, const double &phi, const bool &copy) {
-    mat B_cpp = carma::arr_to_mat(input);
-    mat rotated_B = simcoon::rotate_g2l_B(B_cpp,psi,theta,phi); 
-    return carma::mat_to_arr(rotated_B, copy);
-}
-    
-} //namepsace simpy
+} // namespace simpy

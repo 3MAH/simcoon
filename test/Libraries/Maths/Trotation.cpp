@@ -46,10 +46,10 @@ TEST(Trotation, basic_rotation)
     mat R_zxz = R3*R2*R1;
     mat R_zyz = R3*R2b*R1;
     
-    mat R_zxz_a = fillR(psi, theta, phi, true, "zxz");
-    mat R_zxz_p = fillR(psi, theta, phi, false, "zxz");
-    mat R_zyz_a = fillR(psi, theta, phi, true, "zyz");
-    mat R_zyz_p = fillR(psi, theta, phi, false, "zyz");
+    mat R_zxz_a = mat(Rotation::from_euler(psi, theta, phi, "zxz", true).as_matrix());
+    mat R_zxz_p = mat(Rotation::from_euler(psi, theta, phi, "zxz", true).as_matrix()).t();
+    mat R_zyz_a = mat(Rotation::from_euler(psi, theta, phi, "zyz", true).as_matrix());
+    mat R_zyz_p = mat(Rotation::from_euler(psi, theta, phi, "zyz", true).as_matrix()).t();
     
     cout << "R_zxz" << R_zxz << endl;
     cout << "R_zxz_a" << R_zxz_a << endl;
@@ -100,19 +100,19 @@ TEST(Trotation, rotation)
     //test of rotate A
     mat S_c = Eshelby_cylinder(0.12);
     
-    mat S_c1 = rotateA(S_c, psi, 3);
-    mat S_c2 = rotateA(S_c, theta, 1);
-    mat S_c3 = rotateA(S_c, phi, 3);
+    mat S_c1 = rotate_strain_concentration(S_c, psi, 3);
+    mat S_c2 = rotate_strain_concentration(S_c, theta, 1);
+    mat S_c3 = rotate_strain_concentration(S_c, phi, 3);
     
-    mat S_c11 = rotateA(S_c,R1);
-    mat S_c22 = rotateA(S_c,R2);
-    mat S_c33 = rotateA(S_c,R3);
+    mat S_c11 = rotate_strain_concentration(S_c,R1);
+    mat S_c22 = rotate_strain_concentration(S_c,R2);
+    mat S_c33 = rotate_strain_concentration(S_c,R3);
 
-    mat S_cR = rotateA(S_c, R1);
-    S_cR = rotateA(S_cR, R2);
-    S_cR = rotateA(S_cR, R3);
+    mat S_cR = rotate_strain_concentration(S_c, R1);
+    S_cR = rotate_strain_concentration(S_cR, R2);
+    S_cR = rotate_strain_concentration(S_cR, R3);
     
-    mat S_cRR = rotateA(S_c,R);
+    mat S_cRR = rotate_strain_concentration(S_c,R);
     
     EXPECT_LT( norm(S_c33-S_c3,2),1.E-9);
     EXPECT_LT( norm(S_c22-S_c2,2),1.E-9);
@@ -129,8 +129,8 @@ TEST(Trotation, rotation)
     assert(axis_theta == 1);
     assert(axis_phi == 3);
 
-    mat Rp2 = fillR(psi,theta,phi);
-    mat Rp3 = fillR(psi,theta,phi, true, "zxz");
+    mat Rp2 = mat(Rotation::from_euler(psi,theta,phi, "user", true).as_matrix());
+    mat Rp3 = mat(Rotation::from_euler(psi,theta,phi, "zxz", true).as_matrix());
     
     mat a1 = rotate_mat(a, R);
     mat a2 = rotate_mat(a, Rp2);
