@@ -145,6 +145,22 @@ jobs:
           echo "Testing Python import..."
           conda run -n test-install python -c "import simcoon; import simcoon._core; print('✓ Import successful')"
 
+      # Verify glibc 2.28 compatibility for RHEL 8 / Rocky Linux 8 HPC clusters (see #80)
+      - name: Test in Rocky Linux 8 container
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm --volume $PWD:/work rockylinux:8 bash -c '
+            set -ex
+            MINIFORGE_URL=https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+            MINIFORGE_PREFIX=/opt/miniforge
+            CONDA=$MINIFORGE_PREFIX/bin/conda
+            PYTHON=$MINIFORGE_PREFIX/bin/python
+            curl -sSL $MINIFORGE_URL -o /tmp/miniforge.sh
+            bash /tmp/miniforge.sh -b -p $MINIFORGE_PREFIX
+            $CONDA install -y -c file:///work -c conda-forge -c set3mah python simcoon
+            $PYTHON -c "import simcoon; print(simcoon.__version__)"
+          '
+
       - name: Test compatibility with common packages (Unix)
         if: runner.os != 'Windows'
         shell: bash -l {0}
@@ -197,22 +213,6 @@ jobs:
           Write-Host "=== Testing simcoon + matplotlib coinstallation ==="
           conda install -n test-install -y matplotlib -c conda-forge
           conda run -n test-install python -c "import simcoon; import matplotlib; print('simcoon + matplotlib compatible')"
-
-      # Verify glibc 2.28 compatibility for RHEL 8 / Rocky Linux 8 HPC clusters (see #80)
-      - name: Test in Rocky Linux 8 container
-        if: runner.os == 'Linux'
-        run: |
-          docker run --rm --volume $PWD:/work rockylinux:8 bash -c '
-            set -ex
-            MINIFORGE_URL=https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
-            MINIFORGE_PREFIX=/opt/miniforge
-            CONDA=$MINIFORGE_PREFIX/bin/conda
-            PYTHON=$MINIFORGE_PREFIX/bin/python
-            curl -sSL $MINIFORGE_URL -o /tmp/miniforge.sh
-            bash /tmp/miniforge.sh -b -p $MINIFORGE_PREFIX
-            $CONDA install -y -c file:///work -c conda-forge -c set3mah python simcoon
-            $PYTHON -c "import simcoon; print(simcoon.__version__)"
-          '
 
       - name: Upload to Anaconda
         if: inputs.upload
