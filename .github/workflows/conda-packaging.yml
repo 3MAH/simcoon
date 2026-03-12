@@ -145,43 +145,19 @@ jobs:
           echo "Testing Python import..."
           conda run -n test-install python -c "import simcoon; import simcoon._core; print('✓ Import successful')"
 
-      - name: Check GLIBC compatibility (Linux)
-        if: runner.os == 'Linux'
-        shell: bash -l {0}
-        run: |
-          TEST_PREFIX=$(conda run -n test-install printenv CONDA_PREFIX)
-          SITE_PACKAGES=$(conda run -n test-install python -c "import sysconfig; print(sysconfig.get_path('purelib'))")
-
-          echo "=== Checking GLIBC version requirements ==="
-          CORE_SO=$(find $SITE_PACKAGES/simcoon -name "_core*.so" | head -1)
-          LIBSIMCOON="$TEST_PREFIX/lib/libsimcoon.so"
-
-          echo "Inspecting: $CORE_SO"
-          objdump -T "$CORE_SO" | grep -oP 'GLIBC_[0-9.]+' | sort -uV
-          echo "Inspecting: $LIBSIMCOON"
-          objdump -T "$LIBSIMCOON" | grep -oP 'GLIBC_[0-9.]+' | sort -uV
-
-          MAX_GLIBC=$(objdump -T "$CORE_SO" "$LIBSIMCOON" 2>/dev/null | grep -oP 'GLIBC_\K[0-9.]+' | sort -uV | tail -1)
-          echo "Maximum GLIBC version required: $MAX_GLIBC"
-
-          python3 -c "
-          from packaging.version import Version
-          max_v = Version('$MAX_GLIBC')
-          target = Version('2.28')
-          assert max_v <= target, f'GLIBC compatibility check FAILED: requires GLIBC_{max_v}, target is GLIBC_2.28'
-          print(f'GLIBC compatibility check PASSED: GLIBC_{max_v} <= GLIBC_2.28')
-          "
-
       - name: Test in Rocky Linux 8 container
         if: runner.os == 'Linux'
+        env:
+          MINIFORGE_URL: https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
         run: |
-          docker run --rm -v $PWD:/work rockylinux:8 bash -c '
+          docker run --rm --volume $PWD:/work rockylinux:8 bash -c '
             set -ex
-            dnf install -y bzip2
-            curl -sSL https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -o /tmp/miniforge.sh
-            bash /tmp/miniforge.sh -b -p /opt/miniforge
-            /opt/miniforge/bin/conda install -y -c file:///work -c conda-forge -c set3mah python simcoon
-            /opt/miniforge/bin/python -c "import simcoon; print(simcoon)"
+            MINIFORGE_PREFIX=/opt/miniforge
+            CONDA=$MINIFORGE_PREFIX/bin/conda
+            PYTHON=$MINIFORGE_PREFIX/bin/python
+            curl -sSL '"$MINIFORGE_URL"' | bash -s -- --batch --prefix $MINIFORGE_PREFIX
+            $CONDA install -y -c file:///work -c conda-forge -c set3mah python simcoon
+            $PYTHON -c "import simcoon; print(simcoon.__version__)"
           '
 
       - name: Install and verify package structure (Windows)
