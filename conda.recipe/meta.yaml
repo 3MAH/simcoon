@@ -23,6 +23,7 @@ requirements:
     - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
+    - {{ stdlib('c') }}  # [linux]
     - llvm-openmp # [osx]
     - libgomp # [linux]
   host:
@@ -41,6 +42,7 @@ requirements:
   run:
     - python
     - numpy >=2.0
+    - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
