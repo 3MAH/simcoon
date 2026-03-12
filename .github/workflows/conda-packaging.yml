@@ -155,7 +155,7 @@ jobs:
             MINIFORGE_PREFIX=/opt/miniforge
             CONDA=$MINIFORGE_PREFIX/bin/conda
             PYTHON=$MINIFORGE_PREFIX/bin/python
-            curl -sSL $MINIFORGE_URL | bash -s -- --batch --prefix $MINIFORGE_PREFIX
+            curl -sSL $MINIFORGE_URL | bash -s -- -b -p $MINIFORGE_PREFIX
             $CONDA install -y -c file:///work -c conda-forge -c set3mah python simcoon
             $PYTHON -c "import simcoon; print(simcoon.__version__)"
           '
