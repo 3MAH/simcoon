@@ -93,6 +93,8 @@ jobs:
       - name: Install simcoon + fedoo and run integration tests (Unix)
         if: runner.os != 'Windows'
         run: |
+          pip install scikit-build-core pybind11 numpy
           pip install . --no-build-isolation
-          pip install "fedoo==0.8.0" pytest
+          # pip install "fedoo>=0.8.0" pytest  # uncomment when fedoo 0.8.0 is released
+          pip install "git+https://github.com/3MAH/fedoo.git@main" pytest
           pytest tests/test_fedoo_integration.py -v
