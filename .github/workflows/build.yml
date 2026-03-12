@@ -77,5 +77,5 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           # uv pip install "fedoo>=0.8.0"  # uncomment when fedoo 0.8.0 is released
-          uv pip install "git+https://github.com/3MAH/fedoo.git@main"
+          uv pip install "git+https://github.com/3MAH/fedoo.git@master"
           uv run pytest tests/test_fedoo_integration.py -v
