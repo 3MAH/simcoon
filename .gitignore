@@ -12,3 +12,4 @@ build_coverage/
 *.lib
 *.pdb
 *.exe
+.claude/CLAUDE.md
