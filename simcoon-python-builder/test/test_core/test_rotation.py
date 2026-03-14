@@ -291,3 +291,100 @@ class TestUtilities:
     def test_from_axis_angle_invalid_axis(self):
         with pytest.raises(ValueError, match="axis must be 1, 2, or 3"):
             sim.Rotation.from_axis_angle(0.5, 4)
+
+
+# ===================================================================
+# 6. Batch (Gauss-point) operations
+# ===================================================================
+
+class TestBatch:
+    """Batch rotation operations on (6, N) / (6, 6, N) arrays,
+    matching the Gauss-point data layout used by simcoon and fedoo."""
+
+    @pytest.fixture
+    def n_gauss(self):
+        return 64
+
+    @pytest.fixture
+    def batch_rot(self, n_gauss):
+        return sim.Rotation.random(n_gauss)
+
+    def test_batch_apply_stress(self, batch_rot, n_gauss):
+        sigma = np.random.rand(6, n_gauss) * 100
+        result = batch_rot.apply_stress(sigma)
+        assert result.shape == (6, n_gauss)
+        for i in range(n_gauss):
+            expected = batch_rot[i].apply_stress(sigma[:, i])
+            np.testing.assert_allclose(result[:, i], expected, atol=1e-10)
+
+    def test_batch_apply_strain(self, batch_rot, n_gauss):
+        eps = np.random.rand(6, n_gauss) * 0.01
+        result = batch_rot.apply_strain(eps)
+        assert result.shape == (6, n_gauss)
+        for i in range(n_gauss):
+            expected = batch_rot[i].apply_strain(eps[:, i])
+            np.testing.assert_allclose(result[:, i], expected, atol=1e-10)
+
+    def test_batch_apply_stiffness(self, batch_rot, n_gauss):
+        L_single = sim.L_iso([70000, 0.3], "Enu")
+        L = np.repeat(L_single[:, :, np.newaxis], n_gauss, axis=2)
+        result = batch_rot.apply_stiffness(L)
+        assert result.shape == (6, 6, n_gauss)
+        for i in range(n_gauss):
+            expected = batch_rot[i].apply_stiffness(L_single)
+            np.testing.assert_allclose(result[:, :, i], expected, atol=1e-10)
+
+    def test_batch_apply_compliance(self, batch_rot, n_gauss):
+        M_single = sim.M_iso([70000, 0.3], "Enu")
+        M = np.repeat(M_single[:, :, np.newaxis], n_gauss, axis=2)
+        result = batch_rot.apply_compliance(M)
+        assert result.shape == (6, 6, n_gauss)
+        for i in range(n_gauss):
+            expected = batch_rot[i].apply_compliance(M_single)
+            np.testing.assert_allclose(result[:, :, i], expected, atol=1e-10)
+
+    def test_batch_apply_tensor(self, batch_rot, n_gauss):
+        T_single = np.array([[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]])
+        T = np.repeat(T_single[:, :, np.newaxis], n_gauss, axis=2)
+        result = batch_rot.apply_tensor(T)
+        assert result.shape == (3, 3, n_gauss)
+        for i in range(n_gauss):
+            expected = batch_rot[i].apply_tensor(T_single)
+            np.testing.assert_allclose(result[:, :, i], expected, atol=1e-10)
+
+    def test_batch_voigt_stress_rotation(self, batch_rot, n_gauss):
+        QS = batch_rot.as_voigt_stress_rotation()
+        assert QS.shape == (n_gauss, 6, 6)
+        for i in range(n_gauss):
+            expected = batch_rot[i].as_voigt_stress_rotation()
+            np.testing.assert_allclose(QS[i], expected, atol=1e-10)
+
+    def test_batch_isotropic_invariance(self, batch_rot, n_gauss):
+        """Isotropic stiffness must be invariant under any rotation."""
+        L_single = sim.L_iso([200e3, 0.3], "Enu")
+        L = np.repeat(L_single[:, :, np.newaxis], n_gauss, axis=2)
+        L_rot = batch_rot.apply_stiffness(L)
+        for i in range(n_gauss):
+            np.testing.assert_allclose(L_rot[:, :, i], L_single, atol=1e-6)
+
+    def test_batch_roundtrip_stress(self, batch_rot, n_gauss):
+        sigma = np.random.rand(6, n_gauss) * 100
+        sigma_rot = batch_rot.apply_stress(sigma)
+        sigma_back = batch_rot.apply_stress(sigma_rot, active=False)
+        np.testing.assert_allclose(sigma_back, sigma, atol=1e-10)
+
+    def test_batch_from_matrix_dr_cube(self, n_gauss):
+        """Create batch Rotation from (3, 3, N) DR cube (fedoo layout)."""
+        rotations = sim.Rotation.random(n_gauss)
+        DR = rotations.as_matrix().transpose(1, 2, 0)  # (3, 3, N)
+        assert DR.shape == (3, 3, n_gauss)
+
+        rotations2 = sim.Rotation.from_matrix(DR.transpose(2, 0, 1))
+        assert len(rotations2) == n_gauss
+
+        sigma = np.random.rand(6, n_gauss) * 100
+        np.testing.assert_allclose(
+            rotations.apply_stress(sigma),
+            rotations2.apply_stress(sigma),
+            atol=1e-10,
+        )
