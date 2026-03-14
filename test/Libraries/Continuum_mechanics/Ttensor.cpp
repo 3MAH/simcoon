@@ -516,6 +516,97 @@ TEST(Ttensor4, RotationComplianceRoundtrip)
 }
 
 // ============================================================================
+// tensor4 rotation — concentration tensors
+// ============================================================================
+
+TEST(Ttensor4, RotationStrainConcentrationRoundtrip)
+{
+    // Strain concentration: rotate then rotate back should recover original
+    mat::fixed<6,6> A = L_iso(70000., 0.3, "Enu"); // arbitrary anisotropic-like matrix
+    tensor4 t(A, Tensor4Type::strain_concentration);
+
+    Rotation R = Rotation::from_euler(0.4, 0.6, 0.8, "zxz");
+    tensor4 t_rot = t.rotate(R, true);
+
+    Rotation R_inv = R.inv();
+    tensor4 t_back = t_rot.rotate(R_inv, true);
+
+    EXPECT_LT(norm(mat(t.mat()) - mat(t_back.mat()), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, RotationStressConcentrationRoundtrip)
+{
+    // Stress concentration: rotate then rotate back should recover original
+    mat::fixed<6,6> B = L_iso(70000., 0.3, "Enu");
+    tensor4 t(B, Tensor4Type::stress_concentration);
+
+    Rotation R = Rotation::from_euler(0.2, 0.9, 0.4, "zxz");
+    tensor4 t_rot = t.rotate(R, true);
+
+    Rotation R_inv = R.inv();
+    tensor4 t_back = t_rot.rotate(R_inv, true);
+
+    EXPECT_LT(norm(mat(t.mat()) - mat(t_back.mat()), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, RotationAnisotropicComplianceRoundtrip)
+{
+    // Anisotropic compliance: rotate and rotate back should give the original
+    // Use cubic stiffness -> invert to get anisotropic compliance
+    mat::fixed<6,6> L = L_cubic(200000., 0.3, 80000., "EnuG");
+    mat::fixed<6,6> M = inv(L);
+    tensor4 comp(M, Tensor4Type::compliance);
+
+    Rotation R = Rotation::from_euler(0.3, 0.5, 0.7, "zxz");
+    tensor4 comp_rot = comp.rotate(R, true);
+
+    // Rotate back
+    Rotation R_inv = R.inv();
+    tensor4 comp_back = comp_rot.rotate(R_inv, true);
+
+    EXPECT_LT(norm(mat(comp.mat()) - mat(comp_back.mat()), "fro"), 1e-8);
+}
+
+// ============================================================================
+// tensor4 Fastor cache — type-dependent factor correctness
+// ============================================================================
+
+TEST(Ttensor4, ComplianceFastorFactors)
+{
+    // Compliance: M(I,J) = factor * S_ij(I)kl(J)
+    // factor = 1 (norm-norm), 2 (mixed), 4 (shear-shear)
+    double E = 70000.0;
+    double nu = 0.3;
+    mat::fixed<6,6> M = M_iso(E, nu, "Enu");
+    tensor4 comp(M, Tensor4Type::compliance);
+
+    const auto& S = comp.fastor();
+
+    // Normal-normal: S(0,0,0,0) = M(0,0) / 1 = 1/E
+    EXPECT_NEAR(S(0,0,0,0), M(0,0), 1e-14);
+    EXPECT_NEAR(S(0,0,1,1), M(0,1), 1e-14);
+
+    // Shear-shear: S(0,1,0,1) = M(3,3) / 4
+    EXPECT_NEAR(S(0,1,0,1), M(3,3) / 4.0, 1e-14);
+    EXPECT_NEAR(S(0,2,0,2), M(4,4) / 4.0, 1e-14);
+    EXPECT_NEAR(S(1,2,1,2), M(5,5) / 4.0, 1e-14);
+}
+
+TEST(Ttensor4, StiffnessFastorFactors)
+{
+    // Stiffness: C(i,j,k,l) = L(I,J) / 1 (no factors)
+    double E = 70000.0;
+    double nu = 0.3;
+    mat::fixed<6,6> L = L_iso(E, nu, "Enu");
+    tensor4 stiff(L, Tensor4Type::stiffness);
+
+    const auto& C = stiff.fastor();
+
+    EXPECT_NEAR(C(0,0,0,0), L(0,0), 1e-12);
+    EXPECT_NEAR(C(0,1,0,1), L(3,3), 1e-12);
+}
+
+// ============================================================================
 // tensor4 push-forward / pull-back
 // ============================================================================
 
@@ -529,6 +620,86 @@ TEST(Ttensor4, PushPullBackRoundtrip)
     tensor4 t_push = t.push_forward(F);
     tensor4 t_back = t_push.pull_back(F);
 
+    EXPECT_LT(norm(mat(t.mat()) - mat(t_back.mat()), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, CompliancePushPullBackRoundtrip)
+{
+    mat::fixed<6,6> M = M_iso(70000., 0.3, "Enu");
+    tensor4 comp(M, Tensor4Type::compliance);
+
+    mat::fixed<3,3> F = {{1.1, 0.1, 0.05}, {0.02, 0.95, 0.03}, {0.01, 0.04, 1.05}};
+
+    tensor4 comp_push = comp.push_forward(F);
+    tensor4 comp_back = comp_push.pull_back(F);
+
+    EXPECT_LT(norm(mat(comp.mat()) - mat(comp_back.mat()), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, CompliancePushForwardConsistency)
+{
+    // Verify that compliance push-forward is consistent with direct computation:
+    // Build a compliance tensor with ONLY a shear term M(3,3) = 4.0
+    // In full index: S(0,1,0,1) = 4.0 / 4 = 1.0 (compliance factor)
+    //
+    // Push-forward with simple shear F = [[1,1,0],[0,1,0],[0,0,1]]:
+    // C'(0,0,0,0) contributions from S: F_0L F_0J F_0M F_0N S_LJMN
+    //   L,J,M,N in {0,1}, S(0,1,0,1) and its symmetries = 1.0 each (4 terms)
+    //   So C'(0,0,0,0) = 4 * 1.0 = 4.0
+    // Back to Voigt: M'(0,0) = 1 * C'(0,0,0,0) = 4.0 (normal-normal factor = 1)
+
+    mat::fixed<6,6> M;
+    M.zeros();
+    M(3,3) = 4.0;
+    tensor4 comp(M, Tensor4Type::compliance);
+
+    mat::fixed<3,3> F = {{1, 1, 0}, {0, 1, 0}, {0, 0, 1}};
+    tensor4 comp_push = comp.push_forward(F);
+
+    // M'(0,0) should be 4.0 (from correct factor handling)
+    EXPECT_NEAR(comp_push.mat()(0,0), 4.0, 1e-10);
+}
+
+// ============================================================================
+// tensor4 inverse
+// ============================================================================
+
+TEST(Ttensor4, InverseStiffnessToCompliance)
+{
+    double E = 70000.0;
+    double nu = 0.3;
+    mat::fixed<6,6> L = L_iso(E, nu, "Enu");
+    mat::fixed<6,6> M_ref = M_iso(E, nu, "Enu");
+
+    tensor4 stiff(L, Tensor4Type::stiffness);
+    tensor4 comp = stiff.inverse();
+
+    EXPECT_EQ(comp.type(), Tensor4Type::compliance);
+    EXPECT_LT(norm(mat(comp.mat()) - mat(M_ref), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, InverseComplianceToStiffness)
+{
+    double E = 70000.0;
+    double nu = 0.3;
+    mat::fixed<6,6> L_ref = L_iso(E, nu, "Enu");
+    mat::fixed<6,6> M = M_iso(E, nu, "Enu");
+
+    tensor4 comp(M, Tensor4Type::compliance);
+    tensor4 stiff = comp.inverse();
+
+    EXPECT_EQ(stiff.type(), Tensor4Type::stiffness);
+    EXPECT_LT(norm(mat(stiff.mat()) - mat(L_ref), "fro"), 1e-8);
+}
+
+TEST(Ttensor4, InverseRoundtrip)
+{
+    mat::fixed<6,6> L = L_iso(70000., 0.3, "Enu");
+    tensor4 t(L, Tensor4Type::stiffness);
+    tensor4 t_inv = t.inverse();
+    tensor4 t_back = t_inv.inverse();
+
+    EXPECT_EQ(t_back.type(), Tensor4Type::stiffness);
     EXPECT_LT(norm(mat(t.mat()) - mat(t_back.mat()), "fro"), 1e-8);
 }
 

@@ -238,6 +238,9 @@ void register_tensor(py::module_& m) {
             py::arg("F"),
             "Pull-back via deformation gradient F")
 
+        .def("inverse", &simcoon::tensor4::inverse,
+            "Invert the 6x6 Voigt matrix. Type: stiffness <-> compliance.")
+
         // Arithmetic
         .def("__add__", &simcoon::tensor4::operator+)
         .def("__sub__", &simcoon::tensor4::operator-)
@@ -262,6 +265,21 @@ void register_tensor(py::module_& m) {
             }
             return "Tensor4(type=" + type_str + ")";
         });
+
+    // Module-level free functions
+    m.def("_dyadic",
+        [](const simcoon::tensor2& a, const simcoon::tensor2& b) {
+            return simcoon::dyadic(a, b);
+        },
+        py::arg("a"), py::arg("b"),
+        "Dyadic (outer) product of two tensor2 objects, returns a tensor4 (stiffness type).");
+
+    m.def("_auto_dyadic",
+        [](const simcoon::tensor2& a) {
+            return simcoon::auto_dyadic(a);
+        },
+        py::arg("a"),
+        "Dyadic (outer) product of a tensor2 with itself, returns a tensor4 (stiffness type).");
 }
 
 } // namespace simpy

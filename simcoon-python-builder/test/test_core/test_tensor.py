@@ -199,9 +199,24 @@ class TestTensor4Construction:
         assert t.type == sim.Tensor4Type.compliance
         np.testing.assert_allclose(t.mat, M, atol=1e-12)
 
+    def test_strain_concentration(self):
+        A = sim.Ireal()
+        t = sim.Tensor4.strain_concentration(A)
+        assert t.type == sim.Tensor4Type.strain_concentration
+
+    def test_stress_concentration(self):
+        B = sim.Ireal()
+        t = sim.Tensor4.stress_concentration(B)
+        assert t.type == sim.Tensor4Type.stress_concentration
+
     def test_identity_matches_Ireal(self):
         t = sim.Tensor4.identity()
         ref = sim.Ireal()
+        np.testing.assert_allclose(t.mat, ref, atol=1e-12)
+
+    def test_identity2_matches_Ireal2(self):
+        t = sim.Tensor4.identity2()
+        ref = sim.Ireal2()
         np.testing.assert_allclose(t.mat, ref, atol=1e-12)
 
     def test_volumetric_matches_Ivol(self):
@@ -211,6 +226,11 @@ class TestTensor4Construction:
     def test_deviatoric_matches_Idev(self):
         t = sim.Tensor4.deviatoric()
         np.testing.assert_allclose(t.mat, sim.Idev(), atol=1e-12)
+
+    def test_deviatoric2_matches_Idev2(self):
+        t = sim.Tensor4.deviatoric2()
+        ref = sim.Idev2()
+        np.testing.assert_allclose(t.mat, ref, atol=1e-12)
 
 
 class TestTensor4Contraction:
@@ -270,6 +290,32 @@ class TestTensor4Rotation:
         t_rot = t.rotate(rot, active=True)
         np.testing.assert_allclose(t.mat, t_rot.mat, atol=1e-8)
 
+    def test_strain_concentration_roundtrip(self, L, rot):
+        """Strain concentration: rotate then rotate back gives original."""
+        t = sim.Tensor4.strain_concentration(L)
+        t_rot = t.rotate(rot, active=True)
+        inv_rot = rot.inv()
+        t_back = t_rot.rotate(inv_rot, active=True)
+        np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
+
+    def test_stress_concentration_roundtrip(self, L, rot):
+        """Stress concentration: rotate then rotate back gives original."""
+        t = sim.Tensor4.stress_concentration(L)
+        t_rot = t.rotate(rot, active=True)
+        inv_rot = rot.inv()
+        t_back = t_rot.rotate(inv_rot, active=True)
+        np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
+
+    def test_anisotropic_compliance_roundtrip(self, rot):
+        """Anisotropic compliance: rotate and back gives original."""
+        L_cubic = sim.L_cubic([200000, 0.3, 80000], "EnuG")
+        M = np.linalg.inv(L_cubic)
+        comp = sim.Tensor4.compliance(M)
+        comp_rot = comp.rotate(rot, active=True)
+        inv_rot = rot.inv()
+        comp_back = comp_rot.rotate(inv_rot, active=True)
+        np.testing.assert_allclose(comp.mat, comp_back.mat, atol=1e-8)
+
 
 class TestTensor4PushPull:
 
@@ -278,6 +324,61 @@ class TestTensor4PushPull:
         t_push = t.push_forward(F)
         t_back = t_push.pull_back(F)
         np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
+
+    def test_compliance_push_pull_roundtrip(self, M, F):
+        t = sim.Tensor4.compliance(M)
+        t_push = t.push_forward(F)
+        t_back = t_push.pull_back(F)
+        np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
+
+    def test_compliance_push_forward_consistency(self):
+        """Compliance push-forward with simple shear: verify specific value."""
+        M = np.zeros((6, 6))
+        M[3, 3] = 4.0
+        comp = sim.Tensor4.compliance(M)
+        F_shear = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
+        comp_push = comp.push_forward(F_shear)
+        # Expected: M'(0,0) = 4.0 (from correct factor handling)
+        assert abs(comp_push.mat[0, 0] - 4.0) < 1e-10
+
+
+class TestTensor4Inverse:
+
+    def test_stiffness_to_compliance(self, L, M):
+        stiff = sim.Tensor4.stiffness(L)
+        comp = stiff.inverse()
+        assert comp.type == sim.Tensor4Type.compliance
+        np.testing.assert_allclose(comp.mat, M, atol=1e-8)
+
+    def test_compliance_to_stiffness(self, L, M):
+        comp = sim.Tensor4.compliance(M)
+        stiff = comp.inverse()
+        assert stiff.type == sim.Tensor4Type.stiffness
+        np.testing.assert_allclose(stiff.mat, L, atol=1e-8)
+
+    def test_inverse_roundtrip(self, L):
+        t = sim.Tensor4.stiffness(L)
+        t_back = t.inverse().inverse()
+        assert t_back.type == sim.Tensor4Type.stiffness
+        np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
+
+
+class TestTensor4Dyadic:
+
+    def test_dyadic(self):
+        a = sim.Tensor2.stress(np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0]], dtype=float))
+        b = sim.Tensor2.stress(np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=float))
+        d = sim.dyadic(a, b)
+        assert d.type == sim.Tensor4Type.stiffness
+        assert abs(d.mat[0, 1] - 1.0) < 1e-14
+        assert abs(d.mat[0, 0]) < 1e-14
+
+    def test_auto_dyadic(self):
+        a = sim.Tensor2.stress(np.eye(3))
+        ad = sim.auto_dyadic(a)
+        assert abs(ad.mat[0, 0] - 1.0) < 1e-14
+        assert abs(ad.mat[0, 1] - 1.0) < 1e-14
+        assert abs(ad.mat[3, 3]) < 1e-14
 
 
 # ===================================================================

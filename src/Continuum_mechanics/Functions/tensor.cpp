@@ -40,6 +40,78 @@ static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
 }
 
 // ============================================================================
+// Voigt factor helpers for type-aware Voigt <-> full-index conversion
+// ============================================================================
+//
+// The Voigt 6x6 matrix V_IJ relates to the full-index C_ijkl by:
+//   V_IJ = voigt_factor(I, J, type) * C_ij(I)kl(J)
+//
+// Factors depend on whether input/output indices are stress or strain type:
+//   Left factor:  2 if I>=3 AND output is strain (compliance, strain_concentration)
+//   Right factor: 2 if J>=3 AND input is stress (compliance, stress_concentration)
+//
+//   Type                  | I<3,J<3 | I<3,J>=3 | I>=3,J<3 | I>=3,J>=3
+//   stiffness             |    1    |    1     |    1     |    1
+//   compliance            |    1    |    2     |    2     |    4
+//   stress_concentration  |    1    |    2     |    1     |    2
+//   strain_concentration  |    1    |    1     |    2     |    2
+
+static double voigt_factor(int I, int J, Tensor4Type type) {
+    double f = 1.0;
+    if (I >= 3) {
+        if (type == Tensor4Type::compliance || type == Tensor4Type::strain_concentration)
+            f *= 2.0;
+    }
+    if (J >= 3) {
+        if (type == Tensor4Type::compliance || type == Tensor4Type::stress_concentration)
+            f *= 2.0;
+    }
+    return f;
+}
+
+// Convert Voigt matrix to full-index Fastor tensor, applying type-dependent factors
+static Fastor::Tensor<double,3,3,3,3> voigt_to_full(
+    const arma::mat::fixed<6,6> &V, Tensor4Type type)
+{
+    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic) {
+        return voigt_to_fastor4(V);
+    }
+
+    Fastor::Tensor<double,3,3,3,3> C;
+    C.zeros();
+    for (int i = 0; i < 3; ++i)
+    for (int j = i; j < 3; ++j) {
+        int I = voigt_map[i][j];
+        for (int k = 0; k < 3; ++k)
+        for (int l = k; l < 3; ++l) {
+            int J = voigt_map[k][l];
+            double val = V(I, J) / voigt_factor(I, J, type);
+            C(i,j,k,l) = val;
+            C(i,j,l,k) = val;
+            C(j,i,k,l) = val;
+            C(j,i,l,k) = val;
+        }
+    }
+    return C;
+}
+
+// Convert full-index Fastor tensor to Voigt matrix, applying type-dependent factors
+static arma::mat::fixed<6,6> full_to_voigt(
+    const Fastor::Tensor<double,3,3,3,3> &C, Tensor4Type type)
+{
+    arma::mat::fixed<6,6> V = fastor4_to_voigt(C);
+
+    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic) {
+        return V;
+    }
+
+    for (int I = 0; I < 6; ++I)
+        for (int J = 0; J < 6; ++J)
+            V(I, J) *= voigt_factor(I, J, type);
+    return V;
+}
+
+// ============================================================================
 // tensor2 implementation
 // ============================================================================
 
@@ -418,7 +490,7 @@ void tensor4::set_mat(const arma::mat &m) {
 
 void tensor4::_ensure_fastor() const {
     if (!_fastor_valid) {
-        _fastor = voigt_to_fastor4(_voigt);
+        _fastor = voigt_to_full(_voigt, _type);
         _fastor_valid = true;
     }
 }
@@ -468,7 +540,7 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F) const {
             F_fastor(i,j) = F(i,j);
 
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(_fastor, F_fastor);
-    arma::mat::fixed<6,6> voigt_result = fastor4_to_voigt(result);
+    arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
     return tensor4(voigt_result, _type);
 }
 
@@ -483,7 +555,7 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F) const {
             invF_fastor(i,j) = invF(i,j);
 
     Fastor::Tensor<double,3,3,3,3> result = pull_back_4(_fastor, invF_fastor);
-    arma::mat::fixed<6,6> voigt_result = fastor4_to_voigt(result);
+    arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
     return tensor4(voigt_result, _type);
 }
 
@@ -508,6 +580,26 @@ tensor4 tensor4::rotate(const Rotation &R, bool active) const {
         }
     }
     return *this;
+}
+
+tensor4 tensor4::inverse() const {
+    arma::mat inv_mat = arma::inv(arma::mat(_voigt));
+    arma::mat::fixed<6,6> inv_voigt;
+    inv_voigt = inv_mat;
+
+    Tensor4Type inv_type;
+    switch (_type) {
+        case Tensor4Type::stiffness:
+            inv_type = Tensor4Type::compliance;
+            break;
+        case Tensor4Type::compliance:
+            inv_type = Tensor4Type::stiffness;
+            break;
+        default:
+            inv_type = _type;
+            break;
+    }
+    return tensor4(inv_voigt, inv_type);
 }
 
 tensor4 tensor4::operator+(const tensor4 &other) const {

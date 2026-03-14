@@ -229,6 +229,13 @@ public:
      */
     tensor4 pull_back(const arma::mat::fixed<3,3> &F) const;
 
+    /**
+     * @brief Invert the 6x6 Voigt matrix.
+     *
+     * Type inference: stiffness <-> compliance, others stay the same.
+     */
+    tensor4 inverse() const;
+
     // Rotation
     tensor4 rotate(const Rotation &R, bool active = true) const;
 
