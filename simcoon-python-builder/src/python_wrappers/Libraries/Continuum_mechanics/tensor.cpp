@@ -144,12 +144,16 @@ void register_tensor(py::module_& m) {
 
         // Arithmetic
         .def("__add__", &simcoon::tensor2::operator+)
-        .def("__sub__", &simcoon::tensor2::operator-)
-        .def("__mul__", &simcoon::tensor2::operator*)
+        .def("__sub__", static_cast<simcoon::tensor2 (simcoon::tensor2::*)(const simcoon::tensor2&) const>(&simcoon::tensor2::operator-))
+        .def("__neg__", static_cast<simcoon::tensor2 (simcoon::tensor2::*)() const>(&simcoon::tensor2::operator-))
+        .def("__mul__", static_cast<simcoon::tensor2 (simcoon::tensor2::*)(double) const>(&simcoon::tensor2::operator*))
         .def("__rmul__", [](const simcoon::tensor2& self, double scalar) {
             return scalar * self;
         })
+        .def("__truediv__", static_cast<simcoon::tensor2 (simcoon::tensor2::*)(double) const>(&simcoon::tensor2::operator/))
+        .def("__mod__", static_cast<simcoon::tensor2 (simcoon::tensor2::*)(const simcoon::tensor2&) const>(&simcoon::tensor2::operator%))
         .def("__eq__", &simcoon::tensor2::operator==)
+        .def("__ne__", &simcoon::tensor2::operator!=)
 
         // String representation
         .def("__repr__", [](const simcoon::tensor2& self) {
@@ -243,15 +247,19 @@ void register_tensor(py::module_& m) {
 
         // Arithmetic
         .def("__add__", &simcoon::tensor4::operator+)
-        .def("__sub__", &simcoon::tensor4::operator-)
-        .def("__mul__", &simcoon::tensor4::operator*)
+        .def("__sub__", static_cast<simcoon::tensor4 (simcoon::tensor4::*)(const simcoon::tensor4&) const>(&simcoon::tensor4::operator-))
+        .def("__neg__", static_cast<simcoon::tensor4 (simcoon::tensor4::*)() const>(&simcoon::tensor4::operator-))
+        .def("__mul__", static_cast<simcoon::tensor4 (simcoon::tensor4::*)(double) const>(&simcoon::tensor4::operator*))
         .def("__rmul__", [](const simcoon::tensor4& self, double scalar) {
             return scalar * self;
         })
+        .def("__truediv__", static_cast<simcoon::tensor4 (simcoon::tensor4::*)(double) const>(&simcoon::tensor4::operator/))
+        .def("__mod__", &simcoon::tensor4::operator%)
         .def("__matmul__", [](const simcoon::tensor4& self, const simcoon::tensor2& t) {
             return self.contract(t);
         }, "Contract with tensor2 using @ operator")
         .def("__eq__", &simcoon::tensor4::operator==)
+        .def("__ne__", &simcoon::tensor4::operator!=)
 
         // String representation
         .def("__repr__", [](const simcoon::tensor4& self) {

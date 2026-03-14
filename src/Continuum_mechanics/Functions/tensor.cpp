@@ -33,7 +33,10 @@ namespace simcoon {
 
 // Helper: compute inv of a 3x3 fixed matrix, returning fixed
 static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
-    arma::mat tmp = arma::inv(arma::mat(F));
+    arma::mat tmp;
+    bool ok = arma::inv(tmp, arma::mat(F));
+    if (!ok)
+        throw std::runtime_error("tensor: cannot invert singular 3x3 matrix (det ~ 0)");
     arma::mat::fixed<3,3> result;
     result = tmp;
     return result;
@@ -126,7 +129,9 @@ tensor2::tensor2(const arma::mat::fixed<3,3> &m, VoigtType vtype)
 
 tensor2::tensor2(const arma::mat &m, VoigtType vtype)
     : _vtype(vtype), _symmetric(false), _symmetry_checked(false) {
-    assert(m.n_rows == 3 && m.n_cols == 3);
+    if (m.n_rows != 3 || m.n_cols != 3)
+        throw std::invalid_argument("tensor2: expected 3x3 matrix, got "
+            + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _mat = m;
 }
 
@@ -152,7 +157,9 @@ tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, VoigtType vtype) {
 }
 
 tensor2 tensor2::from_voigt(const arma::vec &v, VoigtType vtype) {
-    assert(v.n_elem == 6);
+    if (v.n_elem != 6)
+        throw std::invalid_argument("tensor2: expected 6-element vector, got "
+            + std::to_string(v.n_elem));
     arma::vec::fixed<6> vf(v.memptr());
     return from_voigt(vf, vtype);
 }
@@ -176,7 +183,9 @@ void tensor2::set_mat(const arma::mat::fixed<3,3> &m) {
 }
 
 void tensor2::set_mat(const arma::mat &m) {
-    assert(m.n_rows == 3 && m.n_cols == 3);
+    if (m.n_rows != 3 || m.n_cols != 3)
+        throw std::invalid_argument("tensor2: expected 3x3 matrix, got "
+            + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _mat = m;
     _symmetry_checked = false;
 }
@@ -320,9 +329,23 @@ tensor2 tensor2::operator-(const tensor2 &other) const {
     return tensor2(result, _vtype);
 }
 
+tensor2 tensor2::operator-() const {
+    arma::mat::fixed<3,3> result;
+    result = -_mat;
+    return tensor2(result, _vtype);
+}
+
 tensor2 tensor2::operator*(double scalar) const {
     arma::mat::fixed<3,3> result;
     result = _mat * scalar;
+    return tensor2(result, _vtype);
+}
+
+tensor2 tensor2::operator/(double scalar) const {
+    if (scalar == 0.0)
+        throw std::runtime_error("tensor2: division by zero scalar");
+    arma::mat::fixed<3,3> result;
+    result = _mat / scalar;
     return tensor2(result, _vtype);
 }
 
@@ -343,14 +366,37 @@ tensor2& tensor2::operator*=(double scalar) {
     return *this;
 }
 
+tensor2& tensor2::operator/=(double scalar) {
+    if (scalar == 0.0)
+        throw std::runtime_error("tensor2: division by zero scalar");
+    _mat /= scalar;
+    return *this;
+}
+
 tensor2 operator*(double scalar, const tensor2 &t) {
     arma::mat::fixed<3,3> result;
     result = t._mat * scalar;
     return tensor2(result, t._vtype);
 }
 
+tensor2 tensor2::operator%(const tensor2 &other) const {
+    arma::mat::fixed<3,3> result;
+    result = _mat % other._mat;
+    return tensor2(result, _vtype);
+}
+
+tensor2 tensor2::operator/(const tensor2 &other) const {
+    arma::mat::fixed<3,3> result;
+    result = _mat / other._mat;
+    return tensor2(result, _vtype);
+}
+
 bool tensor2::operator==(const tensor2 &other) const {
     return _vtype == other._vtype && arma::approx_equal(_mat, other._mat, "absdiff", 1e-14);
+}
+
+bool tensor2::operator!=(const tensor2 &other) const {
+    return !(*this == other);
 }
 
 // Free functions
@@ -370,30 +416,54 @@ tensor2 strain(const arma::vec::fixed<6> &v) {
     return tensor2::from_voigt(v, VoigtType::strain);
 }
 
-arma::vec::fixed<6> dev(const tensor2 &t) {
+tensor2 dev(const tensor2 &t) {
     arma::vec::fixed<6> v = t.voigt();
     double tr_val = v(0) + v(1) + v(2);
-    arma::vec::fixed<6> result = v;
-    result(0) -= tr_val / 3.0;
-    result(1) -= tr_val / 3.0;
-    result(2) -= tr_val / 3.0;
-    return result;
+    v(0) -= tr_val / 3.0;
+    v(1) -= tr_val / 3.0;
+    v(2) -= tr_val / 3.0;
+    return tensor2::from_voigt(v, t.vtype());
 }
 
 double Mises(const tensor2 &t) {
-    arma::vec::fixed<6> d = dev(t);
+    tensor2 d = dev(t);
+    arma::vec::fixed<6> dv = d.voigt();
     if (t.vtype() == VoigtType::stress || t.vtype() == VoigtType::generic) {
-        return std::sqrt(1.5 * (d(0)*d(0) + d(1)*d(1) + d(2)*d(2) +
-                                2.0*(d(3)*d(3) + d(4)*d(4) + d(5)*d(5))));
+        return std::sqrt(1.5 * (dv(0)*dv(0) + dv(1)*dv(1) + dv(2)*dv(2) +
+                                2.0*(dv(3)*dv(3) + dv(4)*dv(4) + dv(5)*dv(5))));
     } else if (t.vtype() == VoigtType::strain) {
-        return std::sqrt(2.0/3.0 * (d(0)*d(0) + d(1)*d(1) + d(2)*d(2) +
-                                    0.5*(d(3)*d(3) + d(4)*d(4) + d(5)*d(5))));
+        return std::sqrt(2.0/3.0 * (dv(0)*dv(0) + dv(1)*dv(1) + dv(2)*dv(2) +
+                                    0.5*(dv(3)*dv(3) + dv(4)*dv(4) + dv(5)*dv(5))));
     }
     throw std::runtime_error("Mises not defined for VoigtType::none");
 }
 
 double trace(const tensor2 &t) {
     return t.mat()(0,0) + t.mat()(1,1) + t.mat()(2,2);
+}
+
+double sum(const tensor2 &t) {
+    return arma::accu(t.mat());
+}
+
+double accu(const tensor2 &t) {
+    return arma::accu(t.mat());
+}
+
+double norm(const tensor2 &t) {
+    return arma::norm(t.mat(), "fro");
+}
+
+double det(const tensor2 &t) {
+    return arma::det(t.mat());
+}
+
+tensor2 abs(const tensor2 &t) {
+    return tensor2(arma::mat::fixed<3,3>(arma::abs(t.mat())), t.vtype());
+}
+
+tensor2 trans(const tensor2 &t) {
+    return tensor2(arma::mat::fixed<3,3>(t.mat().t()), t.vtype());
 }
 
 // ============================================================================
@@ -411,7 +481,9 @@ tensor4::tensor4(const arma::mat::fixed<6,6> &m, Tensor4Type type)
 
 tensor4::tensor4(const arma::mat &m, Tensor4Type type)
     : _type(type), _fastor_valid(false) {
-    assert(m.n_rows == 6 && m.n_cols == 6);
+    if (m.n_rows != 6 || m.n_cols != 6)
+        throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
+            + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _voigt = m;
 }
 
@@ -483,7 +555,9 @@ void tensor4::set_mat(const arma::mat::fixed<6,6> &m) {
 }
 
 void tensor4::set_mat(const arma::mat &m) {
-    assert(m.n_rows == 6 && m.n_cols == 6);
+    if (m.n_rows != 6 || m.n_cols != 6)
+        throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
+            + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _voigt = m;
     _invalidate_fastor();
 }
@@ -583,7 +657,10 @@ tensor4 tensor4::rotate(const Rotation &R, bool active) const {
 }
 
 tensor4 tensor4::inverse() const {
-    arma::mat inv_mat = arma::inv(arma::mat(_voigt));
+    arma::mat inv_mat;
+    bool ok = arma::inv(inv_mat, arma::mat(_voigt));
+    if (!ok)
+        throw std::runtime_error("tensor4::inverse(): Voigt matrix is singular");
     arma::mat::fixed<6,6> inv_voigt;
     inv_voigt = inv_mat;
 
@@ -614,9 +691,23 @@ tensor4 tensor4::operator-(const tensor4 &other) const {
     return tensor4(result, _type);
 }
 
+tensor4 tensor4::operator-() const {
+    arma::mat::fixed<6,6> result;
+    result = -_voigt;
+    return tensor4(result, _type);
+}
+
 tensor4 tensor4::operator*(double scalar) const {
     arma::mat::fixed<6,6> result;
     result = _voigt * scalar;
+    return tensor4(result, _type);
+}
+
+tensor4 tensor4::operator/(double scalar) const {
+    if (scalar == 0.0)
+        throw std::runtime_error("tensor4: division by zero scalar");
+    arma::mat::fixed<6,6> result;
+    result = _voigt / scalar;
     return tensor4(result, _type);
 }
 
@@ -638,14 +729,32 @@ tensor4& tensor4::operator*=(double scalar) {
     return *this;
 }
 
+tensor4& tensor4::operator/=(double scalar) {
+    if (scalar == 0.0)
+        throw std::runtime_error("tensor4: division by zero scalar");
+    _voigt /= scalar;
+    _invalidate_fastor();
+    return *this;
+}
+
 tensor4 operator*(double scalar, const tensor4 &t) {
     arma::mat::fixed<6,6> result;
     result = t._voigt * scalar;
     return tensor4(result, t._type);
 }
 
+tensor4 tensor4::operator%(const tensor4 &other) const {
+    arma::mat::fixed<6,6> result;
+    result = _voigt % other._voigt;
+    return tensor4(result, _type);
+}
+
 bool tensor4::operator==(const tensor4 &other) const {
     return _type == other._type && arma::approx_equal(_voigt, other._voigt, "absdiff", 1e-14);
+}
+
+bool tensor4::operator!=(const tensor4 &other) const {
+    return !(*this == other);
 }
 
 // Free functions

@@ -214,8 +214,9 @@ TEST(Ttensor2, DevStress)
     // Hydrostatic stress => deviatoric part is zero
     mat::fixed<3,3> hydro = {{100, 0, 0}, {0, 100, 0}, {0, 0, 100}};
     tensor2 t(hydro, VoigtType::stress);
-    vec::fixed<6> d = dev(t);
-    EXPECT_LT(norm(d, 2), 1e-12);
+    tensor2 d = dev(t);
+    EXPECT_EQ(d.vtype(), VoigtType::stress);
+    EXPECT_LT(norm(d), 1e-12);
 }
 
 TEST(Ttensor2, Mises)
@@ -226,6 +227,45 @@ TEST(Ttensor2, Mises)
     tension(0,0) = Y;
     tensor2 t(tension, VoigtType::stress);
     EXPECT_NEAR(Mises(t), Y, 1e-10);
+}
+
+// ============================================================================
+// tensor2 double contraction (operator%)
+// ============================================================================
+
+TEST(Ttensor2, SchurProduct)
+{
+    // operator% returns a tensor2 (element-wise on 3x3), like Armadillo
+    mat::fixed<3,3> a_m = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
+    mat::fixed<3,3> b_m = {{0.01, 0.005, 0.003}, {0.005, 0.02, 0.004}, {0.003, 0.004, 0.03}};
+    tensor2 a(a_m, VoigtType::stress);
+    tensor2 b(b_m, VoigtType::strain);
+
+    tensor2 c = a % b;
+    mat::fixed<3,3> expected;
+    expected = a_m % b_m;
+    EXPECT_TRUE(arma::approx_equal(c.mat(), expected, "absdiff", 1e-14));
+    EXPECT_EQ(c.vtype(), VoigtType::stress); // preserves left operand type
+}
+
+TEST(Ttensor2, SumSchurWork)
+{
+    // sum(sigma % eps) = sigma_ij * eps_ij = mechanical work
+    // This is the core pattern in every UMAT:  Wm += 0.5*sum((sigma_start+sigma)%DEtot)
+    double E = 70000.0;
+    double nu = 0.3;
+    mat::fixed<6,6> L = L_iso(E, nu, "Enu");
+
+    vec::fixed<6> eps_v = {0.01, -0.003, -0.003, 0.005, 0.002, 0.001};
+    vec::fixed<6> sig_v = L * eps_v;
+
+    tensor2 sigma = tensor2::from_voigt(sig_v, VoigtType::stress);
+    tensor2 eps = tensor2::from_voigt(eps_v, VoigtType::strain);
+
+    double W_tensor = sum(sigma % eps);
+    double W_voigt = dot(sig_v, eps_v);
+
+    EXPECT_NEAR(W_tensor, W_voigt, 1e-8);
 }
 
 // ============================================================================

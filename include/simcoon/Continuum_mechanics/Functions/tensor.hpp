@@ -134,14 +134,25 @@ public:
     // Arithmetic
     tensor2 operator+(const tensor2 &other) const;
     tensor2 operator-(const tensor2 &other) const;
+    tensor2 operator-() const;   // unary minus
     tensor2 operator*(double scalar) const;
+    tensor2 operator/(double scalar) const;
     tensor2& operator+=(const tensor2 &other);
     tensor2& operator-=(const tensor2 &other);
     tensor2& operator*=(double scalar);
+    tensor2& operator/=(double scalar);
     friend tensor2 operator*(double scalar, const tensor2 &t);
+
+    /// Element-wise (Schur) product on the 3x3 matrix, like Armadillo %.
+    /// Use sum(a % b) for the double contraction scalar.
+    tensor2 operator%(const tensor2 &other) const;
+
+    /// Element-wise division on the 3x3 matrix.
+    tensor2 operator/(const tensor2 &other) const;
 
     // Comparison
     bool operator==(const tensor2 &other) const;
+    bool operator!=(const tensor2 &other) const;
 };
 
 // Free functions for tensor2
@@ -149,9 +160,17 @@ tensor2 stress(const arma::mat::fixed<3,3> &m);
 tensor2 stress(const arma::vec::fixed<6> &v);
 tensor2 strain(const arma::mat::fixed<3,3> &m);
 tensor2 strain(const arma::vec::fixed<6> &v);
-arma::vec::fixed<6> dev(const tensor2 &t);
+tensor2 dev(const tensor2 &t);
 double Mises(const tensor2 &t);
 double trace(const tensor2 &t);
+
+// Reduction free functions (Armadillo-style)
+double sum(const tensor2 &t);
+double accu(const tensor2 &t);
+double norm(const tensor2 &t);       // Frobenius norm
+double det(const tensor2 &t);
+tensor2 abs(const tensor2 &t);
+tensor2 trans(const tensor2 &t);     // transpose
 
 /**
  * @brief A 4th-order tensor with type tag for rotation dispatch and lazy Fastor cache.
@@ -242,14 +261,21 @@ public:
     // Arithmetic
     tensor4 operator+(const tensor4 &other) const;
     tensor4 operator-(const tensor4 &other) const;
+    tensor4 operator-() const;   // unary minus
     tensor4 operator*(double scalar) const;
+    tensor4 operator/(double scalar) const;
     tensor4& operator+=(const tensor4 &other);
     tensor4& operator-=(const tensor4 &other);
     tensor4& operator*=(double scalar);
+    tensor4& operator/=(double scalar);
     friend tensor4 operator*(double scalar, const tensor4 &t);
+
+    /// Element-wise (Schur) product on the 6x6 Voigt matrix.
+    tensor4 operator%(const tensor4 &other) const;
 
     // Comparison
     bool operator==(const tensor4 &other) const;
+    bool operator!=(const tensor4 &other) const;
 };
 
 // Free functions for tensor4
