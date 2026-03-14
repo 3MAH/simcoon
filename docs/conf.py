@@ -123,7 +123,7 @@ html_logo = "_static/simcoonLogos_ss_fond.png"
 
 
 html_theme_options = {
-    "canonical_url": "https://microgen.readthedocs.io/en/latest/",
+    "canonical_url": "https://3mah.github.io/simcoon-docs/",
     # 'logo_only': False,
     # 'display_version': True,
     # 'prev_next_buttons_location': 'bottom',
