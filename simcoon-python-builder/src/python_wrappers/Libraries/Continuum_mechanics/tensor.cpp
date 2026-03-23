@@ -274,6 +274,165 @@ void register_tensor(py::module_& m) {
             return "Tensor4(type=" + type_str + ")";
         });
 
+    // ================================================================
+    // Batch functions — thin wrappers calling core C++ batch functions
+    // ================================================================
+    // Python numpy: voigt (N,6), 3D arrays (N,3,3) or (N,6,6) — row-major
+    // C++ arma:     voigt (6,N), cubes (3,3,N) or (6,6,N) — column-major slices
+    // Helper lambdas convert between conventions using unchecked<> access.
+
+    // Helper: numpy (N,R,C) → arma cube (R,C,N)
+    auto np3d_to_cube = [](const py::array_t<double>& arr, int R, int C) {
+        auto a = arr.unchecked<3>();
+        int N = a.shape(0);
+        cube c(R, C, N);
+        for (int i = 0; i < N; i++)
+            for (int r = 0; r < R; r++)
+                for (int col = 0; col < C; col++)
+                    c(r, col, i) = a(i, r, col);
+        return c;
+    };
+
+    // Helper: arma cube (R,C,N) → numpy (N,R,C)
+    auto cube_to_np3d = [](const cube& c) {
+        int N = c.n_slices;
+        int R = c.n_rows;
+        int C = c.n_cols;
+        py::array_t<double> result({(py::ssize_t)N, (py::ssize_t)R, (py::ssize_t)C});
+        auto res = result.mutable_unchecked<3>();
+        for (int i = 0; i < N; i++)
+            for (int r = 0; r < R; r++)
+                for (int col = 0; col < C; col++)
+                    res(i, r, col) = c(r, col, i);
+        return result;
+    };
+
+    // Helper: numpy (N,6) → arma mat (6,N)
+    auto np2d_to_mat6N = [](const py::array_t<double>& arr) {
+        auto a = arr.unchecked<2>();
+        int N = a.shape(0);
+        mat m(6, N);
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < 6; j++)
+                m(j, i) = a(i, j);
+        return m;
+    };
+
+    // Helper: arma mat (6,N) → numpy (N,6)
+    auto mat6N_to_np2d = [](const mat& m) {
+        int N = m.n_cols;
+        py::array_t<double> result({(py::ssize_t)N, (py::ssize_t)6});
+        auto res = result.mutable_unchecked<2>();
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < 6; j++)
+                res(i, j) = m(j, i);
+        return result;
+    };
+
+    m.def("_batch_t2_rotate",
+        [&np2d_to_mat6N, &np3d_to_cube, &mat6N_to_np2d](
+           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> rot_matrices, bool active) {
+            mat v_cpp = np2d_to_mat6N(voigt);
+            cube r_cpp = np3d_to_cube(rot_matrices, 3, 3);
+            mat result = simcoon::batch_rotate(v_cpp, vtype, r_cpp, active);
+            return mat6N_to_np2d(result);
+        },
+        py::arg("voigt"), py::arg("vtype"), py::arg("rot_matrices"), py::arg("active") = true);
+
+    m.def("_batch_t2_push_forward",
+        [&np2d_to_mat6N, &np3d_to_cube, &mat6N_to_np2d](
+           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> F_arr) {
+            mat v_cpp = np2d_to_mat6N(voigt);
+            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            mat result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp);
+            return mat6N_to_np2d(result);
+        },
+        py::arg("voigt"), py::arg("vtype"), py::arg("F"));
+
+    m.def("_batch_t2_pull_back",
+        [&np2d_to_mat6N, &np3d_to_cube, &mat6N_to_np2d](
+           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> F_arr) {
+            mat v_cpp = np2d_to_mat6N(voigt);
+            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            mat result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp);
+            return mat6N_to_np2d(result);
+        },
+        py::arg("voigt"), py::arg("vtype"), py::arg("F"));
+
+    m.def("_batch_t2_mises",
+        [&np2d_to_mat6N](py::array_t<double> voigt, simcoon::VoigtType vtype) {
+            mat v_cpp = np2d_to_mat6N(voigt);
+            vec result = simcoon::batch_mises(v_cpp, vtype);
+            return carma::col_to_arr(result);
+        },
+        py::arg("voigt"), py::arg("vtype"));
+
+    m.def("_batch_t2_trace",
+        [&np2d_to_mat6N](py::array_t<double> voigt, simcoon::VoigtType vtype) {
+            mat v_cpp = np2d_to_mat6N(voigt);
+            vec result = simcoon::batch_trace(v_cpp, vtype);
+            return carma::col_to_arr(result);
+        },
+        py::arg("voigt"), py::arg("vtype"));
+
+    m.def("_batch_t4_contract",
+        [&np3d_to_cube, &np2d_to_mat6N, &mat6N_to_np2d](
+           py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
+           py::array_t<double> t2_arr, simcoon::VoigtType t2_vtype) {
+            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            mat t2_cpp = np2d_to_mat6N(t2_arr);
+            mat result = simcoon::batch_contract(t4_cpp, t4type, t2_cpp, t2_vtype);
+            simcoon::VoigtType out_vtype = simcoon::infer_contraction_vtype(t4type);
+            return py::make_tuple(mat6N_to_np2d(result), out_vtype);
+        },
+        py::arg("t4"), py::arg("t4type"), py::arg("t2"), py::arg("t2_vtype"));
+
+    m.def("_batch_t4_rotate",
+        [&np3d_to_cube, &cube_to_np3d](
+           py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
+           py::array_t<double> rot_matrices, bool active) {
+            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube r_cpp = np3d_to_cube(rot_matrices, 3, 3);
+            cube result = simcoon::batch_rotate_t4(t4_cpp, t4type, r_cpp, active);
+            return cube_to_np3d(result);
+        },
+        py::arg("t4"), py::arg("t4type"), py::arg("rot_matrices"), py::arg("active") = true);
+
+    m.def("_batch_t4_push_forward",
+        [&np3d_to_cube, &cube_to_np3d](
+           py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
+           py::array_t<double> F_arr) {
+            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube result = simcoon::batch_push_forward_t4(t4_cpp, t4type, f_cpp);
+            return cube_to_np3d(result);
+        },
+        py::arg("t4"), py::arg("t4type"), py::arg("F"));
+
+    m.def("_batch_t4_pull_back",
+        [&np3d_to_cube, &cube_to_np3d](
+           py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
+           py::array_t<double> F_arr) {
+            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube result = simcoon::batch_pull_back_t4(t4_cpp, t4type, f_cpp);
+            return cube_to_np3d(result);
+        },
+        py::arg("t4"), py::arg("t4type"), py::arg("F"));
+
+    m.def("_batch_t4_inverse",
+        [&np3d_to_cube, &cube_to_np3d](
+           py::array_t<double> t4_arr, simcoon::Tensor4Type t4type) {
+            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube result = simcoon::batch_inverse_t4(t4_cpp, t4type);
+            simcoon::Tensor4Type inv_type = simcoon::infer_inverse_type(t4type);
+            return py::make_tuple(cube_to_np3d(result), inv_type);
+        },
+        py::arg("t4"), py::arg("t4type"));
+
     // Module-level free functions
     m.def("_dyadic",
         [](const simcoon::tensor2& a, const simcoon::tensor2& b) {

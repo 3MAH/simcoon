@@ -408,11 +408,27 @@ tensor2 stress(const arma::vec::fixed<6> &v) {
     return tensor2::from_voigt(v, VoigtType::stress);
 }
 
+tensor2 stress(const arma::mat &m) {
+    return tensor2(m, VoigtType::stress);
+}
+
+tensor2 stress(const arma::vec &v) {
+    return tensor2::from_voigt(v, VoigtType::stress);
+}
+
 tensor2 strain(const arma::mat::fixed<3,3> &m) {
     return tensor2(m, VoigtType::strain);
 }
 
 tensor2 strain(const arma::vec::fixed<6> &v) {
+    return tensor2::from_voigt(v, VoigtType::strain);
+}
+
+tensor2 strain(const arma::mat &m) {
+    return tensor2(m, VoigtType::strain);
+}
+
+tensor2 strain(const arma::vec &v) {
     return tensor2::from_voigt(v, VoigtType::strain);
 }
 
@@ -781,6 +797,166 @@ tensor4 dyadic(const tensor2 &a, const tensor2 &b) {
 
 tensor4 auto_dyadic(const tensor2 &a) {
     return dyadic(a, a);
+}
+
+// ============================================================================
+// Batch operations
+// ============================================================================
+
+VoigtType infer_contraction_vtype(Tensor4Type t4type) {
+    switch (t4type) {
+        case Tensor4Type::stiffness:
+        case Tensor4Type::stress_concentration:
+        case Tensor4Type::generic:
+            return VoigtType::stress;
+        case Tensor4Type::compliance:
+        case Tensor4Type::strain_concentration:
+            return VoigtType::strain;
+    }
+    return VoigtType::stress;
+}
+
+Tensor4Type infer_inverse_type(Tensor4Type t4type) {
+    if (t4type == Tensor4Type::stiffness) return Tensor4Type::compliance;
+    if (t4type == Tensor4Type::compliance) return Tensor4Type::stiffness;
+    return t4type;
+}
+
+arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
+                       const arma::cube &rot_matrices, bool active) {
+    int N = voigt.n_cols;
+    bool broadcast = (rot_matrices.n_slices == 1);
+    arma::mat result(6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
+        Rotation R = Rotation::from_matrix(
+            arma::mat::fixed<3,3>(rot_matrices.slice(broadcast ? 0 : i)));
+        tensor2 t_rot = t.rotate(R, active);
+        result.col(i) = t_rot.voigt();
+    }
+    return result;
+}
+
+arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
+                             const arma::cube &F) {
+    int N = voigt.n_cols;
+    bool broadcast = (F.n_slices == 1);
+    arma::mat result(6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
+        arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
+        result.col(i) = t.push_forward(Fi).voigt();
+    }
+    return result;
+}
+
+arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
+                          const arma::cube &F) {
+    int N = voigt.n_cols;
+    bool broadcast = (F.n_slices == 1);
+    arma::mat result(6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
+        arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
+        result.col(i) = t.pull_back(Fi).voigt();
+    }
+    return result;
+}
+
+arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype) {
+    int N = voigt.n_cols;
+    arma::vec result(N);
+
+    for (int i = 0; i < N; i++) {
+        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
+        result(i) = Mises(t);
+    }
+    return result;
+}
+
+arma::vec batch_trace(const arma::mat &voigt, VoigtType vtype) {
+    int N = voigt.n_cols;
+    arma::vec result(N);
+
+    for (int i = 0; i < N; i++) {
+        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
+        result(i) = trace(t);
+    }
+    return result;
+}
+
+arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
+                         const arma::mat &t2, VoigtType t2_vtype) {
+    int N4 = t4.n_slices;
+    int N2 = t2.n_cols;
+    int N = std::max(N4, N2);
+    bool bc4 = (N4 == 1);
+    bool bc2 = (N2 == 1);
+    arma::mat result(6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor4 L(arma::mat::fixed<6,6>(t4.slice(bc4 ? 0 : i)), t4type);
+        tensor2 t = tensor2::from_voigt(arma::vec(t2.col(bc2 ? 0 : i)), t2_vtype);
+        result.col(i) = L.contract(t).voigt();
+    }
+    return result;
+}
+
+arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
+                           const arma::cube &rot_matrices, bool active) {
+    int N = t4.n_slices;
+    bool broadcast = (rot_matrices.n_slices == 1);
+    arma::cube result(6, 6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
+        Rotation R = Rotation::from_matrix(
+            arma::mat::fixed<3,3>(rot_matrices.slice(broadcast ? 0 : i)));
+        result.slice(i) = L.rotate(R, active).mat();
+    }
+    return result;
+}
+
+arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
+                                 const arma::cube &F) {
+    int N = t4.n_slices;
+    bool broadcast = (F.n_slices == 1);
+    arma::cube result(6, 6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
+        arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
+        result.slice(i) = L.push_forward(Fi).mat();
+    }
+    return result;
+}
+
+arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
+                              const arma::cube &F) {
+    int N = t4.n_slices;
+    bool broadcast = (F.n_slices == 1);
+    arma::cube result(6, 6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
+        arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
+        result.slice(i) = L.pull_back(Fi).mat();
+    }
+    return result;
+}
+
+arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type) {
+    int N = t4.n_slices;
+    arma::cube result(6, 6, N);
+
+    for (int i = 0; i < N; i++) {
+        tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
+        result.slice(i) = L.inverse().mat();
+    }
+    return result;
 }
 
 } // namespace simcoon

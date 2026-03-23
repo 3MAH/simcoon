@@ -158,8 +158,12 @@ public:
 // Free functions for tensor2
 tensor2 stress(const arma::mat::fixed<3,3> &m);
 tensor2 stress(const arma::vec::fixed<6> &v);
+tensor2 stress(const arma::mat &m);
+tensor2 stress(const arma::vec &v);
 tensor2 strain(const arma::mat::fixed<3,3> &m);
 tensor2 strain(const arma::vec::fixed<6> &v);
+tensor2 strain(const arma::mat &m);
+tensor2 strain(const arma::vec &v);
 tensor2 dev(const tensor2 &t);
 double Mises(const tensor2 &t);
 double trace(const tensor2 &t);
@@ -281,5 +285,52 @@ public:
 // Free functions for tensor4
 tensor4 dyadic(const tensor2 &a, const tensor2 &b);
 tensor4 auto_dyadic(const tensor2 &a);
+
+// ============================================================================
+// Batch operations
+// ============================================================================
+// Convention: voigt (6, N) columns, matrices/tensors (3,3,N) or (6,6,N) cubes.
+// rot/F with n_slices==1 are broadcast to all N points.
+
+/// Batch rotate N tensor2 objects. voigt:(6,N), rot:(3,3,N_r).
+arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
+                       const arma::cube &rot_matrices, bool active = true);
+
+/// Batch push-forward N tensor2. voigt:(6,N), F:(3,3,N_f).
+arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
+                             const arma::cube &F);
+
+/// Batch pull-back N tensor2. voigt:(6,N), F:(3,3,N_f).
+arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
+                          const arma::cube &F);
+
+/// Batch von Mises for N tensor2. voigt:(6,N) → (N).
+arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype);
+
+/// Batch trace for N tensor2. voigt:(6,N) → (N).
+arma::vec batch_trace(const arma::mat &voigt, VoigtType vtype);
+
+/// Batch contract tensor4 @ tensor2. t4:(6,6,N4), t2:(6,N2) → (6,N).
+/// Returns (result, output_vtype).
+VoigtType infer_contraction_vtype(Tensor4Type t4type);
+arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
+                         const arma::mat &t2, VoigtType t2_vtype);
+
+/// Batch rotate N tensor4. t4:(6,6,N), rot:(3,3,N_r).
+arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
+                           const arma::cube &rot_matrices, bool active = true);
+
+/// Batch push-forward N tensor4. t4:(6,6,N), F:(3,3,N_f).
+arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
+                                 const arma::cube &F);
+
+/// Batch pull-back N tensor4. t4:(6,6,N), F:(3,3,N_f).
+arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
+                              const arma::cube &F);
+
+/// Batch inverse N tensor4. t4:(6,6,N) → (6,6,N).
+/// Returns (result, inverse_type).
+Tensor4Type infer_inverse_type(Tensor4Type t4type);
+arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type);
 
 } // namespace simcoon
