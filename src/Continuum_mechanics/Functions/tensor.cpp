@@ -209,7 +209,9 @@ void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
 }
 
 void tensor2::set_voigt(const arma::vec &v) {
-    assert(v.n_elem == 6);
+    if (v.n_elem != 6)
+        throw std::invalid_argument("tensor2::set_voigt: expected 6-element vector, got "
+            + std::to_string(v.n_elem));
     arma::vec::fixed<6> vf(v.memptr());
     set_voigt(vf);
 }
