@@ -183,6 +183,10 @@ tensor2 trans(const tensor2 &t);     // transpose
  *
  * Storage: arma::mat::fixed<6,6> Voigt matrix (primary).
  * Fastor Tensor<double,3,3,3,3> is lazily computed and cached.
+ *
+ * @note NOT thread-safe. The mutable Fastor cache is lazily computed from const
+ *       methods without synchronization. Do not share instances across threads
+ *       without external synchronization.
  */
 class tensor4 {
 private:

@@ -176,7 +176,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     Fastor
     GIT_REPOSITORY "https://github.com/3MAH/Fastor.git"
-    GIT_TAG        "master"
+    GIT_TAG        "b3499f6bea8bc49f92b5dcfc250da90e86fc5ebb"
 )
 
 #set(BUILD_SHARED_LIBS ON)
