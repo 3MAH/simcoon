@@ -58,26 +58,26 @@ class TestTensor2Construction:
 
     def test_stress_from_mat(self, sigma_mat):
         t = sim.Tensor2.stress(sigma_mat)
-        assert t.vtype == sim.VoigtType.stress
+        assert t.vtype == "stress"
         np.testing.assert_allclose(t.mat, sigma_mat, atol=1e-14)
 
     def test_strain_from_mat(self, eps_mat):
         t = sim.Tensor2.strain(eps_mat)
-        assert t.vtype == sim.VoigtType.strain
+        assert t.vtype == "strain"
         np.testing.assert_allclose(t.mat, eps_mat, atol=1e-14)
 
     def test_stress_from_voigt(self, sigma_voigt):
         t = sim.Tensor2.stress(sigma_voigt)
-        assert t.vtype == sim.VoigtType.stress
+        assert t.vtype == "stress"
         np.testing.assert_allclose(t.voigt, sigma_voigt, atol=1e-12)
 
     def test_strain_from_voigt(self, eps_voigt):
         t = sim.Tensor2.strain(eps_voigt)
-        assert t.vtype == sim.VoigtType.strain
+        assert t.vtype == "strain"
         np.testing.assert_allclose(t.voigt, eps_voigt, atol=1e-12)
 
     def test_zeros(self):
-        t = sim.Tensor2.zeros(sim.VoigtType.strain)
+        t = sim.Tensor2.zeros("strain")
         np.testing.assert_allclose(t.mat, np.zeros((3, 3)), atol=1e-15)
 
     def test_identity(self):
@@ -191,23 +191,23 @@ class TestTensor4Construction:
 
     def test_stiffness(self, L):
         t = sim.Tensor4.stiffness(L)
-        assert t.type == sim.Tensor4Type.stiffness
+        assert t.type == "stiffness"
         np.testing.assert_allclose(t.mat, L, atol=1e-12)
 
     def test_compliance(self, M):
         t = sim.Tensor4.compliance(M)
-        assert t.type == sim.Tensor4Type.compliance
+        assert t.type == "compliance"
         np.testing.assert_allclose(t.mat, M, atol=1e-12)
 
     def test_strain_concentration(self):
         A = sim.Ireal()
         t = sim.Tensor4.strain_concentration(A)
-        assert t.type == sim.Tensor4Type.strain_concentration
+        assert t.type == "strain_concentration"
 
     def test_stress_concentration(self):
         B = sim.Ireal()
         t = sim.Tensor4.stress_concentration(B)
-        assert t.type == sim.Tensor4Type.stress_concentration
+        assert t.type == "stress_concentration"
 
     def test_identity_matches_Ireal(self):
         t = sim.Tensor4.identity()
@@ -240,7 +240,7 @@ class TestTensor4Contraction:
         eps_v = np.array([0.01, 0.0, 0.0, 0.0, 0.0, 0.0])
         eps = sim.Tensor2.strain(eps_v)
         sigma = stiff.contract(eps)
-        assert sigma.vtype == sim.VoigtType.stress
+        assert sigma.vtype == "stress"
         np.testing.assert_allclose(sigma.voigt, L @ eps_v, atol=1e-10)
 
     def test_compliance_contract_gives_strain(self, M):
@@ -248,7 +248,7 @@ class TestTensor4Contraction:
         sig_v = np.array([100, 0, 0, 0, 0, 0], dtype=float)
         sig = sim.Tensor2.stress(sig_v)
         eps = comp.contract(sig)
-        assert eps.vtype == sim.VoigtType.strain
+        assert eps.vtype == "strain"
         np.testing.assert_allclose(eps.voigt, M @ sig_v, atol=1e-10)
 
     def test_matmul_operator(self, L):
@@ -347,19 +347,19 @@ class TestTensor4Inverse:
     def test_stiffness_to_compliance(self, L, M):
         stiff = sim.Tensor4.stiffness(L)
         comp = stiff.inverse()
-        assert comp.type == sim.Tensor4Type.compliance
+        assert comp.type == "compliance"
         np.testing.assert_allclose(comp.mat, M, atol=1e-8)
 
     def test_compliance_to_stiffness(self, L, M):
         comp = sim.Tensor4.compliance(M)
         stiff = comp.inverse()
-        assert stiff.type == sim.Tensor4Type.stiffness
+        assert stiff.type == "stiffness"
         np.testing.assert_allclose(stiff.mat, L, atol=1e-8)
 
     def test_inverse_roundtrip(self, L):
         t = sim.Tensor4.stiffness(L)
         t_back = t.inverse().inverse()
-        assert t_back.type == sim.Tensor4Type.stiffness
+        assert t_back.type == "stiffness"
         np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
 
 
@@ -369,7 +369,7 @@ class TestTensor4Dyadic:
         a = sim.Tensor2.stress(np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0]], dtype=float))
         b = sim.Tensor2.stress(np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=float))
         d = sim.dyadic(a, b)
-        assert d.type == sim.Tensor4Type.stiffness
+        assert d.type == "stiffness"
         assert abs(d.mat[0, 1] - 1.0) < 1e-14
         assert abs(d.mat[0, 0]) < 1e-14
 

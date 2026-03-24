@@ -11,7 +11,6 @@ from numpy.testing import assert_allclose
 from scipy.spatial.transform import Rotation as ScipyRotation
 
 import simcoon as smc
-from simcoon._core import VoigtType, Tensor4Type
 from simcoon.tensor import (
     Tensor2,
     Tensor4,
@@ -77,23 +76,23 @@ def single_rotation(rng):
 
 class TestVoigtConversion:
     def test_stress_mat_voigt_roundtrip(self, random_sym_matrices):
-        v = _mat_to_voigt(random_sym_matrices, VoigtType.stress)
-        m2 = _voigt_to_mat(v, VoigtType.stress)
+        v = _mat_to_voigt(random_sym_matrices, "stress")
+        m2 = _voigt_to_mat(v, "stress")
         assert_allclose(m2, random_sym_matrices, atol=TOL)
 
     def test_strain_mat_voigt_roundtrip(self, random_sym_matrices):
-        v = _mat_to_voigt(random_sym_matrices, VoigtType.strain)
-        m2 = _voigt_to_mat(v, VoigtType.strain)
+        v = _mat_to_voigt(random_sym_matrices, "strain")
+        m2 = _voigt_to_mat(v, "strain")
         assert_allclose(m2, random_sym_matrices, atol=TOL)
 
     def test_stress_voigt_matches_single(self, random_sym_matrices):
-        batch_v = _mat_to_voigt(random_sym_matrices, VoigtType.stress)
+        batch_v = _mat_to_voigt(random_sym_matrices, "stress")
         for idx in range(N):
             single = Tensor2.stress(random_sym_matrices[idx].copy())
             assert_allclose(batch_v[idx], single.voigt, atol=TOL)
 
     def test_strain_voigt_matches_single(self, random_sym_matrices):
-        batch_v = _mat_to_voigt(random_sym_matrices, VoigtType.strain)
+        batch_v = _mat_to_voigt(random_sym_matrices, "strain")
         for idx in range(N):
             single = Tensor2.strain(random_sym_matrices[idx].copy())
             assert_allclose(batch_v[idx], single.voigt, atol=TOL)
@@ -132,7 +131,7 @@ class TestTensor2BatchSequence:
 
     def test_contains(self, random_stress_voigt):
         batch = Tensor2.stress(random_stress_voigt)
-        t0 = Tensor2.from_voigt(random_stress_voigt[0].copy(), VoigtType.stress)
+        t0 = Tensor2.from_voigt(random_stress_voigt[0].copy(), "stress")
         assert t0 in batch
 
     def test_construct_from_list(self):
@@ -145,7 +144,7 @@ class TestTensor2BatchSequence:
     def test_construct_from_list_mixed_type_raises(self):
         t1 = Tensor2.stress(np.zeros(6))
         t2 = Tensor2.strain(np.zeros(6))
-        with pytest.raises(ValueError, match="Mixed VoigtType"):
+        with pytest.raises(ValueError, match="Mixed type"):
             Tensor2([t1, t2])
 
     def test_negative_index(self, random_stress_voigt):
@@ -159,7 +158,7 @@ class TestTensor2BatchSequence:
 
     def test_count(self, random_stress_voigt):
         batch = Tensor2.stress(random_stress_voigt)
-        t0 = Tensor2.from_voigt(random_stress_voigt[0].copy(), VoigtType.stress)
+        t0 = Tensor2.from_voigt(random_stress_voigt[0].copy(), "stress")
         assert batch.count(t0) >= 1
 
 
@@ -234,7 +233,7 @@ class TestTensor2BatchConcatenate:
     def test_concatenate_mixed_type_raises(self):
         b1 = Tensor2.stress(np.zeros((3, 6)))
         b2 = Tensor2.strain(np.zeros((3, 6)))
-        with pytest.raises(ValueError, match="Mixed VoigtType"):
+        with pytest.raises(ValueError, match="Mixed type"):
             Tensor2.concatenate([b1, b2])
 
 
@@ -244,28 +243,28 @@ class TestTensor2BatchConcatenate:
 
 class TestTensor2BatchConstruction:
     def test_from_voigt(self, random_stress_voigt):
-        batch = Tensor2.from_voigt(random_stress_voigt, VoigtType.stress)
+        batch = Tensor2.from_voigt(random_stress_voigt, "stress")
         assert_allclose(batch.voigt, random_stress_voigt, atol=TOL)
-        assert batch.vtype == VoigtType.stress
+        assert batch.vtype == "stress"
         assert len(batch) == N
 
     def test_from_mat(self, random_sym_matrices):
-        batch = Tensor2.from_mat(random_sym_matrices, VoigtType.stress)
+        batch = Tensor2.from_mat(random_sym_matrices, "stress")
         assert len(batch) == N
         assert_allclose(batch.mat, random_sym_matrices, atol=TOL)
 
     def test_stress_factory(self, random_stress_voigt):
         batch = Tensor2.stress(random_stress_voigt)
-        assert batch.vtype == VoigtType.stress
+        assert batch.vtype == "stress"
         assert_allclose(batch.voigt, random_stress_voigt, atol=TOL)
 
     def test_strain_factory(self, random_strain_voigt):
         batch = Tensor2.strain(random_strain_voigt)
-        assert batch.vtype == VoigtType.strain
+        assert batch.vtype == "strain"
 
     def test_stress_from_matrices(self, random_sym_matrices):
         batch = Tensor2.stress(random_sym_matrices)
-        assert batch.vtype == VoigtType.stress
+        assert batch.vtype == "stress"
         assert len(batch) == N
 
     def test_from_tensor_broadcast(self):
@@ -277,7 +276,7 @@ class TestTensor2BatchConstruction:
 
     def test_from_columns_roundtrip(self, random_stress_voigt):
         arr_6N = random_stress_voigt.T
-        batch = Tensor2.from_columns(arr_6N, VoigtType.stress)
+        batch = Tensor2.from_columns(arr_6N, "stress")
         assert_allclose(batch.voigt_T, arr_6N, atol=TOL)
 
     def test_from_list_alias(self):
@@ -292,7 +291,7 @@ class TestTensor2BatchConstruction:
 
 class TestTensor2BatchProperties:
     def test_mat_property(self, random_sym_matrices):
-        batch = Tensor2.from_mat(random_sym_matrices, VoigtType.stress)
+        batch = Tensor2.from_mat(random_sym_matrices, "stress")
         assert batch.mat.shape == (N, 3, 3)
         assert_allclose(batch.mat, random_sym_matrices, atol=TOL)
 
@@ -351,7 +350,7 @@ class TestTensor2BatchInvariants:
         assert_allclose(dev.trace(), 0.0, atol=1e-10)
 
     def test_norm(self, random_sym_matrices):
-        batch = Tensor2.from_mat(random_sym_matrices, VoigtType.stress)
+        batch = Tensor2.from_mat(random_sym_matrices, "stress")
         norms = batch.norm()
         for i in range(N):
             expected = np.sqrt(np.sum(random_sym_matrices[i] ** 2))
@@ -564,7 +563,7 @@ class TestTensor4BatchConcatenate:
     def test_concatenate_mixed_type_raises(self, iso_stiffness, iso_compliance):
         b1 = Tensor4.stiffness(np.broadcast_to(iso_stiffness[np.newaxis], (3, 6, 6)).copy())
         b2 = Tensor4.compliance(np.broadcast_to(iso_compliance[np.newaxis], (3, 6, 6)).copy())
-        with pytest.raises(ValueError, match="Mixed Tensor4Type"):
+        with pytest.raises(ValueError, match="Mixed type"):
             Tensor4.concatenate([b1, b2])
 
 
@@ -577,12 +576,12 @@ class TestTensor4BatchConstruction:
         data = np.broadcast_to(iso_stiffness[np.newaxis], (N, 6, 6)).copy()
         batch = Tensor4.stiffness(data)
         assert len(batch) == N
-        assert batch.type == Tensor4Type.stiffness
+        assert batch.type == "stiffness"
 
     def test_compliance(self, iso_compliance):
         data = np.broadcast_to(iso_compliance[np.newaxis], (N, 6, 6)).copy()
         batch = Tensor4.compliance(data)
-        assert batch.type == Tensor4Type.compliance
+        assert batch.type == "compliance"
 
     def test_from_tensor(self, iso_stiffness):
         single = Tensor4.stiffness(iso_stiffness)
@@ -624,7 +623,7 @@ class TestTensor4BatchContraction:
         sigma = L @ eps
         assert isinstance(sigma, Tensor2)
         assert not sigma.single
-        assert sigma.vtype == VoigtType.stress
+        assert sigma.vtype == "stress"
         for i in range(N):
             single_sigma = L[i] @ eps[i]
             assert_allclose(sigma[i].voigt, single_sigma.voigt, atol=TOL)
@@ -644,7 +643,7 @@ class TestTensor4BatchContraction:
         sigma_v[:, 0] = 100.0
         sigma = Tensor2.stress(sigma_v)
         eps = M @ sigma
-        assert eps.vtype == VoigtType.strain
+        assert eps.vtype == "strain"
 
 
 # ==================================================================
@@ -699,9 +698,9 @@ class TestTensor4BatchInverse:
     def test_inverse_type_flip(self, iso_stiffness):
         L = Tensor4.from_tensor(Tensor4.stiffness(iso_stiffness), N)
         M = L.inverse()
-        assert M.type == Tensor4Type.compliance
+        assert M.type == "compliance"
         L2 = M.inverse()
-        assert L2.type == Tensor4Type.stiffness
+        assert L2.type == "stiffness"
         assert_allclose(L2.voigt, L.voigt, atol=1e-8)
 
     def test_inverse_matches_single(self, iso_stiffness):
@@ -781,7 +780,7 @@ class TestDoubleContract:
 class TestInterop:
     def test_columns_roundtrip(self, rng):
         arr_6N = rng.standard_normal((6, N))
-        batch = Tensor2.from_columns(arr_6N, VoigtType.stress)
+        batch = Tensor2.from_columns(arr_6N, "stress")
         assert_allclose(batch.voigt_T, arr_6N, atol=TOL)
 
     def test_single_to_batch_and_back(self):
@@ -823,10 +822,9 @@ class TestUnifiedTransparency:
         t = Tensor2.stress(np.zeros((5, 6)))
         assert t.single is False
 
-    def test_single_no_len(self):
+    def test_single_len_is_one(self):
         t = Tensor2.stress(np.zeros(6))
-        with pytest.raises(TypeError):
-            len(t)
+        assert len(t) == 1
 
     def test_single_no_getitem(self):
         t = Tensor2.stress(np.zeros(6))
