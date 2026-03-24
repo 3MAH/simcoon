@@ -38,7 +38,6 @@ from simcoon._core import (
     Tensor4Type as _T4Type,
 )
 
-# C++ batch functions
 from simcoon._core import (
     _batch_t2_rotate,
     _batch_t2_push_forward,
@@ -54,7 +53,7 @@ from simcoon._core import (
 
 
 # ======================================================================
-# Type mappings (string ↔ C++ enum)
+# Type mappings (string <-> C++ enum)
 # ======================================================================
 
 _VTYPE_MAP = {
@@ -89,7 +88,7 @@ def _check_t4_type(ts):
 
 
 # ======================================================================
-# Voigt conversion helpers (pure numpy, string-based type)
+# Voigt conversion helpers
 # ======================================================================
 
 def _mat_to_voigt(m, type_str):
@@ -144,26 +143,267 @@ def _get_rotation_matrices(R, N):
 
 
 # ======================================================================
-# Tensor2 — unified single / batch, numpy-only storage
+# _TensorBase — shared logic for Tensor2 and Tensor4
 # ======================================================================
 
-class Tensor2:
-    """A 2nd-order tensor with type tag for Voigt convention and rotation dispatch.
+class _TensorBase:
+    """Private base class for Tensor2 and Tensor4.
 
-    Handles both single tensors and batches of N tensors.
-    Use ``.single`` to check which mode.
-
-    Always stores a numpy array internally: ``(6,)`` for single, ``(N, 6)`` for batch.
-    Type is a string: ``"stress"``, ``"strain"``, ``"generic"``, or ``"none"``.
-
-    Do not construct directly — use ``stress()``, ``strain()``, etc.
+    Parameterized by ``_single_ndim``: 1 for Tensor2, 2 for Tensor4.
+    Subclasses set this as a class variable.
     """
 
     __slots__ = ("_data", "_type_str")
 
+    _single_ndim = None  # set by subclass
+
+    # ------------------------------------------------------------------
+    # Internal constructors
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _create(cls, data, type_str):
+        """Internal: create from numpy array + type string."""
+        obj = object.__new__(cls)
+        obj._data = np.ascontiguousarray(data, dtype=np.float64)
+        obj._type_str = type_str
+        return obj
+
+    def _ensure_batch(self):
+        """Return _data with a leading batch axis if single."""
+        if self._data.ndim == self._single_ndim:
+            return self._data[np.newaxis]
+        return self._data
+
+    def _rewrap(self, result, type_str=None):
+        """Wrap batch result, squeezing if original was single."""
+        ts = type_str or self._type_str
+        if self._data.ndim == self._single_ndim:
+            return type(self)._create(result[0], ts)
+        return type(self)._create(result, ts)
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def single(self):
+        """True if this is a single tensor, False if batch."""
+        return self._data.ndim == self._single_ndim
+
+    @property
+    def type(self):
+        """Type string."""
+        return self._type_str
+
+    # ------------------------------------------------------------------
+    # Sequence protocol
+    # ------------------------------------------------------------------
+
+    def __len__(self):
+        if self.single:
+            return 1
+        return self._data.shape[0]
+
+    def __getitem__(self, key):
+        if self.single:
+            raise TypeError(f"single {type(self).__name__} is not subscriptable")
+        if isinstance(key, (int, np.integer)):
+            if key < 0:
+                key += len(self)
+            if key < 0 or key >= len(self):
+                raise IndexError(f"index {key} out of range for batch of size {len(self)}")
+        return type(self)._create(self._data[key].copy(), self._type_str)
+
+    def __iter__(self):
+        if self.single:
+            raise TypeError(f"single {type(self).__name__} is not iterable")
+        for i in range(len(self)):
+            yield self[i]
+
+    def __reversed__(self):
+        if self.single:
+            raise TypeError(f"single {type(self).__name__} is not reversible")
+        for i in range(len(self) - 1, -1, -1):
+            yield self[i]
+
+    def __contains__(self, item):
+        if self.single:
+            raise TypeError(f"single {type(self).__name__} does not support 'in'")
+        if isinstance(item, type(self)) and item.single:
+            axes = tuple(range(1, self._data.ndim))
+            return np.any(np.all(self._data == item._data, axis=axes))
+        return False
+
+    def count(self, item):
+        """Count occurrences of a single tensor in batch."""
+        if self.single:
+            raise TypeError("count only on batch")
+        if isinstance(item, type(self)) and item.single:
+            axes = tuple(range(1, self._data.ndim))
+            return int(np.sum(np.all(self._data == item._data, axis=axes)))
+        return 0
+
+    # ------------------------------------------------------------------
+    # Numpy array protocol
+    # ------------------------------------------------------------------
+
+    def __array__(self, dtype=None):
+        v = self._data.copy()
+        return v.astype(dtype) if dtype else v
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        if method != "__call__":
+            return NotImplemented
+        cls = type(self)
+        raw_inputs = []
+        result_ts = None
+        all_single = True
+        for inp in inputs:
+            if isinstance(inp, cls):
+                d = inp._data
+                if d.ndim == self._single_ndim:
+                    d = d[np.newaxis]
+                else:
+                    all_single = False
+                raw_inputs.append(d)
+                result_ts = result_ts or inp._type_str
+            else:
+                raw_inputs.append(inp)
+        if result_ts is None:
+            return NotImplemented
+        _ALLOWED = {np.add, np.subtract, np.multiply, np.negative,
+                    np.true_divide, np.positive}
+        if ufunc not in _ALLOWED:
+            return NotImplemented
+        result = ufunc(*raw_inputs, **kwargs)
+        batch_ndim = self._single_ndim + 1
+        if isinstance(result, np.ndarray) and result.ndim == batch_ndim:
+            if all_single and result.shape[0] == 1:
+                return cls._create(result[0], result_ts)
+            return cls._create(result, result_ts)
+        return result
+
+    # ------------------------------------------------------------------
+    # Arithmetic
+    # ------------------------------------------------------------------
+
+    def __add__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return type(self)._create(self._data + other._data, self._type_str)
+
+    def __radd__(self, other):
+        if isinstance(other, type(self)):
+            return other.__add__(self)
+        return NotImplemented
+
+    def __sub__(self, other):
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return type(self)._create(self._data - other._data, self._type_str)
+
+    def __rsub__(self, other):
+        if isinstance(other, type(self)):
+            return other.__sub__(self)
+        return NotImplemented
+
+    def __neg__(self):
+        return type(self)._create(-self._data, self._type_str)
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return type(self)._create(self._data * other, self._type_str)
+        other = np.asarray(other)
+        if other.ndim <= 1:
+            expand = (Ellipsis,) + (np.newaxis,) * self._single_ndim
+            return type(self)._create(self._data * other[expand], self._type_str)
+        return NotImplemented
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __truediv__(self, other):
+        if isinstance(other, (int, float)):
+            return type(self)._create(self._data / other, self._type_str)
+        other = np.asarray(other)
+        if other.ndim <= 1:
+            expand = (Ellipsis,) + (np.newaxis,) * self._single_ndim
+            return type(self)._create(self._data / other[expand], self._type_str)
+        return NotImplemented
+
+    def __eq__(self, other):
+        if isinstance(other, type(self)):
+            sd, od = self._data, other._data
+            if sd.ndim == od.ndim:
+                return np.array_equal(sd, od)
+            # mixed single/batch
+            axes = tuple(range(1, max(sd.ndim, od.ndim)))
+            if sd.ndim < od.ndim:
+                return np.all(od == sd[np.newaxis], axis=axes)
+            return np.all(sd == od[np.newaxis], axis=axes)
+        return NotImplemented
+
+    def __hash__(self):
+        return id(self)
+
+    def __repr__(self):
+        name = type(self).__name__
+        if self.single:
+            return f"{name}(type='{self._type_str}')"
+        return f"{name}(N={len(self)}, type='{self._type_str}')"
+
+    # ------------------------------------------------------------------
+    # Shared factory helpers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_tensor(cls, t, n):
+        """Broadcast a single tensor to a batch of size n."""
+        if not t.single:
+            raise ValueError("from_tensor requires a single tensor")
+        expand = (np.newaxis,) + (slice(None),) * t._data.ndim
+        shape = (n,) + t._data.shape
+        v = np.broadcast_to(t._data[expand], shape).copy()
+        return cls._create(v, t._type_str)
+
+    @classmethod
+    def from_list(cls, tensors):
+        """Stack a list of single tensors into a batch."""
+        return cls(list(tensors))
+
+    @classmethod
+    def concatenate(cls, batches):
+        """Join multiple batches (or singles) into one batch."""
+        parts = list(batches)
+        if not parts:
+            raise ValueError("Nothing to concatenate")
+        type_str = parts[0]._type_str
+        sn = parts[0]._single_ndim
+        arrays = []
+        for b in parts:
+            if b._type_str != type_str:
+                raise ValueError(f"Mixed type: {type_str} vs {b._type_str}")
+            d = b._data
+            arrays.append(d[np.newaxis] if d.ndim == sn else d)
+        return cls._create(np.concatenate(arrays, axis=0), type_str)
+
+
+# ======================================================================
+# Tensor2
+# ======================================================================
+
+class Tensor2(_TensorBase):
+    """A 2nd-order tensor with type tag for Voigt convention and rotation dispatch.
+
+    Always stores a numpy array: ``(6,)`` for single, ``(N, 6)`` for batch.
+    Type is a string: ``"stress"``, ``"strain"``, ``"generic"``, or ``"none"``.
+    """
+
+    _single_ndim = 1
+
     def __init__(self, data):
         if isinstance(data, list) and data and isinstance(data[0], Tensor2):
-            # Batch from list of single Tensor2
             if not all(t.single for t in data):
                 raise ValueError("Cannot nest batches")
             ref = data[0]._type_str
@@ -176,35 +416,6 @@ class Tensor2:
             self._type_str = ref
         else:
             raise TypeError("Use Tensor2.stress(), Tensor2.strain(), etc.")
-
-    # ------------------------------------------------------------------
-    # Internal constructors
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def _create(cls, data, type_str):
-        """Internal: create from numpy array + type string, no copy."""
-        obj = object.__new__(cls)
-        obj._data = np.ascontiguousarray(data, dtype=np.float64)
-        obj._type_str = type_str
-        return obj
-
-    # ------------------------------------------------------------------
-    # Helpers for single↔batch boundary
-    # ------------------------------------------------------------------
-
-    def _ensure_2d(self):
-        """Return _data as (N, 6), adding leading axis if single."""
-        if self._data.ndim == 1:
-            return self._data[np.newaxis, :]
-        return self._data
-
-    def _rewrap(self, result_2d, type_str=None):
-        """Wrap (N, 6) result, squeezing to (6,) if original was single."""
-        ts = type_str or self._type_str
-        if self._data.ndim == 1:
-            return Tensor2._create(result_2d[0], ts)
-        return Tensor2._create(result_2d, ts)
 
     # ------------------------------------------------------------------
     # Factory methods
@@ -244,43 +455,13 @@ class Tensor2:
 
     @classmethod
     def zeros(cls, type_str="stress"):
-        """Create a single zero tensor."""
         _check_t2_type(type_str)
         return cls._create(np.zeros(6, dtype=np.float64), type_str)
 
     @classmethod
     def identity(cls, type_str="stress"):
-        """Create a single identity tensor (3x3 eye)."""
         _check_t2_type(type_str)
         return cls._create(np.array([1, 1, 1, 0, 0, 0], dtype=np.float64), type_str)
-
-    @classmethod
-    def from_tensor(cls, t, n):
-        """Broadcast a single Tensor2 to a batch of size n."""
-        if not t.single:
-            raise ValueError("from_tensor requires a single tensor")
-        v = np.broadcast_to(t._data[np.newaxis, :], (n, 6)).copy()
-        return cls._create(v, t._type_str)
-
-    @classmethod
-    def concatenate(cls, batches):
-        """Join multiple batches (or singles) into one batch."""
-        parts = list(batches)
-        if not parts:
-            raise ValueError("Nothing to concatenate")
-        type_str = parts[0]._type_str
-        arrays = []
-        for b in parts:
-            if b._type_str != type_str:
-                raise ValueError(f"Mixed type: {type_str} vs {b._type_str}")
-            d = b._data
-            arrays.append(d[np.newaxis] if d.ndim == 1 else d)
-        return cls._create(np.concatenate(arrays, axis=0), type_str)
-
-    @classmethod
-    def from_list(cls, tensors):
-        """Stack a list of single Tensor2 into a batch."""
-        return cls(list(tensors))
 
     @classmethod
     def from_columns(cls, arr, type_str):
@@ -296,11 +477,6 @@ class Tensor2:
     # ------------------------------------------------------------------
 
     @property
-    def single(self):
-        """True if this is a single tensor, False if batch."""
-        return self._data.ndim == 1
-
-    @property
     def voigt(self):
         """Voigt vector: (6,) for single, (N,6) for batch. Returns a copy."""
         return self._data.copy()
@@ -312,7 +488,7 @@ class Tensor2:
 
     @property
     def vtype(self):
-        """Type string: 'stress', 'strain', 'generic', or 'none'."""
+        """Alias for type (backward compatibility)."""
         return self._type_str
 
     @property
@@ -323,90 +499,7 @@ class Tensor2:
         return self._data.T.copy()
 
     # ------------------------------------------------------------------
-    # Sequence protocol
-    # ------------------------------------------------------------------
-
-    def __len__(self):
-        if self.single:
-            return 1
-        return self._data.shape[0]
-
-    def __getitem__(self, key):
-        if self.single:
-            raise TypeError("single Tensor2 is not subscriptable")
-        if isinstance(key, (int, np.integer)):
-            if key < 0:
-                key += len(self)
-            if key < 0 or key >= len(self):
-                raise IndexError(f"index {key} out of range for batch of size {len(self)}")
-            return Tensor2._create(self._data[key].copy(), self._type_str)
-        v = self._data[key]
-        if v.ndim == 1:
-            return Tensor2._create(v.copy(), self._type_str)
-        return Tensor2._create(v.copy(), self._type_str)
-
-    def __iter__(self):
-        if self.single:
-            raise TypeError("single Tensor2 is not iterable")
-        for i in range(len(self)):
-            yield self[i]
-
-    def __reversed__(self):
-        if self.single:
-            raise TypeError("single Tensor2 is not reversible")
-        for i in range(len(self) - 1, -1, -1):
-            yield self[i]
-
-    def __contains__(self, item):
-        if self.single:
-            raise TypeError("single Tensor2 does not support 'in'")
-        if isinstance(item, Tensor2) and item.single:
-            return np.any(np.all(self._data == item._data[np.newaxis, :], axis=1))
-        return False
-
-    def count(self, item):
-        """Count occurrences of a single Tensor2 in batch."""
-        if self.single:
-            raise TypeError("count only on batch")
-        if isinstance(item, Tensor2) and item.single:
-            return int(np.sum(np.all(self._data == item._data[np.newaxis, :], axis=1)))
-        return 0
-
-    # ------------------------------------------------------------------
-    # Numpy array protocol
-    # ------------------------------------------------------------------
-
-    def __array__(self, dtype=None):
-        v = self._data.copy()
-        return v.astype(dtype) if dtype else v
-
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
-        if method != "__call__":
-            return NotImplemented
-        raw_inputs = []
-        result_ts = None
-        for inp in inputs:
-            if isinstance(inp, Tensor2):
-                d = inp._data
-                if d.ndim == 1:
-                    d = d[np.newaxis, :]
-                raw_inputs.append(d)
-                result_ts = result_ts or inp._type_str
-            else:
-                raw_inputs.append(inp)
-        if result_ts is None:
-            return NotImplemented
-        _ALLOWED = {np.add, np.subtract, np.multiply, np.negative,
-                    np.true_divide, np.positive}
-        if ufunc not in _ALLOWED:
-            return NotImplemented
-        result = ufunc(*raw_inputs, **kwargs)
-        if isinstance(result, np.ndarray) and result.ndim == 2 and result.shape[1] == 6:
-            return Tensor2._create(result, result_ts)
-        return result
-
-    # ------------------------------------------------------------------
-    # Methods — pure numpy or batch C++
+    # Domain methods
     # ------------------------------------------------------------------
 
     def is_symmetric(self, tol=1e-12):
@@ -423,7 +516,7 @@ class Tensor2:
         from simcoon.rotation import Rotation as SmcRotation
         from scipy.spatial.transform import Rotation as ScipyRotation
 
-        data_2d = self._ensure_2d()
+        data_2d = self._ensure_batch()
         N = data_2d.shape[0]
 
         if isinstance(R, (ScipyRotation, SmcRotation)):
@@ -435,32 +528,18 @@ class Tensor2:
         return self._rewrap(result)
 
     def push_forward(self, F, metric=True):
-        """Push-forward via deformation gradient F.
-
-        Parameters
-        ----------
-        F : (3,3) or (N,3,3) array
-        metric : bool, default True
-            If True, includes J=det(F) factor (Piola transformation).
-        """
+        """Push-forward via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
-        data_2d = self._ensure_2d()
+        data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t2_push_forward(
             data_2d, _VTYPE_MAP[self._type_str], F_batch, metric)
         return self._rewrap(result)
 
     def pull_back(self, F, metric=True):
-        """Pull-back via deformation gradient F.
-
-        Parameters
-        ----------
-        F : (3,3) or (N,3,3) array
-        metric : bool, default True
-            If True, includes J=det(F) factor (Piola transformation).
-        """
+        """Pull-back via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
-        data_2d = self._ensure_2d()
+        data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t2_pull_back(
             data_2d, _VTYPE_MAP[self._type_str], F_batch, metric)
@@ -486,7 +565,7 @@ class Tensor2:
         return self._data[..., 0] + self._data[..., 1] + self._data[..., 2]
 
     def dev(self):
-        """Deviatoric part → Tensor2 (single or batch)."""
+        """Deviatoric part -> Tensor2 (single or batch)."""
         d = self._data.copy()
         tr = d[..., 0] + d[..., 1] + d[..., 2]
         d[..., 0] -= tr / 3.0
@@ -496,63 +575,15 @@ class Tensor2:
 
     def norm(self):
         """Frobenius norm: float for single, (N,) for batch."""
-        m = self.mat
-        if m.ndim == 2:
-            return np.sqrt(np.sum(m * m))
-        return np.sqrt(np.sum(m * m, axis=(-2, -1)))
-
-    # ------------------------------------------------------------------
-    # Arithmetic — pure numpy, no branching
-    # ------------------------------------------------------------------
-
-    def __add__(self, other):
-        if not isinstance(other, Tensor2):
-            return NotImplemented
-        result = self._data + other._data  # numpy broadcasts (6,)+(N,6) etc.
-        return Tensor2._create(result, self._type_str)
-
-    def __radd__(self, other):
-        if isinstance(other, Tensor2):
-            return other.__add__(self)
-        return NotImplemented
-
-    def __sub__(self, other):
-        if not isinstance(other, Tensor2):
-            return NotImplemented
-        result = self._data - other._data
-        return Tensor2._create(result, self._type_str)
-
-    def __rsub__(self, other):
-        if isinstance(other, Tensor2):
-            return other.__sub__(self)
-        return NotImplemented
-
-    def __neg__(self):
-        return Tensor2._create(-self._data, self._type_str)
-
-    def __mul__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor2._create(self._data * other, self._type_str)
-        other = np.asarray(other)
-        if other.ndim <= 1:
-            return Tensor2._create(
-                self._data * other[..., np.newaxis], self._type_str)
-        return NotImplemented
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor2._create(self._data / other, self._type_str)
-        other = np.asarray(other)
-        if other.ndim <= 1:
-            return Tensor2._create(
-                self._data / other[..., np.newaxis], self._type_str)
-        return NotImplemented
+        d = self._data
+        diag2 = d[..., 0]**2 + d[..., 1]**2 + d[..., 2]**2
+        shear2 = d[..., 3]**2 + d[..., 4]**2 + d[..., 5]**2
+        if self._type_str == "strain":
+            return np.sqrt(diag2 + 0.5 * shear2)
+        return np.sqrt(diag2 + 2.0 * shear2)
 
     def __mod__(self, other):
-        """Double contraction A_ij B_ij → float or (N,)."""
+        """Double contraction A_ij B_ij -> float or (N,)."""
         if not isinstance(other, Tensor2):
             return NotImplemented
         ma = self.mat
@@ -565,28 +596,6 @@ class Tensor2:
             mb = mb[np.newaxis]
         return np.sum(ma * mb, axis=(-2, -1))
 
-    def __eq__(self, other):
-        if isinstance(other, Tensor2):
-            sd, od = self._data, other._data
-            if sd.ndim == od.ndim:
-                return np.array_equal(sd, od)
-            if sd.ndim == 1 and od.ndim == 2:
-                return np.all(od == sd[np.newaxis, :], axis=1)
-            if sd.ndim == 2 and od.ndim == 1:
-                return np.all(sd == od[np.newaxis, :], axis=1)
-            if sd.shape != od.shape:
-                return False
-            return np.array_equal(sd, od)
-        return NotImplemented
-
-    def __hash__(self):
-        return id(self)
-
-    def __repr__(self):
-        if self.single:
-            return f"Tensor2(type='{self._type_str}')"
-        return f"Tensor2(N={len(self)}, type='{self._type_str}')"
-
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
@@ -595,12 +604,10 @@ class Tensor2:
     def _from_data(cls, data, type_str):
         _check_t2_type(type_str)
         data = np.asarray(data, dtype=np.float64)
-        # Single
         if data.shape == (3, 3):
             return cls._create(_mat_to_voigt(data, type_str).ravel(), type_str)
         if data.shape == (6,) or (data.ndim == 1 and data.size == 6):
             return cls._create(data.copy(), type_str)
-        # Batch
         if data.ndim == 2 and data.shape[1] == 6:
             return cls._create(data.copy(), type_str)
         if data.ndim == 3 and data.shape[1:] == (3, 3):
@@ -611,18 +618,17 @@ class Tensor2:
 
 
 # ======================================================================
-# Tensor4 — unified single / batch, numpy-only storage
+# Tensor4
 # ======================================================================
 
-class Tensor4:
+class Tensor4(_TensorBase):
     """A 4th-order tensor with type tag for rotation dispatch and Voigt storage.
 
-    Handles both single tensors and batches of N tensors.
     Always stores numpy array: ``(6,6)`` for single, ``(N,6,6)`` for batch.
     Type is a string: ``"stiffness"``, ``"compliance"``, etc.
     """
 
-    __slots__ = ("_data", "_type_str")
+    _single_ndim = 2
 
     def __init__(self, data):
         if isinstance(data, list) and data and isinstance(data[0], Tensor4):
@@ -640,31 +646,8 @@ class Tensor4:
             raise TypeError("Use Tensor4.stiffness(), Tensor4.compliance(), etc.")
 
     # ------------------------------------------------------------------
-    # Internal constructors
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def _create(cls, data, type_str):
-        """Internal: create from numpy array + type string, no copy."""
-        obj = object.__new__(cls)
-        obj._data = np.ascontiguousarray(data, dtype=np.float64)
-        obj._type_str = type_str
-        return obj
-
-    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
-
-    def _ensure_3d(self):
-        if self._data.ndim == 2:
-            return self._data[np.newaxis, :, :]
-        return self._data
-
-    def _rewrap(self, result_3d, type_str=None):
-        ts = type_str or self._type_str
-        if self._data.ndim == 2:
-            return Tensor4._create(result_3d[0], ts)
-        return Tensor4._create(result_3d, ts)
 
     def _to_cpp(self):
         """Create a temporary _CppTensor4 for single-point C++ operations."""
@@ -749,41 +732,9 @@ class Tensor4:
         _check_t4_type(type_str)
         return cls._create(np.zeros((6, 6), dtype=np.float64), type_str)
 
-    @classmethod
-    def from_tensor(cls, t, n):
-        """Broadcast a single Tensor4 to a batch of size n."""
-        if not t.single:
-            raise ValueError("from_tensor requires a single tensor")
-        v = np.broadcast_to(t._data[np.newaxis, :, :], (n, 6, 6)).copy()
-        return cls._create(v, t._type_str)
-
-    @classmethod
-    def from_list(cls, tensors):
-        """Stack a list of single Tensor4 into a batch."""
-        return cls(list(tensors))
-
-    @classmethod
-    def concatenate(cls, batches):
-        """Join multiple batches into one."""
-        parts = list(batches)
-        if not parts:
-            raise ValueError("Nothing to concatenate")
-        type_str = parts[0]._type_str
-        arrays = []
-        for b in parts:
-            if b._type_str != type_str:
-                raise ValueError(f"Mixed type: {type_str} vs {b._type_str}")
-            d = b._data
-            arrays.append(d[np.newaxis] if d.ndim == 2 else d)
-        return cls._create(np.concatenate(arrays, axis=0), type_str)
-
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
-
-    @property
-    def single(self):
-        return self._data.ndim == 2
 
     @property
     def mat(self):
@@ -795,81 +746,8 @@ class Tensor4:
         """Alias for mat."""
         return self.mat
 
-    @property
-    def type(self):
-        """Type string: 'stiffness', 'compliance', etc."""
-        return self._type_str
-
     # ------------------------------------------------------------------
-    # Sequence protocol
-    # ------------------------------------------------------------------
-
-    def __len__(self):
-        if self.single:
-            return 1
-        return self._data.shape[0]
-
-    def __getitem__(self, key):
-        if self.single:
-            raise TypeError("single Tensor4 is not subscriptable")
-        if isinstance(key, (int, np.integer)):
-            if key < 0:
-                key += len(self)
-            if key < 0 or key >= len(self):
-                raise IndexError(f"index {key} out of range for batch of size {len(self)}")
-            return Tensor4._create(self._data[key].copy(), self._type_str)
-        v = self._data[key]
-        if v.ndim == 2:
-            return Tensor4._create(v.copy(), self._type_str)
-        return Tensor4._create(v.copy(), self._type_str)
-
-    def __iter__(self):
-        if self.single:
-            raise TypeError("single Tensor4 is not iterable")
-        for i in range(len(self)):
-            yield self[i]
-
-    def __reversed__(self):
-        if self.single:
-            raise TypeError("single Tensor4 is not reversible")
-        for i in range(len(self) - 1, -1, -1):
-            yield self[i]
-
-    # ------------------------------------------------------------------
-    # Numpy array protocol
-    # ------------------------------------------------------------------
-
-    def __array__(self, dtype=None):
-        v = self._data.copy()
-        return v.astype(dtype) if dtype else v
-
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
-        if method != "__call__":
-            return NotImplemented
-        raw_inputs = []
-        result_ts = None
-        for inp in inputs:
-            if isinstance(inp, Tensor4):
-                d = inp._data
-                if d.ndim == 2:
-                    d = d[np.newaxis]
-                raw_inputs.append(d)
-                result_ts = result_ts or inp._type_str
-            else:
-                raw_inputs.append(inp)
-        if result_ts is None:
-            return NotImplemented
-        _ALLOWED = {np.add, np.subtract, np.multiply, np.negative,
-                    np.true_divide, np.positive}
-        if ufunc not in _ALLOWED:
-            return NotImplemented
-        result = ufunc(*raw_inputs, **kwargs)
-        if isinstance(result, np.ndarray) and result.ndim == 3 and result.shape[1:] == (6, 6):
-            return Tensor4._create(result, result_ts)
-        return result
-
-    # ------------------------------------------------------------------
-    # Methods
+    # Domain methods
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -882,18 +760,15 @@ class Tensor4:
         """Contract with Tensor2: result = mat @ t.voigt."""
         out_ts = self._infer_contraction_vtype(self._type_str)
 
-        # Fast path: single L → numpy matmul (one dgemm)
         if self.single:
-            t2_voigt = t._data if t.single else t._data
-            result = (self._data @ t2_voigt.T).T
+            result = (self._data @ t._data.T).T
             if t.single:
                 return Tensor2._create(result.ravel(), out_ts)
             return Tensor2._create(result, out_ts)
 
-        # Batch L → numpy einsum
-        t2_voigt = t._data[np.newaxis] if t.single else t._data
-        result = np.einsum('nij,nj->ni', self._data, np.broadcast_to(
-            t2_voigt, (self._data.shape[0], 6)), optimize=False)
+        t2 = t._data[np.newaxis] if t.single else t._data
+        t2 = np.broadcast_to(t2, (self._data.shape[0], 6))
+        result = np.matmul(self._data, t2[..., np.newaxis]).squeeze(-1)
         return Tensor2._create(result, out_ts)
 
     def rotate(self, R, active=True):
@@ -902,7 +777,6 @@ class Tensor4:
         from scipy.spatial.transform import Rotation as ScipyRotation
 
         if self.single:
-            # Use temp C++ object for single (Fastor-backed rotation)
             cpp_t4 = self._to_cpp()
             if isinstance(R, SmcRotation):
                 cpp_rot = R._to_cpp()
@@ -924,8 +798,7 @@ class Tensor4:
         """Push-forward via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
         if self.single:
-            cpp_t4 = self._to_cpp()
-            cpp_result = cpp_t4.push_forward(F, metric)
+            cpp_result = self._to_cpp().push_forward(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t4_push_forward(
@@ -936,8 +809,7 @@ class Tensor4:
         """Pull-back via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
         if self.single:
-            cpp_t4 = self._to_cpp()
-            cpp_result = cpp_t4.pull_back(F, metric)
+            cpp_result = self._to_cpp().pull_back(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t4_pull_back(
@@ -956,81 +828,18 @@ class Tensor4:
         return Tensor4._create(result, inv_ts)
 
     # ------------------------------------------------------------------
-    # Arithmetic — pure numpy
+    # Arithmetic overrides (Tensor4 * Tensor2 = contraction)
     # ------------------------------------------------------------------
-
-    def __add__(self, other):
-        if not isinstance(other, Tensor4):
-            return NotImplemented
-        return Tensor4._create(self._data + other._data, self._type_str)
-
-    def __radd__(self, other):
-        if isinstance(other, Tensor4):
-            return other.__add__(self)
-        return NotImplemented
-
-    def __sub__(self, other):
-        if not isinstance(other, Tensor4):
-            return NotImplemented
-        return Tensor4._create(self._data - other._data, self._type_str)
-
-    def __rsub__(self, other):
-        if isinstance(other, Tensor4):
-            return other.__sub__(self)
-        return NotImplemented
-
-    def __neg__(self):
-        return Tensor4._create(-self._data, self._type_str)
 
     def __mul__(self, other):
         if isinstance(other, Tensor2):
             return self.contract(other)
-        if isinstance(other, (int, float)):
-            return Tensor4._create(self._data * other, self._type_str)
-        other = np.asarray(other)
-        if other.ndim <= 1:
-            return Tensor4._create(
-                self._data * other[..., np.newaxis, np.newaxis], self._type_str)
-        return NotImplemented
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
-
-    def __truediv__(self, other):
-        if isinstance(other, (int, float)):
-            return Tensor4._create(self._data / other, self._type_str)
-        other = np.asarray(other)
-        if other.ndim <= 1:
-            return Tensor4._create(
-                self._data / other[..., np.newaxis, np.newaxis], self._type_str)
-        return NotImplemented
+        return super().__mul__(other)
 
     def __matmul__(self, other):
         if isinstance(other, Tensor2):
             return self.contract(other)
         return NotImplemented
-
-    def __eq__(self, other):
-        if isinstance(other, Tensor4):
-            sd, od = self._data, other._data
-            if sd.ndim == od.ndim:
-                return np.array_equal(sd, od)
-            if sd.ndim == 2 and od.ndim == 3:
-                return np.all(od == sd[np.newaxis], axis=(1, 2))
-            if sd.ndim == 3 and od.ndim == 2:
-                return np.all(sd == od[np.newaxis], axis=(1, 2))
-            if sd.shape != od.shape:
-                return False
-            return np.array_equal(sd, od)
-        return NotImplemented
-
-    def __hash__(self):
-        return id(self)
-
-    def __repr__(self):
-        if self.single:
-            return f"Tensor4(type='{self._type_str}')"
-        return f"Tensor4(N={len(self)}, type='{self._type_str}')"
 
 
 # ======================================================================
@@ -1038,7 +847,7 @@ class Tensor4:
 # ======================================================================
 
 def dyadic(a, b):
-    """Dyadic product of two single Tensor2 → Tensor4(stiffness)."""
+    """Dyadic product of two single Tensor2 -> Tensor4(stiffness)."""
     if not (isinstance(a, Tensor2) and a.single and isinstance(b, Tensor2) and b.single):
         raise ValueError("dyadic requires two single Tensor2 arguments")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -1049,7 +858,7 @@ def dyadic(a, b):
 
 
 def auto_dyadic(a):
-    """Dyadic product of a single Tensor2 with itself → Tensor4(stiffness)."""
+    """Dyadic product of a single Tensor2 with itself -> Tensor4(stiffness)."""
     if not (isinstance(a, Tensor2) and a.single):
         raise ValueError("auto_dyadic requires a single Tensor2")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -1059,7 +868,7 @@ def auto_dyadic(a):
 
 
 def double_contract(a, b):
-    """Batch double contraction A_ij B_ij → float or (N,)."""
+    """Batch double contraction A_ij B_ij -> float or (N,)."""
     ma = a.mat
     mb = b.mat
     if ma.ndim == 2:
