@@ -314,10 +314,31 @@ All mechanics methods that accept NumPy arrays validate the input shape and rais
 
 Expected input shapes:
 
-- ``apply``: 1D array, 3 elements (or Nx3 array for batch)
-- ``apply_tensor``: 2D array, shape (3, 3)
-- ``apply_stress``, ``apply_strain``: 1D array, 6 elements
-- ``apply_stiffness``, ``apply_compliance``: 2D array, shape (6, 6)
+.. list-table::
+   :widths: 35 30 30
+   :header-rows: 1
+
+   * - Method
+     - Single rotation
+     - Batch (N rotations)
+   * - ``apply``
+     - ``(3,)``
+     - ``(N, 3)``
+   * - ``apply_tensor``
+     - ``(3, 3)``
+     - ``(3, 3, N)``
+   * - ``apply_stress``, ``apply_strain``
+     - ``(6,)``
+     - ``(6, N)``
+   * - ``apply_stiffness``, ``apply_compliance``
+     - ``(6, 6)``
+     - ``(6, 6, N)``
+   * - ``apply_strain_concentration``, ``apply_stress_concentration``
+     - ``(6, 6)``
+     - ``(6, 6, N)``
+   * - ``as_voigt_stress_rotation``, ``as_voigt_strain_rotation``
+     - returns ``(6, 6)``
+     - returns ``(N, 6, 6)``
 
 .. note::
 
@@ -396,7 +417,41 @@ Example 2: Stress Transformation in a Rotated Element
    print("Global stress:", sigma_global)
    print("Local stress:", sigma_local)
 
-Example 3: Averaging Orientations
+Example 3: Batch Rotation of Gauss-Point Quantities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When working with finite element data, you often need to rotate stress or strain
+at many Gauss points simultaneously. The ``Rotation`` class supports batch operations
+natively:
+
+.. code-block:: python
+
+   import simcoon as smc
+   import numpy as np
+
+   N = 100  # number of Gauss points
+
+   # DR contains incremental rotation matrices at each Gauss point: shape (3, 3, N)
+   DR = np.random.randn(3, 3, N)
+   # (in practice DR comes from polar decomposition of F)
+
+   # Build batch rotations from (N, 3, 3) matrices
+   rotations = smc.Rotation.from_matrix(DR.transpose(2, 0, 1))
+
+   # Rotate all Gauss-point stresses at once: shape (6, N)
+   stress = np.random.randn(6, N)
+   stress_rotated = rotations.apply_stress(stress)  # (6, N)
+
+   # Rotate stiffness tensors: shape (6, 6, N)
+   L = np.zeros((6, 6, N))
+   for i in range(N):
+       L[:, :, i] = smc.L_iso([210e3, 0.3], "Enu")
+   L_rotated = rotations.apply_stiffness(L)  # (6, 6, N)
+
+   # Get all 6x6 Voigt rotation matrices at once
+   QS = rotations.as_voigt_stress_rotation()  # (N, 6, 6)
+
+Example 4: Averaging Orientations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python

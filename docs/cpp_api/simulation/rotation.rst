@@ -209,6 +209,31 @@ Apply Methods
 The ``active`` parameter controls whether the rotation is **active** (alibi, rotating the object)
 or **passive** (alias, rotating the coordinate system).
 
+.. code-block:: cpp
+
+   // Get the 6x6 Voigt rotation matrices directly
+   Rotation r = Rotation::from_axis_angle(M_PI/4, 3);
+
+   arma::mat QS = r.as_voigt_stress_rotation();   // 6x6 stress rotation
+   arma::mat QE = r.as_voigt_strain_rotation();   // 6x6 strain rotation
+
+   // Manual rotation via matrices (equivalent to apply_stiffness):
+   arma::mat L_rot = QS * L * QS.t();
+
+   // Passive rotation (alias convention):
+   arma::mat QS_passive = r.as_voigt_stress_rotation(false);
+
+.. code-block:: python
+
+   r = smc.Rotation.from_axis_angle(np.pi/4, 3)
+
+   QS = r.as_voigt_stress_rotation()   # (6, 6) stress rotation matrix
+   QE = r.as_voigt_strain_rotation()   # (6, 6) strain rotation matrix
+
+   # Batch: N rotations produce (N, 6, 6) arrays
+   rots = smc.Rotation.random(100)
+   QS_batch = rots.as_voigt_stress_rotation()  # (100, 6, 6)
+
 Operations
 ----------
 
