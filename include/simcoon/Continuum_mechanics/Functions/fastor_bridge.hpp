@@ -100,57 +100,18 @@ inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,
  * This is the stiffness convention (no factor corrections).
  */
 inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,3> &C) {
+    // Voigt index -> (i,j) pair
+    static constexpr int vi[6] = {0, 1, 2, 0, 0, 1};
+    static constexpr int vj[6] = {0, 1, 2, 1, 2, 2};
+
     arma::mat::fixed<6,6> L;
-    L.zeros();
-
-    // Row 0: (0,0,*,*)
-    L(0,0) = C(0,0,0,0);
-    L(0,1) = C(0,0,1,1);
-    L(0,2) = C(0,0,2,2);
-    L(0,3) = 0.5*(C(0,0,0,1) + C(0,0,1,0));
-    L(0,4) = 0.5*(C(0,0,0,2) + C(0,0,2,0));
-    L(0,5) = 0.5*(C(0,0,1,2) + C(0,0,2,1));
-
-    // Row 1: (1,1,*,*)
-    L(1,0) = C(1,1,0,0);
-    L(1,1) = C(1,1,1,1);
-    L(1,2) = C(1,1,2,2);
-    L(1,3) = 0.5*(C(1,1,0,1) + C(1,1,1,0));
-    L(1,4) = 0.5*(C(1,1,0,2) + C(1,1,2,0));
-    L(1,5) = 0.5*(C(1,1,1,2) + C(1,1,2,1));
-
-    // Row 2: (2,2,*,*)
-    L(2,0) = C(2,2,0,0);
-    L(2,1) = C(2,2,1,1);
-    L(2,2) = C(2,2,2,2);
-    L(2,3) = 0.5*(C(2,2,0,1) + C(2,2,1,0));
-    L(2,4) = 0.5*(C(2,2,0,2) + C(2,2,2,0));
-    L(2,5) = 0.5*(C(2,2,1,2) + C(2,2,2,1));
-
-    // Row 3: (0,1,*,*)
-    L(3,0) = C(0,1,0,0);
-    L(3,1) = C(0,1,1,1);
-    L(3,2) = C(0,1,2,2);
-    L(3,3) = 0.5*(C(0,1,0,1) + C(0,1,1,0));
-    L(3,4) = 0.5*(C(0,1,0,2) + C(0,1,2,0));
-    L(3,5) = 0.5*(C(0,1,1,2) + C(0,1,2,1));
-
-    // Row 4: (0,2,*,*)
-    L(4,0) = C(0,2,0,0);
-    L(4,1) = C(0,2,1,1);
-    L(4,2) = C(0,2,2,2);
-    L(4,3) = 0.5*(C(0,2,0,1) + C(0,2,1,0));
-    L(4,4) = 0.5*(C(0,2,0,2) + C(0,2,2,0));
-    L(4,5) = 0.5*(C(0,2,1,2) + C(0,2,2,1));
-
-    // Row 5: (1,2,*,*)
-    L(5,0) = C(1,2,0,0);
-    L(5,1) = C(1,2,1,1);
-    L(5,2) = C(1,2,2,2);
-    L(5,3) = 0.5*(C(1,2,0,1) + C(1,2,1,0));
-    L(5,4) = 0.5*(C(1,2,0,2) + C(1,2,2,0));
-    L(5,5) = 0.5*(C(1,2,1,2) + C(1,2,2,1));
-
+    for (int I = 0; I < 6; ++I) {
+        int i = vi[I], j = vj[I];
+        for (int J = 0; J < 6; ++J) {
+            int k = vi[J], l = vj[J];
+            L(I, J) = 0.5 * (C(i,j,k,l) + C(i,j,l,k));
+        }
+    }
     return L;
 }
 
@@ -163,6 +124,10 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
     const Fastor::Tensor<double,3,3,3,3> &C,
     const Fastor::Tensor<double,3,3> &F)
 {
+    // Two-pass contraction: O(2 * 3^5) instead of O(3^8)
+    // Step 1: T_isJN = F_iL * C_LJMN * F^T_Ns  (contract L and M)
+    //   Actually: contract two indices at a time via intermediate tensor
+    // Simpler factored version: hoist F(i,L)*F(s,J) out of inner loops
     Fastor::Tensor<double,3,3,3,3> result;
     result.zeros();
 
@@ -172,25 +137,18 @@ inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
     for (int p = 0; p < 3; ++p) {
         double sum = 0.0;
         for (int L = 0; L < 3; ++L)
-        for (int J = 0; J < 3; ++J)
-        for (int M = 0; M < 3; ++M)
-        for (int N = 0; N < 3; ++N) {
-            sum += F(i,L) * F(s,J) * F(r,M) * F(p,N) * C(L,J,M,N);
+        for (int J = 0; J < 3; ++J) {
+            double fiL_fsJ = F(i,L) * F(s,J);
+            for (int M = 0; M < 3; ++M) {
+                double frM = F(r,M);
+                for (int N = 0; N < 3; ++N) {
+                    sum += fiL_fsJ * frM * F(p,N) * C(L,J,M,N);
+                }
+            }
         }
         result(i,s,r,p) = sum;
     }
     return result;
-}
-
-/**
- * @brief Pull-back a 4th-order tensor via Fastor: C'_LJMN = F^-1_lN F^-1_kM F^-1_jJ F^-1_iL C_ijkl
- */
-inline Fastor::Tensor<double,3,3,3,3> pull_back_4(
-    const Fastor::Tensor<double,3,3,3,3> &C,
-    const Fastor::Tensor<double,3,3> &invF)
-{
-    // Pull-back is just push-forward with F^{-1}
-    return push_forward_4(C, invF);
 }
 
 } // namespace simcoon

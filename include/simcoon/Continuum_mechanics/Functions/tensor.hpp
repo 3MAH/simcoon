@@ -69,8 +69,6 @@ class tensor2 {
 private:
     arma::mat::fixed<3,3> _mat;
     VoigtType _vtype;
-    mutable bool _symmetric;
-    mutable bool _symmetry_checked;
 
 public:
     // Constructors

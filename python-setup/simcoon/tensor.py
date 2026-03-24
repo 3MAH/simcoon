@@ -699,54 +699,39 @@ class Tensor4:
     # ------------------------------------------------------------------
 
     @classmethod
-    def stiffness(cls, data):
-        """Create stiffness tensor(s): (6,6) single or (N,6,6) batch."""
+    def _typed_factory(cls, data, tensor_type):
+        """Shared factory: (6,6) single or (N,6,6) batch with given type."""
         data = np.asarray(data, dtype=np.float64)
         if data.shape == (6, 6):
-            return cls._from_single_cpp(_CppTensor4.from_mat(data, Tensor4Type.stiffness))
+            return cls._from_single_cpp(_CppTensor4.from_mat(data, tensor_type))
         if data.ndim == 3 and data.shape[1:] == (6, 6):
-            return cls._from_batch_voigt(data.copy(), Tensor4Type.stiffness)
+            return cls._from_batch_voigt(data.copy(), tensor_type)
         raise ValueError(f"Expected (6,6) or (N,6,6), got {data.shape}")
+
+    @classmethod
+    def stiffness(cls, data):
+        """Create stiffness tensor(s): (6,6) single or (N,6,6) batch."""
+        return cls._typed_factory(data, Tensor4Type.stiffness)
 
     @classmethod
     def compliance(cls, data):
         """Create compliance tensor(s): (6,6) single or (N,6,6) batch."""
-        data = np.asarray(data, dtype=np.float64)
-        if data.shape == (6, 6):
-            return cls._from_single_cpp(_CppTensor4.from_mat(data, Tensor4Type.compliance))
-        if data.ndim == 3 and data.shape[1:] == (6, 6):
-            return cls._from_batch_voigt(data.copy(), Tensor4Type.compliance)
-        raise ValueError(f"Expected (6,6) or (N,6,6), got {data.shape}")
+        return cls._typed_factory(data, Tensor4Type.compliance)
 
     @classmethod
     def strain_concentration(cls, data):
         """Create strain concentration tensor(s)."""
-        data = np.asarray(data, dtype=np.float64)
-        if data.shape == (6, 6):
-            return cls._from_single_cpp(_CppTensor4.from_mat(data, Tensor4Type.strain_concentration))
-        if data.ndim == 3 and data.shape[1:] == (6, 6):
-            return cls._from_batch_voigt(data.copy(), Tensor4Type.strain_concentration)
-        raise ValueError(f"Expected (6,6) or (N,6,6), got {data.shape}")
+        return cls._typed_factory(data, Tensor4Type.strain_concentration)
 
     @classmethod
     def stress_concentration(cls, data):
         """Create stress concentration tensor(s)."""
-        data = np.asarray(data, dtype=np.float64)
-        if data.shape == (6, 6):
-            return cls._from_single_cpp(_CppTensor4.from_mat(data, Tensor4Type.stress_concentration))
-        if data.ndim == 3 and data.shape[1:] == (6, 6):
-            return cls._from_batch_voigt(data.copy(), Tensor4Type.stress_concentration)
-        raise ValueError(f"Expected (6,6) or (N,6,6), got {data.shape}")
+        return cls._typed_factory(data, Tensor4Type.stress_concentration)
 
     @classmethod
     def from_mat(cls, m, tensor_type):
         """Create from (6,6) or (N,6,6) with explicit Tensor4Type."""
-        m = np.asarray(m, dtype=np.float64)
-        if m.shape == (6, 6):
-            return cls._from_single_cpp(_CppTensor4.from_mat(m, tensor_type))
-        if m.ndim == 3 and m.shape[1:] == (6, 6):
-            return cls._from_batch_voigt(m.copy(), tensor_type)
-        raise ValueError(f"Expected (6,6) or (N,6,6), got {m.shape}")
+        return cls._typed_factory(m, tensor_type)
 
     @classmethod
     def from_voigt(cls, v, tensor_type):

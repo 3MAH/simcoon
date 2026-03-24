@@ -118,17 +118,15 @@ static arma::mat::fixed<6,6> full_to_voigt(
 // tensor2 implementation
 // ============================================================================
 
-tensor2::tensor2() : _mat(arma::fill::zeros), _vtype(VoigtType::stress),
-                     _symmetric(true), _symmetry_checked(true) {}
+tensor2::tensor2() : _mat(arma::fill::zeros), _vtype(VoigtType::stress) {}
 
-tensor2::tensor2(VoigtType vtype) : _mat(arma::fill::zeros), _vtype(vtype),
-                                     _symmetric(true), _symmetry_checked(true) {}
+tensor2::tensor2(VoigtType vtype) : _mat(arma::fill::zeros), _vtype(vtype) {}
 
 tensor2::tensor2(const arma::mat::fixed<3,3> &m, VoigtType vtype)
-    : _mat(m), _vtype(vtype), _symmetric(false), _symmetry_checked(false) {}
+    : _mat(m), _vtype(vtype) {}
 
 tensor2::tensor2(const arma::mat &m, VoigtType vtype)
-    : _vtype(vtype), _symmetric(false), _symmetry_checked(false) {
+    : _vtype(vtype) {
     if (m.n_rows != 3 || m.n_cols != 3)
         throw std::invalid_argument("tensor2: expected 3x3 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
@@ -151,8 +149,6 @@ tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, VoigtType vtype) {
         throw std::runtime_error("Cannot construct tensor2 from Voigt with VoigtType::none");
     }
     tensor2 result(m, vtype);
-    result._symmetric = true;
-    result._symmetry_checked = true;
     return result;
 }
 
@@ -173,13 +169,13 @@ tensor2 tensor2::identity(VoigtType vtype) {
 }
 
 arma::mat::fixed<3,3>& tensor2::mat_mut() {
-    _symmetry_checked = false;
+
     return _mat;
 }
 
 void tensor2::set_mat(const arma::mat::fixed<3,3> &m) {
     _mat = m;
-    _symmetry_checked = false;
+
 }
 
 void tensor2::set_mat(const arma::mat &m) {
@@ -187,7 +183,7 @@ void tensor2::set_mat(const arma::mat &m) {
         throw std::invalid_argument("tensor2: expected 3x3 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _mat = m;
-    _symmetry_checked = false;
+
 }
 
 void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
@@ -204,8 +200,6 @@ void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
     } else {
         throw std::runtime_error("Cannot set_voigt on VoigtType::none tensor");
     }
-    _symmetric = true;
-    _symmetry_checked = true;
 }
 
 void tensor2::set_voigt(const arma::vec &v) {
@@ -245,13 +239,9 @@ Fastor::TensorMap<const double,3,3> tensor2::fastor() const {
 }
 
 bool tensor2::is_symmetric(double tol) const {
-    if (_symmetry_checked) return _symmetric;
-
-    _symmetric = (std::abs(_mat(0,1) - _mat(1,0)) < tol) &&
-                 (std::abs(_mat(0,2) - _mat(2,0)) < tol) &&
-                 (std::abs(_mat(1,2) - _mat(2,1)) < tol);
-    _symmetry_checked = true;
-    return _symmetric;
+    return (std::abs(_mat(0,1) - _mat(1,0)) < tol) &&
+           (std::abs(_mat(0,2) - _mat(2,0)) < tol) &&
+           (std::abs(_mat(1,2) - _mat(2,1)) < tol);
 }
 
 tensor2 tensor2::rotate(const Rotation &R, bool active) const {
@@ -377,13 +367,13 @@ tensor2 tensor2::operator/(double scalar) const {
 
 tensor2& tensor2::operator+=(const tensor2 &other) {
     _mat += other._mat;
-    _symmetry_checked = false;
+
     return *this;
 }
 
 tensor2& tensor2::operator-=(const tensor2 &other) {
     _mat -= other._mat;
-    _symmetry_checked = false;
+
     return *this;
 }
 
@@ -617,16 +607,7 @@ const Fastor::Tensor<double,3,3,3,3>& tensor4::fastor() const {
 }
 
 tensor2 tensor4::contract(const tensor2 &t) const {
-    arma::vec::fixed<6> v_in = t.voigt();
-    arma::vec::fixed<6> v_out;
-
-    for (int i = 0; i < 6; ++i) {
-        double sum = 0.0;
-        for (int j = 0; j < 6; ++j) {
-            sum += _voigt(i,j) * v_in(j);
-        }
-        v_out(i) = sum;
-    }
+    arma::vec::fixed<6> v_out = _voigt * t.voigt();
 
     VoigtType out_vtype;
     switch (_type) {
@@ -686,7 +667,7 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
         for (int j = 0; j < 3; ++j)
             invF_fastor(i,j) = invF(i,j);
 
-    Fastor::Tensor<double,3,3,3,3> result = pull_back_4(_fastor, invF_fastor);
+    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(_fastor, invF_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
 
     if (metric) {
@@ -949,15 +930,9 @@ arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype) {
     return result;
 }
 
-arma::vec batch_trace(const arma::mat &voigt, VoigtType vtype) {
-    int N = voigt.n_cols;
-    arma::vec result(N);
-
-    for (int i = 0; i < N; i++) {
-        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
-        result(i) = trace(t);
-    }
-    return result;
+arma::vec batch_trace(const arma::mat &voigt, VoigtType /*vtype*/) {
+    // trace = v(0) + v(1) + v(2) regardless of VoigtType
+    return arma::vectorise(voigt.row(0) + voigt.row(1) + voigt.row(2));
 }
 
 arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
