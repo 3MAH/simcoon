@@ -72,3 +72,10 @@ jobs:
 
       - name: Run Python tests
         run: uv run pytest
+
+      - name: Install fedoo and run integration tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          # uv pip install "fedoo>=0.8.0"  # uncomment when fedoo 0.8.0 is released
+          uv pip install "git+https://github.com/3MAH/fedoo.git@feature/rotation"
+          uv run pytest tests/test_fedoo_integration.py -v

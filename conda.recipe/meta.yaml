@@ -1,11 +1,13 @@
+{% set version = load_file_regex(load_file='../pyproject.toml', regex_pattern='(?ms)^\\[project\\].*?^version\\s*=\\s*"([^"]+)"', from_recipe_dir=True).group(1) %}
+
 package:
   name: simcoon
-  version: 1.9.7
+  version: {{ version }}
 
 source:
   git_url: https://github.com/3MAH/simcoon.git  # [not environ.get('CONDA_BUILD_LOCAL')]
   path: ..  # [environ.get('CONDA_BUILD_LOCAL')]
-  #git_tag: 1.9.7  # Uncomment for specific release builds
+  #git_tag: {{ version }}  # Uncomment for specific release builds
 
 build:
   number: 0
@@ -13,6 +15,10 @@ build:
   script_env:
     - CXXFLAGS=-D_LIBCPP_DISABLE_AVAILABILITY
     - CONDA_BUILD_LOCAL
+  ignore_run_exports:
+    - libblas
+    - liblapack
+    - libcblas
 
 requirements:
   build:
@@ -21,8 +27,9 @@ requirements:
     - ninja
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
-    - llvm-openmp  # [osx]
-    - libgomp      # [linux]
+    - {{ stdlib('c') }}  # [linux]
+    - llvm-openmp # [osx]
+    - libgomp # [linux]
   host:
     - armadillo >=12.6
     - mkl # [x86]
@@ -33,22 +40,25 @@ requirements:
     - carma
     - pybind11
     - python
+    - python_abi {{ python }} *_cp{{ python | replace(".", "") }}  # Could be removed when https://github.com/conda/conda-build/issues/5843 is solved
     - numpy >=2.0
     - libblas
     - liblapack
   run:
     - python
     - numpy >=2.0
+    - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
     - libblas * *mkl # [x86]
     - liblapack * *mkl # [x86]
     - mkl # [x86]
-    - blas * openblas  # [not (osx and arm64) and not x86]
-    - lapack * openblas  # [not (osx and arm64) and not x86]
+    - blas * openblas # [not (osx and arm64) and not x86]
+    - lapack * openblas # [not (osx and arm64) and not x86]
     - armadillo >=12.6 # [not win]
 
 test:
   imports:
     - simcoon
     - simcoon._core
+

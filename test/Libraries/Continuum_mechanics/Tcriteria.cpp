@@ -25,6 +25,8 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 
 using namespace std;
 using namespace arma;
@@ -201,7 +203,7 @@ TEST(Tcriteria, Eq_stress_P_consistency)
 TEST(Tcriteria, dJ2_stress_numerical)
 {
     vec sigma = {400., 100., 200., 50., 30., 70.};
-    vec dJ2 = dJ2_stress(sigma);
+    vec dJ2 = t2v_strain(dJ2DS(v2t_stress(sigma)));
 
     double eps = 1.E-6;
     vec dJ2_num = zeros(6);
@@ -218,7 +220,7 @@ TEST(Tcriteria, dJ2_stress_numerical)
 TEST(Tcriteria, dJ3_stress_numerical)
 {
     vec sigma = {400., 100., 200., 50., 30., 70.};
-    vec dJ3 = dJ3_stress(sigma);
+    vec dJ3 = t2v_strain(dJ3DS(v2t_stress(sigma)));
 
     double eps = 1.E-6;
     vec dJ3_num = zeros(6);

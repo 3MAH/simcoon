@@ -40,6 +40,61 @@ class Rotation(ScipyRotation):
     """
 
     # ------------------------------------------------------------------
+    # Ensure subclass type is preserved (scipy >= 1.17 may not propagate cls)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _ensure_cls(cls, result):
+        """Wrap a scipy Rotation in this class if needed."""
+        if type(result) is cls:
+            return result
+        return cls.from_quat(result.as_quat())
+
+    @classmethod
+    def from_quat(cls, quat):
+        r = super().from_quat(quat)
+        if type(r) is not cls:
+            r.__class__ = cls
+        return r
+
+    @classmethod
+    def from_matrix(cls, matrix):
+        return cls._ensure_cls(super().from_matrix(matrix))
+
+    @classmethod
+    def from_rotvec(cls, rotvec, degrees=False):
+        return cls._ensure_cls(super().from_rotvec(rotvec, degrees=degrees))
+
+    @classmethod
+    def from_euler(cls, seq, angles, degrees=False):
+        return cls._ensure_cls(super().from_euler(seq, angles, degrees=degrees))
+
+    @classmethod
+    def from_mrp(cls, mrp):
+        return cls._ensure_cls(super().from_mrp(mrp))
+
+    @classmethod
+    def identity(cls, num=None):
+        return cls._ensure_cls(super().identity(num))
+
+    @classmethod
+    def random(cls, num=None, random_state=None):
+        return cls._ensure_cls(super().random(num, random_state))
+
+    @classmethod
+    def concatenate(cls, rotations):
+        return cls._ensure_cls(super().concatenate(rotations))
+
+    def inv(self):
+        return type(self)._ensure_cls(super().inv())
+
+    def __mul__(self, other):
+        return type(self)._ensure_cls(super().__mul__(other))
+
+    def __getitem__(self, indexer):
+        return type(self)._ensure_cls(super().__getitem__(indexer))
+
+    # ------------------------------------------------------------------
     # Simcoon-specific factory methods
     # ------------------------------------------------------------------
 
@@ -87,135 +142,212 @@ class Rotation(ScipyRotation):
         return cls.from_quat(scipy_rot.as_quat())
 
     # ------------------------------------------------------------------
-    # Internal helper
+    # Internal helpers
     # ------------------------------------------------------------------
+
+    @property
+    def _is_batch(self):
+        """True if this object stores more than one rotation."""
+        return self.as_quat().ndim == 2
 
     def _to_cpp(self):
-        """Convert to a _CppRotation for C++ method dispatch."""
-        return _CppRotation.from_quat(self.as_quat())
+        """Convert to a _CppRotation for C++ method dispatch (single only)."""
+        q = self.as_quat()
+        if q.ndim == 2:
+            raise ValueError(
+                "Cannot convert a batch Rotation to a single _CppRotation. "
+                "Batch operations are handled automatically by the Python methods."
+            )
+        return _CppRotation.from_quat(q)
+
+    def _voigt_stress_matrices(self, active=True):
+        """Return QS matrices: (6,6) for single, (N,6,6) for batch."""
+        q = self.as_quat()
+        if q.ndim == 1:
+            return _CppRotation.from_quat(q).as_voigt_stress_rotation(active)
+        return np.array([
+            _CppRotation.from_quat(q[i]).as_voigt_stress_rotation(active)
+            for i in range(len(q))
+        ])
+
+    def _voigt_strain_matrices(self, active=True):
+        """Return QE matrices: (6,6) for single, (N,6,6) for batch."""
+        q = self.as_quat()
+        if q.ndim == 1:
+            return _CppRotation.from_quat(q).as_voigt_strain_rotation(active)
+        return np.array([
+            _CppRotation.from_quat(q[i]).as_voigt_strain_rotation(active)
+            for i in range(len(q))
+        ])
 
     # ------------------------------------------------------------------
-    # Mechanics methods (delegate to _CppRotation)
+    # Mechanics methods — support single and batch (Gauss-point) operations
+    #
+    # Single rotation:
+    #   sigma  (6,)   → (6,)
+    #   L      (6,6)  → (6,6)
+    #
+    # Batch of N rotations:
+    #   sigma  (6, N) → (6, N)       one stress per rotation
+    #   L      (6, 6, N) → (6, 6, N) one stiffness per rotation
     # ------------------------------------------------------------------
 
     def apply_stress(self, sigma, active=True):
-        """Apply rotation to a stress vector in Voigt notation.
+        """Apply rotation to stress vector(s) in Voigt notation.
 
         Parameters
         ----------
         sigma : array_like
-            6-component stress vector [s11, s22, s33, s12, s13, s23].
+            Single (6,) stress vector, or (6, N) array for batch
+            (one column per Gauss point).
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated stress vector.
+            Rotated stress: (6,) or (6, N).
         """
-        return self._to_cpp().apply_stress(np.asarray(sigma, dtype=float), active).ravel()
+        sigma = np.asarray(sigma, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_stress(sigma.ravel(), active).ravel()
+        QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
+        return np.einsum("nij,jn->in", QS, sigma)
 
     def apply_strain(self, epsilon, active=True):
-        """Apply rotation to a strain vector in Voigt notation.
+        """Apply rotation to strain vector(s) in Voigt notation.
 
         Parameters
         ----------
         epsilon : array_like
-            6-component strain vector [e11, e22, e33, 2*e12, 2*e13, 2*e23].
+            Single (6,) strain vector, or (6, N) for batch.
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated strain vector.
+            Rotated strain: (6,) or (6, N).
         """
-        return self._to_cpp().apply_strain(np.asarray(epsilon, dtype=float), active).ravel()
+        epsilon = np.asarray(epsilon, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_strain(epsilon.ravel(), active).ravel()
+        QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
+        return np.einsum("nij,jn->in", QE, epsilon)
 
     def apply_stiffness(self, L, active=True):
-        """Apply rotation to a 6x6 stiffness matrix.
+        """Apply rotation to 6x6 stiffness matrix/matrices.
 
         Parameters
         ----------
         L : array_like
-            6x6 stiffness matrix in Voigt notation.
+            Single (6, 6) stiffness matrix, or (6, 6, N) for batch.
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated 6x6 stiffness matrix.
+            Rotated stiffness: (6, 6) or (6, 6, N).
         """
-        return self._to_cpp().apply_stiffness(np.asarray(L, dtype=float), active)
+        L = np.asarray(L, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_stiffness(L, active)
+        QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
+        # L_rot = QS @ L @ QS^T  for each n
+        return np.einsum("nij,jkn,nlk->iln", QS, L, QS)
 
     def apply_compliance(self, M, active=True):
-        """Apply rotation to a 6x6 compliance matrix.
+        """Apply rotation to 6x6 compliance matrix/matrices.
 
         Parameters
         ----------
         M : array_like
-            6x6 compliance matrix in Voigt notation.
+            Single (6, 6) compliance matrix, or (6, 6, N) for batch.
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated 6x6 compliance matrix.
+            Rotated compliance: (6, 6) or (6, 6, N).
         """
-        return self._to_cpp().apply_compliance(np.asarray(M, dtype=float), active)
+        M = np.asarray(M, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_compliance(M, active)
+        QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
+        # M_rot = QE @ M @ QE^T  for each n
+        return np.einsum("nij,jkn,nlk->iln", QE, M, QE)
 
     def apply_strain_concentration(self, A, active=True):
-        """Apply rotation to a 6x6 strain concentration tensor.
+        """Apply rotation to 6x6 strain concentration tensor(s).
 
         Parameters
         ----------
         A : array_like
-            6x6 strain concentration tensor in Voigt notation.
+            Single (6, 6) tensor, or (6, 6, N) for batch.
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated strain concentration tensor: QE * A * QS^T.
+            Rotated tensor: QE * A * QS^T. Shape (6, 6) or (6, 6, N).
         """
-        return self._to_cpp().apply_strain_concentration(np.asarray(A, dtype=float), active)
+        A = np.asarray(A, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_strain_concentration(A, active)
+        QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
+        QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
+        return np.einsum("nij,jkn,nlk->iln", QE, A, QS)
 
     def apply_stress_concentration(self, B, active=True):
-        """Apply rotation to a 6x6 stress concentration tensor.
+        """Apply rotation to 6x6 stress concentration tensor(s).
 
         Parameters
         ----------
         B : array_like
-            6x6 stress concentration tensor in Voigt notation.
+            Single (6, 6) tensor, or (6, 6, N) for batch.
         active : bool, optional
             If True (default), active rotation.
 
         Returns
         -------
         numpy.ndarray
-            Rotated stress concentration tensor: QS * B * QE^T.
+            Rotated tensor: QS * B * QE^T. Shape (6, 6) or (6, 6, N).
         """
-        return self._to_cpp().apply_stress_concentration(np.asarray(B, dtype=float), active)
+        B = np.asarray(B, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_stress_concentration(B, active)
+        QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
+        QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
+        return np.einsum("nij,jkn,nlk->iln", QS, B, QE)
 
     def apply_tensor(self, m, inverse=False):
-        """Apply rotation to a 3x3 tensor (matrix).
+        """Apply rotation to 3x3 tensor(s).
 
         Parameters
         ----------
         m : array_like
-            3x3 tensor to rotate.
+            Single (3, 3) tensor, or (3, 3, N) for batch.
         inverse : bool, optional
             If True, apply inverse rotation. Default is False.
 
         Returns
         -------
         numpy.ndarray
-            Rotated tensor: R * m * R^T (or R^T * m * R for inverse).
+            Rotated tensor: (3, 3) or (3, 3, N).
         """
-        return self._to_cpp().apply_tensor(np.asarray(m, dtype=float), inverse)
+        m = np.asarray(m, dtype=float)
+        if not self._is_batch:
+            return self._to_cpp().apply_tensor(m, inverse)
+        # R matrices: (N, 3, 3)
+        R = self.as_matrix()
+        if inverse:
+            # R^T @ m @ R for each n
+            return np.einsum("nji,jkn,nkl->iln", R, m, R)
+        # R @ m @ R^T for each n
+        return np.einsum("nij,jkn,nlk->iln", R, m, R)
 
     def as_voigt_stress_rotation(self, active=True):
         """Get 6x6 rotation matrix for stress tensors in Voigt notation.
@@ -228,9 +360,9 @@ class Rotation(ScipyRotation):
         Returns
         -------
         numpy.ndarray
-            6x6 stress rotation matrix (QS).
+            Single (6, 6) or batch (N, 6, 6) stress rotation matrix (QS).
         """
-        return self._to_cpp().as_voigt_stress_rotation(active)
+        return self._voigt_stress_matrices(active)
 
     def as_voigt_strain_rotation(self, active=True):
         """Get 6x6 rotation matrix for strain tensors in Voigt notation.
@@ -243,9 +375,9 @@ class Rotation(ScipyRotation):
         Returns
         -------
         numpy.ndarray
-            6x6 strain rotation matrix (QE).
+            Single (6, 6) or batch (N, 6, 6) strain rotation matrix (QE).
         """
-        return self._to_cpp().as_voigt_strain_rotation(active)
+        return self._voigt_strain_matrices(active)
 
     # ------------------------------------------------------------------
     # Compatibility helpers

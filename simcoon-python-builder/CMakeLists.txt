@@ -75,8 +75,12 @@ if(CONDA_BUILD)
 else()
   # Wheel: libsimcoon is in same directory as _core
   if(APPLE)
+    # @loader_path          → find libsimcoon.dylib next to _core.so
+    # @loader_path/../../.. → $CONDA_PREFIX/lib (conda's libomp.dylib)
+    # /usr/local/lib        → CI / manual installs
+    # /opt/homebrew/opt/libomp/lib → Homebrew on Apple Silicon
     set_target_properties(_core PROPERTIES
-        INSTALL_RPATH "@loader_path"
+        INSTALL_RPATH "@loader_path;@loader_path/../../..;/usr/local/lib;/opt/homebrew/opt/libomp/lib"
         BUILD_WITH_INSTALL_RPATH ON
     )
   elseif(UNIX)
@@ -102,6 +106,11 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 ################################################################################
 # INSTALL
