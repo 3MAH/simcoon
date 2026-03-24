@@ -924,14 +924,21 @@ arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
 }
 
 arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype) {
-    int N = voigt.n_cols;
-    arma::vec result(N);
+    // Stress: sqrt(3/2 * (diag^2 + 2*shear^2))
+    // Strain: sqrt(2/3 * (diag^2 + 0.5*shear^2))  (shear Voigt = 2*eij)
+    arma::mat dev = voigt;
+    arma::rowvec hyd = (voigt.row(0) + voigt.row(1) + voigt.row(2)) / 3.0;
+    dev.row(0) -= hyd;
+    dev.row(1) -= hyd;
+    dev.row(2) -= hyd;
 
-    for (int i = 0; i < N; i++) {
-        tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
-        result(i) = Mises(t);
+    arma::rowvec diag2 = arma::sum(dev.rows(0,2) % dev.rows(0,2), 0);
+    arma::rowvec shear2 = arma::sum(dev.rows(3,5) % dev.rows(3,5), 0);
+
+    if (vtype == VoigtType::strain) {
+        return arma::sqrt((2.0/3.0) * (diag2 + 0.5 * shear2)).t();
     }
-    return result;
+    return arma::sqrt(1.5 * (diag2 + 2.0 * shear2)).t();
 }
 
 arma::vec batch_trace(const arma::mat &voigt, VoigtType /*vtype*/) {
@@ -946,12 +953,22 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
     int N = std::max(N4, N2);
     bool bc4 = (N4 == 1);
     bool bc2 = (N2 == 1);
-    arma::mat result(6, N);
 
+    // Fast path: single L, N strain vectors → one BLAS dgemm
+    if (bc4) {
+        arma::mat::fixed<6,6> L(t4.slice(0));
+        if (bc2) {
+            // 1 tensor4, 1 tensor2 → single mat-vec
+            return L * t2;
+        }
+        // 1 tensor4, N tensor2 → single mat-mat multiply
+        return L * t2;
+    }
+
+    // General path: N tensor4, 1 or N tensor2
+    arma::mat result(6, N);
     for (int i = 0; i < N; i++) {
-        tensor4 L(arma::mat::fixed<6,6>(t4.slice(bc4 ? 0 : i)), t4type);
-        tensor2 t = tensor2::from_voigt(arma::vec(t2.col(bc2 ? 0 : i)), t2_vtype);
-        result.col(i) = L.contract(t).voigt();
+        result.col(i) = arma::mat::fixed<6,6>(t4.slice(i)) * t2.col(bc2 ? 0 : i);
     }
     return result;
 }

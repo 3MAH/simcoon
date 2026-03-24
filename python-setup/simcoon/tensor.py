@@ -1011,6 +1011,8 @@ class Tensor4:
         return Tensor4._from_batch_voigt(-self._voigt_data, self._type)
 
     def __mul__(self, other):
+        if isinstance(other, Tensor2):
+            return self.contract(other)
         if isinstance(other, (int, float)):
             if self._single:
                 return Tensor4._from_single_cpp(self._cpp * float(other))
