@@ -128,8 +128,12 @@ public:
     tensor2 rotate(const Rotation &R, bool active = true) const;
 
     // Push-forward / pull-back (dispatch on VoigtType)
-    tensor2 push_forward(const arma::mat::fixed<3,3> &F) const;
-    tensor2 pull_back(const arma::mat::fixed<3,3> &F) const;
+    // metric=true (default): includes J=det(F) factor (Piola transformation)
+    // metric=false: pure geometric transport
+    tensor2 push_forward(const arma::mat::fixed<3,3> &F, bool metric = true) const;
+    tensor2 push_forward(const arma::mat &F, bool metric = true) const;
+    tensor2 pull_back(const arma::mat::fixed<3,3> &F, bool metric = true) const;
+    tensor2 pull_back(const arma::mat &F, bool metric = true) const;
 
     // Arithmetic
     tensor2 operator+(const tensor2 &other) const;
@@ -244,13 +248,17 @@ public:
 
     /**
      * @brief Push-forward: C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN
+     * @param metric If true (default), includes J=det(F) factor (Piola transformation)
      */
-    tensor4 push_forward(const arma::mat::fixed<3,3> &F) const;
+    tensor4 push_forward(const arma::mat::fixed<3,3> &F, bool metric = true) const;
+    tensor4 push_forward(const arma::mat &F, bool metric = true) const;
 
     /**
      * @brief Pull-back: C'_LJMN = invF_lN invF_kM invF_jJ invF_iL C_ijkl
+     * @param metric If true (default), includes J=det(F) factor (Piola transformation)
      */
-    tensor4 pull_back(const arma::mat::fixed<3,3> &F) const;
+    tensor4 pull_back(const arma::mat::fixed<3,3> &F, bool metric = true) const;
+    tensor4 pull_back(const arma::mat &F, bool metric = true) const;
 
     /**
      * @brief Invert the 6x6 Voigt matrix.
@@ -298,11 +306,11 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
 
 /// Batch push-forward N tensor2. voigt:(6,N), F:(3,3,N_f).
 arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
-                             const arma::cube &F);
+                             const arma::cube &F, bool metric = true);
 
 /// Batch pull-back N tensor2. voigt:(6,N), F:(3,3,N_f).
 arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
-                          const arma::cube &F);
+                          const arma::cube &F, bool metric = true);
 
 /// Batch von Mises for N tensor2. voigt:(6,N) → (N).
 arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype);
@@ -322,11 +330,11 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
 
 /// Batch push-forward N tensor4. t4:(6,6,N), F:(3,3,N_f).
 arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
-                                 const arma::cube &F);
+                                 const arma::cube &F, bool metric = true);
 
 /// Batch pull-back N tensor4. t4:(6,6,N), F:(3,3,N_f).
 arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
-                              const arma::cube &F);
+                              const arma::cube &F, bool metric = true);
 
 /// Batch inverse N tensor4. t4:(6,6,N) → (6,6,N).
 /// Returns (result, inverse_type).

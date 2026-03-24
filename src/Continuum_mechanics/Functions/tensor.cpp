@@ -277,17 +277,22 @@ tensor2 tensor2::rotate(const Rotation &R, bool active) const {
     return *this;
 }
 
-tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F) const {
+tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     switch (_vtype) {
         case VoigtType::stress: {
             arma::mat::fixed<3,3> result;
             result = F * _mat * F.t();
+            if (metric) {
+                double J = arma::det(F);
+                result *= (1.0 / J);
+            }
             return tensor2(result, VoigtType::stress);
         }
         case VoigtType::strain: {
             arma::mat::fixed<3,3> invF = inv33(F);
             arma::mat::fixed<3,3> result;
             result = invF.t() * _mat * invF;
+            // strain factor is 1 — no metric correction needed
             return tensor2(result, VoigtType::strain);
         }
         case VoigtType::generic:
@@ -297,17 +302,22 @@ tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F) const {
     return *this;
 }
 
-tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F) const {
+tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     switch (_vtype) {
         case VoigtType::stress: {
             arma::mat::fixed<3,3> invF = inv33(F);
             arma::mat::fixed<3,3> result;
             result = invF * _mat * invF.t();
+            if (metric) {
+                double J = arma::det(F);
+                result *= J;
+            }
             return tensor2(result, VoigtType::stress);
         }
         case VoigtType::strain: {
             arma::mat::fixed<3,3> result;
             result = F.t() * _mat * F;
+            // strain factor is 1 — no metric correction needed
             return tensor2(result, VoigtType::strain);
         }
         case VoigtType::generic:
@@ -315,6 +325,20 @@ tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F) const {
             throw std::runtime_error("pull_back requires VoigtType::stress or VoigtType::strain");
     }
     return *this;
+}
+
+tensor2 tensor2::push_forward(const arma::mat &F, bool metric) const {
+    if (F.n_rows != 3 || F.n_cols != 3)
+        throw std::invalid_argument("push_forward: expected 3x3 matrix, got "
+            + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
+    return push_forward(arma::mat::fixed<3,3>(F), metric);
+}
+
+tensor2 tensor2::pull_back(const arma::mat &F, bool metric) const {
+    if (F.n_rows != 3 || F.n_cols != 3)
+        throw std::invalid_argument("pull_back: expected 3x3 matrix, got "
+            + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
+    return pull_back(arma::mat::fixed<3,3>(F), metric);
 }
 
 tensor2 tensor2::operator+(const tensor2 &other) const {
@@ -621,7 +645,7 @@ tensor2 tensor4::contract(const tensor2 &t) const {
     return tensor2::from_voigt(v_out, out_vtype);
 }
 
-tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F) const {
+tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
     Fastor::Tensor<double,3,3> F_fastor;
@@ -631,10 +655,26 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F) const {
 
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(_fastor, F_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
+
+    if (metric) {
+        double J = arma::det(F);
+        switch (_type) {
+            case Tensor4Type::stiffness:
+            case Tensor4Type::generic:
+                voigt_result *= (1.0 / J);
+                break;
+            case Tensor4Type::compliance:
+                voigt_result *= J;
+                break;
+            case Tensor4Type::strain_concentration:
+            case Tensor4Type::stress_concentration:
+                break; // factor is 1
+        }
+    }
     return tensor4(voigt_result, _type);
 }
 
-tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F) const {
+tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
     arma::mat::fixed<3,3> invF = inv33(F);
@@ -646,7 +686,37 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F) const {
 
     Fastor::Tensor<double,3,3,3,3> result = pull_back_4(_fastor, invF_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
+
+    if (metric) {
+        double J = arma::det(F);
+        switch (_type) {
+            case Tensor4Type::stiffness:
+            case Tensor4Type::generic:
+                voigt_result *= J;
+                break;
+            case Tensor4Type::compliance:
+                voigt_result *= (1.0 / J);
+                break;
+            case Tensor4Type::strain_concentration:
+            case Tensor4Type::stress_concentration:
+                break; // factor is 1
+        }
+    }
     return tensor4(voigt_result, _type);
+}
+
+tensor4 tensor4::push_forward(const arma::mat &F, bool metric) const {
+    if (F.n_rows != 3 || F.n_cols != 3)
+        throw std::invalid_argument("push_forward: expected 3x3 matrix, got "
+            + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
+    return push_forward(arma::mat::fixed<3,3>(F), metric);
+}
+
+tensor4 tensor4::pull_back(const arma::mat &F, bool metric) const {
+    if (F.n_rows != 3 || F.n_cols != 3)
+        throw std::invalid_argument("pull_back: expected 3x3 matrix, got "
+            + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
+    return pull_back(arma::mat::fixed<3,3>(F), metric);
 }
 
 tensor4 tensor4::rotate(const Rotation &R, bool active) const {
@@ -839,7 +909,7 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
 }
 
 arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
-                             const arma::cube &F) {
+                             const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
@@ -847,13 +917,13 @@ arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
     for (int i = 0; i < N; i++) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
-        result.col(i) = t.push_forward(Fi).voigt();
+        result.col(i) = t.push_forward(Fi, metric).voigt();
     }
     return result;
 }
 
 arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
-                          const arma::cube &F) {
+                          const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
@@ -861,7 +931,7 @@ arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
     for (int i = 0; i < N; i++) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
-        result.col(i) = t.pull_back(Fi).voigt();
+        result.col(i) = t.pull_back(Fi, metric).voigt();
     }
     return result;
 }
@@ -921,7 +991,7 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
 }
 
 arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
-                                 const arma::cube &F) {
+                                 const arma::cube &F, bool metric) {
     int N = t4.n_slices;
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
@@ -929,13 +999,13 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
-        result.slice(i) = L.push_forward(Fi).mat();
+        result.slice(i) = L.push_forward(Fi, metric).mat();
     }
     return result;
 }
 
 arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
-                              const arma::cube &F) {
+                              const arma::cube &F, bool metric) {
     int N = t4.n_slices;
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
@@ -943,7 +1013,7 @@ arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
-        result.slice(i) = L.pull_back(Fi).mat();
+        result.slice(i) = L.pull_back(Fi, metric).mat();
     }
     return result;
 }

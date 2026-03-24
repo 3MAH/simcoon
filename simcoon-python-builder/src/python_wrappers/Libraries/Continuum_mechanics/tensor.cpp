@@ -125,22 +125,22 @@ void register_tensor(py::module_& m) {
             "Rotate the tensor using the Rotation object")
 
         .def("push_forward",
-            [](const simcoon::tensor2& self, py::array_t<double> F) {
+            [](const simcoon::tensor2& self, py::array_t<double> F, bool metric) {
                 validate_matrix_size(F, 3, 3, "F");
                 mat F_cpp = carma::arr_to_mat(F);
-                return self.push_forward(mat::fixed<3,3>(F_cpp));
+                return self.push_forward(F_cpp, metric);
             },
-            py::arg("F"),
-            "Push-forward the tensor via deformation gradient F")
+            py::arg("F"), py::arg("metric") = true,
+            "Push-forward the tensor via deformation gradient F. metric=True includes J factor.")
 
         .def("pull_back",
-            [](const simcoon::tensor2& self, py::array_t<double> F) {
+            [](const simcoon::tensor2& self, py::array_t<double> F, bool metric) {
                 validate_matrix_size(F, 3, 3, "F");
                 mat F_cpp = carma::arr_to_mat(F);
-                return self.pull_back(mat::fixed<3,3>(F_cpp));
+                return self.pull_back(F_cpp, metric);
             },
-            py::arg("F"),
-            "Pull-back the tensor via deformation gradient F")
+            py::arg("F"), py::arg("metric") = true,
+            "Pull-back the tensor via deformation gradient F. metric=True includes J factor.")
 
         // Arithmetic
         .def("__add__", &simcoon::tensor2::operator+)
@@ -225,22 +225,22 @@ void register_tensor(py::module_& m) {
             "Rotate the tensor using the Rotation object")
 
         .def("push_forward",
-            [](const simcoon::tensor4& self, py::array_t<double> F) {
+            [](const simcoon::tensor4& self, py::array_t<double> F, bool metric) {
                 validate_matrix_size(F, 3, 3, "F");
                 mat F_cpp = carma::arr_to_mat(F);
-                return self.push_forward(mat::fixed<3,3>(F_cpp));
+                return self.push_forward(F_cpp, metric);
             },
-            py::arg("F"),
-            "Push-forward via deformation gradient F")
+            py::arg("F"), py::arg("metric") = true,
+            "Push-forward via deformation gradient F. metric=True includes J factor.")
 
         .def("pull_back",
-            [](const simcoon::tensor4& self, py::array_t<double> F) {
+            [](const simcoon::tensor4& self, py::array_t<double> F, bool metric) {
                 validate_matrix_size(F, 3, 3, "F");
                 mat F_cpp = carma::arr_to_mat(F);
-                return self.pull_back(mat::fixed<3,3>(F_cpp));
+                return self.pull_back(F_cpp, metric);
             },
-            py::arg("F"),
-            "Pull-back via deformation gradient F")
+            py::arg("F"), py::arg("metric") = true,
+            "Pull-back via deformation gradient F. metric=True includes J factor.")
 
         .def("inverse", &simcoon::tensor4::inverse,
             "Invert the 6x6 Voigt matrix. Type: stiffness <-> compliance.")
@@ -343,24 +343,24 @@ void register_tensor(py::module_& m) {
     m.def("_batch_t2_push_forward",
         [&np2d_to_mat6N, &np3d_to_cube, &mat6N_to_np2d](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
-           py::array_t<double> F_arr) {
+           py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = np3d_to_cube(F_arr, 3, 3);
-            mat result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp);
+            mat result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp, metric);
             return mat6N_to_np2d(result);
         },
-        py::arg("voigt"), py::arg("vtype"), py::arg("F"));
+        py::arg("voigt"), py::arg("vtype"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_t2_pull_back",
         [&np2d_to_mat6N, &np3d_to_cube, &mat6N_to_np2d](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
-           py::array_t<double> F_arr) {
+           py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = np3d_to_cube(F_arr, 3, 3);
-            mat result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp);
+            mat result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp, metric);
             return mat6N_to_np2d(result);
         },
-        py::arg("voigt"), py::arg("vtype"), py::arg("F"));
+        py::arg("voigt"), py::arg("vtype"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_t2_mises",
         [&np2d_to_mat6N](py::array_t<double> voigt, simcoon::VoigtType vtype) {
@@ -404,24 +404,24 @@ void register_tensor(py::module_& m) {
     m.def("_batch_t4_push_forward",
         [&np3d_to_cube, &cube_to_np3d](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
-           py::array_t<double> F_arr) {
+           py::array_t<double> F_arr, bool metric) {
             cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
             cube f_cpp = np3d_to_cube(F_arr, 3, 3);
-            cube result = simcoon::batch_push_forward_t4(t4_cpp, t4type, f_cpp);
+            cube result = simcoon::batch_push_forward_t4(t4_cpp, t4type, f_cpp, metric);
             return cube_to_np3d(result);
         },
-        py::arg("t4"), py::arg("t4type"), py::arg("F"));
+        py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_t4_pull_back",
         [&np3d_to_cube, &cube_to_np3d](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
-           py::array_t<double> F_arr) {
+           py::array_t<double> F_arr, bool metric) {
             cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
             cube f_cpp = np3d_to_cube(F_arr, 3, 3);
-            cube result = simcoon::batch_pull_back_t4(t4_cpp, t4type, f_cpp);
+            cube result = simcoon::batch_pull_back_t4(t4_cpp, t4type, f_cpp, metric);
             return cube_to_np3d(result);
         },
-        py::arg("t4"), py::arg("t4type"), py::arg("F"));
+        py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_t4_inverse",
         [&np3d_to_cube, &cube_to_np3d](

@@ -421,22 +421,40 @@ class Tensor2:
         )
         return Tensor2._from_batch_voigt(result_voigt, self._vtype)
 
-    def push_forward(self, F):
-        """Push-forward via deformation gradient F."""
+    def push_forward(self, F, metric=True):
+        """Push-forward via deformation gradient F.
+
+        Parameters
+        ----------
+        F : (3,3) or (N,3,3) array
+            Deformation gradient(s).
+        metric : bool, default True
+            If True, includes J=det(F) factor (proper Piola transformation).
+            If False, pure geometric transport.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self._single:
-            return Tensor2._from_single_cpp(self._cpp.push_forward(F))
+            return Tensor2._from_single_cpp(self._cpp.push_forward(F, metric))
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t2_push_forward(self._voigt_data, self._vtype, F_batch)
+        result = _batch_t2_push_forward(self._voigt_data, self._vtype, F_batch, metric)
         return Tensor2._from_batch_voigt(result, self._vtype)
 
-    def pull_back(self, F):
-        """Pull-back via deformation gradient F."""
+    def pull_back(self, F, metric=True):
+        """Pull-back via deformation gradient F.
+
+        Parameters
+        ----------
+        F : (3,3) or (N,3,3) array
+            Deformation gradient(s).
+        metric : bool, default True
+            If True, includes J=det(F) factor (proper Piola transformation).
+            If False, pure geometric transport.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self._single:
-            return Tensor2._from_single_cpp(self._cpp.pull_back(F))
+            return Tensor2._from_single_cpp(self._cpp.pull_back(F, metric))
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t2_pull_back(self._voigt_data, self._vtype, F_batch)
+        result = _batch_t2_pull_back(self._voigt_data, self._vtype, F_batch, metric)
         return Tensor2._from_batch_voigt(result, self._vtype)
 
     def mises(self):
@@ -919,22 +937,40 @@ class Tensor4:
         result = _batch_t4_rotate(self._voigt_data, self._type, mats, active)
         return Tensor4._from_batch_voigt(result, self._type)
 
-    def push_forward(self, F):
-        """Push-forward via deformation gradient F."""
+    def push_forward(self, F, metric=True):
+        """Push-forward via deformation gradient F.
+
+        Parameters
+        ----------
+        F : (3,3) or (N,3,3) array
+            Deformation gradient(s).
+        metric : bool, default True
+            If True, includes J=det(F) factor (proper Piola transformation).
+            If False, pure geometric transport.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self._single:
-            return Tensor4._from_single_cpp(self._cpp.push_forward(F))
+            return Tensor4._from_single_cpp(self._cpp.push_forward(F, metric))
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t4_push_forward(self._voigt_data, self._type, F_batch)
+        result = _batch_t4_push_forward(self._voigt_data, self._type, F_batch, metric)
         return Tensor4._from_batch_voigt(result, self._type)
 
-    def pull_back(self, F):
-        """Pull-back via deformation gradient F."""
+    def pull_back(self, F, metric=True):
+        """Pull-back via deformation gradient F.
+
+        Parameters
+        ----------
+        F : (3,3) or (N,3,3) array
+            Deformation gradient(s).
+        metric : bool, default True
+            If True, includes J=det(F) factor (proper Piola transformation).
+            If False, pure geometric transport.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self._single:
-            return Tensor4._from_single_cpp(self._cpp.pull_back(F))
+            return Tensor4._from_single_cpp(self._cpp.pull_back(F, metric))
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t4_pull_back(self._voigt_data, self._type, F_batch)
+        result = _batch_t4_pull_back(self._voigt_data, self._type, F_batch, metric)
         return Tensor4._from_batch_voigt(result, self._type)
 
     def inverse(self):
