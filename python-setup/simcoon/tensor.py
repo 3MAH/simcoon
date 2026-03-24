@@ -888,18 +888,36 @@ class Tensor4:
     # Methods
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _infer_contraction_vtype(t4type):
+        if t4type in (Tensor4Type.stiffness, Tensor4Type.stress_concentration,
+                      Tensor4Type.generic):
+            return VoigtType.stress
+        return VoigtType.strain
+
     def contract(self, t):
         """Contract with Tensor2: result = mat @ t.voigt."""
         if self._single and t._single:
             return Tensor2._from_single_cpp(self._cpp.contract(t._cpp))
-        # At least one is batch
-        t4_data = self.mat[np.newaxis] if self._single else self._voigt_data
-        t2_data = t.voigt[np.newaxis] if t._single else t._voigt_data
-        t2_vtype = t._vtype
-        result_voigt, out_vtype = _batch_t4_contract(
-            t4_data, self._type, t2_data, t2_vtype
-        )
-        return Tensor2._from_batch_voigt(result_voigt, out_vtype)
+
+        out_vtype = self._infer_contraction_vtype(self._type)
+
+        # Fast path: single L, batch or single eps → numpy matmul (one dgemm)
+        if self._single:
+            t2_voigt = t.voigt if t._single else t._voigt_data
+            result = (self.mat @ t2_voigt.T).T
+            if t._single:
+                return Tensor2._from_single_cpp(
+                    _CppTensor2.from_voigt(result.ravel(), out_vtype))
+            return Tensor2._from_batch_voigt(result, out_vtype)
+
+        # Batch L path — numpy einsum (one call, no pybind11 overhead)
+        t4_data = self._voigt_data
+        t2_voigt = t.voigt[np.newaxis] if t._single else t._voigt_data
+        # broadcast if needed
+        result = np.einsum('nij,nj->ni', t4_data, np.broadcast_to(
+            t2_voigt, (len(self), 6)), optimize=False)
+        return Tensor2._from_batch_voigt(result, out_vtype)
 
     def rotate(self, R, active=True):
         """Rotate tensor(s)."""
