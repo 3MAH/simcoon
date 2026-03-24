@@ -766,6 +766,10 @@ tensor4 tensor4::operator-() const {
     return tensor4(result, _type);
 }
 
+tensor2 tensor4::operator*(const tensor2 &t) const {
+    return contract(t);
+}
+
 tensor4 tensor4::operator*(double scalar) const {
     arma::mat::fixed<6,6> result;
     result = _voigt * scalar;

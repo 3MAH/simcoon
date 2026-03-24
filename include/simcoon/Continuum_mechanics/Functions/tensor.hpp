@@ -272,6 +272,7 @@ public:
     tensor4 operator+(const tensor4 &other) const;
     tensor4 operator-(const tensor4 &other) const;
     tensor4 operator-() const;   // unary minus
+    tensor2 operator*(const tensor2 &t) const;   // contraction: L * eps → sigma
     tensor4 operator*(double scalar) const;
     tensor4 operator/(double scalar) const;
     tensor4& operator+=(const tensor4 &other);
