@@ -52,6 +52,8 @@ jobs:
 
       - name: Build sdist
         run: uv build --sdist
+        env:
+          UV_NO_BUILD_ISOLATION_PACKAGE: ""
 
       - uses: actions/upload-artifact@v5
         with:
