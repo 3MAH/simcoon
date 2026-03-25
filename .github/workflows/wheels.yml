@@ -47,13 +47,8 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
-      - name: Install Python
-        run: uv python install 3.12
-
       - name: Build sdist
-        run: uv build --sdist
-        env:
-          UV_NO_BUILD_ISOLATION_PACKAGE: ""
+        run: uvx --from "build[uv]" pyproject-build --sdist --installer uv
 
       - uses: actions/upload-artifact@v5
         with:
