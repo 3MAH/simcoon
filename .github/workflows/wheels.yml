@@ -47,6 +47,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
+      - name: Install Python
+        run: uv python install 3.12
+
       - name: Build sdist
         run: uv build --sdist
 
