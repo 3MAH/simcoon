@@ -204,10 +204,11 @@ environment = { OpenMP_ROOT = "/usr/local" }
 
 [tool.cibuildwheel.windows]
 # Install dependencies via vcpkg
-before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
+before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows intel-openmp:x64-windows"
 
-# Point CMake to vcpkg (use forward slashes for TOML compatibility)
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+# Point CMake to vcpkg (use forward slashes for TOML compatibility) and to look for the Intel implementation
+# environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", CMAKE_ARGS = "-DOpenMP_CXX_FLAGS=/qiopenmp -DOpenMP_CXX_LIB_NAMES=libiomp5md" }
 
 # Skip wheel repair - CMake installs all needed DLLs directly into the wheel
 repair-wheel-command = ""
