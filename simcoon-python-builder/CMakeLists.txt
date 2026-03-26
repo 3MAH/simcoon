@@ -142,8 +142,7 @@ else()
   # Wheel: scikit-build-core handles the wheel packaging
 
   if(WIN32)
-    # If it found a path, try to find the DLL in the sibling 'bin' folder
-
+    # find the openmp DLL
     get_filename_component(_omp_dir "${OpenMP_libomp_LIBRARY}" DIRECTORY)
     find_file(OPENMP_DLL 
               NAMES libomp.dll 
