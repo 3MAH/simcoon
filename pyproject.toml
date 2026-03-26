@@ -207,6 +207,7 @@ environment = { OpenMP_ROOT = "/usr/local" }
 before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
 
 # Force cibuildwheel/CMake to use clang-cl instead of cl.exe
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", CMAKE_ARGS = "-T ClangCL" }
+# environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", CMAKE_ARGS = "-T ClangCL" }
+environment = { CMAKE_ARGS = "-T ClangCL -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DOpenMP_C_FLAGS=/clang:-fopenmp -DOpenMP_CXX_FLAGS=/clang:-fopenmp -DOpenMP_C_LIB_NAMES=libomp -DOpenMP_CXX_LIB_NAMES=libomp" }
 
 repair-wheel-command = ""
