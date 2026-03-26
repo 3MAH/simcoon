@@ -208,7 +208,7 @@ environment = { OpenMP_ROOT = "/usr/local" }
 before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
 
 # Force cibuildwheel/CMake to use clang-cl instead of cl.exe
-environment = { CMAKE_ARGS = "-T ClangCL -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DOpenMP_C_FLAGS=/clang:-fopenmp -DOpenMP_CXX_FLAGS=/clang:-fopenmp -DOpenMP_C_LIB_NAMES=libomp -DOpenMP_CXX_LIB_NAMES=libomp -DOpenMP_libomp_LIBRARY=\"C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/lib/libomp.lib\"" }
+environment = { CMAKE_ARGS = '-T ClangCL -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DOpenMP_C_FLAGS=/clang:-fopenmp -DOpenMP_CXX_FLAGS=/clang:-fopenmp -DOpenMP_C_LIB_NAMES=libomp -DOpenMP_CXX_LIB_NAMES=libomp -DOpenMP_libomp_LIBRARY="C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/Llvm/x64/lib/libomp.lib"' }
 
 repair-wheel-command = ""
 
