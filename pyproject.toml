@@ -203,11 +203,13 @@ environment = { OpenMP_ROOT = "/usr/local" }
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.windows]
-# Install dependencies via vcpkg
-before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
+# Install dependencies as static libraries (x64-windows-static-md = static libs,
+# shared CRT /MD — required for Python extensions).  Static linking absorbs
+# OpenBLAS into simcoon.dll so there is no openblas.dll in the wheel, avoiding
+# the runtime conflict with numpy/scipy's own bundled OpenBLAS.
+before-all = "vcpkg install armadillo:x64-windows-static-md openblas:x64-windows-static-md"
 
-# Point CMake to vcpkg (use forward slashes for TOML compatibility)
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_TARGET_TRIPLET = "x64-windows-static-md" }
 
-# Skip wheel repair - CMake installs all needed DLLs directly into the wheel
+# No wheel repair needed — no external DLLs to bundle
 repair-wheel-command = ""
