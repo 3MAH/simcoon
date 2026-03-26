@@ -155,7 +155,8 @@ else()
     if(OPENMP_DLL)
         install(FILES "${OPENMP_DLL}" DESTINATION . COMPONENT python)
         message(STATUS "Python package will include OPEN_MP DLL")
-    endif()    
+    endif()
+  endif()
 
   # Install Python extension module to wheel
   install(TARGETS _core
