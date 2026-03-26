@@ -109,19 +109,6 @@ target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
-
-  # Specific fix for Windows + MSVC to avoid runtime conflicts
-  if(MSVC)
-      # 1. Tell the linker to ignore the default Microsoft OpenMP library
-      target_link_options(_core PRIVATE "/NODEFAULTLIB:vcomp.lib" "/NODEFAULTLIB:vcom內pd.lib")
-      
-      # 2. Force linking against the Intel runtime (provided by vcpkg intel-openmp)
-      # The library name in vcpkg is typically libiomp5md
-      target_link_libraries(_core PRIVATE libiomp5md)
-      
-      # 3. Add a definition to ensure the compiler knows we are using the Intel flavor
-      target_compile_definitions(_core PRIVATE USE_INTEL_OPENMP)
-  endif()
 endif()
 
 ################################################################################
