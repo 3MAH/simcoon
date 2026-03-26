@@ -142,11 +142,9 @@ else()
   # Wheel: scikit-build-core handles the wheel packaging
 
   if(WIN32)
-    # Ask the OpenMP target where its library is
-    get_target_property(_omp_lib OpenMP::OpenMP_CXX INTERFACE_LINK_LIBRARIES)
-    
     # If it found a path, try to find the DLL in the sibling 'bin' folder
-    get_filename_component(_omp_dir "${_omp_lib}" DIRECTORY)
+
+    get_filename_component(_omp_dir "${OpenMP_libomp_LIBRARY}" DIRECTORY)
     find_file(OPENMP_DLL 
               NAMES libomp.dll 
               PATHS "${_omp_dir}/../bin" "${_omp_dir}"
