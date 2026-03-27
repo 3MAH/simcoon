@@ -141,7 +141,7 @@ find_package(LAPACK REQUIRED)
 # Only apply fix for non-Debug builds to preserve proper debug library linking.
 # TODO: Consider migrating to CONFIG mode packages (find_package(OpenBLAS CONFIG))
 #       when conda/vcpkg compatibility issues are resolved.
-if(WIN32 AND MSVC AND NOT CONDA_BUILD AND BLAS_FOUND AND LAPACK_FOUND)
+if(WIN32 AND MSVC AND BLAS_FOUND AND LAPACK_FOUND)
   if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     string(REPLACE "/debug/lib/" "/lib/" BLAS_LIBRARIES_FIXED "${BLAS_LIBRARIES}")
     string(REPLACE "/debug/lib/" "/lib/" LAPACK_LIBRARIES_FIXED "${LAPACK_LIBRARIES}")
@@ -406,13 +406,7 @@ message(STATUS "CMAKE_INSTALL_INCLUDEDIR = ${CMAKE_INSTALL_INCLUDEDIR}")
 message(STATUS "CMAKE_INSTALL_BINDIR = ${CMAKE_INSTALL_BINDIR}")
 
 # Find and collect runtime dependency DLLs on Windows (before Python bindings)
-# Skip when using static vcpkg triplets (x64-windows-static-md) — all deps are
-# absorbed into simcoon.dll and no external DLLs are needed.
-set(_VCPKG_DEPS_ARE_SHARED TRUE)
-if(VCPKG_TARGET_TRIPLET MATCHES "static")
-  set(_VCPKG_DEPS_ARE_SHARED FALSE)
-endif()
-if(WIN32 AND _VCPKG_DEPS_ARE_SHARED)
+if(WIN32)
   # Find and install dependency DLLs (BLAS/LAPACK/runtime)
   set(DEPENDENCY_DLLS
       "openblas.dll"
