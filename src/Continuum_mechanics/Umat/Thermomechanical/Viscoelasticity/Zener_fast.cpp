@@ -249,7 +249,7 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     double N_theta = 0.;
         
     vec A_v = L1*EV1;
-    vec dA_dEv = L1;
+    mat dA_dEv = L1;
 
     if(DTime < 1.E-12) {
         r = 0.;

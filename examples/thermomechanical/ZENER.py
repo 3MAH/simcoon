@@ -51,7 +51,7 @@ psi_rve = 0.0
 theta_rve = 0.0
 phi_rve = 0.0
 solver_type = 0
-corate_type = 2
+corate_type = 0
 
 # Define the properties
 props = np.array([rho, c_p, E_0, nu_0, alpha, E_1, nu_1, eta_B, eta_S])
