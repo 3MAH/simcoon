@@ -202,9 +202,13 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(n_threads);
                 omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
+                #endif
+                {
+                    py::gil_scoped_release release;
+                    #ifdef _OPENMP
+                    #pragma omp parallel for shared(DR, D, Omega, F1_cpp)
+                    #endif
+                    for (int pt = 0; pt < nb_points; pt++) {
 
             		switch (corate) {
                         case 0: case 1: case 2: case 4: {
@@ -237,19 +241,24 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             break;
                         }
                     }
-                }
+                    }
+                } // GIL reacquired
                 #ifdef _OPENMP
                 omp_set_num_threads(max_threads);
     			#endif
             }
             else {
-                #ifdef _OPENMP                
+                #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
                 omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
+                #endif
+                {
+                    py::gil_scoped_release release;
+                    #ifdef _OPENMP
+                    #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)
+                    #endif
+                    for (int pt = 0; pt < nb_points; pt++) {
 
             		switch (corate) {
                         case 0: case 1: case 2: case 4: {
@@ -282,7 +291,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             break;
                         }
                     }
-                }
+                } // GIL reacquired
                 #ifdef _OPENMP
                 omp_set_num_threads(max_threads);
     			#endif

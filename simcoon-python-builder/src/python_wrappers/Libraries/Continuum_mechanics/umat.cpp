@@ -237,9 +237,16 @@ namespace simpy {
 			int max_threads = omp_get_max_threads();
 			omp_set_num_threads(n_threads);
 			omp_set_active_levels(3);
-			#pragma omp parallel for shared(Lt, L, DR)
 		#endif
-		for (int pt = 0; pt < nb_points; pt++) {
+		{
+			// Release the GIL before the parallel loop — all data has been
+			// copied to C++ (Armadillo) structures above, so no Python
+			// objects are touched inside the loop.
+			py::gil_scoped_release release;
+			#ifdef _OPENMP
+				#pragma omp parallel for shared(Lt, L, DR)
+			#endif
+			for (int pt = 0; pt < nb_points; pt++) {
 
 			//if (use_temp) T = list_T(pt);
 			if (unique_props == false) {
@@ -268,10 +275,11 @@ namespace simpy {
 					break;
 				}
 			}
-		}
+			}
+		} // GIL reacquired here (release goes out of scope)
 		#ifdef _OPENMP
-		omp_set_num_threads(max_threads);		
-		#endif		
+		omp_set_num_threads(max_threads);
+		#endif
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}
