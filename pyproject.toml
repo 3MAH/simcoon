@@ -214,17 +214,3 @@ environment = { CMAKE_ARGS = "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsyste
 
 # No wheel repair — no external DLLs to bundle
 repair-wheel-command = ""
-
-# x64: static vcpkg deps to avoid openblas.dll conflicts with numpy
-[[tool.cibuildwheel.overrides]]
-select = "*-win_amd64"
-inherit.environment = "append"
-before-all = "vcpkg install armadillo:x64-windows-static-md openblas:x64-windows-static-md"
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_TARGET_TRIPLET = "x64-windows-static-md" }
-
-# ARM64: static vcpkg deps
-[[tool.cibuildwheel.overrides]]
-select = "*-win_arm64"
-inherit.environment = "append"
-before-all = "vcpkg install armadillo:arm64-windows-static-md openblas:arm64-windows-static-md"
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_TARGET_TRIPLET = "arm64-windows-static-md" }
