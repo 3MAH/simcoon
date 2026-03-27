@@ -106,9 +106,45 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 
+# Use LLVM OpenMP on MSVC to avoid conflicts with the legacy vcomp140.dll
+# runtime.  Requires CMake >= 3.30 and VS 2022 with the LLVM/Clang component.
+# The compiler auto-links libomp via #pragma — no explicit path needed.
+if(MSVC)
+  set(OpenMP_RUNTIME_MSVC "llvm")
+endif()
+
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+
+  # Bundle the LLVM OpenMP DLL in the wheel on Windows
+  if(WIN32 AND NOT CONDA_BUILD)
+    # MSVC names the DLL by architecture: libomp140.<arch>.dll
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+      set(_OMP_DLL_NAME "libomp140.aarch64.dll")
+    else()
+      set(_OMP_DLL_NAME "libomp140.x86_64.dll")
+    endif()
+
+    # Search in VS redistribution directories
+    cmake_path(GET CMAKE_CXX_COMPILER PARENT_PATH _MSVC_BIN_DIR)
+    find_file(_OMP_DLL ${_OMP_DLL_NAME}
+      PATHS
+        "${_MSVC_BIN_DIR}/../../Redist/MSVC" # VS Redist tree
+        "ENV VCToolsRedistDir"
+      PATH_SUFFIXES
+        "debug_nonredist/x64/Microsoft.VC142.OpenMP.LLVM"
+        "debug_nonredist/arm64/Microsoft.VC142.OpenMP.LLVM"
+      NO_DEFAULT_PATH
+    )
+
+    if(_OMP_DLL)
+      install(FILES "${_OMP_DLL}" DESTINATION . COMPONENT python)
+      message(STATUS "Bundling OpenMP DLL: ${_OMP_DLL}")
+    else()
+      message(WARNING "Could not find ${_OMP_DLL_NAME} — wheel may require libomp at runtime")
+    endif()
+  endif()
 endif()
 
 ################################################################################

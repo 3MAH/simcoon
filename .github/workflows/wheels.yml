@@ -81,6 +81,10 @@ jobs:
           - os: windows-latest
             cibw_archs: "AMD64"
 
+          # Windows ARM64
+          - os: windows-latest
+            cibw_archs: "ARM64"
+
     steps:
       - uses: actions/checkout@v6
         with:
