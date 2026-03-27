@@ -203,7 +203,16 @@ environment = { OpenMP_ROOT = "/usr/local" }
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.windows]
-# No wheel repair — DLLs are installed explicitly by CMake
+# Static vcpkg deps — OpenBLAS is absorbed into simcoon.dll, avoiding
+# runtime conflicts with numpy/scipy's own bundled OpenBLAS.
+before-all = "vcpkg install armadillo:x64-windows-static-md openblas:x64-windows-static-md"
+
+# VCPKG_TARGET_TRIPLET must be a CMake variable (not just env) for the
+# toolchain to resolve static libs.  BLA_STATIC tells FindBLAS to look
+# for .lib static archives instead of import libraries.
+environment = { CMAKE_ARGS = "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DBLA_STATIC=ON" }
+
+# No wheel repair — no external DLLs to bundle
 repair-wheel-command = ""
 
 # x64: static vcpkg deps to avoid openblas.dll conflicts with numpy
