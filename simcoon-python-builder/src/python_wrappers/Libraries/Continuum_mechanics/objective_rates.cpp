@@ -291,6 +291,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             break;
                         }
                     }
+                    }
                 } // GIL reacquired
                 #ifdef _OPENMP
                 omp_set_num_threads(max_threads);
