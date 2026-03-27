@@ -40,8 +40,7 @@ alpha = 0.0  # Thermal expansion coefficient
 n_kelvin = 3  # Number of Kelvin branches
 
 # Read branch parameters from data file
-script_dir = os.path.dirname(os.path.abspath(__file__))
-mat_file = os.path.join(script_dir, "..", "data", "Zener_raw.dat")
+mat_file = os.path.join("..", "data", "Zener_raw.dat")
 E_i, nu_i, etaB_i, etaS_i = np.loadtxt(
     mat_file, usecols=(0, 1, 2, 3), unpack=True
 )
