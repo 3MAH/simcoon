@@ -22,14 +22,17 @@ jobs:
           - os: Linux
             runner: ubuntu-latest
             environment-file: environment.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: MacOS
             runner: macos-latest
             environment-file: environment_arm64.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: Windows
             runner: windows-latest
             environment-file: environment_win.yml
+            python-version: "3.12"
             shell: pwsh
 
     defaults:
@@ -43,7 +46,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
 
