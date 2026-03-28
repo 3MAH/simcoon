@@ -78,3 +78,9 @@ jobs:
         run: |
           uv pip install "git+https://github.com/3MAH/fedoo.git@master"
           uv run pytest tests/test_fedoo_integration.py -v
+
+      - name: Install fedoo and run integration tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          uv pip install "git+https://github.com/3MAH/fedoo.git@master"
+          uv run pytest tests/test_fedoo_integration.py -v

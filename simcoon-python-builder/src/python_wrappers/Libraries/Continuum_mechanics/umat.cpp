@@ -236,7 +236,7 @@ namespace simpy {
 		#ifdef _OPENMP
 			int max_threads = omp_get_max_threads();
 			omp_set_num_threads(n_threads);
-			omp_set_active_levels(3);
+			omp_set_max_active_levels(3);
 		#endif
 		{
 			// Release the GIL before the parallel loop — all data has been

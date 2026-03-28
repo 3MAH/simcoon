@@ -97,3 +97,11 @@ jobs:
           pip install . --no-build-isolation
           pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
           pytest tests/test_fedoo_integration.py -v
+
+      - name: Install simcoon + fedoo and run integration tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pip install scikit-build-core pybind11 numpy
+          pip install . --no-build-isolation
+          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+          pytest tests/test_fedoo_integration.py -v

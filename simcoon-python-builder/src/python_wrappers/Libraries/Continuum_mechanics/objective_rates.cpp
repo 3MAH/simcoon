@@ -201,7 +201,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(n_threads);
-                omp_set_active_levels(3);
+                omp_set_max_active_levels(3);
                 #endif
                 {
                     py::gil_scoped_release release;
@@ -251,7 +251,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 #ifdef _OPENMP
                 int max_threads = omp_get_max_threads();
                 omp_set_num_threads(4);
-                omp_set_active_levels(3);
+                omp_set_max_active_levels(3);
                 #endif
                 {
                     py::gil_scoped_release release;

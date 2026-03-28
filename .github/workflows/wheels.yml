@@ -97,11 +97,51 @@ jobs:
           path: ./wheelhouse/*.whl
 
   # =========================================================================
+  # Test wheels with fedoo integration
+  # =========================================================================
+  test_wheels:
+    name: Test wheel on ${{ matrix.os }}
+    needs: [build_wheels]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: cibw-wheels-ubuntu-latest-x86_64
+          - os: macos-latest
+            artifact: cibw-wheels-macos-latest-arm64
+          - os: windows-latest
+            artifact: cibw-wheels-windows-latest-AMD64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: wheelhouse/
+
+      - name: Install wheel + fedoo + test deps
+        run: |
+          pip install wheelhouse/*.whl
+          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+
+      - name: Run fedoo integration tests
+        run: pytest tests/test_fedoo_integration.py -v
+
+  # =========================================================================
   # Publish to TestPyPI (manual trigger)
   # =========================================================================
   publish_testpypi:
     name: Publish to TestPyPI
-    needs: [build_sdist, build_wheels]
+    needs: [build_sdist, build_wheels, test_wheels]
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_testpypi == 'true') ||
@@ -128,7 +168,7 @@ jobs:
   # =========================================================================
   publish_pypi:
     name: Publish to PyPI
-    needs: [build_sdist, build_wheels]
+    needs: [build_sdist, build_wheels, test_wheels]
     runs-on: ubuntu-latest
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true') ||
