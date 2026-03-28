@@ -16,6 +16,7 @@ cmake -G "Visual Studio 17 2022" ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX%/Library ^
       -DCMAKE_BUILD_TYPE=Release ^
       -DSIMCOON_BUILD_TESTS:BOOL=OFF ^
+      -DOpenMP_RUNTIME_MSVC=llvm ^
       -DPython3_EXECUTABLE:FILEPATH="%PYTHON%" ^
       -Dpybind11_DIR:PATH="%PYBIND11_DIR%" ^
       -DCMAKE_PREFIX_PATH="%PYBIND11_DIR%"
