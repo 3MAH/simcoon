@@ -106,15 +106,20 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 
-# OpenMP is optional (OFF by default for wheels to avoid runtime conflicts,
-# ON for conda builds where _openmp_mutex ensures a single runtime).
-option(SIMCOON_USE_OPENMP "Enable OpenMP in Python bindings" OFF)
-if(SIMCOON_USE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
-  message(STATUS "OpenMP enabled for _core")
+# Threading: GCD on macOS (native, zero deps), OpenMP on Linux (libgomp),
+# serial on Windows (avoids runtime conflicts).
+if(APPLE)
+  message(STATUS "macOS: using Grand Central Dispatch for parallelism")
+elseif(WIN32)
+  message(STATUS "Windows: parallel loops disabled (serial fallback)")
 else()
-  message(STATUS "OpenMP disabled — batch loops will run sequentially")
+  find_package(OpenMP)
+  if(OpenMP_CXX_FOUND)
+    target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+    message(STATUS "Linux: using OpenMP for parallelism")
+  else()
+    message(STATUS "OpenMP not found — serial fallback")
+  endif()
 endif()
 
 ################################################################################

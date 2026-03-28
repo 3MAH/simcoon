@@ -28,12 +28,15 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
     - {{ stdlib('c') }}  # [linux]
-    - llvm-openmp # [osx]
+    # macOS uses GCD (native) — no OpenMP needed
     - libgomp # [linux]
   host:
     - armadillo >=12.6
-    - libblas
-    - liblapack
+    - mkl # [x86]
+    - libblas * *netlib # [win]
+    - liblapack * *netlib # [win]
+    - libblas # [not win]
+    - liblapack # [not win]
     - carma
     - pybind11
     - python
@@ -45,8 +48,13 @@ requirements:
     - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
-    - libblas # [not (osx and arm64)]
-    - liblapack # [not (osx and arm64)]
+    - libblas * *mkl # [x86]
+    - liblapack * *mkl # [x86]
+    - mkl # [x86]
+    - libblas * *netlib # [win and not x86]
+    - liblapack * *netlib # [win and not x86]
+    - libblas # [linux and not x86]
+    - liblapack # [linux and not x86]
     - armadillo >=12.6 # [not win]
 
 test:

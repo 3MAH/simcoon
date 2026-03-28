@@ -168,8 +168,8 @@ environment = { LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.macos]
+# macOS uses Grand Central Dispatch (native) instead of OpenMP — no libomp needed.
 # Build Armadillo from source against Apple Accelerate (not Homebrew's OpenBLAS)
-# No OpenMP needed — SIMCOON_USE_OPENMP is OFF by default for wheels
 before-all = [
     "brew install ninja",
     "curl -sfL -o armadillo-code-${ARMADILLO_VERSION}.tar.gz https://gitlab.com/conradsnicta/armadillo-code/-/archive/${ARMADILLO_VERSION}/armadillo-code-${ARMADILLO_VERSION}.tar.gz",
