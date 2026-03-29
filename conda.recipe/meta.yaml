@@ -33,8 +33,11 @@ requirements:
     - libgomp # [linux]
   host:
     - armadillo >=12.6
-    - libblas
-    - liblapack
+    - mkl # [x86]
+    - libblas * *netlib # [win]
+    - liblapack * *netlib # [win]
+    - libblas # [not win]
+    - liblapack # [not win]
     - carma
     - pybind11
     - python
@@ -46,8 +49,11 @@ requirements:
     - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
-    - libblas # [not (osx and arm64)]
-    - liblapack # [not (osx and arm64)]
+    - libblas * *mkl # [x86]
+    - liblapack * *mkl # [x86]
+    - mkl # [x86]
+    - blas * openblas # [not (osx and arm64) and not x86]
+    - lapack * openblas # [not (osx and arm64) and not x86]
     - armadillo >=12.6 # [not win]
 
 test:
