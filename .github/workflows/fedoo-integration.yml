@@ -144,9 +144,11 @@ jobs:
         shell: bash -l {0}
         run: conda install -y -c conda-forge -c set3mah simcoon pytest
 
-      - name: Install fedoo
+      - name: Install fedoo (master) + missing deps
         shell: bash -l {0}
-        run: pip install "git+https://github.com/3MAH/fedoo.git@master"
+        run: |
+          conda install -y -c conda-forge scipy numpy
+          pip install --no-deps "git+https://github.com/3MAH/fedoo.git@master"
 
       - name: Install pypardiso (Windows/Linux x86)
         if: runner.os == 'Windows' || runner.arch == 'X64'
