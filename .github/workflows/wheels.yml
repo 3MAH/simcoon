@@ -130,7 +130,7 @@ jobs:
 
       - name: Install wheel + fedoo + test deps
         run: |
-          pip install wheelhouse/*.whl
+          pip install simcoon --find-links wheelhouse/ --no-index
           pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
 
       - name: Run fedoo integration tests
