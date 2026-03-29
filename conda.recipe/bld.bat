@@ -11,12 +11,15 @@ echo Using pybind11 from: %PYBIND11_DIR%
 
 :: Configure with Python bindings enabled
 :: CONDA_BUILD env var is detected by CMakeLists.txt to enable SIMCOON_BUILD_PYTHON
+:: FindBLAS needs help on Windows — point it directly to conda's blas.lib
 cmake -G "Visual Studio 17 2022" ^
       -S . -B build ^
       -DCMAKE_INSTALL_PREFIX=%LIBRARY_PREFIX% ^
       -DCMAKE_INCLUDE_PATH=%LIBRARY_PREFIX%/include ^
       -DCMAKE_LIBRARY_PATH=%LIBRARY_PREFIX%/lib ^
       -DCMAKE_BUILD_TYPE=Release ^
+      -DBLAS_LIBRARIES=%LIBRARY_PREFIX%/lib/blas.lib ^
+      -DLAPACK_LIBRARIES=%LIBRARY_PREFIX%/lib/lapack.lib ^
       -DSIMCOON_BUILD_TESTS:BOOL=OFF ^
       -DPython3_EXECUTABLE:FILEPATH="%PYTHON%" ^
       -Dpybind11_DIR:PATH="%PYBIND11_DIR%" ^
