@@ -93,13 +93,11 @@ jobs:
           path: build/Testing/Temporary/LastTest.log
           retention-days: 7
 
-      - name: Install simcoon + fedoo and run integration tests (Unix)
+      - name: Install simcoon Python bindings (Unix)
         if: runner.os != 'Windows'
         run: |
           pip install scikit-build-core pybind11 numpy
           pip install . --no-build-isolation
-          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
-          pytest tests/test_fedoo_integration.py -v
 
       - name: Install simcoon Python bindings (Windows)
         if: runner.os == 'Windows'
@@ -127,8 +125,3 @@ jobs:
           print('umat EPICP OK, stress:', stress[:, 0])
           "
 
-      - name: Install fedoo and run integration tests (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
-          pytest tests/test_fedoo_integration.py -v

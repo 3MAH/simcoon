@@ -1,0 +1,80 @@
+name: Fedoo Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Install source'
+        type: choice
+        options:
+          - pypi
+          - conda
+          - testpypi
+        default: pypi
+  workflow_call:
+    inputs:
+      source:
+        description: 'Install source'
+        type: string
+        default: pypi
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} (${{ inputs.source || 'pypi' }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/
+
+      # ── pip install (PyPI / TestPyPI) ──────────────────────────
+      - name: Setup Python (pip)
+        if: inputs.source != 'conda'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install from PyPI
+        if: inputs.source == 'pypi' || inputs.source == ''
+        run: |
+          pip install simcoon
+          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+
+      - name: Install from TestPyPI
+        if: inputs.source == 'testpypi'
+        run: |
+          pip install simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
+          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+
+      # ── conda install ─────────────────────────────────────────
+      - name: Setup conda
+        if: inputs.source == 'conda'
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: test
+          python-version: "3.12"
+
+      - name: Install from conda
+        if: inputs.source == 'conda'
+        shell: bash -l {0}
+        run: |
+          conda install -y -c conda-forge -c set3mah simcoon pytest
+          pip install "git+https://github.com/3MAH/fedoo.git@master"
+
+      # ── Run tests ─────────────────────────────────────────────
+      - name: Verify imports
+        run: python -c "import simcoon; import fedoo; print('simcoon', simcoon.__version__); print('fedoo OK')"
+        shell: bash
+
+      - name: Run integration tests
+        run: pytest tests/test_fedoo_integration.py -v
+        shell: bash
