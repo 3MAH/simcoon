@@ -44,7 +44,7 @@ jobs:
       - name: Install simcoon
         run: |
           if [ "${{ inputs.pypi_index }}" = "testpypi" ]; then
-            pip install simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
+            pip install --pre simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
           else
             pip install simcoon
           fi
@@ -91,7 +91,7 @@ jobs:
         shell: bash -l {0}
         run: |
           if [ "${{ inputs.pypi_index }}" = "testpypi" ]; then
-            pip install simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
+            pip install --pre simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
           else
             pip install simcoon
           fi
