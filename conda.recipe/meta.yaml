@@ -25,6 +25,7 @@ requirements:
     - git # [win]
     - cmake
     - ninja
+    - pkg-config
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
     - {{ stdlib('c') }}  # [linux]
