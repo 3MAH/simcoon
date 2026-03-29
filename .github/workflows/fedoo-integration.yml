@@ -54,6 +54,14 @@ jobs:
           pip install simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
           pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
 
+      - name: Install solvers (pip — Windows/Linux x86)
+        if: inputs.source != 'conda' && (runner.os == 'Windows' || runner.arch == 'X64')
+        run: pip install pypardiso
+
+      - name: Install solvers (pip — macOS/Linux arm)
+        if: inputs.source != 'conda' && runner.os != 'Windows' && runner.arch != 'X64'
+        run: pip install petsc4py
+
       # ── conda install ─────────────────────────────────────────
       - name: Setup conda
         if: inputs.source == 'conda'
@@ -69,6 +77,16 @@ jobs:
         run: |
           conda install -y -c conda-forge -c set3mah simcoon pytest
           pip install "git+https://github.com/3MAH/fedoo.git@master"
+
+      - name: Install solvers (conda — Windows/Linux x86)
+        if: inputs.source == 'conda' && (runner.os == 'Windows' || runner.arch == 'X64')
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge pypardiso
+
+      - name: Install solvers (conda — macOS/Linux arm)
+        if: inputs.source == 'conda' && runner.os != 'Windows' && runner.arch != 'X64'
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge petsc4py
 
       # ── Run tests ─────────────────────────────────────────────
       - name: Verify imports
