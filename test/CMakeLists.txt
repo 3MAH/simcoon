@@ -44,6 +44,7 @@ set(TEST_SRCS
   test/Umats/EPCHG/TEPCHG.cpp
   test/Umats/EPHAC/TEPHAC.cpp
   test/Umats/EPICP/TEPICP.cpp
+  test/Umats/EPJCK/TEPJCK.cpp
   test/Umats/EPKCP/TEPKCP.cpp
   test/Umats/HYPER/THYPER.cpp
   test/Umats/LOG_int/TLOG_int.cpp
