@@ -128,7 +128,7 @@ enable_testing()
 
 # Find dependencies
 if(MSVC)
-  set(BLA_PKGCONFIG_BLAS True)
+  set(BLA_PREFER_PKGCONFIG TRUE)
 endif()
 
 find_package(BLAS REQUIRED)

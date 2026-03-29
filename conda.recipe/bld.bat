@@ -17,7 +17,6 @@ cmake -G "Visual Studio 17 2022" ^
       -DCMAKE_INCLUDE_PATH=%LIBRARY_PREFIX%/include ^
       -DCMAKE_LIBRARY_PATH=%LIBRARY_PREFIX%/lib ^
       -DCMAKE_BUILD_TYPE=Release ^
-      -DBLA_VENDOR=Intel10_64lp_seq ^
       -DSIMCOON_BUILD_TESTS:BOOL=OFF ^
       -DPython3_EXECUTABLE:FILEPATH="%PYTHON%" ^
       -Dpybind11_DIR:PATH="%PYBIND11_DIR%" ^

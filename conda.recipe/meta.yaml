@@ -32,11 +32,8 @@ requirements:
     - libgomp # [linux]
   host:
     - armadillo >=12.6
-    - mkl # [win or x86]
-    - libblas * *mkl # [win or x86]
-    - liblapack * *mkl # [win or x86]
-    - libblas # [not win and not x86]
-    - liblapack # [not win and not x86]
+    - libblas
+    - liblapack
     - carma
     - pybind11
     - python
@@ -48,11 +45,8 @@ requirements:
     - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
-    - libblas * *mkl # [win or x86]
-    - liblapack * *mkl # [win or x86]
-    - mkl # [win or x86]
-    - libblas # [linux and not x86]
-    - liblapack # [linux and not x86]
+    - libblas # [not (osx and arm64)]
+    - liblapack # [not (osx and arm64)]
     - armadillo >=12.6 # [not win]
 
 test:
