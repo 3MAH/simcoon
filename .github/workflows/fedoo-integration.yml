@@ -105,6 +105,11 @@ jobs:
         shell: bash -l {0}
         run: pip install pypardiso
 
+      - name: Install petsc4py (macOS/Linux arm)
+        if: runner.os != 'Windows' && runner.arch != 'X64'
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge petsc4py
+
       - name: Verify imports
         shell: bash -l {0}
         run: python -c "import simcoon; import fedoo; print('simcoon', simcoon.__version__); print('fedoo OK')"
