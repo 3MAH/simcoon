@@ -58,9 +58,17 @@ jobs:
         if: inputs.source != 'conda' && (runner.os == 'Windows' || runner.arch == 'X64')
         run: pip install pypardiso
 
-      - name: Install solvers (pip — macOS/Linux arm)
-        if: inputs.source != 'conda' && runner.os != 'Windows' && runner.arch != 'X64'
-        run: pip install petsc4py
+      - name: Install solvers (pip — macOS arm)
+        if: inputs.source != 'conda' && runner.os == 'macOS'
+        run: |
+          brew install petsc
+          pip install petsc4py
+
+      - name: Install solvers (pip — Linux arm)
+        if: inputs.source != 'conda' && runner.os == 'Linux' && runner.arch != 'X64'
+        run: |
+          sudo apt-get update && sudo apt-get install -y petsc-dev
+          pip install petsc4py
 
       # ── conda install ─────────────────────────────────────────
       - name: Setup conda
