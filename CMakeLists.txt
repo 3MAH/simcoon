@@ -128,7 +128,7 @@ enable_testing()
 
 # Find dependencies
 if(MSVC)
-  set(BLA_PKGCONFIG_BLAS True)
+  set(BLA_PREFER_PKGCONFIG TRUE)
 endif()
 
 find_package(BLAS REQUIRED)
@@ -406,13 +406,7 @@ message(STATUS "CMAKE_INSTALL_INCLUDEDIR = ${CMAKE_INSTALL_INCLUDEDIR}")
 message(STATUS "CMAKE_INSTALL_BINDIR = ${CMAKE_INSTALL_BINDIR}")
 
 # Find and collect runtime dependency DLLs on Windows (before Python bindings)
-# Skip when using static vcpkg triplets (x64-windows-static-md) — all deps are
-# absorbed into simcoon.dll and no external DLLs are needed.
-set(_VCPKG_DEPS_ARE_SHARED TRUE)
-if(VCPKG_TARGET_TRIPLET MATCHES "static")
-  set(_VCPKG_DEPS_ARE_SHARED FALSE)
-endif()
-if(WIN32 AND _VCPKG_DEPS_ARE_SHARED)
+if(WIN32)
   # Find and install dependency DLLs (BLAS/LAPACK/runtime)
   set(DEPENDENCY_DLLS
       "openblas.dll"

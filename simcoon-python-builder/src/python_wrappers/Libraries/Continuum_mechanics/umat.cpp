@@ -7,7 +7,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
-#include <simcoon/omp_compat.hpp>
+#include <simcoon/parallel.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
@@ -233,45 +233,36 @@ namespace simpy {
 			}
 		}
 
-		#ifdef _OPENMP
-			int max_threads = omp_get_max_threads();
-			omp_set_num_threads(n_threads);
-			omp_set_active_levels(3);
-			#pragma omp parallel for shared(Lt, L, DR)
-		#endif
-		for (int pt = 0; pt < nb_points; pt++) {
-
-			//if (use_temp) T = list_T(pt);
+		simcoon_parallel_for(nb_points, [&](int pt) {
+			vec local_props;
 			if (unique_props == false) {
-				props = list_props.col(pt); //if list_props has only one element, we keep only this one (assuming homogeneous material)		
-			} 	
+				local_props = list_props.col(pt);
+			} else {
+				local_props = props;
+			}
 			vec statev = list_statev.unsafe_col(pt);
-			vec sigma = list_sigma.unsafe_col(pt); 
+			vec sigma = list_sigma.unsafe_col(pt);
 
 			vec etot = list_etot.unsafe_col(pt);
 			vec Detot = list_Detot.unsafe_col(pt);
-			vec Wm = list_Wm.unsafe_col(pt);				
-			
+			vec Wm = list_Wm.unsafe_col(pt);
+
 			double T = 0.0, DT = 0.0;
 			if (use_temp && pt < vec_T.n_elem) {
 				T = vec_T(pt);
 			}
 
 			switch (arguments_type) {
-
 				case 1: {
-					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
+					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 					break;
 				}
 				case 2: {
-					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
+					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt);
 					break;
 				}
 			}
-		}
-		#ifdef _OPENMP
-		omp_set_num_threads(max_threads);		
-		#endif		
+		});
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}

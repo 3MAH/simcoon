@@ -28,33 +28,25 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('fortran') }} # [not win]
     - {{ stdlib('c') }}  # [linux]
-    - llvm-openmp # [osx]
+    # macOS uses GCD (native) — no OpenMP needed
     - libgomp # [linux]
   host:
     - armadillo >=12.6
-    - mkl # [x86]
-    - blas # [not win]
-    - lapack # [not win]
-    - libblas * *netlib # [win]
-    - liblapack * *netlib # [win]
+    - libblas
+    - liblapack
     - carma
     - pybind11
     - python
     - python_abi {{ python }} *_cp{{ python | replace(".", "") }}  # Could be removed when https://github.com/conda/conda-build/issues/5843 is solved
     - numpy >=2.0
-    - libblas
-    - liblapack
   run:
     - python
     - numpy >=2.0
     - scipy
     - libblas * *accelerate # [osx and arm64]
     - liblapack * *accelerate # [osx and arm64]
-    - libblas * *mkl # [x86]
-    - liblapack * *mkl # [x86]
-    - mkl # [x86]
-    - blas * openblas # [not (osx and arm64) and not x86]
-    - lapack * openblas # [not (osx and arm64) and not x86]
+    - libblas # [not (osx and arm64)]
+    - liblapack # [not (osx and arm64)]
     - armadillo >=12.6 # [not win]
 
 test:

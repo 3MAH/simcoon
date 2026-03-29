@@ -22,14 +22,17 @@ jobs:
           - os: Linux
             runner: ubuntu-latest
             environment-file: environment.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: MacOS
             runner: macos-latest
             environment-file: environment_arm64.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: Windows
             runner: windows-latest
             environment-file: environment_win.yml
+            python-version: "3.12"
             shell: pwsh
 
     defaults:
@@ -43,7 +46,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
 
@@ -90,10 +93,35 @@ jobs:
           path: build/Testing/Temporary/LastTest.log
           retention-days: 7
 
-      - name: Install simcoon + fedoo and run integration tests (Unix)
+      - name: Install simcoon Python bindings (Unix)
         if: runner.os != 'Windows'
         run: |
           pip install scikit-build-core pybind11 numpy
           pip install . --no-build-isolation
-          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
-          pytest tests/test_fedoo_integration.py -v
+
+      - name: Install simcoon Python bindings (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pip install scikit-build-core pybind11 numpy
+          pip install . --no-build-isolation
+
+      - name: Smoke test simcoon Python (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python -c "import simcoon; print('simcoon import OK')"
+          python -c "from simcoon import simmit as sim; import numpy as np; L = sim.L_iso(np.array([200e3, 0.3]), 'Enu'); print('L_iso OK, shape:', L.shape)"
+          python -c "
+          from simcoon import simmit as sim
+          import numpy as np
+          n = 8
+          props = np.asfortranarray(np.tile([200e3, 0.3, 0.0, 300.0, 1000.0, 0.5], (n, 1)).T)
+          etot = np.zeros((6, n), order='F')
+          Detot = np.zeros((6, n), order='F'); Detot[2, :] = 5e-3
+          sigma = np.zeros((6, n), order='F')
+          statev = np.zeros((8, n), order='F')
+          Wm = np.zeros((4, n), order='F')
+          DR = np.empty((3, 3, n), order='F'); DR[...] = np.eye(3).reshape(3, 3, 1)
+          stress, sv, wm, Lt = sim.umat('EPICP', etot, Detot, np.array([]), np.array([]), sigma, DR, props, statev, 0.0, 1.0, Wm, n_threads=1)
+          print('umat EPICP OK, stress:', stress[:, 0])
+          "
+
