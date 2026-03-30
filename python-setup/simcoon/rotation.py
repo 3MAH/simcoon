@@ -380,6 +380,29 @@ class Rotation(ScipyRotation):
         return self._voigt_strain_matrices(active)
 
     # ------------------------------------------------------------------
+    # Rotation vector derivatives
+    # ------------------------------------------------------------------
+
+    def dR_drotvec(self):
+        """Derivatives of the rotation matrix w.r.t. rotation vector components.
+
+        Uses the exact differentiation of the Rodrigues formula
+        (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+
+        Returns
+        -------
+        numpy.ndarray
+            Single: (3, 3, 3) where ``result[k]`` is dR/d(omega_k).
+            Batch:  (N, 3, 3, 3) where ``result[n, k]`` is dR_n/d(omega_k).
+        """
+        if not self._is_batch:
+            return self._to_cpp().dR_drotvec()
+        return np.array([
+            _CppRotation.from_quat(q).dR_drotvec()
+            for q in self.as_quat()
+        ])
+
+    # ------------------------------------------------------------------
     # Compatibility helpers
     # ------------------------------------------------------------------
 
