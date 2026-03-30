@@ -450,7 +450,40 @@ public:
         // Identity quaternion is [0, 0, 0, 1] or [0, 0, 0, -1]
         return std::abs(std::abs(_quat(3)) - 1.0) < tol;
     }
+
+    /**
+     * @brief Compute derivatives of the rotation matrix w.r.t. rotation vector components.
+     *
+     * Uses the exact differentiation of the Rodrigues formula
+     * (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+     *
+     * @return 3x3x3 cube where slice k is dR/d(omega_k)
+     */
+    arma::cube dR_drotvec() const;
 };
+
+/**
+ * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
+ *
+ * Given a rotation vector omega (axis * angle), computes the three 3x3
+ * matrices dR/d(omega_k) for k = 0, 1, 2 using exact differentiation of
+ * the Rodrigues formula.
+ *
+ * @param omega Rotation vector (3 elements)
+ * @return 3x3x3 cube where slice k is dR/d(omega_k)
+ *
+ * @details Reference: Gallego & Yezzi, "A Compact Formula for the
+ *          Derivative of a 3-D Rotation in Exponential Coordinates",
+ *          J. Math. Imaging Vis., 2015.
+ */
+arma::cube dR_drotvec(const arma::vec::fixed<3>& omega);
+
+/**
+ * @brief Compute derivatives of R(omega) w.r.t. rotation vector components (dynamic size).
+ * @param omega Rotation vector (3 elements)
+ * @return 3x3x3 cube where slice k is dR/d(omega_k)
+ */
+arma::cube dR_drotvec(const arma::vec& omega);
 
 // =========================================================================
 // Convenience Free Functions
