@@ -106,19 +106,6 @@ target_sources(simcoon PRIVATE
   Simulation/Geometry/geometry.cpp
   Simulation/Geometry/layer.cpp
 
-  # Simulation - Identification
-  Simulation/Identification/constants.cpp
-  Simulation/Identification/doe.cpp
-  Simulation/Identification/generation.cpp
-  Simulation/Identification/identification.cpp
-  Simulation/Identification/individual.cpp
-  Simulation/Identification/methods.cpp
-  Simulation/Identification/opti_data.cpp
-  Simulation/Identification/optimize.cpp
-  Simulation/Identification/parameters.cpp
-  Simulation/Identification/read.cpp
-  Simulation/Identification/script.cpp
-
   # Simulation - Maths
   Simulation/Maths/lagrange.cpp
   Simulation/Maths/num_solve.cpp

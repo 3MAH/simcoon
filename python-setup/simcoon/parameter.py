@@ -29,6 +29,14 @@ class Parameter:
 
         self._value = None
 
+    def __repr__(self) -> str:
+        val = self.value
+        return (
+            f"Parameter(number={self.number}, value={val}, "
+            f"bounds={self.bounds}, key='{self.key}', "
+            f"sim_input_files={self.sim_input_files})"
+        )
+
     @property
     def value(self) -> float:
         if self._value is not None:

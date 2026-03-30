@@ -1,7 +1,6 @@
 from typing import List, Optional
 import numpy as np
 import numpy.typing as npt
-import glob
 np.float_ = np.float64
 
 
@@ -48,43 +47,3 @@ def write_input_and_tab_files(
         i += 1
 
 
-def write_files_exp(list_data: List[Data],
-                    exp_data_path: str = "exp_data/",
-                    path: str = "data/",
-                    ) -> None:
-    list_exp_input_files_names = glob.glob("input_data_*.txt", root_dir=exp_data_path)
-    list_nb_columns_in_files = []
-    list_nb_observation_columns = []
-    list_observation_columns_indices = []
-    for element in list_data:
-        nb_columns_in_files = (
-            element.increments.ndim
-            + element.time.ndim
-            + element.control.ndim
-            + element.observation.ndim
-        )
-        nb_observation_columns = element.observation.ndim
-        observation_columns_indices = [
-            i
-            for i in range(
-                nb_columns_in_files - element.observation.ndim, nb_columns_in_files
-            )
-        ]
-        list_nb_columns_in_files.append(nb_columns_in_files)
-        list_nb_observation_columns.append(nb_observation_columns)
-        list_observation_columns_indices.append(observation_columns_indices)
-    with open(path + "files_exp.inp", "w+") as file:
-        file.write("#Name_of_the_exp_files\n")
-        for file_name in list_exp_input_files_names:
-            file.write(f"{file_name}\n")
-        file.write("\n#EXP_Nb_columns_in_files\n")
-        for nb_col_file in list_nb_columns_in_files:
-            file.write(f"{nb_col_file}\n")
-        file.write("\n#EXP_Nb_columns_to_identify\n")
-        for nb_obs_col in list_nb_observation_columns:
-            file.write(f"{nb_obs_col}\n")
-        file.write("\n#EXP_colums_to_identify\n")
-        for indices_list in list_observation_columns_indices:
-            file.write(" ".join(str(val) for val in indices_list))
-            file.write("\n")
-        file.close()
