@@ -84,3 +84,67 @@ class TestParameterRepr:
         assert "Parameter(" in r
         assert "@0p" in r
         assert "bounds=(0.0, 180.0)" in r
+
+
+class TestIdentificationWorkflow:
+    """Test the full identification workflow: template -> apply -> forward model -> cost."""
+
+    def test_template_apply_no_residual_keys(self, data_dir, keys_dir):
+        """End-to-end: key substitution produces valid input (no residual @)."""
+        params = read_parameters(os.path.join(data_dir, "parameters.inp"))
+        params[0].value = 0.8
+        params[1].value = 73000
+
+        with tempfile.TemporaryDirectory() as tmp:
+            copy_parameters(params, keys_dir, tmp)
+            apply_parameters(params, tmp)
+
+            with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
+                content = f.read()
+
+            assert "@" not in content, "Residual keys found after apply_parameters"
+            assert "0.8" in content
+            assert "73000" in content
+
+    def test_multiple_iterations_fresh_copy(self, data_dir, keys_dir):
+        """Each iteration starts from a fresh template (no stale values)."""
+        params = read_parameters(os.path.join(data_dir, "parameters.inp"))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # First iteration
+            params[0].value = 0.7
+            params[1].value = 50000
+            copy_parameters(params, keys_dir, tmp)
+            apply_parameters(params, tmp)
+
+            with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
+                content1 = f.read()
+            assert "50000" in content1
+
+            # Second iteration with different values
+            params[0].value = 0.9
+            params[1].value = 80000
+            copy_parameters(params, keys_dir, tmp)
+            apply_parameters(params, tmp)
+
+            with open(os.path.join(tmp, "Nellipsoids0.dat"), "r") as f:
+                content2 = f.read()
+            assert "80000" in content2
+            assert "50000" not in content2, "Stale value from previous iteration"
+
+    def test_bounds_available_for_optimizer(self, data_dir):
+        """Parameter.bounds can be used as scipy optimizer bounds."""
+        params = read_parameters(os.path.join(data_dir, "parameters.inp"))
+        bounds = [p.bounds for p in params]
+        assert all(lo < hi for lo, hi in bounds)
+        assert bounds[0] == (0.0, 180.0)
+
+    def test_deprecation_stubs(self):
+        """Removed functions raise NotImplementedError with migration info."""
+        import simcoon
+
+        with pytest.raises(NotImplementedError, match="scipy"):
+            simcoon.identification()
+
+        with pytest.raises(NotImplementedError, match="removed"):
+            simcoon.calc_cost()
