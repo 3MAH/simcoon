@@ -15,8 +15,9 @@ The identification workflow consists of three components:
    that replaces placeholders with parameter values in any input file
 2. **Forward model**: simcoon solver, ``L_eff`` homogenization, or any
    external tool (e.g., fedoo for FEMU)
-3. **Optimizer**: ``scipy.optimize.differential_evolution``, or any other
-   scipy/scikit-learn optimizer
+3. **Optimizer**: ``sim.identification()`` wraps
+   ``scipy.optimize.differential_evolution``, or call scipy directly
+   for more control
 
 .. code-block:: none
 
@@ -103,81 +104,134 @@ configs, etc. The key system is deliberately simple: it performs string
 replacement, making it compatible with any simulation tool.
 
 
-Identification Workflow
------------------------
+``identification()`` — Global Optimization
+-------------------------------------------
 
-Basic example
-^^^^^^^^^^^^^
+``sim.identification()`` wraps ``scipy.optimize.differential_evolution``
+using the bounds from your ``Parameter`` objects. After optimization, the
+identified values are written back to each ``Parameter.value``.
 
 .. code-block:: python
 
-   import numpy as np
-   from scipy.optimize import differential_evolution
-   import simcoon as sim
-   from simcoon.parameter import Parameter, copy_parameters, apply_parameters
+   from simcoon.identify import identification
+   from simcoon.parameter import Parameter
 
-   # Known: experimental data
-   c_exp = np.array([0.0, 0.1, 0.2, 0.3])
-   E_exp = np.array([2250, 2580, 3390, 4480])
-
-   # Define parameters with keys
    params = [
-       Parameter(0, bounds=(0, 1), key="@c_m",
+       Parameter(0, bounds=(10000, 200000), key="@Ef",
                  sim_input_files=["Nellipsoids0.dat"]),
-       Parameter(1, bounds=(0, 1), key="@c_f",
-                 sim_input_files=["Nellipsoids0.dat"]),
-       Parameter(2, bounds=(10000, 200000), key="@Ef",
+       Parameter(1, bounds=(0.01, 0.45), key="@nuf",
                  sim_input_files=["Nellipsoids0.dat"]),
    ]
 
-   props = np.array([2, 0, 50, 50, 0], dtype="float")
+   result = identification(my_cost_function, params, seed=42, disp=True)
+   print(f"E_f = {params[0].value:.0f}, nu_f = {params[1].value:.3f}")
 
-   def cost_function(x):
-       E_f = x[0]
-       E_pred = np.zeros(len(c_exp))
-       for i, c in enumerate(c_exp):
-           params[0].value = 1 - c
-           params[1].value = c
-           params[2].value = E_f
-           copy_parameters(params, "keys", "data")
-           apply_parameters(params, "data")
-           L = sim.L_eff("MIMTN", props, 0, 0., 0., 0.)
-           E_pred[i] = sim.L_iso_props(L).flatten()[0]
-       return np.mean((E_pred - E_exp) ** 2)
+**Arguments:**
 
-   result = differential_evolution(cost_function, bounds=[(10000, 200000)])
-   print(f"Identified E_f = {result.x[0]:.0f} MPa")
+- ``cost_fn``: callable ``f(x) -> float`` where ``x`` is a parameter array
+- ``parameters``: list of ``Parameter`` (bounds used for search space)
+- ``method``: ``"differential_evolution"`` (default, only option for now)
+- ``**kwargs``: forwarded to scipy (``maxiter``, ``popsize``, ``tol``,
+  ``seed``, ``polish=True``, ``disp``, etc.)
 
-Choosing an optimizer
-^^^^^^^^^^^^^^^^^^^^^
+**Returns:** ``scipy.optimize.OptimizeResult``
 
-``scipy.optimize`` provides several global and local optimizers:
+For more control (other optimizers, constraints, custom initialization),
+call ``scipy.optimize`` directly — the ``Parameter`` objects provide the
+bounds and values you need.
 
-- ``differential_evolution``: robust global optimizer, derivative-free,
-  handles bounds naturally. Good default choice.
-- ``dual_annealing``: simulated annealing, good for highly multimodal problems
-- ``minimize`` with ``method='L-BFGS-B'``: fast local optimizer with bounds,
-  use when you have a good initial guess
 
-The ``polish=True`` option in ``differential_evolution`` automatically
-refines the result with L-BFGS-B after the global search.
+``calc_cost()`` — Multi-Level Weighted Cost
+--------------------------------------------
 
-Cost function
-^^^^^^^^^^^^^
+``sim.calc_cost()`` computes a weighted cost function with three levels
+of weights, designed for multi-test identification:
 
-The cost function is entirely user-defined. Common choices:
+.. math::
+
+   C = \text{avg}\left(
+       W^{\text{test}}_i \cdot
+       W^{\text{resp}}_{i,k} \cdot
+       W^{\text{pt}}_{i,k,j} \cdot
+       (y^{\exp}_{i,k,j} - y^{\num}_{i,k,j})^2
+   \right)
+
+Data is organized as a **list of 2-D arrays**, one per test, each of
+shape ``(n_points, n_responses)``:
 
 .. code-block:: python
 
+   from simcoon.identify import calc_cost
+   import numpy as np
+
+   # Two tensile tests, each with force + displacement columns
+   y_exp = [
+       np.column_stack([force_exp_1, disp_exp_1]),  # test 1: (N, 2)
+       np.column_stack([force_exp_2, disp_exp_2]),  # test 2: (N, 2)
+   ]
+   y_num = [
+       np.column_stack([force_num_1, disp_num_1]),
+       np.column_stack([force_num_2, disp_num_2]),
+   ]
+
    # Simple MSE
-   mse = np.mean((y_pred - y_exp) ** 2)
+   cost = calc_cost(y_exp, y_num)
 
-   # Normalized MSE (for multi-experiment fitting)
-   nmse = np.mean((y_pred - y_exp) ** 2) / np.var(y_exp)
+   # NMSE per response (balances force in N vs disp in mm)
+   cost = calc_cost(y_exp, y_num, metric='nmse_per_response')
 
-   # Using sklearn for convenience
-   from sklearn.metrics import mean_squared_error
-   mse = mean_squared_error(y_exp, y_pred)
+   # Per-test weights (emphasize test 2)
+   cost = calc_cost(y_exp, y_num, w_test=np.array([1.0, 3.0]))
+
+Weight levels
+^^^^^^^^^^^^^
+
+Three levels of weights are combined multiplicatively:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Level
+     - Argument
+     - Description
+   * - **Test**
+     - ``w_test``
+     - ``ndarray (n_tests,)`` — weight per experiment/file.
+       Use to emphasize certain tests over others.
+   * - **Response**
+     - ``w_response``
+     - ``list of ndarray (n_responses,)`` — weight per response column.
+       To balance responses of different magnitudes, use
+       ``metric='nmse_per_response'`` instead of manual weights.
+   * - **Point**
+     - ``w_point``
+     - ``list of ndarray (n_points, n_responses)`` — weight per data point.
+       Use for heterogeneous confidence or to mask outliers.
+
+Metrics
+^^^^^^^
+
+Built-in metrics (numpy only, no extra dependency):
+
+- ``"mse"`` — Mean Squared Error (default)
+- ``"nmse"`` — Normalized MSE (divided by variance of all experimental data)
+- ``"nmse_per_response"`` — NMSE computed independently per response column,
+  then averaged. Each column is divided by its own ``sum(y_exp^2)``,
+  balancing responses of different magnitudes (e.g., force in N vs
+  displacement in mm). This is the recommended metric for multi-response
+  identification.
+- ``"rmse"`` — Root Mean Squared Error
+- ``"mae"`` — Mean Absolute Error
+
+With ``scikit-learn`` installed (``pip install simcoon[identify]``):
+
+- ``"r2"`` — R-squared score
+- ``"mean_squared_error"``, ``"mean_absolute_error"`` — sklearn wrappers
+- Any ``sklearn.metrics`` function that accepts ``sample_weight``
+
+If scikit-learn is not installed and an sklearn metric is requested, a
+clear error message with install instructions is shown.
 
 
 Using with External Solvers
@@ -190,13 +244,14 @@ The key system works with any simulation tool. For example, with fedoo
 
    import subprocess
    from simcoon.parameter import Parameter, copy_parameters, apply_parameters
+   from simcoon.identify import identification, calc_cost
 
    params = [
        Parameter(0, bounds=(100e3, 300e3), key="@E",
                  sim_input_files=["material.json"]),
    ]
 
-   def run_fedoo_and_get_cost(x):
+   def cost(x):
        params[0].value = x[0]
        copy_parameters(params, "keys", "data")
        apply_parameters(params, "data")
@@ -204,8 +259,12 @@ The key system works with any simulation tool. For example, with fedoo
        # Run external solver
        subprocess.run(["python", "run_fedoo_simulation.py"])
 
-       # Compare with DIC fields, reaction forces, etc.
-       return compute_cost_from_results()
+       # Load results and compare
+       y_num = [np.loadtxt("results/reaction_force.txt")]
+       y_exp = [np.loadtxt("exp_data/reaction_force.txt")]
+       return calc_cost(y_exp, y_num, normalize_response=True)
+
+   result = identification(cost, params, seed=42)
 
 
 Gallery Examples
