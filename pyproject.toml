@@ -61,6 +61,9 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 dev = [
     "pytest>=7.0",
 ]
+identify = [
+    "scikit-learn>=1.0",
+]
 
 # =============================================================================
 # scikit-build-core configuration
