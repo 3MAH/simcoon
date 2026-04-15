@@ -37,52 +37,16 @@ namespace {
                 to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
         }
     }
-    // Helper: numpy (N,R,C) → arma cube (R,C,N)
-    cube np3d_to_cube(const py::array_t<double>& arr, int R, int C) {
-        auto a = arr.unchecked<3>();
-        int N = a.shape(0);
-        cube c(R, C, N);
-        for (int i = 0; i < N; i++)
-            for (int r = 0; r < R; r++)
-                for (int col = 0; col < C; col++)
-                    c(r, col, i) = a(i, r, col);
-        return c;
-    }
-
-    // Helper: arma cube (R,C,N) → numpy (N,R,C)
-    py::array_t<double> cube_to_np3d(const cube& c) {
-        int N = c.n_slices;
-        int R = c.n_rows;
-        int C = c.n_cols;
-        py::array_t<double> result({(py::ssize_t)N, (py::ssize_t)R, (py::ssize_t)C});
-        auto res = result.mutable_unchecked<3>();
-        for (int i = 0; i < N; i++)
-            for (int r = 0; r < R; r++)
-                for (int col = 0; col < C; col++)
-                    res(i, r, col) = c(r, col, i);
-        return result;
-    }
-
-    // Helper: numpy (N,6) → arma mat (6,N)
+    // Helper: numpy (N,6) → arma mat (6,N)  — via carma + transpose
     mat np2d_to_mat6N(const py::array_t<double>& arr) {
-        auto a = arr.unchecked<2>();
-        int N = a.shape(0);
-        mat m(6, N);
-        for (int i = 0; i < N; i++)
-            for (int j = 0; j < 6; j++)
-                m(j, i) = a(i, j);
-        return m;
+        mat m = carma::arr_to_mat(arr);   // numpy (N,6) → arma (N,6)
+        return m.t();                      // → arma (6,N)
     }
 
-    // Helper: arma mat (6,N) → numpy (N,6)
+    // Helper: arma mat (6,N) → numpy (N,6)  — via transpose + carma
     py::array_t<double> mat6N_to_np2d(const mat& m) {
-        int N = m.n_cols;
-        py::array_t<double> result({(py::ssize_t)N, (py::ssize_t)6});
-        auto res = result.mutable_unchecked<2>();
-        for (int i = 0; i < N; i++)
-            for (int j = 0; j < 6; j++)
-                res(i, j) = m(j, i);
-        return result;
+        mat mt = m.t();                    // arma (6,N) → arma (N,6)
+        return carma::mat_to_arr(mt);      // → numpy (N,6)
     }
 } // anonymous namespace
 
@@ -324,16 +288,17 @@ void register_tensor(py::module_& m) {
     // ================================================================
     // Batch functions — thin wrappers calling core C++ batch functions
     // ================================================================
-    // Python numpy: voigt (N,6), 3D arrays (N,3,3) or (N,6,6) — row-major
-    // C++ arma:     voigt (6,N), cubes (3,3,N) or (6,6,N) — column-major slices
-    // Helpers in anonymous namespace convert between conventions.
+    // Batch operations
+    // Python side prepares:
+    //   voigt as (N,6) C-order → converted via np2d_to_mat6N (carma + .t())
+    //   cubes as (R,C,N) F-order → zero-copy via carma::arr_to_cube
 
     m.def("_batch_t2_rotate",
         [](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> rot_matrices, bool active) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube r_cpp = np3d_to_cube(rot_matrices, 3, 3);
+            cube r_cpp = carma::arr_to_cube<double>(rot_matrices);
             mat result = simcoon::batch_rotate(v_cpp, vtype, r_cpp, active);
             return mat6N_to_np2d(result);
         },
@@ -344,7 +309,7 @@ void register_tensor(py::module_& m) {
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube f_cpp = carma::arr_to_cube<double>(F_arr);
             mat result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp, metric);
             return mat6N_to_np2d(result);
         },
@@ -355,7 +320,7 @@ void register_tensor(py::module_& m) {
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
-            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube f_cpp = carma::arr_to_cube<double>(F_arr);
             mat result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp, metric);
             return mat6N_to_np2d(result);
         },
@@ -381,7 +346,7 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> t2_arr, simcoon::VoigtType t2_vtype) {
-            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             mat t2_cpp = np2d_to_mat6N(t2_arr);
             mat result = simcoon::batch_contract(t4_cpp, t4type, t2_cpp, t2_vtype);
             simcoon::VoigtType out_vtype = simcoon::infer_contraction_vtype(t4type);
@@ -393,10 +358,10 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> rot_matrices, bool active) {
-            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
-            cube r_cpp = np3d_to_cube(rot_matrices, 3, 3);
+            cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
+            cube r_cpp = carma::arr_to_cube<double>(rot_matrices);
             cube result = simcoon::batch_rotate_t4(t4_cpp, t4type, r_cpp, active);
-            return cube_to_np3d(result);
+            return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("rot_matrices"), py::arg("active") = true);
 
@@ -404,10 +369,10 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
-            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
-            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
+            cube f_cpp = carma::arr_to_cube<double>(F_arr);
             cube result = simcoon::batch_push_forward_t4(t4_cpp, t4type, f_cpp, metric);
-            return cube_to_np3d(result);
+            return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
@@ -415,20 +380,20 @@ void register_tensor(py::module_& m) {
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
-            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
-            cube f_cpp = np3d_to_cube(F_arr, 3, 3);
+            cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
+            cube f_cpp = carma::arr_to_cube<double>(F_arr);
             cube result = simcoon::batch_pull_back_t4(t4_cpp, t4type, f_cpp, metric);
-            return cube_to_np3d(result);
+            return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_t4_inverse",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type) {
-            cube t4_cpp = np3d_to_cube(t4_arr, 6, 6);
+            cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             cube result = simcoon::batch_inverse_t4(t4_cpp, t4type);
             simcoon::Tensor4Type inv_type = simcoon::infer_inverse_type(t4type);
-            return py::make_tuple(cube_to_np3d(result), inv_type);
+            return py::make_tuple(carma::cube_to_arr(result, false), inv_type);
         },
         py::arg("t4"), py::arg("t4type"));
 
@@ -446,6 +411,20 @@ void register_tensor(py::module_& m) {
         },
         py::arg("a"),
         "Dyadic (outer) product of a tensor2 with itself, returns a tensor4 (stiffness type).");
+
+    m.def("_sym_dyadic",
+        [](const simcoon::tensor2& a, const simcoon::tensor2& b) {
+            return simcoon::sym_dyadic(a, b);
+        },
+        py::arg("a"), py::arg("b"),
+        "Symmetric Voigt dyadic product of two tensor2 objects, returns a tensor4 (stiffness type).");
+
+    m.def("_auto_sym_dyadic",
+        [](const simcoon::tensor2& a) {
+            return simcoon::auto_sym_dyadic(a);
+        },
+        py::arg("a"),
+        "Symmetric Voigt dyadic product of a tensor2 with itself, returns a tensor4 (stiffness type).");
 }
 
 } // namespace simpy
