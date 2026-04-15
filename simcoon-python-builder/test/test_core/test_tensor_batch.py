@@ -822,9 +822,10 @@ class TestUnifiedTransparency:
         t = Tensor2.stress(np.zeros((5, 6)))
         assert t.single is False
 
-    def test_single_len_is_one(self):
+    def test_single_len_raises(self):
         t = Tensor2.stress(np.zeros(6))
-        assert len(t) == 1
+        with pytest.raises(TypeError):
+            len(t)
 
     def test_single_no_getitem(self):
         t = Tensor2.stress(np.zeros(6))
