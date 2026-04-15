@@ -118,36 +118,68 @@ inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,
 /**
  * @brief Push-forward a 4th-order tensor via Fastor: C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN
  *
- * This replaces the FTensor boilerplate in objective_rates.cpp.
+ * Uses a 4-pass factored contraction, contracting one F index per pass.
+ * Each pass is O(3^5) = 243 operations, total O(4 * 3^5) = 972
+ * instead of O(3^8) = 6561 for a naive 8-nested-loop approach.
+ *
+ * Memory: 3 intermediate Fastor::Tensor<double,3,3,3,3> on stack (~2 KB).
  */
 inline Fastor::Tensor<double,3,3,3,3> push_forward_4(
     const Fastor::Tensor<double,3,3,3,3> &C,
     const Fastor::Tensor<double,3,3> &F)
 {
-    // Two-pass contraction: O(2 * 3^5) instead of O(3^8)
-    // Step 1: T_isJN = F_iL * C_LJMN * F^T_Ns  (contract L and M)
-    //   Actually: contract two indices at a time via intermediate tensor
-    // Simpler factored version: hoist F(i,L)*F(s,J) out of inner loops
+    // Pass 1: T1(i,J,M,N) = sum_L F(i,L) * C(L,J,M,N)
+    Fastor::Tensor<double,3,3,3,3> T1;
+    T1.zeros();
+    for (int i = 0; i < 3; ++i)
+    for (int J = 0; J < 3; ++J)
+    for (int M = 0; M < 3; ++M)
+    for (int N = 0; N < 3; ++N) {
+        double sum = 0.0;
+        for (int L = 0; L < 3; ++L)
+            sum += F(i,L) * C(L,J,M,N);
+        T1(i,J,M,N) = sum;
+    }
+
+    // Pass 2: T2(i,s,M,N) = sum_J F(s,J) * T1(i,J,M,N)
+    Fastor::Tensor<double,3,3,3,3> T2;
+    T2.zeros();
+    for (int i = 0; i < 3; ++i)
+    for (int s = 0; s < 3; ++s)
+    for (int M = 0; M < 3; ++M)
+    for (int N = 0; N < 3; ++N) {
+        double sum = 0.0;
+        for (int J = 0; J < 3; ++J)
+            sum += F(s,J) * T1(i,J,M,N);
+        T2(i,s,M,N) = sum;
+    }
+
+    // Pass 3: T3(i,s,r,N) = sum_M F(r,M) * T2(i,s,M,N)
+    Fastor::Tensor<double,3,3,3,3> T3;
+    T3.zeros();
+    for (int i = 0; i < 3; ++i)
+    for (int s = 0; s < 3; ++s)
+    for (int r = 0; r < 3; ++r)
+    for (int N = 0; N < 3; ++N) {
+        double sum = 0.0;
+        for (int M = 0; M < 3; ++M)
+            sum += F(r,M) * T2(i,s,M,N);
+        T3(i,s,r,N) = sum;
+    }
+
+    // Pass 4: result(i,s,r,p) = sum_N F(p,N) * T3(i,s,r,N)
     Fastor::Tensor<double,3,3,3,3> result;
     result.zeros();
-
     for (int i = 0; i < 3; ++i)
     for (int s = 0; s < 3; ++s)
     for (int r = 0; r < 3; ++r)
     for (int p = 0; p < 3; ++p) {
         double sum = 0.0;
-        for (int L = 0; L < 3; ++L)
-        for (int J = 0; J < 3; ++J) {
-            double fiL_fsJ = F(i,L) * F(s,J);
-            for (int M = 0; M < 3; ++M) {
-                double frM = F(r,M);
-                for (int N = 0; N < 3; ++N) {
-                    sum += fiL_fsJ * frM * F(p,N) * C(L,J,M,N);
-                }
-            }
-        }
+        for (int N = 0; N < 3; ++N)
+            sum += F(p,N) * T3(i,s,r,N);
         result(i,s,r,p) = sum;
     }
+
     return result;
 }
 
