@@ -18,6 +18,7 @@
 #pragma once
 #include <armadillo>
 #include <string>
+#include <optional>
 #include <Fastor/Fastor.h>
 
 namespace simcoon {
@@ -182,20 +183,20 @@ tensor2 trans(const tensor2 &t);     // transpose
  * @brief A 4th-order tensor with type tag for rotation dispatch and lazy Fastor cache.
  *
  * Storage: arma::mat::fixed<6,6> Voigt matrix (primary).
- * Fastor Tensor<double,3,3,3,3> is lazily computed and cached.
+ * Fastor Tensor<double,3,3,3,3> is lazily computed and cached for push_forward/pull_back.
  *
- * @note NOT thread-safe. The mutable Fastor cache is lazily computed from const
- *       methods without synchronization. Do not share instances across threads
- *       without external synchronization.
+ * @warning NOT thread-safe. The mutable Fastor cache is lazily populated by const
+ *          methods (fastor(), push_forward(), pull_back()) without synchronization.
+ *          Do not share a single tensor4 instance across threads without external
+ *          locking. Creating separate tensor4 objects per thread is safe.
  */
 class tensor4 {
 private:
     arma::mat::fixed<6,6> _voigt;
     Tensor4Type _type;
-    mutable Fastor::Tensor<double,3,3,3,3> _fastor;
-    mutable bool _fastor_valid;
+    mutable std::optional<Fastor::Tensor<double,3,3,3,3>> _fastor;
 
-    void _invalidate_fastor() { _fastor_valid = false; }
+    void _invalidate_fastor() { _fastor.reset(); }
     void _ensure_fastor() const;
 
 public:
@@ -296,6 +297,8 @@ public:
 // Free functions for tensor4
 tensor4 dyadic(const tensor2 &a, const tensor2 &b);
 tensor4 auto_dyadic(const tensor2 &a);
+tensor4 sym_dyadic(const tensor2 &a, const tensor2 &b);
+tensor4 auto_sym_dyadic(const tensor2 &a);
 
 // ============================================================================
 // Batch operations

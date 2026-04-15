@@ -27,6 +27,7 @@
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 
 namespace simcoon {
@@ -449,24 +450,16 @@ tensor2 strain(const arma::vec &v) {
 }
 
 tensor2 dev(const tensor2 &t) {
-    arma::vec::fixed<6> v = t.voigt();
-    double tr_val = v(0) + v(1) + v(2);
-    v(0) -= tr_val / 3.0;
-    v(1) -= tr_val / 3.0;
-    v(2) -= tr_val / 3.0;
-    return tensor2::from_voigt(v, t.vtype());
+    arma::vec dv = simcoon::dev(arma::vec(t.voigt()));
+    return tensor2::from_voigt(arma::vec::fixed<6>(dv.memptr()), t.vtype());
 }
 
 double Mises(const tensor2 &t) {
-    tensor2 d = dev(t);
-    arma::vec::fixed<6> dv = d.voigt();
-    if (t.vtype() == VoigtType::stress || t.vtype() == VoigtType::generic) {
-        return std::sqrt(1.5 * (dv(0)*dv(0) + dv(1)*dv(1) + dv(2)*dv(2) +
-                                2.0*(dv(3)*dv(3) + dv(4)*dv(4) + dv(5)*dv(5))));
-    } else if (t.vtype() == VoigtType::strain) {
-        return std::sqrt(2.0/3.0 * (dv(0)*dv(0) + dv(1)*dv(1) + dv(2)*dv(2) +
-                                    0.5*(dv(3)*dv(3) + dv(4)*dv(4) + dv(5)*dv(5))));
-    }
+    arma::vec v(t.voigt());
+    if (t.vtype() == VoigtType::stress || t.vtype() == VoigtType::generic)
+        return Mises_stress(v);
+    if (t.vtype() == VoigtType::strain)
+        return Mises_strain(v);
     throw std::runtime_error("Mises not defined for VoigtType::none");
 }
 
@@ -502,17 +495,15 @@ tensor2 trans(const tensor2 &t) {
 // tensor4 implementation
 // ============================================================================
 
-tensor4::tensor4() : _voigt(arma::fill::zeros), _type(Tensor4Type::stiffness),
-                     _fastor_valid(false) {}
+tensor4::tensor4() : _voigt(arma::fill::zeros), _type(Tensor4Type::stiffness) {}
 
-tensor4::tensor4(Tensor4Type type) : _voigt(arma::fill::zeros), _type(type),
-                                      _fastor_valid(false) {}
+tensor4::tensor4(Tensor4Type type) : _voigt(arma::fill::zeros), _type(type) {}
 
 tensor4::tensor4(const arma::mat::fixed<6,6> &m, Tensor4Type type)
-    : _voigt(m), _type(type), _fastor_valid(false) {}
+    : _voigt(m), _type(type) {}
 
 tensor4::tensor4(const arma::mat &m, Tensor4Type type)
-    : _type(type), _fastor_valid(false) {
+    : _type(type) {
     if (m.n_rows != 6 || m.n_cols != 6)
         throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
@@ -521,18 +512,17 @@ tensor4::tensor4(const arma::mat &m, Tensor4Type type)
 
 tensor4::tensor4(const tensor4 &other)
     : _voigt(other._voigt), _type(other._type),
-      _fastor(other._fastor), _fastor_valid(other._fastor_valid) {}
+      _fastor(other._fastor) {}
 
 tensor4::tensor4(tensor4 &&other) noexcept
     : _voigt(std::move(other._voigt)), _type(other._type),
-      _fastor(std::move(other._fastor)), _fastor_valid(other._fastor_valid) {}
+      _fastor(std::move(other._fastor)) {}
 
 tensor4& tensor4::operator=(const tensor4 &other) {
     if (this != &other) {
         _voigt = other._voigt;
         _type = other._type;
         _fastor = other._fastor;
-        _fastor_valid = other._fastor_valid;
     }
     return *this;
 }
@@ -542,7 +532,6 @@ tensor4& tensor4::operator=(tensor4 &&other) noexcept {
         _voigt = std::move(other._voigt);
         _type = other._type;
         _fastor = std::move(other._fastor);
-        _fastor_valid = other._fastor_valid;
     }
     return *this;
 }
@@ -595,15 +584,14 @@ void tensor4::set_mat(const arma::mat &m) {
 }
 
 void tensor4::_ensure_fastor() const {
-    if (!_fastor_valid) {
-        _fastor = voigt_to_full(_voigt, _type);
-        _fastor_valid = true;
+    if (!_fastor) {
+        _fastor.emplace(voigt_to_full(_voigt, _type));
     }
 }
 
 const Fastor::Tensor<double,3,3,3,3>& tensor4::fastor() const {
     _ensure_fastor();
-    return _fastor;
+    return *_fastor;
 }
 
 tensor2 tensor4::contract(const tensor2 &t) const {
@@ -636,7 +624,7 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
         for (int j = 0; j < 3; ++j)
             F_fastor(i,j) = F(i,j);
 
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(_fastor, F_fastor);
+    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, F_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
 
     if (metric) {
@@ -667,7 +655,7 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
         for (int j = 0; j < 3; ++j)
             invF_fastor(i,j) = invF(i,j);
 
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(_fastor, invF_fastor);
+    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, invF_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
 
     if (metric) {
@@ -830,26 +818,23 @@ bool tensor4::operator!=(const tensor4 &other) const {
     return !(*this == other);
 }
 
-// Free functions
+// Free functions — dyadic product family
+// Delegates to authoritative implementations in contimech.cpp
+
+tensor4 sym_dyadic(const tensor2 &a, const tensor2 &b) {
+    arma::mat C = simcoon::sym_dyadic(arma::mat(a.mat()), arma::mat(b.mat()));
+    return tensor4(arma::mat::fixed<6,6>(C), Tensor4Type::stiffness);
+}
+
+tensor4 auto_sym_dyadic(const tensor2 &a) {
+    arma::mat C = simcoon::auto_sym_dyadic(arma::mat(a.mat()));
+    return tensor4(arma::mat::fixed<6,6>(C), Tensor4Type::stiffness);
+}
+
 tensor4 dyadic(const tensor2 &a, const tensor2 &b) {
-    arma::vec::fixed<6> a_v, b_v;
-
-    const arma::mat::fixed<3,3> &am = a.mat();
-    const arma::mat::fixed<3,3> &bm = b.mat();
-
-    a_v(0) = am(0,0); a_v(1) = am(1,1); a_v(2) = am(2,2);
-    a_v(3) = 0.5*(am(0,1) + am(1,0));
-    a_v(4) = 0.5*(am(0,2) + am(2,0));
-    a_v(5) = 0.5*(am(1,2) + am(2,1));
-
-    b_v(0) = bm(0,0); b_v(1) = bm(1,1); b_v(2) = bm(2,2);
-    b_v(3) = 0.5*(bm(0,1) + bm(1,0));
-    b_v(4) = 0.5*(bm(0,2) + bm(2,0));
-    b_v(5) = 0.5*(bm(1,2) + bm(2,1));
-
-    arma::mat::fixed<6,6> C;
-    C = a_v * b_v.t();
-    return tensor4(C, Tensor4Type::stiffness);
+    // Full outer product: C_ijkl = a_ij * b_kl (not restricted to symmetric Voigt)
+    arma::mat C = simcoon::dyadic(arma::mat(a.mat()), arma::mat(b.mat()));
+    return tensor4(arma::mat::fixed<6,6>(C), Tensor4Type::stiffness);
 }
 
 tensor4 auto_dyadic(const tensor2 &a) {
@@ -885,6 +870,7 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::mat result(6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         Rotation R = Rotation::from_matrix(
@@ -901,6 +887,7 @@ arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
@@ -915,6 +902,7 @@ arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
@@ -967,6 +955,7 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 
     // General path: N tensor4, 1 or N tensor2
     arma::mat result(6, N);
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         result.col(i) = arma::mat::fixed<6,6>(t4.slice(i)) * t2.col(bc2 ? 0 : i);
     }
@@ -979,6 +968,7 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::cube result(6, 6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         Rotation R = Rotation::from_matrix(
@@ -994,6 +984,7 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
@@ -1008,6 +999,7 @@ arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
@@ -1020,6 +1012,7 @@ arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type) {
     int N = t4.n_slices;
     arma::cube result(6, 6, N);
 
+    #pragma omp parallel for schedule(static) if(N > 100)
     for (int i = 0; i < N; i++) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         result.slice(i) = L.inverse().mat();
