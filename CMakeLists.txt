@@ -344,6 +344,12 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
+# OpenMP for batch tensor operations
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
 # This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.
 # Only needed on Windows due to stricter heap validation.
