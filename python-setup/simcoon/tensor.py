@@ -34,6 +34,8 @@ from simcoon._core import (
     _CppTensor4,
     _dyadic,
     _auto_dyadic,
+    _sym_dyadic,
+    _auto_sym_dyadic,
     VoigtType as _VoigtType,
     Tensor4Type as _T4Type,
 )
@@ -87,6 +89,16 @@ def _check_t4_type(ts):
         raise ValueError(f"Invalid Tensor4 type '{ts}', expected one of {sorted(_T4_TYPES)}")
 
 
+def _to_f_cube(arr):
+    """Convert (N,R,C) C-order array to (R,C,N) F-order for zero-copy arma cube."""
+    return np.asfortranarray(arr.transpose(1, 2, 0))
+
+
+def _from_f_cube(arr):
+    """Convert (R,C,N) F-order array from arma cube to (N,R,C) C-order."""
+    return np.ascontiguousarray(arr.transpose(2, 0, 1))
+
+
 # ======================================================================
 # Voigt conversion helpers
 # ======================================================================
@@ -126,7 +138,7 @@ def _voigt_to_mat(v, type_str):
 
 
 def _get_rotation_matrices(R, N):
-    """Extract (N, 3, 3) rotation matrices from a scipy Rotation."""
+    """Extract rotation matrices as (3,3,N) F-order for zero-copy to arma cube."""
     from scipy.spatial.transform import Rotation as ScipyRotation
     if not isinstance(R, ScipyRotation):
         raise TypeError(f"Expected scipy Rotation, got {type(R)}")
@@ -139,7 +151,8 @@ def _get_rotation_matrices(R, N):
         raise ValueError(
             f"Rotation batch size {mats.shape[0]} != tensor batch size {N}"
         )
-    return mats
+    # Transpose to (3,3,N) F-order for zero-copy carma::arr_to_cube
+    return np.asfortranarray(mats.transpose(1, 2, 0))
 
 
 # ======================================================================
@@ -202,7 +215,7 @@ class _TensorBase:
 
     def __len__(self):
         if self.single:
-            return 1
+            raise TypeError(f"single {type(self).__name__} has no len()")
         return self._data.shape[0]
 
     def __getitem__(self, key):
@@ -511,10 +524,26 @@ class Tensor2(_TensorBase):
                 abs(m[0, 2] - m[2, 0]) < tol and
                 abs(m[1, 2] - m[2, 1]) < tol)
 
+    def _to_cpp(self):
+        """Create a temporary _CppTensor2 for single-point C++ operations."""
+        return _CppTensor2.from_voigt(self._data, _VTYPE_MAP[self._type_str])
+
     def rotate(self, R, active=True):
         """Rotate tensor(s) via Rotation."""
         from simcoon.rotation import Rotation as SmcRotation
         from scipy.spatial.transform import Rotation as ScipyRotation
+
+        if self.single:
+            cpp_t2 = self._to_cpp()
+            if isinstance(R, SmcRotation):
+                cpp_rot = R._to_cpp()
+            elif isinstance(R, ScipyRotation):
+                cpp_rot = SmcRotation.from_scipy(R)._to_cpp()
+            else:
+                raise TypeError(f"Expected Rotation, got {type(R)}")
+            cpp_result = cpp_t2.rotate(cpp_rot, active)
+            return Tensor2._create(np.array(cpp_result.voigt).ravel(),
+                                   self._type_str)
 
         data_2d = self._ensure_batch()
         N = data_2d.shape[0]
@@ -530,19 +559,27 @@ class Tensor2(_TensorBase):
     def push_forward(self, F, metric=True):
         """Push-forward via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
+        if self.single:
+            cpp_result = self._to_cpp().push_forward(F, metric)
+            return Tensor2._create(np.array(cpp_result.voigt).ravel(),
+                                   self._type_str)
         data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t2_push_forward(
-            data_2d, _VTYPE_MAP[self._type_str], F_batch, metric)
+            data_2d, _VTYPE_MAP[self._type_str], _to_f_cube(F_batch), metric)
         return self._rewrap(result)
 
     def pull_back(self, F, metric=True):
         """Pull-back via deformation gradient F."""
         F = np.asarray(F, dtype=np.float64)
+        if self.single:
+            cpp_result = self._to_cpp().pull_back(F, metric)
+            return Tensor2._create(np.array(cpp_result.voigt).ravel(),
+                                   self._type_str)
         data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t2_pull_back(
-            data_2d, _VTYPE_MAP[self._type_str], F_batch, metric)
+            data_2d, _VTYPE_MAP[self._type_str], _to_f_cube(F_batch), metric)
         return self._rewrap(result)
 
     def mises(self):
@@ -626,6 +663,13 @@ class Tensor4(_TensorBase):
 
     Always stores numpy array: ``(6,6)`` for single, ``(N,6,6)`` for batch.
     Type is a string: ``"stiffness"``, ``"compliance"``, etc.
+
+    .. note::
+        The underlying C++ ``tensor4`` class uses a lazy mutable Fastor cache
+        that is **not** thread-safe.  However, the Python ``Tensor4`` class
+        creates fresh C++ objects for each operation (via ``_to_cpp()``), so
+        Python-level ``Tensor4`` instances are safe to use from multiple
+        threads (subject to the GIL).
     """
 
     _single_ndim = 2
@@ -791,8 +835,9 @@ class Tensor4(_TensorBase):
             mats = _get_rotation_matrices(R, N)
         else:
             raise TypeError(f"Expected Rotation, got {type(R)}")
-        result = _batch_t4_rotate(self._data, _T4TYPE_MAP[self._type_str], mats, active)
-        return self._rewrap(result)
+        result = _batch_t4_rotate(
+            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str], mats, active)
+        return self._rewrap(_from_f_cube(result))
 
     def push_forward(self, F, metric=True):
         """Push-forward via deformation gradient F."""
@@ -802,8 +847,9 @@ class Tensor4(_TensorBase):
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t4_push_forward(
-            self._data, _T4TYPE_MAP[self._type_str], F_batch, metric)
-        return self._rewrap(result)
+            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str],
+            _to_f_cube(F_batch), metric)
+        return self._rewrap(_from_f_cube(result))
 
     def pull_back(self, F, metric=True):
         """Pull-back via deformation gradient F."""
@@ -813,8 +859,9 @@ class Tensor4(_TensorBase):
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
         result = _batch_t4_pull_back(
-            self._data, _T4TYPE_MAP[self._type_str], F_batch, metric)
-        return self._rewrap(result)
+            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str],
+            _to_f_cube(F_batch), metric)
+        return self._rewrap(_from_f_cube(result))
 
     def inverse(self):
         """Invert the 6x6 Voigt matrix. stiffness <-> compliance."""
@@ -823,9 +870,9 @@ class Tensor4(_TensorBase):
             inv_ts = _T4TYPE_RMAP.get(cpp_result.type, self._type_str)
             return Tensor4._create(np.array(cpp_result.mat), inv_ts)
         result, inv_type_enum = _batch_t4_inverse(
-            self._data, _T4TYPE_MAP[self._type_str])
+            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str])
         inv_ts = _T4TYPE_RMAP.get(inv_type_enum, self._type_str)
-        return Tensor4._create(result, inv_ts)
+        return Tensor4._create(_from_f_cube(result), inv_ts)
 
     # ------------------------------------------------------------------
     # Arithmetic overrides (Tensor4 * Tensor2 = contraction)
@@ -863,6 +910,27 @@ def auto_dyadic(a):
         raise ValueError("auto_dyadic requires a single Tensor2")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
     result = _auto_dyadic(cpp_a)
+    return Tensor4._create(np.array(result.mat),
+                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+
+
+def sym_dyadic(a, b):
+    """Symmetric Voigt dyadic product of two single Tensor2 -> Tensor4(stiffness)."""
+    if not (isinstance(a, Tensor2) and a.single and isinstance(b, Tensor2) and b.single):
+        raise ValueError("sym_dyadic requires two single Tensor2 arguments")
+    cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
+    cpp_b = _CppTensor2.from_voigt(b._data, _VTYPE_MAP[b._type_str])
+    result = _sym_dyadic(cpp_a, cpp_b)
+    return Tensor4._create(np.array(result.mat),
+                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+
+
+def auto_sym_dyadic(a):
+    """Symmetric Voigt dyadic product of a single Tensor2 with itself -> Tensor4(stiffness)."""
+    if not (isinstance(a, Tensor2) and a.single):
+        raise ValueError("auto_sym_dyadic requires a single Tensor2")
+    cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
+    result = _auto_sym_dyadic(cpp_a)
     return Tensor4._create(np.array(result.mat),
                            _T4TYPE_RMAP.get(result.type, "stiffness"))
 
