@@ -28,6 +28,7 @@
 #include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 
 namespace simcoon {
@@ -231,12 +232,8 @@ arma::vec::fixed<6> tensor2::voigt() const {
     return v;
 }
 
-Fastor::TensorMap<double,3,3> tensor2::fastor() {
-    return arma_to_fastor2(_mat);
-}
-
-Fastor::TensorMap<const double,3,3> tensor2::fastor() const {
-    return arma_to_fastor2(_mat);
+Fastor::Tensor<double,3,3> tensor2::fastor() const {
+    return arma_to_fastor2(_mat, _vtype != VoigtType::none);
 }
 
 bool tensor2::is_symmetric(double tol) const {
@@ -619,10 +616,7 @@ tensor2 tensor4::contract(const tensor2 &t) const {
 tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
-    Fastor::Tensor<double,3,3> F_fastor;
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            F_fastor(i,j) = F(i,j);
+    auto F_fastor = arma_to_fastor2(F, false);  // F is non-symmetric
 
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, F_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
@@ -650,10 +644,7 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
 
     arma::mat::fixed<3,3> invF = inv33(F);
 
-    Fastor::Tensor<double,3,3> invF_fastor;
-    for (int i = 0; i < 3; ++i)
-        for (int j = 0; j < 3; ++j)
-            invF_fastor(i,j) = invF(i,j);
+    auto invF_fastor = arma_to_fastor2(invF, false);  // invF is non-symmetric
 
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, invF_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
@@ -688,6 +679,63 @@ tensor4 tensor4::pull_back(const arma::mat &F, bool metric) const {
         throw std::invalid_argument("pull_back: expected 3x3 matrix, got "
             + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
     return pull_back(arma::mat::fixed<3,3>(F), metric);
+}
+
+tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
+                               const tensor2 &tau, bool metric) const {
+    // Lie rate = plain push-forward, no correction needed
+    if (rate == CoRate::lie)
+        return push_forward(F, metric);
+
+    // Step 1: Lie push-forward WITHOUT metric (Kirchhoff-level tangent).
+    // B-correction must be applied at the Kirchhoff level before metric scaling.
+    arma::mat Lt_v = push_forward(F, /*metric=*/false).mat();
+    const arma::mat::fixed<3,3> &tau_mat = tau.mat();
+    arma::mat result_v;
+
+    // Step 2: Apply corotational rate correction
+    switch (rate) {
+        case CoRate::jaumann:
+            result_v = Dtau_LieDD_Dtau_JaumannDD(Lt_v, tau_mat);
+            break;
+        case CoRate::green_naghdi:
+            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
+            break;
+        case CoRate::logarithmic:
+        case CoRate::logarithmic_R:
+        case CoRate::logarithmic_F:
+            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB(F), tau_mat);
+            break;
+        default:
+            throw std::runtime_error("Unknown CoRate");
+    }
+
+    // Step 3: Apply metric factor (Kirchhoff → Cauchy)
+    if (metric) {
+        double J = arma::det(F);
+        switch (_type) {
+            case Tensor4Type::stiffness:
+            case Tensor4Type::generic:
+                result_v *= (1.0 / J);
+                break;
+            case Tensor4Type::compliance:
+                result_v *= J;
+                break;
+            case Tensor4Type::strain_concentration:
+            case Tensor4Type::stress_concentration:
+                break;
+        }
+    }
+
+    return tensor4(arma::mat::fixed<6,6>(result_v), _type);
+}
+
+tensor4 tensor4::push_forward(const arma::mat &F, CoRate rate,
+                               const tensor2 &tau, bool metric) const {
+    if (F.n_rows != 3 || F.n_cols != 3)
+        throw std::invalid_argument("push_forward: expected 3x3 matrix, got "
+            + std::to_string(F.n_rows) + "x" + std::to_string(F.n_cols));
+    return push_forward(arma::mat::fixed<3,3>(F), rate, tau, metric);
 }
 
 tensor4 tensor4::rotate(const Rotation &R, bool active) const {
