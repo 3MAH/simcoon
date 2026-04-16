@@ -191,8 +191,16 @@ tensor2 tensor2::zeros(VoigtType vtype) {
     return tensor2(vtype);
 }
 
+tensor2 tensor2::zeros(const std::string &type_str) {
+    return zeros(parse_voigt_type(type_str));
+}
+
 tensor2 tensor2::identity(VoigtType vtype) {
     return tensor2(arma::mat::fixed<3,3>(arma::fill::eye), vtype);
+}
+
+tensor2 tensor2::identity(const std::string &type_str) {
+    return identity(parse_voigt_type(type_str));
 }
 
 arma::mat::fixed<3,3>& tensor2::mat_mut() {

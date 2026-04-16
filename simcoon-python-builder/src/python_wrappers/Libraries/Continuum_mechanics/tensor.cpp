@@ -102,11 +102,11 @@ void register_tensor(py::module_& m) {
             "Create tensor2 from a 6-element Voigt vector")
 
         .def_static("zeros",
-            &simcoon::tensor2::zeros,
+            static_cast<simcoon::tensor2 (*)(simcoon::VoigtType)>(&simcoon::tensor2::zeros),
             py::arg("vtype") = simcoon::VoigtType::stress)
 
         .def_static("identity",
-            &simcoon::tensor2::identity,
+            static_cast<simcoon::tensor2 (*)(simcoon::VoigtType)>(&simcoon::tensor2::identity),
             py::arg("vtype") = simcoon::VoigtType::stress)
 
         // Properties

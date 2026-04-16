@@ -106,7 +106,9 @@ public:
 
     // Static factories
     static tensor2 zeros(VoigtType vtype = VoigtType::stress);
+    static tensor2 zeros(const std::string &type_str);
     static tensor2 identity(VoigtType vtype = VoigtType::stress);
+    static tensor2 identity(const std::string &type_str);
 
     // Copy/move
     tensor2(const tensor2 &other) = default;
