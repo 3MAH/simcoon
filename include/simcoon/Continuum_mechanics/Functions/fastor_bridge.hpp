@@ -16,8 +16,10 @@
  */
 
 #pragma once
+#include <cmath>
 #include <armadillo>
 #include <Fastor/Fastor.h>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon {
 
@@ -38,26 +40,49 @@ inline constexpr int voigt_map[3][3] = {
 };
 
 /**
- * @brief Zero-copy TensorMap wrapping an arma::mat::fixed<3,3> memory.
+ * @brief Convert arma::mat::fixed<3,3> to Fastor::Tensor<double,3,3>.
  *
- * Both Armadillo and Fastor use column-major storage, so this is safe.
- * The returned TensorMap is valid only as long as the source matrix is alive.
+ * Armadillo uses column-major storage, Fastor uses row-major.
+ * A memcpy between them effectively transposes the matrix.
+ * For symmetric matrices M = M^T, so memcpy alone is correct.
+ * For non-symmetric matrices (F, invF), a Fastor::transpose is applied.
+ *
+ * @param symmetric  true for stress/strain/C (skip transpose), false for F/invF.
  */
-inline Fastor::TensorMap<double,3,3> arma_to_fastor2(arma::mat::fixed<3,3> &m) {
-    return Fastor::TensorMap<double,3,3>(m.memptr());
-}
-
-inline Fastor::TensorMap<const double,3,3> arma_to_fastor2(const arma::mat::fixed<3,3> &m) {
-    return Fastor::TensorMap<const double,3,3>(m.memptr());
+inline Fastor::Tensor<double,3,3> arma_to_fastor2(const arma::mat::fixed<3,3> &m,
+                                                    bool symmetric) {
+    Fastor::Tensor<double,3,3> T;
+    std::memcpy(T.data(), m.memptr(), 9 * sizeof(double));
+    if (!symmetric)
+        T = Fastor::transpose(T);
+    return T;
 }
 
 /**
- * @brief Copy a Fastor Tensor<double,3,3> to an arma::mat::fixed<3,3>.
+ * @brief Auto-detect overload: checks symmetry with simcoon::iota tolerance.
+ */
+inline Fastor::Tensor<double,3,3> arma_to_fastor2(const arma::mat::fixed<3,3> &m) {
+    bool symmetric = (std::fabs(m(0,1) - m(1,0)) <= iota &&
+                      std::fabs(m(0,2) - m(2,0)) <= iota &&
+                      std::fabs(m(1,2) - m(2,1)) <= iota);
+    return arma_to_fastor2(m, symmetric);
+}
+
+/**
+ * @brief Convert Fastor::Tensor<double,3,3> to arma::mat::fixed<3,3>.
+ * Auto-detects symmetry.
  */
 inline arma::mat::fixed<3,3> fastor2_to_arma(const Fastor::Tensor<double,3,3> &T) {
     arma::mat::fixed<3,3> m;
-    // Both column-major, direct memcpy
-    std::memcpy(m.memptr(), T.data(), 9 * sizeof(double));
+    bool symmetric = (std::fabs(T(0,1) - T(1,0)) <= iota &&
+                      std::fabs(T(0,2) - T(2,0)) <= iota &&
+                      std::fabs(T(1,2) - T(2,1)) <= iota);
+    if (symmetric) {
+        std::memcpy(m.memptr(), T.data(), 9 * sizeof(double));
+    } else {
+        auto Tt = Fastor::transpose(T);
+        std::memcpy(m.memptr(), Tt.data(), 9 * sizeof(double));
+    }
     return m;
 }
 
