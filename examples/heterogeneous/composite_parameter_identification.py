@@ -188,7 +188,10 @@ if __name__ == "__main__":
     # -----------------------------------------------------------------
     # Change to example directory (L_eff reads from data/ in cwd)
     # -----------------------------------------------------------------
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        script_dir = os.getcwd()
     os.chdir(script_dir)
 
     path_keys = "keys_ident"
