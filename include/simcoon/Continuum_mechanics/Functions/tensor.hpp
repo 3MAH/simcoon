@@ -61,6 +61,27 @@ enum class Tensor4Type {
 };
 
 /**
+ * @brief Corotational rate type for tangent modulus push-forward.
+ *
+ * Controls the B-correction applied after the geometric push-forward
+ * to make the spatial tangent consistent with a given objective rate:
+ * - lie:            Pure push-forward (Truesdell/Oldroyd rate), no correction
+ * - jaumann:        Jaumann (co-rotational) rate correction
+ * - green_naghdi:   Green-Naghdi rate correction
+ * - logarithmic:    Logarithmic rate correction (default in simcoon solver)
+ * - logarithmic_R:  Logarithmic rate using R from polar decomposition
+ * - logarithmic_F:  Logarithmic rate using F directly
+ */
+enum class CoRate {
+    lie,
+    jaumann,
+    green_naghdi,
+    logarithmic,
+    logarithmic_R,
+    logarithmic_F
+};
+
+/**
  * @brief A 2nd-order tensor with type tag for Voigt convention and rotation dispatch.
  *
  * Storage: arma::mat::fixed<3,3> (column-major, 72 bytes).
@@ -111,10 +132,9 @@ public:
     arma::vec::fixed<6> voigt() const;
 
     /**
-     * @brief Zero-copy Fastor TensorMap wrapping the 3x3 matrix memory.
+     * @brief Convert to Fastor::Tensor<double,3,3>, handling row/col-major layout.
      */
-    Fastor::TensorMap<double,3,3> fastor();
-    Fastor::TensorMap<const double,3,3> fastor() const;
+    Fastor::Tensor<double,3,3> fastor() const;
 
     // Symmetry
     bool is_symmetric(double tol = 1e-12) const;
@@ -250,11 +270,28 @@ public:
     tensor2 contract(const tensor2 &t) const;
 
     /**
-     * @brief Push-forward: C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN
+     * @brief Push-forward: C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN  (Lie rate tangent)
      * @param metric If true (default), includes J=det(F) factor (Piola transformation)
      */
     tensor4 push_forward(const arma::mat::fixed<3,3> &F, bool metric = true) const;
     tensor4 push_forward(const arma::mat &F, bool metric = true) const;
+
+    /**
+     * @brief Push-forward with corotational rate correction.
+     *
+     * Computes the spatial tangent consistent with the selected objective rate.
+     * For CoRate::lie this is equivalent to the plain push_forward.
+     * Other rates apply a correction that requires the Kirchhoff stress tau.
+     *
+     * @param F    Deformation gradient (3x3)
+     * @param rate Corotational rate type
+     * @param tau  Kirchhoff stress (needed for all rates except lie)
+     * @param metric If true, includes J factor
+     */
+    tensor4 push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
+                         const tensor2 &tau, bool metric = true) const;
+    tensor4 push_forward(const arma::mat &F, CoRate rate,
+                         const tensor2 &tau, bool metric = true) const;
 
     /**
      * @brief Pull-back: C'_LJMN = invF_lN invF_kM invF_jJ invF_iL C_ijkl
