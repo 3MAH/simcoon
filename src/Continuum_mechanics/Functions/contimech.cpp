@@ -427,9 +427,8 @@ mat dyadic_4vectors_sym(const vec &n_a, const vec &n_b, const std::string  &conv
 
 mat dyadic(const mat &A, const mat &B) {
     // C_ijkl = A_ij * B_kl — full outer product, then extract Voigt 6x6
-    Fastor::Tensor<double,3,3> A_, B_;
-    std::memcpy(A_.data(), mat::fixed<3,3>(A).memptr(), 9 * sizeof(double));
-    std::memcpy(B_.data(), mat::fixed<3,3>(B).memptr(), 9 * sizeof(double));
+    auto A_ = arma_to_fastor2(mat::fixed<3,3>(A));  // auto-detects symmetry
+    auto B_ = arma_to_fastor2(mat::fixed<3,3>(B));
     enum {i,j,k,l};
     auto C = Fastor::einsum<Fastor::Index<i,j>, Fastor::Index<k,l>>(A_, B_);
     return fastor4_to_voigt(C);
