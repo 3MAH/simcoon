@@ -99,8 +99,7 @@ mat dinvSdSsym(const mat &S) {
     }    
 
     // dinvSdS_ijkl = 0.5*(invS_ik*invS_jl + invS_il*invS_jk)
-    Fastor::Tensor<double,3,3> invS_;
-    std::memcpy(invS_.data(), mat::fixed<3,3>(invS).memptr(), 9 * sizeof(double));
+    auto invS_ = arma_to_fastor2(mat::fixed<3,3>(invS));  // auto-detects symmetry
     enum {i,j,k,l};
     auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>>(invS_, invS_);
     auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>>(invS_, invS_);
