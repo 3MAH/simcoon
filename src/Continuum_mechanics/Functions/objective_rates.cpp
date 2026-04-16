@@ -38,11 +38,10 @@ using namespace arma;
 
 namespace simcoon{
 
-// Helper: copy arma 3x3 to Fastor tensor (both column-major, 72 bytes)
-static inline Fastor::Tensor<double,3,3> to_fastor2(const mat &m) {
-    Fastor::Tensor<double,3,3> T;
-    std::memcpy(T.data(), mat::fixed<3,3>(m).memptr(), 9 * sizeof(double));
-    return T;
+// Helper: copy arma 3x3 to Fastor tensor
+// symmetric=true for stress/strain/C (memcpy sufficient), false for F/invF (needs transpose)
+static inline Fastor::Tensor<double,3,3> to_fastor2(const mat &m, bool symmetric = true) {
+    return arma_to_fastor2(mat::fixed<3,3>(m), symmetric);
 }
 
 // Helper: copy arma 6x6 Voigt to Fastor 3x3x3x3 (stiffness convention)
@@ -520,7 +519,7 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_2_DSDE.");
     }   
-    auto invF_ = to_fastor2(invF);
+    auto invF_ = to_fastor2(invF, false);
     auto tau_ = to_fastor2(tau);
     auto Dtau_logDD = to_fastor4(Lt);
     auto B_ = to_fastor4(B);
@@ -542,7 +541,7 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
         throw simcoon::exception_inv("Error in inv function inside Dtau_LieDD_2_DSDE.");
     }   
 
-    auto invF_ = to_fastor2(invF);
+    auto invF_ = to_fastor2(invF, false);
     auto Dtau_LieDD = to_fastor4(Lt);
     auto DSDE = pullback_4(Dtau_LieDD, invF_);
     return fastor4_to_voigt(DSDE);
@@ -557,7 +556,7 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_JaumannDD_2_DSDE.");
     }   
-    auto invF_ = to_fastor2(invF);
+    auto invF_ = to_fastor2(invF, false);
     auto tau_ = to_fastor2(tau);
     auto Dtau_JaumannDD = to_fastor4(Lt);
 
@@ -651,7 +650,7 @@ mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
 
 mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
     
-    auto F_ = to_fastor2(F);
+    auto F_ = to_fastor2(F, false);
     auto tau_ = to_fastor2(tau);
     auto DSDE_ = to_fastor4(DSDE);
     auto B_ = to_fastor4(B);
@@ -677,7 +676,7 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigm
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
 mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
 
-    auto F_ = to_fastor2(F);
+    auto F_ = to_fastor2(F, false);
     auto DSDE_ = to_fastor4(DSDE);
     auto C = pushforward_4(DSDE_, F_);
     return fastor4_to_voigt(C);
@@ -698,7 +697,7 @@ mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
 mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 
-    auto F_ = to_fastor2(F);
+    auto F_ = to_fastor2(F, false);
     auto tau_ = to_fastor2(tau);
     auto DSDE_ = to_fastor4(DSDE);
 
