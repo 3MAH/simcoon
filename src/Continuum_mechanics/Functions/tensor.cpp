@@ -33,6 +33,27 @@
 
 namespace simcoon {
 
+// Helper: string → VoigtType
+static VoigtType parse_voigt_type(const std::string &s) {
+    if (s == "stress")  return VoigtType::stress;
+    if (s == "strain")  return VoigtType::strain;
+    if (s == "generic") return VoigtType::generic;
+    if (s == "none")    return VoigtType::none;
+    throw std::invalid_argument("Unknown VoigtType string: '" + s + "'. "
+        "Expected: stress, strain, generic, none");
+}
+
+// Helper: string → Tensor4Type
+static Tensor4Type parse_tensor4_type(const std::string &s) {
+    if (s == "stiffness")             return Tensor4Type::stiffness;
+    if (s == "compliance")            return Tensor4Type::compliance;
+    if (s == "strain_concentration")  return Tensor4Type::strain_concentration;
+    if (s == "stress_concentration")  return Tensor4Type::stress_concentration;
+    if (s == "generic")               return Tensor4Type::generic;
+    throw std::invalid_argument("Unknown Tensor4Type string: '" + s + "'. "
+        "Expected: stiffness, compliance, strain_concentration, stress_concentration, generic");
+}
+
 // Helper: compute inv of a 3x3 fixed matrix, returning fixed
 static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
     arma::mat tmp;
@@ -160,6 +181,10 @@ tensor2 tensor2::from_voigt(const arma::vec &v, VoigtType vtype) {
             + std::to_string(v.n_elem));
     arma::vec::fixed<6> vf(v.memptr());
     return from_voigt(vf, vtype);
+}
+
+tensor2 tensor2::from_voigt(const arma::vec &v, const std::string &type_str) {
+    return from_voigt(v, parse_voigt_type(type_str));
 }
 
 tensor2 tensor2::zeros(VoigtType vtype) {
@@ -506,6 +531,9 @@ tensor4::tensor4(const arma::mat &m, Tensor4Type type)
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
     _voigt = m;
 }
+
+tensor4::tensor4(const arma::mat &m, const std::string &type_str)
+    : tensor4(m, parse_tensor4_type(type_str)) {}
 
 tensor4::tensor4(const tensor4 &other)
     : _voigt(other._voigt), _type(other._type),

@@ -102,6 +102,7 @@ public:
     // Construct from Voigt vector
     static tensor2 from_voigt(const arma::vec::fixed<6> &v, VoigtType vtype);
     static tensor2 from_voigt(const arma::vec &v, VoigtType vtype);
+    static tensor2 from_voigt(const arma::vec &v, const std::string &type_str);
 
     // Static factories
     static tensor2 zeros(VoigtType vtype = VoigtType::stress);
@@ -225,6 +226,7 @@ public:
     explicit tensor4(Tensor4Type type);
     tensor4(const arma::mat::fixed<6,6> &m, Tensor4Type type);
     tensor4(const arma::mat &m, Tensor4Type type);
+    tensor4(const arma::mat &m, const std::string &type_str);
 
     // Static factories wrapping constitutive.hpp functions
     static tensor4 identity(Tensor4Type type = Tensor4Type::stiffness);
