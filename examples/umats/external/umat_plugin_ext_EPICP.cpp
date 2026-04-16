@@ -1,30 +1,30 @@
 /**
- * EPICP External UMAT Plugin using Tensor2/Tensor4
+ * EPICP external UMAT plugin using Tensor2/Tensor4
  * ==================================================
  *
- * Same elastic-plastic (isotropic hardening, von Mises, CCP return mapping)
- * as the built-in EPICP, but using the Tensor2/Tensor4 API at the interface
- * level for type safety.
+ * Elastic-plastic with isotropic hardening (von Mises, CCP return mapping),
+ * using the Tensor2/Tensor4 API at the interface level.
  *
  * The return mapping inner loop stays in raw Voigt vectors — that's where
- * the algorithm naturally lives and where raw arma::vec is fastest.
- * Tensor2/Tensor4 add value at the boundaries:
- *   - Typed stiffness: tensor4 L("stiffness") ensures correct contraction
- *   - Typed stress/strain: from_voigt(v, "stress") makes convention explicit
- *   - Mises/dev dispatch correctly based on type tag
- *   - Tangent contraction: L @ eps -> sigma with automatic type inference
+ * the algorithm naturally lives. Tensor2/Tensor4 add value at the boundaries:
+ *   - ``tensor4 L(..., "stiffness")`` — typed stiffness
+ *   - ``L.contract(Eel)`` — stiffness * strain -> stress (automatic)
+ *   - ``tensor2::from_voigt(v, "strain")`` — explicit convention
+ *   - ``Mises(sigma_t)`` — dispatches correctly via stress type tag
  *
- * Compare with the built-in version in
- *   src/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp
+ * Compare with the built-in:
+ *   ``src/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp``
  *
  * Material properties (6): E, nu, alpha, sigmaY, k, m
  * State variables (8): T_init, p, EP[6]
  *
- * Build as plugin:
+ * Build (macOS example):
  *   g++ -shared -fPIC -O3 -std=c++20 \
- *       -I<simcoon_include> -I<armadillo_include> -I<fastor_include> \
- *       -L<simcoon_lib> -lsimcoon \
- *       -o external/umat_plugin_ext.so EPICP_tensor.cpp
+ *       -I<simcoon_root>/include \
+ *       -isystem <simcoon_build>/_deps/fastor-src \
+ *       -I/opt/homebrew/include \
+ *       -L/opt/homebrew/lib -L<simcoon_build> -lsimcoon -larmadillo \
+ *       -o umat_plugin_ext.dylib umat_plugin_ext_EPICP.cpp
  */
 
 #include <iostream>
@@ -105,33 +105,33 @@ public:
             Hp = k * std::pow(p, m);
         }
 
-        // Save start values
         vec sigma_start = sigma;
         vec EP_start = EP;
         double A_p_start = -Hp;
 
         // ---- Elastic prediction ----
-        // Build elastic strain as typed tensor2, then contract with stiffness
         vec alpha_v = zeros(6);
         alpha_v(0) = alpha_v(1) = alpha_v(2) = alpha;
 
-        tensor2 Eel = tensor2::from_voigt(Etot + DEtot - alpha_v * (T + DT - T_init) - EP, "strain");
-        tensor2 sigma_t = L.contract(Eel);  // stiffness * strain -> stress (automatic)
+        tensor2 Eel = tensor2::from_voigt(
+            Etot + DEtot - alpha_v * (T + DT - T_init) - EP, "strain");
+        tensor2 sigma_t = L.contract(Eel);  // stiffness * strain -> stress
         sigma = sigma_t.voigt();
 
         // ---- Yield check ----
-        double sigma_eq = Mises(sigma_t);     // type-aware: uses stress convention
+        double sigma_eq = Mises(sigma_t);
         double Phi = sigma_eq - Hp - sigmaY;
 
         // ---- Return mapping (CCP) — raw Voigt arithmetic ----
-        // The inner loop stays in vec space: this is pure numerical optimization,
-        // not continuum mechanics. Raw arma::vec is the right tool here.
+        // The inner loop stays in vec space: pure numerical optimization.
         vec Lambdap = eta_stress(sigma);
         vec kappa = L_out * Lambdap;
 
         double error = 1.;
-        for (int iter = 0; iter < simcoon::maxiter_umat && error > simcoon::precision_umat; iter++) {
-
+        for (int iter = 0;
+             iter < simcoon::maxiter_umat && error > simcoon::precision_umat;
+             iter++)
+        {
             if (p > simcoon::iota) {
                 dHpdp = m * k * std::pow(p, m - 1);
                 Hp = k * std::pow(p, m);
@@ -147,7 +147,6 @@ public:
             double B_val = -sum(dPhidsigma % kappa) + dPhidp;
             double Y_crit = sigmaY;
 
-            // Fischer-Burmeister scalar update
             vec Phi_v = {Phi};
             vec Y_v = {Y_crit};
             mat B_m = {{B_val}};
@@ -158,7 +157,8 @@ public:
             EP = EP + ds_j(0) * Lambdap;
 
             // Recompute stress via typed contraction
-            Eel = tensor2::from_voigt(Etot + DEtot - alpha_v * (T + DT - T_init) - EP, "strain");
+            Eel = tensor2::from_voigt(
+                Etot + DEtot - alpha_v * (T + DT - T_init) - EP, "strain");
             sigma_t = L.contract(Eel);
             sigma = sigma_t.voigt();
         }
@@ -174,7 +174,7 @@ public:
             Lt_out = L_out;
         }
 
-        // ---- Work computation ----
+        // ---- Work ----
         vec DEP = EP - EP_start;
         double Dp = p - statev(1);
         double A_p = -Hp;
@@ -182,9 +182,10 @@ public:
         Wm   += 0.5 * sum((sigma_start + sigma) % DEtot);
         Wm_r += 0.5 * sum((sigma_start + sigma) % (DEtot - DEP));
         Wm_ir += -0.5 * (A_p_start + A_p) * Dp;
-        Wm_d += 0.5 * sum((sigma_start + sigma) % DEP) + 0.5 * (A_p_start + A_p) * Dp;
+        Wm_d += 0.5 * sum((sigma_start + sigma) % DEP)
+              + 0.5 * (A_p_start + A_p) * Dp;
 
-        // ---- Update state variables ----
+        // ---- Update state ----
         statev(0) = T_init;
         statev(1) = p;
         statev.subvec(2, 7) = EP;
