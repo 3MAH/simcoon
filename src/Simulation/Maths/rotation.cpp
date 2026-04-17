@@ -972,76 +972,59 @@ mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active)
     return vs*(B*trans(ve));
 }
 
-// =============================================================================
-// dR/d(rotvec) — Rodrigues differentiation (Gallego & Yezzi 2015)
-// =============================================================================
-
 cube Rotation::dR_drotvec() const {
     return simcoon::dR_drotvec(as_rotvec());
+}
+
+namespace {
+    // Cross-product matrix [v]x such that [v]x * u = v x u.
+    inline mat::fixed<3,3> skew(const vec::fixed<3>& v) {
+        mat::fixed<3,3> S;
+        S.zeros();
+        S(0,1) = -v(2);  S(0,2) =  v(1);
+        S(1,0) =  v(2);  S(1,2) = -v(0);
+        S(2,0) = -v(1);  S(2,1) =  v(0);
+        return S;
+    }
+
+    inline mat::fixed<3,3> skew_basis(int k) {
+        vec::fixed<3> e;
+        e.zeros();
+        e(k) = 1.0;
+        return skew(e);
+    }
 }
 
 cube dR_drotvec(const vec::fixed<3>& omega) {
     double theta = norm(omega);
     cube result(3, 3, 3);
 
-    // Skew-symmetric matrix of omega
-    mat::fixed<3,3> W;
-    W.zeros();
-    W(0,1) = -omega(2);  W(0,2) =  omega(1);
-    W(1,0) =  omega(2);  W(1,2) = -omega(0);
-    W(2,0) = -omega(1);  W(2,1) =  omega(0);
-
     if (theta < simcoon::iota) {
-        // Small angle limit: dR/d(omega_k) = [e_k]x
-        result.zeros();
-        result(1,2,0) = -1.0; result(2,1,0) = 1.0;   // [e0]x
-        result(0,2,1) =  1.0; result(2,0,1) = -1.0;   // [e1]x
-        result(0,1,2) = -1.0; result(1,0,2) = 1.0;    // [e2]x
+        // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
+        for (int k = 0; k < 3; ++k) {
+            result.slice(k) = skew_basis(k);
+        }
         return result;
     }
 
-    double s = sin(theta), c = cos(theta);
-    double t2 = theta * theta;
-
-    // Rodrigues coefficients and their derivatives w.r.t. theta
-    double a  = s / theta;                              // sin(theta)/theta
-    double b  = (1.0 - c) / t2;                        // (1-cos(theta))/theta^2
-    double da = (c * theta - s) / t2;                   // d(sin(theta)/theta)/d(theta)
-    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);  // d((1-cos)/theta^2)/d(theta)
-
+    mat::fixed<3,3> W  = skew(omega);
     mat::fixed<3,3> W2 = W * W;
 
+    double s = sin(theta), c = cos(theta);
+    double t2 = theta * theta;
+    double a  = s / theta;
+    double b  = (1.0 - c) / t2;
+    double da = (c * theta - s) / t2;
+    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);
+
     for (int k = 0; k < 3; ++k) {
-        // dW/d(omega_k) = [e_k]x
-        mat::fixed<3,3> dW;
-        dW.zeros();
-        // Using direct assignment for the skew of unit vector e_k
-        if (k == 0) {
-            dW(1,2) = -1.0; dW(2,1) = 1.0;
-        } else if (k == 1) {
-            dW(0,2) = 1.0; dW(2,0) = -1.0;
-        } else {
-            dW(0,1) = -1.0; dW(1,0) = 1.0;
-        }
-
-        // dW^2/d(omega_k) = dW*W + W*dW
+        mat::fixed<3,3> dW  = skew_basis(k);
         mat::fixed<3,3> dW2 = dW * W + W * dW;
-
-        // d(theta)/d(omega_k) = omega_k / theta
         double dtk = omega(k) / theta;
-
         result.slice(k) = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
     }
 
     return result;
-}
-
-cube dR_drotvec(const vec& omega) {
-    if (omega.n_elem != 3) {
-        throw invalid_argument("dR_drotvec: rotation vector must have 3 elements");
-    }
-    vec::fixed<3> omega_f = {omega(0), omega(1), omega(2)};
-    return dR_drotvec(omega_f);
 }
 
 } //namespace simcoon

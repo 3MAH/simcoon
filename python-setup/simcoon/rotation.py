@@ -10,7 +10,7 @@ methods (``apply_stress``, ``apply_stiffness``, etc.).
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
-from simcoon._core import _CppRotation
+from simcoon._core import _CppRotation, dR_drotvec as _dR_drotvec
 
 
 class Rotation(ScipyRotation):
@@ -395,12 +395,10 @@ class Rotation(ScipyRotation):
             Single: (3, 3, 3) where ``result[k]`` is dR/d(omega_k).
             Batch:  (N, 3, 3, 3) where ``result[n, k]`` is dR_n/d(omega_k).
         """
-        if not self._is_batch:
-            return self._to_cpp().dR_drotvec()
-        return np.array([
-            _CppRotation.from_quat(q).dR_drotvec()
-            for q in self.as_quat()
-        ])
+        rotvec = self.as_rotvec()
+        if rotvec.ndim == 1:
+            return _dR_drotvec(rotvec)
+        return np.array([_dR_drotvec(r) for r in rotvec])
 
     # ------------------------------------------------------------------
     # Compatibility helpers

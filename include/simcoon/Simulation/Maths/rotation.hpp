@@ -478,13 +478,6 @@ public:
  */
 arma::cube dR_drotvec(const arma::vec::fixed<3>& omega);
 
-/**
- * @brief Compute derivatives of R(omega) w.r.t. rotation vector components (dynamic size).
- * @param omega Rotation vector (3 elements)
- * @return 3x3x3 cube where slice k is dR/d(omega_k)
- */
-arma::cube dR_drotvec(const arma::vec& omega);
-
 // =========================================================================
 // Convenience Free Functions
 // =========================================================================
