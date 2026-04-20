@@ -127,9 +127,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 enable_testing()
 
 # Find dependencies
-if(MSVC)
-  set(BLA_PREFER_PKGCONFIG TRUE)
-endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
