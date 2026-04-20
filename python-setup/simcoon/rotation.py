@@ -392,13 +392,16 @@ class Rotation(ScipyRotation):
         Returns
         -------
         numpy.ndarray
-            Single: (3, 3, 3) where ``result[k]`` is dR/d(omega_k).
-            Batch:  (N, 3, 3, 3) where ``result[n, k]`` is dR_n/d(omega_k).
+            Single: (3, 3, 3) where ``result[:, :, k]`` is dR/d(omega_k).
+            Batch:  (3, 3, 3, N) where ``result[:, :, k, n]`` is dR_n/d(omega_k).
+
+            The slice axis is last, matching simcoon's project-wide cube
+            convention ((3,3,N), (6,6,N), ...).
         """
         rotvec = self.as_rotvec()
         if rotvec.ndim == 1:
             return _dR_drotvec(rotvec)
-        return np.array([_dR_drotvec(r) for r in rotvec])
+        return np.stack([_dR_drotvec(r) for r in rotvec], axis=-1)
 
     # ------------------------------------------------------------------
     # Compatibility helpers

@@ -457,7 +457,8 @@ public:
      * Uses the exact differentiation of the Rodrigues formula
      * (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
      *
-     * @return 3x3x3 cube where slice k is dR/d(omega_k)
+     * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
+     *         (Python exposure: result[:, :, k]).
      */
     arma::cube dR_drotvec() const;
 };
@@ -470,7 +471,8 @@ public:
  * the Rodrigues formula.
  *
  * @param omega Rotation vector (3 elements)
- * @return 3x3x3 cube where slice k is dR/d(omega_k)
+ * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
+ *         (Python exposure: result[:, :, k]).
  *
  * @details Reference: Gallego & Yezzi, "A Compact Formula for the
  *          Derivative of a 3-D Rotation in Exponential Coordinates",

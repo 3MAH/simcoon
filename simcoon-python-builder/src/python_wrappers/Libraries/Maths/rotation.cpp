@@ -37,19 +37,6 @@ namespace {
                 to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
         }
     }
-
-    // Return a (3,3,3) numpy array where result[k,i,j] == cube(i,j,k).
-    // (Armadillo stores slices along the last axis; we expose slice index first
-    // so users can write result[k] for dR/d(omega_k).)
-    py::array_t<double> cube333_to_kij_numpy(const arma::cube& c) {
-        py::array_t<double> result({3, 3, 3});
-        auto buf = result.mutable_unchecked<3>();
-        for (int k = 0; k < 3; ++k)
-            for (int i = 0; i < 3; ++i)
-                for (int j = 0; j < 3; ++j)
-                    buf(k, i, j) = c(i, j, k);
-        return result;
-    }
 } // anonymous namespace
 
 void register_rotation(py::module_& m) {
@@ -154,7 +141,7 @@ void register_rotation(py::module_& m) {
 
         .def("dR_drotvec",
             [](const simcoon::Rotation& self) {
-                return cube333_to_kij_numpy(self.dR_drotvec());
+                return carma::cube_to_arr(self.dR_drotvec());
             },
             simcoon_docs::dR_drotvec)
 
@@ -165,7 +152,7 @@ void register_rotation(py::module_& m) {
             validate_vector_size(rotvec, 3, "rotvec");
             auto r = rotvec.unchecked<1>();
             vec::fixed<3> omega = {r(0), r(1), r(2)};
-            return cube333_to_kij_numpy(simcoon::dR_drotvec(omega));
+            return carma::cube_to_arr(simcoon::dR_drotvec(omega));
         },
         py::arg("rotvec"),
         simcoon_docs::dR_drotvec_free);

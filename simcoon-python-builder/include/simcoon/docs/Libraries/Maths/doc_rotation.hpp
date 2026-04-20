@@ -284,7 +284,9 @@ constexpr auto dR_drotvec = R"pbdoc(
     Returns
     -------
     numpy.ndarray
-        A (3, 3, 3) array where ``result[k]`` is :math:`\partial R / \partial \omega_k`.
+        A (3, 3, 3) array where ``result[:, :, k]`` is
+        :math:`\partial R / \partial \omega_k`. The slice axis is last,
+        matching simcoon's project-wide cube convention.
 
     Examples
     --------
@@ -295,7 +297,7 @@ constexpr auto dR_drotvec = R"pbdoc(
 
         r = smc.Rotation.from_rotvec([0.1, 0.2, 0.3])
         dR = r.dR_drotvec()  # (3, 3, 3)
-        # dR[0] = dR/d(omega_0), dR[1] = dR/d(omega_1), dR[2] = dR/d(omega_2)
+        # dR[:, :, 0] = dR/d(omega_0), dR[:, :, 1] = dR/d(omega_1), dR[:, :, 2] = dR/d(omega_2)
 )pbdoc";
 
 constexpr auto dR_drotvec_free = R"pbdoc(
@@ -311,7 +313,8 @@ constexpr auto dR_drotvec_free = R"pbdoc(
     Returns
     -------
     numpy.ndarray
-        A (3, 3, 3) array where ``result[k]`` is :math:`\partial R / \partial \omega_k`.
+        A (3, 3, 3) array where ``result[:, :, k]`` is
+        :math:`\partial R / \partial \omega_k`.
 
     References
     ----------
