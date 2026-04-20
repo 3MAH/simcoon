@@ -33,8 +33,11 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <stdexcept>
 #include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 namespace simcoon {
+
+class Rotation;
 
 /**
  * @brief Type enumeration for internal variables
@@ -236,15 +239,79 @@ public:
      * Applies rotation to maintain objectivity during large deformations.
      * - Scalar variables: not rotated (scalars are frame-invariant)
      * - Vector variables (6 Voigt): rotated via rotate_strain(value, DR)
-     * - Matrix variables (6x6): not yet supported (placeholder)
+     *   (assumes Voigt-strain convention — factor-2 on shear — which is the
+     *   storage convention for tensorial internals like plastic strain or
+     *   backstress)
+     * - Matrix variables (6x6): rotated as a stiffness via Rotation::apply_stiffness
      *
      * Only applied if requires_rotation_ is true. By default, scalars
      * have requires_rotation_ = false and tensorial quantities have
      * requires_rotation_ = true.
-     *
-     * @see rotate_strain() in contimech.hpp
      */
     void rotate(const arma::mat& DR);
+
+    /**
+     * @brief Apply rotation for objectivity using a Rotation object.
+     *
+     * Equivalent to rotate(R.as_matrix()) but avoids the round-trip through a
+     * raw 3x3 matrix when the caller already has a Rotation. Prefer this
+     * overload in new code.
+     */
+    void rotate(const Rotation& R);
+
+    // ========== Tensor-typed views (Tensor2/Tensor4 API) ==========
+
+    /**
+     * @brief View the stored vector as a typed tensor2.
+     *
+     * Internal vectorial state is stored in Voigt convention; the caller knows
+     * what physical quantity it represents and selects the matching VoigtType.
+     * - VoigtType::strain  for plastic strain, viscous strain, backstress (in
+     *   strain-like form), etc. — assumes the factor-2 shear convention used
+     *   by the existing rotate() / pack() helpers.
+     * - VoigtType::stress  for stress-like backstress or stress-conjugate
+     *   variables stored without the factor-2.
+     * - VoigtType::generic when no specific physical convention applies.
+     *
+     * @throws std::runtime_error if type() != VECTOR_6
+     */
+    [[nodiscard]] tensor2 as_tensor2(VoigtType vtype = VoigtType::strain) const;
+
+    /// Convenience: as_tensor2(VoigtType::strain).
+    [[nodiscard]] tensor2 as_strain() const { return as_tensor2(VoigtType::strain); }
+
+    /// Convenience: as_tensor2(VoigtType::stress).
+    [[nodiscard]] tensor2 as_stress() const { return as_tensor2(VoigtType::stress); }
+
+    /**
+     * @brief View the stored 6x6 matrix as a typed tensor4.
+     *
+     * @throws std::runtime_error if type() != MATRIX_6x6
+     */
+    [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type = Tensor4Type::stiffness) const;
+
+    /// Convenience: as_tensor4(Tensor4Type::stiffness).
+    [[nodiscard]] tensor4 as_stiffness() const { return as_tensor4(Tensor4Type::stiffness); }
+
+    /// Convenience: as_tensor4(Tensor4Type::compliance).
+    [[nodiscard]] tensor4 as_compliance() const { return as_tensor4(Tensor4Type::compliance); }
+
+    /**
+     * @brief Write a typed tensor2 back into the stored vector.
+     *
+     * The caller's tensor2 VoigtType determines the layout written; storage
+     * follows the same convention until the next read.
+     *
+     * @throws std::runtime_error if type() != VECTOR_6
+     */
+    void set_tensor2(const tensor2& t);
+
+    /**
+     * @brief Write a typed tensor4 back into the stored 6x6 matrix.
+     *
+     * @throws std::runtime_error if type() != MATRIX_6x6
+     */
+    void set_tensor4(const tensor4& t);
 
     // ========== Serialization ==========
 

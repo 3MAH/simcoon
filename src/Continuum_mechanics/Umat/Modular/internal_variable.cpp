@@ -253,6 +253,57 @@ void InternalVariable::rotate(const arma::mat& DR) {
     }
 }
 
+void InternalVariable::rotate(const Rotation& R) {
+    if (!requires_rotation_) {
+        return;
+    }
+    switch (type_) {
+        case IVarType::SCALAR:
+            break;
+        case IVarType::VECTOR_6:
+            // strain-form vector (factor-2 on shear) → use Rotation::apply_strain
+            vec_value_ = R.apply_strain(arma::vec::fixed<6>(vec_value_));
+            break;
+        case IVarType::MATRIX_6x6:
+            mat_value_ = R.apply_stiffness(arma::mat::fixed<6,6>(mat_value_));
+            break;
+    }
+}
+
+// ========== Tensor-typed views ==========
+
+tensor2 InternalVariable::as_tensor2(VoigtType vtype) const {
+    if (type_ != IVarType::VECTOR_6) {
+        throw std::runtime_error("InternalVariable::as_tensor2: variable '" + name_
+                                 + "' is not VECTOR_6");
+    }
+    return tensor2::from_voigt(vec_value_, vtype);
+}
+
+tensor4 InternalVariable::as_tensor4(Tensor4Type t4type) const {
+    if (type_ != IVarType::MATRIX_6x6) {
+        throw std::runtime_error("InternalVariable::as_tensor4: variable '" + name_
+                                 + "' is not MATRIX_6x6");
+    }
+    return tensor4(arma::mat::fixed<6,6>(mat_value_), t4type);
+}
+
+void InternalVariable::set_tensor2(const tensor2& t) {
+    if (type_ != IVarType::VECTOR_6) {
+        throw std::runtime_error("InternalVariable::set_tensor2: variable '" + name_
+                                 + "' is not VECTOR_6");
+    }
+    vec_value_ = arma::vec(t.voigt());
+}
+
+void InternalVariable::set_tensor4(const tensor4& t) {
+    if (type_ != IVarType::MATRIX_6x6) {
+        throw std::runtime_error("InternalVariable::set_tensor4: variable '" + name_
+                                 + "' is not MATRIX_6x6");
+    }
+    mat_value_ = arma::mat(t.mat());
+}
+
 // ========== Serialization ==========
 
 void InternalVariable::pack(arma::vec& statev) const {

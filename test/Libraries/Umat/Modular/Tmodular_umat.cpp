@@ -30,6 +30,9 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 
 using namespace std;
 using namespace arma;
@@ -116,6 +119,52 @@ TEST_F(InternalVariableTest, DeltaComputation) {
 
     iv.scalar() = 3.0;  // Modify
     EXPECT_DOUBLE_EQ(iv.delta_scalar(), 2.0);
+}
+
+// Tensor-typed views: VECTOR_6 → tensor2 (strain or stress), MATRIX_6x6 → tensor4.
+// Verifies round-trip through the typed accessors and rejects type mismatches.
+TEST_F(InternalVariableTest, TensorViews) {
+    arma::vec EP_voigt = {0.01, -0.005, -0.005, 0.002, 0.0, 0.0};
+    InternalVariable EP("EP", EP_voigt, true);
+
+    tensor2 EP_t = EP.as_strain();
+    EXPECT_EQ(EP_t.vtype(), VoigtType::strain);
+    EXPECT_LT(arma::norm(arma::vec(EP_t.voigt()) - EP_voigt, 2), 1e-12);
+
+    // Mutate via typed setter and read back
+    arma::vec new_EP = {0.02, -0.01, -0.01, 0.004, 0.0, 0.0};
+    tensor2 new_EP_t = tensor2::from_voigt(new_EP, VoigtType::strain);
+    EP.set_tensor2(new_EP_t);
+    EXPECT_LT(arma::norm(EP.vec() - new_EP, 2), 1e-12);
+
+    // MATRIX_6x6 → tensor4 stiffness
+    arma::mat L_init = L_iso(70000., 0.3, "Enu");
+    InternalVariable L_iv("L_active", L_init, true);
+    tensor4 L_t = L_iv.as_stiffness();
+    EXPECT_EQ(L_t.type(), Tensor4Type::stiffness);
+    EXPECT_LT(arma::norm(arma::mat(L_t.mat()) - L_init, "fro"), 1e-10);
+
+    // Type-mismatch rejection
+    InternalVariable scalar_iv("d", 0.1, false);
+    EXPECT_THROW(scalar_iv.as_strain(), std::runtime_error);
+    EXPECT_THROW(scalar_iv.as_stiffness(), std::runtime_error);
+    EXPECT_THROW(EP.as_stiffness(), std::runtime_error);
+    EXPECT_THROW(L_iv.as_strain(), std::runtime_error);
+}
+
+// Rotation overload: rotate(Rotation) is equivalent to rotate(R.as_matrix()).
+TEST_F(InternalVariableTest, RotationOverload) {
+    arma::vec EP_voigt = {0.01, -0.005, -0.005, 0.002, 0.001, 0.0};
+    InternalVariable EP_a("EP", EP_voigt, true);
+    InternalVariable EP_b("EP", EP_voigt, true);
+
+    Rotation R = Rotation::from_axis_angle(M_PI / 6.0, 3);
+    arma::mat DR = R.as_matrix();
+
+    EP_a.rotate(DR);
+    EP_b.rotate(R);
+
+    EXPECT_LT(arma::norm(EP_a.vec() - EP_b.vec(), 2), 1e-12);
 }
 
 // ========== InternalVariableCollection Tests ==========
