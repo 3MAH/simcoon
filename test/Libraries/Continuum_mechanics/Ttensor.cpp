@@ -678,15 +678,19 @@ TEST(Ttensor4, CompliancePushPullBackRoundtrip)
 
 TEST(Ttensor4, CompliancePushForwardConsistency)
 {
-    // Verify that compliance push-forward is consistent with direct computation:
-    // Build a compliance tensor with ONLY a shear term M(3,3) = 4.0
-    // In full index: S(0,1,0,1) = 4.0 / 4 = 1.0 (compliance factor)
+    // Compliance is covariant: push-forward kernel uses F^{-T} on all four indices,
+    // not F. Verify with simple shear F = [[1,1,0],[0,1,0],[0,0,1]] (J = 1):
+    //   F^{-T} = [[1, 0, 0], [-1, 1, 0], [0, 0, 1]]
     //
-    // Push-forward with simple shear F = [[1,1,0],[0,1,0],[0,0,1]]:
-    // C'(0,0,0,0) contributions from S: F_0L F_0J F_0M F_0N S_LJMN
-    //   L,J,M,N in {0,1}, S(0,1,0,1) and its symmetries = 1.0 each (4 terms)
-    //   So C'(0,0,0,0) = 4 * 1.0 = 4.0
-    // Back to Voigt: M'(0,0) = 1 * C'(0,0,0,0) = 4.0 (normal-normal factor = 1)
+    // Build a compliance with only the shear term M(3,3) = 4.0, i.e.
+    // S(0,1,0,1) = S(0,1,1,0) = S(1,0,0,1) = S(1,0,1,0) = 1.0 (compliance factor /4).
+    //
+    // (F^{-T})(1,L) = (-1, 1, 0), so the contraction over L,J,M,N in {0,1} for
+    // M'(1,1,1,1) sums four S terms each multiplied by (-1)(1)(-1)(1) or
+    // (-1)(1)(1)(-1) etc. — all four equal +1, giving M'(1,1,1,1) = 4.0.
+    // Voigt M'(1,1) = M'(1,1,1,1) = 4.0.
+    //
+    // M'(0,0,0,0) is trivially zero with this F (F^{-T}(0,L) = δ_{L0}).
 
     mat::fixed<6,6> M;
     M.zeros();
@@ -696,8 +700,70 @@ TEST(Ttensor4, CompliancePushForwardConsistency)
     mat::fixed<3,3> F = {{1, 1, 0}, {0, 1, 0}, {0, 0, 1}};
     tensor4 comp_push = comp.push_forward(F);
 
-    // M'(0,0) should be 4.0 (from correct factor handling)
-    EXPECT_NEAR(comp_push.mat()(0,0), 4.0, 1e-10);
+    EXPECT_NEAR(comp_push.mat()(1,1), 4.0, 1e-10);
+    EXPECT_NEAR(comp_push.mat()(0,0), 0.0, 1e-10);
+}
+
+// Stiffness/compliance inverse invariant under push-forward:
+//   inverse(K).push_forward(F) ≡ inverse(K.push_forward(F))
+// This holds iff compliance push-forward uses F^{-T} (not F).
+// Check on a non-orthogonal F so the convention difference is visible.
+TEST(Ttensor4, PushForwardCommutesWithInverse)
+{
+    double E = 70000.0, nu = 0.3;
+    mat::fixed<6,6> L = L_iso(E, nu, "Enu");
+    tensor4 stiff(L, Tensor4Type::stiffness);
+
+    mat::fixed<3,3> F = {{1.2, 0.3, 0.1}, {0.05, 0.95, 0.04}, {0.02, 0.06, 1.1}};
+
+    tensor4 stiff_push = stiff.push_forward(F);
+    tensor4 comp_then_push = stiff.inverse().push_forward(F);
+    tensor4 push_then_comp = stiff_push.inverse();
+
+    EXPECT_EQ(comp_then_push.type(), Tensor4Type::compliance);
+    EXPECT_EQ(push_then_comp.type(), Tensor4Type::compliance);
+    EXPECT_LT(norm(mat(comp_then_push.mat()) - mat(push_then_comp.mat()), "fro"), 1e-8);
+}
+
+// All three logarithmic CoRate variants share the same algorithmic tangent
+// at this entry point (B^(4) is identical; the log/log_R/log_F distinction
+// lives in the stress integrators, not here).
+TEST(Ttensor4, CoRateLogarithmicVariantsAreEquivalent)
+{
+    mat::fixed<6,6> L = L_iso(70000., 0.3, "Enu");
+    tensor4 stiff(L, Tensor4Type::stiffness);
+
+    mat::fixed<3,3> F = {{1.2, 0.1, 0.05}, {0.02, 0.95, 0.03}, {0.01, 0.04, 1.05}};
+
+    // Non-zero Kirchhoff stress so the B-correction actually contributes
+    mat::fixed<3,3> tau_mat = {{120., 30., 10.}, {30., -50., 5.}, {10., 5., 80.}};
+    tensor2 tau(tau_mat, VoigtType::stress);
+
+    tensor4 t_log   = stiff.push_forward(F, CoRate::logarithmic,   tau);
+    tensor4 t_log_R = stiff.push_forward(F, CoRate::logarithmic_R, tau);
+    tensor4 t_log_F = stiff.push_forward(F, CoRate::logarithmic_F, tau);
+
+    EXPECT_LT(norm(mat(t_log.mat()) - mat(t_log_R.mat()), "fro"), 1e-10);
+    EXPECT_LT(norm(mat(t_log.mat()) - mat(t_log_F.mat()), "fro"), 1e-10);
+
+    // Sanity: the corrected tangent differs from the plain Lie push-forward
+    tensor4 t_lie = stiff.push_forward(F, CoRate::lie, tau);
+    EXPECT_GT(norm(mat(t_log.mat()) - mat(t_lie.mat()), "fro"), 1e-3);
+}
+
+TEST(Ttensor4, ConcentrationPushForwardThrows)
+{
+    mat::fixed<6,6> A;
+    A.eye();
+    tensor4 strain_conc(A, Tensor4Type::strain_concentration);
+    tensor4 stress_conc(A, Tensor4Type::stress_concentration);
+
+    mat::fixed<3,3> F = {{1.1, 0.1, 0.0}, {0.0, 0.95, 0.0}, {0.0, 0.0, 1.05}};
+
+    EXPECT_THROW(strain_conc.push_forward(F), std::runtime_error);
+    EXPECT_THROW(stress_conc.push_forward(F), std::runtime_error);
+    EXPECT_THROW(strain_conc.pull_back(F), std::runtime_error);
+    EXPECT_THROW(stress_conc.pull_back(F), std::runtime_error);
 }
 
 // ============================================================================
@@ -862,4 +928,64 @@ TEST(Ttensor_integration, FullCycle_Stress_Rotate_Contract)
 
     // Both should give the same result
     EXPECT_LT(norm(mat(sigma_rot_direct.mat()) - mat(sigma_rot_indirect.mat()), "fro"), 1e-8);
+}
+
+// ============================================================================
+// Batch ops: size preconditions
+// Secondary operand .n_slices must be 1 (broadcast) or match the primary N.
+// Any other size would silently read past the buffer in release builds.
+// ============================================================================
+
+TEST(Ttensor_batch, SizeMismatchThrows)
+{
+    const int N = 10, N_MISMATCH = 5;
+    mat v_stress(6, N, fill::randu);
+    cube F_match(3, 3, N, fill::randu);
+    cube F_bcast(3, 3, 1, fill::randu);
+    cube F_mismatch(3, 3, N_MISMATCH, fill::randu);
+    cube R_match(3, 3, N, fill::randu);
+    cube R_mismatch(3, 3, N_MISMATCH, fill::randu);
+
+    // Build identity-ish F/R so broadcast/matched paths succeed without numerical trouble
+    F_match.each_slice() = mat::fixed<3,3>(fill::eye);
+    F_bcast.slice(0) = mat::fixed<3,3>(fill::eye);
+    R_match.each_slice() = mat::fixed<3,3>(fill::eye);
+
+    // Matched and broadcast should succeed
+    EXPECT_NO_THROW(batch_rotate(v_stress, VoigtType::stress, R_match, true));
+    EXPECT_NO_THROW(batch_push_forward(v_stress, VoigtType::stress, F_match, false));
+    EXPECT_NO_THROW(batch_push_forward(v_stress, VoigtType::stress, F_bcast, false));
+    EXPECT_NO_THROW(batch_pull_back(v_stress, VoigtType::stress, F_match, false));
+
+    // Mismatched secondary must throw
+    EXPECT_THROW(batch_rotate(v_stress, VoigtType::stress, R_mismatch, true), std::invalid_argument);
+    EXPECT_THROW(batch_push_forward(v_stress, VoigtType::stress, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_pull_back(v_stress, VoigtType::stress, F_mismatch, false), std::invalid_argument);
+
+    // tensor4 variants
+    cube t4(6, 6, N, fill::randu);
+    cube t4_slice_eye(6, 6, N);
+    t4_slice_eye.each_slice() = mat::fixed<6,6>(fill::eye);
+
+    EXPECT_NO_THROW(batch_rotate_t4(t4_slice_eye, Tensor4Type::stiffness, R_match, true));
+    EXPECT_NO_THROW(batch_push_forward_t4(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
+    EXPECT_NO_THROW(batch_pull_back_t4(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
+
+    EXPECT_THROW(batch_rotate_t4(t4_slice_eye, Tensor4Type::stiffness, R_mismatch, true), std::invalid_argument);
+    EXPECT_THROW(batch_push_forward_t4(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_pull_back_t4(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
+
+    // batch_contract: both operands must be 1 or max(N4,N2)
+    mat t2_match(6, N, fill::randu);
+    mat t2_mismatch(6, N_MISMATCH, fill::randu);
+    mat t2_bcast(6, 1, fill::randu);
+    cube t4_bcast(6, 6, 1);
+    t4_bcast.slice(0) = mat::fixed<6,6>(fill::eye);
+
+    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_match, VoigtType::strain));
+    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_bcast, VoigtType::strain));
+    EXPECT_NO_THROW(batch_contract(t4_bcast, Tensor4Type::stiffness, t2_match, VoigtType::strain));
+    // N4=N, N2=N_MISMATCH — both non-broadcast, sizes differ → must throw
+    EXPECT_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_mismatch, VoigtType::strain),
+                 std::invalid_argument);
 }
