@@ -63,14 +63,24 @@ enum class Tensor4Type {
 /**
  * @brief Corotational rate type for tangent modulus push-forward.
  *
- * Controls the B-correction applied after the geometric push-forward
- * to make the spatial tangent consistent with a given objective rate:
+ * Controls the B-correction applied after the F-push-forward of a stiffness
+ * tangent to make the spatial tangent consistent with a given objective rate
+ * of Kirchhoff stress:
  * - lie:            Pure push-forward (Truesdell/Oldroyd rate), no correction
- * - jaumann:        Jaumann (co-rotational) rate correction
- * - green_naghdi:   Green-Naghdi rate correction
- * - logarithmic:    Logarithmic rate correction (default in simcoon solver)
- * - logarithmic_R:  Logarithmic rate using R from polar decomposition
- * - logarithmic_F:  Logarithmic rate using F directly
+ * - jaumann:        Jaumann (co-rotational) W-spin correction
+ * - green_naghdi:   Green-Naghdi spin correction (R from polar decomposition)
+ * - logarithmic:    BXM logarithmic rate correction (default in simcoon solver)
+ * - logarithmic_R:  Logarithmic, R-transport framework
+ * - logarithmic_F:  Logarithmic, F-transport framework
+ *
+ * @note `logarithmic`, `logarithmic_R`, and `logarithmic_F` share the same
+ *       algorithmic tangent here: they all reduce to the F-push-forward of the
+ *       material tangent followed by the same B^(4) correction (cf. Chemisky
+ *       et al. preprint, Sec. "Two integrable logarithmic frameworks": both
+ *       integrable frameworks share B^(4); the difference lies in the *stress
+ *       integrator*'s transport operator). Their genuinely distinct stress
+ *       updates live in Continuum_mechanics/Functions/objective_rates.cpp
+ *       (`logarithmic`, `logarithmic_R`, `logarithmic_F`), not here.
  */
 enum class CoRate {
     lie,
@@ -274,8 +284,18 @@ public:
     tensor2 contract(const tensor2 &t) const;
 
     /**
-     * @brief Push-forward: C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN  (Lie rate tangent)
-     * @param metric If true (default), includes J=det(F) factor (Piola transformation)
+     * @brief Push-forward to the spatial configuration. Kernel branches on Tensor4Type:
+     *   - stiffness / generic (contravariant):
+     *       C'_isrp = F_iL F_sJ F_rM F_pN C_LJMN, scaled by 1/J if metric=true
+     *   - compliance (covariant):
+     *       M'_isrp = (F^{-T})_iL (F^{-T})_sJ (F^{-T})_rM (F^{-T})_pN M_LJMN, scaled by J
+     *   - strain_concentration / stress_concentration: not implemented (mixed indices)
+     *
+     * The compliance kernel is what makes inverse(K).push_forward(F) ≡ inverse(K.push_forward(F))
+     * for non-orthogonal F.
+     *
+     * @param metric If true (default), includes the J=det(F) Piola scaling
+     * @throws std::runtime_error for concentration tensor types
      */
     tensor4 push_forward(const arma::mat::fixed<3,3> &F, bool metric = true) const;
     tensor4 push_forward(const arma::mat &F, bool metric = true) const;
@@ -298,8 +318,13 @@ public:
                          const tensor2 &tau, bool metric = true) const;
 
     /**
-     * @brief Pull-back: C'_LJMN = invF_lN invF_kM invF_jJ invF_iL C_ijkl
-     * @param metric If true (default), includes J=det(F) factor (Piola transformation)
+     * @brief Pull-back to the reference configuration. Inverts push_forward(F):
+     *   - stiffness / generic: kernel is F^{-1}, scaled by J if metric=true
+     *   - compliance:         kernel is F^T,    scaled by 1/J
+     *   - concentration types: not implemented (mixed indices)
+     *
+     * @param metric If true (default), includes the J=det(F) Piola scaling
+     * @throws std::runtime_error for concentration tensor types
      */
     tensor4 pull_back(const arma::mat::fixed<3,3> &F, bool metric = true) const;
     tensor4 pull_back(const arma::mat &F, bool metric = true) const;

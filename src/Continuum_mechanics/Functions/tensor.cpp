@@ -54,6 +54,24 @@ static Tensor4Type parse_tensor4_type(const std::string &s) {
         "Expected: stiffness, compliance, strain_concentration, stress_concentration, generic");
 }
 
+// Helper: validate that a secondary operand in a batch op is either broadcast
+// (n_slices == 1) or matches the primary batch size. Without this check, a
+// mismatched count silently reads past the owned cube buffer in release builds
+// (ARMA_NO_DEBUG), producing garbage output and, under OpenMP, non-deterministic
+// crashes.
+static void check_batch_broadcast(arma::uword n_secondary,
+                                  arma::uword N_primary,
+                                  const char *fn,
+                                  const char *secondary_name,
+                                  const char *primary_name) {
+    if (n_secondary != 1 && n_secondary != N_primary) {
+        throw std::invalid_argument(
+            std::string(fn) + ": " + secondary_name + ".n_slices ("
+            + std::to_string(n_secondary) + ") must be 1 or "
+            + primary_name + " (" + std::to_string(N_primary) + ")");
+    }
+}
+
 // Helper: compute inv of a 3x3 fixed matrix, returning fixed
 static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
     arma::mat tmp;
@@ -63,6 +81,28 @@ static arma::mat::fixed<3,3> inv33(const arma::mat::fixed<3,3> &F) {
     arma::mat::fixed<3,3> result;
     result = tmp;
     return result;
+}
+
+// Helper: select the 3x3 contraction kernel for tensor4 push/pull on all 4 indices.
+//   forward=true  (push):  stiffness/generic → F,       compliance → F^{-T}
+//   forward=false (pull):  stiffness/generic → F^{-1},  compliance → F^T
+// Concentration types mix covariant and contravariant indices — not implemented.
+static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
+                                            Tensor4Type type, bool forward) {
+    switch (type) {
+        case Tensor4Type::stiffness:
+        case Tensor4Type::generic:
+            return forward ? F : inv33(F);
+        case Tensor4Type::compliance:
+            return forward ? arma::mat::fixed<3,3>(inv33(F).t()) : arma::mat::fixed<3,3>(F.t());
+        case Tensor4Type::strain_concentration:
+        case Tensor4Type::stress_concentration:
+            throw std::runtime_error(
+                std::string("tensor4::") + (forward ? "push_forward" : "pull_back")
+                + " not implemented for concentration tensors "
+                  "(mixed covariant/contravariant indices)");
+    }
+    return F; // unreachable
 }
 
 // ============================================================================
@@ -652,25 +692,18 @@ tensor2 tensor4::contract(const tensor2 &t) const {
 tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
-    auto F_fastor = arma_to_fastor2(F, false);  // F is non-symmetric
-
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, F_fastor);
+    // Kernel branches on _type (mirrors tensor2::push_forward):
+    // stiffness/generic use F, compliance uses F^{-T}.
+    arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/true);
+    auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
+    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
 
     if (metric) {
         double J = arma::det(F);
-        switch (_type) {
-            case Tensor4Type::stiffness:
-            case Tensor4Type::generic:
-                voigt_result *= (1.0 / J);
-                break;
-            case Tensor4Type::compliance:
-                voigt_result *= J;
-                break;
-            case Tensor4Type::strain_concentration:
-            case Tensor4Type::stress_concentration:
-                break; // factor is 1
-        }
+        // Piola scaling: stiffness→1/J, compliance→J.
+        // Concentration is rejected in tensor4_kernel, so only the two cases apply here.
+        voigt_result *= (_type == Tensor4Type::compliance) ? J : (1.0 / J);
     }
     return tensor4(voigt_result, _type);
 }
@@ -678,27 +711,15 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
 tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
-    arma::mat::fixed<3,3> invF = inv33(F);
-
-    auto invF_fastor = arma_to_fastor2(invF, false);  // invF is non-symmetric
-
-    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, invF_fastor);
+    // Pull-back inverts push-forward: stiffness/generic use F^{-1}, compliance uses F^T.
+    arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/false);
+    auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
+    Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
     arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
 
     if (metric) {
         double J = arma::det(F);
-        switch (_type) {
-            case Tensor4Type::stiffness:
-            case Tensor4Type::generic:
-                voigt_result *= J;
-                break;
-            case Tensor4Type::compliance:
-                voigt_result *= (1.0 / J);
-                break;
-            case Tensor4Type::strain_concentration:
-            case Tensor4Type::stress_concentration:
-                break; // factor is 1
-        }
+        voigt_result *= (_type == Tensor4Type::compliance) ? (1.0 / J) : J;
     }
     return tensor4(voigt_result, _type);
 }
@@ -723,13 +744,32 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     if (rate == CoRate::lie)
         return push_forward(F, metric);
 
-    // Step 1: Lie push-forward WITHOUT metric (Kirchhoff-level tangent).
-    // B-correction must be applied at the Kirchhoff level before metric scaling.
-    arma::mat Lt_v = push_forward(F, /*metric=*/false).mat();
+    // The B-correction recipe is defined on a Truesdell-rate Kirchhoff tangent
+    // (stress-stress, contravariant on all four indices). It does not apply to
+    // compliance or concentration tangents.
+    if (_type != Tensor4Type::stiffness && _type != Tensor4Type::generic) {
+        throw std::runtime_error(
+            "tensor4::push_forward(F, CoRate, tau): corotational-rate "
+            "correction is only defined for stiffness/generic tangents");
+    }
+
+    // Step 1: Truesdell push-forward (F-transport) WITHOUT metric, giving the
+    // Lie-rate Kirchhoff tangent. B-correction is applied at the Kirchhoff
+    // level before metric scaling.
+    auto F_fastor = arma_to_fastor2(F, false);
+    _ensure_fastor();
+    Fastor::Tensor<double,3,3,3,3> lie_full = push_forward_4(*_fastor, F_fastor);
+    arma::mat Lt_v = full_to_voigt(lie_full, _type);
     const arma::mat::fixed<3,3> &tau_mat = tau.mat();
     arma::mat result_v;
 
-    // Step 2: Apply corotational rate correction
+    // Step 2: Apply corotational rate correction.
+    // The three logarithmic variants share the same B^(4) tangent correction
+    // at this entry point (cf. main_preprint.tex Sec. "Two integrable
+    // logarithmic frameworks"). The integrator-level distinction between
+    // BXM log, log_R (R-transport) and log_F (F-transport) lives in the
+    // stress-update routines in Continuum_mechanics/Functions/objective_rates.cpp
+    // (`logarithmic`, `logarithmic_R`, `logarithmic_F`), not here.
     switch (rate) {
         case CoRate::jaumann:
             result_v = Dtau_LieDD_Dtau_JaumannDD(Lt_v, tau_mat);
@@ -737,30 +777,23 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
         case CoRate::green_naghdi:
             result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
             break;
-        case CoRate::logarithmic:
-        case CoRate::logarithmic_R:
-        case CoRate::logarithmic_F:
+        case CoRate::logarithmic:    // BXM logarithmic rate
+        case CoRate::logarithmic_R:  // R-transport logarithmic framework
+        case CoRate::logarithmic_F:  // F-transport logarithmic framework
+            // All three share the same B^(4) tangent correction at this entry
+            // point — they differ only at the stress-integrator level (see
+            // objective_rates.cpp). Intentional fallthrough.
             result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB(F), tau_mat);
             break;
-        default:
-            throw std::runtime_error("Unknown CoRate");
+        case CoRate::lie:
+            // unreachable — handled at function entry
+            break;
     }
 
-    // Step 3: Apply metric factor (Kirchhoff → Cauchy)
+    // Step 3: Apply metric factor (Kirchhoff → Cauchy) for stiffness/generic.
     if (metric) {
         double J = arma::det(F);
-        switch (_type) {
-            case Tensor4Type::stiffness:
-            case Tensor4Type::generic:
-                result_v *= (1.0 / J);
-                break;
-            case Tensor4Type::compliance:
-                result_v *= J;
-                break;
-            case Tensor4Type::strain_concentration:
-            case Tensor4Type::stress_concentration:
-                break;
-        }
+        result_v *= (1.0 / J);
     }
 
     return tensor4(arma::mat::fixed<6,6>(result_v), _type);
@@ -951,6 +984,8 @@ Tensor4Type infer_inverse_type(Tensor4Type t4type) {
 arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
                        const arma::cube &rot_matrices, bool active) {
     int N = voigt.n_cols;
+    check_batch_broadcast(rot_matrices.n_slices, N,
+                          "batch_rotate", "rot_matrices", "voigt.n_cols");
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::mat result(6, N);
 
@@ -968,6 +1003,8 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
 arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
                              const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
+    check_batch_broadcast(F.n_slices, N,
+                          "batch_push_forward", "F", "voigt.n_cols");
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
@@ -983,6 +1020,8 @@ arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
 arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
                           const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
+    check_batch_broadcast(F.n_slices, N,
+                          "batch_pull_back", "F", "voigt.n_cols");
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
@@ -1023,6 +1062,11 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
     int N4 = t4.n_slices;
     int N2 = t2.n_cols;
     int N = std::max(N4, N2);
+    // Both operands must be 1 (broadcast) or N (matched). Without these guards
+    // the general-path loop reads past the owned buffer when the two non-
+    // broadcast sizes disagree.
+    check_batch_broadcast(N4, N, "batch_contract", "t4", "max(t4.n_slices,t2.n_cols)");
+    check_batch_broadcast(N2, N, "batch_contract", "t2", "max(t4.n_slices,t2.n_cols)");
     bool bc4 = (N4 == 1);
     bool bc2 = (N2 == 1);
 
@@ -1049,6 +1093,8 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
                            const arma::cube &rot_matrices, bool active) {
     int N = t4.n_slices;
+    check_batch_broadcast(rot_matrices.n_slices, N,
+                          "batch_rotate_t4", "rot_matrices", "t4.n_slices");
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::cube result(6, 6, N);
 
@@ -1065,6 +1111,8 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
 arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
                                  const arma::cube &F, bool metric) {
     int N = t4.n_slices;
+    check_batch_broadcast(F.n_slices, N,
+                          "batch_push_forward_t4", "F", "t4.n_slices");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
@@ -1080,6 +1128,8 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
 arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
                               const arma::cube &F, bool metric) {
     int N = t4.n_slices;
+    check_batch_broadcast(F.n_slices, N,
+                          "batch_pull_back_t4", "F", "t4.n_slices");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
