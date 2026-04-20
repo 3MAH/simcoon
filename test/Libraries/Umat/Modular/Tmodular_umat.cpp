@@ -297,6 +297,45 @@ TEST_F(ElasticityModuleTest, ThermalExpansion) {
     EXPECT_DOUBLE_EQ(alpha(5), 0.0);
 }
 
+// Tensor-typed accessors: L_tensor(), M_tensor(), alpha_tensor() should produce
+// the same numerical content as the raw arma equivalents but carry type tags
+// that drive the right Voigt convention and rotation/contraction dispatch.
+TEST_F(ElasticityModuleTest, TensorAccessors) {
+    ElasticityModule em;
+    vec props = {210000.0, 0.3, 1.2e-5};
+    int offset = 0;
+    em.configure(ElasticityType::ISOTROPIC, props, offset);
+
+    tensor4 L_t = em.L_tensor();
+    EXPECT_EQ(L_t.type(), Tensor4Type::stiffness);
+    EXPECT_LT(norm(mat(L_t.mat()) - em.L(), "fro"), 1e-12);
+
+    tensor4 M_t = em.M_tensor();
+    EXPECT_EQ(M_t.type(), Tensor4Type::compliance);
+    EXPECT_LT(norm(mat(M_t.mat()) - em.M(), "fro"), 1e-12);
+
+    // Stiffness × compliance round-trip via typed contraction
+    vec eps_voigt = {1e-3, -3e-4, -3e-4, 0.0, 0.0, 0.0};
+    tensor2 eps_t = tensor2::from_voigt(eps_voigt, VoigtType::strain);
+    tensor2 sig_t = L_t.contract(eps_t);
+    EXPECT_EQ(sig_t.vtype(), VoigtType::stress);
+    EXPECT_LT(norm(vec(sig_t.voigt()) - em.L() * eps_voigt, 2), 1e-8);
+
+    // alpha_tensor: VoigtType::strain (factor-2 on shear is irrelevant here, all shear=0)
+    tensor2 alpha_t = em.alpha_tensor();
+    EXPECT_EQ(alpha_t.vtype(), VoigtType::strain);
+    EXPECT_LT(norm(vec(alpha_t.voigt()) - em.alpha(), 2), 1e-12);
+
+    // thermal_strain_tensor and damaged_L_tensor consistency
+    double DT = 50.0;
+    tensor2 eth = em.thermal_strain_tensor(DT);
+    EXPECT_LT(norm(vec(eth.voigt()) - em.thermal_strain(DT), 2), 1e-12);
+
+    tensor4 L_dmg = em.damaged_L_tensor(0.3);
+    EXPECT_EQ(L_dmg.type(), Tensor4Type::stiffness);
+    EXPECT_LT(norm(mat(L_dmg.mat()) - 0.7 * em.L(), "fro"), 1e-8);
+}
+
 // ========== YieldCriterion Tests ==========
 
 class YieldCriterionTest : public ::testing::Test {
