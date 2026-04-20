@@ -29,6 +29,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <string>
 #include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 namespace simcoon {
 
@@ -210,6 +211,32 @@ public:
      * @return Plastic flow direction at (sigma - X)
      */
     arma::vec plastic_flow(const arma::vec& sigma, const arma::vec& X) const;
+
+    // ========== Tensor2 overloads ==========
+
+    /// equivalent_stress on a typed stress tensor2.
+    [[nodiscard]] double equivalent_stress(const tensor2& sigma) const {
+        return equivalent_stress(arma::vec(sigma.voigt()));
+    }
+
+    /// equivalent_stress with backstress on typed stress tensor2.
+    [[nodiscard]] double equivalent_stress(const tensor2& sigma, const tensor2& X) const {
+        return equivalent_stress(arma::vec(sigma.voigt()), arma::vec(X.voigt()));
+    }
+
+    /// flow_direction returning a typed strain tensor2 (associated flow rule:
+    /// flow direction is dual to stress and lives in strain space).
+    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const {
+        return tensor2::from_voigt(flow_direction(arma::vec(sigma.voigt())),
+                                   VoigtType::strain);
+    }
+
+    /// flow_direction with backstress on typed stress tensor2.
+    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma, const tensor2& X) const {
+        return tensor2::from_voigt(flow_direction(arma::vec(sigma.voigt()),
+                                                  arma::vec(X.voigt())),
+                                   VoigtType::strain);
+    }
 
     // ========== Utility ==========
 

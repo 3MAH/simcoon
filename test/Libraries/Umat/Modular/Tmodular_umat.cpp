@@ -167,6 +167,36 @@ TEST_F(InternalVariableTest, RotationOverload) {
     EXPECT_LT(arma::norm(EP_a.vec() - EP_b.vec(), 2), 1e-12);
 }
 
+// ========== YieldCriterion Tensor2 overloads ==========
+
+TEST(YieldCriterionTensor, VonMisesTensor2Match) {
+    YieldCriterion yc;
+    yc.configure_von_mises();
+
+    arma::vec sigma_voigt = {200., -50., 30., 40., 20., 10.};
+    tensor2 sigma_t = stress(arma::mat::fixed<3,3>{{200., 40., 20.},
+                                                    {40., -50., 10.},
+                                                    {20., 10., 30.}});
+    EXPECT_NEAR(yc.equivalent_stress(sigma_t),
+                yc.equivalent_stress(arma::vec(sigma_t.voigt())),
+                1e-10);
+
+    tensor2 lambda_t = yc.flow_direction(sigma_t);
+    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt())
+                         - yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
+              1e-10);
+
+    // Backstress overload
+    tensor2 X_t = stress(arma::mat::fixed<3,3>{{20., 5., 0.},
+                                                {5., 10., 2.},
+                                                {0., 2., -10.}});
+    EXPECT_NEAR(yc.equivalent_stress(sigma_t, X_t),
+                yc.equivalent_stress(arma::vec(sigma_t.voigt()),
+                                     arma::vec(X_t.voigt())),
+                1e-10);
+}
+
 // ========== InternalVariableCollection Tests ==========
 
 class InternalVariableCollectionTest : public ::testing::Test {
