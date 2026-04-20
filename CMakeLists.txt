@@ -170,10 +170,20 @@ FetchContent_Declare(
     GIT_TAG        "v3.0.1"
 )
 
+FetchContent_Declare(
+    Fastor
+    GIT_REPOSITORY "https://github.com/3MAH/Fastor.git"
+    GIT_TAG        "b3499f6bea8bc49f92b5dcfc250da90e86fc5ebb"
+)
+
 #set(BUILD_SHARED_LIBS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
+
+# Fastor is header-only — just populate, no build step needed
+FetchContent_Populate(Fastor)
+message(STATUS "Fastor include dir: ${fastor_SOURCE_DIR}")
 
 # Python dependencies (only if building Python bindings)
 if(BUILD_PYTHON_BINDINGS)
@@ -303,6 +313,9 @@ target_include_directories(simcoon
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
 
+# Add Fastor as system headers (header-only tensor library, build-time only)
+target_include_directories(simcoon SYSTEM PUBLIC $<BUILD_INTERFACE:${fastor_SOURCE_DIR}>)
+
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
@@ -327,6 +340,12 @@ target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
     PRIVATE dylib
 )
+
+# OpenMP for batch tensor operations
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
+endif()
 
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
 # This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.

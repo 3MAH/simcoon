@@ -10,7 +10,9 @@ methods (``apply_stress``, ``apply_stiffness``, etc.).
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
-from simcoon._core import _CppRotation
+from simcoon._core import (_CppRotation,
+                           _batch_voigt_stress_rotation,
+                           _batch_voigt_strain_rotation)
 
 
 class Rotation(ScipyRotation):
@@ -165,20 +167,14 @@ class Rotation(ScipyRotation):
         q = self.as_quat()
         if q.ndim == 1:
             return _CppRotation.from_quat(q).as_voigt_stress_rotation(active)
-        return np.array([
-            _CppRotation.from_quat(q[i]).as_voigt_stress_rotation(active)
-            for i in range(len(q))
-        ])
+        return _batch_voigt_stress_rotation(q, active)
 
     def _voigt_strain_matrices(self, active=True):
         """Return QE matrices: (6,6) for single, (N,6,6) for batch."""
         q = self.as_quat()
         if q.ndim == 1:
             return _CppRotation.from_quat(q).as_voigt_strain_rotation(active)
-        return np.array([
-            _CppRotation.from_quat(q[i]).as_voigt_strain_rotation(active)
-            for i in range(len(q))
-        ])
+        return _batch_voigt_strain_rotation(q, active)
 
     # ------------------------------------------------------------------
     # Mechanics methods — support single and batch (Gauss-point) operations

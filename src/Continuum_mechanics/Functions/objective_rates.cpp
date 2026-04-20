@@ -23,7 +23,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -31,12 +31,102 @@
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
-using namespace FTensor;
 
 namespace simcoon{
+
+// Helper: copy arma 3x3 to Fastor tensor
+// symmetric=true for stress/strain/C (memcpy sufficient), false for F/invF (needs transpose)
+static inline Fastor::Tensor<double,3,3> to_fastor2(const mat &m, bool symmetric = true) {
+    return arma_to_fastor2(mat::fixed<3,3>(m), symmetric);
+}
+
+// Helper: copy arma 6x6 Voigt to Fastor 3x3x3x3 (stiffness convention)
+static inline Fastor::Tensor<double,3,3,3,3> to_fastor4(const mat &m) {
+    return voigt_to_fastor4(mat::fixed<6,6>(m));
+}
+
+// Helper: symmetric 4th-order identity I_ijkl = 0.5*(δ_ik δ_jl + δ_il δ_jk)
+static inline Fastor::Tensor<double,3,3,3,3> sym_identity_4() {
+    Fastor::Tensor<double,3,3,3,3> I;
+    I.zeros();
+    for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j) {
+        I(i,j,i,j) += 0.5;
+        I(i,j,j,i) += 0.5;
+    }
+    return I;
+}
+
+// Helper: 4th-order pull-back DSDE_LHMN = invF_Li invF_Hj invF_Mk invF_Nl C_ijkl
+static inline Fastor::Tensor<double,3,3,3,3> pullback_4(
+    const Fastor::Tensor<double,3,3,3,3> &C,
+    const Fastor::Tensor<double,3,3> &invF)
+{
+    return push_forward_4(C, invF);
+}
+
+// Helper: 4th-order push-forward DSDE_ijkl = F_iL F_jH F_kM F_lN C_LHMN
+static inline Fastor::Tensor<double,3,3,3,3> pushforward_4(
+    const Fastor::Tensor<double,3,3,3,3> &C,
+    const Fastor::Tensor<double,3,3> &F)
+{
+    return push_forward_4(C, F);
+}
+
+// Helper: B-correction for objective rate conversions
+// result_ijkl = A_ijkl + (B_ipkl - I_ipkl)*τ_pj + τ_ip*(B_jpkl - I_jpkl)
+static inline Fastor::Tensor<double,3,3,3,3> apply_B_correction(
+    const Fastor::Tensor<double,3,3,3,3> &A,
+    const Fastor::Tensor<double,3,3,3,3> &B,
+    const Fastor::Tensor<double,3,3> &tau,
+    bool add)
+{
+    auto I = sym_identity_4();
+    Fastor::Tensor<double,3,3,3,3> BmI = B - I;
+    Fastor::Tensor<double,3,3,3,3> result = A;
+    double sign = add ? 1.0 : -1.0;
+
+    for (int i = 0; i < 3; ++i)
+    for (int j = 0; j < 3; ++j)
+    for (int k = 0; k < 3; ++k)
+    for (int l = 0; l < 3; ++l) {
+        double sum1 = 0.0, sum2 = 0.0;
+        for (int p = 0; p < 3; ++p) {
+            sum1 += BmI(i,p,k,l) * tau(p,j);
+            sum2 += tau(i,p) * BmI(j,p,k,l);
+        }
+        result(i,j,k,l) += sign * (sum1 + sum2);
+    }
+    return result;
+}
+
+// Helper: Jaumann correction
+// result_ispr = A_ispr ± 0.5*(τ_ps δ_ir + τ_rs δ_ip + τ_ir δ_sp + τ_ip δ_sr)
+static inline Fastor::Tensor<double,3,3,3,3> apply_jaumann_correction(
+    const Fastor::Tensor<double,3,3,3,3> &A,
+    const Fastor::Tensor<double,3,3> &tau,
+    bool add)
+{
+    Fastor::Tensor<double,3,3,3,3> result = A;
+    double sign = add ? 0.5 : -0.5;
+
+    for (int i = 0; i < 3; ++i)
+    for (int s = 0; s < 3; ++s)
+    for (int p = 0; p < 3; ++p)
+    for (int r = 0; r < 3; ++r) {
+        double corr = 0.0;
+        if (i == r) corr += tau(p,s);
+        if (i == p) corr += tau(r,s);
+        if (s == p) corr += tau(i,r);
+        if (s == r) corr += tau(i,p);
+        result(i,s,p,r) += sign * corr;
+    }
+    return result;
+}
 
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
@@ -429,30 +519,16 @@ mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_2_DSDE.");
     }   
-    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_ = mat_FTensor4(Lt);
-    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
-    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
-    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> H;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-    
-    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
-    Dtau_LieDD_(i,j,k,l) = Dtau_logarithmicDD_(i,j,k,l) + (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j) + tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
-    return FTensor4_mat(DSDE_);
+    auto invF_ = to_fastor2(invF, false);
+    auto tau_ = to_fastor2(tau);
+    auto Dtau_logDD = to_fastor4(Lt);
+    auto B_ = to_fastor4(B);
+
+    // Dtau_LieDD = Dtau_logDD + B-correction
+    auto Dtau_LieDD = apply_B_correction(Dtau_logDD, B_, tau_, true);
+    // DSDE = pull-back of Dtau_LieDD
+    auto DSDE = pullback_4(Dtau_LieDD, invF_);
+    return fastor4_to_voigt(DSDE);
 }
 
 mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
@@ -465,22 +541,10 @@ mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
         throw simcoon::exception_inv("Error in inv function inside Dtau_LieDD_2_DSDE.");
     }   
 
-    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
-    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Lt);
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> H;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-
-    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
-    return FTensor4_mat(DSDE_);
+    auto invF_ = to_fastor2(invF, false);
+    auto Dtau_LieDD = to_fastor4(Lt);
+    auto DSDE = pullback_4(Dtau_LieDD, invF_);
+    return fastor4_to_voigt(DSDE);
 }
 
 mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
@@ -492,28 +556,15 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside DtauDe_JaumannDD_2_DSDE.");
     }   
-    Tensor2<double,3,3> invF_ = mat_FTensor2(invF);
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> Dtau_JaumannDD_ = mat_FTensor4(Lt);
-    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(zeros(6,6));
-    Tensor4<double,3,3,3,3> I_ = mat_FTensor4(zeros(6,6));
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(zeros(6,6));
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> H;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-    
-    Dtau_LieDD_(i,j,k,l) = Dtau_JaumannDD_(i,j,k,l) - 0.5*tau_(k,j)*delta_(i,l) - 0.5*tau_(l,j)*delta_(i,k) - 0.5*tau_(i,l)*delta_(j,k) - 0.5*tau_(i,k)*delta_(j,l);
-    DSDE_(L,H,M,N) = invF_(N,l)*(invF_(M,k)*(invF_(H,j)*(invF_(L,i)*Dtau_LieDD_(i,j,k,l))));
-    return FTensor4_mat(DSDE_);
+    auto invF_ = to_fastor2(invF, false);
+    auto tau_ = to_fastor2(tau);
+    auto Dtau_JaumannDD = to_fastor4(Lt);
+
+    // Dtau_LieDD = Dtau_JaumannDD - Jaumann correction
+    auto Dtau_LieDD = apply_jaumann_correction(Dtau_JaumannDD, tau_, false);
+    // DSDE = pull-back of Dtau_LieDD
+    auto DSDE = pullback_4(Dtau_LieDD, invF_);
+    return fastor4_to_voigt(DSDE);
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
@@ -599,28 +650,15 @@ mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
 
 mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
     
-    Tensor2<double,3,3> F_ = mat_FTensor2(F);
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
-    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
-    Tensor4<double,3,3,3,3> I_;
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> J;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-    
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
-    C_(i,j,k,l) = F_(i,L)*(F_(j,J)*(F_(k,M)*(F_(l,N)*DSDE_(L,J,M,N)))) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    return FTensor4_mat(C_);
+    auto F_ = to_fastor2(F, false);
+    auto tau_ = to_fastor2(tau);
+    auto DSDE_ = to_fastor4(DSDE);
+    auto B_ = to_fastor4(B);
+
+    // Push-forward DSDE to get Dtau_LieDD, then subtract B-correction
+    auto Dtau_LieDD = pushforward_4(DSDE_, F_);
+    auto C = apply_B_correction(Dtau_LieDD, B_, tau_, false);
+    return fastor4_to_voigt(C);
 }
 
 mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigma) {
@@ -638,22 +676,10 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigm
 //This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
 mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
 
-    Tensor2<double,3,3> F_ = mat_FTensor2(F);
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'i', 3> i;
-    Index<'s', 3> s;
-    Index<'r', 3> r;
-    Index<'p', 3> p;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> J;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-    
-    C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N))));
-    return FTensor4_mat(C_);
+    auto F_ = to_fastor2(F, false);
+    auto DSDE_ = to_fastor4(DSDE);
+    auto C = pushforward_4(DSDE_, F_);
+    return fastor4_to_voigt(C);
 }
 
 mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
@@ -664,31 +690,21 @@ mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DSDE_2_DsigmaDe_LieDD.");
-    }   
+    }
     return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
 mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
-    
-    Tensor2<double,3,3> F_ = mat_FTensor2(F);
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'i', 3> i;
-    Index<'s', 3> s;
-    Index<'r', 3> r;
-    Index<'p', 3> p;
-    
-    Index<'L', 3> L;
-    Index<'J', 3> J;
-    Index<'M', 3> M;
-    Index<'N', 3> N;
-    
-    C_(i,s,r,p) = F_(i,L)*(F_(s,J)*(F_(r,M)*(F_(p,N)*DSDE_(L,J,M,N)))) + 0.5*tau_(p,s)*delta_(i,r) + 0.5*tau_(r,s)*delta_(i,p) + 0.5*tau_(i,r)*delta_(s,p) + 0.5*tau_(i,p)*delta_(s,r);
-    return FTensor4_mat(C_);
+
+    auto F_ = to_fastor2(F, false);
+    auto tau_ = to_fastor2(tau);
+    auto DSDE_ = to_fastor4(DSDE);
+
+    // Push-forward + Jaumann correction
+    auto Dtau_LieDD = pushforward_4(DSDE_, F_);
+    auto C = apply_jaumann_correction(Dtau_LieDD, tau_, true);
+    return fastor4_to_voigt(C);
 }
 
 mat DSDE_2_Dsigma_JaumannDD(const mat &DSDE, const mat &F, const mat &sigma) {
@@ -743,41 +759,22 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
 mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
 
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Dtau_LieDD);
-    Tensor4<double,3,3,3,3> Dtau_JaumannDD_;
-    
-    Index<'i', 3> i;
-    Index<'s', 3> s;
-    Index<'r', 3> r;
-    Index<'p', 3> p;
-    
-    Dtau_JaumannDD_(i,s,p,r) = Dtau_LieDD_(i,s,p,r) + 0.5*tau_(p,s)*delta_(i,r) + 0.5*tau_(r,s)*delta_(i,p) + 0.5*tau_(i,r)*delta_(s,p) + 0.5*tau_(i,p)*delta_(s,r);
-    return FTensor4_mat(Dtau_JaumannDD_);
+    auto tau_ = to_fastor2(tau);
+    auto Dtau_LieDD_ = to_fastor4(Dtau_LieDD);
+    auto result = apply_jaumann_correction(Dtau_LieDD_, tau_, true);
+    return fastor4_to_voigt(result);
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dtau_LieDD_Dtau_objectiveDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
 
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> tau_ = mat_FTensor2(tau);
-    Tensor4<double,3,3,3,3> Dtau_LieDD_ = mat_FTensor4(Dtau_LieDD);
-    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
-    Tensor4<double,3,3,3,3> I_;
-    
-    Tensor4<double,3,3,3,3> Dtau_logarithmicDD_;
+    auto tau_ = to_fastor2(tau);
+    auto Dtau_LieDD_ = to_fastor4(Dtau_LieDD);
+    auto B_ = to_fastor4(B);
 
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-    
-    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
-    Dtau_logarithmicDD_(i,j,k,l) = Dtau_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*tau_(p,j)-tau_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    return FTensor4_mat(Dtau_logarithmicDD_);
+    // Dtau_objectiveDD = Dtau_LieDD - B-correction
+    auto result = apply_B_correction(Dtau_LieDD_, B_, tau_, false);
+    return fastor4_to_voigt(result);
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
@@ -797,41 +794,22 @@ mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat
 //This function computes the tangent modulus that links the Jaumann rate of the Cauchy stress tau to the rate of deformation D, from the tangent modulus that links the Lie derivative of the Cauchy stress tau to the rate of deformation D
 mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
 
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> sigma_ = mat_FTensor2(sigma);
-    Tensor4<double,3,3,3,3> Dsigma_LieDD_ = mat_FTensor4(Dsigma_LieDD);
-    Tensor4<double,3,3,3,3> Dsigma_JaumannDD_;
-    
-    Index<'i', 3> i;
-    Index<'s', 3> s;
-    Index<'r', 3> r;
-    Index<'p', 3> p;
-    
-    Dsigma_JaumannDD_(i,s,p,r) = Dsigma_LieDD_(i,s,p,r) + 0.5*sigma_(p,s)*delta_(i,r) + 0.5*sigma_(r,s)*delta_(i,p) + 0.5*sigma_(i,r)*delta_(s,p) + 0.5*sigma_(i,p)*delta_(s,r);
-    return FTensor4_mat(Dsigma_JaumannDD_);
+    auto sigma_ = to_fastor2(sigma);
+    auto Dsigma_LieDD_ = to_fastor4(Dsigma_LieDD);
+    auto result = apply_jaumann_correction(Dsigma_LieDD_, sigma_, true);
+    return fastor4_to_voigt(result);
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dsigma_LieDD_Dsigma_objectiveDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
 
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> sigma_ = mat_FTensor2(sigma);
-    Tensor4<double,3,3,3,3> Dsigma_LieDD_ = mat_FTensor4(Dsigma_LieDD);
-    Tensor4<double,3,3,3,3> B_ = mat_FTensor4(B);
-    Tensor4<double,3,3,3,3> I_;
-    
-    Tensor4<double,3,3,3,3> Dsigma_logarithmicDD_;
+    auto sigma_ = to_fastor2(sigma);
+    auto Dsigma_LieDD_ = to_fastor4(Dsigma_LieDD);
+    auto B_ = to_fastor4(B);
 
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'p', 3> p;
-    
-    I_(i,j,k,l) = 0.5*delta_(i,k)*delta_(j,l) + 0.5*delta_(i,l)*delta_(j,k);
-    Dsigma_logarithmicDD_(i,j,k,l) = Dsigma_LieDD_(i,j,k,l) - (B_(i,p,k,l)-I_(i,p,k,l))*sigma_(p,j)-sigma_(i,p)*(B_(j,p,k,l)-I_(j,p,k,l));
-    return FTensor4_mat(Dsigma_logarithmicDD_);
+    // Dsigma_objectiveDD = Dsigma_LieDD - B-correction
+    auto result = apply_B_correction(Dsigma_LieDD_, B_, sigma_, false);
+    return fastor4_to_voigt(result);
 }
 
 //This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
@@ -847,29 +825,38 @@ mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &F, con
     mat B = get_BBBB(F);
     return Dsigma_LieDD_Dsigma_objectiveDD(Dsigma_LieDD, B, sigma);
 }
- 
+
 mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
 
-    Tensor2<double,3,3> U_ = mat_FTensor2(U);
-    Tensor2<double,3,3> delta_ = mat_FTensor2(eye(3,3));
-    Tensor2<double,3,3> S_ = mat_FTensor2(S);
-    Tensor4<double,3,3,3,3> DSDE_ = mat_FTensor4(DSDE);
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'s', 3> s;
-    Index<'j', 3> j;
-    Index<'p', 3> p;
-    Index<'r', 3> r;
-    
-    Index<'i', 3> i;
-    Index<'l', 3> l;
-    Index<'m', 3> m;
-    Index<'n', 3> n;
-    
-    C_(s,j,p,r) = 0.5*delta_(i,s)*(U_(l,j)*(U_(m,p)*(delta_(n,r)*DSDE_(i,l,m,n)))) 
-                + 0.5*delta_(i,s)*(U_(l,j)*(delta_(m,r)*(U_(n,p)*DSDE_(i,l,m,n))))
-                + 0.5*S_(s,p)*delta_(r,j) + 0.5*S_(r,j)*delta_(s,p);
-    return FTensor4_mat(C_);
+    auto U_ = to_fastor2(U);
+    auto S_ = to_fastor2(S);
+    auto DSDE_ = to_fastor4(DSDE);
+
+    // C_sjpr = 0.5*δ_is*(U_lj*U_mp*δ_nr*DSDE_ilmn + U_lj*δ_mr*U_np*DSDE_ilmn)
+    //        + 0.5*S_sp*δ_rj + 0.5*S_rj*δ_sp
+    Fastor::Tensor<double,3,3,3,3> C;
+    C.zeros();
+    for (int s = 0; s < 3; ++s)
+    for (int j = 0; j < 3; ++j)
+    for (int p = 0; p < 3; ++p)
+    for (int r = 0; r < 3; ++r) {
+        double sum = 0.0;
+        // i=s (delta_is), contract over l,m,n
+        for (int l = 0; l < 3; ++l)
+        for (int m = 0; m < 3; ++m)
+        for (int n = 0; n < 3; ++n) {
+            double dsde_val = DSDE_(s,l,m,n);
+            // term1: U_lj * U_mp * δ_nr
+            if (n == r) sum += 0.5 * U_(l,j) * U_(m,p) * dsde_val;
+            // term2: U_lj * δ_mr * U_np
+            if (m == r) sum += 0.5 * U_(l,j) * U_(n,p) * dsde_val;
+        }
+        // Jaumann-like terms
+        if (r == j) sum += 0.5 * S_(s,p);
+        if (s == p) sum += 0.5 * S_(r,j);
+        C(s,j,p,r) = sum;
+    }
+    return fastor4_to_voigt(C);
 
 }
 

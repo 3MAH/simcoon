@@ -23,16 +23,16 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
-using namespace FTensor;
 
 namespace simcoon{
 
@@ -98,16 +98,13 @@ mat dinvSdSsym(const mat &S) {
         throw simcoon::exception_inv("Error in inv function inside dinvSdSsym.");
     }    
 
-    Tensor2<double,3,3> invS_ = mat_FTensor2(invS);
-    Tensor4<double,3,3,3,3> dinvSdSsym_;
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-        
-    dinvSdSsym_(i,j,k,l) = invS_(i,k)*invS_(j,l)+invS_(i,l)*invS_(j,k);
-    return 0.5*FTensor4_mat(dinvSdSsym_);
+    // dinvSdS_ijkl = 0.5*(invS_ik*invS_jl + invS_il*invS_jk)
+    auto invS_ = arma_to_fastor2(mat::fixed<3,3>(invS));  // auto-detects symmetry
+    enum {i,j,k,l};
+    auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>>(invS_, invS_);
+    auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>>(invS_, invS_);
+    Fastor::Tensor<double,3,3,3,3> result = term1 + term2;
+    return 0.5 * fastor4_to_voigt(result);
 }
     
 } //namespace simcoon

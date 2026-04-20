@@ -140,6 +140,53 @@ void register_rotation(py::module_& m) {
             simcoon_docs::apply_stress_concentration)
 
         ;
+
+    // Batch free functions — avoid Python loops for large N
+    m.def("_batch_voigt_stress_rotation",
+        [](py::array_t<double> quats, bool active) {
+            // quats: (N, 4) numpy → (4, N) arma mat
+            auto buf = quats.unchecked<2>();
+            int N = buf.shape(0);
+            mat q_cpp(4, N);
+            for (int n = 0; n < N; n++) {
+                for (int j = 0; j < 4; j++) {
+                    q_cpp(j, n) = buf(n, j);
+                }
+            }
+            cube result = simcoon::batch_voigt_stress_rotation(q_cpp, active);
+            // (6,6,N) → (N,6,6) numpy
+            py::array_t<double> out({N, 6, 6});
+            auto out_buf = out.mutable_unchecked<3>();
+            for (int n = 0; n < N; n++)
+                for (int i = 0; i < 6; i++)
+                    for (int j = 0; j < 6; j++)
+                        out_buf(n, i, j) = result(i, j, n);
+            return out;
+        },
+        py::arg("quats"), py::arg("active") = true,
+        "Batch-build (N, 6, 6) stress Voigt rotation matrices from (N, 4) quaternions");
+
+    m.def("_batch_voigt_strain_rotation",
+        [](py::array_t<double> quats, bool active) {
+            auto buf = quats.unchecked<2>();
+            int N = buf.shape(0);
+            mat q_cpp(4, N);
+            for (int n = 0; n < N; n++) {
+                for (int j = 0; j < 4; j++) {
+                    q_cpp(j, n) = buf(n, j);
+                }
+            }
+            cube result = simcoon::batch_voigt_strain_rotation(q_cpp, active);
+            py::array_t<double> out({N, 6, 6});
+            auto out_buf = out.mutable_unchecked<3>();
+            for (int n = 0; n < N; n++)
+                for (int i = 0; i < 6; i++)
+                    for (int j = 0; j < 6; j++)
+                        out_buf(n, i, j) = result(i, j, n);
+            return out;
+        },
+        py::arg("quats"), py::arg("active") = true,
+        "Batch-build (N, 6, 6) strain Voigt rotation matrices from (N, 4) quaternions");
 }
 
 } // namespace simpy

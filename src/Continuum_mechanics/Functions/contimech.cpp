@@ -23,15 +23,15 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
-using namespace FTensor;
 
 namespace simcoon{
 
@@ -368,18 +368,7 @@ mat sym_dyadic(const mat &A, const mat &B) {
 }
 
 mat auto_dyadic(const mat &A) {
-
-    Tensor2<double,3,3> A_ = mat_FTensor2(A);
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-        
-    C_(i,j,k,l) = A_(i,j)*A_(k,l);
-    return FTensor4_mat(C_);
-    
+    return dyadic(A, A);
 }
 
 mat dyadic_4vectors_sym(const vec &n_a, const vec &n_b, const std::string  &conv) {
@@ -437,18 +426,12 @@ mat dyadic_4vectors_sym(const vec &n_a, const vec &n_b, const std::string  &conv
 }
 
 mat dyadic(const mat &A, const mat &B) {
-            
-    Tensor2<double,3,3> A_ = mat_FTensor2(A);
-    Tensor2<double,3,3> B_ = mat_FTensor2(B);
-    Tensor4<double,3,3,3,3> C_;
-    
-    Index<'i', 3> i;
-    Index<'j', 3> j;
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-        
-    C_(i,j,k,l) = A_(i,j)*B_(k,l);
-    return FTensor4_mat(C_);    
+    // C_ijkl = A_ij * B_kl — full outer product, then extract Voigt 6x6
+    auto A_ = arma_to_fastor2(mat::fixed<3,3>(A));  // auto-detects symmetry
+    auto B_ = arma_to_fastor2(mat::fixed<3,3>(B));
+    enum {i,j,k,l};
+    auto C = Fastor::einsum<Fastor::Index<i,j>, Fastor::Index<k,l>>(A_, B_);
+    return fastor4_to_voigt(C);
 }
 
 ///This computes the symmetric 4th-order dyadic product A o A = 0.5*(A(i,k)*A(j,l) + A(i,l)*A(j,k));
