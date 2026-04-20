@@ -62,6 +62,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Zener_fast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Zener_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
@@ -312,7 +313,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
 
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"SMANI",8},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",17},{"EPHAC",18},{"EPANI",19},{"EPDFA",20},{"EPCHG",21},{"EPHIN",22},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"SMAUT",8},{"SMANI",8},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",17},{"EPHAC",18},{"EPANI",19},{"EPDFA",20},{"EPCHG",21},{"EPHIN",22},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
     
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
@@ -428,6 +429,11 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
         case 23: case 24: {
             // SMAMO (isotropic) and SMAMC (cubic) both use unified umat_sma_mono
             umat_sma_mono(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
+            break;
+        }
+        case 200: {
+            // Modular UMAT - composable constitutive model
+            umat_modular(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt);
             break;
         }
         case 100: case 101: case 103: case 104: {
