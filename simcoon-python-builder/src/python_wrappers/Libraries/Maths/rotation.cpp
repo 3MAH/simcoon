@@ -8,6 +8,7 @@
 
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
+#include <simcoon/docs/Libraries/Maths/doc_rotation.hpp>
 
 using namespace std;
 using namespace arma;
@@ -40,13 +41,7 @@ namespace {
 
 void register_rotation(py::module_& m) {
     py::class_<simcoon::Rotation>(m, "_CppRotation",
-        R"doc(
-        Internal C++ rotation backend using unit quaternions (scalar-last).
-
-        End users should use ``simcoon.Rotation`` instead, which inherits from
-        ``scipy.spatial.transform.Rotation`` and delegates mechanics operations
-        to this class.
-        )doc")
+        simcoon_docs::CppRotation_class)
 
         // The only factory method needed — Python Rotation._to_cpp() uses this
         .def_static("from_quat",
@@ -56,7 +51,7 @@ void register_rotation(py::module_& m) {
                 return simcoon::Rotation::from_quat(q);
             },
             py::arg("quat"),
-            "Create rotation from quaternion [qx, qy, qz, qw] (scalar-last)")
+            simcoon_docs::CppRotation_from_quat)
 
         // Voigt rotation matrices
         .def("as_voigt_stress_rotation",
@@ -64,14 +59,14 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(mat(self.as_voigt_stress_rotation(active)));
             },
             py::arg("active") = true,
-            "Get 6x6 rotation matrix for stress tensors in Voigt notation")
+            simcoon_docs::as_voigt_stress_rotation)
 
         .def("as_voigt_strain_rotation",
             [](const simcoon::Rotation& self, bool active) {
                 return carma::mat_to_arr(mat(self.as_voigt_strain_rotation(active)));
             },
             py::arg("active") = true,
-            "Get 6x6 rotation matrix for strain tensors in Voigt notation")
+            simcoon_docs::as_voigt_strain_rotation)
 
         // Apply methods — the core mechanics operations
         .def("apply_tensor",
@@ -82,7 +77,7 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(result);
             },
             py::arg("m"), py::arg("inverse") = false,
-            "Apply rotation to a 3x3 tensor: R * m * R^T")
+            simcoon_docs::apply_tensor)
 
         .def("apply_stress",
             [](const simcoon::Rotation& self, py::array_t<double> sigma, bool active) {
@@ -92,7 +87,7 @@ void register_rotation(py::module_& m) {
                 return carma::col_to_arr(result);
             },
             py::arg("sigma"), py::arg("active") = true,
-            "Apply rotation to a 6-component stress vector in Voigt notation")
+            simcoon_docs::apply_stress)
 
         .def("apply_strain",
             [](const simcoon::Rotation& self, py::array_t<double> epsilon, bool active) {
@@ -102,7 +97,7 @@ void register_rotation(py::module_& m) {
                 return carma::col_to_arr(result);
             },
             py::arg("epsilon"), py::arg("active") = true,
-            "Apply rotation to a 6-component strain vector in Voigt notation")
+            simcoon_docs::apply_strain)
 
         .def("apply_stiffness",
             [](const simcoon::Rotation& self, py::array_t<double> L, bool active) {
@@ -112,7 +107,7 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(result);
             },
             py::arg("L"), py::arg("active") = true,
-            "Apply rotation to a 6x6 stiffness matrix")
+            simcoon_docs::apply_stiffness)
 
         .def("apply_compliance",
             [](const simcoon::Rotation& self, py::array_t<double> M, bool active) {
@@ -122,7 +117,7 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(result);
             },
             py::arg("M"), py::arg("active") = true,
-            "Apply rotation to a 6x6 compliance matrix")
+            simcoon_docs::apply_compliance)
 
         .def("apply_strain_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> A, bool active) {
@@ -132,7 +127,7 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(result);
             },
             py::arg("A"), py::arg("active") = true,
-            "Apply rotation to a 6x6 strain concentration tensor")
+            simcoon_docs::apply_strain_concentration)
 
         .def("apply_stress_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> B, bool active) {
@@ -142,7 +137,7 @@ void register_rotation(py::module_& m) {
                 return carma::mat_to_arr(result);
             },
             py::arg("B"), py::arg("active") = true,
-            "Apply rotation to a 6x6 stress concentration tensor")
+            simcoon_docs::apply_stress_concentration)
 
         ;
 

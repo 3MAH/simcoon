@@ -19,4 +19,3 @@ dependencies:
   - carma
   - pytest
   - ninja
-  - mkl

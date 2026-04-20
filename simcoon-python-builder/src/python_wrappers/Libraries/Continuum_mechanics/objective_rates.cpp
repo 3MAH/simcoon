@@ -6,7 +6,7 @@
 #include <carma>
 #include <armadillo>
 
-#include <simcoon/omp_compat.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -198,15 +198,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
 
-                #ifdef _OPENMP
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(n_threads);
-                omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {
+                simcoon_parallel_for(nb_points, [&](int pt) {
+                    switch (corate) {
                         case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
                             if (return_de) {
@@ -237,21 +230,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             break;
                         }
                     }
-                }
-                #ifdef _OPENMP
-                omp_set_num_threads(max_threads);
-    			#endif
+                });
             }
             else {
-                #ifdef _OPENMP                
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(4);
-                omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {
+                simcoon_parallel_for(nb_points, [&](int pt) {
+                    switch (corate) {
                         case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
                             if (return_de) {
@@ -282,10 +265,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                             break;
                         }
                     }
-                }
-                #ifdef _OPENMP
-                omp_set_num_threads(max_threads);
-    			#endif
+                });
             }
         }
         if (return_de){	                     

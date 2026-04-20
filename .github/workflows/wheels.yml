@@ -48,7 +48,7 @@ jobs:
       - uses: astral-sh/setup-uv@v7
 
       - name: Build sdist
-        run: uvx --from build pyproject-build --sdist
+        run: uvx --from "build[uv]" pyproject-build --sdist --installer uv
 
       - uses: actions/upload-artifact@v5
         with:
@@ -77,7 +77,7 @@ jobs:
           - os: macos-latest
             cibw_archs: "arm64"
 
-          # Windows x64
+          # Windows x64 only (ARM64 not supported yet — vcpkg openblas ARM64 is unreliable)
           - os: windows-latest
             cibw_archs: "AMD64"
 
