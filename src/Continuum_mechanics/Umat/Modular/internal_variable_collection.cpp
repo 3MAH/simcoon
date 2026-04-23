@@ -50,12 +50,14 @@ InternalVariable& InternalVariableCollection::add_scalar(const std::string& name
     return *variables_.back();
 }
 
-InternalVariable& InternalVariableCollection::add_vec(const std::string& name, const arma::vec& init, bool rotate) {
+InternalVariable& InternalVariableCollection::add_vec(
+    const std::string& name, const arma::vec& init,
+    bool rotate, VoigtType vtype) {
     if (has(name)) {
         throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
     }
 
-    variables_.push_back(std::make_unique<InternalVariable>(name, init, rotate));
+    variables_.push_back(std::make_unique<InternalVariable>(name, init, rotate, vtype));
     name_to_index_[name] = variables_.size() - 1;
     total_size_ += 6;
     offsets_computed_ = false;

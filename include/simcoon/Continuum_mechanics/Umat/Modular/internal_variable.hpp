@@ -69,6 +69,11 @@ private:
     arma::mat mat_start_;        ///< Matrix value at start of increment
 
     bool requires_rotation_;     ///< Whether to apply rotation for objectivity
+    VoigtType vtype_;            ///< Authoritative Voigt convention for this variable
+                                 ///< (VECTOR_6): strain, stress, or generic. Drives
+                                 ///< rotation dispatch (tensor2.rotate) and default
+                                 ///< VoigtType for as_tensor2() views. Ignored for
+                                 ///< scalars and 6x6 matrices.
     unsigned int statev_offset_; ///< Position in flat statev array
 
 public:
@@ -82,11 +87,19 @@ public:
 
     /**
      * @brief Construct a vector internal variable (6 Voigt components)
-     * @param name Identifier for the variable
-     * @param init Initial value (default: zeros)
-     * @param rotate Whether rotation should be applied (default: true for tensors)
+     * @param name  Identifier for the variable
+     * @param init  Initial value (default: zeros)
+     * @param rotate  Whether rotation should be applied (default: true for tensors)
+     * @param vtype  Voigt convention for this variable:
+     *        VoigtType::strain (default) for strain-like variables (EP, EV, α, ...),
+     *        VoigtType::stress for stress-like variables (stored generalised forces),
+     *        VoigtType::generic for plain 6-component vectors without Voigt semantics.
+     *        Controls the rotation kernel (strain-rotation has factor-2 on shear)
+     *        and is returned by default from as_tensor2().
      */
-    InternalVariable(const std::string& name, const arma::vec& init, bool rotate = true);
+    InternalVariable(const std::string& name, const arma::vec& init,
+                      bool rotate = true,
+                      VoigtType vtype = VoigtType::strain);
 
     /**
      * @brief Construct a matrix internal variable (6x6)
@@ -128,6 +141,14 @@ public:
      * @return True if rotation should be applied
      */
     [[nodiscard]] bool requires_rotation() const noexcept { return requires_rotation_; }
+
+    /**
+     * @brief The Voigt convention of this variable.
+     *
+     * For VECTOR_6 variables, this tag drives the objectivity rotation kernel
+     * and the default VoigtType returned by as_tensor2().
+     */
+    [[nodiscard]] VoigtType vtype() const noexcept { return vtype_; }
 
     // ========== Value Accessors (throw if wrong type) ==========
 
@@ -236,26 +257,16 @@ public:
      * @brief Apply rotation for objectivity
      * @param DR Rotation increment matrix (3x3)
      *
-     * Applies rotation to maintain objectivity during large deformations.
-     * - Scalar variables: not rotated (scalars are frame-invariant)
-     * - Vector variables (6 Voigt): rotated via rotate_strain(value, DR)
-     *   (assumes Voigt-strain convention — factor-2 on shear — which is the
-     *   storage convention for tensorial internals like plastic strain or
-     *   backstress)
-     * - Matrix variables (6x6): rotated as a stiffness via Rotation::apply_stiffness
-     *
-     * Only applied if requires_rotation_ is true. By default, scalars
-     * have requires_rotation_ = false and tensorial quantities have
-     * requires_rotation_ = true.
+     * Scalars are left unchanged. VECTOR_6 internals are treated as Voigt-strain
+     * (factor-2 on shear — the storage convention for plastic strain, backstress,
+     * etc.) and MATRIX_6x6 internals as stiffness-like. No-op when
+     * requires_rotation_ is false.
      */
     void rotate(const arma::mat& DR);
 
     /**
-     * @brief Apply rotation for objectivity using a Rotation object.
-     *
-     * Equivalent to rotate(R.as_matrix()) but avoids the round-trip through a
-     * raw 3x3 matrix when the caller already has a Rotation. Prefer this
-     * overload in new code.
+     * @brief Rotation-object overload of rotate(); prefer this when the caller
+     * already has a Rotation to avoid rebuilding it from a raw matrix.
      */
     void rotate(const Rotation& R);
 
@@ -264,53 +275,36 @@ public:
     /**
      * @brief View the stored vector as a typed tensor2.
      *
-     * Internal vectorial state is stored in Voigt convention; the caller knows
-     * what physical quantity it represents and selects the matching VoigtType.
-     * - VoigtType::strain  for plastic strain, viscous strain, backstress (in
-     *   strain-like form), etc. — assumes the factor-2 shear convention used
-     *   by the existing rotate() / pack() helpers.
-     * - VoigtType::stress  for stress-like backstress or stress-conjugate
-     *   variables stored without the factor-2.
+     * The caller selects the VoigtType matching the physical quantity:
+     * - VoigtType::strain  for plastic strain, viscous strain, strain-form
+     *   backstress — assumes the factor-2 shear convention used by rotate()
+     *   and pack().
+     * - VoigtType::stress  for stress-conjugate variables stored without the
+     *   factor-2.
      * - VoigtType::generic when no specific physical convention applies.
      *
      * @throws std::runtime_error if type() != VECTOR_6
      */
-    [[nodiscard]] tensor2 as_tensor2(VoigtType vtype = VoigtType::strain) const;
+    /// When @p vtype_override is left default (none), the variable's own
+    /// stored VoigtType is used — callers never need to pass it explicitly
+    /// unless they want to reinterpret the raw Voigt components under a
+    /// different convention (rare).
+    [[nodiscard]] tensor2 as_tensor2() const { return as_tensor2(vtype_); }
+    [[nodiscard]] tensor2 as_tensor2(VoigtType vtype) const;
 
-    /// Convenience: as_tensor2(VoigtType::strain).
     [[nodiscard]] tensor2 as_strain() const { return as_tensor2(VoigtType::strain); }
-
-    /// Convenience: as_tensor2(VoigtType::stress).
     [[nodiscard]] tensor2 as_stress() const { return as_tensor2(VoigtType::stress); }
 
-    /**
-     * @brief View the stored 6x6 matrix as a typed tensor4.
-     *
-     * @throws std::runtime_error if type() != MATRIX_6x6
-     */
+    /// @throws std::runtime_error if type() != MATRIX_6x6
     [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type = Tensor4Type::stiffness) const;
 
-    /// Convenience: as_tensor4(Tensor4Type::stiffness).
     [[nodiscard]] tensor4 as_stiffness() const { return as_tensor4(Tensor4Type::stiffness); }
-
-    /// Convenience: as_tensor4(Tensor4Type::compliance).
     [[nodiscard]] tensor4 as_compliance() const { return as_tensor4(Tensor4Type::compliance); }
 
-    /**
-     * @brief Write a typed tensor2 back into the stored vector.
-     *
-     * The caller's tensor2 VoigtType determines the layout written; storage
-     * follows the same convention until the next read.
-     *
-     * @throws std::runtime_error if type() != VECTOR_6
-     */
+    /// @throws std::runtime_error if type() != VECTOR_6
     void set_tensor2(const tensor2& t);
 
-    /**
-     * @brief Write a typed tensor4 back into the stored 6x6 matrix.
-     *
-     * @throws std::runtime_error if type() != MATRIX_6x6
-     */
+    /// @throws std::runtime_error if type() != MATRIX_6x6
     void set_tensor4(const tensor4& t);
 
     // ========== Serialization ==========

@@ -53,6 +53,18 @@ void ModularUMAT::set_elasticity(ElasticityType type, const arma::vec& props, in
     elasticity_.configure(type, props, offset);
 }
 
+namespace {
+// Count how many existing mechanisms have the given type, so each new mechanism
+// receives a unique IVC prefix (plast0_, plast1_, ...). Prevents key collisions
+// when the user composes multiple mechanisms of the same kind.
+int count_of_type(
+    const std::vector<std::unique_ptr<StrainMechanism>>& mechs, MechanismType t) {
+    int n = 0;
+    for (const auto& m : mechs) if (m->type() == t) ++n;
+    return n;
+}
+}  // namespace
+
 PlasticityMechanism& ModularUMAT::add_plasticity(
     YieldType yield_type,
     IsoHardType iso_type,
@@ -62,7 +74,9 @@ PlasticityMechanism& ModularUMAT::add_plasticity(
     const arma::vec& props,
     int& offset
 ) {
+    const int idx = count_of_type(mechanisms_, MechanismType::PLASTICITY);
     auto mech = std::make_unique<PlasticityMechanism>(yield_type, iso_type, kin_type, N_iso, N_kin);
+    mech->set_ivc_prefix("plast" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mechanisms_.push_back(std::move(mech));
     return static_cast<PlasticityMechanism&>(*mechanisms_.back());
@@ -73,7 +87,9 @@ ViscoelasticMechanism& ModularUMAT::add_viscoelasticity(
     const arma::vec& props,
     int& offset
 ) {
+    const int idx = count_of_type(mechanisms_, MechanismType::VISCOELASTICITY);
     auto mech = std::make_unique<ViscoelasticMechanism>(N_prony);
+    mech->set_ivc_prefix("visco" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mech->set_reference_stiffness(elasticity_.L());
     mechanisms_.push_back(std::move(mech));
@@ -85,7 +101,9 @@ DamageMechanism& ModularUMAT::add_damage(
     const arma::vec& props,
     int& offset
 ) {
+    const int idx = count_of_type(mechanisms_, MechanismType::DAMAGE);
     auto mech = std::make_unique<DamageMechanism>(damage_type);
+    mech->set_ivc_prefix("damage" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mechanisms_.push_back(std::move(mech));
     return static_cast<DamageMechanism&>(*mechanisms_.back());
@@ -171,6 +189,17 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
     // Unpack initial values from statev
     ivc_.unpack_all(statev);
 
+    // Cache per-mechanism constraint-row offsets (constant for the rest of
+    // the object's lifetime).
+    mech_offset_.assign(mechanisms_.size(), 0);
+    {
+        int acc = 0;
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            mech_offset_[m] = acc;
+            acc += mechanisms_[m]->num_constraints();
+        }
+    }
+
     initialized_ = true;
 }
 
@@ -190,7 +219,8 @@ int ModularUMAT::required_nstatev() const {
             case MechanismType::VISCOELASTICITY: {
                 auto* vm = dynamic_cast<const ViscoelasticMechanism*>(mech.get());
                 if (vm) {
-                    count += 6 * vm->num_prony_terms();  // EV_i(6) per Prony term
+                    // v_i (1 scalar) + EV_i (6 Voigt) per Prony branch
+                    count += 7 * vm->num_prony_terms();
                 }
                 break;
             }
@@ -350,34 +380,61 @@ void ModularUMAT::return_mapping(
     double error = 1.0;
     int iter = 0;
 
+    // Scratch buffers for per-mechanism constraint returns (reused across FB
+    // iterations — avoid reallocating arma::vecs inside the loop).
+    arma::vec Phi_m, Y_crit_m;
+
     while (iter < maxiter_ && error > precision_) {
-        int offset = 0;
+        // Phase 1: evaluate constraints per mechanism (populates mechanism
+        //          caches used by dPhi_dsigma / kappa / K_cross in phase 2).
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            const int n = mechanisms_[m]->num_constraints();
+            mechanisms_[m]->compute_constraints(
+                sigma, Etot + DEtot, elasticity_.L(), DTime, ivc_, Phi_m, Y_crit_m);
+            Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
+            Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
+        }
 
-        // Compute constraints and Jacobian from all mechanisms
-        for (const auto& mech : mechanisms_) {
-            int n = mech->num_constraints();
+        // Phase 2: assemble cross-mechanism off-diagonal Jacobian entries per
+        //          theory eq B_{lj} = -dPhi^l/dsigma · kappa^j + K^{lj}.
+        //          Mechanisms whose Phi is strain-form (viscoelastic) return
+        //          empty dPhi_dsigma → no rows contributed here, matching the
+        //          decoupled-from-stress structure.
+        B.zeros();
+        for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
+            const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma, ivc_);
+            if (dPhi_l_all.empty()) continue;
+            for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
+                const int row = mech_offset_[lm] + static_cast<int>(l_c);
+                const arma::vec& dPhi_l = dPhi_l_all[l_c];
+                for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+                    const auto& kappa_j_all =
+                        mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
+                    for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
+                        if (lm == jm && l_c == j_c) continue;  // diagonal last
+                        const int col = mech_offset_[jm] + static_cast<int>(j_c);
+                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c])
+                                    + mechanisms_[lm]->K_cross(
+                                          static_cast<int>(l_c),
+                                          *mechanisms_[jm],
+                                          static_cast<int>(j_c),
+                                          ivc_);
+                    }
+                }
+            }
+        }
 
-            // Constraint functions
-            arma::vec Phi_m, Y_crit_m;
-            mech->compute_constraints(sigma, elasticity_.L(), DTime, ivc_, Phi_m, Y_crit_m);
-
-            Phi.subvec(offset, offset + n - 1) = Phi_m;
-            Y_crit.subvec(offset, offset + n - 1) = Y_crit_m;
-
-            // Jacobian contribution
-            mech->compute_jacobian_contribution(sigma, elasticity_.L(), ivc_, B, offset);
-
-            offset += n;
+        // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            mechanisms_[m]->compute_jacobian_contribution(
+                sigma, elasticity_.L(), ivc_, B, mech_offset_[m]);
         }
 
         // Solve using Fischer-Burmeister
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
 
-        // Update all mechanisms
-        offset = 0;
-        for (auto& mech : mechanisms_) {
-            mech->update(ds, offset, ivc_);
-            offset += mech->num_constraints();
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            mechanisms_[m]->update(ds, mech_offset_[m], ivc_);
         }
 
         // Recompute stress
@@ -397,14 +454,10 @@ void ModularUMAT::compute_tangent(
     const arma::vec& Ds_total,
     arma::mat& Lt
 ) {
-    // Start with elastic stiffness
     Lt = elasticity_.L();
-
-    // Subtract plastic/viscous/damage contributions
-    int offset = 0;
-    for (const auto& mech : mechanisms_) {
-        mech->tangent_contribution(sigma, elasticity_.L(), Ds_total, offset, ivc_, Lt);
-        offset += mech->num_constraints();
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        mechanisms_[m]->tangent_contribution(
+            sigma, elasticity_.L(), Ds_total, mech_offset_[m], ivc_, Lt);
     }
 }
 

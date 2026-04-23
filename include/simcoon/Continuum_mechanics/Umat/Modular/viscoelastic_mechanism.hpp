@@ -17,21 +17,26 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
  * @file viscoelastic_mechanism.hpp
- * @brief Viscoelastic strain mechanism using Prony series (generalized Maxwell model)
+ * @brief Generalized Maxwell viscoelasticity, porting the Prony_Nfast kernel.
  *
- * This mechanism implements a generalized Maxwell model with N Prony terms.
- * Each branch i has:
- * - E_i: Branch modulus (or g_i relative to E_0)
- * - tau_i: Relaxation time
- * - EV_i: Viscous strain tensor (internal variable)
+ * Each Prony branch i is a Maxwell element with its own stiffness L_i and
+ * viscosity tensor H_i (bulk/shear split): driving stress L_i (eps - EV_i)
+ * produces a strain rate invH_i . L_i (eps - EV_i). The lead scalar v_i is
+ * the accumulated flow magnitude ("path length") and EV_i is the branch
+ * viscous strain tensor. The constraint is an equality:
  *
- * The viscoelastic strain evolves according to:
- *   dEV_i/dt = (1/tau_i) * (C_i^{-1} : sigma - EV_i)
+ *   Phi_i = || invH_i . L_i . (eps + Δeps - EV_i) ||_strain - Δv_i / Δt = 0
  *
- * Or equivalently using the hereditary integral formulation.
+ * Solved via the same FB complementarity residual used by plasticity; for
+ * pure viscoelasticity (no activation threshold) the FB "inactive" branch is
+ * unreachable except at the trivial rest state, so FB degrades cleanly to
+ * the equality case.
  *
- * @see StrainMechanism, ModularUMAT
- * @version 1.0
+ * Props per branch (4 values): E_i, nu_i, etaB_i, etaS_i.
+ * Statev per branch (7 values): v_i (scalar), EV_i (6 Voigt).
+ *
+ * @see StrainMechanism, ModularUMAT, Prony_Nfast.cpp (original kernel)
+ * @version 2.0
  */
 
 #pragma once
@@ -43,34 +48,37 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
-/**
- * @brief Viscoelastic mechanism using Prony series
- *
- * Implements a generalized Maxwell model with N branches.
- * Each branch contributes viscous strain that relaxes over time.
- */
 class ViscoelasticMechanism final : public StrainMechanism {
 private:
-    int N_prony_;                       ///< Number of Prony terms
-    std::vector<double> g_i_;           ///< Relative moduli (g_i = E_i/E_0)
-    std::vector<double> tau_i_;         ///< Relaxation times
-    arma::mat L_0_;                     ///< Reference stiffness (for computing branch stiffnesses)
-    arma::mat M_0_;                     ///< Reference compliance (inverse of L_0_, stored to avoid recomputation)
-    bool use_deviatoric_only_;          ///< If true, only apply viscoelasticity to deviatoric part
+    int N_prony_;
+    std::vector<double> E_i_;       ///< Branch Young's moduli
+    std::vector<double> nu_i_;      ///< Branch Poisson ratios
+    std::vector<double> etaB_i_;    ///< Branch bulk viscosities
+    std::vector<double> etaS_i_;    ///< Branch shear viscosities
 
-    // Cached values for tangent computation
-    mutable std::vector<arma::vec> EV_n_;       ///< Viscous strains at start of increment
-    mutable std::vector<arma::vec> flow_i_;     ///< Flow directions for each branch
-    mutable std::vector<double> factor_i_;      ///< Update factors exp(-DTime/tau_i)
+    // Cached per-branch tensors (set in configure; constant over the step)
+    std::vector<arma::mat> L_i_;        ///< Branch stiffnesses
+    std::vector<arma::mat> H_i_;        ///< Branch viscosity tensors
+    std::vector<arma::mat> invH_i_;     ///< Cached inv(H_i)
+    std::vector<arma::mat> M0_L_i_;     ///< Cached M_0 · L_i (for inelastic_strain)
+
+    arma::mat M_0_;                     ///< Reference compliance = inv(L_0), set by orchestrator
+
+    // Fully-prefixed IVC keys, cached at register_variables (avoids string
+    // concatenation and key() calls inside the FB hot loop).
+    std::vector<std::string> ev_key_;   ///< key("EV_" + i) per branch
+    std::vector<std::string> v_key_;    ///< key("v_" + i) per branch
+
+    // Per-iteration caches (CCP: frozen flow direction from previous iteration)
+    mutable std::vector<arma::vec> flow_i_;       ///< Strain-rate vector per branch
+    mutable std::vector<arma::vec> Lambda_i_;     ///< eta_norm_strain(flow_i)
+    mutable std::vector<arma::vec> kappa_i_;      ///< L_i . Lambda_i (used in tangent)
+    mutable std::vector<arma::vec> dPhi_i_dv_;    ///< invH_i . (eta_norm_strain(flow_i) % Ir05())
+    mutable arma::vec K_diag_;                    ///< Cached diagonal K(i,i) = -dPhi_i_dv . kappa_i - 1/Δt
 
 public:
-    /**
-     * @brief Constructor
-     * @param N_prony Number of Prony terms
-     */
     explicit ViscoelasticMechanism(int N_prony);
 
-    // StrainMechanism interface
     void configure(const arma::vec& props, int& offset) override;
     void register_variables(InternalVariableCollection& ivc) override;
 
@@ -79,6 +87,7 @@ public:
 
     void compute_constraints(
         const arma::vec& sigma,
+        const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
         const InternalVariableCollection& ivc,
@@ -100,7 +109,17 @@ public:
         int row_offset
     ) const override;
 
-    arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
+    // Viscoelastic Phi is written in strain form (Prony_Nfast) and does not
+    // depend on sigma, so dPhi_dsigma returns empty → no cross-mechanism
+    // coupling inbound from stress. The mechanism still contributes kappa to
+    // outbound stress perturbations seen by other mechanisms.
+    [[nodiscard]] const std::vector<arma::vec>& kappa(
+        const arma::vec& sigma,
+        double DT,
+        const arma::mat& L_ref,
+        const InternalVariableCollection& ivc) const override;
+
+    [[nodiscard]] arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
 
     void update(
         const arma::vec& ds,
@@ -128,24 +147,18 @@ public:
 
     // Accessors
     [[nodiscard]] int num_prony_terms() const noexcept { return N_prony_; }
-    [[nodiscard]] double g(int i) const { return g_i_[i]; }
-    [[nodiscard]] double tau(int i) const { return tau_i_[i]; }
+    [[nodiscard]] double E(int i)    const { return E_i_[i]; }
+    [[nodiscard]] double nu(int i)   const { return nu_i_[i]; }
+    [[nodiscard]] double etaB(int i) const { return etaB_i_[i]; }
+    [[nodiscard]] double etaS(int i) const { return etaS_i_[i]; }
+    [[nodiscard]] const arma::mat& L_branch(int i) const { return L_i_[i]; }
 
     /**
-     * @brief Set reference stiffness for computing branch contributions
-     * @param L_0 Reference elastic stiffness
+     * @brief Set reference compliance used to convert branch-stored viscous
+     * strain into the mechanism's contribution to the total inelastic strain.
+     * Called by ModularUMAT after the elasticity module is configured.
      */
-    void set_reference_stiffness(const arma::mat& L_0) { L_0_ = L_0; M_0_ = arma::inv(L_0); }
-
-    /**
-     * @brief Get the effective instantaneous stiffness reduction
-     *
-     * For a generalized Maxwell model, the instantaneous modulus is E_0,
-     * and the long-term modulus is E_inf = E_0 * (1 - sum(g_i)).
-     *
-     * @return Long-term stiffness factor (1 - sum(g_i))
-     */
-    double long_term_factor() const;
+    void set_reference_stiffness(const arma::mat& L_0);
 };
 
 } // namespace simcoon

@@ -29,6 +29,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/yield_criterion.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
@@ -56,11 +58,18 @@ private:
     std::unique_ptr<KinematicHardening> kin_hard_;
     double sigma_Y_;  ///< Initial yield stress
 
-    // Cached quantities from last constraint computation
-    mutable arma::vec flow_dir_;      ///< Flow direction
-    mutable arma::vec kappa_;         ///< L * flow_direction
-    mutable double dPhi_dp_;          ///< dPhi/dp
-    mutable double H_total_;          ///< Total hardening modulus
+    // IVC keys, cached at register_variables.
+    std::string p_key_;
+    std::string EP_key_;
+
+    // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
+    // kappa() return const-refs into these single-element buffers to avoid
+    // re-constructing std::vector<arma::vec> on every FB iteration.
+    mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
+    mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
+    mutable std::vector<arma::vec> dPhi_dsigma_cache_{arma::zeros(6)};
+    mutable std::vector<arma::vec> kappa_cache_{arma::zeros(6)};
+    mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
 
 public:
     /**
@@ -90,6 +99,7 @@ public:
 
     void configure(const arma::vec& props, int& offset) override;
     void register_variables(InternalVariableCollection& ivc) override;
+    void set_ivc_prefix(const std::string& prefix) override;
 
     // ========== Mechanism Properties ==========
 
@@ -120,10 +130,55 @@ public:
      */
     [[nodiscard]] double initial_yield_stress() const noexcept { return sigma_Y_; }
 
+    // ========== Yield-side queries ==========
+    //
+    // These helpers expose the stress-side yield machinery (criteria.cpp
+    // Eq_stress dispatch) with the backstress shift applied internally, so
+    // callers do not need to reach into kin_hard_->total_backstress(ivc).
+
+    /**
+     * @brief Equivalent stress of (sigma - X) under the configured yield criterion.
+     *
+     * Dispatches through YieldCriterion to criteria.cpp::Eq_stress
+     * (Mises / Tresca / Drucker / Hill / DFA / Ani).
+     */
+    [[nodiscard]] double equivalent_stress(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const;
+
+    /// tensor2-typed overload.
+    [[nodiscard]] double equivalent_stress(
+        const tensor2& sigma,
+        const InternalVariableCollection& ivc) const;
+
+    /**
+     * @brief Yield function value Phi = sigma_eq(sigma - X) - R(p) - sigma_Y.
+     *
+     * Phi <= 0 inside the elastic domain; the return-mapping drives Phi to 0
+     * when the trial state lies outside.
+     */
+    [[nodiscard]] double yield_function(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const;
+
+    [[nodiscard]] double yield_function(
+        const tensor2& sigma,
+        const InternalVariableCollection& ivc) const;
+
+    /// Flow direction dPhi/dsigma at (sigma - X), strain-typed in the tensor2 overload.
+    [[nodiscard]] arma::vec flow_direction(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const;
+
+    [[nodiscard]] tensor2 flow_direction(
+        const tensor2& sigma,
+        const InternalVariableCollection& ivc) const;
+
     // ========== Constitutive Computations ==========
 
     void compute_constraints(
         const arma::vec& sigma,
+        const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
         const InternalVariableCollection& ivc,
@@ -144,6 +199,16 @@ public:
         arma::mat& B,
         int row_offset
     ) const override;
+
+    [[nodiscard]] const std::vector<arma::vec>& dPhi_dsigma(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const override;
+
+    [[nodiscard]] const std::vector<arma::vec>& kappa(
+        const arma::vec& sigma,
+        double DT,
+        const arma::mat& L_ref,
+        const InternalVariableCollection& ivc) const override;
 
     arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
 

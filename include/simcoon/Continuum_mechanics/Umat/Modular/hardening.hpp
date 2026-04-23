@@ -202,8 +202,19 @@ enum class KinHardType {
  * @brief Base class for kinematic hardening
  */
 class KinematicHardening {
+protected:
+    std::string ivc_prefix_;
+
+    [[nodiscard]] std::string key(const std::string& base) const {
+        return ivc_prefix_.empty() ? base : ivc_prefix_ + base;
+    }
+
 public:
     virtual ~KinematicHardening() = default;
+
+    /// Prefix applied to every IVC key this hardening registers/queries.
+    /// Set by the owning PlasticityMechanism when mechanisms are disambiguated.
+    virtual void set_ivc_prefix(const std::string& prefix) { ivc_prefix_ = prefix; }
 
     /**
      * @brief Configure from props array
@@ -314,6 +325,7 @@ public:
 class PragerHardening final : public KinematicHardening {
 private:
     double C_;  ///< Kinematic hardening modulus
+    std::string a_key_;  ///< Cached IVC key for the back-strain α
 public:
     PragerHardening() : C_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -333,6 +345,7 @@ class ArmstrongFrederickHardening final : public KinematicHardening {
 private:
     double C_;  ///< Hardening parameter
     double D_;  ///< Dynamic recovery parameter
+    std::string a_key_;  ///< Cached IVC key for the back-strain α
 public:
     ArmstrongFrederickHardening() : C_(0.0), D_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -352,9 +365,10 @@ public:
  */
 class ChabocheHardening final : public KinematicHardening {
 private:
-    int N_;           ///< Number of backstress terms
-    arma::vec C_;     ///< Hardening parameters
-    arma::vec D_;     ///< Dynamic recovery parameters
+    int N_;                          ///< Number of backstress terms
+    arma::vec C_;                    ///< Hardening parameters
+    arma::vec D_;                    ///< Dynamic recovery parameters
+    std::vector<std::string> a_keys_; ///< Cached IVC keys for back-strains α_i
 public:
     explicit ChabocheHardening(int N = 1) : N_(N), C_(arma::zeros(N)), D_(arma::zeros(N)) {}
     void configure(const arma::vec& props, int& offset) override;

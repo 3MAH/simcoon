@@ -95,19 +95,19 @@ void DamageMechanism::configure(const arma::vec& props, int& offset) {
 }
 
 void DamageMechanism::register_variables(InternalVariableCollection& ivc) {
-    // Register damage variable
-    ivc.add_scalar("D", 0.0, false);
-
-    // Register maximum damage driving force (history variable)
-    ivc.add_scalar("Y_max", 0.0, false);
+    D_key_     = key("D");
+    Y_max_key_ = key("Y_max");
+    ivc.add_scalar(D_key_,     0.0, false);
+    ivc.add_scalar(Y_max_key_, 0.0, false);
 }
 
 // ========== Constitutive Computations ==========
 
-double DamageMechanism::compute_driving_force(const arma::vec& sigma, const arma::mat& S) const {
-    // Damage driving force: Y = (1/2) * sigma : S : sigma
-    // This is the strain energy release rate
-    return 0.5 * arma::dot(sigma, S * sigma);
+double DamageMechanism::compute_driving_force(const arma::vec& sigma, const arma::mat& /*S*/) const {
+    // Y = ½ σ : M : σ — strain-energy release rate. Uses the cached
+    // compliance-typed tensor4 (set in compute_constraints alongside the
+    // arma compliance), so no per-call 6×6 ctor copy.
+    return 0.5 * arma::dot(sigma, (M_cached_t_ * stress(sigma)).to_arma_voigt());
 }
 
 double DamageMechanism::compute_damage(double Y, double Y_max) const {
@@ -148,7 +148,7 @@ double DamageMechanism::compute_damage(double Y, double Y_max) const {
 }
 
 double DamageMechanism::get_damage(const InternalVariableCollection& ivc) const {
-    return ivc.get("D").scalar();
+    return ivc.get(D_key_).scalar();
 }
 
 arma::mat DamageMechanism::damaged_stiffness(const arma::mat& L, double D) {
@@ -157,8 +157,9 @@ arma::mat DamageMechanism::damaged_stiffness(const arma::mat& L, double D) {
 
 void DamageMechanism::compute_constraints(
     const arma::vec& sigma,
+    const arma::vec& /*E_total*/,
     const arma::mat& L,
-    double DTime,
+    double /*DTime*/,
     const InternalVariableCollection& ivc,
     arma::vec& Phi,
     arma::vec& Y_crit
@@ -167,12 +168,13 @@ void DamageMechanism::compute_constraints(
     Y_crit.set_size(1);
 
     // Get current damage and history
-    D_current_ = ivc.get("D").scalar();
-    double Y_max = ivc.get("Y_max").scalar();
+    D_current_ = ivc.get(D_key_).scalar();
+    double Y_max = ivc.get(Y_max_key_).scalar();
 
-    // Compute and cache compliance (only on first use or if L changes)
+    // Compute and cache compliance (raw + typed) on first use.
     if (!M_cached_valid_) {
         M_cached_ = arma::inv(L);
+        M_cached_t_ = tensor4(M_cached_, Tensor4Type::compliance);
         M_cached_valid_ = true;
     }
 
@@ -252,6 +254,33 @@ void DamageMechanism::compute_jacobian_contribution(
     B(row_offset, row_offset) = 1.0;
 }
 
+const std::vector<arma::vec>& DamageMechanism::dPhi_dsigma(
+    const arma::vec& sigma, const InternalVariableCollection& /*ivc*/) const {
+    // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ.
+    // M_cached_ is populated by compute_constraints (must be called first).
+    dPhi_dsigma_cache_[0] = M_cached_valid_ ? arma::vec(M_cached_ * sigma)
+                                            : arma::zeros(6);
+    return dPhi_dsigma_cache_;
+}
+
+const std::vector<arma::vec>& DamageMechanism::kappa(
+    const arma::vec& sigma, double /*DT*/, const arma::mat& /*L_ref*/,
+    const InternalVariableCollection& ivc) const {
+    // κ^damage = ∂M/∂D · σ. For the (1-D)·L_0 model, M(D) = (1/(1-D)) · M_0,
+    // so ∂M/∂D = (1/(1-D)²) · M_0. This enables weak coupling into other
+    // mechanisms' Jacobian rows (they see stress perturbations from damage
+    // evolution within a single FB iteration instead of only through the
+    // outer-iteration stress update).
+    if (M_cached_valid_) {
+        const double D = ivc.get(D_key_).scalar();
+        const double factor = 1.0 / ((1.0 - D) * (1.0 - D));
+        kappa_cache_[0] = factor * (M_cached_ * sigma);
+    } else {
+        kappa_cache_[0].zeros();
+    }
+    return kappa_cache_;
+}
+
 arma::vec DamageMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
     // Damage doesn't contribute a separate inelastic strain
     // It affects the stiffness instead
@@ -266,13 +295,13 @@ void DamageMechanism::update(
     double dY = ds(offset);
 
     // Update Y_max if we're loading
-    double& Y_max = ivc.get("Y_max").scalar();
+    double& Y_max = ivc.get(Y_max_key_).scalar();
     if (Y_current_ > Y_max) {
         Y_max = Y_current_;
     }
 
     // Compute and update damage
-    double& D = ivc.get("D").scalar();
+    double& D = ivc.get(D_key_).scalar();
     D = compute_damage(Y_current_, Y_max);
 }
 
@@ -284,7 +313,7 @@ void DamageMechanism::tangent_contribution(
     const InternalVariableCollection& ivc,
     arma::mat& Lt
 ) const {
-    double D = ivc.get("D").scalar();
+    double D = ivc.get(D_key_).scalar();
 
     // Apply damage to tangent
     // L_damaged = (1 - D) * L
@@ -311,7 +340,7 @@ void DamageMechanism::compute_work(
     double& Wm_d
 ) const {
     // Get damage increment
-    double dD = ivc.get("D").delta_scalar();
+    double dD = ivc.get(D_key_).delta_scalar();
 
     Wm_r = 0.0;
     Wm_ir = 0.0;

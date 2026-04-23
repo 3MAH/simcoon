@@ -88,7 +88,10 @@ public:
      * @return Reference to the created variable
      * @throws std::runtime_error if name already exists
      */
-    InternalVariable& add_vec(const std::string& name, const arma::vec& init = arma::zeros(6), bool rotate = true);
+    InternalVariable& add_vec(const std::string& name,
+                               const arma::vec& init = arma::zeros(6),
+                               bool rotate = true,
+                               VoigtType vtype = VoigtType::strain);
 
     /**
      * @brief Add a 6x6 matrix internal variable

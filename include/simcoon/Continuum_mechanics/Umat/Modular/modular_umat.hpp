@@ -77,6 +77,11 @@ private:
     std::vector<std::unique_ptr<StrainMechanism>> mechanisms_;
     InternalVariableCollection ivc_;
 
+    // Constraint-row offset per mechanism; computed once in initialize() and
+    // reused by every FB iteration (it only changes if mechanisms are
+    // added/removed, which is disallowed after initialize()).
+    std::vector<int> mech_offset_;
+
     // State
     double T_init_;         ///< Initial temperature
     arma::vec sigma_start_; ///< Stress at start of increment

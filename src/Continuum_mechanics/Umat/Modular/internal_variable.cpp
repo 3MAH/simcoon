@@ -37,11 +37,13 @@ InternalVariable::InternalVariable(const std::string& name, double init, bool ro
     , mat_value_()
     , mat_start_()
     , requires_rotation_(rotate)
+    , vtype_(VoigtType::strain)
     , statev_offset_(0)
 {
 }
 
-InternalVariable::InternalVariable(const std::string& name, const arma::vec& init, bool rotate)
+InternalVariable::InternalVariable(const std::string& name, const arma::vec& init,
+                                    bool rotate, VoigtType vtype)
     : name_(name)
     , type_(IVarType::VECTOR_6)
     , scalar_value_(0.0)
@@ -51,6 +53,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     , mat_value_()
     , mat_start_()
     , requires_rotation_(rotate)
+    , vtype_(vtype)
     , statev_offset_(0)
 {
     if (init.n_elem != 6) {
@@ -69,6 +72,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::mat& ini
     , mat_value_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , mat_start_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , requires_rotation_(rotate)
+    , vtype_(VoigtType::strain)
     , statev_offset_(0)
 {
     if (init.n_rows != 6 || init.n_cols != 6) {
@@ -233,24 +237,7 @@ void InternalVariable::set_start() {
 }
 
 void InternalVariable::rotate(const arma::mat& DR) {
-    if (!requires_rotation_) {
-        return;
-    }
-
-    switch (type_) {
-        case IVarType::SCALAR:
-            // Scalars don't rotate
-            break;
-        case IVarType::VECTOR_6:
-            // Use rotate_strain for strain-like tensors
-            // This applies to plastic strain, backstress, etc.
-            vec_value_ = rotate_strain(vec_value_, DR);
-            break;
-        case IVarType::MATRIX_6x6:
-            // Stiffness-like rotation via the Rotation API (replaces legacy rotateL).
-            mat_value_ = simcoon::Rotation::from_matrix(DR).apply_stiffness(mat_value_);
-            break;
-    }
+    rotate(Rotation::from_matrix(DR));
 }
 
 void InternalVariable::rotate(const Rotation& R) {
@@ -260,12 +247,16 @@ void InternalVariable::rotate(const Rotation& R) {
     switch (type_) {
         case IVarType::SCALAR:
             break;
-        case IVarType::VECTOR_6:
-            // strain-form vector (factor-2 on shear) → use Rotation::apply_strain
-            vec_value_ = R.apply_strain(arma::vec::fixed<6>(vec_value_));
+        case IVarType::VECTOR_6: {
+            // Route through tensor2 so the rotation kernel (apply_strain vs
+            // apply_stress, and the future generic path) is chosen once, inside
+            // tensor2::rotate, from the variable's authoritative VoigtType.
+            const tensor2 t = tensor2::from_voigt(vec_value_, vtype_).rotate(R);
+            vec_value_ = t.to_arma_voigt();
             break;
+        }
         case IVarType::MATRIX_6x6:
-            mat_value_ = R.apply_stiffness(arma::mat::fixed<6,6>(mat_value_));
+            mat_value_ = R.apply_stiffness(mat_value_);
             break;
     }
 }
@@ -285,7 +276,7 @@ tensor4 InternalVariable::as_tensor4(Tensor4Type t4type) const {
         throw std::runtime_error("InternalVariable::as_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
-    return tensor4(arma::mat::fixed<6,6>(mat_value_), t4type);
+    return tensor4(mat_value_, t4type);
 }
 
 void InternalVariable::set_tensor2(const tensor2& t) {
@@ -293,7 +284,7 @@ void InternalVariable::set_tensor2(const tensor2& t) {
         throw std::runtime_error("InternalVariable::set_tensor2: variable '" + name_
                                  + "' is not VECTOR_6");
     }
-    vec_value_ = arma::vec(t.voigt());
+    vec_value_ = t.voigt();
 }
 
 void InternalVariable::set_tensor4(const tensor4& t) {
@@ -301,7 +292,7 @@ void InternalVariable::set_tensor4(const tensor4& t) {
         throw std::runtime_error("InternalVariable::set_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
-    mat_value_ = arma::mat(t.mat());
+    mat_value_ = t.mat();
 }
 
 // ========== Serialization ==========

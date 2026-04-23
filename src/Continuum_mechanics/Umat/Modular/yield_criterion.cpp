@@ -164,13 +164,6 @@ double YieldCriterion::equivalent_stress(const arma::vec& sigma) const {
     return Eq_stress(sigma, type_string(), params_);
 }
 
-double YieldCriterion::equivalent_stress(const arma::vec& sigma, const arma::vec& X) const {
-    if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
-    }
-    return Eq_stress(sigma - X, type_string(), params_);
-}
-
 arma::vec YieldCriterion::flow_direction(const arma::vec& sigma) const {
     if (!configured_) {
         throw std::runtime_error("YieldCriterion: not configured");
@@ -178,21 +171,8 @@ arma::vec YieldCriterion::flow_direction(const arma::vec& sigma) const {
     return dEq_stress(sigma, type_string(), params_);
 }
 
-arma::vec YieldCriterion::flow_direction(const arma::vec& sigma, const arma::vec& X) const {
-    if (!configured_) {
-        throw std::runtime_error("YieldCriterion: not configured");
-    }
-    return dEq_stress(sigma - X, type_string(), params_);
-}
-
 arma::vec YieldCriterion::plastic_flow(const arma::vec& sigma) const {
-    // For associated flow rules, plastic flow equals flow direction
     return flow_direction(sigma);
-}
-
-arma::vec YieldCriterion::plastic_flow(const arma::vec& sigma, const arma::vec& X) const {
-    // For associated flow rules, plastic flow equals flow direction
-    return flow_direction(sigma, X);
 }
 
 } // namespace simcoon

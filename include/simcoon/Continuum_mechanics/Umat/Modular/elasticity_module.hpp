@@ -181,28 +181,21 @@ public:
     // ========== Tensor-typed accessors (Tensor2/Tensor4 API) ==========
 
     /**
-     * @brief Stiffness as a typed Tensor4 (Tensor4Type::stiffness).
+     * @brief Stiffness as a typed Tensor4.
      *
      * Use `.contract(strain_tensor)` to obtain the elastic stress tensor2 with
-     * the correct VoigtType automatically inferred. This is the type-safe entry
-     * point recommended for new code (mirrors the EPICP plugin pattern).
+     * the correct VoigtType automatically inferred.
      */
     [[nodiscard]] tensor4 L_tensor() const {
-        return tensor4(arma::mat::fixed<6,6>(L_), Tensor4Type::stiffness);
+        return tensor4(L_, Tensor4Type::stiffness);
     }
 
-    /**
-     * @brief Compliance as a typed Tensor4 (Tensor4Type::compliance).
-     */
     [[nodiscard]] tensor4 M_tensor() const {
-        return tensor4(arma::mat::fixed<6,6>(M_), Tensor4Type::compliance);
+        return tensor4(M_, Tensor4Type::compliance);
     }
 
-    /**
-     * @brief CTE as a strain-typed Tensor2 (factor-2 on shear handled correctly).
-     */
     [[nodiscard]] tensor2 alpha_tensor() const {
-        return tensor2::from_voigt(arma::vec(alpha_), VoigtType::strain);
+        return strain(alpha_);
     }
 
     // ========== Derived Quantities ==========
@@ -212,13 +205,10 @@ public:
      * @param d Damage variable (0 = undamaged, 1 = fully damaged)
      * @return Degraded stiffness (1-d)*L
      */
-    arma::mat damaged_L(double d) const;
+    [[nodiscard]] arma::mat damaged_L(double d) const;
 
-    /**
-     * @brief Damaged stiffness as a typed Tensor4 (stiffness).
-     */
     [[nodiscard]] tensor4 damaged_L_tensor(double d) const {
-        return tensor4(arma::mat::fixed<6,6>(damaged_L(d)), Tensor4Type::stiffness);
+        return tensor4(damaged_L(d), Tensor4Type::stiffness);
     }
 
     /**
@@ -226,13 +216,10 @@ public:
      * @param DT Temperature increment
      * @return Thermal strain vector (alpha * DT)
      */
-    arma::vec thermal_strain(double DT) const;
+    [[nodiscard]] arma::vec thermal_strain(double DT) const;
 
-    /**
-     * @brief Thermal strain as a strain-typed Tensor2.
-     */
     [[nodiscard]] tensor2 thermal_strain_tensor(double DT) const {
-        return tensor2::from_voigt(thermal_strain(DT), VoigtType::strain);
+        return strain(thermal_strain(DT));
     }
 
     /**

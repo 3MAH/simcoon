@@ -48,6 +48,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include <string>
+#include <vector>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
 
@@ -82,11 +83,23 @@ private:
     double n_;                  ///< Power law exponent
 
     // Cached values
-    mutable double Y_current_;  ///< Current damage driving force
-    mutable double D_current_;  ///< Current damage
-    mutable double dD_dY_;      ///< Derivative of damage w.r.t. driving force
-    mutable arma::mat M_cached_; ///< Cached compliance (set from L on first use)
-    mutable bool M_cached_valid_; ///< Whether M_cached_ is valid
+    mutable double Y_current_;          ///< Current damage driving force
+    mutable double D_current_;          ///< Current damage
+    mutable double dD_dY_;              ///< Derivative of damage w.r.t. driving force
+    mutable arma::mat M_cached_;        ///< Cached compliance (raw arma form)
+    mutable tensor4   M_cached_t_;      ///< Same compliance, typed Tensor4
+                                        ///< (compliance type) — built once per
+                                        ///< invalidation; reused by
+                                        ///< compute_driving_force, dPhi_dsigma,
+                                        ///< kappa, tangent_contribution.
+    mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
+    mutable std::vector<arma::vec> dPhi_dsigma_cache_{arma::zeros(6)};
+    mutable std::vector<arma::vec> kappa_cache_{arma::zeros(6)};
+
+    // IVC keys, cached at register_variables (avoids string concatenation
+    // on every FB iteration).
+    std::string D_key_;
+    std::string Y_max_key_;
 
 public:
     /**
@@ -104,6 +117,7 @@ public:
 
     void compute_constraints(
         const arma::vec& sigma,
+        const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
         const InternalVariableCollection& ivc,
@@ -124,6 +138,16 @@ public:
         arma::mat& B,
         int row_offset
     ) const override;
+
+    [[nodiscard]] const std::vector<arma::vec>& dPhi_dsigma(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const override;
+
+    [[nodiscard]] const std::vector<arma::vec>& kappa(
+        const arma::vec& sigma,
+        double DT,
+        const arma::mat& L_ref,
+        const InternalVariableCollection& ivc) const override;
 
     arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
 
@@ -183,6 +207,22 @@ public:
      * @return Damaged stiffness (1-D)*L
      */
     static arma::mat damaged_stiffness(const arma::mat& L, double D);
+
+    /**
+     * @brief Invalidate the cached compliance M_cached_.
+     *
+     * M_cached_ is lazily built on first use as inv(L) where L is the
+     * reference stiffness passed into compute_constraints. It is correct as
+     * long as that reference never changes — which is true for the current
+     * (1-D)·L_0 damage model since the undamaged L_0 is fixed after
+     * ElasticityModule::configure.
+     *
+     * Call this if any external actor mutates the elasticity reference
+     * between UMAT calls (e.g., a stiffness-evolving mechanism composed
+     * above damage). Then the next compute_constraints rebuilds M_cached_
+     * from the new L.
+     */
+    void invalidate_compliance_cache() noexcept { M_cached_valid_ = false; }
 
     // Accessors
     [[nodiscard]] DamageType damage_type() const noexcept { return damage_type_; }

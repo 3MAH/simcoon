@@ -29,6 +29,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/yield_criterion.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/viscoelastic_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/damage_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
@@ -187,13 +189,13 @@ TEST(YieldCriterionTensor, VonMisesTensor2Match) {
                          - yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
               1e-10);
 
-    // Backstress overload
+    // Backstress: callers just subtract the tensors themselves.
     tensor2 X_t = stress(arma::mat::fixed<3,3>{{20., 5., 0.},
                                                 {5., 10., 2.},
                                                 {0., 2., -10.}});
-    EXPECT_NEAR(yc.equivalent_stress(sigma_t, X_t),
-                yc.equivalent_stress(arma::vec(sigma_t.voigt()),
-                                     arma::vec(X_t.voigt())),
+    EXPECT_NEAR(yc.equivalent_stress(sigma_t - X_t),
+                yc.equivalent_stress(arma::vec(sigma_t.voigt())
+                                     - arma::vec(X_t.voigt())),
                 1e-10);
 }
 
@@ -508,12 +510,77 @@ TEST_F(IsotropicHardeningTest, VoceHardening) {
     EXPECT_NEAR(R, expected, 1e-6);
 }
 
+// Superposition identity: CombinedVoce with two identical (Q, b) terms must
+// equal a single VoceHardening(2Q, b). Catches aggregation bugs (averaging
+// instead of summing, shared internal state between terms, etc).
+TEST_F(IsotropicHardeningTest, CombinedVoceDuplicateEqualsDoubled) {
+    auto single = IsotropicHardening::create(IsoHardType::VOCE, 1);
+    vec props_single = {400.0, 10.0};  // 2Q, b
+    int off = 0;
+    single->configure(props_single, off);
+
+    auto combined = IsotropicHardening::create(IsoHardType::COMBINED_VOCE, 2);
+    vec props_combined = {200.0, 10.0, 200.0, 10.0};  // (Q, b) twice
+    off = 0;
+    combined->configure(props_combined, off);
+
+    for (double p : {0.0, 1e-4, 1e-3, 1e-2, 0.1, 0.5}) {
+        EXPECT_NEAR(combined->R(p),     single->R(p),     1e-10);
+        EXPECT_NEAR(combined->dR_dp(p), single->dR_dp(p), 1e-10);
+    }
+}
+
 // ========== KinematicHardening Tests ==========
 
 class KinematicHardeningTest : public ::testing::Test {
 protected:
     InternalVariableCollection ivc_;
 };
+
+// Superposition identity: Chaboche with two identical (C, D) terms must
+// produce the same total backstress trajectory as a single AF(2C, D),
+// when both are driven by the same flow direction n under identical dp.
+TEST_F(KinematicHardeningTest, ChabocheDuplicateEqualsDoubledAF) {
+    const double C = 30000.0;
+    const double D = 200.0;
+
+    auto af = KinematicHardening::create(KinHardType::ARMSTRONG_FREDERICK, 1);
+    vec props_af = {2.0 * C, D};
+    int off = 0;
+    af->configure(props_af, off);
+
+    auto cha = KinematicHardening::create(KinHardType::CHABOCHE, 2);
+    vec props_cha = {C, D, C, D};
+    off = 0;
+    cha->configure(props_cha, off);
+
+    InternalVariableCollection ivc_af;
+    InternalVariableCollection ivc_cha;
+    af->register_variables(ivc_af);
+    cha->register_variables(ivc_cha);
+    ivc_af.compute_offsets(0);
+    ivc_cha.compute_offsets(0);
+    vec statev_af  = zeros(ivc_af.total_statev_size());
+    vec statev_cha = zeros(ivc_cha.total_statev_size());
+    ivc_af.unpack_all(statev_af);
+    ivc_cha.unpack_all(statev_cha);
+
+    // Uniaxial tensile flow direction (Voigt strain convention, factor-2 shear).
+    vec n = {1.0, -0.5, -0.5, 0.0, 0.0, 0.0};
+    const double dp = 1e-4;
+
+    for (int step = 0; step < 100; ++step) {
+        af->update(dp, n, ivc_af);
+        cha->update(dp, n, ivc_cha);
+
+        vec X_af  = af->total_backstress(ivc_af);
+        vec X_cha = cha->total_backstress(ivc_cha);
+        EXPECT_LT(norm(X_cha - X_af, 2), 1e-8) << "drift at step " << step;
+
+        EXPECT_NEAR(cha->hardening_modulus(n, ivc_cha),
+                    af->hardening_modulus(n, ivc_af), 1e-8);
+    }
+}
 
 TEST_F(KinematicHardeningTest, PragerHardening) {
     auto hard = KinematicHardening::create(KinHardType::PRAGER, 1);
@@ -561,6 +628,52 @@ TEST_F(PlasticityMechanismTest, InelasticStrainInitiallyZero) {
 
     vec EP = pm.inelastic_strain(ivc);
     EXPECT_DOUBLE_EQ(norm(EP), 0.0);
+}
+
+// Public yield-side accessors: equivalent_stress, yield_function, flow_direction.
+// Verifies the (sigma - X) shift is applied internally and the tensor2
+// overloads match the arma::vec versions bit-for-bit.
+TEST_F(PlasticityMechanismTest, YieldAccessors) {
+    PlasticityMechanism pm(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::NONE, 1, 0);
+
+    // sigma_Y = 300, Q = 200, b = 10
+    vec props = {300.0, 200.0, 10.0};
+    int offset = 0;
+    pm.configure(props, offset);
+
+    InternalVariableCollection ivc;
+    pm.register_variables(ivc);
+    ivc.compute_offsets(0);
+    vec statev = zeros(ivc.total_statev_size());
+    ivc.unpack_all(statev);
+
+    // Uniaxial elastic stress below yield: sigma_11 = 200 < sigma_Y = 300.
+    vec sigma = {200.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // Mises of uniaxial 200 MPa == 200 MPa.
+    double seq = pm.equivalent_stress(sigma, ivc);
+    EXPECT_NEAR(seq, 200.0, 1e-10);
+
+    // Phi = 200 - R(0) - 300 = -100 (elastic).
+    double Phi = pm.yield_function(sigma, ivc);
+    EXPECT_NEAR(Phi, -100.0, 1e-10);
+
+    // Flow direction: non-zero, points in deviatoric direction.
+    vec n = pm.flow_direction(sigma, ivc);
+    EXPECT_GT(norm(n), 0.0);
+
+    // tensor2 overloads must match the arma::vec versions.
+    tensor2 sig_t = stress(sigma);
+    EXPECT_NEAR(pm.equivalent_stress(sig_t, ivc), seq, 1e-10);
+    EXPECT_NEAR(pm.yield_function(sig_t, ivc), Phi, 1e-10);
+    tensor2 n_t = pm.flow_direction(sig_t, ivc);
+    EXPECT_EQ(n_t.vtype(), VoigtType::strain);
+    EXPECT_LT(norm(vec(n_t.voigt()) - n, 2), 1e-10);
+
+    // Uniaxial stress above yield: sigma_11 = 400 > sigma_Y => Phi > 0.
+    vec sigma_high = {400.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    EXPECT_NEAR(pm.equivalent_stress(sigma_high, ivc), 400.0, 1e-10);
+    EXPECT_GT(pm.yield_function(sigma_high, ivc), 0.0);
 }
 
 // ========== ModularUMAT Tests ==========
@@ -651,6 +764,224 @@ TEST_F(ModularUMATTest, ElasticResponse) {
 
 // ========== Integration Test ==========
 
+// Single-branch generalized-Maxwell viscoelasticity: apply a fixed strain,
+// hold, and verify the stress relaxes monotonically toward zero (long-term
+// modulus is 0 since we have no parallel elastic spring in this single-branch
+// test; the instantaneous response is nonzero).
+TEST(ModularUMATIntegration, ViscoelasticRelaxation) {
+    ModularUMAT mumat;
+
+    vec props_el = {210000.0, 0.3, 0.0};
+    int offset_el = 0;
+    mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
+
+    // One Prony branch: E=210 GPa, nu=0.3, etaB=etaS=1e5 MPa*s.
+    vec props_vi = {210000.0, 0.3, 1.0e5, 1.0e5};
+    int offset_vi = 0;
+    mumat.add_viscoelasticity(1, props_vi, offset_vi);
+
+    int nstatev = 20;
+    vec statev = zeros(nstatev);
+    mumat.initialize(nstatev, statev);
+
+    // Ramp to 0.1% strain, then hold.
+    vec Etot = zeros(6);
+    vec DEtot_ramp = {1e-3, -3e-4, -3e-4, 0, 0, 0};
+    vec sigma = zeros(6);
+    mat Lt(6, 6), L(6, 6);
+    mat DR = eye(3, 3);
+    vec props = zeros(10);
+    double T = 293.0, DT = 0.0, Wm = 0.0, Wm_r = 0.0, Wm_ir = 0.0, Wm_d = 0.0;
+    double tnew_dt = 1.0;
+    double Time = 0.0;
+
+    // Single ramp step
+    mumat.run("MODUL", Etot, DEtot_ramp, sigma, Lt, L, DR, 10, props, nstatev, statev,
+              T, DT, Time, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt);
+    Etot += DEtot_ramp;
+
+    // sigma right after ramp should be roughly elastic (L * strain).
+    const double sigma_11_initial = sigma(0);
+    EXPECT_GT(sigma_11_initial, 50.0);  // well above zero
+
+    // Hold (DEtot = 0) for many steps; stress must relax monotonically.
+    vec DEtot_hold = zeros(6);
+    double sigma_11_prev = sigma_11_initial;
+    Time += 1.0;
+    for (int step = 0; step < 40; ++step) {
+        mumat.run("MODUL", Etot, DEtot_hold, sigma, Lt, L, DR, 10, props, nstatev, statev,
+                  T, DT, Time, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
+        Time += 1.0;
+        // Monotone decrease (allow small tolerance for numerical noise)
+        EXPECT_LT(sigma(0), sigma_11_prev + 1e-6) << " at step " << step;
+        sigma_11_prev = sigma(0);
+    }
+    // After 40 s of relaxation the stress has dropped substantially.
+    EXPECT_LT(sigma(0), 0.5 * sigma_11_initial);
+}
+
+// Arbitrary mix of same-type mechanisms must coexist without IVC key
+// collisions: two plasticity + two viscoelastic + two damage. Each mechanism
+// receives a unique prefix (plast0_, plast1_, visco0_, visco1_, damage0_,
+// damage1_) from ModularUMAT::add_*, and the orchestrator's nstatev
+// accounting covers all of them.
+TEST(ModularUMATIntegration, ArbitraryMultiMechanismInitialize) {
+    ModularUMAT mumat;
+
+    vec props_el = {210000.0, 0.3, 0.0};
+    int off = 0;
+    mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+
+    vec props_pl = {300.0, 10000.0};
+    off = 0;
+    mumat.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                          KinHardType::NONE, 1, 0, props_pl, off);
+    off = 0;
+    mumat.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                          KinHardType::NONE, 1, 0, props_pl, off);
+
+    // Two viscoelastic mechanisms with 1 branch each (E, nu, etaB, etaS).
+    vec props_ve = {70000.0, 0.3, 1e5, 1e5};
+    off = 0;
+    mumat.add_viscoelasticity(1, props_ve, off);
+    off = 0;
+    mumat.add_viscoelasticity(1, props_ve, off);
+
+    // Two damage mechanisms (linear: Y_0, Y_c).
+    vec props_dmg = {1.0, 10.0};
+    off = 0;
+    mumat.add_damage(DamageType::LINEAR, props_dmg, off);
+    off = 0;
+    mumat.add_damage(DamageType::LINEAR, props_dmg, off);
+
+    // Statev: 1 (T_init) + 2*7 (plast) + 2*7 (visco 1 branch) + 2*2 (damage) = 33.
+    EXPECT_EQ(mumat.required_nstatev(), 1 + 2 * 7 + 2 * 7 + 2 * 2);
+    EXPECT_EQ(mumat.num_mechanisms(), 6u);
+
+    vec statev = zeros(mumat.required_nstatev());
+    EXPECT_NO_THROW(mumat.initialize(mumat.required_nstatev(), statev));
+
+    // All prefixed keys exist (no collision).
+    for (const auto& k : {"plast0_p", "plast1_p", "plast0_EP", "plast1_EP",
+                           "visco0_v_0", "visco1_v_0", "visco0_EV_0", "visco1_EV_0",
+                           "damage0_D", "damage1_D", "damage0_Y_max", "damage1_Y_max"}) {
+        EXPECT_NO_THROW(mumat.internal_variables().get(k)) << "missing key: " << k;
+    }
+}
+
+// Two identical Plasticity mechanisms sharing the same stress must produce
+// the same final stress as a single plasticity mechanism — by superposition
+// of the associated flow, exactly when hardening is LINEAR (so that
+// 2 * R(p/2) = R(p); with Voce or other nonlinear laws each mechanism hardens
+// differently on half the accumulated plastic strain and the equivalence is
+// only approximate). Verifies that the cross-mechanism Jacobian coupling
+// B_{lj} = -dot(dPhi^l/dsigma, kappa^j) is correctly assembled; without it,
+// the FB return-mapping would over-correct and diverge to nonphysical states.
+TEST(ModularUMATIntegration, TwoPlasticityEquivalentToOne) {
+    const double E = 210000.0, nu = 0.3, sigma_Y = 300.0;
+    // Linear isotropic hardening with the same modulus H in both cases.
+    const double H_iso = 10000.0;
+
+    // Single plasticity mechanism (reference)
+    ModularUMAT mumat_single;
+    {
+        vec props_el = {E, nu, 0.0};
+        int off = 0;
+        mumat_single.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+        vec props_pl = {sigma_Y, H_iso};
+        off = 0;
+        mumat_single.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                                     KinHardType::NONE, 1, 0, props_pl, off);
+        vec statev = zeros(20);
+        mumat_single.initialize(20, statev);
+    }
+
+    // Two identical plasticity mechanisms
+    ModularUMAT mumat_two;
+    {
+        vec props_el = {E, nu, 0.0};
+        int off = 0;
+        mumat_two.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+        // Two identical linear-hardening plasticities with HALF the modulus
+        // each, so the summed response matches the single-mechanism H_iso.
+        vec props_pl_1 = {sigma_Y, 2.0 * H_iso};
+        int off1 = 0;
+        mumat_two.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                                  KinHardType::NONE, 1, 0, props_pl_1, off1);
+        vec props_pl_2 = {sigma_Y, 2.0 * H_iso};
+        int off2 = 0;
+        mumat_two.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                                  KinHardType::NONE, 1, 0, props_pl_2, off2);
+        vec statev = zeros(40);
+        mumat_two.initialize(40, statev);
+    }
+
+    // Drive both through the same load history: monotonic uniaxial tension
+    // above yield.
+    auto run_step = [](ModularUMAT& m, vec& Etot, const vec& DEtot, vec& sigma,
+                       int nstatev, vec& statev, double Time, bool start) {
+        mat Lt(6, 6), L(6, 6), DR = eye(3, 3);
+        vec props = zeros(10);
+        double T = 293.0, DT = 0.0, Wm = 0.0, Wm_r = 0.0, Wm_ir = 0.0, Wm_d = 0.0;
+        double tnew_dt = 1.0;
+        m.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev, statev,
+              T, DT, Time, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, start, tnew_dt);
+    };
+
+    vec Etot_single = zeros(6), sigma_single = zeros(6), statev_single = zeros(20);
+    vec Etot_two    = zeros(6), sigma_two    = zeros(6), statev_two    = zeros(40);
+    const vec DEtot = {2e-3, -6e-4, -6e-4, 0, 0, 0};
+
+    double Time = 0.0;
+    for (int step = 0; step < 5; ++step) {
+        run_step(mumat_single, Etot_single, DEtot, sigma_single, 20, statev_single,
+                 Time, step == 0);
+        run_step(mumat_two, Etot_two, DEtot, sigma_two, 40, statev_two,
+                 Time, step == 0);
+        Etot_single += DEtot;
+        Etot_two    += DEtot;
+        Time += 1.0;
+    }
+
+    // The two-plasticity case should match the single — identical Φ, identical
+    // evolution; each mechanism carries half the plastic increment due to the
+    // coupled Jacobian, and the sum gives the same total plastic strain.
+    EXPECT_LT(norm(sigma_single - sigma_two, 2) / norm(sigma_single, 2), 1e-3)
+        << "single = " << sigma_single.t()
+        << "two    = " << sigma_two.t();
+}
+
+// Two Plasticity mechanisms must coexist without IVC key collisions. The
+// orchestrator auto-prefixes each mechanism's variables (plast0_, plast1_, ...).
+TEST(ModularUMATIntegration, TwoPlasticityMechanismsInitialize) {
+    ModularUMAT mumat;
+
+    vec props_el = {210000.0, 0.3, 0.0};
+    int offset_el = 0;
+    mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
+
+    vec props_pl_1 = {300.0, 200.0, 10.0};
+    int off1 = 0;
+    mumat.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::NONE,
+                         1, 0, props_pl_1, off1);
+
+    vec props_pl_2 = {300.0, 200.0, 10.0};
+    int off2 = 0;
+    mumat.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::NONE,
+                         1, 0, props_pl_2, off2);
+
+    int nstatev = 40;
+    vec statev = zeros(nstatev);
+    EXPECT_NO_THROW(mumat.initialize(nstatev, statev));
+    EXPECT_EQ(mumat.num_mechanisms(), 2u);
+
+    // Both p and EP exist under their disambiguated keys.
+    EXPECT_NO_THROW(mumat.internal_variables().get("plast0_p"));
+    EXPECT_NO_THROW(mumat.internal_variables().get("plast1_p"));
+    EXPECT_NO_THROW(mumat.internal_variables().get("plast0_EP"));
+    EXPECT_NO_THROW(mumat.internal_variables().get("plast1_EP"));
+}
+
 TEST(ModularUMATIntegration, UniaxialTension) {
     ModularUMAT mumat;
 
@@ -710,8 +1041,10 @@ TEST(ModularUMATIntegration, UniaxialTension) {
     double sigma_11 = sigma(0);
     EXPECT_GT(sigma_11, sigma_Y - 50.0);  // Should be near or above yield
 
-    // Accumulated plastic strain should be positive
-    double p = mumat.internal_variables().get("p").scalar();
+    // Accumulated plastic strain should be positive.
+    // ModularUMAT prefixes each mechanism's variables with plast<i>_, so the
+    // first plasticity mechanism's "p" is registered as "plast0_p".
+    double p = mumat.internal_variables().get("plast0_p").scalar();
     // If we strained enough to yield, p should be positive
     if (sigma_11 > sigma_Y - 10.0) {
         EXPECT_GT(p, 0.0);

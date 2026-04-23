@@ -35,6 +35,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include <string>
+#include <vector>
 #include <map>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
@@ -60,17 +61,29 @@ enum class MechanismType {
  */
 class StrainMechanism {
 protected:
-    std::string name_;  ///< Mechanism name for debugging
-    bool active_;       ///< Whether this mechanism is currently active
+    std::string name_;        ///< Mechanism name for debugging
+    std::string ivc_prefix_;  ///< Prefix for IVC variable keys (empty = bare names)
+    bool active_;             ///< Whether this mechanism is currently active
+
+    /// Compose the IVC key for a base variable name; empty prefix yields the
+    /// bare name, preserving legacy behavior when a mechanism is used standalone.
+    [[nodiscard]] std::string key(const std::string& base) const {
+        return ivc_prefix_.empty() ? base : ivc_prefix_ + base;
+    }
 
 public:
     /**
      * @brief Constructor
      * @param name Mechanism identifier
      */
-    explicit StrainMechanism(const std::string& name) : name_(name), active_(true) {}
+    explicit StrainMechanism(const std::string& name) : name_(name), ivc_prefix_(), active_(true) {}
 
     virtual ~StrainMechanism() = default;
+
+    /// Set a prefix applied to every IVC key registered or queried by this
+    /// mechanism. ModularUMAT uses this to disambiguate same-type mechanisms.
+    virtual void set_ivc_prefix(const std::string& prefix) { ivc_prefix_ = prefix; }
+    [[nodiscard]] const std::string& ivc_prefix() const noexcept { return ivc_prefix_; }
 
     // ========== Configuration ==========
 
@@ -124,14 +137,20 @@ public:
     /**
      * @brief Compute constraint functions (yield/evolution equations)
      * @param sigma Current stress tensor (6 Voigt)
+     * @param E_total Total mechanical strain at current iterate (Etot + DEtot, 6 Voigt)
      * @param L Elastic stiffness tensor (6x6)
      * @param DTime Time increment
      * @param ivc Internal variable collection
      * @param Phi Output: constraint function values
      * @param Y_crit Output: critical values for convergence
+     *
+     * E_total is required by rate-dependent mechanisms (viscoelasticity,
+     * viscoplasticity) to compute the branch driving force; rate-independent
+     * mechanisms (plasticity, damage) ignore it.
      */
     virtual void compute_constraints(
         const arma::vec& sigma,
+        const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
         const InternalVariableCollection& ivc,
@@ -158,6 +177,10 @@ public:
      * @param ivc Internal variable collection
      * @param B Jacobian matrix to update
      * @param row_offset Starting row for this mechanism's contributions
+     *
+     * Fills its own diagonal block (and within-block off-diagonals, if any).
+     * Cross-mechanism off-diagonals are pre-filled by the orchestrator using
+     * dPhi_dsigma() and kappa() before this method is called.
      */
     virtual void compute_jacobian_contribution(
         const arma::vec& sigma,
@@ -166,6 +189,79 @@ public:
         arma::mat& B,
         int row_offset
     ) const = 0;
+
+    // ========== Cross-mechanism Jacobian assembly ==========
+
+    /**
+     * @brief Return dPhi^l/dsigma for each constraint l this mechanism owns.
+     *
+     * Used by the orchestrator to assemble the off-diagonal Jacobian entries
+     *   B_{lj} = -dot(dPhi^l/dsigma, kappa^j)
+     *
+     * Returned by const-ref into mechanism-internal storage populated during
+     * compute_constraints — callers must not retain the reference past the
+     * next call to compute_constraints on this mechanism.
+     *
+     * Default: empty — meaning Phi does not depend on sigma (as in the
+     * Prony_Nfast-style viscoelastic mechanism, whose Phi is written in
+     * terms of strain and branch-internal EV_i only).
+     */
+    virtual const std::vector<arma::vec>& dPhi_dsigma(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const {
+        (void)sigma;
+        (void)ivc;
+        static const std::vector<arma::vec> empty;
+        return empty;
+    }
+
+    /**
+     * @brief Return kappa^j = L_ref * Lambda_eps^j (+ stiffness/CTE
+     * sensitivity corrections) for each lead variable j this mechanism owns.
+     *
+     * kappa^j is the "total stress-influence tensor" of lead variable s^j,
+     * i.e., delta_sigma += -kappa^j * delta_s^j during the return mapping.
+     * Length must equal num_constraints(). Same const-ref lifetime contract
+     * as dPhi_dsigma — reference is valid until the next compute_constraints.
+     */
+    virtual const std::vector<arma::vec>& kappa(
+        const arma::vec& sigma,
+        double DT,
+        const arma::mat& L_ref,
+        const InternalVariableCollection& ivc) const = 0;
+
+    // ========== Weak-coupling hooks (see theory chapter 7) ==========
+
+    /**
+     * @brief K^{lj}: how this mechanism's criterion l depends directly on
+     * another mechanism j's internal variables via the chain
+     *   K^{lj} = sum_i (∂Φ^l/∂V_i^j) · Λ_i^j
+     *
+     * Non-zero only for genuine cross-mechanism couplings (e.g. damage-
+     * weakened plastic hardening where R(p) depends on D). Default: 0.
+     *
+     * Must be called only after compute_constraints has run this FB
+     * iteration on *both* this mechanism and `other`, since their internal
+     * caches (flow direction, kappa, dD_dY, ...) drive the partial
+     * derivatives.
+     *
+     * @param l_constraint_idx Index within this mechanism's constraints.
+     * @param other The mechanism whose lead variable s^j we differentiate with
+     *              respect to (may be this — diagonal hardening is handled in
+     *              compute_jacobian_contribution, not here).
+     * @param j_lead_idx Index within other's lead variables.
+     */
+    virtual double K_cross(
+        int l_constraint_idx,
+        const StrainMechanism& other,
+        int j_lead_idx,
+        const InternalVariableCollection& ivc) const {
+        (void)l_constraint_idx;
+        (void)other;
+        (void)j_lead_idx;
+        (void)ivc;
+        return 0.0;
+    }
 
     /**
      * @brief Get inelastic strain from this mechanism

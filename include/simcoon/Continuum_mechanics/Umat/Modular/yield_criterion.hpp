@@ -165,77 +165,30 @@ public:
     // ========== Yield Function Computations ==========
 
     /**
-     * @brief Compute equivalent stress
-     * @param sigma Stress tensor (6 Voigt components)
-     * @return Equivalent stress value
+     * @brief Equivalent stress under the configured criterion.
+     *
+     * For a backstress shift, callers pass ``sigma - X`` directly — both
+     * ``arma::vec`` and ``tensor2`` support ``operator-``.
      */
     double equivalent_stress(const arma::vec& sigma) const;
 
     /**
-     * @brief Compute equivalent stress with backstress shift
-     * @param sigma Stress tensor (6 Voigt components)
-     * @param X Backstress tensor (6 Voigt components)
-     * @return Equivalent stress of (sigma - X)
-     */
-    double equivalent_stress(const arma::vec& sigma, const arma::vec& X) const;
-
-    /**
-     * @brief Compute flow direction (derivative of equivalent stress)
-     * @param sigma Stress tensor (6 Voigt components)
-     * @return Flow direction (6 Voigt components)
+     * @brief Flow direction dPhi/dsigma under the configured criterion.
      */
     arma::vec flow_direction(const arma::vec& sigma) const;
 
-    /**
-     * @brief Compute flow direction with backstress shift
-     * @param sigma Stress tensor (6 Voigt components)
-     * @param X Backstress tensor (6 Voigt components)
-     * @return Flow direction at (sigma - X)
-     */
-    arma::vec flow_direction(const arma::vec& sigma, const arma::vec& X) const;
-
-    /**
-     * @brief Compute plastic flow direction (for non-associated flow)
-     * @param sigma Stress tensor (6 Voigt components)
-     * @return Plastic flow direction
-     *
-     * For associated flow rules, this is the same as flow_direction.
-     * Override in subclasses for non-associated flow.
-     */
+    /// Plastic flow direction (associated flow: equals flow_direction).
     arma::vec plastic_flow(const arma::vec& sigma) const;
-
-    /**
-     * @brief Compute plastic flow direction with backstress shift
-     * @param sigma Stress tensor (6 Voigt components)
-     * @param X Backstress tensor (6 Voigt components)
-     * @return Plastic flow direction at (sigma - X)
-     */
-    arma::vec plastic_flow(const arma::vec& sigma, const arma::vec& X) const;
 
     // ========== Tensor2 overloads ==========
 
-    /// equivalent_stress on a typed stress tensor2.
     [[nodiscard]] double equivalent_stress(const tensor2& sigma) const {
-        return equivalent_stress(arma::vec(sigma.voigt()));
+        return equivalent_stress(sigma.to_arma_voigt());
     }
 
-    /// equivalent_stress with backstress on typed stress tensor2.
-    [[nodiscard]] double equivalent_stress(const tensor2& sigma, const tensor2& X) const {
-        return equivalent_stress(arma::vec(sigma.voigt()), arma::vec(X.voigt()));
-    }
-
-    /// flow_direction returning a typed strain tensor2 (associated flow rule:
-    /// flow direction is dual to stress and lives in strain space).
+    /// Associated flow: flow direction is dual to stress and lives in strain space.
     [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const {
-        return tensor2::from_voigt(flow_direction(arma::vec(sigma.voigt())),
-                                   VoigtType::strain);
-    }
-
-    /// flow_direction with backstress on typed stress tensor2.
-    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma, const tensor2& X) const {
-        return tensor2::from_voigt(flow_direction(arma::vec(sigma.voigt()),
-                                                  arma::vec(X.voigt())),
-                                   VoigtType::strain);
+        return strain(flow_direction(sigma.to_arma_voigt()));
     }
 
     // ========== Utility ==========
