@@ -620,6 +620,13 @@ class PragerHardening:
     """
     C: float
 
+    def __post_init__(self):
+        if not isinstance(self.C, (int, float)):
+            raise TypeError(
+                "PragerHardening.C must be a scalar. "
+                "For multiple Prager-like terms, use ChabocheHardening with D=0 in each term."
+            )
+
     @property
     def kin_hard_type(self) -> KinHardType:
         return KinHardType.PRAGER
@@ -653,6 +660,14 @@ class ArmstrongFrederickHardening:
     """
     C: float
     D: float
+
+    def __post_init__(self):
+        if not (isinstance(self.C, (int, float)) and isinstance(self.D, (int, float))):
+            raise TypeError(
+                "ArmstrongFrederickHardening(C, D) takes scalars. "
+                "For multi-term AF (Chaboche), use "
+                "ChabocheHardening(terms=[(C1, D1), (C2, D2), ...])."
+            )
 
     @property
     def kin_hard_type(self) -> KinHardType:
@@ -767,14 +782,36 @@ class Plasticity:
 
 @dataclass(frozen=True)
 class Viscoelasticity:
-    """Viscoelastic mechanism using Prony series (generalized Maxwell model).
+    """Generalized-Maxwell viscoelastic mechanism (Prony branches).
+
+    Each branch is a Maxwell element with its own branch stiffness L_i(E, nu)
+    and viscosity tensor H_i(etaB, etaS). The flow rate in branch i is
+
+        dEV_i/dt = invH_i . L_i . (eps - EV_i)
+
+    and the mechanism contribution to the total inelastic strain is
+
+        eps^{in,visco} = sum_i (M_0 . L_i) . EV_i
+
+    where M_0 is the compliance at the reference (undamaged, long-term)
+    stiffness.
 
     Parameters
     ----------
-    terms : tuple of (g, tau) tuples
-        Each tuple is (relative modulus, relaxation time) for one Prony term.
+    terms : sequence of (E, nu, etaB, etaS) tuples
+        For each Prony branch: Young's modulus, Poisson ratio, bulk viscosity,
+        shear viscosity. All four are required per branch.
     """
-    terms: Tuple[Tuple[float, float], ...] = ()
+    terms: Tuple[Tuple[float, float, float, float], ...] = ()
+
+    def __post_init__(self):
+        for i, term in enumerate(self.terms):
+            if len(term) != 4:
+                raise TypeError(
+                    f"Viscoelasticity.terms[{i}] must be (E, nu, etaB, etaS); "
+                    f"got {len(term)} values. Previous (g, tau) layout is no "
+                    "longer supported — port to the Prony_Nfast form."
+                )
 
     @property
     def mechanism_type(self) -> MechanismType:
@@ -782,17 +819,16 @@ class Viscoelasticity:
 
     def to_props(self) -> List[float]:
         """Return props values for this mechanism (excluding mechanism_type header)."""
-        # Header: N_prony
-        header = [float(len(self.terms))]
-        params = []
-        for g, tau in self.terms:
-            params.extend([g, tau])
+        header = [float(len(self.terms))]  # N_prony
+        params: List[float] = []
+        for E, nu, etaB, etaS in self.terms:
+            params.extend([E, nu, etaB, etaS])
         return header + params
 
     @property
     def nstatev(self) -> int:
-        """Number of state variables: EV_i(6) per Prony term."""
-        return 6 * len(self.terms)
+        """Per Prony branch: 1 scalar lead variable v_i + 6-Voigt EV_i = 7."""
+        return 7 * len(self.terms)
 
 
 @dataclass(frozen=True)
@@ -890,7 +926,10 @@ class ModularMaterial:
     ...     elasticity=IsotropicElasticity(E=70000., nu=0.33, alpha=2.3e-5),
     ...     mechanisms=[
     ...         Plasticity(sigma_Y=200., isotropic_hardening=PowerLawHardening(k=500., m=0.3)),
-    ...         Viscoelasticity(terms=((0.3, 1.0), (0.2, 10.0))),
+    ...         Viscoelasticity(terms=(
+    ...             (70000., 0.33, 7e5, 3e5),    # branch 1: (E, nu, etaB, etaS)
+    ...             (35000., 0.33, 3.5e5, 1.5e5),
+    ...         )),
     ...     ]
     ... )
     """
@@ -1004,7 +1043,13 @@ class ModularMaterial:
                     lines.append(f"        iso_hard: {mech.isotropic_hardening.__class__.__name__}")
                     lines.append(f"        kin_hard: {mech.kinematic_hardening.__class__.__name__}")
                 elif isinstance(mech, Viscoelasticity):
-                    lines.append(f"        {len(mech.terms)} Prony terms")
+                    lines.append(f"        {len(mech.terms)} Prony terms "
+                                 "(E_i, nu_i, etaB_i, etaS_i)")
+                    for k, term in enumerate(mech.terms):
+                        E_i, nu_i, etaB_i, etaS_i = term
+                        lines.append(
+                            f"          [{k}] E={E_i}, nu={nu_i}, "
+                            f"etaB={etaB_i}, etaS={etaS_i}")
                 elif isinstance(mech, Damage):
                     lines.append(f"        type: {mech.damage_type.name}")
                     lines.append(f"        Y_0={mech.Y_0}, Y_c={mech.Y_c}")
@@ -1081,19 +1126,20 @@ def elastoplastic_model(
 def viscoelastic_model(
     E: float,
     nu: float,
-    prony_terms: Sequence[Tuple[float, float]],
+    prony_terms: Sequence[Tuple[float, float, float, float]],
     alpha: float = 0.0,
 ) -> ModularMaterial:
-    """Create an isotropic viscoelastic material with Prony series.
+    """Create an isotropic generalized-Maxwell viscoelastic material.
 
     Parameters
     ----------
     E : float
-        Young's modulus (instantaneous).
+        Reference (long-term) Young's modulus.
     nu : float
-        Poisson's ratio.
-    prony_terms : sequence of (g, tau) tuples
-        Prony series terms: relative modulus and relaxation time.
+        Reference Poisson's ratio.
+    prony_terms : sequence of (E_i, nu_i, etaB_i, etaS_i) tuples
+        Per-branch parameters: branch modulus, branch Poisson ratio, bulk
+        viscosity, shear viscosity.
     alpha : float
         Coefficient of thermal expansion.
 
