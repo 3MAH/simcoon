@@ -58,8 +58,14 @@ class TestShape:
         assert r.dR_drotvec().shape == (3, 3, 3, len(rotvecs_batch))
 
     def test_free_eq_member(self, rotvec_general):
+        # The member path goes through Rotation._ensure_cls -> from_quat, which
+        # re-normalises the quaternion and introduces ~1 ULP precision loss
+        # vs. the input rotvec. Compare with a tight tolerance instead of
+        # bit-exact equality.
         r = sim.Rotation.from_rotvec(rotvec_general)
-        np.testing.assert_array_equal(sim.dR_drotvec(rotvec_general), r.dR_drotvec())
+        np.testing.assert_allclose(
+            sim.dR_drotvec(rotvec_general), r.dR_drotvec(), atol=1e-12
+        )
 
 
 # ---------------------------------------------------------------------------
