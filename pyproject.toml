@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
-version = "1.11.1"
+version = "1.11.2"
 description = "Simulation in Mechanics and Materials: Interactive Tools - A library for the simulation of multiphysics systems and heterogeneous materials"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -194,5 +194,7 @@ before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
 # Point CMake to vcpkg
 environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
 
-# Skip wheel repair — CMake installs all needed DLLs directly into the wheel
-repair-wheel-command = ""
+# delvewheel bundles vcpkg-installed DLLs (Armadillo, OpenBLAS) and the
+# MSVC C++/OpenMP runtimes into the wheel so it is self-contained.
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --add-path C:/vcpkg/installed/x64-windows/bin"
