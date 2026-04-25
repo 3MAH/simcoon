@@ -139,7 +139,23 @@ void register_rotation(py::module_& m) {
             py::arg("B"), py::arg("active") = true,
             simcoon_docs::apply_stress_concentration)
 
+        .def("dR_drotvec",
+            [](const simcoon::Rotation& self) {
+                return carma::cube_to_arr(self.dR_drotvec());
+            },
+            simcoon_docs::dR_drotvec)
+
         ;
+
+    m.def("dR_drotvec",
+        [](py::array_t<double> rotvec) {
+            validate_vector_size(rotvec, 3, "rotvec");
+            auto r = rotvec.unchecked<1>();
+            vec::fixed<3> omega = {r(0), r(1), r(2)};
+            return carma::cube_to_arr(simcoon::dR_drotvec(omega));
+        },
+        py::arg("rotvec"),
+        simcoon_docs::dR_drotvec_free);
 }
 
 } // namespace simpy

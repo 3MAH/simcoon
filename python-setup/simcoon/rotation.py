@@ -10,7 +10,7 @@ methods (``apply_stress``, ``apply_stiffness``, etc.).
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
-from simcoon._core import _CppRotation
+from simcoon._core import _CppRotation, dR_drotvec as _dR_drotvec
 
 
 class Rotation(ScipyRotation):
@@ -378,6 +378,30 @@ class Rotation(ScipyRotation):
             Single (6, 6) or batch (N, 6, 6) strain rotation matrix (QE).
         """
         return self._voigt_strain_matrices(active)
+
+    # ------------------------------------------------------------------
+    # Rotation vector derivatives
+    # ------------------------------------------------------------------
+
+    def dR_drotvec(self):
+        """Derivatives of the rotation matrix w.r.t. rotation vector components.
+
+        Uses the exact differentiation of the Rodrigues formula
+        (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+
+        Returns
+        -------
+        numpy.ndarray
+            Single: (3, 3, 3) where ``result[:, :, k]`` is dR/d(omega_k).
+            Batch:  (3, 3, 3, N) where ``result[:, :, k, n]`` is dR_n/d(omega_k).
+
+            The slice axis is last, matching simcoon's project-wide cube
+            convention ((3,3,N), (6,6,N), ...).
+        """
+        rotvec = self.as_rotvec()
+        if rotvec.ndim == 1:
+            return _dR_drotvec(rotvec)
+        return np.stack([_dR_drotvec(r) for r in rotvec], axis=-1)
 
     # ------------------------------------------------------------------
     # Compatibility helpers
