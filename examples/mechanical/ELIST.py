@@ -1,6 +1,6 @@
 """
 Transversely Isotropic Elasticity Example
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=========================================
 """
 
 import numpy as np

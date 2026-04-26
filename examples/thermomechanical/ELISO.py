@@ -1,6 +1,6 @@
 """
 Isotropic elasticity (thermomechanical)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=======================================
 """
 
 import numpy as np
