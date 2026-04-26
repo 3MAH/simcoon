@@ -1,6 +1,6 @@
 """
 Orthotropic Elasticity Example
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+==============================
 """
 
 import numpy as np
