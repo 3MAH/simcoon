@@ -1,6 +1,6 @@
 """
 Transversely isotropic elasticity (thermomechanical)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+====================================================
 """
 
 import numpy as np
