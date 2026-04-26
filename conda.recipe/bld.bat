@@ -2,7 +2,9 @@
 cd %SRC_DIR%
 
 :: Set pybind11 path for CMake
-for /f "delims=" %%i in ('python -c "import pybind11; print(pybind11.get_cmake_dir())"') do set PYBIND11_DIR=%%i
+python -c "import pybind11; print(pybind11.get_cmake_dir())" > %TEMP%\_pb11.txt
+set /p PYBIND11_DIR=<%TEMP%\_pb11.txt
+del %TEMP%\_pb11.txt
 if "%PYBIND11_DIR%"=="" (
   echo ERROR: Could not find pybind11 CMake directory
   exit 1
