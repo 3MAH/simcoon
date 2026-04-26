@@ -194,7 +194,7 @@ before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
 # Point CMake to vcpkg
 environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
 
-# delvewheel bundles vcpkg-installed DLLs (Armadillo, OpenBLAS) and the
-# MSVC C++/OpenMP runtimes into the wheel so it is self-contained.
-before-build = "pip install delvewheel"
-repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --add-path C:/vcpkg/installed/x64-windows/bin"
+# Static linking: CMake bundles libsimcoon and all runtime dependency DLLs
+# (BLAS, LAPACK, libgcc/gfortran/quadmath/winpthread) directly into the wheel.
+# No delvewheel repair pass needed.
+repair-wheel-command = ""
