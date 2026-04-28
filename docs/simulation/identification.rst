@@ -262,7 +262,7 @@ The key system works with any simulation tool. For example, with fedoo
        # Load results and compare
        y_num = [np.loadtxt("results/reaction_force.txt")]
        y_exp = [np.loadtxt("exp_data/reaction_force.txt")]
-       return calc_cost(y_exp, y_num, normalize_response=True)
+       return calc_cost(y_exp, y_num, metric="nmse_per_response")
 
    result = identification(cost, params, seed=42)
 
