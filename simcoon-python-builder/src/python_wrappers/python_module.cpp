@@ -29,11 +29,6 @@
 // #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
 // #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Identification/identification.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/constants.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
-
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_criteria.hpp>
@@ -238,7 +233,4 @@ PYBIND11_MODULE(_core, m)
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
 
-    // Register the from-python converters for identification
-    m.def("identification", &identification);
-    m.def("calc_cost", &calc_cost, "nfiles"_a, "data_num_name"_a);
 }

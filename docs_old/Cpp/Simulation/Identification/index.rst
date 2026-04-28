@@ -1,6 +1,0 @@
-Identification
-==============
-
-.. toctree::
-
-    identification.rst

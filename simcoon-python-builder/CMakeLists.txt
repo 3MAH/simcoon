@@ -39,12 +39,6 @@ pybind11_add_module(_core
   # Homogenization
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp
 
-  # Identification
-  src/python_wrappers/Libraries/Identification/constants.cpp
-  src/python_wrappers/Libraries/Identification/identification.cpp
-  src/python_wrappers/Libraries/Identification/optimize.cpp
-  src/python_wrappers/Libraries/Identification/parameters.cpp
-
   # Material
   src/python_wrappers/Libraries/Material/ODF.cpp
 

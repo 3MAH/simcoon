@@ -118,6 +118,6 @@ def apply_constants(
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(const.key, str(const.value))
+            modified_content = content.replace(co.key, str(co.value))
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)
