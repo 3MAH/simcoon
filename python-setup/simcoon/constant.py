@@ -3,6 +3,7 @@ Constant class to manage simcoon computations constants
 """
 
 import os
+import re
 import shutil
 from typing import List, NamedTuple, Union
 import numpy as np
@@ -25,12 +26,18 @@ class Constant(NamedTuple):
 
 
 def read_constants(
-    n_consts: int, fname: Union[str, os.PathLike] = "data/constants.inp"
+    n_consts: int,
+    fname: Union[str, os.PathLike] = "data/constants.inp",
+    skiprows: int = 1,
 ) -> List[Constant]:
     """
-    read constants from a simcoon input file
-    :param n_const: number of constants
-    :param path: path where constants.inp simcoon input file is located
+    Read constants from a simcoon input file.
+
+    :param n_consts: number of input values per constant
+    :param fname: path to the ``constants.inp`` file
+    :param skiprows: number of leading lines to skip (pandas-style).
+                     Defaults to 1 (skip the header). Use ``0`` for files
+                     without a header.
     :return: List of Constant
     """
 
@@ -38,6 +45,8 @@ def read_constants(
         raise TypeError(
             f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike."
         )
+    if skiprows < 0:
+        raise ValueError(f"skiprows must be >= 0, got {skiprows}")
 
     if isinstance(fname, os.PathLike):
         fname = os.fspath(fname)
@@ -46,7 +55,7 @@ def read_constants(
     with open(fname, "r", encoding="utf-8") as constinit:
         lines = constinit.readlines()
 
-        for line in lines[1:]:
+        for line in lines[skiprows:]:
             values = line.split()
             array_input_values = np.zeros(n_consts)
             nfiles = int(values[2 + n_consts])
@@ -112,12 +121,18 @@ def apply_constants(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for co in consts:
+    # Longest keys first + ``(?!\w)`` lookahead so a shorter key cannot
+    # clobber a longer key that contains it (e.g. ``@E`` vs ``@Et``).
+    ordered = sorted(consts, key=lambda c: -len(c.key))
+
+    for co in ordered:
+        pattern = re.compile(re.escape(co.key) + r"(?!\w)")
+        replacement = str(co.value)
         for ifiles in co.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(co.key, str(co.value))
+            modified_content = pattern.sub(lambda _m: replacement, content)
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)

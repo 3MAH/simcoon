@@ -130,9 +130,8 @@ identified values are written back to each ``Parameter.value``.
 
 - ``cost_fn``: callable ``f(x) -> float`` where ``x`` is a parameter array
 - ``parameters``: list of ``Parameter`` (bounds used for search space)
-- ``method``: ``"differential_evolution"`` (default, only option for now)
-- ``**kwargs``: forwarded to scipy (``maxiter``, ``popsize``, ``tol``,
-  ``seed``, ``polish=True``, ``disp``, etc.)
+- ``**kwargs``: forwarded to ``differential_evolution`` (``maxiter``,
+  ``popsize``, ``tol``, ``seed``, ``polish=True``, ``disp``, etc.)
 
 **Returns:** ``scipy.optimize.OptimizeResult``
 

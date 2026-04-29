@@ -15,15 +15,18 @@ from scipy.optimize import differential_evolution
 def identification(
     cost_fn: Callable,
     parameters: list,
-    method: str = "differential_evolution",
     **kwargs,
 ):
     """
-    Run parameter identification using scipy global optimization.
+    Run parameter identification using scipy's differential evolution.
 
-    This function wraps ``scipy.optimize.differential_evolution`` using the
-    bounds defined in the ``Parameter`` objects. After optimization, the
+    Wraps ``scipy.optimize.differential_evolution`` using the bounds
+    defined in the ``Parameter`` objects. After optimization, the
     identified values are written back to each ``Parameter.value``.
+
+    For other optimizers (``minimize``, ``shgo``, ``dual_annealing``…),
+    call ``scipy.optimize`` directly — the ``Parameter`` objects expose
+    the bounds and values you need.
 
     Parameters
     ----------
@@ -32,11 +35,8 @@ def identification(
         parameter values (same order as *parameters*).
     parameters : list of Parameter
         Parameter objects whose ``.bounds`` define the search space.
-    method : str, optional
-        Optimization method. Currently only ``"differential_evolution"``
-        is supported. Default: ``"differential_evolution"``.
     **kwargs
-        Extra keyword arguments forwarded to the scipy optimizer.
+        Extra keyword arguments forwarded to ``differential_evolution``.
         Common options: ``maxiter``, ``popsize``, ``tol``, ``seed``,
         ``polish`` (default ``True``), ``disp``.
 
@@ -57,12 +57,6 @@ def identification(
     >>> result = identification(my_cost, params, seed=42)
     >>> print(f"Identified E = {params[0].value:.0f}")
     """
-    if method != "differential_evolution":
-        raise ValueError(
-            f"Unknown method '{method}'. "
-            "Currently only 'differential_evolution' is supported."
-        )
-
     bounds = [p.bounds for p in parameters]
 
     # Sensible defaults
@@ -143,7 +137,7 @@ def calc_cost(
     >>> y_exp = [np.array([100, 200, 300]), np.array([150, 250])]
     >>> y_num = [np.array([105, 195, 310]), np.array([148, 260])]
     >>> calc_cost(y_exp, y_num)  # simple MSE
-    50.6
+    50.8
 
     NMSE per response (balances force vs displacement):
 
