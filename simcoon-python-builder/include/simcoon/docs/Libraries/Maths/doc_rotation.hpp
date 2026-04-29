@@ -275,4 +275,51 @@ constexpr auto apply_stress_concentration = R"pbdoc(
         The rotated stress concentration tensor, same shape as input.
 )pbdoc";
 
+constexpr auto dR_drotvec = R"pbdoc(
+    Compute the derivatives of the rotation matrix w.r.t. rotation vector components.
+
+    Uses the exact differentiation of the Rodrigues formula
+    (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+
+    Returns
+    -------
+    numpy.ndarray
+        A (3, 3, 3) array where ``result[:, :, k]`` is
+        :math:`\partial R / \partial \omega_k`. The slice axis is last,
+        matching simcoon's project-wide cube convention.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import simcoon as smc
+        import numpy as np
+
+        r = smc.Rotation.from_rotvec([0.1, 0.2, 0.3])
+        dR = r.dR_drotvec()  # (3, 3, 3)
+        # dR[:, :, 0] = dR/d(omega_0), dR[:, :, 1] = dR/d(omega_1), dR[:, :, 2] = dR/d(omega_2)
+)pbdoc";
+
+constexpr auto dR_drotvec_free = R"pbdoc(
+    Compute the derivatives of R(omega) w.r.t. rotation vector components.
+
+    Free function version — takes a rotation vector directly.
+
+    Parameters
+    ----------
+    rotvec : numpy.ndarray
+        A 1D array of 3 elements: rotation vector (axis * angle).
+
+    Returns
+    -------
+    numpy.ndarray
+        A (3, 3, 3) array where ``result[:, :, k]`` is
+        :math:`\partial R / \partial \omega_k`.
+
+    References
+    ----------
+    Gallego & Yezzi, "A Compact Formula for the Derivative of a 3-D
+    Rotation in Exponential Coordinates", J. Math. Imaging Vis., 2015.
+)pbdoc";
+
 } // namespace simcoon_docs
