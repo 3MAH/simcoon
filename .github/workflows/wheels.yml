@@ -103,9 +103,10 @@ jobs:
     name: Publish to TestPyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_testpypi == 'true') ||
-      (github.event_name == 'workflow_call' && inputs.publish_testpypi)
+    # Don't gate on github.event_name: when invoked via workflow_call from
+    # release.yml, github.event_name keeps the *outer* trigger ('release'),
+    # not 'workflow_call'. inputs.publish_testpypi is set by both call paths.
+    if: ${{ inputs.publish_testpypi }}
     environment:
       name: testpypi
       url: https://test.pypi.org/p/simcoon
@@ -130,9 +131,8 @@ jobs:
     name: Publish to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true') ||
-      (github.event_name == 'workflow_call' && inputs.publish_pypi)
+    # See note above publish_testpypi for why we don't check github.event_name.
+    if: ${{ inputs.publish_pypi }}
     environment:
       name: pypi
       url: https://pypi.org/p/simcoon
