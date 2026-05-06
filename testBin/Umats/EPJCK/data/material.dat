@@ -1,0 +1,22 @@
+Material
+Name	EPJCK
+Number_of_material_parameters	11
+Number_of_internal_variables	9
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechanical
+E 200000
+nu 0.33
+alpha 1.E-5
+A_jc 792
+B_jc 510
+n_jc 0.26
+C_jc 0.014
+edot0 1.0
+m_jc 1.03
+T_ref 293
+T_melt 1793
