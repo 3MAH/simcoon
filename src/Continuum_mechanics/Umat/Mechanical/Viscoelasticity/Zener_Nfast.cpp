@@ -13,6 +13,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -34,7 +35,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -230,45 +231,17 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         sigma = el_pred(L0, Eel, ndi);
     }
     
+    //Continuum tangent via shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(N_kelvin, N_kelvin);
-    
-    vec op = zeros(N_kelvin);
-    mat delta = eye(N_kelvin,N_kelvin);
-    mat Bbar = zeros(N_kelvin,N_kelvin);
-    mat invBbar = zeros(N_kelvin, N_kelvin);
-    mat invBhat = zeros(N_kelvin, N_kelvin);
-    std::vector<vec> P_epsilon(N_kelvin);
-    
-    Lt = L0;    
     for (int i=0; i<N_kelvin; i++) {
-        P_epsilon[i] = zeros(6);
-    }
-    
-    for (int i=0; i<N_kelvin; i++) {
-        
-        if(Ds_j(i) > simcoon::iota)
-            op(i) = 1.;
-        
         for (int j = 0; j <N_kelvin; j++) {
             Bhat(i, j) = sum(dPhi_idsigma[i]%kappa_j[j]) - K(i,j);
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
         }
     }
 
-    invBbar = inv(Bbar);
-    
-    for (int i=0; i<N_kelvin; i++) {
-        for (int j = 0; j <N_kelvin; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    for (int i=0; i<N_kelvin; i++) {
-        for (int j = 0; j <N_kelvin; j++) {
-            P_epsilon[i] += invBhat(j, i)*(L0*dPhi_idsigma[j]);
-        }
-        Lt += -1.*(kappa_j[i]*P_epsilon[i].t());
-    }
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhi_idsigma, Ds_j, L0);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
     
     for (int i=0; i<N_kelvin; i++) {
         A_v[i] = sigma - L_i[i]*EV_i[i];

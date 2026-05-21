@@ -42,13 +42,14 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -617,46 +618,24 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double dPhiRdtheta = dA_xiRdtheta;
 
 
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum 2-mechanism SMA operator
+    //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(2, 2);
     Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
     Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
     Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
-    vec op = zeros(2);
-    mat delta = eye(2,2);
-
-    for (int i=0; i<2; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-
-    mat Bbar = zeros(2,2);
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-
-    mat invBbar = zeros(2, 2);
-    mat invBhat = zeros(2, 2);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-
-    std::vector<vec> P_epsilon(2);
-    P_epsilon[0] = invBhat(0, 0)*(L*dPhiFdsigma) + invBhat(1, 0)*(L*dPhiRdsigma);
-    P_epsilon[1] = invBhat(0, 1)*(L*dPhiFdsigma) + invBhat(1, 1)*(L*dPhiRdsigma);
+    const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    dSdE = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& invBhat = ct.invBhat;
 
     std::vector<double> P_theta(2);
     P_theta[0] = invBhat(0, 0)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 0)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
     P_theta[1] = invBhat(0, 1)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 1)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
 
-    dSdE = L - (kappa_j[0]*P_epsilon[0].t() + kappa_j[1]*P_epsilon[1].t());
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0] + kappa_j[1]*P_theta[1]);
 
     //Preliminaries for the computation of mechanical and thermal work

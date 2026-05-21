@@ -52,7 +52,7 @@ using namespace arma;
 
 namespace simcoon{
 
-void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile) {
+void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
 
     //Check if the required directories exist:
     if(!filesystem::is_directory(path_data)) {
@@ -161,6 +161,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //sv_M is reassigned properly
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
+                sv_M->tangent_mode = tangent_mode;
                 sv_M->L = zeros(6,6);
                 sv_M->Lt = zeros(6,6);
                 
@@ -499,19 +500,34 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);                                             
                                             }
                                             else if (blocks[i].control_type == 3) {
-
-                                                if(corate_type == 0) {
-                                                    C = Dsigma_LieDD_Dsigma_JaumannDD(sv_M->Lt, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
+                                                // Convert sv_M->Lt (Lie rate of Cauchy) to the corate the
+                                                // global Newton expects. Truesdell IS the Lie rate of sigma,
+                                                // so the conversion is a no-op — point at sv_M->Lt directly
+                                                // to avoid an identity copy.
+                                                const mat sigma_t = v2t_stress(sv_M->sigma);
+                                                const mat *C_use = nullptr;
+                                                switch(corate_type) {
+                                                    case 0:  // Jaumann
+                                                        C = Dsigma_LieDD_Dsigma_JaumannDD(sv_M->Lt, sigma_t);
+                                                        C_use = &C;
+                                                        break;
+                                                    case 1:  // Green-Naghdi
+                                                        C = Dsigma_LieDD_Dsigma_GreenNaghdiDD(sv_M->Lt, sv_M->F1, sigma_t);
+                                                        C_use = &C;
+                                                        break;
+                                                    case 2:  // logarithmic
+                                                    case 3:  // logarithmic_R — shares the logarithmic tangent representation
+                                                    case 5:  // logarithmic_F — same
+                                                        C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, sv_M->F1, sigma_t);
+                                                        C_use = &C;
+                                                        break;
+                                                    case 4:  // Truesdell — Lie rate of sigma, no conversion
+                                                        C_use = &sv_M->Lt;
+                                                        break;
+                                                    default:
+                                                        throw simcoon::exception_solver("Unknown corate_type=" + std::to_string(corate_type) + " in tangent conversion (control_type=3).");
                                                 }
-                                                if(corate_type == 1) {
-                                                    C = Dsigma_LieDD_Dsigma_GreenNaghdiDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
-                                                if(corate_type == 2) {
-                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
+                                                Lt_2_K(*C_use, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 4) {
                                                 mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
@@ -831,6 +847,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //sv_M is reassigned properly
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
+                sv_T->tangent_mode = tangent_mode;
                 
                 sv_T->dSdE = zeros(6,6);
                 sv_T->dSdT = zeros(6,1);

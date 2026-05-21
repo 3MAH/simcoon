@@ -30,6 +30,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -48,7 +49,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -238,48 +239,18 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     vec DEP = EP - EP_start;
     vec Dp = Ds_j;
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum elastic-plastic operator
+    //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(N_plas, N_plas);
     for (int i=0; i<N_plas; i++) {
         for (int j=0; j<N_plas; j++) {
             Bhat(i, j) = sum(dPhidsigma[i]%kappa_j[j]) - K(i,j);
         }
     }
-    
-    vec op = zeros(N_plas);
-    mat delta = eye(N_plas,N_plas);
-    
-    for (int i=0; i<N_plas; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(N_plas,N_plas);
-    for (int i = 0; i < N_plas; i++) {
-        for (int j = 0; j < N_plas; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1.-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(N_plas, N_plas);
-    mat invBhat = zeros(N_plas, N_plas);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < N_plas; i++) {
-        for (int j = 0; j < N_plas; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(N_plas);
 
-    Lt = L;
-    for (int i = 0; i < N_plas; i++) {
-        P_epsilon[i] = zeros(6);
-        for (int j = 0; j < N_plas; j++) {
-            P_epsilon[i] += invBhat(j, i)*(L*dPhidsigma[j]);
-        }
-        Lt = Lt - (kappa_j[i]*P_epsilon[i].t());
-    }
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
     
     std::vector<double> A_p(N_plas);
     for (int i = 0; i < N_plas; i++) {

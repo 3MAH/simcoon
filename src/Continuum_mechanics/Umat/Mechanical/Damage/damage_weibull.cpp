@@ -23,6 +23,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -41,7 +42,7 @@ namespace simcoon {
 ///@param props(5) : lambdaD Damage evolution parameter lambda
 ///@param props(6) : deltaD Damage evolution parameter delta
     
-void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(umat_name);
     UNUSED(nprops);
@@ -192,38 +193,14 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     Lambda_Damage = dStildedDamage*sigma;
     kappa_j[0] = L_tilde*Lambda_Damage;
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-    
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L_tilde*dPhidsigma);
-    
-    Lt = L_tilde - (kappa_j[0]*P_epsilon[0].t());
+
+    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L_tilde);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
     //Lt = L_tilde;
     
     if (Mises_stress(sigma) > simcoon::iota) {

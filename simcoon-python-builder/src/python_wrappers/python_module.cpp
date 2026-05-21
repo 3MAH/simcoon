@@ -222,12 +222,12 @@ PYBIND11_MODULE(_core, m)
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::stress_convert);
 
     // umat
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = 0);
 
     // Register the from-python converters for read and solver
     m.def("read_matprops", &read_matprops);
     m.def("read_path", &read_path);
-    m.def("solver", &solver);
+    m.def("solver", &solver, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a, "theta_rve"_a, "phi_rve"_a, "solver_type"_a, "corate_type"_a, "path_data"_a, "path_results"_a, "pathfile"_a, "outputfile"_a, "tangent_mode"_a = 0);
 
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);

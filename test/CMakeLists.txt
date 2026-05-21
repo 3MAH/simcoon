@@ -32,6 +32,7 @@ set(TEST_SRCS
 
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
+  test/Libraries/Umat/Ttangent_assembly.cpp
 
   # UMATs
   test/Umats/ELISO/TELISO.cpp
