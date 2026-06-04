@@ -380,32 +380,20 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double dPhiFdxiF = 0.;
     double dPhiFdxiR = 0.;
 
-    //Relative to reverse transformation
+    //Relative to reverse transformation. The K(1,·) chain rule (built below
+    //through ETMean as the natural intermediate variable) does not need
+    //dPhihatRdET, dYtRdET, dPhihatRdxi or dPhiRdxi / dPhiRdET — those would
+    //carry σ/ξ-divergent terms that cancel analytically but lose ~12 digits
+    //in floating point. Only the finite σ-gradients survive here.
     vec dPhihatRdsigma = zeros(6);
-    double dPhihatRdxiF = 0.;
-    double dPhihatRdxiR = 0.;
-    vec dPhihatRdETF = zeros(6);
-    vec dPhihatRdETR = zeros(6);
-
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0.;
     double dA_xiRdxiR = 0.;
-
     vec dlambda0dsigma = zeros(6);
     double dlambda0dxiF = 0.;
     double dlambda0dxiR = 0.;
-
     vec dYtRdsigma = zeros(6);
-    double dYtRdxiF = 0.;
-    double dYtRdxiR = 0.;
-    vec dYtRdETF = zeros(6);
-    vec dYtRdETR = zeros(6);
-
     vec dPhiRdsigma = zeros(6);
-    double dPhiRdxiF = 0.;
-    double dPhiRdxiR = 0.;
-    vec dPhiRdETF = zeros(6);
-    vec dPhiRdETR = zeros(6);
 
     //Compute the explicit flow direction
     std::vector<vec> kappa_j(2);
@@ -555,35 +543,45 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
         //Relative to reverse transformation
         dPhihatRdsigma = ETMean;
-        dPhihatRdxiF = (-1./xi)*sum(sigma%ETMean);
-        dPhihatRdxiR = (1./xi)*sum(sigma%ETMean);
-        dPhihatRdETF = sigma/xi;
-        dPhihatRdETR = sigma/xi;
-
         dA_xiRdsigma = -1.*DM_sig -1.*Dalpha*(T+DT-T_init);
-        dA_xiRdxiF = dHfR;
+        dA_xiRdxiF =  dHfR;
         dA_xiRdxiR = -dHfR;
 
         dlambda0dsigma = zeros(6);
         dlambda0dxiF = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        dlambda0dxiR = dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dlambda0dxiR =     dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
-        dYtRdsigma = 1.*D*ETMean;
-        dYtRdxiF = (-D/xi)*sum(sigma%ETMean);
-        dYtRdxiR = (D/xi)*sum(sigma%ETMean);
-        dYtRdETF = D*sigma/xi;
-        dYtRdETR = D*sigma/xi;
-
+        dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
-        dPhiRdxiF = -1.*dPhihatRdxiF + dA_xiRdxiF + dlambda0dxiF - dYtRdxiF;
-        dPhiRdxiR = -1.*dPhihatRdxiR + dA_xiRdxiR + dlambda0dxiR - dYtRdxiR;
-        dPhiRdETF = -1.*dPhihatRdETF - dYtRdETF;
-        dPhiRdETR = -1.*dPhihatRdETR - dYtRdETR;
+
+        // K(1,·) via Λ_ETMean^j chain rule — avoids the floating-point cancellation
+        // between dPhiRdxiF (∝ +(1+D)·σ:ETMean/ξ) and sum(dPhiRdET·lambdaTF)
+        // (∝ −(1+D)·σ:lambdaTF/ξ) which are analytically equal-and-opposite at
+        // small ξ when ETMean fallback is lambdaTF, but lose ~12 significant
+        // digits in IEEE 754 when ξ ≈ 1e-12. Reformulation through the natural
+        // intermediate variable ETMean = dev(ε^T)/ξ:
+        //   K(1, j) = ∂Φ^R/∂ETMean · Λ_ETMean^j  +  ∂Φ^R/∂ξ|finite · dξ/dξ_j
+        //   ∂Φ^R/∂ETMean = -(1+D)·σ                                (finite)
+        //   Λ_ETMean^F  = (lambdaTF − ETMean)/ξ                    (finite — zero
+        //                  when ETMean fallback = lambdaTF)
+        //   Λ_ETMean^R  = 0                                        (reverse removes
+        //                  martensite proportionally; mean unchanged)
+        //   ∂Φ^R/∂ξ|finite = dHfR + dλ_0/dξ                       (hardening only;
+        //                     the σ:ETMean/ξ part of dPhihatRdxi is absorbed
+        //                     into the Λ_ETMean chain-rule contribution)
+        const vec dPhiRdETMean = -(1. + D) * sigma;
+        vec Lambda_ETMean_F = zeros(6);
+        if (Mises_strain(lambdaTF - ETMean) > simcoon::iota) {
+            Lambda_ETMean_F = (lambdaTF - ETMean) / xi;
+        }
+        const vec Lambda_ETMean_R = zeros(6);
+        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR − dλ_0/dξ
+        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = −dHfR + dλ_0/dξ
 
         K(0,0) = dPhiFdxiF;
         K(0,1) = dPhiFdxiR;
-        K(1,0) = dPhiRdxiF + sum(dPhiRdETF%lambdaTF);
-        K(1,1) = dPhiRdxiR + sum(dPhiRdETR%lambdaTR);
+        K(1,0) = dPhiRdxiF_finite + sum(dPhiRdETMean % Lambda_ETMean_F);
+        K(1,1) = dPhiRdxiR_finite + sum(dPhiRdETMean % Lambda_ETMean_R);
 
         B(0,0) = -1.*sum(dPhiFdsigma%kappa_j[0]) + K(0,0);
         B(0,1) = -1.*sum(dPhiFdsigma%kappa_j[1]) + K(0,1);

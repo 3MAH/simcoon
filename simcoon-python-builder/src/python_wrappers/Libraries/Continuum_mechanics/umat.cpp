@@ -241,12 +241,12 @@ namespace simpy {
 		}
 
 		simcoon_parallel_for(nb_points, [&](int pt) {
-			vec local_props;
-			if (unique_props == false) {
-				local_props = list_props.col(pt);
-			} else {
-				local_props = props;
-			}
+			// Alias the props column without copying so the parallel region makes no
+			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
+			// PyDataMem_NEW (which needs the GIL) -> no GIL deadlock, no GIL handling.
+			// props (unique) / list_props (per-point) outlive the lambda and are read-only.
+			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
+			const vec local_props(const_cast<double*>(_props_ptr), nprops, false, true);
 			vec statev = list_statev.unsafe_col(pt);
 			vec sigma = list_sigma.unsafe_col(pt);
 

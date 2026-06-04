@@ -75,6 +75,7 @@ target_sources(simcoon PRIVATE
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
   Continuum_mechanics/Umat/Mechanical/SMA/unified_T.cpp
+  Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.cpp
 
   # Continuum Mechanics - UMAT Mechanical Viscoelasticity
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.cpp
