@@ -68,6 +68,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.cpp
+  Continuum_mechanics/Umat/Mechanical/Plasticity/fibre_Fp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.cpp
