@@ -123,6 +123,7 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          attestations: false
 
   # =========================================================================
   # Publish to PyPI (release tags only)
@@ -150,3 +151,8 @@ jobs:
         run: ls -la dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Disabled: with the reusable-workflow call (release.yml -> wheels.yml),
+          # the PEP 740 attestation is signed as release.yml but the PyPI Trusted
+          # Publisher is wheels.yml, so PyPI rejects the upload (HTTP 400).
+          attestations: false
