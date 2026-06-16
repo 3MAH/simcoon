@@ -13,3 +13,6 @@ build_coverage/
 *.pdb
 *.exe
 .claude/CLAUDE.md
+
+# generated outputs of the thesis-faithful SMRDI example scripts
+examples/data/_thesis_faithful_out/
