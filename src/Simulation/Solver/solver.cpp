@@ -402,38 +402,36 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
                                         if(corate_type == 5) {
-                                            // log_F: transport by the natural basis (deformation gradient F).
-                                            // logarithmic_F returns DR = DF (the F-transport, Cayley(L) ~ F1*inv(F0))
-                                            // and Omega = L (the velocity gradient). The Hencky rate in the natural-basis
-                                            // frame R_s is (d lnV/dt)_{R_s} = D + (Upsilon-D).h + h.(Upsilon-D)^T, with
-                                            // Upsilon = N_1 the XBM/log correction; the natural-basis correction is thus
-                                            // (N_1 - D). It is NON-orthogonal (skew N_1 + symmetric -D), so it is applied
-                                            // as a similarity X -> DR_N * X * inv(DR_N), NOT a congruence (rotate_*).
-                                            // Do NOT replace this by the log spin W+N_1: that collapses log_F onto the
-                                            // path-dependent pure-log frame R_L and discards the F-transport (see git
-                                            // regression 86381c3a). For isotropy all frames coincide; the difference
-                                            // (and the bug) only shows for anisotropic laws and rotational closed cycles.
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
+                                            // log_F. The BULK (strain, stress, internal variables) transports exactly as
+                                            // log_R: an ORTHOGONAL corotational update (no value drift, no J factor), so
+                                            // the isotropic response is identical to log_R. The ONLY log_F difference is
+                                            // that the material ANISOTROPY rides the natural basis g_i = F e_i: the metric
+                                            // is confined to the stretch U = sqrt(C), handed to the UMAT through sv_M->nb,
+                                            // which convects its anisotropic operators by U (Hill_isoh.cpp). This is the
+                                            // Eulerian realisation -- nothing is pulled back to the reference, and for an
+                                            // isotropic operator (U drops out) it reduces to log_R.
+                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             mat I = eye(3,3);
                                             mat DR_N_inv;
-                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-D));
+                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-N_2));
                                             if (!inv_success) {
                                                 throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=5).");
                                             }
-                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-D));
-
-                                            mat inv_DR_N;
-                                            inv_success = inv(inv_DR_N, DR_N);
-                                            if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular DR_N matrix in natural basis rotation update (corate_type=5).");
-                                            }
-
-                                            mat Detot_nat = Delta_log_strain(D, Omega, DTime);
-                                            sv_M->etot = t2v_strain(DR_N*v2t_strain(sv_M->etot)*inv_DR_N);
-                                            sv_M->sigma_start = t2v_stress(DR_N*v2t_stress(sv_M->sigma_start)*inv_DR_N);
-                                            sv_M->Detot = t2v_strain(DR_N*Detot_nat*inv_DR_N);
+                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-N_2));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
+                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);
+                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
+                                            // Anisotropy convection: the natural basis carries the stretch U = sqrt(F1^T F1)
+                                            // to the constitutive operators (U = I for an undeformed basis -> log_R).
+                                            sv_M->nb.from_F(sv_M->F1);
                                         }
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
+                                        // Only log_F (corate 5) convects the anisotropy by F (nb = from_F(F1) set
+                                        // above). Every other corate must present the UNDEFORMED natural basis to
+                                        // the UMAT (U = I) so its anisotropic operators are not convected -- the
+                                        // state otherwise leaves nb = from_F(F1) from the kinematic update.
+                                        if(corate_type != 5) { sv_M->nb.from_F(eye(3,3)); }
 
                                     }
                                     rve.to_start();
@@ -451,7 +449,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -475,8 +473,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-//                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -515,34 +512,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);                                             
                                             }
                                             else if (blocks[i].control_type == 3) {
-                                                // Convert sv_M->Lt (Lie rate of Cauchy) to the corate the
-                                                // global Newton expects. Truesdell IS the Lie rate of sigma,
-                                                // so the conversion is a no-op — point at sv_M->Lt directly
-                                                // to avoid an identity copy.
-                                                const mat sigma_t = v2t_stress(sv_M->sigma);
-                                                const mat *C_use = nullptr;
-                                                switch(corate_type) {
-                                                    case 0:  // Jaumann
-                                                        C = Dsigma_LieDD_Dsigma_JaumannDD(sv_M->Lt, sigma_t);
-                                                        C_use = &C;
-                                                        break;
-                                                    case 1:  // Green-Naghdi
-                                                        C = Dsigma_LieDD_Dsigma_GreenNaghdiDD(sv_M->Lt, sv_M->F1, sigma_t);
-                                                        C_use = &C;
-                                                        break;
-                                                    case 2:  // logarithmic
-                                                    case 3:  // logarithmic_R — shares the logarithmic tangent representation
-                                                    case 5:  // logarithmic_F — same
-                                                        C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, sv_M->F1, sigma_t);
-                                                        C_use = &C;
-                                                        break;
-                                                    case 4:  // Truesdell — Lie rate of sigma, no conversion
-                                                        C_use = &sv_M->Lt;
-                                                        break;
-                                                    default:
-                                                        throw simcoon::exception_solver("Unknown corate_type=" + std::to_string(corate_type) + " in tangent conversion (control_type=3).");
-                                                }
-                                                Lt_2_K(*C_use, K, sptr_meca->cBC_meca, lambda_solver);
+                                                // control_type 3 prescribes the logarithmic strain (etot = ln V); its
+                                                // work-conjugate per reference volume is the Kirchhoff stress tau, so the
+                                                // residual is formed on tau and the matched Jacobian is exactly the box
+                                                // tangent Lt = d(tau)/d(ln V) -- no Cauchy 1/J or sigma(x)I correction.
+                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 4) {
                                                 mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
@@ -689,7 +663,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -712,8 +686,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-//                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
