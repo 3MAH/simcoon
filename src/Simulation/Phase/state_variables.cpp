@@ -363,7 +363,7 @@ void state_variables::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
 
-    if(corate_type != 4) {
+    if(corate_type != 4 && corate_type != 5) {
         PKII_start = PKII;
         tau_start = rotate_stress(tau,DR);
         sigma_start = rotate_stress(sigma,DR);
@@ -377,7 +377,7 @@ void state_variables::set_start(const int &corate_type)
         R = DR*R;
         nb.from_F(F1);
     }
-    else { //corate_type == 4 (Truesdell): DR is here understood as DF since the material system of coordinates is no longer orthonormal
+    else { //corate_type 4 (Truesdell) or 5 (naive log_F): DR is here understood as DF (convected), so the transport uses inv(DF), NOT transpose -- the basis is no longer orthonormal
         PKII_start = PKII;
         tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
         sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));

@@ -419,6 +419,21 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
     return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
+mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
+    // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
+    // increment is the non-orthogonal DF = (I-1/2 dt L)^-1 (I+1/2 dt L), so the rotated
+    // term is the push-forward DF*D*inv(DF) -- inverse, NOT transpose (F is not orthogonal).
+    mat I = eye(3,3);
+    mat DF;
+    try {
+        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Delta_log_strain_F (DF).");
+    }
+    return 0.5*(D+(DF*D*inv(DF)))*DTime;
+}
+
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     

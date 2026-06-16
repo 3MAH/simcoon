@@ -361,7 +361,6 @@ namespace simcoon
     */
     arma::vec dHill_stress(const arma::vec &sigma, const arma::vec &P_params);
 
-
     /**
      * @brief Provides the Deshpande–Fleck–Ashby (2001) anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N,K)
      * @param sigma The stress vector

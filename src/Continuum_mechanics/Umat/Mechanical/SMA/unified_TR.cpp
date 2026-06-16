@@ -56,7 +56,6 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     UNUSED(Time);
     UNUSED(DTime);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
     UNUSED(tangent_mode);
 
     ///@brief Determine elasticity type and criteria type from umat_name
@@ -609,7 +608,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
         Y_crit(0) = Y0t + D*Hcur*Mises_stress(sigma);
         Y_crit(1) = Y0t + D*sum(sigma%ETMean);
-        Y_crit(2) = YReo;
+        Y_crit(2) = std::max(YReo, simcoon::iota);   // guard the FB /Y_crit normalization against a (degenerate) YReo = 0
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
 
@@ -640,6 +639,12 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
         sigma = el_pred(L, Eel, ndi);
+    }
+
+    // If the local Newton did not converge within maxiter_umat, request a sub-step
+    // (tnew_dt < 1) from the global solver rather than committing a non-converged increment.
+    if (error > simcoon::precision_umat) {
+        tnew_dt = 0.5;
     }
 
     // ---- Tangent assembly via shared 3-mechanism helper ----

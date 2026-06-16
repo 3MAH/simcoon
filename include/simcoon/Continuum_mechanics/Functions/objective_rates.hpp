@@ -295,6 +295,20 @@ arma::mat get_BBBB_GN(const arma::mat &F);
 arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const double &DTime);
 
 /**
+ * @brief Naive log_F (convected) logarithmic-strain increment.
+ *
+ * Same midpoint form as Delta_log_strain, but the frame increment is the non-orthogonal
+ * \f$ DF = (I-\tfrac{\Delta t}{2}L)^{-1}(I+\tfrac{\Delta t}{2}L) \f$, so the rotated term is the
+ * push-forward \f$ DF\,D\,DF^{-1} \f$ — inverse, NOT transpose (F is not orthogonal).
+ *
+ * @param[in] D rate of deformation
+ * @param[in] L velocity gradient
+ * @param[in] DTime time difference \f$ \Delta t \f$
+ * @return the naive log_F strain increment
+*/
+arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const double &DTime);
+
+/**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
  *
  * This function takes in the tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$, 
