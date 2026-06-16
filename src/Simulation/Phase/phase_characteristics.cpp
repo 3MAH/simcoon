@@ -492,8 +492,11 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 4: {
+                    // Cauchy stress sigma = tau/J, formed on request from the Kirchhoff
+                    // route tau so the iterated stress field is never rescaled.
+                    const double J_out = det(sptr_sv_global->F1);
                     for (int z=0; z<so.o_nb_stress; z++) {
-                        *sptr_out_global << sptr_sv_global->sigma(so.o_stress(z)) << "\t";
+                        *sptr_out_global << sptr_sv_global->tau(so.o_stress(z)) / J_out << "\t";
                     }
                     break;
                 }
@@ -741,8 +744,10 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 4: {
+                    // Cauchy stress sigma = tau/J, formed on request from the Kirchhoff route.
+                    const double J_out = det(sptr_sv_local->F1);
                     for (int z=0; z<so.o_nb_stress; z++) {
-                        *sptr_out_local << sptr_sv_local->sigma(so.o_stress(z)) << "\t";
+                        *sptr_out_local << sptr_sv_local->tau(so.o_stress(z)) / J_out << "\t";
                     }
                     break;
                 }
