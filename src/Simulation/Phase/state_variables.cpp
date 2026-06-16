@@ -498,6 +498,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
 
+    nb = sv.nb;     // carry the natural basis local->global (see rotate_g2l)
+
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
     if (!rot.is_identity()) {
         Etot = rot.apply_strain(Etot);
@@ -547,6 +549,11 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
+
+    // Carry the natural basis (anisotropy convection, e.g. log_F EPTRI fibre) global->local.
+    // For an oriented material (psi/theta/phi != 0) nb would also need rotating; the
+    // single-fibre demonstrator uses psi=0, so the plain copy is exact here.
+    nb = sv.nb;
 
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
     if (!rot.is_identity()) {

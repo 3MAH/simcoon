@@ -34,14 +34,18 @@ natural_basis::natural_basis()
 {
     g_i.resize(3);  // Covariant Vectors
     g0i.resize(3);  // Contravariant Vectors
-    
+
+    // Default to the undeformed (Cartesian) natural basis: g_i = e_i, metric = identity.
+    // This makes U() = R() = I, so any consumer that does not call from_F (small strain,
+    // log_R) sees no convection -- a safe, neutral default rather than a singular zero metric.
     for (unsigned int i=0; i<3; i++) {
         g_i[i] = zeros(3);
-        g0i[i] = zeros(3);
+        g_i[i](i) = 1.;
+        g0i[i] = g_i[i];
     }
-    
-    g_ij = zeros(3,3); // Covariant components of the metric tensor
-    g0ij = zeros(3,3); // Contravariant components of the metric tensor
+
+    g_ij = eye(3,3); // Covariant components of the metric tensor
+    g0ij = eye(3,3); // Contravariant components of the metric tensor
 }
 
 //Constructor with parameters
@@ -79,8 +83,9 @@ natural_basis::natural_basis(const std::vector<arma::vec> &mg_i)
     }   
     
     for (unsigned int i=0; i < 3; i++) {
+        g0i[i] = zeros(3);
         for (unsigned int j=0; j<3; j++) {
-            g0i[i] = g0ij(i,j)*g_i[j];
+            g0i[i] += g0ij(i,j)*g_i[j];   // g^i = g^{ij} g_j  (sum over j)
         }
     }
 }
@@ -144,8 +149,9 @@ void natural_basis::update(const std::vector<arma::vec> &mg_i)
     } 
     
     for (unsigned int i=0; i<3; i++) {
+        g0i[i] = zeros(3);
         for (unsigned int j=0; j<3; j++) {
-            g0i[i] = g0ij(i,j)*g_i[j];
+            g0i[i] += g0ij(i,j)*g_i[j];   // g^i = g^{ij} g_j  (sum over j)
         }
     }
 }
@@ -177,10 +183,75 @@ void natural_basis::from_F(const arma::mat &F)
     } 
     
     for (unsigned int i=0; i<3; i++) {
+        g0i[i] = zeros(3);
         for (unsigned int j=0; j<3; j++) {
-            g0i[i] = g0ij(i,j)*g_i[j];
+            g0i[i] += g0ij(i,j)*g_i[j];   // g^i = g^{ij} g_j  (sum over j)
         }
     }
+}
+
+// transformation gradient F = [g_1 g_2 g_3] (covariant vectors as columns)
+//-------------------------------------------------------------
+arma::mat natural_basis::F() const
+//-------------------------------------------------------------
+{
+    mat Fmat(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        Fmat.col(i) = g_i[i];
+    }
+    return Fmat;
+}
+
+// inverse transformation gradient F^{-1} (contravariant vectors g^i as rows)
+//-------------------------------------------------------------
+arma::mat natural_basis::F_inv() const
+//-------------------------------------------------------------
+{
+    mat Finv(3,3);
+    for (unsigned int i=0; i<3; i++) {
+        Finv.row(i) = g0i[i].t();   // g^i = F^{-T} e_i is the i-th row of F^{-1}
+    }
+    return Finv;
+}
+
+// right stretch U = (F^T F)^{1/2} = (g_ij)^{1/2}
+//-------------------------------------------------------------
+arma::mat natural_basis::U() const
+//-------------------------------------------------------------
+{
+    return sqrtmat_sympd(g_ij);
+}
+
+// polar rotation R = F U^{-1}
+//-------------------------------------------------------------
+arma::mat natural_basis::R() const
+//-------------------------------------------------------------
+{
+    mat Uinv;
+    if (!inv(Uinv, U())) {
+        throw simcoon::exception_inv("Error inverting the right stretch U in natural_basis::R.");
+    }
+    return F()*Uinv;
+}
+
+// contravariant components of a spatial (stress-like) tensor on the natural basis:
+// sigma^{ij} = g^i . sigma . g^j = F^{-1} sigma F^{-T}
+//-------------------------------------------------------------
+arma::mat natural_basis::contravariant(const arma::mat &sigma) const
+//-------------------------------------------------------------
+{
+    mat Finv = F_inv();
+    return Finv*sigma*Finv.t();
+}
+
+// covariant components of a spatial (strain-like) tensor on the natural basis:
+// eps_{ij} = g_i . eps . g_j = F^T eps F
+//-------------------------------------------------------------
+arma::mat natural_basis::covariant(const arma::mat &eps) const
+//-------------------------------------------------------------
+{
+    mat Fmat = F();
+    return Fmat.t()*eps*Fmat;
 }
 
 // stream operator
