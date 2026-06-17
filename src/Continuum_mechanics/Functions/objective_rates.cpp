@@ -825,23 +825,34 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
 mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
-        case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);
-        case 3:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);     // log_R: R (= GN) transport
-        case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                  // log_F: F-transport, "spin" L -> convected/Lie
+        case 1:                                                     // GN, and...
+        case 3:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // log_R: R (= GN) transport
+        case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // log_F: F-transport, "spin" L -> convected/Lie
         case 2:
-        default: return DSDE_2_DtauDe(DSDE, get_BBBB(F), F, tau);    // XBM (logarithmic)
+        default: return DSDE_2_DtauDe(DSDE, get_BBBB(F), F, tau);   // XBM (logarithmic)
     }
 }
 
 mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
-        case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);
-        case 3:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);     // log_R: R (= GN) transport
-        case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                    // log_F: F-transport, "spin" L -> convected/Lie
+        case 1:                                                     // GN, and...
+        case 3:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // log_R: R (= GN) transport
+        case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                   // log_F: F-transport, "spin" L -> convected/Lie
         case 2:
-        default: return DtauDe_2_DSDE(Lt, get_BBBB(F), F, tau);
+        default: return DtauDe_2_DSDE(Lt, get_BBBB(F), F, tau);     // XBM (logarithmic)
     }
+}
+
+// Assemble the canonical box tangent Lt = d(tau_hat)/d(De) (Kirchhoff, no-J, XBM/log rate)
+// that every finite UMAT must emit -- single source of truth for the box-tangent convention.
+// From the material tangent dS/dE:
+mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
+    return DSDE_2_DtauDe(dSdE, get_BBBB(F), F, det(F)*v2t_stress(sigma));
+}
+// From the Cauchy (Oldroyd/Lie) spatial elasticity tensor dsigma/dD:
+mat box_DtauDe_from_spatial(const mat &Lt_spatial, const mat &F, const vec &sigma) {
+    return box_DtauDe_from_dSdE(Dtau_LieDD_2_DSDE(det(F)*Lt_spatial, F), F, sigma);
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau

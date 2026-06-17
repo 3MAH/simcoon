@@ -128,8 +128,7 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     double dUdJ   = (2./D_1)*(J-1.);
     double dU2dJ2 = 2./D_1;
     mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J) + L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    mat dSdE = Dtau_LieDD_2_DSDE(J*Lt_spatial, F1);
-    Lt = DSDE_2_DtauDe(dSdE, get_BBBB(F1), F1, J*v2t_stress(sigma));
+    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
 
     if(start) {
         L = Lt;

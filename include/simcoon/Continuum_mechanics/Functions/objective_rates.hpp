@@ -659,6 +659,11 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
+//Assemble the canonical box tangent Lt = d(tau_hat)/d(De) (Kirchhoff, no-J, XBM rate) that
+//every finite UMAT must emit, from the material tangent dS/dE or the Cauchy spatial tangent.
+arma::mat box_DtauDe_from_dSdE(const arma::mat &dSdE, const arma::mat &F, const arma::vec &sigma);
+arma::mat box_DtauDe_from_spatial(const arma::mat &Lt_spatial, const arma::mat &F, const arma::vec &sigma);
+
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis
  *

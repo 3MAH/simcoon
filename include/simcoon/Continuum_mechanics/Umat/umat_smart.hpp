@@ -482,7 +482,7 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR,const double 
 
     abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev_macro, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_macro, rve_sv_M->Wm, rve_sv_M->statev, DR, start);    
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
-    select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
+    select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, pnewdt);
  * @endcode
 */
 void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
