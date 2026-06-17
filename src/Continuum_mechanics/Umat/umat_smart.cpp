@@ -35,6 +35,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 
@@ -247,7 +248,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
     
 }
 
-void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
+void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
     std::map<string, int> list_umat;
     
@@ -351,6 +352,20 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
         else
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
+
+        // Corate-exact tangent. The genuine finite hyperelastic boxes (SNTVE 8, NEOHI 9,
+        // generic_hyper 10-15) compute dS/dE and bake Lt = d(tau_hat)/d(De) in the XBM
+        // (logarithmic) rate via get_BBBB, regardless of the solver's corate. Re-express
+        // that Lt in the ACTUAL corate rate so the consumer (ct1/ct3 direct, ct2/ct4 via
+        // DtauDe_corate_2_DSDE) sees a tangent matched to corate_type -> exact Jacobian for
+        // every corate. The small-strain / hypoelastic boxes already integrate (and so emit
+        // Lt) in the corate rate, so they are left untouched. corate 2 is XBM -> no-op.
+        static const std::set<int> xbm_baked_box = {8,9,10,11,12,13,14,15};
+        if (corate_type != 2 && xbm_baked_box.count(list_umat[rve.sptr_matprops->umat_name]) > 0) {
+            mat tau_t = v2t_stress(umat_M->tau);
+            mat dSdE = DtauDe_2_DSDE(umat_M->Lt, get_BBBB(umat_M->F1), umat_M->F1, tau_t);  // un-bake XBM -> dS/dE
+            umat_M->Lt = DSDE_2_DtauDe_corate(dSdE, corate_type, umat_M->F1, tau_t);        // re-bake in the corate rate
+        }
         rve.local2global();
 }
     
@@ -530,9 +545,9 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
     }
 }
 
-void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt)
+void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, const int &corate_type, double &tnew_dt)
 {
-    
+
     tnew_dt = 1.;
     if (Time > simcoon::limit) {
         start = false;
@@ -543,7 +558,7 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             break;
         }
         case 2: case 3: case 4: case 5: case 6: {
-            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
+            select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, tnew_dt);
             break;
         }
         default: {

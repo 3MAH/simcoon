@@ -485,7 +485,7 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR,const double 
     select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
  * @endcode
 */
-void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);    
+void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering small strain assumption
@@ -535,7 +535,7 @@ void select_umat_M(phase_characteristics &rve, const arma::mat &DR,const double 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt);
 
-void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, double &);
+void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &);
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */    
     
 /**

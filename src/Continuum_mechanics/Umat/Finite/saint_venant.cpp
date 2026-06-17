@@ -85,10 +85,16 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     vec Eel = t2v_strain(Green_Lagrange(F1));
         
     //Compute the PKII stress and then the Cauchy stress
-    mat S = v2t_stress(el_pred(L, Eel, ndi));    
+    mat S = v2t_stress(el_pred(L, Eel, ndi));
     sigma = t2v_stress(PKII2Cauchy(S, F1));
 
-    Lt = DSDE_2_DtauDe(L, get_BBBB(F1), F1, v2t_stress(sigma));    
+    // Box tangent convention: Lt = d(tau_hat)/d(De), the Kirchhoff (NOT Cauchy)
+    // corotational tangent in the box's own log-strain rate. DSDE_2_DtauDe's spin
+    // terms are contracted with the KIRCHHOFF stress tau = J*sigma; passing the
+    // Cauchy sigma here would drop a factor J in the stress coupling (and make the
+    // round-trip DtauDe_2_DSDE recover only ~ (1-1/J) of dS/dE).
+    double J_F1 = det(F1);
+    Lt = DSDE_2_DtauDe(L, get_BBBB(F1), F1, J_F1*v2t_stress(sigma));
         
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%Detot);

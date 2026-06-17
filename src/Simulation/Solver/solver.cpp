@@ -171,7 +171,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 sv_M->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
@@ -441,7 +441,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
                                     rve.to_start();
-                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -514,8 +514,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 2) {
-                                                C = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);                                             
+                                                // control_type 2 prescribes Green-Lagrange E, residual on PKII S, so the
+                                                // matched Jacobian is dS/dE. The box returns Lt = d(tau_hat)/d(De), the
+                                                // Kirchhoff (no-J) corotational tangent, normalized by select_umat_M_finite
+                                                // to the ACTUAL corate rate. Pull it back with the matching corate kernel
+                                                // (DtauDe_corate_2_DSDE) -> exact dS/dE for every corate. (The previous
+                                                // Dsigma_LieDD_2_DSDE applied a spurious J AND the wrong Lie spin kernel --
+                                                // the documented GN/ct4 tangent inconsistency.)
+                                                C = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 3) {
                                                 // control_type 3 prescribes the logarithmic strain (etot = ln V); its
@@ -525,7 +532,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 4) {
-                                                mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
+                                                // control_type 4 prescribes the Biot stretch U, residual on Biot stress;
+                                                // chain dS/dE (corate-matched, same correction as ct2) into d(Biot)/dU
+                                                // via DSDE_DBiotStressDU.
+                                                mat DSDE = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
                                                 mat R = zeros(3,3);
                                                 mat U = zeros(3,3);
                                                 RU_decomposition(R,U,sv_M->F1);
@@ -685,7 +695,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
                                         }      
                                         rve.to_start();
-                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
 
                                         if (blocks[i].control_type == 1) {
                                         

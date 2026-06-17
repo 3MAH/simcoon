@@ -350,6 +350,64 @@ mat get_BBBB_GN(const mat &F1) {
     return BBBB;
 }
 
+// log-strain corrector B^R (rotated / log_R): geometric-mean weighting of the logarithmic
+// Daleckii-Krein kernel. In the eigenbasis of B = F F^T (eigenvalues b_a = lambda_a^2), with
+// t = ln(lambda_i/lambda_j) = 1/2 ln(b_i/b_j):  B^R_ij = t/sinh(t)  (B^R_ii = 1, the t->0 limit).
+// Self-adjoint and positive definite at every stretch (= Hoger's tangent pushed forward by R).
+mat B_R(const mat &F) {
+    mat B = L_Cauchy_Green(F);
+    vec bi = zeros(3);
+    mat Bi;
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside B_R.");
+    }
+    mat BR = zeros(6,6);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            double t = 0.5*log(bi(i)/bi(j));            // ln(lambda_i/lambda_j); 0 on the diagonal
+            double c;
+            if (fabs(t) > 1.e-4) {
+                c = t/sinh(t);
+            } else {
+                c = 1. - t*t/6. + 7.*t*t*t*t/360.;       // Taylor of t/sinh(t)
+            }
+            BR = BR + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+        }
+    }
+    return BR;
+}
+
+// log-strain corrector B^F (convected / log_F): arithmetic-mean weighting of the same DK kernel
+// MINUS the metric term. In the eigenbasis, with t = ln(lambda_i/lambda_j):
+//     B^F_ij = t*coth(t) - 1/2 ln(b_i b_j)        (B^F_ii = 1 - 2 ln(lambda_i), the t->0 limit).
+// Self-adjoint, reduces to I at small strain, and -- deliberately -- NOT positive definite past
+// lambda = sqrt(e) (B^F_ii < 0), the operator face of the basis-stretch anticommutator.
+mat B_F(const mat &F) {
+    mat B = L_Cauchy_Green(F);
+    vec bi = zeros(3);
+    mat Bi;
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside B_F.");
+    }
+    mat BF = zeros(6,6);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            double t = 0.5*log(bi(i)/bi(j));
+            double tcoth;
+            if (fabs(t) > 1.e-4) {
+                tcoth = t/tanh(t);
+            } else {
+                tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
+            }
+            double c = tcoth - 0.5*log(bi(i)*bi(j));     // t*coth(t) - 1/2 ln(b_i b_j)
+            BF = BF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+        }
+    }
+    return BF;
+}
+
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
     mat L = zeros(3,3);
@@ -753,6 +811,37 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
         throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_logarithmicDD.");
     }
     return (1./J)*DSDE_2_Dtau_logarithmicDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+// ---------------------------------------------------------------------------------------
+// Corate-dispatched material<->box tangent maps. The box convention is Lt = d(tau_hat)/d(De),
+// the Kirchhoff corotational tangent IN THE RATE OF THE SOLVER'S corate_type. These pick the
+// matching transport so the round-trip dS/dE <-> Lt is EXACT per corate:
+//   0 Jaumann (spin W) | 1 Green-Naghdi (spin Omega_R) | 2 logarithmic/XBM (spin Omega_log)
+//   3 log_R: strain transported by R (= GN orthogonal frame) -> GN spin kernel
+//   5 log_F: strain transported by F (full gradient), "spin" is the velocity gradient L
+//            -> the CONVECTED / Oldroyd-Lie transport, i.e. the pure F pull-back (B = I, no
+//            skew spin correction). Exact, not an approximation.
+mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, const mat &tau) {
+    switch (corate_type) {
+        case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
+        case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);
+        case 3:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);     // log_R: R (= GN) transport
+        case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                  // log_F: F-transport, "spin" L -> convected/Lie
+        case 2:
+        default: return DSDE_2_DtauDe(DSDE, get_BBBB(F), F, tau);    // XBM (logarithmic)
+    }
+}
+
+mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, const mat &tau) {
+    switch (corate_type) {
+        case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
+        case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);
+        case 3:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);     // log_R: R (= GN) transport
+        case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                    // log_F: F-transport, "spin" L -> convected/Lie
+        case 2:
+        default: return DtauDe_2_DSDE(Lt, get_BBBB(F), F, tau);
+    }
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau

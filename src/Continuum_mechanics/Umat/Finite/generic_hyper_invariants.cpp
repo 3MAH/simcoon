@@ -202,9 +202,17 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     mat m_sigma = m_sigma_iso + m_sigma_vol;
     sigma = t2v_stress(m_sigma);  
 
-    mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);    
+    mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Lt_iso + Lt_vol;
+    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+
+    // Standardize the box tangent to the canonical convention Lt = d(tau_hat)/d(De):
+    // the Kirchhoff, log-rate (XBM) corotational tangent, identical to the small-strain
+    // boxes (Lt = L) and saint_venant. Route the spatial elasticity through the material
+    // tangent dS/dE (pull-back of the Kirchhoff Lie tangent J*Lt_spatial) and re-push with
+    // the XBM forward map -- so every finite box hands the solver/Lt_convert the same object.
+    mat dSdE = Dtau_LieDD_2_DSDE(J*Lt_spatial, F1);
+    Lt = DSDE_2_DtauDe(dSdE, get_BBBB(F1), F1, J*v2t_stress(sigma));
 
     if(start) {
         L = Lt;

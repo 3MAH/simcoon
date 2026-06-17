@@ -274,6 +274,30 @@ arma::mat get_BBBB(const arma::mat &F);
 arma::mat get_BBBB_GN(const arma::mat &F);
 
 /**
+ * @brief Logarithmic-strain corrector \f$ \mathbf{B}^{R} \f$ for the rotated (log_R) framework.
+ *
+ * Geometric-mean weighting of the logarithmic Daleckii-Krein kernel. In the eigenbasis of
+ * \f$ \mathbf{B}=\mathbf{F}\mathbf{F}^T \f$ (eigenvalues \f$ b_a=\lambda_a^2 \f$), with
+ * \f$ t=\ln(\lambda_i/\lambda_j) \f$: \f$ B^{R}_{ij}=t/\sinh t \f$, \f$ B^{R}_{ii}=1 \f$.
+ * Self-adjoint, positive definite at every stretch; \f$ (\partial\mathbf{h}/\partial\tau)_{\mathcal{R}_T}=\mathbf{B}^{R}\!:\!\mathbf{D} \f$.
+ * @param[in] F deformation gradient
+ * @return the 6x6 (Voigt) fourth-order corrector
+*/
+arma::mat B_R(const arma::mat &F);
+
+/**
+ * @brief Logarithmic-strain corrector \f$ \mathbf{B}^{F} \f$ for the convected (log_F) framework.
+ *
+ * Arithmetic-mean weighting of the same DK kernel minus the metric term. With
+ * \f$ t=\ln(\lambda_i/\lambda_j) \f$: \f$ B^{F}_{ij}=t\coth t-\tfrac12\ln(b_i b_j) \f$,
+ * \f$ B^{F}_{ii}=1-2\ln\lambda_i \f$. Self-adjoint; reduces to \f$ \mathbf{I} \f$ at small strain;
+ * NOT positive definite past \f$ \lambda=\sqrt{e} \f$; \f$ (\partial\mathbf{h}/\partial\tau)_{\mathcal{R}_s}=\mathbf{B}^{F}\!:\!\mathbf{D} \f$.
+ * @param[in] F deformation gradient
+ * @return the 6x6 (Voigt) fourth-order corrector
+*/
+arma::mat B_F(const arma::mat &F);
+
+/**
  * @brief Computes the logarithmic strain increment
  *
  * This function takes in two matrices representing the deformation gradient at two different times, \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$ and \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
@@ -629,6 +653,11 @@ arma::mat DSDE_2_Dtau_logarithmicDD(const arma::mat &DSDE, const arma::mat &F, c
  * @return (6x6 arma::mat) the tangent modulus integrated using the logarithmic spin
 */
 arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F, const arma::mat &sigma);
+
+//Corate-dispatched material<->box(Kirchhoff d tau_hat / d De) tangent maps, matching spin
+//kernel per corate_type (0 Jaumann, 1 GN, 2 XBM, 3 log_R=GN, 5 log_F~XBM).
+arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
+arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis

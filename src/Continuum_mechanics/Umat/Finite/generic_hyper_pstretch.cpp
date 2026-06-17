@@ -140,9 +140,14 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     mat m_sigma = m_sigma_iso + m_sigma_vol;
     sigma = t2v_stress(m_sigma);  
 
-    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);  
+    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Lt_iso + Lt_vol;
+    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+
+    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff log-rate,
+    // XBM) -- same route as generic_hyper_invariants / saint_venant. See those for the rationale.
+    mat dSdE = Dtau_LieDD_2_DSDE(J*Lt_spatial, F1);
+    Lt = DSDE_2_DtauDe(dSdE, get_BBBB(F1), F1, J*v2t_stress(sigma));
 
     if(start) {
         L = Lt;

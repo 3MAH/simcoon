@@ -31,6 +31,8 @@
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
+#include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 
 using namespace std;
@@ -106,17 +108,28 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     }
     mat I = eye(3,3);
 
-    //Compute the PKII stress and then the Cauchy stress
-    mat S = (-2./3.)*C_10*I1_bar*invC + 2.*C_10*(1./J)*pow(J,-2./3.)*I + (2./D_1)*(J-1)*J*invC;
+    //Compute the PKII stress and then the Cauchy stress.
+    // S = 2 dW/dC for W = C_10*(I1_bar-3) + (1/D_1)*(J-1)^2, with I1_bar = J^(-2/3) tr(C):
+    //   S_iso = 2 C_10 J^(-2/3) I - (2/3) C_10 I1_bar invC ;  S_vol = (2/D_1)(J-1) J invC.
+    // (The previous deviatoric I-term carried a stray 1/J -> J^(-5/3) instead of J^(-2/3),
+    //  a ~ (1-1/J) stress error; fixed so stress and the rebuilt tangent both match dS/dE.)
+    mat S = (-2./3.)*C_10*I1_bar*invC + 2.*C_10*pow(J,-2./3.)*I + (2./D_1)*(J-1)*J*invC;
     mat sigma_Cauchy = PKII2Cauchy(S, F1, J);
     sigma = t2v_stress(sigma_Cauchy);
 	
-//    L = (-2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(invC,I)+(2./9.)*C_10*I1_bar*sym_dyadic(invC,invC)-(2./3.)*C_10*I1_bar*dinvSdSsym(C)
-//    -(2./3.)*C_10*pow(J,-2./3.)*sym_dyadic(I,invC)
-//    +(1./D_1)*(J-1.)*J*sym_dyadic(invC,invC)+(2./D_1)*(J-1)*J*dinvSdSsym(C);
-    Lt = (-2./3.)*C_10*pow(J,-2./3.)*dyadic(invC,I)+(2./9.)*C_10*I1_bar*auto_dyadic(invC)-(2./3.)*C_10*I1_bar*dinvSdSsym(C)
-    -(2./3.)*C_10*pow(J,-2./3.)*dyadic(I,invC)
-    +(1./D_1)*(J-1.)*J*auto_dyadic(invC)+(2./D_1)*(J-1)*J*dinvSdSsym(C);
+    // Tangent. The previous hand-built dyadic material tangent did NOT match dS/dE
+    // (FD ~100% off) -- a pre-existing bug. Rebuild it from the same Neo-Hookean
+    // potential W = C_10*(I1_bar-3) + (1/D_1)*(J-1)^2 using the verified invariant
+    // hyperelastic machinery (Cauchy/Oldroyd-Lie spatial elasticity), then standardize
+    // to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff log-rate, XBM),
+    // identical to generic_hyper_invariants / saint_venant.
+    mat b = L_Cauchy_Green(F1);
+    double dWdI_1_bar = C_10;       // dW/dI1_bar; dW/dI2_bar = 0 (no I2 term), all 2nd deviatoric derivs = 0
+    double dUdJ   = (2./D_1)*(J-1.);
+    double dU2dJ2 = 2./D_1;
+    mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J) + L_vol_hyper(dUdJ, dU2dJ2, b, J);
+    mat dSdE = Dtau_LieDD_2_DSDE(J*Lt_spatial, F1);
+    Lt = DSDE_2_DtauDe(dSdE, get_BBBB(F1), F1, J*v2t_stress(sigma));
 
     if(start) {
         L = Lt;
