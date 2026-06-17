@@ -295,7 +295,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
 
-                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
                                         //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
                                     }
@@ -380,7 +380,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
 
-                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                     }                                    
                                     else {
                                         sv_M->F1 = v2t(sptr_meca->BC_mecas.row(inc).t());
@@ -391,15 +391,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         mat Omega = zeros(3,3);
                                         if(corate_type == 0) {
                                             Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         if(corate_type == 1) {
                                             Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         if(corate_type == 2) {
                                             logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         mat N_1 = zeros(3,3);
                                         mat N_2 = zeros(3,3);
@@ -413,14 +413,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                             mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-N_2));
 
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                             sv_M->etot = rotate_strain(sv_M->etot, DR_N);
                                             sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);
                                             sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
                                         }
                                         if(corate_type == 4) {
                                             Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
     //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
                                         if(corate_type == 5) {
@@ -611,7 +611,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             if(corate_type == 4) {
                                                 Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             }                                            
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         else if (blocks[i].control_type == 3) {
 
@@ -692,7 +692,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             if(corate_type == 4) {
                                                 Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                             }    
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }      
                                         rve.to_start();
                                         run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);

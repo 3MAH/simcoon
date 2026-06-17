@@ -44,7 +44,11 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and
+            // F at the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1. The previous
+            // (F1-F0)F1^-1 evaluated F at the END (1st order). D=sym(L), W=skew(L), so this
+            // makes both the rate of deformation and the Jaumann spin second-order accurate.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Jaumann (L).");
@@ -77,7 +81,11 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient (see Jaumann): F at the mid configuration
+            // (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1. Green-Naghdi's spin Omega comes from the
+            // polar rotation rate (R1-R0)R1^T, so this only sharpens D (the increment) -- the
+            // spin/DR are unchanged.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (L).");
@@ -490,6 +498,27 @@ mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
         throw simcoon::exception_inv("Error in inv function inside Delta_log_strain_F (DF).");
     }
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
+}
+
+// Corate-dispatched logarithmic-strain increment. For the LOGARITHMIC (XBM) rate the
+// rate-form box accumulates the spatial log strain ln V = 1/2 ln(F F^T); the EXACT increment
+// is ln V1 - DR * ln V0 * DR^T, which makes etot = ln V1 to MACHINE PRECISION (set_start's
+// rotate-then-add cancels the DR term) -- removing the O(strain) first-order error of the
+// midpoint trapezoidal rule 1/2(D + DR D DR^T) dt. Jaumann/Green-Naghdi (and Truesdell, log_R,
+// log_F for now) integrate the corotational rate of deformation, which has no closed-form
+// strain, so they keep the midpoint. Only affects rate-form/hypoelastic UMATs that accumulate
+// etot; hyperelastic boxes read stress/tangent off F1 and are unchanged.
+mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
+    if (corate_type == 2 || corate_type == 5) {   // logarithmic family -> exact spatial log-strain difference
+        mat lnV0 = 0.5*logmat_sympd(L_Cauchy_Green(F0));
+        mat lnV1 = 0.5*logmat_sympd(L_Cauchy_Green(F1));
+        // XBM (2): orthogonal DR -> DR^T. log_F (5): DR = DF is the convected (non-orthogonal)
+        // gradient increment -> inv(DR); set_start transports the previous strain the same way,
+        // so etot accumulates to ln V1 exactly.
+        if (corate_type == 5) return lnV1 - DR*lnV0*inv(DR);
+        return lnV1 - DR*lnV0*DR.t();
+    }
+    return Delta_log_strain(D, Omega, DTime);
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F

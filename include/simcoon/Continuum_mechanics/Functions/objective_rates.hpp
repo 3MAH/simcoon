@@ -332,6 +332,10 @@ arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const doubl
 */
 arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const double &DTime);
 
+//Corate-dispatched log-strain increment: EXACT spatial log-strain difference (ln V1 - DR lnV0 DR^T)
+//for the logarithmic (XBM, corate 2) rate; midpoint trapezoidal Delta_log_strain otherwise.
+arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
+
 /**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
  *
