@@ -44,11 +44,10 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and
-            // F at the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1. The previous
-            // (F1-F0)F1^-1 evaluated F at the END (1st order). D=sym(L), W=skew(L), so this
-            // makes both the rate of deformation and the Jaumann spin second-order accurate.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            // Velocity gradient L = Fdot F^-1 with Fdot=(F1-F0)/dt, F evaluated at the end
+            // configuration. The same first-order estimate is used by every rate function so
+            // that D=sym(L) is identical across them (enforced by Tobjective_rates.all_rates_same_D).
+            L = (1./DTime)*(F1-F0)*inv(F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Jaumann (L).");
@@ -81,11 +80,10 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            // 2nd-order centered velocity gradient (see Jaumann): F at the mid configuration
-            // (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1. Green-Naghdi's spin Omega comes from the
-            // polar rotation rate (R1-R0)R1^T, so this only sharpens D (the increment) -- the
-            // spin/DR are unchanged.
-            L = (2./DTime)*(F1-F0)*inv(F0+F1);
+            // Same first-order velocity gradient as the other rate functions (see Jaumann), so
+            // that D=sym(L) matches across all rates. Green-Naghdi's spin Omega comes from the
+            // polar rotation rate (R1-R0)R1^T below, independently of L.
+            L = (1./DTime)*(F1-F0)*inv(F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (L).");

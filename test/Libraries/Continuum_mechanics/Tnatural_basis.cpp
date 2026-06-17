@@ -33,13 +33,17 @@ using namespace simcoon;
 TEST(Tnatural_basis, default_constructor)
 {
     natural_basis nb;
-    // Default: all vectors zero, metrics zero
+    // Default: undeformed Cartesian natural basis (g_i = g^i = e_i, metric = identity).
+    // This is the neutral default so consumers that never call from_F (small strain,
+    // log_R) see no convection, rather than a singular zero metric.
     for (int i = 0; i < 3; i++) {
-        EXPECT_LT(norm(nb.g_i[i], 2), simcoon::iota);
-        EXPECT_LT(norm(nb.g0i[i], 2), simcoon::iota);
+        vec e_i = zeros(3);
+        e_i(i) = 1.;
+        EXPECT_LT(norm(nb.g_i[i] - e_i, 2), simcoon::iota);
+        EXPECT_LT(norm(nb.g0i[i] - e_i, 2), simcoon::iota);
     }
-    EXPECT_LT(norm(nb.g_ij, 2), simcoon::iota);
-    EXPECT_LT(norm(nb.g0ij, 2), simcoon::iota);
+    EXPECT_LT(norm(nb.g_ij - eye(3, 3), 2), simcoon::iota);
+    EXPECT_LT(norm(nb.g0ij - eye(3, 3), 2), simcoon::iota);
 }
 
 TEST(Tnatural_basis, cartesian_constructor)
