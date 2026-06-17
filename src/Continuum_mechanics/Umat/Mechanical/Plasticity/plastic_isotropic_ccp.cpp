@@ -64,13 +64,13 @@ namespace simcoon {
 /*
  
  \begin{eqnarray}
- G\left(\b{\sigma},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
+ G\left(\b{\stress},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\stress},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
  \EqnCont
- G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)
+ G^{\textrm{r}}\left(\b{\stress},\theta, \b{\varepsilon}^{\textrm{p}}\right)
  
- = - \f{1}{2} \b{\sigma} \dcon \b{\mathcal{S}} \dcon \b{\sigma} + {c_0}\left[ [\theta-\theta_0]
- -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\sigma} : \b{\varepsilon}^{\textrm{p}}
- - \b\sigma : \b{\alpha} \left(\theta - \theta_0 \right),
+ = - \f{1}{2} \b{\stress} \dcon \b{\mathcal{S}} \dcon \b{\stress} + {c_0}\left[ [\theta-\theta_0]
+ -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\stress} : \b{\varepsilon}^{\textrm{p}}
+ - \b\stress : \b{\alpha} \left(\theta - \theta_0 \right),
  \EqnCont
  G^{\textrm{ir}}\left(\theta,p\right)&=&F(\theta,p)
  \label{eq:elastoplastic_Gibbs_potential}
@@ -83,7 +83,7 @@ namespace simcoon {
  A_theta =
  */
 
-void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -128,7 +128,7 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         EP = vide;
         p = 0.;
         
@@ -151,7 +151,7 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     }
     
     //Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec EP_start = EP;
     double A_p_start = -Hp;
     
@@ -163,7 +163,7 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -175,7 +175,7 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = eta_stress(sigma);
+    vec Lambdap = eta_stress(stress);
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -196,13 +196,13 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
             dHpdp = 0.;
             Hp = 0.;
         }
-        dPhidsigma = eta_stress(sigma);
+        dPhidsigma = eta_stress(stress);
         dPhidp = -1.*dHpdp;
         
         //compute Phi and the derivatives
-        Phi(0) = Mises_stress(sigma) - Hp - sigmaY;
+        Phi(0) = Mises_stress(stress) - Hp - sigmaY;
         
-        Lambdap = eta_stress(sigma);
+        Lambdap = eta_stress(stress);
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp;
@@ -214,13 +214,13 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
         s_j(0) += ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     
@@ -238,11 +238,11 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
 
     double A_p = -Hp;        
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP) + 0.5*(A_p_start + A_p)*Dp;
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
     

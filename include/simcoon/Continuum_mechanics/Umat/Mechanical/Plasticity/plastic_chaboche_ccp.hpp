@@ -49,11 +49,11 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, \mathbf{X}, R) = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, \mathbf{X}, R) = \sigma_{eq}(\boldsymbol{\stress} - \mathbf{X}) - R - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq}(\boldsymbol{\eta}) = \sqrt{\frac{3}{2} \boldsymbol{\eta}_{dev} : \boldsymbol{\eta}_{dev}} \f$ is the von Mises equivalent stress
- * - \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ is the shifted (effective) stress tensor
+ * - \f$ \boldsymbol{\eta} = \boldsymbol{\stress} - \mathbf{X} \f$ is the shifted (effective) stress tensor
  * - \f$ \mathbf{X} = \sum_{i=1}^{N_{kin}} \mathbf{X}_i \f$ is the total backstress (sum of individual backstresses)
  * - \f$ R \f$ is the isotropic hardening stress
  * - \f$ \sigma_Y \f$ is the initial yield stress
@@ -103,7 +103,7 @@ namespace simcoon{
  *
  * For an increment \f$ \Delta p \f$, the stress and backstresses are updated as:
  * \f[
- * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\sigma}} : \boldsymbol{\sigma} \right)
+ * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\stress}} : \boldsymbol{\stress} \right)
  * \f]
  * \f[
  * \mathbf{X}_{i,n+1} = \mathbf{X}_{i,n} + \frac{2}{3} C_i \Delta \boldsymbol{\varepsilon}^p - D_i \mathbf{X}_{i,n} \Delta p
@@ -175,7 +175,7 @@ namespace simcoon{
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
@@ -240,13 +240,13 @@ namespace simcoon{
  *
  * vec Etot = {0.002, -0.0006, -0.0006, 0.0, 0.0, 0.0};  // 0.2% axial strain
  * vec DEtot = {0.0001, -0.00003, -0.00003, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_plasticity_chaboche_CCP(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+ * umat_plasticity_chaboche_CCP(Etot, DEtot, stress, Lt, L, sigma_in, DR,
  *                              12, props, 20, statev, 20.0, 0.0, 0.0, 1.0,
  *                              Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
@@ -263,7 +263,7 @@ namespace simcoon{
  * - Lemaitre, J., & Chaboche, J. L. (1990). *Mechanics of Solid Materials*. Cambridge University Press.
  * - Ortiz, M., & Simo, J. C. (1986). "An analysis of a new class of integration algorithms for elastoplastic constitutive relations." *International Journal for Numerical Methods in Engineering*, 23(3), 353-366.
  */
-void umat_plasticity_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
                                 
 
 /** @} */ // end of umat_mechanical group

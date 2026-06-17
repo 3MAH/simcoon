@@ -49,7 +49,7 @@ using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -182,7 +182,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     ///@brief Initialisation block (start=true)
     if(start) {
         T_init = T;
-        sigma = zeros(6);
+        stress = zeros(6);
         ET = zeros(6);
         EReo = zeros(6);
         areo = zeros(6);
@@ -234,7 +234,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     rotate_strain(areo, DR);
 
     // Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec ET_start = ET;
     vec areo_start = areo;
     double xiF_start = xiF, xiR_start = xiR;
@@ -249,7 +249,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     auto xi_safe = [](double x) { return std::max(x, simcoon::limit); };
 
     // Hcur explicit
-    if (Mises_stress(sigma) > sigmacrit) sigmastar = Mises_stress(sigma) - sigmacrit;
+    if (Mises_stress(stress) > sigmacrit) sigmastar = Mises_stress(stress) - sigmacrit;
     else                                  sigmastar = 0.;
     double Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
 
@@ -265,11 +265,11 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
             : Hcur * Drucker_stress(s, prager_b, prager_n);
     };
 
-    vec lambdaTF = build_lambdaTF(sigma);
+    vec lambdaTF = build_lambdaTF(stress);
 
     vec ETMean = zeros(6);
     if (Mises_strain(ET) > 1E-6)              ETMean = dev(ET) / xi_safe(xi);
-    else if (Mises_stress(sigma) < 1.E-6)     ETMean = lambdaTF;
+    else if (Mises_stress(stress) < 1.E-6)     ETMean = lambdaTF;
     else                                       ETMean = 0.*Ith();
 
     vec lambdaTR = -1.*ETMean;
@@ -283,7 +283,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     double a_eq = Mises_strain(areo);
     double lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
-    vec sigma_eff = sigma - (1. + lambda1Reo) * X;
+    vec sigma_eff = stress - (1. + lambda1Reo) * X;
 
     vec lambdaReo;
     vec etaReo;
@@ -325,16 +325,16 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     double lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
     double lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
-    vec DM_sig = DM*sigma_start;
+    vec DM_sig = DM*stress_start;
     vec Dalpha_T = Dalpha*(T+DT);
 
-    double A_xiF       = rhoDs0*(T+DT) - rhoDE0 + 0.5*sum(sigma%DM_sig)        + sum(sigma%Dalpha)*(T+DT-T_init) - HfF;
-    double A_xiF_start = rhoDs0*(T)    - rhoDE0 + 0.5*sum(sigma_start%DM_sig)  + sum(sigma_start%Dalpha)*(T-T_init) - HfF;
-    double A_xiR       = -1.*rhoDs0*(T+DT) + rhoDE0 - 0.5*sum(sigma%DM_sig)       - sum(sigma%Dalpha)*(T+DT-T_init) + HfR;
-    double A_xiR_start = -1.*rhoDs0*(T)    + rhoDE0 - 0.5*sum(sigma_start%DM_sig) - sum(sigma_start%Dalpha)*(T-T_init) + HfR;
+    double A_xiF       = rhoDs0*(T+DT) - rhoDE0 + 0.5*sum(stress%DM_sig)        + sum(stress%Dalpha)*(T+DT-T_init) - HfF;
+    double A_xiF_start = rhoDs0*(T)    - rhoDE0 + 0.5*sum(stress_start%DM_sig)  + sum(stress_start%Dalpha)*(T-T_init) - HfF;
+    double A_xiR       = -1.*rhoDs0*(T+DT) + rhoDE0 - 0.5*sum(stress%DM_sig)       - sum(stress%Dalpha)*(T+DT-T_init) + HfR;
+    double A_xiR_start = -1.*rhoDs0*(T)    + rhoDE0 - 0.5*sum(stress_start%DM_sig) - sum(stress_start%Dalpha)*(T-T_init) + HfR;
 
-    double PhihatF = build_PhihatF(sigma);
-    double PhihatR = sum(sigma%ETMean);
+    double PhihatF = build_PhihatF(stress);
+    double PhihatR = sum(stress%ETMean);
 
     // Variables required for the local loop — 3 leading mechanisms
     vec s_j = zeros(3);
@@ -349,7 +349,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // Elastic prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
 
     // Residual / Jacobian containers
     vec Phi = zeros(3);
@@ -397,16 +397,16 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         M_eff = xi*M_M + (1. - xi)*M_A;
         L = inv(M_eff);
 
-        DM_sig   = DM*sigma;
+        DM_sig   = DM*stress;
         Dalpha_T = Dalpha*(T+DT);
 
         // Hcur explicit (depends on σ)
-        if (Mises_stress(sigma) > sigmacrit) sigmastar = Mises_stress(sigma) - sigmacrit;
+        if (Mises_stress(stress) > sigmacrit) sigmastar = Mises_stress(stress) - sigmacrit;
         else                                  sigmastar = 0.;
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
 
         // Re-evaluate flows at current σ, areo, λ₁Reo
-        lambdaTF = build_lambdaTF(sigma);
+        lambdaTF = build_lambdaTF(stress);
         lambdaTR = -1. * ETMean;
 
         // Back-stress for the reorientation surface — see the framework
@@ -421,7 +421,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         // blow up when ξ → 0 even if ‖v^re‖ is tiny, producing astronomical
         // σ_eff = σ − (1+1e20)·X garbage.
         lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
-        sigma_eff = sigma - (1. + lambda1Reo) * X;
+        sigma_eff = stress - (1. + lambda1Reo) * X;
 
         // Raw (per-unit-martensite) reorientation flow: Λ̄^re = dDrucker(σ_eff).
         vec lambdaReo_raw;
@@ -456,17 +456,17 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         compute_Hf(xi, HfF, HfR);
 
         // Forward thermodynamic force
-        PhihatF = build_PhihatF(sigma);
-        A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sigma%DM_sig) + sum(sigma%Dalpha)*(T + DT - T_init) - HfF;
+        PhihatF = build_PhihatF(stress);
+        A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*(T + DT - T_init) - HfF;
         lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        double YtF = Y0t + D*Hcur*Mises_stress(sigma);
+        double YtF = Y0t + D*Hcur*Mises_stress(stress);
         Phi(0) = PhihatF + A_xiF - lambda1 - YtF;
 
         // Reverse thermodynamic force
-        PhihatR = sum(sigma%ETMean);
-        A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sigma%DM_sig) - sum(sigma%Dalpha)*(T + DT - T_init) + HfR;
+        PhihatR = sum(stress%ETMean);
+        A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%DM_sig) - sum(stress%Dalpha)*(T + DT - T_init) + HfR;
         lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        double YtR = Y0t + D*sum(sigma%ETMean);
+        double YtR = Y0t + D*sum(stress%ETMean);
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;
 
         // Reorientation criterion (Chatziathanasiou thesis eq 664, Form B):
@@ -494,17 +494,17 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         else                                            dHfR = 1.E12;
 
         // d(Hcur)/dσ
-        dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(sigma);
+        dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(stress);
 
         // ---- Forward derivatives ----
         if (aniso_criteria) {
-            dPhihatFdsigma = dHcurdsigma * Drucker_ani_stress(sigma, DFA_params, prager_b, prager_n) + Hcur * dDrucker_ani_stress(sigma, DFA_params, prager_b, prager_n);
+            dPhihatFdsigma = dHcurdsigma * Drucker_ani_stress(stress, DFA_params, prager_b, prager_n) + Hcur * dDrucker_ani_stress(stress, DFA_params, prager_b, prager_n);
         } else {
-            dPhihatFdsigma = dHcurdsigma * Drucker_stress(sigma, prager_b, prager_n) + Hcur * dDrucker_stress(sigma, prager_b, prager_n);
+            dPhihatFdsigma = dHcurdsigma * Drucker_stress(stress, prager_b, prager_n) + Hcur * dDrucker_stress(stress, prager_b, prager_n);
         }
         dA_xiFdsigma = DM_sig + Dalpha*(T+DT);
         dlambda1dsigma = zeros(6);
-        dYtFdsigma = D*(dHcurdsigma * Mises_stress(sigma) + Hcur * eta_stress(sigma));
+        dYtFdsigma = D*(dHcurdsigma * Mises_stress(stress) + Hcur * eta_stress(stress));
 
         dPhiFdsigma = dPhihatFdsigma + dA_xiFdsigma - dlambda1dsigma - dYtFdsigma;
         double dlambda1dxi = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
@@ -529,7 +529,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         // Phi_R partial w.r.t. ETMean is well-defined and finite:
         // Phi_R = -σ:ETMean + A_xiR + λ_0 - YtR, with YtR = Y0t + D·σ:ETMean.
         // ⇒ ∂Phi_R/∂ETMean = -(1+D)·σ
-        const vec dPhiRdETMean = -(1. + D) * sigma;
+        const vec dPhiRdETMean = -(1. + D) * stress;
         // "Finite" Phi_R partials w.r.t. ξ (only the hardening + Lagrange-penalty
         // pieces; the σ:dev(ε^T)/ξ = σ:ETMean parts that would otherwise blow up
         // as ξ→0 are absorbed into the Λ_ETMean chain-rule contributions below).
@@ -606,8 +606,8 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
             }
         }
 
-        Y_crit(0) = Y0t + D*Hcur*Mises_stress(sigma);
-        Y_crit(1) = Y0t + D*sum(sigma%ETMean);
+        Y_crit(0) = Y0t + D*Hcur*Mises_stress(stress);
+        Y_crit(1) = Y0t + D*sum(stress%ETMean);
         Y_crit(2) = std::max(YReo, simcoon::iota);   // guard the FB /Y_crit normalization against a (degenerate) YReo = 0
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
@@ -638,7 +638,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         }
 
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
 
     // If the local Newton did not converge within maxiter_umat, request a sub-step
@@ -668,12 +668,12 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     double DxiF = Ds_j[0];
     double DxiR = Ds_j[1];
 
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma) % (DETF - DETR + DEReo))
+    double Dgamma_loc = 0.5*sum((stress_start+stress) % (DETF - DETR + DEReo))
                       + 0.5*(A_xiF_start + A_xiF)*DxiF
                       + 0.5*(A_xiR_start + A_xiR)*DxiR;
 
-    Wm    += 0.5*sum((sigma_start+sigma) % DEtot);
-    Wm_r  += 0.5*sum((sigma_start+sigma) % (DEtot - DETF + DETR - DEReo))
+    Wm    += 0.5*sum((stress_start+stress) % DEtot);
+    Wm_r  += 0.5*sum((stress_start+stress) % (DEtot - DETF + DETR - DEReo))
            - 0.5*(A_xiF_start + A_xiF)*DxiF
            - 0.5*(A_xiR_start + A_xiR)*DxiR;
     Wm_ir += 0.;   // SMA has no irrecoverable channel by construction

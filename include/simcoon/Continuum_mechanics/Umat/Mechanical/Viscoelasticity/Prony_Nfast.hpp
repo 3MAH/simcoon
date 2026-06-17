@@ -57,7 +57,7 @@ namespace simcoon {
  *
  * The stress at time \f$ t + \Delta t \f$ is computed as:
  * \f[
- * \boldsymbol{\sigma}(t + \Delta t) = \mathbf{L}_\infty : \boldsymbol{\varepsilon}(t + \Delta t) + \sum_{i=1}^N \mathbf{q}_i(t + \Delta t)
+ * \boldsymbol{\stress}(t + \Delta t) = \mathbf{L}_\infty : \boldsymbol{\varepsilon}(t + \Delta t) + \sum_{i=1}^N \mathbf{q}_i(t + \Delta t)
  * \f]
  *
  * where \f$ \mathbf{q}_i \f$ are the internal state variables (stress-like quantities) that evolve according to:
@@ -108,7 +108,7 @@ namespace simcoon {
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
@@ -154,11 +154,11 @@ namespace simcoon {
  * vec statev = zeros(1 + 6*N);  // 1 + 12 state variables
  * vec Etot = {0.001, 0, 0, 0, 0, 0};
  * vec DEtot = {0.0001, 0, 0, 0, 0, 0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat DR = eye(3,3);
  *
- * umat_prony_Nfast(Etot, DEtot, sigma, Lt, DR, 8, props, 13, statev,
+ * umat_prony_Nfast(Etot, DEtot, stress, Lt, DR, 8, props, 13, statev,
  *                  20.0, 0.0, 0.0, 0.01, Wm, Wm_r, Wm_ir, Wm_d,
  *                  3, 3, false, tnew_dt);
  * @endcode
@@ -168,7 +168,7 @@ namespace simcoon {
  * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
  * - Park, S. W., & Schapery, R. A. (1999). "Methods of interconversion between linear viscoelastic material functions. Part I—A numerical method based on Prony series." *International Journal of Solids and Structures*, 36(11), 1653-1675.
  */
-void umat_prony_Nfast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_prony_Nfast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
 

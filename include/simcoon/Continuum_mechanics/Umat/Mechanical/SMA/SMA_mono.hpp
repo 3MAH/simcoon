@@ -91,10 +91,10 @@ namespace simcoon{
  *
  * For each variant n, the driving force for transformation is:
  * \f[
- * F_n = \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^{tr}_n - \Delta G^{chem}(T) - \sum_{m=1}^{N} H_{nm} f_m
+ * F_n = \boldsymbol{\stress} : \boldsymbol{\varepsilon}^{tr}_n - \Delta G^{chem}(T) - \sum_{m=1}^{N} H_{nm} f_m
  * \f]
  * where:
- * - \f$ \boldsymbol{\sigma} : \boldsymbol{\varepsilon}^{tr}_n \f$ is the mechanical driving force
+ * - \f$ \boldsymbol{\stress} : \boldsymbol{\varepsilon}^{tr}_n \f$ is the mechanical driving force
  * - \f$ \Delta G^{chem}(T) \f$ is the chemical free energy difference (temperature-dependent)
  * - \f$ H_{nm} \f$ is the interaction matrix describing variant-variant hardening
  *
@@ -185,7 +185,7 @@ namespace simcoon{
  * @param umat_name Name of the constitutive model (SMAMO, SMAMC, SMAOT, SMATI)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Cauchy stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Cauchy stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
@@ -225,7 +225,7 @@ namespace simcoon{
  * - Gall, K., & Sehitoglu, H. (1999). "The role of texture in tension-compression
  *   asymmetry in polycrystalline NiTi." *International Journal of Plasticity*, 15(1), 69-92.
  */
-void umat_sma_mono(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_sma_mono(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
     

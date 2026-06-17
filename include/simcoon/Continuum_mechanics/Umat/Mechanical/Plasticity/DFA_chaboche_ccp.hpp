@@ -60,12 +60,12 @@ namespace simcoon{
  * **Yield Function with Evolving Anisotropy:**
  *
  * \f[
- * \Phi = \sqrt{(\boldsymbol{\sigma} - \mathbf{X}) : \mathbf{H}(p, \boldsymbol{\varepsilon}^p) : (\boldsymbol{\sigma} - \mathbf{X})} - R(p) - \sigma_Y \leq 0
+ * \Phi = \sqrt{(\boldsymbol{\stress} - \mathbf{X}) : \mathbf{H}(p, \boldsymbol{\varepsilon}^p) : (\boldsymbol{\stress} - \mathbf{X})} - R(p) - \sigma_Y \leq 0
  * \f]
  *
  * where the anisotropy tensor \f$ \mathbf{H} \f$ evolves according to:
  * \f[
- * \dot{\mathbf{H}} = f(\mathbf{H}, \boldsymbol{\sigma}, \dot{\boldsymbol{\varepsilon}}^p, \dot{p})
+ * \dot{\mathbf{H}} = f(\mathbf{H}, \boldsymbol{\stress}, \dot{\boldsymbol{\varepsilon}}^p, \dot{p})
  * \f]
  *
  * **Directional Hardening:**
@@ -95,7 +95,7 @@ namespace simcoon{
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param sigma_in Internal stress for explicit solvers (6×1 vector) [output]
@@ -130,7 +130,7 @@ namespace simcoon{
  * - Teodosiu, C., & Hu, Z. (1998). "Microstructure in the continuum modeling of plastic anisotropy." *Proc. 19th Riso Int. Symp.*, 149-168.
  * - Holmedal, B. (2019). "Bauschinger effect modelled by yield surface distortions." *Int. J. Plasticity*, 123, 86-100.
  */
-void umat_dfa_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_dfa_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

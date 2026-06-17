@@ -31,7 +31,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -102,7 +102,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     std::vector<mat> H_i(N_prony);
     std::vector<mat> invH_i(N_prony);
     
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     std::vector<vec> DEV_i(N_prony);
     std::vector<vec> A_v(N_prony);
     std::vector<vec> A_v_start(N_prony);
@@ -113,8 +113,8 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         for (int i=0; i<N_prony; i++) {
             EV_i[i] = zeros(6);
         }
-        sigma = zeros(6);
-        sigma_start = zeros(6);
+        stress = zeros(6);
+        stress_start = zeros(6);
         
         Wm = 0.;
         Wm_r = 0.;
@@ -146,7 +146,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     
     //Determination of the initial, predicted stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV_tilde;
-    sigma = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, Eel, ndi);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_prony);
@@ -219,9 +219,9 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
             EV_tilde += (M0*L_i[i])*EV_i[i];
         }
         
-        //the stress is now computed using the relationship sigma = L0 E-sum LpEp
+        //the stress is now computed using the relationship stress = L0 E-sum LpEp
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde;
-        sigma = el_pred(L0, Eel, ndi);
+        stress = el_pred(L0, Eel, ndi);
     }
     
     // Tangent modulus for prony series
@@ -277,8 +277,8 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     }
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
     for (int i=0; i<N_prony; i++) {
         Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
     }

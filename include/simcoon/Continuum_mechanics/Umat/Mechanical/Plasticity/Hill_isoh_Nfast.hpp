@@ -48,7 +48,7 @@ namespace simcoon {
  *
  * The Hill anisotropic yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, p) = \sigma_{eq}^{Hill} - R(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, p) = \sigma_{eq}^{Hill} - R(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * \f[
@@ -116,7 +116,7 @@ namespace simcoon {
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
@@ -148,7 +148,7 @@ namespace simcoon {
  * - Voce, E. (1948). "The relationship between stress and strain for homogeneous deformation." *J. Inst. Met.*, 74, 537-562.
  * - Barlat, F., et al. (2003). "Plane stress yield function for aluminum alloy sheets." *Int. J. Plasticity*, 19(9), 1297-1319.
  */
-void umat_plasticity_hill_isoh_CCP_N(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_hill_isoh_CCP_N(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
 

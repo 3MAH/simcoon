@@ -48,13 +48,13 @@ namespace simcoon{
  *
  * The anisotropic yield function with kinematic hardening is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, \mathbf{X}, p) = \sigma_{eq}^{Hill}(\boldsymbol{\sigma} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, \mathbf{X}, p) = \sigma_{eq}^{Hill}(\boldsymbol{\stress} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
  * \f]
  * where the Hill equivalent stress of the shifted stress tensor is:
  * \f[
  * \sigma_{eq}^{Hill}(\boldsymbol{\eta}) = \sqrt{\boldsymbol{\eta} : \mathbf{P}^{Hill} : \boldsymbol{\eta}}
  * \f]
- * with \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ being the effective (shifted) stress.
+ * with \f$ \boldsymbol{\eta} = \boldsymbol{\stress} - \mathbf{X} \f$ being the effective (shifted) stress.
  *
  * **Hill Anisotropic Yield Surface:**
  *
@@ -75,7 +75,7 @@ namespace simcoon{
  *
  * The plastic strain rate follows the associative flow rule:
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}} = \dot{p} \frac{\mathbf{P}^{Hill} : \boldsymbol{\eta}}{\sigma_{eq}^{Hill}(\boldsymbol{\eta})}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\stress}} = \dot{p} \frac{\mathbf{P}^{Hill} : \boldsymbol{\eta}}{\sigma_{eq}^{Hill}(\boldsymbol{\eta})}
  * \f]
  *
  * **Applications:**
@@ -120,7 +120,7 @@ namespace simcoon{
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param sigma_in Internal stress for explicit solvers (6×1 vector) [output]
@@ -155,7 +155,7 @@ namespace simcoon{
  * - Chaboche, J. L. (1986). "Time-independent constitutive theories for cyclic plasticity." *Int. J. Plasticity*, 2(2), 149-188.
  * - Barlat, F., et al. (2005). "Linear transformation-based anisotropic yield functions." *Int. J. Plasticity*, 21(5), 1009-1039.
  */
-void umat_hill_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_hill_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

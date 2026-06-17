@@ -60,7 +60,7 @@ namespace simcoon {
  * \mathbf{a} = \mathbf{a}_F + \mathbf{a}_R + \mathbf{a}_{reo}
  * \f]
  * \f[
- * \Phi^{Reo} = \mathrm{Prager}\!\bigl( \boldsymbol{\sigma} - (1+\lambda_{1}^{Reo}) \, \mathbf{X} \bigr) - Y^{Reo}
+ * \Phi^{Reo} = \mathrm{Prager}\!\bigl( \boldsymbol{\stress} - (1+\lambda_{1}^{Reo}) \, \mathbf{X} \bigr) - Y^{Reo}
  * \f]
  *
  * where \f$ \lambda_{1}^{Reo} = \mathrm{lagrange}_{\mathrm{pow}_1}(\|\mathbf{v}^{re}\|/E_{T}^{Reo,max}, \ldots) \f$
@@ -86,7 +86,7 @@ namespace simcoon {
  * **State variables (statev) — 30 entries:**
  *
  * Per Chatziathanasiou §4.3, the internal variables of the model are
- * \f$ \{\boldsymbol\sigma, T, \boldsymbol\varepsilon^F, \boldsymbol\varepsilon^R, \boldsymbol\varepsilon^{re}, \mathbf{v}^{re}, \xi^F, \xi^R\} \f$.
+ * \f$ \{\boldsymbol\stress, T, \boldsymbol\varepsilon^F, \boldsymbol\varepsilon^R, \boldsymbol\varepsilon^{re}, \mathbf{v}^{re}, \xi^F, \xi^R\} \f$.
  * There is only one back-strain in the entire model — \f$ \mathbf{v}^{re} \f$ —
  * associated with the reorientation channel. Forward and reverse transformation
  * use isotropic hardening only and do not carry back-strains.
@@ -111,7 +111,7 @@ namespace simcoon {
  * - Chatziathanasiou, Chemisky, Meraghni, Echchorfi, Patoor (2015).
  *   *Smart Materials and Structures*.
  */
-void umat_sma_unified_TR(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_sma_unified_TR(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */
 

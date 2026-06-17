@@ -69,7 +69,7 @@ namespace simcoon {
     }
 }*/
 
-void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
+void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -199,7 +199,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         ET = vide;
         xi = 0.;
         for(int i=0; i<nvariants; i++) {
@@ -213,7 +213,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         Wm_d = 0.;
     }
 	
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     
 	vec PhiF(nvariants);	
 	vec PhiF_start(nvariants);			
@@ -224,7 +224,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Need to define the thermodynamic parameters:
 	vec lambda0 = zeros(nvariants);
@@ -245,10 +245,10 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 		lambda0(i) = -1.*lagrange_pow_0(xin(i), c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0);
         
 		//Set the thermo forces  
-		PhiF(i) = sum(sigma%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 - Y0;
-		PhiR(i) = sum(sigma%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 + Y0;
-		PhiF_start(i) = sum(sigma_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 - Y0;
-		PhiR_start(i) = sum(sigma_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 + Y0;  
+		PhiF(i) = sum(stress%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 - Y0;
+		PhiR(i) = sum(stress%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 + Y0;
+		PhiF_start(i) = sum(stress_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 - Y0;
+		PhiR_start(i) = sum(stress_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 + Y0;  
         
 		//Define which variant system is active 
 		transfo_actif[i] = 0;
@@ -323,7 +323,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				if(tactive[i] == 1) {
 
                     Hnmxim = Hnm*xin;
-					Phi(i) = sum(sigma%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 - Y0;
+					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 - Y0;
 
                     for (int j=0; j<nactive; j++) {
                         dPhidxi(i,j) += -1.*dlambda0dxin(active[i],active[j]) - dlambda1dxin;
@@ -332,7 +332,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				else if(tactive[i] == -1) {
 					
                     Hnmxim = Hnm*xin;
-					Phi(i) = sum(sigma%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 + Y0;
+					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 + Y0;
                   
                     for (int j=0; j<nactive; j++) {
                         dPhidxi(i,j) += -1.*dlambda0dxin(active[i],active[j]) - dlambda1dxin;
@@ -394,9 +394,9 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
                 ET += var[i].ETn*xin(i);
             }
 
-            //the stress is now computed using the relationship sigma = L(E-Ep)
+            //the stress is now computed using the relationship stress = L(E-Ep)
             Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-            sigma = el_pred(L, Eel, ndi);
+            stress = el_pred(L, Eel, ndi);
         }
                        
 		vec lambda_eff = zeros(6);
@@ -452,13 +452,13 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     }
 	else {
         Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
         
         ///Computation of the tangent modulus
         Lt = L;
     }
     
-//	vec Dsigma = sigma - sigma_start;
+//	vec Dsigma = stress - stress_start;
   
 /*	if (compteur < 20) {
         tnew_dt = 2.;
@@ -480,7 +480,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         Lt = L;
     }
     
-	if (isnan(Mises_stress(sigma))) {
+	if (isnan(Mises_stress(stress))) {
 		tnew_dt = 0.2;
         Lt = L;
     }*/

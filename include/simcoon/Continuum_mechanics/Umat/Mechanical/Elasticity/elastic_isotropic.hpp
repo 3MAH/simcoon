@@ -48,11 +48,11 @@ namespace simcoon{
  *
  * The stress-strain relationship follows the generalized Hooke's law:
  * \f[
- * \boldsymbol{\sigma} = \mathbf{L} : (\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{th})
+ * \boldsymbol{\stress} = \mathbf{L} : (\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{th})
  * \f]
  *
  * where:
- * - \f$ \boldsymbol{\sigma} \f$ is the stress tensor (Voigt notation)
+ * - \f$ \boldsymbol{\stress} \f$ is the stress tensor (Voigt notation)
  * - \f$ \mathbf{L} \f$ is the fourth-order elastic stiffness tensor
  * - \f$ \boldsymbol{\varepsilon} \f$ is the total strain tensor
  * - \f$ \boldsymbol{\varepsilon}^{th} = \alpha (T - T_0) \mathbf{I} \f$ is the thermal strain
@@ -90,7 +90,7 @@ namespace simcoon{
  *
  * For an increment of strain \f$ \Delta \boldsymbol{\varepsilon} \f$:
  * \f[
- * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}_n + \mathbf{L} : \left( \Delta \boldsymbol{\varepsilon} - \alpha \Delta T \mathbf{I} \right)
+ * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}_n + \mathbf{L} : \left( \Delta \boldsymbol{\varepsilon} - \alpha \Delta T \mathbf{I} \right)
  * \f]
  *
  * **Tangent Modulus:**
@@ -126,7 +126,7 @@ namespace simcoon{
  * @param umat_name Name of the constitutive model (ELISO)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
@@ -166,16 +166,16 @@ namespace simcoon{
  *
  * vec Etot = {0.001, 0.0, 0.0, 0.0, 0.0, 0.0};  // 0.1% strain in direction 1
  * vec DEtot = {0.0001, 0.0, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * mat DR = eye(3,3);
  *
- * umat_elasticity_iso("ELISO", Etot, DEtot, sigma, Lt, L, DR,
+ * umat_elasticity_iso("ELISO", Etot, DEtot, stress, Lt, L, DR,
  *                     3, props, 1, statev, 25.0, 5.0, 0.0, 1.0,
  *                     Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
  *
- * // Expected stress: sigma(0) ≈ E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
+ * // Expected stress: stress(0) ≈ E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
  * @endcode
  *
  * **References:**
@@ -183,7 +183,7 @@ namespace simcoon{
  * - Bower, A. F. (2009). *Applied Mechanics of Solids*. CRC Press.
  * - Gurtin, M. E. (1981). *An Introduction to Continuum Mechanics*. Academic Press.
  */
-void umat_elasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_elasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
                             
 
 /** @} */ // end of umat_mechanical group

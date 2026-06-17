@@ -101,7 +101,7 @@ namespace simcoon{
  * @param umat_name Name of the constitutive model (ELORT)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1)
- * @param sigma Stress tensor [output] (Voigt notation: 6×1)
+ * @param stress Stress tensor [output] (Voigt notation: 6×1)
  * @param Lt Tangent modulus (= L for linear elasticity) [output] (6×6)
  * @param L Elastic stiffness tensor [output] (6×6)
  * @param DR Rotation increment matrix (3×3)
@@ -128,7 +128,7 @@ namespace simcoon{
  *
  * @see L_ortho() for orthotropic stiffness tensor construction
  */
-void umat_elasticity_ortho(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_elasticity_ortho(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

@@ -59,7 +59,7 @@ namespace simcoon {
  *
  * The Zener model stress-strain relationship is given by:
  * \f[
- * \boldsymbol{\sigma} + \tau \dot{\boldsymbol{\sigma}} = E_0 \boldsymbol{\varepsilon} + (E_0 + E_1) \tau \dot{\boldsymbol{\varepsilon}}
+ * \boldsymbol{\stress} + \tau \dot{\boldsymbol{\stress}} = E_0 \boldsymbol{\varepsilon} + (E_0 + E_1) \tau \dot{\boldsymbol{\varepsilon}}
  * \f]
  * where:
  * - \f$ E_0 \f$ is the instantaneous (glassy) modulus
@@ -90,7 +90,7 @@ namespace simcoon {
  *
  * For numerical integration over a time step \f$ \Delta t \f$:
  * \f[
- * \boldsymbol{\sigma}_{n+1} = \mathbf{L}_\infty : \boldsymbol{\varepsilon}_{n+1} + \mathbf{q}_{n+1}
+ * \boldsymbol{\stress}_{n+1} = \mathbf{L}_\infty : \boldsymbol{\varepsilon}_{n+1} + \mathbf{q}_{n+1}
  * \f]
  * where the internal variable \f$ \mathbf{q} \f$ evolves as:
  * \f[
@@ -118,7 +118,7 @@ namespace simcoon {
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
@@ -148,7 +148,7 @@ namespace simcoon {
  * - Ferry, J. D. (1980). *Viscoelastic Properties of Polymers* (3rd ed.). Wiley.
  * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
  */
-void umat_zener_fast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_zener_fast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
 

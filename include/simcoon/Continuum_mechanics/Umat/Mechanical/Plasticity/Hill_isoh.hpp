@@ -48,7 +48,7 @@ namespace simcoon {
  *
  * The Hill anisotropic yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, p) = \sigma_{eq}^{Hill} - H_p(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, p) = \sigma_{eq}^{Hill} - H_p(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * \f[
@@ -106,7 +106,7 @@ namespace simcoon {
  * \f]
  * where:
  * \f[
- * \mathbf{n} = \frac{\partial \sigma_{eq}^{Hill}}{\partial \boldsymbol{\sigma}} = \frac{1}{\sigma_{eq}^{Hill}} \mathbf{P}^{Hill} : \boldsymbol{\sigma}
+ * \mathbf{n} = \frac{\partial \sigma_{eq}^{Hill}}{\partial \boldsymbol{\stress}} = \frac{1}{\sigma_{eq}^{Hill}} \mathbf{P}^{Hill} : \boldsymbol{\stress}
  * \f]
  * is the flow direction normal to the Hill yield surface, and \f$ \mathbf{P}^{Hill} \f$ is the Hill projection tensor.
  *
@@ -127,7 +127,7 @@ namespace simcoon {
  *
  * For an increment \f$ \Delta p \f$, the stress is updated as:
  * \f[
- * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\sigma}} : \boldsymbol{\sigma} \right)
+ * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\stress}} : \boldsymbol{\stress} \right)
  * \f]
  *
  * The CCP algorithm solves for \f$ \Delta p \f$ using the Fischer-Burmeister complementarity condition:
@@ -182,7 +182,7 @@ namespace simcoon {
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
@@ -240,11 +240,11 @@ namespace simcoon {
  *
  * vec Etot = {0.003, 0.0, 0.0, 0.0, 0.0, 0.0};  // 0.3% uniaxial strain
  * vec DEtot = {0.0001, 0.0, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat DR = eye(3,3);
  *
- * umat_plasticity_hill_isoh_CCP(Etot, DEtot, sigma, Lt, DR,
+ * umat_plasticity_hill_isoh_CCP(Etot, DEtot, stress, Lt, DR,
  *                               12, props, 8, statev, 20.0, 0.0, 0.0, 1.0,
  *                               Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
  *
@@ -258,7 +258,7 @@ namespace simcoon {
  * - Banabic, D. (2010). *Sheet Metal Forming Processes: Constitutive Modelling and Numerical Simulation*. Springer.
  * - Ortiz, M., & Simo, J. C. (1986). "An analysis of a new class of integration algorithms for elastoplastic constitutive relations." *International Journal for Numerical Methods in Engineering*, 23(3), 353-366.
  */
-void umat_plasticity_hill_isoh_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_hill_isoh_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
     

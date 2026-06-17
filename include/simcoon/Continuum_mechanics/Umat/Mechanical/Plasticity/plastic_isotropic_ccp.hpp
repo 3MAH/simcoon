@@ -53,7 +53,7 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, p) = \sigma_{eq} - H_p(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, p) = \sigma_{eq} - H_p(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq} = \sqrt{\frac{3}{2} \mathbf{s} : \mathbf{s}} \f$ is the von Mises equivalent stress
@@ -64,7 +64,7 @@ namespace simcoon{
  *
  * The plastic flow rule (associative plasticity):
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{\lambda} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}} = \dot{\lambda} \frac{3}{2} \frac{\mathbf{s}}{\sigma_{eq}}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{\lambda} \frac{\partial \Phi}{\partial \boldsymbol{\stress}} = \dot{\lambda} \frac{3}{2} \frac{\mathbf{s}}{\sigma_{eq}}
  * \f]
  *
  * Evolution of accumulated plastic strain:
@@ -75,7 +75,7 @@ namespace simcoon{
  * **Convex Cutting Plane Algorithm:**
  *
  * The CCP algorithm solves the return mapping problem by reformulating it as a complementarity problem:
- * - Find \f$ \Delta p \geq 0 \f$ such that \f$ \Phi(\boldsymbol{\sigma}, p) \leq 0 \f$ and \f$ \Delta p \cdot \Phi = 0 \f$
+ * - Find \f$ \Delta p \geq 0 \f$ such that \f$ \Phi(\boldsymbol{\stress}, p) \leq 0 \f$ and \f$ \Delta p \cdot \Phi = 0 \f$
  * - This is solved using the Fischer-Burmeister function for robust convergence
  * - The method provides a consistent tangent modulus for implicit finite element analysis
  *
@@ -108,8 +108,8 @@ namespace simcoon{
  * @param umat_name Name of the constitutive model (EPICP)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\stress}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties
@@ -141,19 +141,19 @@ namespace simcoon{
  * // Example usage:
  * vec Etot = {0.001, 0.0, 0.0, 0.0, 0.0, 0.0};
  * vec DEtot = {0.0001, 0.0, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * mat DR = eye(3,3);
  * vec props = {70000, 0.3, 1e-5, 200, 500, 0.2};
  * vec statev = zeros(8);
  *
- * umat_plasticity_iso_CCP("EPICP", Etot, DEtot, sigma, Lt, L, DR, 6, props, 8, statev,
+ * umat_plasticity_iso_CCP("EPICP", Etot, DEtot, stress, Lt, L, DR, 6, props, 8, statev,
  *                         20.0, 0.0, 0.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d,
  *                         3, 3, true, tnew_dt);
  * @endcode
  */
-void umat_plasticity_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
     
 
 /** @} */ // end of umat_mechanical group

@@ -47,11 +47,11 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\sigma}, \mathbf{X}, p) = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\stress}, \mathbf{X}, p) = \sigma_{eq}(\boldsymbol{\stress} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq}(\boldsymbol{\eta}) = \sqrt{\frac{3}{2} \boldsymbol{\eta}_{dev} : \boldsymbol{\eta}_{dev}} \f$ is the von Mises equivalent stress
- * - \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ is the shifted (effective) stress
+ * - \f$ \boldsymbol{\eta} = \boldsymbol{\stress} - \mathbf{X} \f$ is the shifted (effective) stress
  * - \f$ \mathbf{X} \f$ is the backstress (kinematic hardening variable)
  * - \f$ R(p) = k \cdot p^m \f$ is the isotropic hardening function
  * - \f$ \sigma_Y \f$ is the initial yield stress
@@ -76,14 +76,14 @@ namespace simcoon{
  *
  * The plastic strain rate follows the associative flow rule:
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}} = \dot{p} \mathbf{n}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\stress}} = \dot{p} \mathbf{n}
  * \f]
  *
  * **Incremental Update:**
  *
  * For an increment \f$ \Delta p \f$:
  * \f[
- * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \cdot \mathbf{L} : \mathbf{n}
+ * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \cdot \mathbf{L} : \mathbf{n}
  * \f]
  * \f[
  * \mathbf{X}_{n+1} = \mathbf{X}_n + \frac{2}{3} H_{kin} \Delta p \cdot \mathbf{n}
@@ -132,7 +132,7 @@ namespace simcoon{
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
@@ -170,7 +170,7 @@ namespace simcoon{
  * - Lemaitre, J., & Chaboche, J. L. (1990). *Mechanics of Solid Materials*. Cambridge University Press.
  * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
  */
-void umat_plasticity_kin_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_plasticity_kin_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

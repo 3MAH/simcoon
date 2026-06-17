@@ -64,7 +64,7 @@ namespace simcoon{
  *
  * The effective stress acting on the undamaged material configuration is:
  * \f[
- * \tilde{\boldsymbol{\sigma}} = \mathbf{M}^{-1} : \boldsymbol{\sigma}
+ * \tilde{\boldsymbol{\stress}} = \mathbf{M}^{-1} : \boldsymbol{\stress}
  * \f]
  * where \f$ \mathbf{M} \f$ is the damage effect tensor:
  * \f[
@@ -139,7 +139,7 @@ namespace simcoon{
  *
  * Associative flow in the transverse-shear plane:
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p}_{ts} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{p}_{ts} \frac{\partial \Phi}{\partial \boldsymbol{\stress}}
  * \f]
  *
  * **Material Parameters (props):**
@@ -184,7 +184,7 @@ namespace simcoon{
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
  * @param Lt Consistent tangent modulus (6×6 matrix) [output]
  * @param L Damaged elastic stiffness tensor (6×6 matrix) [output]
  * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
@@ -250,13 +250,13 @@ namespace simcoon{
  *
  * vec Etot = {0.0, 0.005, 0.0, 0.0, 0.0, 0.0};  // 0.5% transverse strain (induces damage)
  * vec DEtot = {0.0, 0.0001, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_damage_LLD_0(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+ * umat_damage_LLD_0(Etot, DEtot, stress, Lt, L, sigma_in, DR,
  *                   18, props, 10, statev, 20.0, 0.0, 0.0, 1.0,
  *                   Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
@@ -273,7 +273,7 @@ namespace simcoon{
  * - Matzenmiller, A., Lubliner, J., & Taylor, R. L. (1995). "A constitutive model for anisotropic damage in fiber-composites." *Mechanics of Materials*, 20(2), 125-152.
  * - Pinho, S. T., et al. (2012). "Material and structural response of polymer-matrix fibre-reinforced composites." *Journal of Composite Materials*, 46(19-20), 2313-2341.
  */
-void umat_damage_LLD_0(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_damage_LLD_0(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group
