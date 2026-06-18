@@ -57,6 +57,21 @@ jobs:
           uv pip install scikit-build-core pybind11 numpy
           uv pip install -e .[dev]
 
+      - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Trigger the lazy scikit-build-core editable build so the extension and its
+          # install dir exist (the import itself fails on the missing BLAS DLL -- expected).
+          uv run python -c "import simcoon" 2>&1 | Out-Null
+          # simcoon/__init__.py adds its own package dir to the DLL search
+          # (os.add_dll_directory). Copy conda's reference BLAS/LAPACK + Fortran runtime
+          # there so _core resolves its transitive deps under the uv venv: unlike the conda
+          # Python used by ci.yml, the venv does not see C:\Miniconda\Library\bin, and
+          # Python 3.8+ ignores PATH for extension-module dependencies.
+          $dst = ".venv\Lib\site-packages\simcoon"
+          Copy-Item "$env:CONDA\Library\bin\*.dll" $dst -Force -ErrorAction SilentlyContinue
+          exit 0
+
       - name: Verify cmake rebuild works (Unix)
         if: runner.os != 'Windows'
         run: |
