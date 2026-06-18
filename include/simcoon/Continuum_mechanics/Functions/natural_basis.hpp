@@ -161,6 +161,9 @@ class natural_basis
 		/** @brief Polar rotation R = F U^{-1}. */
 		arma::mat R() const;
 
+		/** @brief Left (spatial / Eulerian) stretch V = (F F^T)^{1/2} = b^{1/2} = R U R^T. */
+		arma::mat V() const;
+
 		/** @brief Contravariant components of a spatial (stress-like) tensor on the natural basis: sigma^{ij} = g^i.sigma.g^j = F^{-1} sigma F^{-T}. */
 		arma::mat contravariant(const arma::mat &sigma) const;
 

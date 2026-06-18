@@ -55,6 +55,16 @@ namespace simcoon {
  * \sigma_{eq}^{Hill} = \sqrt{F(\sigma_{22} - \sigma_{33})^2 + G(\sigma_{33} - \sigma_{11})^2 + H(\sigma_{11} - \sigma_{22})^2 + 2L\sigma_{23}^2 + 2M\sigma_{13}^2 + 2N\sigma_{12}^2}
  * \f]
  *
+ * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
+ * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
+ * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
+ * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
+ * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
+ * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
+ * function keeps its algebraic form; only which stress measure is transported into the frame is
+ * rate-dependent.
+ *
  * **Multiple Isotropic Hardening (Voce Law):**
  *
  * The isotropic hardening is the sum of N exponential terms:

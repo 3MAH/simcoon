@@ -234,6 +234,15 @@ arma::mat natural_basis::R() const
     return F()*Uinv;
 }
 
+// left (spatial / Eulerian) stretch V = (F F^T)^{1/2} = b^{1/2} = R U R^T
+//-------------------------------------------------------------
+arma::mat natural_basis::V() const
+//-------------------------------------------------------------
+{
+    mat Fmat = F();
+    return sqrtmat_sympd(Fmat*Fmat.t());
+}
+
 // contravariant components of a spatial (stress-like) tensor on the natural basis:
 // sigma^{ij} = g^i . sigma . g^j = F^{-1} sigma F^{-T}
 //-------------------------------------------------------------
