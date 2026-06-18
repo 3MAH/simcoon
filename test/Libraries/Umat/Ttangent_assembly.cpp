@@ -258,7 +258,9 @@ static std::vector<double> stress_target_newton(const mat& L,
         UmatStep s = run_step(L, Deps, sigmaY0, Hp, E, nu, algorithmic);
         vec F = sigma_target - s.sigma;
         residuals.push_back(norm(F, 2));
-        if (residuals.back() < 1e-12) break;
+        // Converged once the residual reaches the test's convergence threshold (1e-8, as
+        // asserted below). optimized BLAS reaches ~1e-13 but reference-netlib (conda Linux) floors above 1e-12.
+        if (residuals.back() < 1e-8) break;
         // Newton step
         vec dDeps = solve(s.Lt, F);
         Deps += dDeps;
