@@ -48,22 +48,21 @@ namespace simcoon {
  *
  * The Hill anisotropic yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\stress}, p) = \sigma_{eq}^{Hill} - H_p(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\sigma}, p) = \sigma_{eq}^{Hill} - H_p(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * \f[
  * \sigma_{eq}^{Hill} = \sqrt{F(\sigma_{22} - \sigma_{33})^2 + G(\sigma_{33} - \sigma_{11})^2 + H(\sigma_{11} - \sigma_{22})^2 + 2L\sigma_{23}^2 + 2M\sigma_{13}^2 + 2N\sigma_{12}^2}
  * \f]
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
- * function keeps its algebraic form; only which stress measure is transported into the frame is
- * rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Hill Anisotropy Parameters:**
  *
@@ -116,7 +115,7 @@ namespace simcoon {
  * \f]
  * where:
  * \f[
- * \mathbf{n} = \frac{\partial \sigma_{eq}^{Hill}}{\partial \boldsymbol{\stress}} = \frac{1}{\sigma_{eq}^{Hill}} \mathbf{P}^{Hill} : \boldsymbol{\stress}
+ * \mathbf{n} = \frac{\partial \sigma_{eq}^{Hill}}{\partial \boldsymbol{\sigma}} = \frac{1}{\sigma_{eq}^{Hill}} \mathbf{P}^{Hill} : \boldsymbol{\sigma}
  * \f]
  * is the flow direction normal to the Hill yield surface, and \f$ \mathbf{P}^{Hill} \f$ is the Hill projection tensor.
  *
@@ -137,7 +136,7 @@ namespace simcoon {
  *
  * For an increment \f$ \Delta p \f$, the stress is updated as:
  * \f[
- * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\stress}} : \boldsymbol{\stress} \right)
+ * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\sigma}} : \boldsymbol{\sigma} \right)
  * \f]
  *
  * The CCP algorithm solves for \f$ \Delta p \f$ using the Fischer-Burmeister complementarity condition:

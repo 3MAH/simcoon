@@ -59,13 +59,22 @@ namespace simcoon {
  *
  * The Zener model stress-strain relationship is given by:
  * \f[
- * \boldsymbol{\stress} + \tau \dot{\boldsymbol{\stress}} = E_0 \boldsymbol{\varepsilon} + (E_0 + E_1) \tau \dot{\boldsymbol{\varepsilon}}
+ * \boldsymbol{\sigma} + \tau \dot{\boldsymbol{\sigma}} = E_0 \boldsymbol{\varepsilon} + (E_0 + E_1) \tau \dot{\boldsymbol{\varepsilon}}
  * \f]
  * where:
  * - \f$ E_0 \f$ is the instantaneous (glassy) modulus
  * - \f$ E_1 \f$ is the modulus of the Kelvin-Voigt element
  * - \f$ \tau = \eta_1 / E_1 \f$ is the relaxation time
  * - \f$ \eta_1 \f$ is the viscosity of the dashpot
+ *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Relaxation Modulus:**
  *
@@ -90,7 +99,7 @@ namespace simcoon {
  *
  * For numerical integration over a time step \f$ \Delta t \f$:
  * \f[
- * \boldsymbol{\stress}_{n+1} = \mathbf{L}_\infty : \boldsymbol{\varepsilon}_{n+1} + \mathbf{q}_{n+1}
+ * \boldsymbol{\sigma}_{n+1} = \mathbf{L}_\infty : \boldsymbol{\varepsilon}_{n+1} + \mathbf{q}_{n+1}
  * \f]
  * where the internal variable \f$ \mathbf{q} \f$ evolves as:
  * \f[

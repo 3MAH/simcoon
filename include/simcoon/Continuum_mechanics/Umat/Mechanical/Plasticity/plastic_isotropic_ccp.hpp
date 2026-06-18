@@ -53,7 +53,7 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\stress}, p) = \sigma_{eq} - H_p(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\sigma}, p) = \sigma_{eq} - H_p(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq} = \sqrt{\frac{3}{2} \mathbf{s} : \mathbf{s}} \f$ is the von Mises equivalent stress
@@ -62,19 +62,18 @@ namespace simcoon{
  * - \f$ p = \int \sqrt{\frac{2}{3} \dot{\boldsymbol{\varepsilon}}^p : \dot{\boldsymbol{\varepsilon}}^p} \, dt \f$ is the accumulated plastic strain
  * - \f$ \sigma_Y \f$ is the initial yield stress
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
- * function keeps its algebraic form; only which stress measure is transported into the frame is
- * rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * The plastic flow rule (associative plasticity):
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{\lambda} \frac{\partial \Phi}{\partial \boldsymbol{\stress}} = \dot{\lambda} \frac{3}{2} \frac{\mathbf{s}}{\sigma_{eq}}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{\lambda} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}} = \dot{\lambda} \frac{3}{2} \frac{\mathbf{s}}{\sigma_{eq}}
  * \f]
  *
  * Evolution of accumulated plastic strain:
@@ -85,7 +84,7 @@ namespace simcoon{
  * **Convex Cutting Plane Algorithm:**
  *
  * The CCP algorithm solves the return mapping problem by reformulating it as a complementarity problem:
- * - Find \f$ \Delta p \geq 0 \f$ such that \f$ \Phi(\boldsymbol{\stress}, p) \leq 0 \f$ and \f$ \Delta p \cdot \Phi = 0 \f$
+ * - Find \f$ \Delta p \geq 0 \f$ such that \f$ \Phi(\boldsymbol{\sigma}, p) \leq 0 \f$ and \f$ \Delta p \cdot \Phi = 0 \f$
  * - This is solved using the Fischer-Burmeister function for robust convergence
  * - The method provides a consistent tangent modulus for implicit finite element analysis
  *
@@ -119,7 +118,7 @@ namespace simcoon{
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
  * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\stress}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
  * @param L Elastic stiffness tensor (6×6 matrix) [output]
  * @param DR Rotation increment matrix (3×3) for objective integration
  * @param nprops Number of material properties

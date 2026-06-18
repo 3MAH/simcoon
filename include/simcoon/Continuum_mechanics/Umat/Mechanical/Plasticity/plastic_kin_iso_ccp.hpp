@@ -47,24 +47,23 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\stress}, \mathbf{X}, p) = \sigma_{eq}(\boldsymbol{\stress} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\sigma}, \mathbf{X}, p) = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R(p) - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq}(\boldsymbol{\eta}) = \sqrt{\frac{3}{2} \boldsymbol{\eta}_{dev} : \boldsymbol{\eta}_{dev}} \f$ is the von Mises equivalent stress
- * - \f$ \boldsymbol{\eta} = \boldsymbol{\stress} - \mathbf{X} \f$ is the shifted (effective) stress
+ * - \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ is the shifted (effective) stress
  * - \f$ \mathbf{X} \f$ is the backstress (kinematic hardening variable)
  * - \f$ R(p) = k \cdot p^m \f$ is the isotropic hardening function
  * - \f$ \sigma_Y \f$ is the initial yield stress
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
- * function keeps its algebraic form; only which stress measure is transported into the frame is
- * rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Kinematic Hardening (Prager Linear):**
  *
@@ -86,14 +85,14 @@ namespace simcoon{
  *
  * The plastic strain rate follows the associative flow rule:
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\stress}} = \dot{p} \mathbf{n}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{p} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}} = \dot{p} \mathbf{n}
  * \f]
  *
  * **Incremental Update:**
  *
  * For an increment \f$ \Delta p \f$:
  * \f[
- * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \cdot \mathbf{L} : \mathbf{n}
+ * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \cdot \mathbf{L} : \mathbf{n}
  * \f]
  * \f[
  * \mathbf{X}_{n+1} = \mathbf{X}_n + \frac{2}{3} H_{kin} \Delta p \cdot \mathbf{n}

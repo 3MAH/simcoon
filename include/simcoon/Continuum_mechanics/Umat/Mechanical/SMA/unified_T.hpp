@@ -66,7 +66,7 @@ namespace simcoon{
  *
  * The maximum transformation strain magnitude \f$ H^{cur} \f$ evolves with stress:
  * \f[
- * H^{cur}(\bar{\stress}) = H_{min} + (H_{max} - H_{min})(1 - e^{-k_1 \bar{\stress} / \sigma_{crit}})
+ * H^{cur}(\bar{\sigma}) = H_{min} + (H_{max} - H_{min})(1 - e^{-k_1 \bar{\sigma} / \sigma_{crit}})
  * \f]
  *
  * **Material Parameters (props):**

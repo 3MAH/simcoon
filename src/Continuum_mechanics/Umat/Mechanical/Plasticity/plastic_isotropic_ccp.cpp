@@ -64,13 +64,13 @@ namespace simcoon {
 /*
  
  \begin{eqnarray}
- G\left(\b{\stress},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\stress},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
+ G\left(\b{\sigma},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
  \EqnCont
- G^{\textrm{r}}\left(\b{\stress},\theta, \b{\varepsilon}^{\textrm{p}}\right)
+ G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)
  
- = - \f{1}{2} \b{\stress} \dcon \b{\mathcal{S}} \dcon \b{\stress} + {c_0}\left[ [\theta-\theta_0]
- -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\stress} : \b{\varepsilon}^{\textrm{p}}
- - \b\stress : \b{\alpha} \left(\theta - \theta_0 \right),
+ = - \f{1}{2} \b{\sigma} \dcon \b{\mathcal{S}} \dcon \b{\sigma} + {c_0}\left[ [\theta-\theta_0]
+ -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\sigma} : \b{\varepsilon}^{\textrm{p}}
+ - \b\sigma : \b{\alpha} \left(\theta - \theta_0 \right),
  \EqnCont
  G^{\textrm{ir}}\left(\theta,p\right)&=&F(\theta,p)
  \label{eq:elastoplastic_Gibbs_potential}

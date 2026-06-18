@@ -60,23 +60,22 @@ namespace simcoon{
  * **Yield Function with Evolving Anisotropy:**
  *
  * \f[
- * \Phi = \sqrt{(\boldsymbol{\stress} - \mathbf{X}) : \mathbf{H}(p, \boldsymbol{\varepsilon}^p) : (\boldsymbol{\stress} - \mathbf{X})} - R(p) - \sigma_Y \leq 0
+ * \Phi = \sqrt{(\boldsymbol{\sigma} - \mathbf{X}) : \mathbf{H}(p, \boldsymbol{\varepsilon}^p) : (\boldsymbol{\sigma} - \mathbf{X})} - R(p) - \sigma_Y \leq 0
  * \f]
  *
  * where the anisotropy tensor \f$ \mathbf{H} \f$ evolves according to:
  * \f[
- * \dot{\mathbf{H}} = f(\mathbf{H}, \boldsymbol{\stress}, \dot{\boldsymbol{\varepsilon}}^p, \dot{p})
+ * \dot{\mathbf{H}} = f(\mathbf{H}, \boldsymbol{\sigma}, \dot{\boldsymbol{\varepsilon}}^p, \dot{p})
  * \f]
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
- * function keeps its algebraic form; only which stress measure is transported into the frame is
- * rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Directional Hardening:**
  *

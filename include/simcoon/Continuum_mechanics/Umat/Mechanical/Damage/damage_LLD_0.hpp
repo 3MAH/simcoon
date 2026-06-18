@@ -64,22 +64,21 @@ namespace simcoon{
  *
  * The effective stress acting on the undamaged material configuration is:
  * \f[
- * \tilde{\boldsymbol{\stress}} = \mathbf{M}^{-1} : \boldsymbol{\stress}
+ * \tilde{\boldsymbol{\sigma}} = \mathbf{M}^{-1} : \boldsymbol{\sigma}
  * \f]
  * where \f$ \mathbf{M} \f$ is the damage effect tensor:
  * \f[
  * \mathbf{M} = \text{diag}(1, 1-d_{22}, 1-d_{22}, 1-d_{12}, 1-d_{12}, 1)
  * \f]
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the constitutive update is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The
- * damage criterion and effective-stress relation keep their algebraic form; only which stress
- * measure is transported into the frame is rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Damaged Elastic Stiffness:**
  *
@@ -149,7 +148,7 @@ namespace simcoon{
  *
  * Associative flow in the transverse-shear plane:
  * \f[
- * \dot{\boldsymbol{\varepsilon}}^p = \dot{p}_{ts} \frac{\partial \Phi}{\partial \boldsymbol{\stress}}
+ * \dot{\boldsymbol{\varepsilon}}^p = \dot{p}_{ts} \frac{\partial \Phi}{\partial \boldsymbol{\sigma}}
  * \f]
  *
  * **Material Parameters (props):**

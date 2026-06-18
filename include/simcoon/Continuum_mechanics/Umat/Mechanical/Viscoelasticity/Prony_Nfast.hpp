@@ -57,13 +57,22 @@ namespace simcoon {
  *
  * The stress at time \f$ t + \Delta t \f$ is computed as:
  * \f[
- * \boldsymbol{\stress}(t + \Delta t) = \mathbf{L}_\infty : \boldsymbol{\varepsilon}(t + \Delta t) + \sum_{i=1}^N \mathbf{q}_i(t + \Delta t)
+ * \boldsymbol{\sigma}(t + \Delta t) = \mathbf{L}_\infty : \boldsymbol{\varepsilon}(t + \Delta t) + \sum_{i=1}^N \mathbf{q}_i(t + \Delta t)
  * \f]
  *
  * where \f$ \mathbf{q}_i \f$ are the internal state variables (stress-like quantities) that evolve according to:
  * \f[
  * \mathbf{q}_i(t + \Delta t) = e^{-\Delta t/\tau_i} \mathbf{q}_i(t) + \frac{E_i}{E_\infty} \mathbf{L}_\infty : \left( e^{-\Delta t/\tau_i} - 1 \right) \Delta \boldsymbol{\varepsilon}
  * \f]
+ *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Bulk and Shear Decomposition:**
  *

@@ -49,24 +49,23 @@ namespace simcoon{
  *
  * The yield function is defined as:
  * \f[
- * \Phi(\boldsymbol{\stress}, \mathbf{X}, R) = \sigma_{eq}(\boldsymbol{\stress} - \mathbf{X}) - R - \sigma_Y \leq 0
+ * \Phi(\boldsymbol{\sigma}, \mathbf{X}, R) = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - R - \sigma_Y \leq 0
  * \f]
  * where:
  * - \f$ \sigma_{eq}(\boldsymbol{\eta}) = \sqrt{\frac{3}{2} \boldsymbol{\eta}_{dev} : \boldsymbol{\eta}_{dev}} \f$ is the von Mises equivalent stress
- * - \f$ \boldsymbol{\eta} = \boldsymbol{\stress} - \mathbf{X} \f$ is the shifted (effective) stress tensor
+ * - \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ is the shifted (effective) stress tensor
  * - \f$ \mathbf{X} = \sum_{i=1}^{N_{kin}} \mathbf{X}_i \f$ is the total backstress (sum of individual backstresses)
  * - \f$ R \f$ is the isotropic hardening stress
  * - \f$ \sigma_Y \f$ is the initial yield stress
  *
- * @note **Stress measure (small vs. finite strain).** In the infinitesimal setting
- * \f$ \boldsymbol{\sigma} \f$ is the Cauchy stress. For finite strain the same return mapping is
- * performed in a corotational frame, so \f$ \boldsymbol{\sigma} \f$ above denotes the corotational
- * stress delivered by the chosen objective rate -- the rotated Kirchhoff stress
- * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the frame
- * \f$ \mathcal{R} \f$ (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for Green--Naghdi and \f$ \log_R \f$,
- * the logarithmic frame for the XBM rate, \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$). The yield
- * function keeps its algebraic form; only which stress measure is transported into the frame is
- * rate-dependent.
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Armstrong-Frederick Backstress Evolution:**
  *
@@ -113,7 +112,7 @@ namespace simcoon{
  *
  * For an increment \f$ \Delta p \f$, the stress and backstresses are updated as:
  * \f[
- * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\stress}} : \boldsymbol{\stress} \right)
+ * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}^{trial} - \Delta p \left( \mathbf{L} : \mathbf{n} + \frac{\partial \mathbf{n}}{\partial \boldsymbol{\sigma}} : \boldsymbol{\sigma} \right)
  * \f]
  * \f[
  * \mathbf{X}_{i,n+1} = \mathbf{X}_{i,n} + \frac{2}{3} C_i \Delta \boldsymbol{\varepsilon}^p - D_i \mathbf{X}_{i,n} \Delta p

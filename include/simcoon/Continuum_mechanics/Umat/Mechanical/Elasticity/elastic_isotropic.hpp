@@ -48,17 +48,26 @@ namespace simcoon{
  *
  * The stress-strain relationship follows the generalized Hooke's law:
  * \f[
- * \boldsymbol{\stress} = \mathbf{L} : (\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{th})
+ * \boldsymbol{\sigma} = \mathbf{L} : (\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{th})
  * \f]
  *
  * where:
- * - \f$ \boldsymbol{\stress} \f$ is the stress tensor (Voigt notation)
+ * - \f$ \boldsymbol{\sigma} \f$ is the stress tensor (Voigt notation)
  * - \f$ \mathbf{L} \f$ is the fourth-order elastic stiffness tensor
  * - \f$ \boldsymbol{\varepsilon} \f$ is the total strain tensor
  * - \f$ \boldsymbol{\varepsilon}^{th} = \alpha (T - T_0) \mathbf{I} \f$ is the thermal strain
  * - \f$ \alpha \f$ is the coefficient of thermal expansion
  * - \f$ T \f$ is the current temperature
  * - \f$ T_0 \f$ is the reference temperature
+ *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Elastic Stiffness Tensor:**
  *
@@ -90,7 +99,7 @@ namespace simcoon{
  *
  * For an increment of strain \f$ \Delta \boldsymbol{\varepsilon} \f$:
  * \f[
- * \boldsymbol{\stress}_{n+1} = \boldsymbol{\stress}_n + \mathbf{L} : \left( \Delta \boldsymbol{\varepsilon} - \alpha \Delta T \mathbf{I} \right)
+ * \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}_n + \mathbf{L} : \left( \Delta \boldsymbol{\varepsilon} - \alpha \Delta T \mathbf{I} \right)
  * \f]
  *
  * **Tangent Modulus:**

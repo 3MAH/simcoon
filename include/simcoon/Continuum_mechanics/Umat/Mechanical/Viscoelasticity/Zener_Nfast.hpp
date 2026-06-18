@@ -80,9 +80,18 @@ namespace simcoon {
  *
  * The total stress is the sum of the equilibrium stress and internal stresses:
  * \f[
- * \boldsymbol{\stress} = \mathbf{L}_\infty : \boldsymbol{\varepsilon} + \sum_{i=1}^N \mathbf{q}_i
+ * \boldsymbol{\sigma} = \mathbf{L}_\infty : \boldsymbol{\varepsilon} + \sum_{i=1}^N \mathbf{q}_i
  * \f]
  * where \f$ \mathbf{q}_i \f$ are the internal stress-like variables for each Maxwell element.
+ *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Internal Variable Evolution:**
  *
