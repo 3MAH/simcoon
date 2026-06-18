@@ -24,9 +24,15 @@ jobs:
           - os: macos-latest
             sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
-            sys-package-install-command: vcpkg install armadillo
+            # Use conda-forge's prebuilt reference BLAS/LAPACK (no Fortran compiled on the
+            # runner) + armadillo, mirroring ci.yml / environment_win.yml. Avoids vcpkg's
+            # lapack-reference build, which LLVMFlang on the windows-2025 image cannot compile.
+            sys-package-install-command: |
+              & "$env:CONDA\Scripts\conda.exe" install -y -c conda-forge -c set3mah `
+                "libblas=*=*netlib" "liblapack=*=*netlib" armadillo
             setup-env-command: |
-              echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+              echo "CMAKE_PREFIX_PATH=$env:CONDA\Library" >> $env:GITHUB_ENV
+              "$env:CONDA\Library\bin" | Out-File $env:GITHUB_PATH -Append
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
