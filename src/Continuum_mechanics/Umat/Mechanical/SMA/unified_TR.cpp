@@ -30,7 +30,7 @@
 
 #include <iostream>
 #include <fstream>
-#include <assert.h>
+#include <stdexcept>
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
@@ -79,9 +79,8 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         aniso_criteria = true;
     }
     else {
-        cout << "Error: Unknown umat_name in umat_sma_unified_TR: " << umat_name << "\n";
-        cout << "Valid options: SMRDI, SMRDC, SMRAI, SMRAC\n";
-        exit(0);
+        throw std::invalid_argument("Unknown umat_name in umat_sma_unified_TR: '" + umat_name
+                                    + "'. Valid options: SMRDI, SMRDC, SMRAI, SMRAC.");
     }
 
     ///@brief Property offset depends on elastic symmetry type
@@ -200,7 +199,10 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         else                          sigmastar = 0.;
 
         double Hcurstar = Hmin + (Hmax - Hmin)*(1. - exp(-k1*sigmastar));
-        assert(Hcurstar > 1E-12);
+        if (Hcurstar <= 1E-12) {
+            throw std::runtime_error("umat_sma_unified_TR: degenerate Hcurstar <= 0 at "
+                                     "initialisation; check Hmin/Hmax/k1/sigmacaliber parameters.");
+        }
 
         double dHcurstar = (Hmax - Hmin)*k1*exp(-k1*sigmastar);
         rhoDs0 = -2.*C_M*C_A*(Hcurstar + sigmacaliber*(dHcurstar + (M_M(0,0)-M_A(0,0))))/(C_M+C_A);
@@ -236,7 +238,6 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // Variables values at the start of the increment
     vec stress_start = stress;
     vec ET_start = ET;
-    vec areo_start = areo;
     double xiF_start = xiF, xiR_start = xiR;
     // xi_start is the martensite volume fraction available for reorientation at the
     // start of this increment. It is the "existing" martensite that can be reoriented;
@@ -268,9 +269,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     vec lambdaTF = build_lambdaTF(stress);
 
     vec ETMean = zeros(6);
-    if (Mises_strain(ET) > 1E-6)              ETMean = dev(ET) / xi_safe(xi);
-    else if (Mises_stress(stress) < 1.E-6)     ETMean = lambdaTF;
-    else                                       ETMean = 0.*Ith();
+    if (Mises_strain(ET) > simcoon::precision_umat) ETMean = dev(ET) / xi_safe(xi);
+    else if (Mises_stress(stress) < 1.E-6)          ETMean = lambdaTF;
+    else                                            ETMean = 0.*Ith();
 
     vec lambdaTR = -1.*ETMean;
 
@@ -279,7 +280,6 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // is v^re (= `areo`). aF/aR were SmartPlus legacy artifacts and have been
     // removed: forward and reverse transformation use isotropic hardening only.
     vec X = HReo * (areo % Ir05());
-    vec X_start = HReo * (areo_start % Ir05());
 
     double a_eq = Mises_strain(areo);
     double lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
