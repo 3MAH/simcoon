@@ -86,10 +86,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      # vcpkg GitHub Actions binary cache (Windows only). The Windows wheel builds
+      # armadillo + openblas + clapack from source via vcpkg; clapack pulls its source
+      # from www.netlib.org, which times out intermittently and fails the whole job.
+      # Caching the built packages means a single successful build shields every later
+      # run — they restore the cached binaries instead of rebuilding/re-downloading.
+      # ACTIONS_CACHE_URL / *_RUNTIME_TOKEN / *_RESULTS_URL are not exposed to
+      # subprocesses by default, so export them for vcpkg's x-gha provider.
+      - name: Export GitHub Actions cache env for vcpkg (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3
         env:
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          # Read/write the vcpkg binary cache (Windows uses vcpkg; ignored elsewhere).
+          # Binary-cache errors are non-fatal warnings in vcpkg, so this never breaks a build.
+          VCPKG_BINARY_SOURCES: ${{ matrix.os == 'windows-latest' && 'clear;x-gha,readwrite' || '' }}
 
       - uses: actions/upload-artifact@v5
         with:
