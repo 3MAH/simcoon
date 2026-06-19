@@ -110,17 +110,17 @@ namespace simcoon{
  * | statev[2] | \f$ \varepsilon^p_{11} \f$ | Plastic strain component 11 | - |
  * | statev[3] | \f$ \varepsilon^p_{22} \f$ | Plastic strain component 22 | - |
  * | statev[4] | \f$ \varepsilon^p_{33} \f$ | Plastic strain component 33 | - |
- * | statev[5] | \f$ \varepsilon^p_{12} \f$ | Plastic strain component 12 (×2 in Voigt) | - |
- * | statev[6] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (×2 in Voigt) | - |
- * | statev[7] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (×2 in Voigt) | - |
+ * | statev[5] | \f$ \varepsilon^p_{12} \f$ | Plastic strain component 12 (\f$\times 2\f$ in Voigt) | - |
+ * | statev[6] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (\f$\times 2\f$ in Voigt) | - |
+ * | statev[7] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (\f$\times 2\f$ in Voigt) | - |
  *
  * @param umat_name Name of the constitutive model (EPICP)
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} \f$ (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -138,7 +138,7 @@ namespace simcoon{
  * @param start Flag indicating first increment (true) or continuation (false)
  * @param tnew_dt Suggested new time step size for adaptive time stepping [output]
  *
- * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (γ = 2ε)
+ * @note Voigt notation convention: [11, 22, 33, 12, 13, 23] with engineering shear strains (\f$\gamma = 2\varepsilon\f$)
  * @note The consistent tangent modulus Lt ensures quadratic convergence in implicit Newton-Raphson schemes
  * @note The tangent modulus Lt is always computed
  *

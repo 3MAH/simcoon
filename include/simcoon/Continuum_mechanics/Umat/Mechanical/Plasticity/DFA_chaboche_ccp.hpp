@@ -102,13 +102,13 @@ namespace simcoon{
  * | statev[8+6i:13+6i] | \f$ \mathbf{X}_i \f$ | Backstress i (Voigt) | Stress |
  * | statev[...] | \f$ H_{ij} \f$ | Evolving anisotropy components | - |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector
  * @param nstatev Number of state variables

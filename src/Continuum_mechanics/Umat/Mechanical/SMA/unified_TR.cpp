@@ -227,7 +227,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     }
 
     // Rotate strain-like internal variables. The back-strain accumulator areo
-    // store the same flow direction as the transformation/reorientation flow Λ_•
+    // store the same flow direction as the transformation/reorientation flow \Lambda_\bullet 
     // (gradient of Prager/Drucker stress potential), which has engineering shear
     // convention — they MUST rotate as strain (legacy SmartPlus used rotate_stress
     // by mistake, producing factor-2 errors on shears after any finite rotation).
@@ -242,8 +242,8 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // xi_start is the martensite volume fraction available for reorientation at the
     // start of this increment. It is the "existing" martensite that can be reoriented;
     // any new martensite formed by forward transformation in this increment forms
-    // already aligned with σ and does not need reorienting. xi_start is constant
-    // during the local Newton loop → no chain-rule contributions to K(2,F) or K(2,R).
+    // already aligned with \sigma and does not need reorienting. xi_start is constant
+    // during the local Newton loop -> no chain-rule contributions to K(2,F) or K(2,R).
     const double xi_start = xi;
 
     // xi-floor for divisions
@@ -344,7 +344,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // Increment accumulators (signed to match the energy bookkeeping convention)
     vec DETF = zeros(6);
-    vec DETR = zeros(6);  // stored as positive: DETR = +Σ ds_R · ETMean
+    vec DETR = zeros(6);  // stored as positive: DETR = +\sum ds_R \cdot ETMean
     vec DEReo = zeros(6);
 
     // Elastic prediction
@@ -367,7 +367,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     vec dPhiFdsigma    = zeros(6);
     double dPhiFdxiF = 0., dPhiFdxiR = 0., dPhiFdpTR = 0.;
 
-    // Reverse — only finite σ-gradients survive; K(1,·) uses the ETMean chain rule.
+    // Reverse — only finite \sigma -gradients survive; K(1,\cdot ) uses the ETMean chain rule.
     vec dPhihatRdsigma = zeros(6);
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0., dA_xiRdxiR = 0.;
@@ -379,8 +379,8 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // Reorientation — aF/aR are not part of the Chatziathanasiou framework
     // (only v^re = areo). dPhiReoda{F,R} and dPhiReodxi{F,R} are zero by
-    // construction with the thesis-aligned X = HReo·areo·Ir05.
-    double dlambda1Reo_arg = 0.;     // dλ₁Reo/d(a_eq/ETRmax)
+    // construction with the thesis-aligned X = HReo\cdot areo\cdot Ir05.
+    double dlambda1Reo_arg = 0.;     // d\lambda_1Reo/d(a_eq/ETRmax)
     vec dPhiReodsigma = zeros(6);
     vec dPhiReodareo = zeros(6);
     double dPhiReodpTR = 0.;
@@ -400,12 +400,12 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         DM_sig   = DM*stress;
         Dalpha_T = Dalpha*(T+DT);
 
-        // Hcur explicit (depends on σ)
+        // Hcur explicit (depends on \sigma )
         if (Mises_stress(stress) > sigmacrit) sigmastar = Mises_stress(stress) - sigmacrit;
         else                                  sigmastar = 0.;
         Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
 
-        // Re-evaluate flows at current σ, areo, λ₁Reo
+        // Re-evaluate flows at current \sigma , areo, \lambda_1Reo
         lambdaTF = build_lambdaTF(stress);
         lambdaTR = -1. * ETMean;
 
@@ -414,16 +414,16 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         X = HReo * (areo % Ir05());
         a_eq = Mises_strain(areo);
         // Saturation argument is the *intrinsic* (per-unit-martensite) ratio
-        // ‖v^re‖ / ETRmax, NOT ‖v^re‖ / (ξ·ETRmax). v^re is the per-unit back-strain
-        // (its evolution v̇^re = ṗ^re · Λ_V^re is intrinsic per the thesis); the
-        // macroscopic ε^re reads ξ·ε̄^re. Putting ξ in the denominator of the
+        // ||v^re|| / ETRmax, NOT ||v^re|| / (\xi \cdot ETRmax). v^re is the per-unit back-strain
+        // (its evolution \dot{v}^re = \dot{p}^re \cdot \Lambda_V^re is intrinsic per the thesis); the
+        // macroscopic \varepsilon^re reads \xi \cdot \bar{\varepsilon}^re. Putting \xi in the denominator of the
         // saturation argument (legacy SmartPlus form) makes the Lagrange penalty
-        // blow up when ξ → 0 even if ‖v^re‖ is tiny, producing astronomical
-        // σ_eff = σ − (1+1e20)·X garbage.
+        // blow up when \xi -> 0 even if ||v^re|| is tiny, producing astronomical
+        // \sigma_eff = \sigma - (1+1e20)\cdot X garbage.
         lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
         sigma_eff = stress - (1. + lambda1Reo) * X;
 
-        // Raw (per-unit-martensite) reorientation flow: Λ̄^re = dDrucker(σ_eff).
+        // Raw (per-unit-martensite) reorientation flow: \bar{\Lambda}^re = dDrucker(\sigma_eff).
         vec lambdaReo_raw;
         if (Mises_stress(sigma_eff) > simcoon::iota) {
             if (aniso_criteria) {
@@ -434,23 +434,23 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         } else {
             lambdaReo_raw = zeros(6);
         }
-        // Thesis §4 (eq 503): the macroscopic flow contributing to ε^T from
-        // reorientation is ξ-scaled — Λ_ε^re = ξ · Λ̄^re — because it only
+        // Thesis §4 (eq 503): the macroscopic flow contributing to \varepsilon^T from
+        // reorientation is \xi -scaled — \Lambda_\varepsilon^re = \xi \cdot \bar{\Lambda}^re — because it only
         // moves the variant orientation in the pre-existing martensite of
-        // volume ξ. The back-strain flow Λ_V^re = Λ̄^re is NOT ξ-scaled: the
+        // volume \xi . The back-strain flow \Lambda_V^re = \bar{\Lambda}^re is NOT \xi -scaled: the
         // back-stress tracks the intrinsic reorientation history within the
-        // martensite domain, evolving per unit of ṗ^re regardless of how much
-        // martensite there is. Criterion gradient ∂Phi^re/∂σ also stays
+        // martensite domain, evolving per unit of \dot{p}^re regardless of how much
+        // martensite there is. Criterion gradient \partial Phi^re/\partial \sigma also stays
         // un-scaled (it's just the stress gradient of the yield function).
-        // This asymmetric structure keeps B(2,2) finite at ξ=0 through the
+        // This asymmetric structure keeps B(2,2) finite at \xi =0 through the
         // K(2,2) entry from the back-strain channel.
-        lambdaReo   = xi_start * lambdaReo_raw;   // macroscopic flow into ε^T
-        etaReo      = lambdaReo_raw;              // ∂Phi^re/∂σ — un-scaled
+        lambdaReo   = xi_start * lambdaReo_raw;   // macroscopic flow into \varepsilon^T
+        etaReo      = lambdaReo_raw;              // \partial Phi^re/\partial \sigma — un-scaled
         lambda_areo = lambdaReo_raw;              // back-strain v^re evolution — un-scaled
 
         kappa_j[0] = L*(lambdaTF  + DM_sig + Dalpha_T);
         kappa_j[1] = L*(lambdaTR  - DM_sig - Dalpha_T);
-        kappa_j[2] = L*(lambdaReo);   // ξ-scaled — vanishes at ξ=0 as it should
+        kappa_j[2] = L*(lambdaReo);   // \xi -scaled — vanishes at \xi =0 as it should
 
         // Hardening
         compute_Hf(xi, HfF, HfR);
@@ -470,11 +470,11 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;
 
         // Reorientation criterion (Chatziathanasiou thesis eq 664, Form B):
-        //   Phi^re = Drucker(σ − (1+λ₁Reo)·X) − Y^re        (UN-scaled in ξ)
-        // No ξ multiplier on the criterion — the yield condition is per unit
-        // martensite volume. The ξ-scaling lives in the macroscopic flow
-        // (Λ_ε^re = ξ · Λ̄^re, applied above to lambdaReo and kappa_j[2]).
-        // At ξ_start = 0, κ_2 = 0 so Phi^re cannot be driven down through σ,
+        //   Phi^re = Drucker(\sigma - (1+\lambda_1Reo)\cdot X) - Y^re        (UN-scaled in \xi )
+        // No \xi multiplier on the criterion — the yield condition is per unit
+        // martensite volume. The \xi -scaling lives in the macroscopic flow
+        // (\Lambda_\varepsilon^re = \xi \cdot \bar{\Lambda}^re, applied above to lambdaReo and kappa_j[2]).
+        // At \xi_start = 0, \kappa_2 = 0 so Phi^re cannot be driven down through \sigma ,
         // but it can still be driven down by growing v^re (the un-scaled
         // back-strain channel) — which is the correct physical statement:
         // the kinematic back-strain tracks the intrinsic reorientation
@@ -493,7 +493,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         else if ((xi > 0.) && ((1. - xi) > 0.))        dHfR = 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
         else                                            dHfR = 1.E12;
 
-        // d(Hcur)/dσ
+        // d(Hcur)/d\sigma 
         dHcurdsigma = k1*(Hmax - Hmin)*exp(-1.*k1*sigmastar)*eta_stress(stress);
 
         // ---- Forward derivatives ----
@@ -527,60 +527,60 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         dPhiRdpTR = 0.;
 
         // Phi_R partial w.r.t. ETMean is well-defined and finite:
-        // Phi_R = -σ:ETMean + A_xiR + λ_0 - YtR, with YtR = Y0t + D·σ:ETMean.
-        // ⇒ ∂Phi_R/∂ETMean = -(1+D)·σ
+        // Phi_R = -\sigma :ETMean + A_xiR + \lambda_0 - YtR, with YtR = Y0t + D\cdot \sigma :ETMean.
+        // => \partial Phi_R/\partial ETMean = -(1+D)\cdot \sigma 
         const vec dPhiRdETMean = -(1. + D) * stress;
-        // "Finite" Phi_R partials w.r.t. ξ (only the hardening + Lagrange-penalty
-        // pieces; the σ:dev(ε^T)/ξ = σ:ETMean parts that would otherwise blow up
-        // as ξ→0 are absorbed into the Λ_ETMean chain-rule contributions below).
-        const double dPhiRdxi_finite_F =  dA_xiRdxiF + dlambda0dxiF;   //  +dHfR  - dλ_0/dξ
-        const double dPhiRdxi_finite_R =  dA_xiRdxiR + dlambda0dxiR;   //  -dHfR  + dλ_0/dξ
+        // "Finite" Phi_R partials w.r.t. \xi (only the hardening + Lagrange-penalty
+        // pieces; the \sigma :dev(\varepsilon^T)/\xi = \sigma :ETMean parts that would otherwise blow up
+        // as \xi ->0 are absorbed into the \Lambda_ETMean chain-rule contributions below).
+        const double dPhiRdxi_finite_F =  dA_xiRdxiF + dlambda0dxiF;   //  +dHfR  - d\lambda_0/d\xi 
+        const double dPhiRdxi_finite_R =  dA_xiRdxiR + dlambda0dxiR;   //  -dHfR  + d\lambda_0/d\xi 
         // The legacy dPhiRdET and dPhihatRdxiF symbols are no longer assembled
-        // here — K(1,·) is built directly from dPhiRdETMean · Λ_ETMean^j below
-        // to avoid the +(1+D)·σ:ETMean/ξ − (1+D)·σ:Λ_ε^j/ξ = (finite) cancellation
-        // that loses ~12 digits at ξ ≈ 1e-12.
+        // here — K(1,\cdot ) is built directly from dPhiRdETMean \cdot \Lambda_ETMean^j below
+        // to avoid the +(1+D)\cdot \sigma :ETMean/\xi - (1+D)\cdot \sigma :\Lambda_\varepsilon^j/\xi = (finite) cancellation
+        // that loses ~12 digits at \xi \approx 1e-12.
 
         // ---- Reorientation derivatives (Form B, consistent linearisation) ----
-        // Saturation argument: ‖v^re‖/ETRmax (intrinsic, no ξ).
+        // Saturation argument: ||v^re||/ETRmax (intrinsic, no \xi ).
         dlambda1Reo_arg = dlagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
-        const double eta_dot_X = sum(etaReo % X);                  // η_Reo : X (tensor double contraction)
+        const double eta_dot_X = sum(etaReo % X);                  // \eta_Reo : X (tensor double contraction)
         const vec   eta_strain_areo = (a_eq > simcoon::iota) ? eta_strain(areo) : zeros(6);
 
-        // dλ₁Reo/dareo = dλ₁Reo/d(arg) · (1/ETRmax) · η_strain(areo)
+        // d\lambda_1Reo/dareo = d\lambda_1Reo/d(arg) \cdot (1/ETRmax) \cdot \eta_strain(areo)
         const vec dlambda1Reo_dareo = dlambda1Reo_arg * (1./ETRmax) * eta_strain_areo;
 
         dPhiReodsigma = etaReo;
 
-        // ∂Φ^re/∂areo = -(1+λ₁)·H^Reo·(η_Reo ⊙ Ir05)  -  (η_Reo:X)·dλ₁Reo/dareo
+        // \partial \Phi^re/\partial areo = -(1+\lambda_1)\cdot H^Reo\cdot (\eta_Reo \odot Ir05)  -  (\eta_Reo:X)\cdot d\lambda_1Reo/dareo
         dPhiReodareo = -(1. + lambda1Reo) * HReo * (etaReo % Ir05())
                        - eta_dot_X * dlambda1Reo_dareo;
 
-        // Saturation argument no longer depends on ξ ⇒ dλ₁Reo/dξ_{F,R} = 0.
+        // Saturation argument no longer depends on \xi => d\lambda_1Reo/d\xi_{F,R} = 0.
         dPhiReodpTR = 0.;
 
-        // ---- Assemble K (state-coupling block, excluding the σ-flow term) ----
-        // mech 0 (forward) evolves ξ^F (+1 in ξ), ε^F via lambdaTF
-        // mech 1 (reverse) evolves ξ^R (-1 in ξ), ε^R via lambdaTR
-        // mech 2 (reorient.) evolves pTR (+1), ε^re_macro = ξ·Λ̄^re into ε^T,
-        //                    EReo via lambdaReo (= ξ·Λ̄^re), areo via Λ̄^re
-        // ε^T is shared by all mechanisms; the chain rule for row 1 routes
-        // through ETMean as the natural intermediate (see K(1,·) below).
+        // ---- Assemble K (state-coupling block, excluding the \sigma -flow term) ----
+        // mech 0 (forward) evolves \xi^F (+1 in \xi ), \varepsilon^F via lambdaTF
+        // mech 1 (reverse) evolves \xi^R (-1 in \xi ), \varepsilon^R via lambdaTR
+        // mech 2 (reorient.) evolves pTR (+1), \varepsilon^re_macro = \xi \cdot \bar{\Lambda}^re into \varepsilon^T,
+        //                    EReo via lambdaReo (= \xi \cdot \bar{\Lambda}^re), areo via \bar{\Lambda}^re
+        // \varepsilon^T is shared by all mechanisms; the chain rule for row 1 routes
+        // through ETMean as the natural intermediate (see K(1,\cdot ) below).
         K(0,0) = dPhiFdxiF;
         K(0,1) = dPhiFdxiR;
         K(0,2) = dPhiFdpTR;
 
-        // ---- K(1,·) via Λ_ETMean^j chain rule (no σ/ξ blow-up) ----
-        // For a mechanism j with kinetic flow Λ_ε^j and ξ-growth rate Λ_ξ^j,
-        // the rate of change of ETMean = dev(ε^T)/ξ is
-        //   Λ_ETMean^j = (dev(Λ_ε^j) − Λ_ξ^j · ETMean) / ξ
+        // ---- K(1,\cdot ) via \Lambda_ETMean^j chain rule (no \sigma /\xi blow-up) ----
+        // For a mechanism j with kinetic flow \Lambda_\varepsilon^j and \xi -growth rate \Lambda_\xi^j,
+        // the rate of change of ETMean = dev(\varepsilon^T)/\xi is
+        //   \Lambda_ETMean^j = (dev(\Lambda_\varepsilon^j) - \Lambda_\xi^j \cdot ETMean) / \xi 
         // Closed forms:
-        //   Λ_ETMean^F  = (Λ_ε^F − ETMean)/ξ        (Λ_ε^F deviatoric, Λ_ξ^F = +1)
-        //   Λ_ETMean^R  = 0                          (Λ_ε^R = −ETMean, Λ_ξ^R = −1: cancels)
-        //   Λ_ETMean^re = Λ̄^re                      (Λ_ε^re_macro = ξ·Λ̄^re, Λ_ξ^re = 0)
-        // The ETMean fallback (= lambdaTF when ε^T and ξ are both small) makes
-        // (Λ_ε^F − ETMean) = 0 identically there, so Λ_ETMean^F = 0/0 → 0 in
-        // floating point as long as we don't actually divide by ξ when both
-        // numerator and ξ are below their respective floors.
+        //   \Lambda_ETMean^F  = (\Lambda_\varepsilon^F - ETMean)/\xi (\Lambda_\varepsilon^F deviatoric, \Lambda_\xi^F = +1)
+        //   \Lambda_ETMean^R  = 0                          (\Lambda_\varepsilon^R = -ETMean, \Lambda_\xi^R = -1: cancels)
+        //   \Lambda_ETMean^re = \bar{\Lambda}^re                      (\Lambda_\varepsilon^re_macro = \xi \cdot \bar{\Lambda}^re, \Lambda_\xi^re = 0)
+        // The ETMean fallback (= lambdaTF when \varepsilon^T and \xi are both small) makes
+        // (\Lambda_\varepsilon^F - ETMean) = 0 identically there, so \Lambda_ETMean^F = 0/0 -> 0 in
+        // floating point as long as we don't actually divide by \xi when both
+        // numerator and \xi are below their respective floors.
         vec Lambda_ETMean_F = zeros(6);
         if (Mises_strain(lambdaTF - ETMean) > simcoon::iota) {
             Lambda_ETMean_F = (lambdaTF - ETMean) / xi_div;
@@ -591,14 +591,14 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         K(1,1) = dPhiRdxi_finite_R + sum(dPhiRdETMean % Lambda_ETMean_R);
         K(1,2) = dPhiRdpTR        + sum(dPhiRdETMean % Lambda_ETMean_re);
 
-        // K(2,F) = K(2,R) = 0 by construction: Φ^re depends on internal state
-        // only through areo (via X) and σ; aF and aR are not in the model, and
-        // ξ no longer appears in the saturation argument after the v^re fix.
+        // K(2,F) = K(2,R) = 0 by construction: \Phi^re depends on internal state
+        // only through areo (via X) and \sigma ; aF and aR are not in the model, and
+        // \xi no longer appears in the saturation argument after the v^re fix.
         K(2,0) = 0.;
         K(2,1) = 0.;
         K(2,2) = dPhiReodpTR + sum(dPhiReodareo % lambda_areo);
 
-        // ---- Build B = -∂Φ:κ + K  (Bhat in the helper convention is +∂Φ:κ − K) ----
+        // ---- Build B = -\partial \Phi :\kappa + K  (Bhat in the helper convention is +\partial \Phi :\kappa - K) ----
         for (int l = 0; l < 3; ++l) {
             const vec& dPhi = (l == 0 ? dPhiFdsigma : (l == 1 ? dPhiRdsigma : dPhiReodsigma));
             for (int j = 0; j < 3; ++j) {
@@ -628,7 +628,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         xi  = xi + ds_j(0) - ds_j(1);
 
         DETF  += ds_j(0)*lambdaTF;
-        DETR  += -1.*ds_j(1)*lambdaTR;   // DETR stored positive (DETR = +Σ ds_R · ETMean)
+        DETR  += -1.*ds_j(1)*lambdaTR;   // DETR stored positive (DETR = +\sum ds_R \cdot ETMean)
         DEReo += ds_j(2)*lambdaReo;
 
         if ((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat)) {
@@ -662,8 +662,8 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // ---- Energy partition (SMA: Wm_ir is always 0; everything is either recoverable or dissipated) ----
     // Back-strain accumulators (aF, aR, areo) are kinematic *history* variables that only
-    // shift the reorientation criterion — they do NOT store energy in the free energy ψ, so
-    // there are no X:Δa contributions. Partition mirrors umat_sma_unified_T extended with
+    // shift the reorientation criterion — they do NOT store energy in the free energy \psi , so
+    // there are no X:\Delta a contributions. Partition mirrors umat_sma_unified_T extended with
     // the reorientation strain increment.
     double DxiF = Ds_j[0];
     double DxiR = Ds_j[1];

@@ -90,11 +90,11 @@ namespace simcoon{
  * | props[6] | \f$ \alpha_T \f$ | Transverse CTE | 1/Temperature |
  *
  * **Typical Values (UD Carbon/Epoxy):**
- * - \f$ E_L \f$ ≈ 140 GPa
- * - \f$ E_T \f$ ≈ 10 GPa
- * - \f$ \nu_{LT} \f$ ≈ 0.3
- * - \f$ \nu_{TT} \f$ ≈ 0.4
- * - \f$ G_{LT} \f$ ≈ 5 GPa
+ * - \f$ E_L \approx 140 \f$ GPa
+ * - \f$ E_T \approx 10 \f$ GPa
+ * - \f$ \nu_{LT} \approx 0.3 \f$
+ * - \f$ \nu_{TT} \approx 0.4 \f$
+ * - \f$ G_{LT} \approx 5 \f$ GPa
  *
  * **State Variables (statev):**
  *
@@ -103,12 +103,12 @@ namespace simcoon{
  * | statev[0] | \f$ T_{init} \f$ | Initial/reference temperature | Temperature |
  *
  * @param umat_name Name of the constitutive model (ELIST)
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1)
- * @param stress Stress tensor [output] (Voigt notation: 6×1)
- * @param Lt Tangent modulus (= L for linear elasticity) [output] (6×6)
- * @param L Elastic stiffness tensor [output] (6×6)
- * @param DR Rotation increment matrix (3×3)
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$)
+ * @param stress Stress tensor [output] (Voigt notation: \f$6 \times 1\f$)
+ * @param Lt Tangent modulus (= L for linear elasticity) [output] (\f$6 \times 6\f$)
+ * @param L Elastic stiffness tensor [output] (\f$6 \times 6\f$)
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$)
  * @param nprops Number of material properties (7)
  * @param props Material properties vector
  * @param nstatev Number of state variables (1)

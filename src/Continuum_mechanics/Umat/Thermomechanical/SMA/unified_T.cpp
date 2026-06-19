@@ -374,9 +374,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double dPhiFdxiR = 0.;
 
     //Relative to reverse transformation. See the matching block in the mechanical
-    //unified_T.cpp for why the σ/ξ-divergent dPhihatRd{xi,ET} and dYtRd{xi,ET}
-    //legacy variables are not assembled — the K(1,·) chain rule below uses
-    //ETMean as the natural intermediate and stays finite at ξ→0.
+    //unified_T.cpp for why the \sigma /\xi -divergent dPhihatRd{xi,ET} and dYtRd{xi,ET}
+    //legacy variables are not assembled — the K(1,\cdot ) chain rule below uses
+    //ETMean as the natural intermediate and stays finite at \xi ->0.
     vec dPhihatRdsigma = zeros(6);
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0.;
@@ -538,8 +538,8 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
 
-        // K(1,·) via Λ_ETMean^j chain rule — avoids the floating-point cancellation
-        // between dPhiRdxiF and sum(dPhiRdET·lambdaTF) at small ξ. See the matching
+        // K(1,\cdot ) via \Lambda_ETMean^j chain rule — avoids the floating-point cancellation
+        // between dPhiRdxiF and sum(dPhiRdET\cdot lambdaTF) at small \xi . See the matching
         // comment block in the mechanical unified_T.cpp for the full derivation.
         const vec dPhiRdETMean = -(1. + D) * sigma;
         vec Lambda_ETMean_F = zeros(6);
@@ -547,8 +547,8 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
             Lambda_ETMean_F = (lambdaTF - ETMean) / xi;
         }
         const vec Lambda_ETMean_R = zeros(6);
-        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR − dλ_0/dξ
-        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = −dHfR + dλ_0/dξ
+        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR - d\lambda_0/d\xi 
+        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = -dHfR + d\lambda_0/d\xi 
 
         K(0,0) = dPhiFdxiF;
         K(0,1) = dPhiFdxiR;

@@ -107,7 +107,7 @@ namespace simcoon{
  *
  * **Damage Evolution Laws:**
  *
- * **Transverse Damage (d₂₂):**
+ * **Transverse Damage (\f$d_{22}\f$):**
  * \f[
  * \dot{d}_{22} = \begin{cases}
  * 0 & \text{if } Y_{22} < Y_{22,0} \\
@@ -121,7 +121,7 @@ namespace simcoon{
  * - \f$ Y_{22,u} \f$ is the ultimate energy release rate (failure)
  * - \f$ b \f$ is the damage evolution exponent
  *
- * **Shear Damage (d₁₂):**
+ * **Shear Damage (\f$d_{12}\f$):**
  * \f[
  * \dot{d}_{12} = \begin{cases}
  * 0 & \text{if } Y_{12} < Y_{12,0} \\
@@ -191,13 +191,13 @@ namespace simcoon{
  * | statev[8] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (engineering) | Strain |
  * | statev[9] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (engineering) | Strain |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param L Damaged elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param L Damaged elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -221,8 +221,8 @@ namespace simcoon{
  * @note The model does NOT account for fiber failure (compression/tension in direction 1)
  * @note Suitable for matrix-dominated failure modes: transverse cracking, delamination
  * @note Parameter identification requires multiple test configurations:
- * @note - Transverse tension for d₂₂ parameters
- * @note - In-plane shear for d₁₂ parameters
+ * @note - Transverse tension for \f$d_{22}\f$ parameters
+ * @note - In-plane shear for \f$d_{12}\f$ parameters
  * @note - Off-axis tests for plasticity coupling
  * @note Convergence requires small load steps once damage initiates
  * @note Material axes must be properly oriented relative to global coordinates

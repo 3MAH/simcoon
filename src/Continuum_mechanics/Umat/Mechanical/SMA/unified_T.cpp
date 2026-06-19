@@ -380,11 +380,11 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double dPhiFdxiF = 0.;
     double dPhiFdxiR = 0.;
 
-    //Relative to reverse transformation. The K(1,·) chain rule (built below
+    //Relative to reverse transformation. The K(1,\cdot ) chain rule (built below
     //through ETMean as the natural intermediate variable) does not need
     //dPhihatRdET, dYtRdET, dPhihatRdxi or dPhiRdxi / dPhiRdET — those would
-    //carry σ/ξ-divergent terms that cancel analytically but lose ~12 digits
-    //in floating point. Only the finite σ-gradients survive here.
+    //carry \sigma /\xi -divergent terms that cancel analytically but lose ~12 digits
+    //in floating point. Only the finite \sigma -gradients survive here.
     vec dPhihatRdsigma = zeros(6);
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0.;
@@ -554,29 +554,29 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
 
-        // K(1,·) via Λ_ETMean^j chain rule — avoids the floating-point cancellation
-        // between dPhiRdxiF (∝ +(1+D)·σ:ETMean/ξ) and sum(dPhiRdET·lambdaTF)
-        // (∝ −(1+D)·σ:lambdaTF/ξ) which are analytically equal-and-opposite at
-        // small ξ when ETMean fallback is lambdaTF, but lose ~12 significant
-        // digits in IEEE 754 when ξ ≈ 1e-12. Reformulation through the natural
-        // intermediate variable ETMean = dev(ε^T)/ξ:
-        //   K(1, j) = ∂Φ^R/∂ETMean · Λ_ETMean^j  +  ∂Φ^R/∂ξ|finite · dξ/dξ_j
-        //   ∂Φ^R/∂ETMean = -(1+D)·σ                                (finite)
-        //   Λ_ETMean^F  = (lambdaTF − ETMean)/ξ                    (finite — zero
+        // K(1,\cdot ) via \Lambda_ETMean^j chain rule — avoids the floating-point cancellation
+        // between dPhiRdxiF (\propto +(1+D)\cdot \sigma :ETMean/\xi ) and sum(dPhiRdET\cdot lambdaTF)
+        // (\propto -(1+D)\cdot \sigma :lambdaTF/\xi ) which are analytically equal-and-opposite at
+        // small \xi when ETMean fallback is lambdaTF, but lose ~12 significant
+        // digits in IEEE 754 when \xi \approx 1e-12. Reformulation through the natural
+        // intermediate variable ETMean = dev(\varepsilon^T)/\xi :
+        //   K(1, j) = \partial \Phi^R/\partial ETMean \cdot \Lambda_ETMean^j  +  \partial \Phi^R/\partial \xi |finite \cdot d\xi /d\xi_j
+        //   \partial \Phi^R/\partial ETMean = -(1+D)\cdot \sigma (finite)
+        //   \Lambda_ETMean^F  = (lambdaTF - ETMean)/\xi (finite — zero
         //                  when ETMean fallback = lambdaTF)
-        //   Λ_ETMean^R  = 0                                        (reverse removes
+        //   \Lambda_ETMean^R  = 0                                        (reverse removes
         //                  martensite proportionally; mean unchanged)
-        //   ∂Φ^R/∂ξ|finite = dHfR + dλ_0/dξ                       (hardening only;
-        //                     the σ:ETMean/ξ part of dPhihatRdxi is absorbed
-        //                     into the Λ_ETMean chain-rule contribution)
+        //   \partial \Phi^R/\partial \xi |finite = dHfR + d\lambda_0/d\xi (hardening only;
+        //                     the \sigma :ETMean/\xi part of dPhihatRdxi is absorbed
+        //                     into the \Lambda_ETMean chain-rule contribution)
         const vec dPhiRdETMean = -(1. + D) * stress;
         vec Lambda_ETMean_F = zeros(6);
         if (Mises_strain(lambdaTF - ETMean) > simcoon::iota) {
             Lambda_ETMean_F = (lambdaTF - ETMean) / xi;
         }
         const vec Lambda_ETMean_R = zeros(6);
-        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR − dλ_0/dξ
-        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = −dHfR + dλ_0/dξ
+        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR - d\lambda_0/d\xi 
+        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = -dHfR + d\lambda_0/d\xi 
 
         K(0,0) = dPhiFdxiF;
         K(0,1) = dPhiFdxiR;

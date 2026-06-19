@@ -133,12 +133,12 @@ namespace simcoon{
  * Total state variables required: \f$ n_{statev} = 1 \f$
  *
  * @param umat_name Name of the constitutive model (ELISO)
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -184,7 +184,7 @@ namespace simcoon{
  *                     3, props, 1, statev, 25.0, 5.0, 0.0, 1.0,
  *                     Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
  *
- * // Expected stress: stress(0) ≈ E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
+ * // Expected stress: stress(0) ~= E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
  * @endcode
  *
  * **References:**

@@ -109,12 +109,12 @@ namespace simcoon{
  *
  * **Transformation Criteria:**
  *
- * **Forward Transformation (A → M_n):**
+ * **Forward Transformation (\f$A \to M_n\f$):**
  * \f[
  * \Phi_n^{fwd} = F_n - F_c^{fwd} \leq 0, \quad \dot{f}_n \geq 0
  * \f]
  *
- * **Reverse Transformation (M_n → A):**
+ * **Reverse Transformation (\f$M_n \to A\f$):**
  * \f[
  * \Phi_n^{rev} = -F_n - F_c^{rev} \leq 0, \quad \dot{f}_n \leq 0
  * \f]
@@ -139,9 +139,9 @@ namespace simcoon{
  * **Number of Variants:**
  *
  * Common crystallographic systems:
- * - Cubic → Orthorhombic: N = 6 variants
- * - Cubic → Monoclinic (NiTi): N = 12 or 24 variants
- * - Cubic → Tetragonal: N = 3 variants
+ * - Cubic \f$\to\f$ Orthorhombic: N = 6 variants
+ * - Cubic \f$\to\f$ Monoclinic (NiTi): N = 12 or 24 variants
+ * - Cubic \f$\to\f$ Tetragonal: N = 3 variants
  *
  * **Material Parameters (props):**
  *
@@ -192,12 +192,12 @@ namespace simcoon{
  * \f$ \boldsymbol{\varepsilon}^{tr} = \sum_{n=1}^{N} f_n \boldsymbol{\varepsilon}^{tr}_n \f$
  *
  * @param umat_name Name of the constitutive model (SMAMO, SMAMC, SMAOT, SMATI)
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Cauchy stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Cauchy stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (layout depends on umat_name)
  * @param nstatev Number of state variables (includes N variant volume fractions)

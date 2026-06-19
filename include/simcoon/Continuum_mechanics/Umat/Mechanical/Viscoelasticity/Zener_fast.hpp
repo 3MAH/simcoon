@@ -123,13 +123,13 @@ namespace simcoon {
  * | Index | Symbol | Description | Units |
  * |-------|--------|-------------|-------|
  * | statev[0] | \f$ T_{init} \f$ | Initial temperature | Temperature |
- * | statev[1:6] | \f$ \mathbf{q} \f$ | Internal stress-like variable (Voigt 6×1) | Stress |
+ * | statev[1:6] | \f$ \mathbf{q} \f$ | Internal stress-like variable (Voigt \f$6 \times 1\f$) | Stress |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables

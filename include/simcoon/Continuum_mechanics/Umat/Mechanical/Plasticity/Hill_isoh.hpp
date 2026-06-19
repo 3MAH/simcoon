@@ -162,12 +162,12 @@ namespace simcoon {
  * | props[3] | \f$ \sigma_Y \f$ | Initial yield stress | Stress | 100-1000 MPa |
  * | props[4] | \f$ k \f$ | Hardening coefficient | Stress | 100-2000 MPa |
  * | props[5] | \f$ m \f$ | Hardening exponent | - | 0.05-0.5 |
- * | props[6] | \f$ F \f$ | Hill parameter F | 1/Stress² | 0-10 |
- * | props[7] | \f$ G \f$ | Hill parameter G | 1/Stress² | 0-10 |
- * | props[8] | \f$ H \f$ | Hill parameter H | 1/Stress² | 0-10 |
- * | props[9] | \f$ L \f$ | Hill parameter L | 1/Stress² | 0-10 |
- * | props[10] | \f$ M \f$ | Hill parameter M | 1/Stress² | 0-10 |
- * | props[11] | \f$ N \f$ | Hill parameter N | 1/Stress² | 0-10 |
+ * | props[6] | \f$ F \f$ | Hill parameter F | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
+ * | props[7] | \f$ G \f$ | Hill parameter G | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
+ * | props[8] | \f$ H \f$ | Hill parameter H | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
+ * | props[9] | \f$ L \f$ | Hill parameter L | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
+ * | props[10] | \f$ M \f$ | Hill parameter M | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
+ * | props[11] | \f$ N \f$ | Hill parameter N | \f$1/\mathrm{Stress}^2\f$ | 0-10 |
  *
  * **Constraint on Hill Parameters:**
  * - For physical consistency: \f$ F + G + H > 0 \f$
@@ -189,11 +189,11 @@ namespace simcoon {
  * | statev[6] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (engineering) | Strain |
  * | statev[7] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (engineering) | Strain |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables

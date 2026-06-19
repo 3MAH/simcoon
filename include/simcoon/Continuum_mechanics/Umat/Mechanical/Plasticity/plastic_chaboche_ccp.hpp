@@ -182,13 +182,13 @@ namespace simcoon{
  *
  * For \f$ N_{kin} = 2 \f$ backstresses: \f$ n_{statev} = 1 + 1 + 6 + 12 = 20 \f$
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param stress Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -214,7 +214,7 @@ namespace simcoon{
  * @note The model assumes small strains (< 10%); use updated Lagrangian for larger strains
  * @note Dynamic recovery (D > 0) prevents unbounded backstress growth under cycling
  *
- * @see Ireal() for real identity tensor (Voigt 6×6)
+ * @see Ireal() for real identity tensor (Voigt \f$6 \times 6\f$)
  * @see Idev() for deviatoric projection tensor
  * @see Fischer_Burmeister() for complementarity solver
  * @see eta_stress() for shifted stress computation
