@@ -424,16 +424,17 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
                                         if(corate_type == 5) {
-                                            // Naive log_F (comparison baseline): the Hencky (int D) increment AND the frame
-                                            // both come from the log_F framework. corate 3's orthogonal B^R correction DR_N
-                                            // is replaced by the CONVECTED increment DF = F1 F0^-1, applied with inv (F^-1),
-                                            // NOT transpose -- F is not orthogonal. The basis stretches/shears, so components
-                                            // grow and the frame degenerates under shear (the SVK/metric pathology). Not a
-                                            // usable rate; it exposes the naive convected behaviour for comparison with log_R.
+                                            // log_F: De = A^F:D, the upper-convected (Oldroyd/Lie) rate of ln V (strain-
+                                            // concentration tensor A^F), integrated over the convected frame -- the frame
+                                            // increment DF = F1 F0^-1 is applied with inv (F^-1), NOT transpose, since F is
+                                            // not orthogonal. A^F is indefinite past lambda=sqrt(e): the genuine convected/
+                                            // SVK character of log_F (the basis stretches/shears and the frame degenerates
+                                            // under shear), now carried by the exact symmetric A^F:D rate rather than the
+                                            // crude 1/2(D + DF D DF^-1) push. The reference comparison for log_R.
                                             mat Lvel;
                                             logarithmic_F(sv_M->DR, N_1, N_2, D, Lvel, DTime, sv_M->F0, sv_M->F1); // sv_M->DR = DF
                                             mat DF = sv_M->DR;
-                                            sv_M->Detot       = t2v_strain(Delta_log_strain_F(D, Lvel, DTime));            // log_F inv-midpoint increment
+                                            sv_M->Detot       = t2v_strain(Delta_log_strain_F(v2t_strain(A_F(sv_M->F1)*t2v_strain(D)), Lvel, DTime)); // A^F:D = upper-convected (Oldroyd) rate of ln V, convected midpoint
                                             sv_M->etot        = t2v_strain(DF * v2t_strain(sv_M->etot)        * inv(DF));  // DF correction: inv, NOT transpose
                                             sv_M->sigma_start = t2v_stress(DF * v2t_stress(sv_M->sigma_start) * inv(DF));
                                             sv_M->Detot       = t2v_strain(DF * v2t_strain(sv_M->Detot)       * inv(DF));

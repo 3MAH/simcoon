@@ -36,8 +36,6 @@ natural_basis::natural_basis()
     g0i.resize(3);  // Contravariant Vectors
 
     // Default to the undeformed (Cartesian) natural basis: g_i = e_i, metric = identity.
-    // This makes U() = R() = I, so any consumer that does not call from_F (small strain,
-    // log_R) sees no convection -- a safe, neutral default rather than a singular zero metric.
     for (unsigned int i=0; i<3; i++) {
         g_i[i] = zeros(3);
         g_i[i](i) = 1.;

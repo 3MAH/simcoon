@@ -362,19 +362,25 @@ mat get_BBBB_GN(const mat &F1) {
     return BBBB;
 }
 
-// log-strain corrector B^R (rotated / log_R): geometric-mean weighting of the logarithmic
-// Daleckii-Krein kernel. In the eigenbasis of B = F F^T (eigenvalues b_a = lambda_a^2), with
-// t = ln(lambda_i/lambda_j) = 1/2 ln(b_i/b_j):  B^R_ij = t/sinh(t)  (B^R_ii = 1, the t->0 limit).
-// Self-adjoint and positive definite at every stretch (= Hoger's tangent pushed forward by R).
-mat B_R(const mat &F) {
+// Strain-concentration tensor A^R (rotated / log_R frame): maps the rate of deformation to the
+// R-corotational rate of the spatial Hencky strain, De = A^R : D. Geometric-mean weighting of the
+// logarithmic Daleckii-Krein kernel: in the eigenbasis of B = F F^T (eigenvalues b_a = lambda_a^2),
+// with t = 1/2 ln(b_i/b_j) = ln(lambda_i/lambda_j), the spectral coefficients are A^R_ij = t/sinh(t)
+// (-> 1 on the diagonal), strictly positive at every stretch so A^R is always invertible
+// (= Hoger's tangent pushed forward by R). Returned in the ENGINEERING strain-concentration Voigt
+// convention -- A^R(I) = I_6, rotating as ve.A^R.vs^T like apply_strain_concentration -- so it is
+//   applied   as  De = v2t_strain( A^R(F) * t2v_strain(D) )
+//   inverted  as  a strain-concentration tensor: D = v2t_strain( inv(A^R) * t2v_strain(De) ).
+// (Naming: A = strain concentration, B = stress concentration; the stress dual is A^R^T.)
+mat A_R(const mat &F) {
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside B_R.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_R.");
     }
-    mat BR = zeros(6,6);
+    mat AR = zeros(6,6);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             double t = 0.5*log(bi(i)/bi(j));            // ln(lambda_i/lambda_j); 0 on the diagonal
@@ -384,26 +390,28 @@ mat B_R(const mat &F) {
             } else {
                 c = 1. - t*t/6. + 7.*t*t*t*t/360.;       // Taylor of t/sinh(t)
             }
-            BR = BR + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+            AR = AR + c*linearop_eigsym(Bi.col(i),Bi.col(j));
         }
     }
-    return BR;
+    AR.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^R(I)=I, read De with v2t_strain
+    return AR;
 }
 
-// log-strain corrector B^F (convected / log_F): arithmetic-mean weighting of the same DK kernel
-// MINUS the metric term. In the eigenbasis, with t = ln(lambda_i/lambda_j):
-//     B^F_ij = t*coth(t) - 1/2 ln(b_i b_j)        (B^F_ii = 1 - 2 ln(lambda_i), the t->0 limit).
-// Self-adjoint, reduces to I at small strain, and -- deliberately -- NOT positive definite past
-// lambda = sqrt(e) (B^F_ii < 0), the operator face of the basis-stretch anticommutator.
-mat B_F(const mat &F) {
+// Strain-concentration tensor A^F (convected / log_F frame): same construction as A_R with the
+// arithmetic-mean kernel MINUS the metric term. In the eigenbasis, with t = ln(lambda_i/lambda_j):
+//     A^F_ij = t*coth(t) - 1/2 ln(b_i b_j)        (A^F_ii = 1 - 2 ln(lambda_i), the t->0 limit).
+// Reduces to I at small strain but -- deliberately -- becomes indefinite past lambda = sqrt(e)
+// (A^F_ii < 0), the operator face of the basis-stretch anticommutator. Same engineering
+// strain-concentration convention and application (De = v2t_strain(A^F * t2v_strain(D))) as A_R.
+mat A_F(const mat &F) {
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside B_F.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_F.");
     }
-    mat BF = zeros(6,6);
+    mat AF = zeros(6,6);
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             double t = 0.5*log(bi(i)/bi(j));
@@ -414,10 +422,11 @@ mat B_F(const mat &F) {
                 tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
             }
             double c = tcoth - 0.5*log(bi(i)*bi(j));     // t*coth(t) - 1/2 ln(b_i b_j)
-            BF = BF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+            AF = AF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
         }
     }
-    return BF;
+    AF.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^F(I)=I, read De with v2t_strain
+    return AF;
 }
 
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -505,25 +514,28 @@ mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
 
-// Corate-dispatched logarithmic-strain increment. For the LOGARITHMIC (XBM) rate the
-// rate-form box accumulates the spatial log strain ln V = 1/2 ln(F F^T); the EXACT increment
-// is ln V1 - DR * ln V0 * DR^T, which makes etot = ln V1 to MACHINE PRECISION (set_start's
-// rotate-then-add cancels the DR term) -- removing the O(strain) first-order error of the
-// midpoint trapezoidal rule 1/2(D + DR D DR^T) dt. Jaumann/Green-Naghdi (and Truesdell, log_R,
-// log_F for now) integrate the corotational rate of deformation, which has no closed-form
-// strain, so they keep the midpoint. Only affects rate-form/hypoelastic UMATs that accumulate
-// etot; hyperelastic boxes read stress/tangent off F1 and are unchanged.
+// Corate-dispatched logarithmic-strain increment (the rate-form box accumulates ln V = 1/2 ln(F F^T)):
+//   2  XBM/logarithmic (A = I): EXACT closed form ln V1 - DR ln V0 DR^T, etot = ln V1 to machine precision.
+//   3  log_R: De = A^R:D, the R-corotational (Green-Naghdi) rate of ln V; integrated over the orthogonal
+//      frame (Delta_log_strain, DR^T). A^R is PD and etot -> ln V, so the F-reconstruction stays safe.
+//   5  log_F: here the EXACT convected difference ln V1 - DF ln V0 inv(DF) (etot -> ln V1), so the
+//      mixed-control F-reconstruction (ER_to_F, control_type 2/3/4) stays well posed. The convected
+//      A^F:D rate (upper-convected / Oldroyd of ln V -- more accurate, but it drifts from ln V and is
+//      indefinite past lambda=sqrt(e)) is applied in the F-PRESCRIBED (NLGEOM) branch ONLY, where F is
+//      given and no reconstruction is performed.
+//   0/1/4  Jaumann / Green-Naghdi / Truesdell (A = I): De = D, plain rotated-frame integrator.
+// A^R is a strain-concentration tensor (engineering Voigt): De = v2t_strain(A^R * t2v_strain(D)).
+// Only affects rate-form/hypoelastic UMATs that accumulate etot; hyperelastic boxes read
+// stress/tangent off F1 and are unchanged.
 mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
-    if (corate_type == 2 || corate_type == 5) {   // logarithmic family -> exact spatial log-strain difference
+    if (corate_type == 2 || corate_type == 5) {   // closed-form exact spatial log-strain difference -> etot = ln V1
         mat lnV0 = 0.5*logmat_sympd(L_Cauchy_Green(F0));
         mat lnV1 = 0.5*logmat_sympd(L_Cauchy_Green(F1));
-        // XBM (2): orthogonal DR -> DR^T. log_F (5): DR = DF is the convected (non-orthogonal)
-        // gradient increment -> inv(DR); set_start transports the previous strain the same way,
-        // so etot accumulates to ln V1 exactly.
-        if (corate_type == 5) return lnV1 - DR*lnV0*inv(DR);
-        return lnV1 - DR*lnV0*DR.t();
+        if (corate_type == 5) return lnV1 - DR*lnV0*inv(DR);   // log_F: convected (inv DF) transport
+        return lnV1 - DR*lnV0*DR.t();                          // XBM:   orthogonal (DR^T) transport
     }
-    return Delta_log_strain(D, Omega, DTime);
+    if (corate_type == 3) return Delta_log_strain(v2t_strain(A_R(F1)*t2v_strain(D)), Omega, DTime);  // log_R: A^R:D
+    return Delta_log_strain(D, Omega, DTime);                                                        // Jaumann/GN/Truesdell
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F

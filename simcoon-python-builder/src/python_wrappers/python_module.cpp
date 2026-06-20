@@ -179,8 +179,8 @@ PYBIND11_MODULE(_core, m)
     // register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
     m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");
-    m.def("B_R", &B_R, "F"_a, "copy"_a = true, "Logarithmic-strain corrector B^R (rotated / log_R), 6x6 Voigt");
-    m.def("B_F", &B_F, "F"_a, "copy"_a = true, "Logarithmic-strain corrector B^F (convected / log_F), 6x6 Voigt");
+    m.def("A_R", &A_R, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^R (rotated / log_R), 6x6 Voigt (De = A^R:D)");
+    m.def("A_F", &A_F, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^F (convected / log_F), 6x6 Voigt (De = A^F:D)");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a = true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a, "F0"_a, "F1"_a, "dtime"_a, "return_de"_a = false, "n_threads"_a = 4, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);

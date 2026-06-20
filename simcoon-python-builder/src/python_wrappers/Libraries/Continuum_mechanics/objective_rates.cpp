@@ -43,16 +43,16 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
     return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
 }
 
-//Logarithmic-strain correctors B^R (rotated / log_R) and B^F (convected / log_F), 6x6 Voigt
-py::array_t<double> B_R(const py::array_t<double> &F, const bool &copy) {
+//Log-strain concentration tensors A^R (rotated / log_R) and A^F (convected / log_F), 6x6 Voigt
+py::array_t<double> A_R(const py::array_t<double> &F, const bool &copy) {
     mat F_cpp = carma::arr_to_mat(F);
-    mat BR = simcoon::B_R(F_cpp);
-    return carma::mat_to_arr(BR, copy);
+    mat AR = simcoon::A_R(F_cpp);
+    return carma::mat_to_arr(AR, copy);
 }
-py::array_t<double> B_F(const py::array_t<double> &F, const bool &copy) {
+py::array_t<double> A_F(const py::array_t<double> &F, const bool &copy) {
     mat F_cpp = carma::arr_to_mat(F);
-    mat BF = simcoon::B_F(F_cpp);
-    return carma::mat_to_arr(BF, copy);
+    mat AF = simcoon::A_F(F_cpp);
+    return carma::mat_to_arr(AF, copy);
 }
 
 

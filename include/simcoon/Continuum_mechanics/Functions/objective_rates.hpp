@@ -274,28 +274,36 @@ arma::mat get_BBBB(const arma::mat &F);
 arma::mat get_BBBB_GN(const arma::mat &F);
 
 /**
- * @brief Logarithmic-strain corrector \f$ \mathbf{B}^{R} \f$ for the rotated (log_R) framework.
+ * @brief Strain-concentration tensor \f$ \mathbf{A}^{R} \f$ for the rotated (log_R) frame.
  *
- * Geometric-mean weighting of the logarithmic Daleckii-Krein kernel. In the eigenbasis of
+ * Maps the rate of deformation to the \f$ \mathbf{R} \f$-corotational rate of the spatial Hencky
+ * strain, \f$ \mathbf{D}_e=\mathbf{A}^{R}\!:\!\mathbf{D} \f$. In the eigenbasis of
  * \f$ \mathbf{B}=\mathbf{F}\mathbf{F}^T \f$ (eigenvalues \f$ b_a=\lambda_a^2 \f$), with
- * \f$ t=\ln(\lambda_i/\lambda_j) \f$: \f$ B^{R}_{ij}=t/\sinh t \f$, \f$ B^{R}_{ii}=1 \f$.
- * Self-adjoint, positive definite at every stretch; \f$ (\partial\mathbf{h}/\partial\tau)_{\mathcal{R}_T}=\mathbf{B}^{R}\!:\!\mathbf{D} \f$.
+ * \f$ t=\ln(\lambda_i/\lambda_j) \f$, the spectral coefficients are \f$ A^{R}_{ij}=t/\sinh t \f$
+ * (\f$ \to 1 \f$ on the diagonal) -- the geometric-mean logarithmic Daleckii-Krein kernel,
+ * strictly positive at every stretch so \f$ \mathbf{A}^{R} \f$ is always invertible (Hoger's
+ * tangent pushed forward by \f$ \mathbf{R} \f$). Returned in the engineering strain-concentration
+ * Voigt convention (\f$ \mathbf{A}^{R}(\mathbf{I})=\mathbf{I}_6 \f$, rotates as
+ * \f$ v_e\,\mathbf{A}^{R}\,v_s^T \f$ like a strain-concentration tensor), so apply as
+ * \f$ \mathbf{D}_e=\mathrm{v2t\_strain}(\mathbf{A}^{R}\,\mathrm{t2v\_strain}(\mathbf{D})) \f$ and
+ * invert as one (the stress dual is \f$ (\mathbf{A}^{R})^{T} \f$).
  * @param[in] F deformation gradient
- * @return the 6x6 (Voigt) fourth-order corrector
+ * @return the 6x6 (Voigt) strain-concentration tensor
 */
-arma::mat B_R(const arma::mat &F);
+arma::mat A_R(const arma::mat &F);
 
 /**
- * @brief Logarithmic-strain corrector \f$ \mathbf{B}^{F} \f$ for the convected (log_F) framework.
+ * @brief Strain-concentration tensor \f$ \mathbf{A}^{F} \f$ for the convected (log_F) frame.
  *
- * Arithmetic-mean weighting of the same DK kernel minus the metric term. With
- * \f$ t=\ln(\lambda_i/\lambda_j) \f$: \f$ B^{F}_{ij}=t\coth t-\tfrac12\ln(b_i b_j) \f$,
- * \f$ B^{F}_{ii}=1-2\ln\lambda_i \f$. Self-adjoint; reduces to \f$ \mathbf{I} \f$ at small strain;
- * NOT positive definite past \f$ \lambda=\sqrt{e} \f$; \f$ (\partial\mathbf{h}/\partial\tau)_{\mathcal{R}_s}=\mathbf{B}^{F}\!:\!\mathbf{D} \f$.
+ * Same construction as @ref A_R with the arithmetic-mean kernel minus the metric term:
+ * \f$ A^{F}_{ij}=t\coth t-\tfrac12\ln(b_i b_j) \f$, \f$ A^{F}_{ii}=1-2\ln\lambda_i \f$. Reduces to
+ * \f$ \mathbf{I}_6 \f$ at small strain but -- deliberately -- becomes indefinite past
+ * \f$ \lambda=\sqrt{e} \f$ (\f$ A^{F}_{ii}<0 \f$), the operator face of the basis-stretch
+ * anticommutator. Same engineering strain-concentration convention and application as @ref A_R.
  * @param[in] F deformation gradient
- * @return the 6x6 (Voigt) fourth-order corrector
+ * @return the 6x6 (Voigt) strain-concentration tensor
 */
-arma::mat B_F(const arma::mat &F);
+arma::mat A_F(const arma::mat &F);
 
 /**
  * @brief Computes the logarithmic strain increment
