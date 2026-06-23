@@ -353,7 +353,6 @@ mat p_ikjl(const vec &a) {
 }
 
 mat auto_sym_dyadic(const mat &A) {
-//T
     vec A_v = t2v_sym(A);
 
 	return A_v * A_v.t();
@@ -554,12 +553,5 @@ mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 }
 
 
-/*mat eulerian_determinant(const mat &A) {
-	mat Id = eye(3,3);
-	vec A_Id = A*Ith();
-	double Id_A_Id = sum(Ith()%A_Id);
-	return A - (1./3.)*(sym_dyadic(Id,A_Id)+sym_dyadic(A_Id,Id))+(1./9.)*Id_A_Id*auto_sym_dyadic(Id);
-
-}*/
 
 } //namespace simcoon

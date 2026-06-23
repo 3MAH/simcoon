@@ -425,13 +425,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
                                         }
                                         if(corate_type == 5) {
-                                            // log_F: De = A^F:D, the upper-convected (Oldroyd/Lie) rate of ln V (strain-
-                                            // concentration tensor A^F), integrated over the convected frame -- the frame
-                                            // increment DF = F1 F0^-1 is applied with inv (F^-1), NOT transpose, since F is
-                                            // not orthogonal. A^F is indefinite past lambda=sqrt(e): the genuine convected/
-                                            // SVK character of log_F (the basis stretches/shears and the frame degenerates
-                                            // under shear), now carried by the exact symmetric A^F:D rate rather than the
-                                            // crude 1/2(D + DF D DF^-1) push. The reference comparison for log_R.
+                                            // log_F: De = A^F:D (convected/Oldroyd rate of ln V; see A_F + Delta_log_strain_corate
+                                            // in objective_rates.hpp). NLGEOM-only -- A^F indefinite past lambda=sqrt(e); DF applied inv NOT transpose.
                                             mat Lvel;
                                             logarithmic_F(sv_M->DR, N_1, N_2, D, Lvel, DTime, sv_M->F0, sv_M->F1); // sv_M->DR = DF
                                             mat DF = sv_M->DR;
@@ -516,27 +511,17 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 2) {
-                                                // control_type 2 prescribes Green-Lagrange E, residual on PKII S, so the
-                                                // matched Jacobian is dS/dE. The box returns Lt = d(tau_hat)/d(De), the
-                                                // Kirchhoff (no-J) corotational tangent, normalized by select_umat_M_finite
-                                                // to the ACTUAL corate rate. Pull it back with the matching corate kernel
-                                                // (DtauDe_corate_2_DSDE) -> exact dS/dE for every corate. (The previous
-                                                // Dsigma_LieDD_2_DSDE applied a spurious J AND the wrong Lie spin kernel --
-                                                // the documented GN/ct4 tangent inconsistency.)
+                                                // ct2: residual on PKII(E) -> tangent dS/dE via DtauDe_corate_2_DSDE (corate-matched
+                                                // box-tangent pull-back; see objective_rates.hpp). NOT Dsigma_LieDD_2_DSDE (spurious J + wrong spin).
                                                 C = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
                                                 Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 3) {
-                                                // control_type 3 prescribes the logarithmic strain (etot = ln V); its
-                                                // work-conjugate per reference volume is the Kirchhoff stress tau, so the
-                                                // residual is formed on tau and the matched Jacobian is exactly the box
-                                                // tangent Lt = d(tau)/d(ln V) -- no Cauchy 1/J or sigma(x)I correction.
+                                                // ct3: residual on Kirchhoff tau (conjugate to ln V) -> Jacobian is the box tangent Lt directly.
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 4) {
-                                                // control_type 4 prescribes the Biot stretch U, residual on Biot stress;
-                                                // chain dS/dE (corate-matched, same correction as ct2) into d(Biot)/dU
-                                                // via DSDE_DBiotStressDU.
+                                                // ct4: residual on Biot stress -> chain dS/dE (corate-matched) into d(Biot)/dU via DSDE_DBiotStressDU.
                                                 mat DSDE = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
                                                 mat R = zeros(3,3);
                                                 mat U = zeros(3,3);

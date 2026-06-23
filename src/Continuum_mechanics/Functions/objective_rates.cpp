@@ -103,8 +103,6 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (DR).");
     }         
-    //alternative ... to test
-    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
 
 void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -138,9 +136,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside logarithmic_R (DR).");
-    }    
-    //alternative ... to test
-    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+    }
     
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
@@ -362,16 +358,8 @@ mat get_BBBB_GN(const mat &F1) {
     return BBBB;
 }
 
-// Strain-concentration tensor A^R (rotated / log_R frame): maps the rate of deformation to the
-// R-corotational rate of the spatial Hencky strain, De = A^R : D. Geometric-mean weighting of the
-// logarithmic Daleckii-Krein kernel: in the eigenbasis of B = F F^T (eigenvalues b_a = lambda_a^2),
-// with t = 1/2 ln(b_i/b_j) = ln(lambda_i/lambda_j), the spectral coefficients are A^R_ij = t/sinh(t)
-// (-> 1 on the diagonal), strictly positive at every stretch so A^R is always invertible
-// (= Hoger's tangent pushed forward by R). Returned in the ENGINEERING strain-concentration Voigt
-// convention -- A^R(I) = I_6, rotating as ve.A^R.vs^T like apply_strain_concentration -- so it is
-//   applied   as  De = v2t_strain( A^R(F) * t2v_strain(D) )
-//   inverted  as  a strain-concentration tensor: D = v2t_strain( inv(A^R) * t2v_strain(De) ).
-// (Naming: A = strain concentration, B = stress concentration; the stress dual is A^R^T.)
+// A^R: log_R-frame strain-concentration tensor, De = A^R:D (full doc in objective_rates.hpp).
+// t/sinh(t) geometric-mean Daleckii-Krein kernel on the eigenbasis of B = F F^T.
 mat A_R(const mat &F) {
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
@@ -397,12 +385,8 @@ mat A_R(const mat &F) {
     return AR;
 }
 
-// Strain-concentration tensor A^F (convected / log_F frame): same construction as A_R with the
-// arithmetic-mean kernel MINUS the metric term. In the eigenbasis, with t = ln(lambda_i/lambda_j):
-//     A^F_ij = t*coth(t) - 1/2 ln(b_i b_j)        (A^F_ii = 1 - 2 ln(lambda_i), the t->0 limit).
-// Reduces to I at small strain but -- deliberately -- becomes indefinite past lambda = sqrt(e)
-// (A^F_ii < 0), the operator face of the basis-stretch anticommutator. Same engineering
-// strain-concentration convention and application (De = v2t_strain(A^F * t2v_strain(D))) as A_R.
+// A^F: log_F-frame strain-concentration tensor (full doc in objective_rates.hpp).
+// t*coth(t) - 1/2 ln(b_i b_j) kernel; deliberately indefinite past lambda = sqrt(e).
 mat A_F(const mat &F) {
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
@@ -514,19 +498,8 @@ mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
 
-// Corate-dispatched logarithmic-strain increment (the rate-form box accumulates ln V = 1/2 ln(F F^T)):
-//   2  XBM/logarithmic (A = I): EXACT closed form ln V1 - DR ln V0 DR^T, etot = ln V1 to machine precision.
-//   3  log_R: De = A^R:D, the R-corotational (Green-Naghdi) rate of ln V; integrated over the orthogonal
-//      frame (Delta_log_strain, DR^T). A^R is PD and etot -> ln V, so the F-reconstruction stays safe.
-//   5  log_F: here the EXACT convected difference ln V1 - DF ln V0 inv(DF) (etot -> ln V1), so the
-//      mixed-control F-reconstruction (ER_to_F, control_type 2/3/4) stays well posed. The convected
-//      A^F:D rate (upper-convected / Oldroyd of ln V -- more accurate, but it drifts from ln V and is
-//      indefinite past lambda=sqrt(e)) is applied in the F-PRESCRIBED (NLGEOM) branch ONLY, where F is
-//      given and no reconstruction is performed.
-//   0/1/4  Jaumann / Green-Naghdi / Truesdell (A = I): De = D, plain rotated-frame integrator.
-// A^R is a strain-concentration tensor (engineering Voigt): De = v2t_strain(A^R * t2v_strain(D)).
-// Only affects rate-form/hypoelastic UMATs that accumulate etot; hyperelastic boxes read
-// stress/tangent off F1 and are unchanged.
+// Corate-dispatched log-strain increment (full doc in objective_rates.hpp): exact closed form for
+// XBM(2)/log_F(5), A^R:D for log_R(3), plain D for Jaumann/GN/Truesdell(0/1/4).
 mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
     if (corate_type == 2 || corate_type == 5) {   // closed-form exact spatial log-strain difference -> etot = ln V1
         mat lnV0 = 0.5*logmat_sympd(L_Cauchy_Green(F0));
@@ -859,15 +832,8 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
     return (1./J)*DSDE_2_Dtau_logarithmicDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
-// ---------------------------------------------------------------------------------------
-// Corate-dispatched material<->box tangent maps. The box convention is Lt = d(tau_hat)/d(De),
-// the Kirchhoff corotational tangent IN THE RATE OF THE SOLVER'S corate_type. These pick the
-// matching transport so the round-trip dS/dE <-> Lt is EXACT per corate:
-//   0 Jaumann (spin W) | 1 Green-Naghdi (spin Omega_R) | 2 logarithmic/XBM (spin Omega_log)
-//   3 log_R: strain transported by R (= GN orthogonal frame) -> GN spin kernel
-//   5 log_F: strain transported by F (full gradient), "spin" is the velocity gradient L
-//            -> the CONVECTED / Oldroyd-Lie transport, i.e. the pure F pull-back (B = I, no
-//            skew spin correction). Exact, not an approximation.
+// Corate-dispatched material<->box tangent maps (full doc in objective_rates.hpp): match the spin
+// kernel to corate_type so the round-trip dS/dE <-> Lt is exact. DtauDe_corate_2_DSDE is the inverse.
 mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
@@ -890,8 +856,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
     }
 }
 
-// Assemble the canonical box tangent Lt = d(tau_hat)/d(De) (Kirchhoff, no-J, XBM/log rate)
-// that every finite UMAT must emit -- single source of truth for the box-tangent convention.
+// Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).
 // From the material tangent dS/dE:
 mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
     return DSDE_2_DtauDe(dSdE, get_BBBB(F), F, det(F)*v2t_stress(sigma));

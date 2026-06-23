@@ -48,10 +48,6 @@ void fill_angles(const double &, phase_characteristics &, const ODF &, const int
 //This function computes the ODF of the selected angle, according to different methods (Lorentzian, Pearson...)
 phase_characteristics discretize_ODF(const phase_characteristics &, ODF &, const int &, const int &, const int & = 1);
 
-//Writes the Nphases.dat file for multiphase modeling, according to specific ODFs
-//void ODF2Nphases(const arma::Col<int> &, const arma::Col<int> &, const arma::Col<int> &, const std::vector<std::string> &, const arma::mat &, const bool& = false, const double& = 0.);
-
-
 /** @} */ // end of material group
 
 } //namespace simcoon

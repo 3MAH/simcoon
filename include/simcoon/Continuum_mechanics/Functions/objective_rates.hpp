@@ -340,8 +340,24 @@ arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const doubl
 */
 arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const double &DTime);
 
-//Corate-dispatched log-strain increment: EXACT spatial log-strain difference (ln V1 - DR lnV0 DR^T)
-//for the logarithmic (XBM, corate 2) rate; midpoint trapezoidal Delta_log_strain otherwise.
+/**
+ * @brief Corate-dispatched logarithmic-strain increment (the rate-form box accumulates
+ *        \f$ \ln V = \tfrac12\ln(\mathbf{F}\mathbf{F}^T) \f$). Picks the integrator matching @p corate_type:
+ *  - **2** XBM/logarithmic (\f$ \mathbf{A}=\mathbf{I} \f$): exact closed form
+ *    \f$ \ln V_1 - \mathbf{DR}\,\ln V_0\,\mathbf{DR}^T \f$ (\f$ \epsilon=\ln V_1 \f$ to machine precision).
+ *  - **3** log_R: \f$ \mathbf{D}_e=\mathbf{A}^{R}\!:\!\mathbf{D} \f$, the R-corotational (Green-Naghdi)
+ *    rate of \f$ \ln V \f$ integrated over the orthogonal frame; \f$ \mathbf{A}^{R} \f$ is PD and
+ *    \f$ \epsilon\to\ln V \f$, so the F-reconstruction stays well posed.
+ *  - **5** log_F: exact convected difference \f$ \ln V_1 - \mathbf{DF}\,\ln V_0\,\mathbf{DF}^{-1} \f$
+ *    (mixed-control F-reconstruction stays well posed). The convected \f$ \mathbf{A}^{F}\!:\!\mathbf{D} \f$
+ *    rate (upper-convected/Oldroyd of \f$ \ln V \f$, indefinite past \f$ \lambda=\sqrt{e} \f$) is used
+ *    only in the F-prescribed (NLGEOM) branch, where no reconstruction is performed.
+ *  - **0/1/4** Jaumann / Green-Naghdi / Truesdell (\f$ \mathbf{A}=\mathbf{I} \f$): \f$ \mathbf{D}_e=\mathbf{D} \f$.
+ *
+ * Only affects rate-form/hypoelastic UMATs that accumulate \f$ \epsilon \f$; hyperelastic boxes read
+ * stress/tangent off \f$ \mathbf{F}_1 \f$ and are unchanged.
+ * @return the spatial logarithmic-strain increment for the chosen corate
+*/
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
 /**
@@ -666,13 +682,26 @@ arma::mat DSDE_2_Dtau_logarithmicDD(const arma::mat &DSDE, const arma::mat &F, c
 */
 arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F, const arma::mat &sigma);
 
-//Corate-dispatched material<->box(Kirchhoff d tau_hat / d De) tangent maps, matching spin
-//kernel per corate_type (0 Jaumann, 1 GN, 2 XBM, 3 log_R=GN, 5 log_F~XBM).
+/**
+ * @brief Corate-dispatched material<->box tangent maps. The box convention is
+ * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$, the Kirchhoff corotational
+ * tangent IN the solver's @p corate_type rate. Each picks the matching transport so the round-trip
+ * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\leftrightarrow\mathbf{L}_t \f$ is exact per corate:
+ * 0 Jaumann (spin W) | 1 Green-Naghdi | 2 logarithmic/XBM | 3 log_R (R = GN orthogonal frame) |
+ * 5 log_F (convected/Oldroyd-Lie, pure F pull-back, B = I). @c DSDE_2_DtauDe_corate maps
+ * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\to\mathbf{L}_t \f$; @c DtauDe_corate_2_DSDE is its inverse.
+*/
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
-//Assemble the canonical box tangent Lt = d(tau_hat)/d(De) (Kirchhoff, no-J, XBM rate) that
-//every finite UMAT must emit, from the material tangent dS/dE or the Cauchy spatial tangent.
+/**
+ * @brief Assemble the canonical box tangent
+ * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ (Kirchhoff, no-J, XBM/log rate)
+ * that every finite UMAT must emit -- the single source of truth for the box-tangent convention.
+ * @c box_DtauDe_from_dSdE builds it from the material tangent \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$;
+ * @c box_DtauDe_from_spatial from the Cauchy (Oldroyd/Lie) spatial elasticity tensor
+ * \f$ \partial\boldsymbol\sigma/\partial\mathbf{D} \f$.
+*/
 arma::mat box_DtauDe_from_dSdE(const arma::mat &dSdE, const arma::mat &F, const arma::vec &sigma);
 arma::mat box_DtauDe_from_spatial(const arma::mat &Lt_spatial, const arma::mat &F, const arma::vec &sigma);
 

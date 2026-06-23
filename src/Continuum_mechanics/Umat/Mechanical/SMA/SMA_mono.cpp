@@ -51,23 +51,6 @@ namespace simcoon {
 ///@brief   c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0 : Lagrange parameters (variant)
 ///@brief   c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1 : Lagrange parameters (total)
 
-/*void Amortissement(double &xi, const double &dxi, const double &xi_start)
-{
-		
-	double limit1 = 1. - limit;
-	double limit2 = limit;
-
-		
-    if (xi >= limit1)
-    {
-		xi = (xi - dxi + limit1)*0.5;
-	}
-    
-    if (xi <= limit2)
-    {
-        xi = (xi - dxi + limit2)*0.5;
-    }
-}*/
 
 void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
@@ -253,13 +236,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 		//Define which variant system is active 
 		transfo_actif[i] = 0;
 	
-/*
-		if((PhiF(i) > 0)&&(PhiF(i) > PhiF_start(i)))	{
-			transfo_actif[i] = 1;
-		}
-		else if((PhiR(i) < 0)&&(PhiR(i) < PhiR_start(i))) {
-			transfo_actif[i] = -1;
-		}*/
 
 		if(PhiF(i) > 0)	{
 			transfo_actif[i] = 1;
@@ -458,32 +434,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         Lt = L;
     }
     
-//	vec Dsigma = stress - stress_start;
-  
-/*	if (compteur < 20) {
-        tnew_dt = 2.;
-    }
-    
-	if (sum(Dsigma%DEtot) < 0.) {
-        //        This constraint is a form of the Drucker Postulate : Stability of hardening consitions
-		tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (compteur == maxitNewton) {
-        tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (Mises_stress(Dsigma) > 20.) {
-		tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (isnan(Mises_stress(stress))) {
-		tnew_dt = 0.2;
-        Lt = L;
-    }*/
     
     statev(0) = T_init;
     

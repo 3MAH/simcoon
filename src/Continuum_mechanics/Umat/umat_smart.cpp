@@ -335,17 +335,9 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
             }
         }
     
-        // tau is the canonical Kirchhoff stress: PKII/PKI derive from it, and the
-        // work Wm stays on the Kirchhoff route. The total-form small-strain boxes
-        // integrated on the logarithmic strain return the Kirchhoff stress directly
-        // (sigma = L:(ln V - hp), no 1/J), so tau = sigma and the route stress
-        // (sigma, the variable the solver iterates on) is left on Kirchhoff -- this
-        // keeps the work accounting consistent across increments. The genuine
-        // finite-strain UMATs return the true Cauchy, mapped to tau here. The Cauchy
-        // stress is a derived OUTPUT (tau/J), produced on request by the output layer
-        // (phase_characteristics::output, o_stress_type == 4); mixed-control loading
-        // forms its Cauchy residual from tau/J in the solver, so the route itself
-        // never carries the 1/J factor.
+        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Small-strain/
+        // log-strain boxes already return Kirchhoff (sigma = L:(ln V - hp), no 1/J); genuine finite boxes
+        // return Cauchy, mapped to tau here. Cauchy is a derived OUTPUT (tau/J), never on the route.
         const std::set<int> kirchhoff_box = {2,3,4,6,7,16,17,18,19,20,21}; // HYPOO(5) kept in the Cauchy group for now
         if (kirchhoff_box.count(list_umat[rve.sptr_matprops->umat_name]) > 0)
             umat_M->tau = umat_M->sigma;                                                      // box output is already the Kirchhoff stress
@@ -353,13 +345,9 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // Corate-exact tangent. The genuine finite hyperelastic boxes (SNTVE 8, NEOHI 9,
-        // generic_hyper 10-15) compute dS/dE and bake Lt = d(tau_hat)/d(De) in the XBM
-        // (logarithmic) rate via get_BBBB, regardless of the solver's corate. Re-express
-        // that Lt in the ACTUAL corate rate so the consumer (ct1/ct3 direct, ct2/ct4 via
-        // DtauDe_corate_2_DSDE) sees a tangent matched to corate_type -> exact Jacobian for
-        // every corate. The small-strain / hypoelastic boxes already integrate (and so emit
-        // Lt) in the corate rate, so they are left untouched. corate 2 is XBM -> no-op.
+        // Corate-exact tangent: the finite hyperelastic boxes bake Lt in the XBM rate (get_BBBB)
+        // regardless of corate; re-express it in the actual corate (no-op for corate 2 = XBM) so the
+        // consumer sees a matched tangent. Small-strain/hypoelastic boxes already emit it in-rate.
         static const std::set<int> xbm_baked_box = {8,9,10,11,12,13,14,15};
         if (corate_type != 2 && xbm_baked_box.count(list_umat[rve.sptr_matprops->umat_name]) > 0) {
             mat tau_t = v2t_stress(umat_M->tau);
