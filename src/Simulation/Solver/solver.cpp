@@ -250,6 +250,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             while (tinc<1.) {
                                 
+                                try {
                                 sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
                                                              
                                 if(nK == 0){
@@ -815,7 +816,30 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
                                 compteur = 0;
-                                
+                                }
+                                catch (const simcoon::exception_sqrtmat_sympd &) {
+                                    // F-reconstruction (ER_to_F: sqrtmat_sympd of 2E+I, control_type 2) failed
+                                    // because the controlled Green-Lagrange strain pushed 2E+I out of positive-
+                                    // definiteness. Bisect the increment and retry instead of aborting the whole
+                                    // run; only give up (rethrow) once the step is already at its minimal fraction.
+                                    if (fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota) {
+                                        tnew_dt = div_tnew_dt_solver;
+                                        compteur = 0;
+                                    } else {
+                                        throw;
+                                    }
+                                }
+                                catch (const simcoon::exception_expmat_sym &) {
+                                    // V-reconstruction (eR_to_F: expmat_sym of ln V, control_type 3) failed; same
+                                    // step-cut policy as the sqrtmat_sympd path above.
+                                    if (fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota) {
+                                        tnew_dt = div_tnew_dt_solver;
+                                        compteur = 0;
+                                    } else {
+                                        throw;
+                                    }
+                                }
+
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 

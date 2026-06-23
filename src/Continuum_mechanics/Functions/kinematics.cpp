@@ -36,7 +36,9 @@ mat ER_to_F(const mat &E, const mat &R) {
     assert(R.n_rows == 3);
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat C = 2.*E+eye(3,3);
+    //symmatu() removes any numerical asymmetry so a mathematically-SPD C is not
+    //rejected by sqrtmat_sympd's symmetry check (the input E is symmetric by construction).
+    mat C = symmatu(2.*E+eye(3,3));
 
     vec lambda2_alpha;
     vec lambda_alpha = zeros(3);
