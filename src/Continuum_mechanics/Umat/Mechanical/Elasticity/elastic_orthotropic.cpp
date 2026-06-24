@@ -39,7 +39,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_elasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_elasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -76,7 +76,7 @@ void umat_elasticity_ortho(const string &umat_name, const vec &Etot, const vec &
     if(start)
     {
         T_init = T;
-        sigma = zeros(6);
+        stress = zeros(6);
 
         Wm = 0.;
         Wm_r = 0.;
@@ -84,7 +84,7 @@ void umat_elasticity_ortho(const string &umat_name, const vec &Etot, const vec &
         Wm_d = 0.;
     }
 
-	vec sigma_start = sigma;
+	vec stress_start = stress;
 
 	//definition of the CTE tensor
 	vec alpha = zeros(6);
@@ -94,13 +94,13 @@ void umat_elasticity_ortho(const string &umat_name, const vec &Etot, const vec &
 
 	//Compute the elastic strain and the related stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
 
     Lt = L;
 
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
     Wm_ir += 0.;
     Wm_d += 0.;
 

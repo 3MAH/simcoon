@@ -44,7 +44,11 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
+            // the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1 (the end-config form
+            // (F1-F0)F1^-1 is only 1st order). The SAME estimate is used by every rate function so
+            // that D=sym(L) is identical across them (enforced by Tobjective_rates.all_rates_same_D).
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Jaumann (L).");
@@ -77,7 +81,10 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // Same 2nd-order centered velocity gradient as the other rate functions (see Jaumann),
+            // so that D=sym(L) matches across all rates. Green-Naghdi's spin Omega comes from the
+            // polar rotation rate (R1-R0)R1^T below, independently of L.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (L).");
@@ -96,8 +103,6 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (DR).");
     }         
-    //alternative ... to test
-    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
 }
 
 void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -113,7 +118,8 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     mat L;
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient (see Jaumann); D=sym(L) is shared by all rates.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_R (L).");
@@ -130,9 +136,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
         throw simcoon::exception_inv("Error in inv function inside logarithmic_R (DR).");
-    }    
-    //alternative ... to test
-    //    DR = (F1-F0)*inv(U1)-R0*(U1-U0)*inv(U1);
+    }
     
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
@@ -196,7 +200,9 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
 
     if(DTime > simcoon::iota) {
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
+            // and exp(L*dt) approximates F1 F0^-1 used below for the transport DF.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic_F (L).");
@@ -267,7 +273,9 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     mat I = eye(3,3);
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
+            // and exp(L*dt) approximates F1 F0^-1 used below for the transport DF.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside Truesdell (L).");
@@ -350,13 +358,69 @@ mat get_BBBB_GN(const mat &F1) {
     return BBBB;
 }
 
+// A^R: log_R-frame strain-concentration tensor, De = A^R:D (full doc in objective_rates.hpp).
+// t/sinh(t) geometric-mean Daleckii-Krein kernel on the eigenbasis of B = F F^T.
+mat A_R(const mat &F) {
+    mat B = L_Cauchy_Green(F);
+    vec bi = zeros(3);
+    mat Bi;
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_R.");
+    }
+    mat AR = zeros(6,6);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            double t = 0.5*log(bi(i)/bi(j));            // ln(lambda_i/lambda_j); 0 on the diagonal
+            double c;
+            if (fabs(t) > 1.e-4) {
+                c = t/sinh(t);
+            } else {
+                c = 1. - t*t/6. + 7.*t*t*t*t/360.;       // Taylor of t/sinh(t)
+            }
+            AR = AR + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+        }
+    }
+    AR.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^R(I)=I, read De with v2t_strain
+    return AR;
+}
+
+// A^F: log_F-frame strain-concentration tensor (full doc in objective_rates.hpp).
+// t*coth(t) - 1/2 ln(b_i b_j) kernel; deliberately indefinite past lambda = sqrt(e).
+mat A_F(const mat &F) {
+    mat B = L_Cauchy_Green(F);
+    vec bi = zeros(3);
+    mat Bi;
+    bool success_eig_sym = eig_sym(bi, Bi, B);
+    if (!success_eig_sym) {
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside A_F.");
+    }
+    mat AF = zeros(6,6);
+    for (unsigned int i=0; i<3; i++) {
+        for (unsigned int j=0; j<3; j++) {
+            double t = 0.5*log(bi(i)/bi(j));
+            double tcoth;
+            if (fabs(t) > 1.e-4) {
+                tcoth = t/tanh(t);
+            } else {
+                tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
+            }
+            double c = tcoth - 0.5*log(bi(i)*bi(j));     // t*coth(t) - 1/2 ln(b_i b_j)
+            AF = AF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
+        }
+    }
+    AF.rows(3,5) *= 2.0;    // tensor -> engineering strain-concentration convention: A^F(I)=I, read De with v2t_strain
+    return AF;
+}
+
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
     mat L = zeros(3,3);
 
     if(DTime > simcoon::iota) {    
         try {
-            L = (1./DTime)*(F1-F0)*inv(F1);
+            // 2nd-order centered velocity gradient (see Jaumann); D=sym(L) is shared by all rates.
+            L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
             throw simcoon::exception_inv("Error in inv function inside logarithmic (L).");
@@ -417,6 +481,34 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
         throw simcoon::exception_inv("Error in inv function inside logarithmic (DR).");
     }           
     return 0.5*(D+(DR*D*DR.t()))*DTime;
+}
+
+mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
+    // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
+    // increment is the non-orthogonal DF = (I-1/2 dt L)^-1 (I+1/2 dt L), so the rotated
+    // term is the push-forward DF*D*inv(DF) -- inverse, NOT transpose (F is not orthogonal).
+    mat I = eye(3,3);
+    mat DF;
+    try {
+        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Delta_log_strain_F (DF).");
+    }
+    return 0.5*(D+(DF*D*inv(DF)))*DTime;
+}
+
+// Corate-dispatched log-strain increment (full doc in objective_rates.hpp): exact closed form for
+// XBM(2)/log_F(5), A^R:D for log_R(3), plain D for Jaumann/GN/Truesdell(0/1/4).
+mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
+    if (corate_type == 2 || corate_type == 5) {   // closed-form exact spatial log-strain difference -> etot = ln V1
+        mat lnV0 = 0.5*logmat_sympd(L_Cauchy_Green(F0));
+        mat lnV1 = 0.5*logmat_sympd(L_Cauchy_Green(F1));
+        if (corate_type == 5) return lnV1 - DR*lnV0*inv(DR);   // log_F: convected (inv DF) transport
+        return lnV1 - DR*lnV0*DR.t();                          // XBM:   orthogonal (DR^T) transport
+    }
+    if (corate_type == 3) return Delta_log_strain(v2t_strain(A_R(F1)*t2v_strain(D)), Omega, DTime);  // log_R: A^R:D
+    return Delta_log_strain(D, Omega, DTime);                                                        // Jaumann/GN/Truesdell
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
@@ -738,6 +830,40 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
         throw simcoon::exception_det("Error in det function inside DSDE_2_Dsigma_logarithmicDD.");
     }
     return (1./J)*DSDE_2_Dtau_logarithmicDD(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
+}
+
+// Corate-dispatched material<->box tangent maps (full doc in objective_rates.hpp): match the spin
+// kernel to corate_type so the round-trip dS/dE <-> Lt is exact. DtauDe_corate_2_DSDE is the inverse.
+mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, const mat &tau) {
+    switch (corate_type) {
+        case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
+        case 1:                                                     // GN, and...
+        case 3:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // log_R: R (= GN) transport
+        case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // log_F: F-transport, "spin" L -> convected/Lie
+        case 2:
+        default: return DSDE_2_DtauDe(DSDE, get_BBBB(F), F, tau);   // XBM (logarithmic)
+    }
+}
+
+mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, const mat &tau) {
+    switch (corate_type) {
+        case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
+        case 1:                                                     // GN, and...
+        case 3:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // log_R: R (= GN) transport
+        case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                   // log_F: F-transport, "spin" L -> convected/Lie
+        case 2:
+        default: return DtauDe_2_DSDE(Lt, get_BBBB(F), F, tau);     // XBM (logarithmic)
+    }
+}
+
+// Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).
+// From the material tangent dS/dE:
+mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
+    return DSDE_2_DtauDe(dSdE, get_BBBB(F), F, det(F)*v2t_stress(sigma));
+}
+// From the Cauchy (Oldroyd/Lie) spatial elasticity tensor dsigma/dD:
+mat box_DtauDe_from_spatial(const mat &Lt_spatial, const mat &F, const vec &sigma) {
+    return box_DtauDe_from_dSdE(Dtau_LieDD_2_DSDE(det(F)*Lt_spatial, F), F, sigma);
 }
 
 //This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau

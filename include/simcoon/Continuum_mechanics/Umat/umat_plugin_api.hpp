@@ -94,12 +94,12 @@ class umat_plugin_ext_api {
          * compute the consistent tangent modulus.
          *
          * @param umat_name Name of the constitutive model
-         * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1)
-         * @param DEtot Strain increment tensor (Voigt notation: 6×1)
-         * @param sigma Stress tensor [output] (Voigt notation: 6×1)
-         * @param Lt Consistent tangent modulus [output] (6×6)
-         * @param L Elastic stiffness tensor [output] (6×6)
-         * @param DR Rotation increment matrix (3×3)
+         * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$)
+         * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$)
+         * @param sigma Stress tensor [output] (Voigt notation: \f$6 \times 1\f$)
+         * @param Lt Consistent tangent modulus [output] (\f$6 \times 6\f$)
+         * @param L Elastic stiffness tensor [output] (\f$6 \times 6\f$)
+         * @param DR Rotation increment matrix (\f$3 \times 3\f$)
          * @param nprops Number of material properties
          * @param props Material properties vector
          * @param nstatev Number of state variables
@@ -158,7 +158,7 @@ class umat_plugin_aba_api {
          * The phase_characteristics object contains all material state information.
          *
          * @param phase Material phase containing state, properties, strain, stress [input/output]
-         * @param DR Rotation increment matrix (3×3) for objective integration
+         * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
          * @param Time Time at beginning of increment
          * @param DTime Time increment
          * @param ndi Number of direct stress components
@@ -206,7 +206,7 @@ class umat_plugin_ans_api {
          * The phase_characteristics object contains all material state information.
          *
          * @param phase Material phase containing state, properties, strain, stress [input/output]
-         * @param DR Rotation increment matrix (3×3) for objective integration
+         * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
          * @param Time Time at beginning of increment
          * @param DTime Time increment
          * @param ndi Number of direct stress components

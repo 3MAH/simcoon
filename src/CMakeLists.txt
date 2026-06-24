@@ -38,6 +38,9 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Micromechanics/multiphase.cpp
   Continuum_mechanics/Micromechanics/schemes.cpp
 
+  # Continuum Mechanics - UMAT helpers (shared across all dissipative UMATs)
+  Continuum_mechanics/Umat/tangent_assembly.cpp
+
   # Continuum Mechanics - UMAT Finite
   Continuum_mechanics/Umat/Finite/generic_hyper_invariants.cpp
   Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.cpp
@@ -72,6 +75,7 @@ target_sources(simcoon PRIVATE
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
   Continuum_mechanics/Umat/Mechanical/SMA/unified_T.cpp
+  Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.cpp
 
   # Continuum Mechanics - UMAT Mechanical Viscoelasticity
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.cpp
