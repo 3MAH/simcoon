@@ -148,7 +148,28 @@ class natural_basis
 		 * @endcode
 		 */
 		virtual void from_F(const arma::mat &F);
-    
+
+		/** @brief Transformation gradient F = [g_1 g_2 g_3] (covariant vectors as columns). */
+		arma::mat F() const;
+
+		/** @brief Inverse transformation gradient F^{-1} (contravariant vectors g^i as rows). */
+		arma::mat F_inv() const;
+
+		/** @brief Right stretch U = (F^T F)^{1/2} = (g_ij)^{1/2}. */
+		arma::mat U() const;
+
+		/** @brief Polar rotation R = F U^{-1}. */
+		arma::mat R() const;
+
+		/** @brief Left (spatial / Eulerian) stretch V = (F F^T)^{1/2} = b^{1/2} = R U R^T. */
+		arma::mat V() const;
+
+		/** @brief Contravariant components of a spatial (stress-like) tensor on the natural basis: sigma^{ij} = g^i.sigma.g^j = F^{-1} sigma F^{-T}. */
+		arma::mat contravariant(const arma::mat &sigma) const;
+
+		/** @brief Covariant components of a spatial (strain-like) tensor on the natural basis: eps_{ij} = g_i.eps.g_j = F^T eps F. */
+		arma::mat covariant(const arma::mat &eps) const;
+
 		/**
 		 * @brief Assignment operator.
 		 * 

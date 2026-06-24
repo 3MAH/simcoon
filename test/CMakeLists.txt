@@ -3,9 +3,6 @@
 
 # Test source files (relative to CMAKE_SOURCE_DIR)
 set(TEST_SRCS
-  # Identification tests
-  test/Identification/Tidentification.cpp
-
   # Libraries - Continuum Mechanics
   test/Libraries/Continuum_mechanics/Tconstitutive.cpp
   test/Libraries/Continuum_mechanics/Tcontimech.cpp
@@ -36,6 +33,8 @@ set(TEST_SRCS
 
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
+  test/Libraries/Umat/Ttangent_assembly.cpp
+  test/Libraries/Umat/Tunified_TR.cpp
 
   # UMATs
   test/Umats/ELISO/TELISO.cpp

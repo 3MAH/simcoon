@@ -48,7 +48,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {  	
 
     UNUSED(nprops);
@@ -202,9 +202,13 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     mat m_sigma = m_sigma_iso + m_sigma_vol;
     sigma = t2v_stress(m_sigma);  
 
-    mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);    
+    mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Lt_iso + Lt_vol;
+    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+
+    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
+    // XBM rate) -- identical object to the small-strain boxes and saint_venant.
+    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
 
     if(start) {
         L = Lt;
@@ -216,9 +220,11 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     cout << "Lt_vol = " << Lt_vol << endl;        
     cout << "eig(Lt)" << eig_sym(Lt);
 */    
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%Detot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
+    //Computation of the mechanical and thermal work quantities.
+    // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
+    double J0 = det(F0);
+    Wm   += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
+    Wm_r += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

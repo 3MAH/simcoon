@@ -22,12 +22,12 @@
 * @section FEA Transfer Functions
 *
 * This file contains functions for converting between:
-* - Abaqus UMAT format ↔ simcoon Armadillo format
-* - Ansys USERMAT format ↔ simcoon Armadillo format
+* - Abaqus UMAT format \f$\leftrightarrow\f$ simcoon Armadillo format
+* - Ansys USERMAT format \f$\leftrightarrow\f$ simcoon Armadillo format
 *
 * Voigt notation conventions:
-* - simcoon/Abaqus: (11, 22, 33, 12, 13, 23) → indices (0, 1, 2, 3, 4, 5)
-* - Ansys:          (11, 22, 33, 12, 23, 13) → indices (0, 1, 2, 3, 4, 5)
+* - simcoon/Abaqus: (11, 22, 33, 12, 13, 23) \f$\to\f$ indices (0, 1, 2, 3, 4, 5)
+* - Ansys:          (11, 22, 33, 12, 23, 13) \f$\to\f$ indices (0, 1, 2, 3, 4, 5)
 *   Note: Ansys swaps components 4 and 5 compared to simcoon/Abaqus
 */
 
@@ -51,13 +51,13 @@ namespace simcoon {
  *          Use this after calling an external Abaqus UMAT to retrieve results.
  * 
  * @param stress Abaqus stress array (ntens)
- * @param ddsdde Abaqus tangent operator array (ntens×ntens, column-major)
+ * @param ddsdde Abaqus tangent operator array (ntens \f$\times\f$ ntens, column-major)
  * @param nstatev Number of state variables
  * @param statev Abaqus state variables array
  * @param ndi Number of direct stress components
  * @param nshr Number of shear stress components
  * @param sigma [out] simcoon stress vector (6)
- * @param Lt [out] simcoon tangent matrix (6×6)
+ * @param Lt [out] simcoon tangent matrix (\f$6 \times 6\f$)
  * @param Wm [out] simcoon work quantities vector (4): Wm, Wm_r, Wm_ir, Wm_d
  * @param statev_smart [out] simcoon state variables vector
  */
@@ -84,7 +84,7 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde,
  * @param statev Abaqus state variables array
  * @param ndi Number of direct stress components
  * @param nshr Number of shear stress components
- * @param drot Abaqus rotation increment matrix (3×3, column-major)
+ * @param drot Abaqus rotation increment matrix (\f$3 \times 3\f$, column-major)
  * @param sigma [out] simcoon stress vector
  * @param Lt [out] simcoon tangent matrix
  * @param Etot [out] simcoon total strain vector

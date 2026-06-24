@@ -2,8 +2,8 @@
 Simulation
 ==========
 
-The Simulation module provides tools for running simulations, including solvers,
-identification algorithms, and mathematical utilities.
+The Simulation module provides tools for running simulations, including solvers
+and mathematical utilities.
 
 .. toctree::
    :maxdepth: 2
@@ -12,7 +12,6 @@ identification algorithms, and mathematical utilities.
    maths
    rotation
    solver
-   identification
    phase
 
 Overview
@@ -23,7 +22,6 @@ This module contains simulation and numerical tools:
 - **Maths**: Mathematical utilities (random numbers, statistics, solvers)
 - **Rotation**: Comprehensive 3D rotation tools with ``Rotation`` class and Voigt notation support
 - **Solver**: Material point simulation solvers
-- **Identification**: Parameter identification algorithms
 - **Phase**: Phase management and properties
 
 What's New in Simcoon 2.0

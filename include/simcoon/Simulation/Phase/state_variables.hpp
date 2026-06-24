@@ -82,6 +82,8 @@ class state_variables
         int nstatev; ///< Number of internal state variables
         arma::vec statev; ///< Internal state variables vector
         arma::vec statev_start; ///< Internal state variables at start of increment
+
+        int tangent_mode = 0; // Tangent-mode selector 0 = continuum (current behaviour, default in simcoon 1.x), 1 = algorithmic / Simo–Hughes consistent tangent (planned 2.0 default).
     
         natural_basis nb; ///< Natural basis for covariant/contravariant operations
     

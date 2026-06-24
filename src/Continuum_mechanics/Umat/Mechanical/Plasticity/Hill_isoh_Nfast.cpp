@@ -30,6 +30,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -48,7 +49,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -130,8 +131,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         EP_branch[i] = rotate_strain(EP_branch[i], DR);
     }
     
-    vec sigma_start = sigma;
-    vec EP_start = sigma;
+    vec stress_start = stress;
+    vec EP_start = stress;
     
     if(start) { //Initialization
         T_init = T;
@@ -139,8 +140,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         for (int i=0; i<N_plas; i++) {
             EP_branch[i] = zeros(6);
         }
-        sigma = zeros(6);
-        sigma_start = zeros(6);
+        stress = zeros(6);
+        stress_start = zeros(6);
     }
     
     vec Hp = zeros(N_plas);
@@ -168,7 +169,7 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_plas);
@@ -183,7 +184,7 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     mat K = zeros(N_plas,N_plas);
     
     for (int i=0; i<N_plas; i++) {
-        Lambdap[i] = dHill_stress(sigma,Hill_params[i]);
+        Lambdap[i] = dHill_stress(stress,Hill_params[i]);
         kappa_j[i] = L*Lambdap[i];
         dPhidsigma[i] = zeros(6);
     }
@@ -206,8 +207,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
                 Hp[i] = 0.;
             }
             
-            Phi(i) = Hill_stress(sigma,Hill_params[i]) - Hp[i] - sigmaY[i];
-            Lambdap[i] = dHill_stress(sigma,Hill_params[i]);
+            Phi(i) = Hill_stress(stress,Hill_params[i]) - Hp[i] - sigmaY[i];
+            Lambdap[i] = dHill_stress(stress,Hill_params[i]);
             
             dPhidsigma[i] = Lambdap[i];
             dPhidp[i] = -1.*dHpdp[i];
@@ -228,72 +229,42 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
             EP += ds_j(i)*Lambdap[i];
         }
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     vec Dp = Ds_j;
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum elastic-plastic operator
+    //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(N_plas, N_plas);
     for (int i=0; i<N_plas; i++) {
         for (int j=0; j<N_plas; j++) {
             Bhat(i, j) = sum(dPhidsigma[i]%kappa_j[j]) - K(i,j);
         }
     }
-    
-    vec op = zeros(N_plas);
-    mat delta = eye(N_plas,N_plas);
-    
-    for (int i=0; i<N_plas; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(N_plas,N_plas);
-    for (int i = 0; i < N_plas; i++) {
-        for (int j = 0; j < N_plas; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1.-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(N_plas, N_plas);
-    mat invBhat = zeros(N_plas, N_plas);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < N_plas; i++) {
-        for (int j = 0; j < N_plas; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(N_plas);
 
-    Lt = L;
-    for (int i = 0; i < N_plas; i++) {
-        P_epsilon[i] = zeros(6);
-        for (int j = 0; j < N_plas; j++) {
-            P_epsilon[i] += invBhat(j, i)*(L*dPhidsigma[j]);
-        }
-        Lt = Lt - (kappa_j[i]*P_epsilon[i].t());
-    }
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
     
     std::vector<double> A_p(N_plas);
     for (int i = 0; i < N_plas; i++) {
         A_p[i] = -Hp[i];
     }
     
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP);
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP);
     for (int i = 0; i < N_plas; i++) {
         Dgamma_loc += 0.5*(A_p_start[i] + A_p[i])*Dp[i];
     }
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     for (int i = 0; i < N_plas; i++) {
         Wm_ir += -0.5*(A_p_start[i] + A_p[i])*Dp[i];
     }

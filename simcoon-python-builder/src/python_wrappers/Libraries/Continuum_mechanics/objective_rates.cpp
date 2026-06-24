@@ -43,6 +43,18 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
     return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
 }
 
+//Log-strain concentration tensors A^R (rotated / log_R) and A^F (convected / log_F), 6x6 Voigt
+py::array_t<double> A_R(const py::array_t<double> &F, const bool &copy) {
+    mat F_cpp = carma::arr_to_mat(F);
+    mat AR = simcoon::A_R(F_cpp);
+    return carma::mat_to_arr(AR, copy);
+}
+py::array_t<double> A_F(const py::array_t<double> &F, const bool &copy) {
+    mat F_cpp = carma::arr_to_mat(F);
+    mat AF = simcoon::A_F(F_cpp);
+    return carma::mat_to_arr(AF, copy);
+}
+
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de, const unsigned int &n_threads) {
@@ -290,82 +302,46 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
     std::map<string, int> list_Lt_convert;
     list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
 	int select = list_Lt_convert [converter_key];
-    mat (*convert_function)(const mat &, const mat &, const mat &);
-    mat (*convert_function2)(const mat &, const mat &);
 
-    switch (select) {
-        case 0: {
-            convert_function2 = &simcoon::Dsigma_LieDD_2_DSDE;
-            break;
+    // The box tangent convention is Lt = d(tau_hat)/d(De): the Kirchhoff, log/Hencky-rate,
+    // no-J corotational tangent that every simcoon UMAT now returns. Split by role:
+    //  * INVERSE keys (consume the box Lt -> material dS/dE): use the no-J Dtau_* family so
+    //    the box's Kirchhoff tangent is NOT spuriously multiplied by J (the J double-count
+    //    fix). Stress is promoted to Kirchhoff (tau = J*sigma) internally.
+    //  * FORWARD / CROSS keys (produce dsigma/dCorate, the Cauchy spatial tangent fedoo
+    //    consumes -- "dsigma_dD"): KEEP the Cauchy (1/J) Dsigma_* family, taking the Cauchy
+    //    sigma directly. (fedoo: dS/dE = DsigmaDe_2_DSDE(box_Lt); dsigma/dD = DSDE_2_Dsigma_*.)
+    auto convert_pt = [select](const mat &Lt_pt, const mat &F_pt, const mat &sig_pt) -> mat {
+        double Jdet = det(F_pt);
+        mat tau = Jdet*sig_pt;                 // Kirchhoff = J * Cauchy (both spatial)
+        switch (select) {
+            // inverse: box d(tau_hat)/d(De) (Kirchhoff, no-J) -> material dS/dE
+            case 0:  return simcoon::Dtau_LieDD_2_DSDE(Lt_pt, F_pt);
+            case 1:  return simcoon::DtauDe_2_DSDE(Lt_pt, simcoon::get_BBBB(F_pt), F_pt, tau);
+            case 2:  return simcoon::DtauDe_JaumannDD_2_DSDE(Lt_pt, F_pt, tau);
+            case 6:  return simcoon::DtauDe_GreenNaghdiDD_2_DSDE(Lt_pt, F_pt, tau);
+            // Cauchy spatial-tangent menu (dsigma/dD, 1/J) -- fedoo's material Jacobian
+            case 3:  return simcoon::Dsigma_LieDD_Dsigma_JaumannDD(Lt_pt, sig_pt);
+            case 4:  return simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD(Lt_pt, F_pt, sig_pt);
+            case 5:  return simcoon::Dsigma_LieDD_Dsigma_logarithmicDD(Lt_pt, F_pt, sig_pt);
+            case 7:  return simcoon::DSDE_2_Dsigma_GreenNaghdiDD(Lt_pt, F_pt, sig_pt);
+            case 8:  return simcoon::DSDE_2_Dsigma_JaumannDD(Lt_pt, F_pt, sig_pt);
+            case 9:  return simcoon::DSDE_2_Dsigma_LieDD(Lt_pt, F_pt);
+            case 10: return simcoon::DSDE_2_Dsigma_logarithmicDD(Lt_pt, F_pt, sig_pt);
         }
-        case 1: {
-            convert_function = &simcoon::DsigmaDe_2_DSDE;
-            break;
-        }
-        case 2: {
-            convert_function = &simcoon::DsigmaDe_JaumannDD_2_DSDE;
-            break;
-        }
-        case 3: {
-            convert_function2 = &simcoon::Dsigma_LieDD_Dsigma_JaumannDD;
-            break;
-        }
-        case 4: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD;
-            break;
-        }
-        case 5: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_logarithmicDD;
-            break;
-        }
-        case 6: {
-            convert_function = &simcoon::DsigmaDe_GreenNaghdiDD_2_DSDE;
-            break;
-        }
-        case 7: {
-            convert_function = &simcoon::DSDE_2_Dsigma_GreenNaghdiDD;
-            break;
-        }
-        case 8: {
-            convert_function = &simcoon::DSDE_2_Dsigma_JaumannDD;
-            break;
-        }
-        case 9: {
-            convert_function2 = &simcoon::DSDE_2_Dsigma_LieDD;
-            break;
-        }
-        case 10: {
-            convert_function = &simcoon::DSDE_2_Dsigma_logarithmicDD;
-            break;
-        }
-    }
+        return Lt_pt;
+    };
 
-    if (Lt.ndim() == 2) {            
+    if (Lt.ndim() == 2) {
         if ((F.ndim() != 2) || (stress.ndim() != 1))  {
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
         }
-
         mat F_cpp = carma::arr_to_mat_view(F);
         mat Lt_cpp = carma::arr_to_mat_view(Lt);
         vec stress_v = carma::arr_to_col_view(stress);
-        mat stress_cpp = simcoon::v2t_stress(stress_v);
-        mat Lt_converted(6,6);
-
-        switch (select) {
-            case 0: case 9: {
-                Lt_converted = convert_function2(Lt_cpp, F_cpp);
-                break;
-            }
-            case 1: case 2: case 4: case 5: case 6: case 7: case 8: case 10: {
-                Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
-                break;
-            }
-            case 3: {
-                Lt_converted = convert_function2(Lt_cpp, stress_cpp);
-                break;
-            }
-        }
-        return carma::mat_to_arr(Lt_converted,false);
+        mat sig_cpp = simcoon::v2t_stress(stress_v);
+        mat Lt_converted = convert_pt(Lt_cpp, F_cpp, sig_cpp);
+        return carma::mat_to_arr(Lt_converted, false);
     }
     else if (Lt.ndim() == 3) {
         cube F_cpp = carma::arr_to_cube_view(F);
@@ -373,50 +349,11 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         mat stress_cpp = carma::arr_to_mat_view(stress);
         int nb_points = Lt_cpp.n_slices;
         cube Lt_converted = zeros(6,6,nb_points);
-
-        mat stress_pt;
-
-/*        #ifdef _OPENMP
-        int max_threads = omp_get_max_threads();
-        omp_set_num_threads(4);
-            #ifndef _WIN32
-            py::gil_scoped_release release;
-            #endif
-        omp_set_max_active_levels(3);
-        #pragma omp parallel for shared(Lt_converted, Lt_cpp, F_cpp)
-        #endif
-*/
-
         for (int pt = 0; pt < nb_points; pt++) {
-            //vec stress_pt = stress_cpp.unsafe_col(pt);
-            stress_pt = simcoon::v2t_stress(stress_cpp.unsafe_col(pt));
-            switch (select) {
-                case 0: case 9: {
-                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), F_cpp.slice(pt));
-                    break;
-                }
-                case 1: case 2: case 6: case 7: case 8: case 10: {
-                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-                    break;
-                }
-                case 3: {
-                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), stress_pt);
-                    break;
-                }
-                case 4: case 5: {
-                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-                    break;
-                }
-            }          
+            mat sig_pt = simcoon::v2t_stress(stress_cpp.unsafe_col(pt));
+            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt), sig_pt);
         }
-/*        #ifdef _OPENMP
-            #ifndef _WIN32
-            py::gil_scoped_acquire acquire;					
-            #endif
-        omp_set_num_threads(max_threads);			                     
-        #endif
-*/
-        return carma::cube_to_arr(Lt_converted,false);
+        return carma::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");
 }

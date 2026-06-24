@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
-version = "1.11.1"
+version = "1.12.0"
 description = "Simulation in Mechanics and Materials: Interactive Tools - A library for the simulation of multiphysics systems and heterogeneous materials"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -60,6 +60,9 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+]
+identify = [
+    "scikit-learn>=1.0",
 ]
 
 # =============================================================================
@@ -188,11 +191,23 @@ repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.windows]
-# Install dependencies via vcpkg
-before-all = "vcpkg install armadillo:x64-windows openblas:x64-windows"
+# Static (-md) triplet. On a static Windows triplet vcpkg's `lapack` metapackage resolves to
+# clapack -- an f2c C translation of LAPACK, with NO Fortran compiled -- instead of
+# lapack-reference, sidestepping the LLVMFlang-22 build failure on the windows-2025 image.
+# BLAS stays OpenBLAS (native pthread threading: fast, and coexists with a user's MKL without
+# an OpenMP-runtime clash). armadillo/openblas/clapack link statically into the extension, so
+# the wheel is self-contained -- no runtime DLLs to bundle. The -md variant keeps the dynamic
+# UCRT, matching CPython. (Users who want Intel MKL kernels can install simcoon via conda.)
+before-all = "vcpkg install armadillo:x64-windows-static-md"
 
-# Point CMake to vcpkg
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" }
+# Point CMake to vcpkg and select the static triplet on both sides: VCPKG_DEFAULT_TRIPLET for
+# vcpkg itself, and -DVCPKG_TARGET_TRIPLET (via CMAKE_ARGS, honoured by scikit-build-core) so the
+# toolchain's find_package looks in the static install tree.
+# VCPKG_BINARY_SOURCES = x-gha: read/write the GitHub Actions binary cache so armadillo/openblas/
+# clapack build once and are restored on later runs (clapack's source download from www.netlib.org
+# is flaky; caching the built package sidesteps it). The ACTIONS_* tokens it needs are exported in
+# wheels.yml. Binary-cache errors are non-fatal warnings in vcpkg, so this never breaks the build.
+environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_DEFAULT_TRIPLET = "x64-windows-static-md", CMAKE_ARGS = "-DVCPKG_TARGET_TRIPLET=x64-windows-static-md", VCPKG_BINARY_SOURCES = "clear;x-gha,readwrite" }
 
-# Skip wheel repair — CMake installs all needed DLLs directly into the wheel
+# Everything is statically linked -> nothing to repair/bundle.
 repair-wheel-command = ""
