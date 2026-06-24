@@ -13,7 +13,10 @@ echo Using pybind11 from: %PYBIND11_DIR%
 
 :: Configure with Python bindings enabled
 :: CONDA_BUILD env var is detected by CMakeLists.txt to enable SIMCOON_BUILD_PYTHON
-cmake -G "Visual Studio 17 2022" ^
+:: Use Ninja (already a build requirement) with the conda-activated MSVC (CC/CXX=cl.exe) rather
+:: than a hardcoded Visual Studio generator. The VS generator fails on CI when the activated VS
+:: edition does not match the hardcoded version ("could not find any instance of Visual Studio").
+cmake -G Ninja ^
       -S . -B build ^
       -DCMAKE_INSTALL_PREFIX=%PREFIX%/Library ^
       -DCMAKE_BUILD_TYPE=Release ^
