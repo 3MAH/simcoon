@@ -332,14 +332,20 @@ class TestTensor4PushPull:
         np.testing.assert_allclose(t.mat, t_back.mat, atol=1e-8)
 
     def test_compliance_push_forward_consistency(self):
-        """Compliance push-forward with simple shear: verify specific value."""
+        """Compliance push-forward with simple shear: verify specific value.
+
+        A pure (12,12) shear compliance pushed forward by F^{-T} under x-y simple
+        shear maps into the 22-normal component, not the 11. F^{-T} row 1 = [1,0,0]
+        leaves [0,0] at 0 (C'_1111 = C_1111 = 0); F^{-T} row 2 = [-1,1,0] gives
+        C'_2222 = 4 -> Voigt [1,1] = 4.0 (normal-normal factor 1).
+        """
         M = np.zeros((6, 6))
         M[3, 3] = 4.0
         comp = sim.Tensor4.compliance(M)
         F_shear = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 1]], dtype=float)
         comp_push = comp.push_forward(F_shear)
-        # Expected: M'(0,0) = 4.0 (from correct factor handling)
-        assert abs(comp_push.mat[0, 0] - 4.0) < 1e-10
+        assert abs(comp_push.mat[1, 1] - 4.0) < 1e-10
+        assert abs(comp_push.mat[0, 0]) < 1e-10
 
 
 class TestTensor4Inverse:
