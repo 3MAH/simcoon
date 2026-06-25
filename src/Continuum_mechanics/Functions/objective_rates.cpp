@@ -385,8 +385,11 @@ mat A_R(const mat &F) {
     return AR;
 }
 
-// A^F: log_F-frame strain-concentration tensor (full doc in objective_rates.hpp).
-// t*coth(t) - 1/2 ln(b_i b_j) kernel; deliberately indefinite past lambda = sqrt(e).
+// A^F: log_F-frame (convected) strain-concentration tensor (full doc in objective_rates.hpp).
+// Kernel t*coth(t), t = 1/2 ln(b_i/b_j) -> diagonal = 1, so A^F:D recovers ln V (like A^R:D) in
+// the convected F-frame. The cosh(t) factor vs A_R's t/sinh(t) compensates the convected (inv DF)
+// transport. (An earlier "-1/2 ln(b_i b_j)" term made it deliberately indefinite past lambda=sqrt(e);
+// that corrupted the diagonal to 1-2 lnλ and was the bug -- A^F MUST integrate to ln V, as A^R does.)
 mat A_F(const mat &F) {
     mat B = L_Cauchy_Green(F);
     vec bi = zeros(3);
@@ -405,7 +408,7 @@ mat A_F(const mat &F) {
             } else {
                 tcoth = 1. + t*t/3. - t*t*t*t/45.;       // Taylor of t*coth(t)
             }
-            double c = tcoth - 0.5*log(bi(i)*bi(j));     // t*coth(t) - 1/2 ln(b_i b_j)
+            double c = tcoth;     // t*coth(t): F-frame strain-concentration kernel (diagonal -> 1, recovers ln V)
             AF = AF + c*linearop_eigsym(Bi.col(i),Bi.col(j));
         }
     }
@@ -507,8 +510,13 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
         if (corate_type == 5) return lnV1 - DR*lnV0*inv(DR);   // log_F: convected (inv DF) transport
         return lnV1 - DR*lnV0*DR.t();                          // XBM:   orthogonal (DR^T) transport
     }
+    // corate 3 (log_R): A^R:D = the R-corotational (Green-Naghdi) rate of ln V, integrated in the
+    // natural frame -> recovers ln V (~2e-4) and is frame-indifferent under rigid rotation. The
+    // log_R spin is carried by sv_M->DR (logarithmic_R); the solver must NOT also apply the DR_N
+    // natural-basis rotation -- stacking both double-counts the log_R correction (undershoots ln V
+    // by ~11% under large open shear). A^R:D alone is the correct, self-consistent formulation.
     if (corate_type == 3) return Delta_log_strain(v2t_strain(A_R(F1)*t2v_strain(D)), Omega, DTime);  // log_R: A^R:D
-    return Delta_log_strain(D, Omega, DTime);                                                        // Jaumann/GN/Truesdell
+    return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN / Truesdell
 }
 
 //This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
