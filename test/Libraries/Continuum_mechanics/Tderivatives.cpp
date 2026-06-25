@@ -104,6 +104,16 @@ TEST(Tderivatives, dinvSdSsym_basic)
     // Should have major symmetry for elastic-type tensor
     // (Voigt notation 4th order tensor)
     EXPECT_LT(norm(dinv - dinv.t(), 2), 1.E-9);
+
+    // Value checks distinguishing the correct minor-symmetric d(inv S)/dS,
+    //   dinvSdS_ijkl = 0.5*(invS_ik*invS_jl + invS_il*invS_jk),
+    // from the dyad-collapse bug invS_ij*invS_kl. fastor4_to_voigt uses the stiffness
+    // convention (no factor-2), so:
+    //   Voigt[0,1] = dinvSdS_1122 = invS_12^2                         (dyad would give invS_11*invS_22)
+    //   Voigt[3,3] = dinvSdS_1212 = 0.5*(invS_11*invS_22 + invS_12^2) (dyad would give invS_12^2)
+    mat invS = inv(S);
+    EXPECT_NEAR(dinv(0, 1), invS(0, 1) * invS(0, 1), 1.E-9);
+    EXPECT_NEAR(dinv(3, 3), 0.5 * (invS(0, 0) * invS(1, 1) + invS(0, 1) * invS(0, 1)), 1.E-9);
 }
 
 TEST(Tderivatives, ddetSdS_numerical)

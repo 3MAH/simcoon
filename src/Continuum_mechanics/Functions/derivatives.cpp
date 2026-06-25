@@ -101,8 +101,11 @@ mat dinvSdSsym(const mat &S) {
     // dinvSdS_ijkl = 0.5*(invS_ik*invS_jl + invS_il*invS_jk)
     auto invS_ = arma_to_fastor2(mat::fixed<3,3>(invS));  // auto-detects symmetry
     enum {i,j,k,l};
-    auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>>(invS_, invS_);
-    auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>>(invS_, invS_);
+    // Pin the output index order explicitly with OIndex<i,j,k,l>; without it the result
+    // depends on Fastor's implicit free-index ordering, which (if it kept the written order
+    // [i,k,j,l]) would silently yield the dyad invS_ij*invS_kl instead of invS_ik*invS_jl.
+    auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>, Fastor::OIndex<i,j,k,l>>(invS_, invS_);
+    auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>, Fastor::OIndex<i,j,k,l>>(invS_, invS_);
     Fastor::Tensor<double,3,3,3,3> result = term1 + term2;
     return 0.5 * fastor4_to_voigt(result);
 }

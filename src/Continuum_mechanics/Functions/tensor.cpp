@@ -763,13 +763,10 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     const arma::mat::fixed<3,3> &tau_mat = tau.mat();
     arma::mat result_v;
 
-    // Step 2: Apply corotational rate correction.
-    // The three logarithmic variants share the same B^(4) tangent correction
-    // at this entry point (cf. main_preprint.tex Sec. "Two integrable
-    // logarithmic frameworks"). The integrator-level distinction between
-    // BXM log, log_R (R-transport) and log_F (F-transport) lives in the
-    // stress-update routines in Continuum_mechanics/Functions/objective_rates.cpp
-    // (`logarithmic`, `logarithmic_R`, `logarithmic_F`), not here.
+    // Step 2: Apply the corotational rate correction. The kernel is rate-specific and
+    // MUST match the solver's per-corate dispatch (DSDE_2_DtauDe_corate / DtauDe_corate_2_DSDE
+    // in objective_rates.cpp), otherwise a tangent built through this API disagrees with the
+    // tangent the solver integrates the stress against (different objective B^(4) kernel).
     switch (rate) {
         case CoRate::jaumann:
             result_v = Dtau_LieDD_Dtau_JaumannDD(Lt_v, tau_mat);
@@ -777,13 +774,18 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
         case CoRate::green_naghdi:
             result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
             break;
-        case CoRate::logarithmic:    // BXM logarithmic rate
-        case CoRate::logarithmic_R:  // R-transport logarithmic framework
-        case CoRate::logarithmic_F:  // F-transport logarithmic framework
-            // All three share the same B^(4) tangent correction at this entry
-            // point — they differ only at the stress-integrator level (see
-            // objective_rates.cpp). Intentional fallthrough.
+        case CoRate::logarithmic:    // XBM logarithmic spin -> get_BBBB kernel (solver corate 2)
             result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB(F), tau_mat);
+            break;
+        case CoRate::logarithmic_R:  // R-transport == Green-Naghdi frame -> get_BBBB_GN kernel
+            // Matches solver corate 3 (DtauDe_GreenNaghdiDD_2_DSDE): log_R transports by R,
+            // so it shares the Green-Naghdi spin kernel, NOT the XBM one.
+            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
+            break;
+        case CoRate::logarithmic_F:  // F-transport == convected/Oldroyd (B = I) -> pure Lie
+            // Matches solver corate 5 (Dtau_LieDD_2_DSDE): the Lie-rate tangent already computed
+            // in Step 1 needs no spin correction.
+            result_v = Lt_v;
             break;
         case CoRate::lie:
             // unreachable — handled at function entry
