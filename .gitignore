@@ -2,11 +2,14 @@
 build/
 
 # ── Compiled C++ unit-test executables ────────────────────────────────────
-# The standalone cmake test build (SIMCOON_BUILD_TESTS=ON) drops the T*** test
-# binaries into testBin/<group>/ (e.g. testBin/Continuum_mechanics/Tobjective_rates).
-# Every tracked test fixture carries an extension (.txt .dat .inp .py .cpp .f),
-# so matching the extensionless T*** executables leaves the fixtures untouched.
+# The standalone cmake test build (SIMCOON_BUILD_TESTS=ON) drops the extensionless
+# T*** test binaries into testBin/<group>/ (e.g. testBin/Continuum_mechanics/Tobjective_rates).
+# Re-include anything carrying an extension so the tracked test fixtures are never
+# ignored: every fixture has an extension (.txt .dat .inp .py .cpp .f) and the binaries
+# have none. The negation is required because macOS git is case-insensitive, so a bare
+# `T*` would otherwise also catch lowercase fixtures such as tab_file_1.txt.
 testBin/**/T*
+!testBin/**/*.*
 
 # ── Python / OS noise ─────────────────────────────────────────────────────
 __pycache__/
