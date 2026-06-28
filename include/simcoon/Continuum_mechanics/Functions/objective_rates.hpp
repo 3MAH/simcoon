@@ -348,10 +348,11 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
  *  - **3** log_R: \f$ \mathbf{D}_e=\mathbf{A}^{R}\!:\!\mathbf{D} \f$, the R-corotational (Green-Naghdi)
  *    rate of \f$ \ln V \f$ integrated over the orthogonal frame; \f$ \mathbf{A}^{R} \f$ is PD and
  *    \f$ \epsilon\to\ln V \f$, so the F-reconstruction stays well posed.
- *  - **5** log_F: exact convected difference \f$ \ln V_1 - \mathbf{DF}\,\ln V_0\,\mathbf{DF}^{-1} \f$
- *    (mixed-control F-reconstruction stays well posed). The convected \f$ \mathbf{A}^{F}\!:\!\mathbf{D} \f$
- *    rate (upper-convected/Oldroyd of \f$ \ln V \f$, indefinite past \f$ \lambda=\sqrt{e} \f$) is used
- *    only in the F-prescribed (NLGEOM) branch, where no reconstruction is performed.
+ *  - **5** log_F: \f$ \mathbf{D}_e=\mathbf{A}^{F}\!:\!\mathbf{D} \f$, the convected (Oldroyd) rate of
+ *    \f$ \ln V \f$ integrated over the F-frame (\f$ \mathbf{DF} \f$ built from the velocity gradient
+ *    L, carried in @p Omega). \f$ \mathbf{A}^{F} \f$ now recovers \f$ \ln V \f$ like \f$ \mathbf{A}^{R} \f$
+ *    (the earlier \f$ -\tfrac12\ln(b_i b_j) \f$ indefinite term was removed). A genuine rate, used for
+ *    ALL control_types so inelastic UMATs integrate from a real \f$ \mathbf{D}_e \f$.
  *  - **0/1/4** Jaumann / Green-Naghdi / Truesdell (\f$ \mathbf{A}=\mathbf{I} \f$): \f$ \mathbf{D}_e=\mathbf{D} \f$.
  *
  * Only affects rate-form/hypoelastic UMATs that accumulate \f$ \epsilon \f$; hyperelastic boxes read
@@ -359,6 +360,16 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
  * @return the spatial logarithmic-strain increment for the chosen corate
 */
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
+
+/**
+ * @brief Corate spin dispatch: for the chosen objective rate, set the frame increment @p DR and the
+ *        rate of deformation @p D / spin (or velocity gradient L) @p Omega from @p F0, @p F1.
+ *        Single source of truth for the solver's control_type ladders (predictor + Newton-Raphson),
+ *        so every control_type (1..4, NLGEOM) dispatches the corate identically.
+ *  - 0 Jaumann, 1 Green-Naghdi, 2 logarithmic/XBM, 3 log_R (DR=R-rotation), 4 Truesdell (DR=DF),
+ *    5 log_F (DR=DF; @p Omega receives the velocity gradient L for the convected A^F:D rate).
+ */
+void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma::mat &Omega, const arma::mat &F0, const arma::mat &F1, const double &DTime);
 
 /**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin

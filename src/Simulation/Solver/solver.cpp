@@ -278,23 +278,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 3) {  // log_R: orthogonal frame
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
                                         sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
@@ -318,23 +302,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 3) {  // log_R: orthogonal frame
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                         
@@ -363,23 +331,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                                                 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 3) {  // log_R: orthogonal frame
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                            mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
                                         sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                     }                                    
@@ -390,51 +342,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                        }
-                                        mat N_1 = zeros(3,3);
-                                        mat N_2 = zeros(3,3);
-                                        if(corate_type == 3) {
-                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            mat I = eye(3,3);
-                                            mat DR_N_inv;
-                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-N_2));
-                                            if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=3).");
-                                            }
-                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-N_2));
-
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
-                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);
-                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
-                                        }
-                                        if(corate_type == 4) {
-                                            Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
-    //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 5) {
-                                            // log_F: De = A^F:D (convected/Oldroyd rate of ln V; see A_F + Delta_log_strain_corate
-                                            // in objective_rates.hpp). NLGEOM-only -- A^F indefinite past lambda=sqrt(e); DF applied inv NOT transpose.
-                                            mat Lvel;
-                                            logarithmic_F(sv_M->DR, N_1, N_2, D, Lvel, DTime, sv_M->F0, sv_M->F1); // sv_M->DR = DF
-                                            mat DF = sv_M->DR;
-                                            sv_M->Detot       = t2v_strain(Delta_log_strain_F(v2t_strain(A_F(sv_M->F1)*t2v_strain(D)), Lvel, DTime)); // A^F:D = upper-convected (Oldroyd) rate of ln V, convected midpoint
-                                            sv_M->etot        = t2v_strain(DF * v2t_strain(sv_M->etot)        * inv(DF));  // DF correction: inv, NOT transpose
-                                            sv_M->sigma_start = t2v_stress(DF * v2t_stress(sv_M->sigma_start) * inv(DF));
-                                            sv_M->Detot       = t2v_strain(DF * v2t_strain(sv_M->Detot)       * inv(DF));
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                     }
                                     rve.to_start();
@@ -578,26 +487,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 3) {  // log_R: orthogonal frame
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 4) {
-                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }                                            
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
                                             sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         else if (blocks[i].control_type == 3) {
@@ -620,23 +510,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
 
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 3) {  // log_R: orthogonal frame
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
                                             if (DTime > simcoon::iota)
                                                 D = sv_M->Detot/DTime;
                                             else
@@ -659,26 +533,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;;
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 3) {  // log_R: orthogonal frame
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 5) {  // naive log_F: convected frame, sv_M->DR = DF (Omega receives the velocity gradient L)
-                                                mat N_1 = zeros(3,3), N_2 = zeros(3,3);
-                                                logarithmic_F(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 4) {
-                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }    
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
                                             sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }      
                                         rve.to_start();
