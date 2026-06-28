@@ -1,0 +1,14 @@
+# ── Build output ──────────────────────────────────────────────────────────
+build/
+
+# ── Compiled C++ unit-test executables ────────────────────────────────────
+# The standalone cmake test build (SIMCOON_BUILD_TESTS=ON) drops the T*** test
+# binaries into testBin/<group>/ (e.g. testBin/Continuum_mechanics/Tobjective_rates).
+# Every tracked test fixture carries an extension (.txt .dat .inp .py .cpp .f),
+# so matching the extensionless T*** executables leaves the fixtures untouched.
+testBin/**/T*
+
+# ── Python / OS noise ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.DS_Store
