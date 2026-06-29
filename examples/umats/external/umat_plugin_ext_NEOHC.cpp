@@ -141,7 +141,7 @@ public:
         // ---- Material tangent using Tensor4 ----
         tensor4 L_ref(
             lambda * auto_dyadic(invC_mat)
-          + 2.0 * (mu - lambda * lnJ) * dinvSdSsym(C_mat),
+          - 2.0 * (mu - lambda * lnJ) * dinvSdSsym(C_mat),   // dinvSdSsym = exact (negative) dCinv/dC
             "stiffness");
         L_v = L_ref.mat();
 

@@ -492,7 +492,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         return identity();
     }
 
-    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / simcoon::pi : norm(rotvec));
+    vec::fixed<3> axis = rotvec / norm(rotvec);   // unit axis (degrees handled on angle above)
     double half_angle = angle / 2.0;
     double s = sin(half_angle);
     double c = cos(half_angle);

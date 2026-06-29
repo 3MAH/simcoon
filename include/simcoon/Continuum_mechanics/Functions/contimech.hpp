@@ -388,8 +388,11 @@ arma::vec normal_ellipsoid(const double &u, const double &v, const double &a1, c
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \Xi = \frac{a_1^2\,a_2^2\,a_3^2}{\left(a_1^2\,a_2^2\,\cos^2 v + a_3^2\,\sin^2 v +  a_2^2\,\cos^2 v + a_1^2\,\sin u \right)^2 }
 \f}
+ * and the curvature is
+\f[
+    \Xi = \frac{a_1^2\,a_2^2\,a_3^2}{\left( a_1^2\,a_2^2\,\cos^2 v + a_3^2\,\sin^2 v \left( a_2^2\,\cos^2 u + a_1^2\,\sin^2 u \right) \right)^2}
+\f]
  * @code 
     const double Pi = 3.14159265358979323846;
 
@@ -598,24 +601,6 @@ arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
  * This tensor is useful in logarithmic strain computations, particularly for the derivative of the Hencky strain with respect to the Cauchy-Green tensor (see Xiao, Bruhns & Meyers, 1997).
  * The function returns a 6x6 matrix corresponding to a 4th order tensor in Voigt notation.
  * @returns The 6x6 matrix that represents the 4th-order tensor \f$ \mathbb{G}^{ij} \f$
- * @code
-    mat B = L_Cauchy_Green(F1);
-
-    vec bi = zeros(3);
-    mat Bi;
-    eig_sym(bi, Bi, B);
-    mat BBBB = zeros(6,6);
-
-    double f_z = 0.;
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
-            }
-        }
-    }
- * @endcode
 */
 arma::mat linearop_eigsym(const arma::vec &b_i, const arma::vec &b_j);
 

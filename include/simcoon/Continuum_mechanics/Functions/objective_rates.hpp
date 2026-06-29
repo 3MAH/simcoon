@@ -85,34 +85,36 @@ void Green_Naghdi(arma::mat &DR, arma::mat &D,  arma::mat &Omega, const double &
  * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the modified Logarithmic corotational framework and the time difference \f$ \Delta t \f$
  *
  * @param[out] DR 3x3 matrix representing the increment of rotation \f$ \Delta \mathbf{R} \f$
+ * @param[out] N_1 3x3 matrix, spectral spin correction \f$ \sum_{i\neq j} f(b_i/b_j)\,\mathbf{B}_i\mathbf{D}\mathbf{B}_j \f$ from the eigenprojections \f$ \mathbf{B}_i \f$ of \f$ \mathbf{B}=\mathbf{F}\mathbf{F}^T \f$
+ * @param[out] N_2 3x3 matrix, second spectral correction \f$ \sum_{i\neq j} g(b_i/b_j)\,\mathbf{B}_i\mathbf{D}\mathbf{B}_j \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
  * @param[out] Omega 3x3 matrix representing spin rate \f$ \mathbf{\Omega}_{\textrm{log}} \f$
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
  * @param[in] F0 transformation gradient \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$
  * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
  *
- * @details Example: 
+ * @details Example:
  * @code
- *      mat DR, D, Omega;
+ *      mat DR, N_1, N_2, D, Omega;
  *      mat F0 = randu(3,3);
  *      mat F1 = randu(3,3);
  *      double DTime = 0.1;
- *      logarithmic_R(DR, D, Omega, DTime, F0, F1);
+ *      logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1);
  * @endcode
  */
 void logarithmic_R(arma::mat &DR, arma::mat &N_1,  arma::mat &N_2, arma::mat &D,  arma::mat &Omega, const double &DTime, const arma::mat &F0, const arma::mat &F1);
 
 /**
- * @brief Computes the increment of the velocity gradient, the rate of deformation and the velocity gradient using the Truesdell rate.
+ * @brief Computes the increment of the transformation gradient, the rate of deformation and the velocity gradient using the Truesdell rate.
  *
  * This function computes the increment of the transformation gradient \f$ \Delta \mathbf{F} \f$, the rate of deformation \f$ \mathbf{D} \f$ and the velocity gradient \f$ \mathbf{L} \f$ depending on \f$ \mathbf{F}_0 \f$ and \f$ \mathbf{F}_1 \f$ 
- * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the modified Logarithmic corotational framework and the time difference \f$ \Delta t \f$
+ * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the Truesdell rate and the time difference \f$ \Delta t \f$
  *
  * Note that this objective rate correspond to the covariant derivative
  * 
  * @param[out] DF 3x3 matrix representing the increment of transformation gradient \f$ \Delta \mathbf{F} \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
- * @param[out] Omega 3x3 matrix representing spin rate \mathbf{\L}
+ * @param[out] L 3x3 matrix representing the velocity gradient \f$ \mathbf{L} \f$
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
  * @param[in] F0 transformation gradient \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$
  * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
@@ -129,25 +131,27 @@ void logarithmic_R(arma::mat &DR, arma::mat &N_1,  arma::mat &N_2, arma::mat &D,
 void Truesdell(arma::mat &DF, arma::mat &D, arma::mat &L, const double &DTime, const arma::mat &F0, const arma::mat &F1);
 
 /**
- * @brief Computes the increment of rotation, the rate of deformation and the spin using the modified Logarithmic corotational framework using the "spin" L
+ * @brief Computes the increment of the transformation gradient, the rate of deformation, the spectral corrections and the velocity gradient using the convected logarithmic (log_F) framework.
  *
- * This function computes the increment of rotation \f$ \Delta \mathbf{R} \f$, the rate of deformation \f$ \mathbf{D} \f$ and the spin \f$ \mathbf{\Omega}_{\textrm{log}} \f$ depending on \f$ \mathbf{F}_0 \f$ and \f$ \mathbf{F}_1 \f$ 
- * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the modified Logarithmic corotational framework and the time difference \f$ \Delta t \f$
+ * This function computes the increment of the transformation gradient \f$ \Delta \mathbf{F} \f$, the rate of deformation \f$ \mathbf{D} \f$ and the velocity gradient \f$ \mathbf{L} \f$ depending on \f$ \mathbf{F}_0 \f$ and \f$ \mathbf{F}_1 \f$
+ * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the convected logarithmic (log_F) framework and the time difference \f$ \Delta t \f$
  *
- * @param[out] DR 3x3 matrix representing the increment of rotation \f$ \Delta \mathbf{R} \f$
+ * @param[out] DF 3x3 matrix representing the increment of transformation gradient \f$ \Delta \mathbf{F} \f$
+ * @param[out] N_1 3x3 matrix, spectral spin correction \f$ \sum_{i\neq j} f(b_i/b_j)\,\mathbf{B}_i\mathbf{D}\mathbf{B}_j \f$ from the eigenprojections \f$ \mathbf{B}_i \f$ of \f$ \mathbf{B}=\mathbf{F}\mathbf{F}^T \f$
+ * @param[out] N_2 3x3 matrix, second spectral correction \f$ \sum_{i\neq j} g(b_i/b_j)\,\mathbf{B}_i\mathbf{D}\mathbf{B}_j \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
- * @param[out] Omega 3x3 matrix representing spin rate \mathbf{\Omega}_{\textrm{log}}
+ * @param[out] L 3x3 matrix representing the velocity gradient \f$ \mathbf{L} \f$
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
  * @param[in] F0 transformation gradient \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$
  * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
  *
- * @details Example: 
+ * @details Example:
  * @code
- *      mat DR, D, Omega;
+ *      mat DF, N_1, N_2, D, L;
  *      mat F0 = randu(3,3);
  *      mat F1 = randu(3,3);
  *      double DTime = 0.1;
- *      logarithmic_F(DR, D, Omega, DTime, F0, F1);
+ *      logarithmic_F(DF, N_1, N_2, D, L, DTime, F0, F1);
  * @endcode
  */
 void logarithmic_F(arma::mat &DF, arma::mat &N_1, arma::mat &N_2, arma::mat &D, arma::mat &L, const double &DTime, const arma::mat &F0, const arma::mat &F1);
@@ -293,36 +297,32 @@ arma::mat A_R(const arma::mat &F);
 /**
  * @brief Strain-concentration tensor \f$ \mathbf{A}^{F} \f$ for the convected (log_F) frame.
  *
- * Same construction as @ref A_R with the arithmetic-mean kernel minus the metric term:
- * \f$ A^{F}_{ij}=t\coth t-\tfrac12\ln(b_i b_j) \f$, \f$ A^{F}_{ii}=1-2\ln\lambda_i \f$. Reduces to
- * \f$ \mathbf{I}_6 \f$ at small strain but -- deliberately -- becomes indefinite past
- * \f$ \lambda=\sqrt{e} \f$ (\f$ A^{F}_{ii}<0 \f$), the operator face of the basis-stretch
- * anticommutator. Same engineering strain-concentration convention and application as @ref A_R.
+ * Spectral construction on the eigenprojections of \f$ \mathbf{B}=\mathbf{F}\mathbf{F}^T \f$ with the
+ * \f$ t\coth t \f$ kernel, \f$ t=\tfrac12\ln(b_i/b_j) \f$: \f$ A^{F}_{ij}=t\coth t \f$, \f$ A^{F}_{ii}=1 \f$.
+ * The kernel is positive-definite, reduces to \f$ \mathbf{I}_6 \f$ at small strain and recovers
+ * \f$ \ln V \f$ like @ref A_R. Same engineering strain-concentration convention and application as @ref A_R.
  * @param[in] F deformation gradient
  * @return the 6x6 (Voigt) strain-concentration tensor
 */
 arma::mat A_F(const arma::mat &F);
 
 /**
- * @brief Computes the logarithmic strain increment
+ * @brief Corotational logarithmic-strain increment by midpoint integration of the rate of deformation.
  *
- * This function takes in two matrices representing the deformation gradient at two different times, \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$ and \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
- * the time difference \f$ \Delta t = t_1 - t_0 \f$
- * It returns the matrix representing the logarithmic strain increment.
- *
- * The logarithmic strain increment is calculated using the following equation:
+ * Builds the incremental rotation \f$ \Delta \mathbf{R} \f$ from the spin \f$ \mathbf{\Omega} \f$ via the
+ * Hughes-Winget midpoint formula and returns the corotational midpoint integral of the rate of
+ * deformation \f$ \mathbf{D} \f$ over the step:
  * \f[
- *  \Delta \epsilon^{\text{log}} = \frac{1}{2}\left( \ln\left(F_2^TF_2\right) - \ln\left(F_1^TF_1\right) \right) 
+ *  \Delta \boldsymbol{\epsilon} = \tfrac12\left( \mathbf{D} + \Delta\mathbf{R}\,\mathbf{D}\,\Delta\mathbf{R}^T \right)\Delta t,
+ *  \qquad \Delta\mathbf{R} = \left(\mathbf{I}-\tfrac{\Delta t}{2}\mathbf{\Omega}\right)^{-1}\left(\mathbf{I}+\tfrac{\Delta t}{2}\mathbf{\Omega}\right)
  * \f]
  *
- * where \f$ F_1 \f$ and \f$ F_2 \f$ are the deformation gradient at the first and second times, respectively.
- * 
- * @param[in] F0 transformation gradient \f$ \mathbf{F}_0 \f$ at time \f$ t_0 \f$
- * @param[in] F1 transformation gradient \f$ \mathbf{F}_1 \f$ at time \f$ t_1 \f$
+ * @param[in] D rate of deformation \f$ \mathbf{D} \f$
+ * @param[in] Omega corotational spin \f$ \mathbf{\Omega} \f$ (Jaumann / Green-Naghdi / logarithmic, per the calling rate)
  * @param[in] DTime time difference \f$ \Delta t = t_1 - t_0 \f$
- * @return The matrix representing the logarithmic strain increment \f$ \Delta \mathbf{e} \f$
+ * @return the logarithmic strain increment \f$ \Delta \boldsymbol{\epsilon} \f$
 */
-arma::mat Delta_log_strain(const arma::mat &F0, const arma::mat &F1, const double &DTime);
+arma::mat Delta_log_strain(const arma::mat &D, const arma::mat &Omega, const double &DTime);
 
 /**
  * @brief Naive log_F (convected) logarithmic-strain increment.

@@ -391,9 +391,9 @@ arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype);
 /// Batch trace for N tensor2. voigt:(6,N) → (N).
 arma::vec batch_trace(const arma::mat &voigt, VoigtType vtype);
 
-/// Batch contract tensor4 @ tensor2. t4:(6,6,N4), t2:(6,N2) → (6,N).
-/// Returns (result, output_vtype).
+/// Infers the output VoigtType of a tensor4 @ tensor2 contraction from the tensor4 type.
 VoigtType infer_contraction_vtype(Tensor4Type t4type);
+/// Batch contract tensor4 @ tensor2. t4:(6,6,N4), t2:(6,N2) → (6,N); pair with infer_contraction_vtype for the output type.
 arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
                          const arma::mat &t2, VoigtType t2_vtype);
 
@@ -409,9 +409,9 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
 arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
                               const arma::cube &F, bool metric = true);
 
-/// Batch inverse N tensor4. t4:(6,6,N) → (6,6,N).
-/// Returns (result, inverse_type).
+/// Infers the resulting Tensor4Type of a tensor4 inverse from the input type.
 Tensor4Type infer_inverse_type(Tensor4Type t4type);
+/// Batch inverse N tensor4. t4:(6,6,N) → (6,6,N); pair with infer_inverse_type for the output type.
 arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type);
 
 } // namespace simcoon
