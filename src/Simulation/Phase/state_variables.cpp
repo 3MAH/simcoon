@@ -363,7 +363,7 @@ void state_variables::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
 
-    if(corate_type != 4) {
+    if(corate_type != 4 && corate_type != 5) {
         PKII_start = PKII;
         tau_start = rotate_stress(tau,DR);
         sigma_start = rotate_stress(sigma,DR);
@@ -377,7 +377,7 @@ void state_variables::set_start(const int &corate_type)
         R = DR*R;
         nb.from_F(F1);
     }
-    else { //corate_type == 4 (Truesdell): DR is here understood as DF since the material system of coordinates is no longer orthonormal
+    else { //corate_type 4 (Truesdell) or 5 (naive log_F): DR is here understood as DF (convected), so the transport uses inv(DF), NOT transpose -- the basis is no longer orthonormal
         PKII_start = PKII;
         tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
         sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));
@@ -498,6 +498,8 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
 
+    nb = sv.nb;     // carry the natural basis local->global (see rotate_g2l)
+
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
     if (!rot.is_identity()) {
         Etot = rot.apply_strain(Etot);
@@ -547,6 +549,11 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
+
+    // Carry the natural basis (anisotropy convection, e.g. log_F EPTRI fibre) global->local.
+    // For an oriented material (psi/theta/phi != 0) nb would also need rotating; the
+    // single-fibre demonstrator uses psi=0, so the plain copy is exact here.
+    nb = sv.nb;
 
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
     if (!rot.is_identity()) {

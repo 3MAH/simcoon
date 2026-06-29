@@ -65,6 +65,15 @@ namespace simcoon {
  * \mathbf{q}_i(t + \Delta t) = e^{-\Delta t/\tau_i} \mathbf{q}_i(t) + \frac{E_i}{E_\infty} \mathbf{L}_\infty : \left( e^{-\Delta t/\tau_i} - 1 \right) \Delta \boldsymbol{\varepsilon}
  * \f]
  *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
+ *
  * **Bulk and Shear Decomposition:**
  *
  * The model handles volumetric and deviatoric responses independently:
@@ -106,11 +115,11 @@ namespace simcoon {
  *
  * Total state variables required: \f$ n_{statev} = 1 + 6N \f$
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -154,11 +163,11 @@ namespace simcoon {
  * vec statev = zeros(1 + 6*N);  // 1 + 12 state variables
  * vec Etot = {0.001, 0, 0, 0, 0, 0};
  * vec DEtot = {0.0001, 0, 0, 0, 0, 0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat DR = eye(3,3);
  *
- * umat_prony_Nfast(Etot, DEtot, sigma, Lt, DR, 8, props, 13, statev,
+ * umat_prony_Nfast(Etot, DEtot, stress, Lt, DR, 8, props, 13, statev,
  *                  20.0, 0.0, 0.0, 0.01, Wm, Wm_r, Wm_ir, Wm_d,
  *                  3, 3, false, tnew_dt);
  * @endcode
@@ -168,7 +177,7 @@ namespace simcoon {
  * - Simo, J. C., & Hughes, T. J. R. (1998). *Computational Inelasticity*. Springer.
  * - Park, S. W., & Schapery, R. A. (1999). "Methods of interconversion between linear viscoelastic material functions. Part I—A numerical method based on Prony series." *International Journal of Solids and Structures*, 36(11), 1653-1675.
  */
-void umat_prony_Nfast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_prony_Nfast(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 /** @} */ // end of umat_mechanical group
 

@@ -65,7 +65,7 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -155,7 +155,7 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         EP = vide;
         a_1 = vide;
         a_2 = vide;
@@ -179,7 +179,7 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     }
     
     //Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec EP_start = EP;
     vec a_1start = a_1;
     vec a_2start = a_2;
@@ -198,7 +198,7 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -212,9 +212,9 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = eta_stress(sigma-X);
-    vec Lambdaa_1 = eta_stress(sigma-X) - D_1*a_1;
-    vec Lambdaa_2 = eta_stress(sigma-X) - D_2*a_2;
+    vec Lambdap = eta_stress(stress-X);
+    vec Lambdaa_1 = eta_stress(stress-X) - D_1*a_1;
+    vec Lambdaa_2 = eta_stress(stress-X) - D_2*a_2;
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -233,19 +233,19 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
         else {
             dHpdp = 0.;
         }
-        dPhidsigma = eta_stress(sigma-X);
+        dPhidsigma = eta_stress(stress-X);
         dPhidp = -1.*dHpdp;
 //        dPhidp = -1.*dHpdp;
-        dPhida_1 = -1.*(2./3.)*C_1*(eta_stress(sigma-X)%Ir05());
-        dPhida_2 = -1.*(2./3.)*C_2*(eta_stress(sigma-X)%Ir05());
-//        dPhida = 0.*(eta_stress(sigma - X)%Ir05());
+        dPhida_1 = -1.*(2./3.)*C_1*(eta_stress(stress-X)%Ir05());
+        dPhida_2 = -1.*(2./3.)*C_2*(eta_stress(stress-X)%Ir05());
+//        dPhida = 0.*(eta_stress(stress - X)%Ir05());
         
         //compute Phi and the derivatives
-        Phi(0) = Mises_stress(sigma-X) - Hp - sigmaY;
+        Phi(0) = Mises_stress(stress-X) - Hp - sigmaY;
         
-        Lambdap = eta_stress(sigma-X);
-        Lambdaa_1 = eta_stress(sigma-X) - D_1*a_1;
-        Lambdaa_2 = eta_stress(sigma-X) - D_2*a_2;
+        Lambdap = eta_stress(stress-X);
+        Lambdaa_1 = eta_stress(stress-X) - D_1*a_1;
+        Lambdaa_2 = eta_stress(stress-X) - D_2*a_2;
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp + sum(dPhida_1%Lambdaa_1) + sum(dPhida_2%Lambdaa_2);
@@ -263,13 +263,13 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
         X_2 += ds_j(0)*(2./3.)*C_2*(Lambdaa_2%Ir05());
         X = X_1 + X_2;
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     vec Da_1 = a_1 - a_1start;
@@ -292,11 +292,11 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     vec A_a1 = -X_1;
     vec A_a2 = -X_2;
     
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a1_start + A_a1)%Da_1)+0.5*sum((A_a2_start + A_a2)%Da_2);
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a1_start + A_a1)%Da_1)+0.5*sum((A_a2_start + A_a2)%Da_2);
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP)) - 0.5*sum((A_a1_start + A_a1)%Da_1) - 0.5*sum((A_a2_start + A_a2)%Da_2);
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP)) - 0.5*sum((A_a1_start + A_a1)%Da_1) - 0.5*sum((A_a2_start + A_a2)%Da_2);
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
             

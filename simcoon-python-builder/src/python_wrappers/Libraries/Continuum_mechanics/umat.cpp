@@ -25,6 +25,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Damage/damage_LLD_0.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Zener_fast.hpp>
@@ -32,6 +33,8 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/saint_venant.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 
 #include <simcoon/Simulation/Maths/rotation.hpp> //for rotate_strain
 
@@ -63,16 +66,10 @@ namespace simpy {
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
 		// tangent_mode: 0 = continuum (default, current behaviour),
-		//               1 = algorithmic (Simo–Hughes consistent tangent,
-		// planned for simcoon 2.0 default — see doc §7.4 and
-		// simcoon::assemble_algorithmic_tangent). The value is forwarded
-		// to every UMAT via the unified function-pointer signature; UMATs
-		// that have not yet been extended with ∂Λ/∂σ data ignore it and
-		// return the continuum tangent regardless.
-		//Get the id of umat
+		//               1 = algorithmic (Simo–Hughes consistent tangent, planned for simcoon 2.0 default
 
 		std::map<string, int> list_umat;
-		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0 
+		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0 
 		int id_umat = list_umat[umat_name_py];
 		int arguments_type; //depends on the argument used in the umat
 
@@ -198,6 +195,11 @@ namespace simpy {
 				arguments_type = 1;
 				break;
 			}
+			case 28: { // SMA_TR (unified reduced-tangent model)
+				umat_function = &simcoon::umat_sma_unified_TR;
+				arguments_type = 1;
+				break;
+			}
 			case 15: {
 				umat_function = &simcoon::umat_damage_LLD_0;
 				arguments_type = 1;
@@ -234,19 +236,33 @@ namespace simpy {
 				umat_function = &simcoon::umat_generic_chaboche_CCP;
 				arguments_type = 1;
 				break;
-			}				
+			}
+			case 29: { // SNTVE (Saint-Venant-Kirchhoff, finite)
+				F0 = carma::arr_to_cube_view(F0_py);
+				F1 = carma::arr_to_cube_view(F1_py);
+				umat_function_finite = &simcoon::umat_saint_venant;
+				arguments_type = 2;
+				break;
+			}
+			case 30: { // NEOHI (Neo-Hookean incompressible, finite)
+				F0 = carma::arr_to_cube_view(F0_py);
+				F1 = carma::arr_to_cube_view(F1_py);
+				umat_function_finite = &simcoon::umat_neo_hookean_incomp;
+				arguments_type = 2;
+				break;
+			}
 			default: {
 				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
 			}
 		}
 
 		simcoon_parallel_for(nb_points, [&](int pt) {
-			vec local_props;
-			if (unique_props == false) {
-				local_props = list_props.col(pt);
-			} else {
-				local_props = props;
-			}
+			// Alias the props column without copying so the parallel region makes no
+			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
+			// PyDataMem_NEW (which needs the GIL) -> no GIL deadlock, no GIL handling.
+			// props (unique) / list_props (per-point) outlive the lambda and are read-only.
+			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
+			const vec local_props(const_cast<double*>(_props_ptr), nprops, false, true);
 			vec statev = list_statev.unsafe_col(pt);
 			vec sigma = list_sigma.unsafe_col(pt);
 

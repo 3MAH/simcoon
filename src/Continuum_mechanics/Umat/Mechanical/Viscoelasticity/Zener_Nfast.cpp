@@ -35,7 +35,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -105,7 +105,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     std::vector<mat> H_i(N_kelvin);
     std::vector<mat> invH_i(N_kelvin);
     
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     std::vector<vec> DEV_i(N_kelvin);
     std::vector<vec> A_v(N_kelvin);
     std::vector<vec> A_v_start(N_kelvin);
@@ -116,8 +116,8 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         for (int i=0; i<N_kelvin; i++) {
             EV_i[i] = zeros(6);
         }
-        sigma = zeros(6);
-        sigma_start = zeros(6);
+        stress = zeros(6);
+        stress_start = zeros(6);
         
         Wm = 0.;
         Wm_r = 0.;
@@ -139,7 +139,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     vec DEV = zeros(6);
     vec EV_start = EV;
     for (int i=0; i<N_kelvin; i++) {
-        A_v_start[i] = sigma_start - L_i[i]*EV_i[i];
+        A_v_start[i] = stress_start - L_i[i]*EV_i[i];
     }
     
     //Variables required for the loop
@@ -150,7 +150,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     
     //Determination of the initial, predicted stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV;
-    sigma = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, Eel, ndi);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_kelvin);
@@ -170,7 +170,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     std::vector<vec> Lambdav(N_kelvin);
     std::vector<vec> kappa_j(N_kelvin);
     for (int i=0; i<N_kelvin; i++) {
-        flow_visco[i] = invH_i[i]*(sigma-L_i[i]*EV_i[i]);
+        flow_visco[i] = invH_i[i]*(stress-L_i[i]*EV_i[i]);
         Lambdav[i] = eta_norm_strain(flow_visco[i]);
         kappa_j[i] = L0*Lambdav[i];
     }
@@ -187,7 +187,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         v = s_j;
 
         for (int i=0; i<N_kelvin; i++) {
-            flow_visco[i] = invH_i[i]*(sigma-L_i[i]*EV_i[i]);
+            flow_visco[i] = invH_i[i]*(stress-L_i[i]*EV_i[i]);
             Lambdav[i] = eta_norm_strain(flow_visco[i]);
             dPhi_idsigma[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             
@@ -226,9 +226,9 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
             EV += EV_i[i];
         }
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV;
-        sigma = el_pred(L0, Eel, ndi);
+        stress = el_pred(L0, Eel, ndi);
     }
     
     //Continuum tangent via shared leading-mechanism helper (doc §7.4).
@@ -244,7 +244,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
     
     for (int i=0; i<N_kelvin; i++) {
-        A_v[i] = sigma - L_i[i]*EV_i[i];
+        A_v[i] = stress - L_i[i]*EV_i[i];
     }
     double Dgamma_loc = 0.;
     for (int i=0; i<N_kelvin; i++) {
@@ -252,8 +252,8 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     }
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
     for (int i=0; i<N_kelvin; i++) {
         Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
     }

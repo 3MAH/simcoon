@@ -140,9 +140,12 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     mat m_sigma = m_sigma_iso + m_sigma_vol;
     sigma = t2v_stress(m_sigma);  
 
-    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);  
+    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Lt_iso + Lt_vol;
+    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+
+    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
+    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
 
     if(start) {
         L = Lt;
@@ -155,9 +158,11 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     cout << "eig(Lt)" << eig_sym(Lt);
 */
     
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%Detot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
+    //Computation of the mechanical and thermal work quantities.
+    // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
+    double J0 = det(F0);
+    Wm   += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
+    Wm_r += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

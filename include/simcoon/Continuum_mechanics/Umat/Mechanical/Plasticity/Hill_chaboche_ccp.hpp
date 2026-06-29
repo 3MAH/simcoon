@@ -56,6 +56,15 @@ namespace simcoon{
  * \f]
  * with \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ being the effective (shifted) stress.
  *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
+ *
  * **Hill Anisotropic Yield Surface:**
  *
  * The Hill projection tensor \f$ \mathbf{P}^{Hill} \f$ is defined by six parameters \f$ (F, G, H, L, M, N) \f$:
@@ -96,12 +105,12 @@ namespace simcoon{
  * | props[3] | \f$ \sigma_Y \f$ | Initial yield stress | Stress |
  * | props[4] | \f$ N_{iso} \f$ | Number of isotropic hardening terms | - |
  * | props[5] | \f$ N_{kin} \f$ | Number of kinematic hardening terms | - |
- * | props[6] | \f$ F \f$ | Hill parameter F | 1/Stress² |
- * | props[7] | \f$ G \f$ | Hill parameter G | 1/Stress² |
- * | props[8] | \f$ H \f$ | Hill parameter H | 1/Stress² |
- * | props[9] | \f$ L \f$ | Hill parameter L | 1/Stress² |
- * | props[10] | \f$ M \f$ | Hill parameter M | 1/Stress² |
- * | props[11] | \f$ N \f$ | Hill parameter N | 1/Stress² |
+ * | props[6] | \f$ F \f$ | Hill parameter F | \f$1/\mathrm{Stress}^2\f$ |
+ * | props[7] | \f$ G \f$ | Hill parameter G | \f$1/\mathrm{Stress}^2\f$ |
+ * | props[8] | \f$ H \f$ | Hill parameter H | \f$1/\mathrm{Stress}^2\f$ |
+ * | props[9] | \f$ L \f$ | Hill parameter L | \f$1/\mathrm{Stress}^2\f$ |
+ * | props[10] | \f$ M \f$ | Hill parameter M | \f$1/\mathrm{Stress}^2\f$ |
+ * | props[11] | \f$ N \f$ | Hill parameter N | \f$1/\mathrm{Stress}^2\f$ |
  * | props[12+2j] | \f$ Q_j \f$ | Isotropic saturation stress (j-th term) | Stress |
  * | props[13+2j] | \f$ b_j \f$ | Isotropic hardening rate (j-th term) | 1/Strain |
  * | props[12+2N_{iso}+2i] | \f$ C_i \f$ | Kinematic modulus (i-th backstress) | Stress |
@@ -118,13 +127,13 @@ namespace simcoon{
  * | statev[2:7] | \f$ \boldsymbol{\varepsilon}^p \f$ | Plastic strain tensor (Voigt) | Strain |
  * | statev[8+6i:13+6i] | \f$ \mathbf{X}_i \f$ | Backstress i (Voigt) | Stress |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -155,7 +164,7 @@ namespace simcoon{
  * - Chaboche, J. L. (1986). "Time-independent constitutive theories for cyclic plasticity." *Int. J. Plasticity*, 2(2), 149-188.
  * - Barlat, F., et al. (2005). "Linear transformation-based anisotropic yield functions." *Int. J. Plasticity*, 21(5), 1009-1039.
  */
-void umat_hill_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
+void umat_hill_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

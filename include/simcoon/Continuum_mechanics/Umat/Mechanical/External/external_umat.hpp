@@ -39,7 +39,7 @@
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6x1 vector)
  * @param DEtot Strain increment tensor (Voigt notation: 6x1 vector)
- * @param sigma Stress tensor (Voigt notation: 6x1 vector) [output]
+ * @param stress Stress tensor (Voigt notation: 6x1 vector) [output]
  * @param Lt Consistent tangent modulus (6x6 matrix) [output]
  * @param L Elastic stiffness tensor (6x6 matrix) [output]
  * @param sigma_in Internal stress contribution for explicit solvers (6x1 vector) [output]
@@ -66,6 +66,6 @@
  * @see umat_plugin_aba_api for Abaqus-compatible plugins
  * @see umat_plugin_ans_api for ANSYS-compatible plugins
  */
-extern void umat_external(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
+extern void umat_external(const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, arma::vec &sigma_in, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, const int &solver_type, double &tnew_dt);
 
 /** @} */ // end of umat_mechanical group

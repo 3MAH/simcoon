@@ -48,18 +48,18 @@ ContinuumTangent assemble_continuum_tangent(
 
     // Bbar = active block of Bhat with identity on the inactive diagonal,
     // so the matrix is invertible even when some mechanisms are inactive.
-    // mask(i,j) = op(i)*op(j); Bbar = mask ∘ Bhat + diag(1-op).
+    // mask(i,j) = op(i)*op(j); Bbar = mask \circ Bhat + diag(1-op).
     const arma::mat mask    = op * op.t();
     const arma::mat Bbar    = mask % Bhat + arma::diagmat(1.0 - op);
     arma::mat       invBhat = mask % arma::inv(Bbar);   // zero out inactive rows/cols
 
-    // Stack ∂Φ^m gradients into a 6×Nmech matrix so the double sum over
-    // (l, m) becomes one GEMM: P = (L · ∂Φ) · invBhat.
+    // Stack \partial \Phi^m gradients into a 6\times Nmech matrix so the double sum over
+    // (l, m) becomes one GEMM: P = (L \cdot \partial \Phi ) \cdot invBhat.
     arma::mat DP(6, Nmech);
     for (arma::uword m = 0; m < Nmech; ++m) DP.col(m) = dPhidsigma_l[m];
-    const arma::mat P = (L * DP) * invBhat;             // 6 × Nmech
+    const arma::mat P = (L * DP) * invBhat;             // 6 \times Nmech
 
-    // Stack κ^l into a 6×Nmech matrix for the rank-Nmech update Lt = L − κ Pᵀ.
+    // Stack \kappa^l into a 6\times Nmech matrix for the rank-Nmech update Lt = L - \kappa P^T.
     arma::mat K6(6, Nmech);
     for (arma::uword l = 0; l < Nmech; ++l) K6.col(l) = kappa_j[l];
 
@@ -78,7 +78,7 @@ ContinuumTangent assemble_continuum_tangent(
     double Ds,
     const arma::mat& L)
 {
-    // 1-mech specialisation: skip the 1×1 arma::inv and the std::vector
+    // 1-mech specialisation: skip the 1\times 1 arma::inv and the std::vector
     // brace-init that the N-mech form would otherwise pay per UMAT call.
     ContinuumTangent out;
     out.P_epsilon.assign(1, arma::zeros(6));
@@ -111,7 +111,7 @@ ContinuumTangent assemble_algorithmic_tangent(
     assert(Ds_j.n_elem == Nmech);
     assert(dLambda_dsigma_l.size() == Nmech);
 
-    // M = I + L · Σ_j (Δs^j · ∂Λ^j/∂σ), summed over the active set only.
+    // M = I + L \cdot \sum_j (\Delta s^j \cdot \partial \Lambda^j/\partial \sigma ), summed over the active set only.
     const arma::mat I6 = arma::eye(6, 6);
     arma::mat sumDsLambdaSigma = arma::zeros(6, 6);
     for (arma::uword j = 0; j < Nmech; ++j) {
@@ -120,18 +120,18 @@ ContinuumTangent assemble_algorithmic_tangent(
         }
     }
 
-    // Fast path: when no mechanism contributes a ∂Λ/∂σ correction (typical
+    // Fast path: when no mechanism contributes a \partial \Lambda /\partial \sigma correction (typical
     // for every UMAT that has not yet been extended), M = I and the
     // algorithmic tangent reduces exactly to the continuum tangent — return
-    // it without paying the 6×6 inverse + GEMM cost.
+    // it without paying the 6\times 6 inverse + GEMM cost.
     if (arma::approx_equal(sumDsLambdaSigma, arma::zeros(6, 6), "absdiff", simcoon::iota)) {
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
     const arma::mat Minv = arma::inv(I6 + L * sumDsLambdaSigma);
 
-    // Algorithmic operators:  L̃ = M⁻¹ L,  κ̃^j = M⁻¹ κ^j,
-    // B̃^{lj} = Bhat_continuum^{lj} + ∂Φ^l · (M⁻¹ − I) · κ^j  (Bhat_continuum = ∂Φ · κ − K).
+    // Algorithmic operators:  \tilde{L} = M^{-1} L,  \tilde{\kappa}^j = M^{-1} \kappa^j,
+    // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
     const arma::mat L_tilde = Minv * L;
     std::vector<arma::vec> kappa_tilde(Nmech);
     for (arma::uword j = 0; j < Nmech; ++j) {
@@ -160,7 +160,7 @@ ContinuumTangent assemble_algorithmic_tangent(
     const arma::mat& L,
     const arma::mat& dLambda_dsigma)
 {
-    // Inactive mechanism OR no σ-correction → continuum result.
+    // Inactive mechanism OR no \sigma -correction -> continuum result.
     if (Ds <= simcoon::iota ||
         arma::approx_equal(dLambda_dsigma, arma::zeros(6, 6), "absdiff", simcoon::iota))
     {

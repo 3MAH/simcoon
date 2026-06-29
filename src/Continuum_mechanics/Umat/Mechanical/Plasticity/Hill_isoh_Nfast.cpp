@@ -49,7 +49,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -131,8 +131,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         EP_branch[i] = rotate_strain(EP_branch[i], DR);
     }
     
-    vec sigma_start = sigma;
-    vec EP_start = sigma;
+    vec stress_start = stress;
+    vec EP_start = stress;
     
     if(start) { //Initialization
         T_init = T;
@@ -140,8 +140,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         for (int i=0; i<N_plas; i++) {
             EP_branch[i] = zeros(6);
         }
-        sigma = zeros(6);
-        sigma_start = zeros(6);
+        stress = zeros(6);
+        stress_start = zeros(6);
     }
     
     vec Hp = zeros(N_plas);
@@ -169,7 +169,7 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_plas);
@@ -184,7 +184,7 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     mat K = zeros(N_plas,N_plas);
     
     for (int i=0; i<N_plas; i++) {
-        Lambdap[i] = dHill_stress(sigma,Hill_params[i]);
+        Lambdap[i] = dHill_stress(stress,Hill_params[i]);
         kappa_j[i] = L*Lambdap[i];
         dPhidsigma[i] = zeros(6);
     }
@@ -207,8 +207,8 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
                 Hp[i] = 0.;
             }
             
-            Phi(i) = Hill_stress(sigma,Hill_params[i]) - Hp[i] - sigmaY[i];
-            Lambdap[i] = dHill_stress(sigma,Hill_params[i]);
+            Phi(i) = Hill_stress(stress,Hill_params[i]) - Hp[i] - sigmaY[i];
+            Lambdap[i] = dHill_stress(stress,Hill_params[i]);
             
             dPhidsigma[i] = Lambdap[i];
             dPhidp[i] = -1.*dHpdp[i];
@@ -229,13 +229,13 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
             EP += ds_j(i)*Lambdap[i];
         }
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     vec Dp = Ds_j;
     
@@ -257,14 +257,14 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         A_p[i] = -Hp[i];
     }
     
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP);
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP);
     for (int i = 0; i < N_plas; i++) {
         Dgamma_loc += 0.5*(A_p_start[i] + A_p[i])*Dp[i];
     }
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     for (int i = 0; i < N_plas; i++) {
         Wm_ir += -0.5*(A_p_start[i] + A_p[i])*Dp[i];
     }

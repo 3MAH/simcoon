@@ -85,14 +85,21 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     vec Eel = t2v_strain(Green_Lagrange(F1));
         
     //Compute the PKII stress and then the Cauchy stress
-    mat S = v2t_stress(el_pred(L, Eel, ndi));    
+    mat S = v2t_stress(el_pred(L, Eel, ndi));
     sigma = t2v_stress(PKII2Cauchy(S, F1));
 
-    Lt = DSDE_2_DtauDe(L, get_BBBB(F1), F1, v2t_stress(sigma));    
+    // Box tangent in the canonical convention Lt = d(tau_hat)/d(De). For SVK the elastic
+    // stiffness L IS the material tangent dS/dE, so map it straight to the box tangent.
+    Lt = box_DtauDe_from_dSdE(L, F1, sigma);
         
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%Detot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
+    //Computation of the mechanical and thermal work quantities.
+    // Wm is the Kirchhoff work per REFERENCE volume: tau:d(lnV), conjugate to the log-strain
+    // increment Detot. The box stress 'sigma' is the true Cauchy, so use tau = J*sigma (NOT
+    // sigma, which would give per-current-volume work) -- consistent with the small-strain
+    // (Kirchhoff-route) boxes whose route stress IS tau.
+    double J0 = det(F0), J1 = det(F1);
+    Wm   += 0.5*sum((J0*sigma_start + J1*sigma)%Detot);
+    Wm_r += 0.5*sum((J0*sigma_start + J1*sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     
