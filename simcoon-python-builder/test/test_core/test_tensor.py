@@ -578,3 +578,41 @@ class TestTensor4Concentration:
         A = sim.Tensor4.strain_concentration(np.eye(6))
         with pytest.raises(TypeError):
             A.rotate(np.eye(3))
+
+
+# ---------------------------------------------------------------------------
+# Anisotropic guards on the Mandel-internal storage (the engineering API is
+# unchanged: these exercise the general non-isotropic stiffness/compliance path
+# that the isotropic L_iso fixtures cannot discriminate).
+# ---------------------------------------------------------------------------
+
+def _aniso_spd_stiffness(seed=7):
+    """A generic anisotropic symmetric positive-definite 6x6 test stiffness (builder-free)."""
+    rng = np.random.default_rng(seed)
+    A = rng.standard_normal((6, 6))
+    return A @ A.T + 6.0 * np.eye(6)
+
+
+class TestTensor4MandelInvariants:
+
+    def test_anisotropic_mat_roundtrip(self):
+        """Constructor (eng->Mandel) then .mat (Mandel->eng) is the identity for every type."""
+        L = _aniso_spd_stiffness()
+        for factory in (sim.Tensor4.stiffness, sim.Tensor4.compliance,
+                        sim.Tensor4.strain_concentration, sim.Tensor4.stress_concentration):
+            np.testing.assert_allclose(factory(L).mat, L, rtol=1e-11, atol=1e-11)
+
+    def test_anisotropic_inverse_roundtrip(self):
+        L = _aniso_spd_stiffness()
+        K = sim.Tensor4.stiffness(L)
+        np.testing.assert_allclose(K.inverse().inverse().mat, L, rtol=1e-9, atol=1e-9)
+
+    def test_anisotropic_stiffness_compliance_contract(self):
+        """M:(L:eps) == eps for an anisotropic stiffness (contract + inverse via Mandel)."""
+        L = _aniso_spd_stiffness()
+        K = sim.Tensor4.stiffness(L)
+        Minv = K.inverse()
+        assert Minv.type == "compliance"
+        eps_v = np.array([0.01, -0.004, -0.003, 0.006, 0.002, 0.0015])
+        eps_back = Minv @ (K @ sim.Tensor2.strain(eps_v))
+        np.testing.assert_allclose(eps_back.voigt, eps_v, atol=1e-10)

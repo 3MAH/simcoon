@@ -104,93 +104,59 @@ static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
 }
 
 // ============================================================================
-// Voigt factor helpers for type-aware Voigt <-> full-index conversion
+// Kelvin-Mandel convention helpers
 // ============================================================================
 //
-// The Voigt 6x6 matrix V_IJ relates to the full-index C_ijkl by:
-//   V_IJ = voigt_factor(I, J, type) * C_ij(I)kl(J)
-//
-// Factors depend on whether input/output indices are stress or strain type:
-//   Left factor:  2 if I>=3 AND output is strain (compliance, strain_concentration)
-//   Right factor: 2 if J>=3 AND input is stress (compliance, stress_concentration)
-//
-//   Type                  | I<3,J<3 | I<3,J>=3 | I>=3,J<3 | I>=3,J>=3
-//   stiffness             |    1    |    1     |    1     |    1
-//   compliance            |    1    |    2     |    2     |    4
-//   stress_concentration  |    1    |    2     |    1     |    2
-//   strain_concentration  |    1    |    1     |    2     |    2
+// tensor4 stores its 6x6 in Mandel (sqrt2 on the shear rows/cols). Two boundaries:
+//   - engineering <-> Mandel: per-type congruence by N = diag(1,1,1,s2,s2,s2)
+//     (see Tensor4Type doc). Applied at the constructor / set_mat (in) and mat() (out).
+//   - Mandel <-> full-index: a single uniform sqrt2 rescale of the shear rows/cols around
+//     the factor-1 stiffness map voigt_to_fastor4 / fastor4_to_voigt. The full-index tensor
+//     is convention-free.
 
-static double voigt_factor(int I, int J, Tensor4Type type) {
-    double f = 1.0;
-    if (I >= 3) {
-        if (type == Tensor4Type::compliance || type == Tensor4Type::strain_concentration)
-            f *= 2.0;
+static const double SQ2 = std::sqrt(2.0);
+
+// eng->mandel shear factor on rows / cols (indices 3..5); mandel->eng is the reciprocal.
+static void mandel_factors(Tensor4Type type, double &row, double &col) {
+    switch (type) {
+        case Tensor4Type::stiffness:
+        case Tensor4Type::generic:               row = SQ2;     col = SQ2;     break;
+        case Tensor4Type::compliance:            row = 1.0/SQ2; col = 1.0/SQ2; break;
+        case Tensor4Type::strain_concentration:  row = 1.0/SQ2; col = SQ2;     break;
+        case Tensor4Type::stress_concentration:  row = SQ2;     col = 1.0/SQ2; break;
     }
-    if (J >= 3) {
-        if (type == Tensor4Type::compliance || type == Tensor4Type::stress_concentration)
-            f *= 2.0;
-    }
-    return f;
 }
 
-// Convert Voigt matrix to full-index Fastor tensor, applying type-dependent factors
-static Fastor::Tensor<double,3,3,3,3> voigt_to_full(
-    const arma::mat::fixed<6,6> &V, Tensor4Type type)
-{
-    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic) {
-        return voigt_to_fastor4(V);
-    }
-
-    Fastor::Tensor<double,3,3,3,3> C;
-    C.zeros();
-    for (int i = 0; i < 3; ++i)
-    for (int j = i; j < 3; ++j) {
-        int I = voigt_map[i][j];
-        for (int k = 0; k < 3; ++k)
-        for (int l = k; l < 3; ++l) {
-            int J = voigt_map[k][l];
-            double val = V(I, J) / voigt_factor(I, J, type);
-            C(i,j,k,l) = val;
-            C(i,j,l,k) = val;
-            C(j,i,k,l) = val;
-            C(j,i,l,k) = val;
-        }
-    }
-    return C;
+static arma::mat::fixed<6,6> eng_to_mandel(arma::mat::fixed<6,6> X, Tensor4Type type) {
+    double r, c; mandel_factors(type, r, c);
+    for (int I = 3; I < 6; ++I) X.row(I) *= r;
+    for (int J = 3; J < 6; ++J) X.col(J) *= c;
+    return X;
 }
 
-// Rescale a Voigt 6x6 built in the no-factor (stiffness) convention into the target type's
-// engineering convention by applying the type's Voigt factors. No-op for stiffness/generic
-// (every factor is 1), matching voigt_to_full. voigt_factor doubles shear rows for strain-like
-// outputs (compliance, strain_conc) and shear cols for stress-like inputs (compliance,
-// stress_conc). Single source for both full_to_voigt and the tensor4 projector factories:
-// identity() -> Ireal (stiffness), Ireal2 (compliance), eye(6) (strain/stress_concentration).
-static arma::mat::fixed<6,6> to_type_convention(arma::mat::fixed<6,6> m, Tensor4Type type) {
-    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic)
-        return m;
-    for (int I = 0; I < 6; ++I)
-        for (int J = 0; J < 6; ++J)
-            m(I, J) *= voigt_factor(I, J, type);
-    return m;
+static arma::mat::fixed<6,6> mandel_to_eng(arma::mat::fixed<6,6> X, Tensor4Type type) {
+    double r, c; mandel_factors(type, r, c);
+    for (int I = 3; I < 6; ++I) X.row(I) /= r;
+    for (int J = 3; J < 6; ++J) X.col(J) /= c;
+    return X;
 }
 
-// Convert full-index Fastor tensor to Voigt matrix, applying the type-dependent factors.
-static arma::mat::fixed<6,6> full_to_voigt(
-    const Fastor::Tensor<double,3,3,3,3> &C, Tensor4Type type)
-{
-    arma::mat::fixed<6,6> V = fastor4_to_voigt(C);
-    return to_type_convention(V, type);
+// Mandel 6x6 <-> full-index, uniform (no type dependence).
+static Fastor::Tensor<double,3,3,3,3> mandel_to_full(const arma::mat::fixed<6,6> &M) {
+    arma::mat::fixed<6,6> L = M;
+    for (int I = 3; I < 6; ++I) L.row(I) /= SQ2;
+    for (int J = 3; J < 6; ++J) L.col(J) /= SQ2;
+    return voigt_to_fastor4(L);
 }
 
-// Base projectors in the no-factor (stiffness) Voigt convention. Self-contained so the tensor4
-// class does not depend on the free Ireal()/Ivol()/Idev() helpers (those stay for the arma::mat
-// UMAT code); to_type_convention then maps these to any Tensor4Type.
-static arma::mat::fixed<6,6> base_symmetric_identity() {
-    arma::mat::fixed<6,6> m;
-    m.eye();
-    for (int i = 3; i < 6; ++i) m(i,i) = 0.5;   // shear half (Voigt double-count)
-    return m;
+static arma::mat::fixed<6,6> full_to_mandel(const Fastor::Tensor<double,3,3,3,3> &C) {
+    arma::mat::fixed<6,6> L = fastor4_to_voigt(C);
+    for (int I = 3; I < 6; ++I) L.row(I) *= SQ2;
+    for (int J = 3; J < 6; ++J) L.col(J) *= SQ2;
+    return L;
 }
+
+// Volumetric projector (Mandel == engineering here: it has no shear entries).
 static arma::mat::fixed<6,6> base_volumetric() {
     arma::mat::fixed<6,6> m;
     m.zeros();
@@ -247,6 +213,16 @@ tensor2 tensor2::from_voigt(const arma::vec &v, VoigtType vtype) {
 
 tensor2 tensor2::from_voigt(const arma::vec &v, const std::string &type_str) {
     return from_voigt(v, parse_voigt_type(type_str));
+}
+
+tensor2 tensor2::from_mandel(const arma::vec::fixed<6> &v, VoigtType vtype) {
+    // Mandel shear = sqrt2 * true component, identical for stress and strain.
+    arma::mat::fixed<3,3> m;
+    m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
+    m(0,1) = m(1,0) = v(3) / SQ2;
+    m(0,2) = m(2,0) = v(4) / SQ2;
+    m(1,2) = m(2,1) = v(5) / SQ2;
+    return tensor2(m, vtype);
 }
 
 tensor2 tensor2::zeros(VoigtType vtype) {
@@ -327,6 +303,19 @@ arma::vec::fixed<6> tensor2::voigt() const {
     return v;
 }
 
+arma::vec::fixed<6> tensor2::mandel() const {
+    if (_vtype == VoigtType::none) {
+        throw std::runtime_error("Cannot compute Mandel vector for VoigtType::none (non-symmetric tensor)");
+    }
+    // Mandel shear = sqrt2 * true component (= sqrt2 * symmetric part), same for stress/strain.
+    arma::vec::fixed<6> v;
+    v(0) = _mat(0,0); v(1) = _mat(1,1); v(2) = _mat(2,2);
+    v(3) = SQ2 * 0.5 * (_mat(0,1) + _mat(1,0));
+    v(4) = SQ2 * 0.5 * (_mat(0,2) + _mat(2,0));
+    v(5) = SQ2 * 0.5 * (_mat(1,2) + _mat(2,1));
+    return v;
+}
+
 Fastor::Tensor<double,3,3> tensor2::fastor() const {
     return arma_to_fastor2(_mat, _vtype != VoigtType::none);
 }
@@ -338,28 +327,12 @@ bool tensor2::is_symmetric(double tol) const {
 }
 
 tensor2 tensor2::rotate(const Rotation &R, bool active) const {
-    switch (_vtype) {
-        case VoigtType::stress: {
-            arma::vec::fixed<6> v_rot = R.apply_stress(voigt(), active);
-            return tensor2::from_voigt(v_rot, VoigtType::stress);
-        }
-        case VoigtType::strain: {
-            arma::vec::fixed<6> v_rot = R.apply_strain(voigt(), active);
-            return tensor2::from_voigt(v_rot, VoigtType::strain);
-        }
-        case VoigtType::generic:
-        case VoigtType::none: {
-            arma::mat::fixed<3,3> R_mat = R.as_matrix();
-            arma::mat::fixed<3,3> result;
-            if (active) {
-                result = R_mat * _mat * R_mat.t();
-            } else {
-                result = R_mat.t() * _mat * R_mat;
-            }
-            return tensor2(result, _vtype);
-        }
-    }
-    return *this;
+    // The 3x3 holds the true tensor, so a single full-index rotation Q*X*Q^T covers every
+    // VoigtType (stress, strain, generic, non-symmetric). Q orthogonal => exact for all.
+    arma::mat::fixed<3,3> Q = R.as_matrix();
+    if (!active) Q = arma::mat::fixed<3,3>(Q.t());
+    arma::mat::fixed<3,3> result = Q * _mat * Q.t();
+    return tensor2(result, _vtype);
 }
 
 tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
@@ -547,12 +520,18 @@ tensor2 dev(const tensor2 &t) {
 }
 
 double Mises(const tensor2 &t) {
-    arma::vec v(t.voigt());
-    if (t.vtype() == VoigtType::stress || t.vtype() == VoigtType::generic)
-        return Mises_stress(v);
+    if (t.vtype() == VoigtType::none)
+        throw std::runtime_error("Mises not defined for VoigtType::none");
+    // From the 3x3 deviator (convention-free): stress -> sqrt(3/2 dev:dev),
+    // strain -> sqrt(2/3 dev:dev). accu(dev % dev) is the double contraction (off-diagonals
+    // counted twice via symmetry), so no engineering shear factors are needed.
+    arma::mat::fixed<3,3> d = t.mat();
+    double tr = (d(0,0) + d(1,1) + d(2,2)) / 3.0;
+    d(0,0) -= tr; d(1,1) -= tr; d(2,2) -= tr;
+    double dd = arma::accu(d % d);
     if (t.vtype() == VoigtType::strain)
-        return Mises_strain(v);
-    throw std::runtime_error("Mises not defined for VoigtType::none");
+        return std::sqrt((2.0/3.0) * dd);
+    return std::sqrt(1.5 * dd);
 }
 
 double trace(const tensor2 &t) {
@@ -587,35 +566,44 @@ tensor2 trans(const tensor2 &t) {
 // tensor4 implementation
 // ============================================================================
 
-tensor4::tensor4() : _voigt(arma::fill::zeros), _type(Tensor4Type::stiffness) {}
+tensor4::tensor4() : _mandel(arma::fill::zeros), _type(Tensor4Type::stiffness) {}
 
-tensor4::tensor4(Tensor4Type type) : _voigt(arma::fill::zeros), _type(type) {}
+tensor4::tensor4(Tensor4Type type) : _mandel(arma::fill::zeros), _type(type) {}
 
+// Public constructors take the ENGINEERING Voigt form and store it in Mandel.
 tensor4::tensor4(const arma::mat::fixed<6,6> &m, Tensor4Type type)
-    : _voigt(m), _type(type) {}
+    : _mandel(eng_to_mandel(m, type)), _type(type) {}
 
 tensor4::tensor4(const arma::mat &m, Tensor4Type type)
     : _type(type) {
     if (m.n_rows != 6 || m.n_cols != 6)
         throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
-    _voigt = m;
+    _mandel = eng_to_mandel(arma::mat::fixed<6,6>(m), type);
 }
 
 tensor4::tensor4(const arma::mat &m, const std::string &type_str)
     : tensor4(m, parse_tensor4_type(type_str)) {}
 
+// Internal: store an already-Mandel 6x6 directly, no congruence.
+tensor4 tensor4::from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type type) {
+    tensor4 t;
+    t._mandel = m_mandel;
+    t._type = type;
+    return t;
+}
+
 tensor4::tensor4(const tensor4 &other)
-    : _voigt(other._voigt), _type(other._type),
+    : _mandel(other._mandel), _type(other._type),
       _fastor(other._fastor) {}
 
 tensor4::tensor4(tensor4 &&other) noexcept
-    : _voigt(std::move(other._voigt)), _type(other._type),
+    : _mandel(std::move(other._mandel)), _type(other._type),
       _fastor(std::move(other._fastor)) {}
 
 tensor4& tensor4::operator=(const tensor4 &other) {
     if (this != &other) {
-        _voigt = other._voigt;
+        _mandel = other._mandel;
         _type = other._type;
         _fastor = other._fastor;
     }
@@ -624,7 +612,7 @@ tensor4& tensor4::operator=(const tensor4 &other) {
 
 tensor4& tensor4::operator=(tensor4 &&other) noexcept {
     if (this != &other) {
-        _voigt = std::move(other._voigt);
+        _mandel = std::move(other._mandel);
         _type = other._type;
         _fastor = std::move(other._fastor);
     }
@@ -632,28 +620,30 @@ tensor4& tensor4::operator=(tensor4 &&other) noexcept {
 }
 
 tensor4 tensor4::identity(Tensor4Type type) {
-    return tensor4(to_type_convention(base_symmetric_identity(), type), type);
+    // Mandel identity is eye(6) for every type; mat() reads it back as Ireal/Ireal2/eye(6).
+    return tensor4::from_mandel(arma::mat::fixed<6,6>(arma::fill::eye), type);
 }
 
 tensor4 tensor4::volumetric(Tensor4Type type) {
-    return tensor4(to_type_convention(base_volumetric(), type), type);
+    return tensor4::from_mandel(base_volumetric(), type);
 }
 
 tensor4 tensor4::deviatoric(Tensor4Type type) {
-    return tensor4(to_type_convention(base_symmetric_identity() - base_volumetric(), type), type);
+    arma::mat::fixed<6,6> Idev(arma::fill::eye);
+    Idev -= base_volumetric();
+    return tensor4::from_mandel(Idev, type);
 }
 
 tensor4 tensor4::zeros(Tensor4Type type) {
     return tensor4(type);
 }
 
-arma::mat::fixed<6,6>& tensor4::mat_mut() {
-    _invalidate_fastor();
-    return _voigt;
+arma::mat::fixed<6,6> tensor4::mat() const {
+    return mandel_to_eng(_mandel, _type);
 }
 
 void tensor4::set_mat(const arma::mat::fixed<6,6> &m) {
-    _voigt = m;
+    _mandel = eng_to_mandel(m, _type);
     _invalidate_fastor();
 }
 
@@ -661,13 +651,13 @@ void tensor4::set_mat(const arma::mat &m) {
     if (m.n_rows != 6 || m.n_cols != 6)
         throw std::invalid_argument("tensor4: expected 6x6 matrix, got "
             + std::to_string(m.n_rows) + "x" + std::to_string(m.n_cols));
-    _voigt = m;
+    _mandel = eng_to_mandel(arma::mat::fixed<6,6>(m), _type);
     _invalidate_fastor();
 }
 
 void tensor4::_ensure_fastor() const {
     if (!_fastor) {
-        _fastor.emplace(voigt_to_full(_voigt, _type));
+        _fastor.emplace(mandel_to_full(_mandel));
     }
 }
 
@@ -677,25 +667,9 @@ const Fastor::Tensor<double,3,3,3,3>& tensor4::fastor() const {
 }
 
 tensor2 tensor4::contract(const tensor2 &t) const {
-    arma::vec::fixed<6> v_out = _voigt * t.voigt();
-
-    VoigtType out_vtype;
-    switch (_type) {
-        case Tensor4Type::stiffness:
-        case Tensor4Type::stress_concentration:
-            out_vtype = VoigtType::stress;
-            break;
-        case Tensor4Type::compliance:
-        case Tensor4Type::strain_concentration:
-            out_vtype = VoigtType::strain;
-            break;
-        case Tensor4Type::generic:
-        default:
-            out_vtype = VoigtType::stress;
-            break;
-    }
-
-    return tensor2::from_voigt(v_out, out_vtype);
+    // Plain Mandel matrix-vector product; both operands and result are convention-symmetric.
+    arma::vec::fixed<6> v_out = _mandel * t.mandel();
+    return tensor2::from_mandel(v_out, infer_contraction_vtype(_type));
 }
 
 tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
@@ -705,15 +679,15 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/true);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
+    arma::mat::fixed<6,6> mandel_result = full_to_mandel(result);
 
     if (metric) {
         double J = arma::det(F);
-        // Piola scaling: stiffness→1/J, compliance→J.
+        // Piola scaling: stiffness→1/J, compliance→J (scalar, commutes with the congruence).
         // Concentration is rejected in tensor4_kernel, so only the two cases apply here.
-        voigt_result *= (_type == Tensor4Type::compliance) ? J : (1.0 / J);
+        mandel_result *= (_type == Tensor4Type::compliance) ? J : (1.0 / J);
     }
-    return tensor4(voigt_result, _type);
+    return tensor4::from_mandel(mandel_result, _type);
 }
 
 tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
@@ -723,13 +697,13 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/false);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> voigt_result = full_to_voigt(result, _type);
+    arma::mat::fixed<6,6> mandel_result = full_to_mandel(result);
 
     if (metric) {
         double J = arma::det(F);
-        voigt_result *= (_type == Tensor4Type::compliance) ? (1.0 / J) : J;
+        mandel_result *= (_type == Tensor4Type::compliance) ? (1.0 / J) : J;
     }
-    return tensor4(voigt_result, _type);
+    return tensor4::from_mandel(mandel_result, _type);
 }
 
 tensor4 tensor4::push_forward(const arma::mat &F, bool metric) const {
@@ -767,8 +741,10 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     auto F_fastor = arma_to_fastor2(F, false);
     _ensure_fastor();
     Fastor::Tensor<double,3,3,3,3> lie_full = push_forward_4(*_fastor, F_fastor);
-    arma::mat Lt_v = full_to_voigt(lie_full, _type);
-    const arma::mat::fixed<3,3> &tau_mat = tau.mat();
+    // The Dtau_* corrections below operate on the ENGINEERING stiffness Voigt (solver
+    // convention). _type is stiffness/generic here, so engineering == fastor4_to_voigt.
+    arma::mat Lt_v = fastor4_to_voigt(lie_full);
+    const arma::mat::fixed<3,3> tau_mat = tau.mat();
     arma::mat result_v;
 
     // Step 2: Apply the corotational rate correction. The kernel is rate-specific and
@@ -818,67 +794,37 @@ tensor4 tensor4::push_forward(const arma::mat &F, CoRate rate,
 }
 
 tensor4 tensor4::rotate(const Rotation &R, bool active) const {
-    switch (_type) {
-        case Tensor4Type::stiffness:
-        case Tensor4Type::generic: {
-            arma::mat::fixed<6,6> result = R.apply_stiffness(_voigt, active);
-            return tensor4(result, _type);
-        }
-        case Tensor4Type::compliance: {
-            arma::mat::fixed<6,6> result = R.apply_compliance(_voigt, active);
-            return tensor4(result, _type);
-        }
-        case Tensor4Type::strain_concentration: {
-            arma::mat::fixed<6,6> result = R.apply_strain_concentration(_voigt, active);
-            return tensor4(result, _type);
-        }
-        case Tensor4Type::stress_concentration: {
-            arma::mat::fixed<6,6> result = R.apply_stress_concentration(_voigt, active);
-            return tensor4(result, _type);
-        }
-    }
-    return *this;
+    // One orthogonal rotation applied to all four indices (Q on each), valid for every type.
+    // Routed through the convention-free full-index tensor -- no per-type Voigt kernel, and
+    // no dependence on Rotation::apply_stiffness/compliance/concentration.
+    arma::mat::fixed<3,3> Q = R.as_matrix();
+    if (!active) Q = arma::mat::fixed<3,3>(Q.t());
+    _ensure_fastor();
+    auto Qf = arma_to_fastor2(Q, false);
+    Fastor::Tensor<double,3,3,3,3> rotated = push_forward_4(*_fastor, Qf);
+    return tensor4::from_mandel(full_to_mandel(rotated), _type);
 }
 
 tensor4 tensor4::inverse() const {
+    // In Mandel the tensor inverse is a plain matrix inverse (no convention bookkeeping).
     arma::mat inv_mat;
-    bool ok = arma::inv(inv_mat, arma::mat(_voigt));
+    bool ok = arma::inv(inv_mat, arma::mat(_mandel));
     if (!ok)
-        throw std::runtime_error("tensor4::inverse(): Voigt matrix is singular");
-    arma::mat::fixed<6,6> inv_voigt;
-    inv_voigt = inv_mat;
-
-    Tensor4Type inv_type;
-    switch (_type) {
-        case Tensor4Type::stiffness:
-            inv_type = Tensor4Type::compliance;
-            break;
-        case Tensor4Type::compliance:
-            inv_type = Tensor4Type::stiffness;
-            break;
-        default:
-            inv_type = _type;
-            break;
-    }
-    return tensor4(inv_voigt, inv_type);
+        throw std::runtime_error("tensor4::inverse(): matrix is singular");
+    return tensor4::from_mandel(arma::mat::fixed<6,6>(inv_mat), infer_inverse_type(_type));
 }
 
 tensor4 tensor4::operator+(const tensor4 &other) const {
-    arma::mat::fixed<6,6> result;
-    result = _voigt + other._voigt;
-    return tensor4(result, _type);
+    // Linear ops commute with the per-type congruence (same type both sides) → stay in Mandel.
+    return tensor4::from_mandel(_mandel + other._mandel, _type);
 }
 
 tensor4 tensor4::operator-(const tensor4 &other) const {
-    arma::mat::fixed<6,6> result;
-    result = _voigt - other._voigt;
-    return tensor4(result, _type);
+    return tensor4::from_mandel(_mandel - other._mandel, _type);
 }
 
 tensor4 tensor4::operator-() const {
-    arma::mat::fixed<6,6> result;
-    result = -_voigt;
-    return tensor4(result, _type);
+    return tensor4::from_mandel(-_mandel, _type);
 }
 
 tensor2 tensor4::operator*(const tensor2 &t) const {
@@ -886,33 +832,29 @@ tensor2 tensor4::operator*(const tensor2 &t) const {
 }
 
 tensor4 tensor4::operator*(double scalar) const {
-    arma::mat::fixed<6,6> result;
-    result = _voigt * scalar;
-    return tensor4(result, _type);
+    return tensor4::from_mandel(_mandel * scalar, _type);
 }
 
 tensor4 tensor4::operator/(double scalar) const {
     if (scalar == 0.0)
         throw std::runtime_error("tensor4: division by zero scalar");
-    arma::mat::fixed<6,6> result;
-    result = _voigt / scalar;
-    return tensor4(result, _type);
+    return tensor4::from_mandel(_mandel / scalar, _type);
 }
 
 tensor4& tensor4::operator+=(const tensor4 &other) {
-    _voigt += other._voigt;
+    _mandel += other._mandel;
     _invalidate_fastor();
     return *this;
 }
 
 tensor4& tensor4::operator-=(const tensor4 &other) {
-    _voigt -= other._voigt;
+    _mandel -= other._mandel;
     _invalidate_fastor();
     return *this;
 }
 
 tensor4& tensor4::operator*=(double scalar) {
-    _voigt *= scalar;
+    _mandel *= scalar;
     _invalidate_fastor();
     return *this;
 }
@@ -920,25 +862,23 @@ tensor4& tensor4::operator*=(double scalar) {
 tensor4& tensor4::operator/=(double scalar) {
     if (scalar == 0.0)
         throw std::runtime_error("tensor4: division by zero scalar");
-    _voigt /= scalar;
+    _mandel /= scalar;
     _invalidate_fastor();
     return *this;
 }
 
 tensor4 operator*(double scalar, const tensor4 &t) {
-    arma::mat::fixed<6,6> result;
-    result = t._voigt * scalar;
-    return tensor4(result, t._type);
+    return tensor4::from_mandel(t._mandel * scalar, t._type);
 }
 
 tensor4 tensor4::operator%(const tensor4 &other) const {
-    arma::mat::fixed<6,6> result;
-    result = _voigt % other._voigt;
-    return tensor4(result, _type);
+    // Element-wise (Schur) product is convention-dependent: do it on the ENGINEERING form so
+    // the result matches the documented "element-wise on the 6x6 Voigt matrix".
+    return tensor4(arma::mat::fixed<6,6>(this->mat() % other.mat()), _type);
 }
 
 bool tensor4::operator==(const tensor4 &other) const {
-    return _type == other._type && arma::approx_equal(_voigt, other._voigt, "absdiff", 1e-14);
+    return _type == other._type && arma::approx_equal(_mandel, other._mandel, "absdiff", 1e-14);
 }
 
 bool tensor4::operator!=(const tensor4 &other) const {

@@ -43,14 +43,20 @@ enum class VoigtType {
 };
 
 /**
- * @brief Type tag for 4th-order tensors, determines rotation rules and Voigt factor conventions.
+ * @brief Type tag for 4th-order tensors: selects the engineering<->Mandel congruence,
+ *        the contraction output type, and the inverse type swap.
  *
- * Rotation dispatch:
- * - stiffness:             QS * L * QS^T
- * - compliance:            QE * M * QE^T
- * - strain_concentration:  QE * A * QS^T
- * - stress_concentration:  QS * B * QE^T
- * - generic:               QS * C * QS^T (default)
+ * Storage is Kelvin-Mandel internally (see tensor4). The tag fixes how the engineering
+ * Voigt matrix passed to the constructor maps to the stored Mandel matrix (and back via
+ * mat()), with \f$ N = \mathrm{diag}(1,1,1,\sqrt2,\sqrt2,\sqrt2) \f$:
+ * - stiffness / generic:    \f$ X_m = N\,X_{eng}\,N \f$            (\f$\sigma = L:\varepsilon\f$)
+ * - compliance:             \f$ X_m = N^{-1} X_{eng}\,N^{-1} \f$   (\f$\varepsilon = M:\sigma\f$)
+ * - strain_concentration:   \f$ X_m = N^{-1} X_{eng}\,N \f$        (\f$\varepsilon = A:\varepsilon\f$)
+ * - stress_concentration:   \f$ X_m = N\,X_{eng}\,N^{-1} \f$       (\f$\sigma = B:\sigma\f$)
+ *
+ * In Mandel every type shares one identity (eye(6)), one orthogonal rotation
+ * (R6 * X * R6^T) and a plain matrix inverse; the engineering asymmetry lives only in
+ * the boundary congruence above.
  */
 enum class Tensor4Type {
     stiffness,
@@ -114,6 +120,9 @@ public:
     static tensor2 from_voigt(const arma::vec &v, VoigtType vtype);
     static tensor2 from_voigt(const arma::vec &v, const std::string &type_str);
 
+    // Construct from a Kelvin-Mandel vector (shear scaled by sqrt(2), identical for stress/strain).
+    static tensor2 from_mandel(const arma::vec::fixed<6> &v, VoigtType vtype);
+
     // Static factories
     static tensor2 zeros(VoigtType vtype = VoigtType::stress);
     static tensor2 zeros(const std::string &type_str);
@@ -143,6 +152,14 @@ public:
      * @throws std::runtime_error if VoigtType::none
      */
     arma::vec::fixed<6> voigt() const;
+
+    /**
+     * @brief Kelvin-Mandel 6-vector: \f$[t_{11},t_{22},t_{33},\sqrt2\,t_{12},\sqrt2\,t_{13},\sqrt2\,t_{23}]\f$.
+     *
+     * Convention-symmetric (identical for stress and strain); the natural input to a
+     * tensor4 Mandel contraction.
+     */
+    arma::vec::fixed<6> mandel() const;
 
     /**
      * @brief Convert to Fastor::Tensor<double,3,3>, handling row/col-major layout.
@@ -213,10 +230,14 @@ tensor2 abs(const tensor2 &t);
 tensor2 trans(const tensor2 &t);     // transpose
 
 /**
- * @brief A 4th-order tensor with type tag for rotation dispatch and lazy Fastor cache.
+ * @brief A 4th-order tensor stored in the Kelvin-Mandel convention, with a type tag and lazy Fastor cache.
  *
- * Storage: arma::mat::fixed<6,6> Voigt matrix (primary).
- * Fastor Tensor<double,3,3,3,3> is lazily computed and cached for push_forward/pull_back.
+ * Storage: arma::mat::fixed<6,6> in Mandel (sqrt2 on shear rows/cols), so matrix algebra
+ * equals tensor algebra (identity = eye(6), inverse = arma::inv, rotation = orthogonal
+ * R6 * X * R6^T). The engineering Voigt form is exposed at the boundary via mat()/set_mat();
+ * the per-type engineering<->Mandel congruence is documented on Tensor4Type.
+ * Fastor Tensor<double,3,3,3,3> (the convention-free full-index tensor) is lazily computed
+ * and cached for push_forward/pull_back.
  *
  * @warning NOT thread-safe. The mutable Fastor cache is lazily populated by const
  *          methods (fastor(), push_forward(), pull_back()) without synchronization.
@@ -225,12 +246,15 @@ tensor2 trans(const tensor2 &t);     // transpose
  */
 class tensor4 {
 private:
-    arma::mat::fixed<6,6> _voigt;
+    arma::mat::fixed<6,6> _mandel;   ///< Kelvin-Mandel 6x6 (sqrt2 on shear); engineering form via mat()
     Tensor4Type _type;
     mutable std::optional<Fastor::Tensor<double,3,3,3,3>> _fastor;
 
     void _invalidate_fastor() { _fastor.reset(); }
     void _ensure_fastor() const;
+
+    /// Internal: wrap an already-Mandel 6x6 directly (skips the engineering->Mandel congruence).
+    static tensor4 from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type type);
 
 public:
     // Constructors
@@ -240,10 +264,10 @@ public:
     tensor4(const arma::mat &m, Tensor4Type type);
     tensor4(const arma::mat &m, const std::string &type_str);
 
-    // Static projector factories. The type tag selects the Voigt convention, so a single
-    // symmetric identity / deviatoric covers every type: identity() is Ireal for stiffness,
-    // Ireal2 for compliance, eye(6) for strain/stress_concentration. (The legacy *2 variants
-    // are gone -- they were the strain-convention duplicate of identity/deviatoric.)
+    // Static projector factories. Stored in Mandel, every type shares identity = eye(6) and
+    // deviatoric = eye(6) - volumetric. The engineering form via mat() recovers the classic
+    // convention: identity() reads back as Ireal (stiffness), Ireal2 (compliance), eye(6)
+    // (strain/stress_concentration).
     static tensor4 identity(Tensor4Type type = Tensor4Type::stiffness);
     static tensor4 volumetric(Tensor4Type type = Tensor4Type::stiffness);
     static tensor4 deviatoric(Tensor4Type type = Tensor4Type::stiffness);
@@ -256,9 +280,10 @@ public:
     tensor4& operator=(tensor4 &&other) noexcept;
     ~tensor4() = default;
 
-    // Accessors
-    const arma::mat::fixed<6,6>& mat() const { return _voigt; }
-    arma::mat::fixed<6,6>& mat_mut();
+    // Accessors. mat() returns the engineering Voigt 6x6 by value (converted from internal
+    // Mandel); set_mat() takes the engineering form. mat_mut() is intentionally absent: there
+    // is no coherent mutable engineering view over Mandel storage -- use set_mat().
+    arma::mat::fixed<6,6> mat() const;
     void set_mat(const arma::mat::fixed<6,6> &m);
     void set_mat(const arma::mat &m);
 
@@ -270,10 +295,11 @@ public:
     const Fastor::Tensor<double,3,3,3,3>& fastor() const;
 
     // Conversion
-    arma::mat to_arma_mat() const { return arma::mat(_voigt); }
+    arma::mat to_arma_mat() const { return arma::mat(mat()); }
 
     /**
-     * @brief Contract with a tensor2: result_voigt = mat * t.voigt()
+     * @brief Contract with a tensor2 (double contraction), e.g. sigma = L : eps.
+     *        Internally a plain Mandel matrix-vector product.
      *
      * Output VoigtType is inferred from Tensor4Type:
      * - stiffness (sigma = L : epsilon) -> stress
