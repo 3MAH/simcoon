@@ -206,10 +206,6 @@ void register_tensor(py::module_& m) {
             py::arg("type") = simcoon::Tensor4Type::stiffness)
         .def_static("deviatoric", &simcoon::tensor4::deviatoric,
             py::arg("type") = simcoon::Tensor4Type::stiffness)
-        .def_static("identity2", &simcoon::tensor4::identity2,
-            py::arg("type") = simcoon::Tensor4Type::stiffness)
-        .def_static("deviatoric2", &simcoon::tensor4::deviatoric2,
-            py::arg("type") = simcoon::Tensor4Type::stiffness)
         .def_static("zeros", &simcoon::tensor4::zeros,
             py::arg("type") = simcoon::Tensor4Type::stiffness)
 

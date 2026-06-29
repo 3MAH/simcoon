@@ -357,13 +357,11 @@ double sign(const double &d);
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The normal vector (arma::vec)
  * @details Provides the normalized vector to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u and v. These 2 angles correspond to the rotations in the plan defined by the center of the ellipsoid, a1 and a2 directions for u, a1 and a3 ones for v. u = 0 corresponds to a1 direction and v = 0 correspond to a3 one. So the normal vector is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
-\f]
+\f}
  * @code 
     const double Pi = 3.14159265358979323846;
 
@@ -386,14 +384,12 @@ arma::vec normal_ellipsoid(const double &u, const double &v, const double &a1, c
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The curvature (double)
  * @details Provides the normalized curvature of an ellipsoid with semi-principal axes of length a1, a2, a3. The position of the evaluated curvature is set by angles u and v. These 2 angles correspond to the rotations in the plan defined by the center of the ellipsoid, a1 and a2 directions for u, a1 and a3 ones for v. u = 0 corresponds to a1 direction and v = 0 correspond to a3 one. So the curvature is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
     \Xi = \frac{a_1^2\,a_2^2\,a_3^2}{\left(a_1^2\,a_2^2\,\cos^2 v + a_3^2\,\sin^2 v +  a_2^2\,\cos^2 v + a_1^2\,\sin u \right)^2 }
-\f]
+\f}
  * @code 
     const double Pi = 3.14159265358979323846;
 
@@ -417,13 +413,11 @@ double curvature_ellipsoid(const double &u, const double &v, const double &a1, c
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The normal and tangent components of the traction vector (arma::vec)
  * @details Provides the normal and tangent components of a stress vector σin in accordance with the normal direction n to an ellipsoid with axes a1, a2, a3. The normal vector is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
-\f]
+\f}
  * @code 
     const double Pi = 3.14159265358979323846;
 

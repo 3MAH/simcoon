@@ -240,12 +240,13 @@ public:
     tensor4(const arma::mat &m, Tensor4Type type);
     tensor4(const arma::mat &m, const std::string &type_str);
 
-    // Static factories wrapping constitutive.hpp functions
+    // Static projector factories. The type tag selects the Voigt convention, so a single
+    // symmetric identity / deviatoric covers every type: identity() is Ireal for stiffness,
+    // Ireal2 for compliance, eye(6) for strain/stress_concentration. (The legacy *2 variants
+    // are gone -- they were the strain-convention duplicate of identity/deviatoric.)
     static tensor4 identity(Tensor4Type type = Tensor4Type::stiffness);
     static tensor4 volumetric(Tensor4Type type = Tensor4Type::stiffness);
     static tensor4 deviatoric(Tensor4Type type = Tensor4Type::stiffness);
-    static tensor4 identity2(Tensor4Type type = Tensor4Type::stiffness);
-    static tensor4 deviatoric2(Tensor4Type type = Tensor4Type::stiffness);
     static tensor4 zeros(Tensor4Type type = Tensor4Type::stiffness);
 
     // Copy/move

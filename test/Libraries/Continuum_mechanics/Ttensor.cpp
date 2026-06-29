@@ -411,16 +411,19 @@ TEST(Ttensor4, DeviatoricMatchesIdev)
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }
 
-TEST(Ttensor4, Identity2MatchesIreal2)
+// The legacy identity2/deviatoric2 (strain-convention duplicates) are gone; the strain
+// convention is now reached via the type tag: compliance scales the shear blocks, giving
+// Ireal2 / Idev2.
+TEST(Ttensor4, IdentityComplianceMatchesIreal2)
 {
-    tensor4 t = tensor4::identity2();
+    tensor4 t = tensor4::identity(Tensor4Type::compliance);
     mat Iref = Ireal2();
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }
 
-TEST(Ttensor4, Deviatoric2MatchesIdev2)
+TEST(Ttensor4, DeviatoricComplianceMatchesIdev2)
 {
-    tensor4 t = tensor4::deviatoric2();
+    tensor4 t = tensor4::deviatoric(Tensor4Type::compliance);
     mat Iref = Idev2();
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }

@@ -15,7 +15,7 @@
  
  */
 
-///@file objective_rate.cpp
+///@file objective_rates.cpp
 ///@brief A set of function that help to define different quantities, depending on a selected objective rate
 ///@version 1.0
 
@@ -183,7 +183,6 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    mat W = 0.5*(L-L.t());
     Omega = (1./DTime)*(R1-R0)*R1.t();
 
 
@@ -196,7 +195,6 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
 }
 
 void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
-    //Green-Naghdi
     mat I = eye(3,3);
     mat U0;
     mat R0;
@@ -218,7 +216,6 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    mat W = 0.5*(L-L.t());
     Omega = (1./DTime)*(R1-R0)*R1.t();
 
     try {
@@ -279,14 +276,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
 }
 
 void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
-    //Green-Naghdi
     mat I = eye(3,3);
-    mat U0;
-    mat R0;
-    mat U1;
-    mat R1;
-    RU_decomposition(R0,U0,F0);
-    RU_decomposition(R1,U1,F1);
 
     if(DTime > simcoon::iota) {
         try {
@@ -301,7 +291,6 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
 
     //decomposition of L
     D = 0.5*(L+L.t());
-    mat W = 0.5*(L-L.t());
 
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
@@ -310,7 +299,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_F.");
     }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
@@ -403,7 +392,7 @@ mat get_BBBB(const mat &F1) {
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside get_BBBB.");
     }
     mat BBBB = zeros(6,6);
     
@@ -432,7 +421,7 @@ mat get_BBBB_GN(const mat &F1) {
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside get_BBBB_GN.");
     }
     mat BBBB = zeros(6,6);
     
@@ -531,7 +520,7 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
     mat Bi;
     bool success_eig_sym = eig_sym(bi, Bi, B);
     if (!success_eig_sym) {
-        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic_R.");
+        throw simcoon::exception_eig_sym("Error in eig_sym function inside logarithmic.");
     }
     std::vector<mat> Bi_proj(3);
     Bi_proj[0] = Bi.col(0)*(Bi.col(0)).t();
@@ -626,7 +615,6 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
     return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN / Truesdell
 }
 
-//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
     
     mat invF;
@@ -684,7 +672,6 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     return fastor4_to_voigt(DSDE);
 }
 
-//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma){
     
     double J;
@@ -697,7 +684,6 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma)
     return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
-//This function computes the tangent modulus that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E to the tangent modulus that links the Kirchoff elastic tensor and logarithmic strain, through the log rate and the and the transformation gradient F
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
     double J;
@@ -790,7 +776,6 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigm
     return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
-//This function computes the tangent modulus that links the Lie derivative of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E) and the transformation gradient F
 mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
 
     auto F_ = to_fastor2(F, false);
@@ -811,7 +796,6 @@ mat DSDE_2_Dsigma_LieDD(const mat &DSDE, const mat &F) {
     return (1./J)*DSDE_2_Dtau_LieDD(DSDE, F);
 }
 
-//This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the Saint-Venant Kirchoff elastic tensor (that links the Piola-Kirchoff II stress S to the Green-Lagrange stress E), the transformation gradient F and the Kirchoff stress tau
 mat DSDE_2_Dtau_JaumannDD(const mat &DSDE, const mat &F, const mat &tau) {
 
     auto F_ = to_fastor2(F, false);
@@ -907,7 +891,6 @@ mat box_DtauDe_from_spatial(const mat &Lt_spatial, const mat &F, const vec &sigm
     return box_DtauDe_from_dSdE(Dtau_LieDD_2_DSDE(det(F)*Lt_spatial, F), F, sigma);
 }
 
-//This function computes the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D, from the tangent modulus that links the Jaumann rate of the Kirchoff stress tau to the rate of deformation D and the Kirchoff stress tau
 mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
 
     auto tau_ = to_fastor2(tau);
@@ -916,7 +899,6 @@ mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {
     return fastor4_to_voigt(result);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dtau_LieDD_Dtau_objectiveDD(const mat &Dtau_LieDD, const mat &B, const mat &tau) {
 
     auto tau_ = to_fastor2(tau);
@@ -928,21 +910,18 @@ mat Dtau_LieDD_Dtau_objectiveDD(const mat &Dtau_LieDD, const mat &B, const mat &
     return fastor4_to_voigt(result);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
 
     mat B = get_BBBB_GN(F);
     return Dtau_LieDD_Dtau_objectiveDD(Dtau_LieDD, B, tau);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
 
     mat B = get_BBBB(F);
     return Dtau_LieDD_Dtau_objectiveDD(Dtau_LieDD, B, tau);
 }
 
-//This function computes the tangent modulus that links the Jaumann rate of the Cauchy stress tau to the rate of deformation D, from the tangent modulus that links the Lie derivative of the Cauchy stress tau to the rate of deformation D
 mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
 
     auto sigma_ = to_fastor2(sigma);
@@ -951,7 +930,6 @@ mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
     return fastor4_to_voigt(result);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dsigma_LieDD_Dsigma_objectiveDD(const mat &Dsigma_LieDD, const mat &B, const mat &sigma) {
 
     auto sigma_ = to_fastor2(sigma);
@@ -963,14 +941,12 @@ mat Dsigma_LieDD_Dsigma_objectiveDD(const mat &Dsigma_LieDD, const mat &B, const
     return fastor4_to_voigt(result);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dsigma_LieDD_Dsigma_GreenNaghdiDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
 
     mat B = get_BBBB_GN(F);
     return Dsigma_LieDD_Dsigma_objectiveDD(Dsigma_LieDD, B, sigma);
 }
 
-//This function computes the tangent modulus that links the Lie rate of the Kirchoff stress tau to the rate of deformation D to the logarithmic rate of the Kirchoff stress and the rate of deformation D
 mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
 
     mat B = get_BBBB(F);

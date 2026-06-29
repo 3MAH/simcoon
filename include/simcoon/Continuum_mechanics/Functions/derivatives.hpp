@@ -24,18 +24,6 @@
 
 namespace simcoon{
 
-/**
- * @file derivatives.hpp
- * @brief Tensor derivative functions for continuum mechanics
- * @author Yves Chemisky
- * @version 1.0
- *
- * This file provides functions to compute derivatives of tensor invariants,
- * trace, determinant, and inverse with respect to the tensor components.
- * These derivatives are essential for constitutive model development,
- * particularly for hyperelastic materials and return mapping algorithms.
- */
-
 /** @addtogroup functions
  *  @{
  */

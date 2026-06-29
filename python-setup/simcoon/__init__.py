@@ -27,3 +27,8 @@ from simcoon.constant import (
 
 # Backward compatibility alias - simmit was the legacy module name
 from simcoon import _core as simmit
+
+
+# Deprecated free projector functions (removed in simcoon 2.0). These shadow the same
+# names brought in by the `from simcoon._core import *` above; see simcoon/_deprecated.py.
+from simcoon._deprecated import Ireal, Ireal2, Ivol, Idev, Idev2

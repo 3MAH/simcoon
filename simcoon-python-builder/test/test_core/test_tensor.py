@@ -200,37 +200,45 @@ class TestTensor4Construction:
         np.testing.assert_allclose(t.mat, M, atol=1e-12)
 
     def test_strain_concentration(self):
-        A = sim.Ireal()
-        t = sim.Tensor4.strain_concentration(A)
+        t = sim.Tensor4.strain_concentration(np.eye(6))
         assert t.type == "strain_concentration"
 
     def test_stress_concentration(self):
-        B = sim.Ireal()
-        t = sim.Tensor4.stress_concentration(B)
+        t = sim.Tensor4.stress_concentration(np.eye(6))
         assert t.type == "stress_concentration"
 
-    def test_identity_matches_Ireal(self):
-        t = sim.Tensor4.identity()
-        ref = sim.Ireal()
-        np.testing.assert_allclose(t.mat, ref, atol=1e-12)
+    # Projector factories are type-driven: the type tag picks the Voigt convention, so a single
+    # identity/deviatoric covers every type (the legacy identity2/deviatoric2 are gone). Compared
+    # against explicit reference matrices rather than the deprecated free Ireal()/Idev() helpers.
+    _IREAL = np.diag([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])   # stiffness identity (Ireal)
+    _IREAL2 = np.diag([1.0, 1.0, 1.0, 2.0, 2.0, 2.0])  # compliance identity (Ireal2)
 
-    def test_identity2_matches_Ireal2(self):
-        t = sim.Tensor4.identity2()
-        ref = sim.Ireal2()
-        np.testing.assert_allclose(t.mat, ref, atol=1e-12)
+    @staticmethod
+    def _ivol():
+        v = np.zeros((6, 6)); v[:3, :3] = 1.0 / 3.0
+        return v
 
-    def test_volumetric_matches_Ivol(self):
-        t = sim.Tensor4.volumetric()
-        np.testing.assert_allclose(t.mat, sim.Ivol(), atol=1e-12)
+    def test_identity_stiffness_is_Ireal(self):
+        np.testing.assert_allclose(sim.Tensor4.identity("stiffness").mat, self._IREAL, atol=1e-12)
 
-    def test_deviatoric_matches_Idev(self):
-        t = sim.Tensor4.deviatoric()
-        np.testing.assert_allclose(t.mat, sim.Idev(), atol=1e-12)
+    def test_identity_compliance_is_Ireal2(self):
+        # The strain-convention identity (former identity2/Ireal2), now reached via the type tag.
+        np.testing.assert_allclose(sim.Tensor4.identity("compliance").mat, self._IREAL2, atol=1e-12)
 
-    def test_deviatoric2_matches_Idev2(self):
-        t = sim.Tensor4.deviatoric2()
-        ref = sim.Idev2()
-        np.testing.assert_allclose(t.mat, ref, atol=1e-12)
+    def test_identity_concentration_is_eye(self):
+        for t in ("strain_concentration", "stress_concentration"):
+            np.testing.assert_allclose(sim.Tensor4.identity(t).mat, np.eye(6), atol=1e-12)
+
+    def test_volumetric_is_Ivol(self):
+        np.testing.assert_allclose(sim.Tensor4.volumetric("stiffness").mat, self._ivol(), atol=1e-12)
+
+    def test_deviatoric_stiffness_is_Idev(self):
+        np.testing.assert_allclose(sim.Tensor4.deviatoric("stiffness").mat,
+                                   self._IREAL - self._ivol(), atol=1e-12)
+
+    def test_deviatoric_compliance_is_Idev2(self):
+        np.testing.assert_allclose(sim.Tensor4.deviatoric("compliance").mat,
+                                   self._IREAL2 - self._ivol(), atol=1e-12)
 
 
 class TestTensor4Contraction:
@@ -420,3 +428,153 @@ class TestIntegration:
 
         t4 = sim.Tensor4.stiffness(np.eye(6))
         assert "stiffness" in repr(t4)
+
+
+# ---------------------------------------------------------------------------
+# Concentration tensors (strain/stress) — the engineering Voigt convention
+# ---------------------------------------------------------------------------
+
+# Voigt index <-> tensor index-pair map (no factor-2 on shears here; the
+# concentration factor is applied explicitly per the documented convention).
+_VOIGT_PAIRS = [(0, 0), (1, 1), (2, 2), (0, 1), (0, 2), (1, 2)]
+
+
+def _rand_minor_sym_t4(seed):
+    """Random 4th-order tensor with minor symmetries A_ijkl = A_jikl = A_ijlk."""
+    rng = np.random.default_rng(seed)
+    B = rng.standard_normal((3, 3, 3, 3))
+    return 0.25 * (B + B.transpose(1, 0, 2, 3)
+                   + B.transpose(0, 1, 3, 2) + B.transpose(1, 0, 3, 2))
+
+
+def _t4_to_conc_voigt(A, scale_rows):
+    """Full-index A_ijkl -> concentration Voigt 6x6. scale_rows=True doubles the shear rows
+    (strain_concentration); False doubles the shear cols (stress_concentration)."""
+    V = np.empty((6, 6))
+    for I, (i, j) in enumerate(_VOIGT_PAIRS):
+        for J, (k, l) in enumerate(_VOIGT_PAIRS):
+            V[I, J] = A[i, j, k, l] * (2.0 if (I if scale_rows else J) >= 3 else 1.0)
+    return V
+
+
+# Symmetric 3x3 -> Voigt via the shipped conversions (engineering shears for strain, plain
+# for stress); ravel() because t2v_* return (6,1). Reused rather than re-implemented inline.
+def _sym_to_strain_voigt(e):
+    return np.asarray(sim.t2v_strain(e)).ravel()
+
+
+def _sym_to_stress_voigt(s):
+    return np.asarray(sim.t2v_stress(s)).ravel()
+
+
+class TestTensor4Concentration:
+    """contract/inverse for concentration tensors are the sensitive operations —
+    these lock the engineering Voigt convention from first principles."""
+
+    def test_strain_concentration_identity_roundtrip(self):
+        """identity('strain_concentration') must return engineering strain unchanged."""
+        eps_v = np.array([0.02, -0.01, -0.005, 0.012, 0.008, 0.004])
+        A = sim.Tensor4.identity("strain_concentration")
+        np.testing.assert_allclose(np.diag(A.mat), np.ones(6), atol=1e-14)
+        out = A.contract(sim.Tensor2.strain(eps_v))
+        assert out.vtype == "strain"
+        np.testing.assert_allclose(out.voigt, eps_v, atol=1e-12)
+
+    def test_stress_concentration_identity_roundtrip(self):
+        """identity('stress_concentration') must return stress unchanged."""
+        sig_v = np.array([100.0, 50, -30, 20, 10, 5])
+        B = sim.Tensor4.identity("stress_concentration")
+        np.testing.assert_allclose(np.diag(B.mat), np.ones(6), atol=1e-14)
+        out = B.contract(sim.Tensor2.stress(sig_v))
+        assert out.vtype == "stress"
+        np.testing.assert_allclose(out.voigt, sig_v, atol=1e-12)
+
+    def test_eye_strain_concentration_roundtrip(self):
+        """A bare eye(6) is the identity in the engineering convention."""
+        eps_v = np.array([0.01, -0.02, 0.005, 0.03, -0.01, 0.02])
+        A = sim.Tensor4.strain_concentration(np.eye(6))
+        np.testing.assert_allclose(A.contract(sim.Tensor2.strain(eps_v)).voigt,
+                                   eps_v, atol=1e-12)
+
+    def test_strain_concentration_full_index_ground_truth(self):
+        """Typed Voigt contract == full-index A_ijkl : eps_kl, from first principles."""
+        A = _rand_minor_sym_t4(seed=1)
+        rng = np.random.default_rng(2)
+        e = rng.standard_normal((3, 3))
+        e = 0.5 * (e + e.T)                          # symmetric global strain
+        eps_local = np.einsum("ijkl,kl->ij", A, e)   # full-index ground truth
+        V = _t4_to_conc_voigt(A, scale_rows=True)
+        typed = sim.Tensor4.strain_concentration(V).contract(
+            sim.Tensor2.strain(_sym_to_strain_voigt(e)))
+        np.testing.assert_allclose(typed.voigt, _sym_to_strain_voigt(eps_local),
+                                   atol=1e-12)
+
+    def test_stress_concentration_full_index_ground_truth(self):
+        """Typed Voigt contract == full-index B_ijkl : sig_kl."""
+        Bt = _rand_minor_sym_t4(seed=3)
+        rng = np.random.default_rng(4)
+        s = rng.standard_normal((3, 3))
+        s = 0.5 * (s + s.T)
+        sig_local = np.einsum("ijkl,kl->ij", Bt, s)
+        V = _t4_to_conc_voigt(Bt, scale_rows=False)
+        typed = sim.Tensor4.stress_concentration(V).contract(
+            sim.Tensor2.stress(_sym_to_stress_voigt(s)))
+        np.testing.assert_allclose(typed.voigt, _sym_to_stress_voigt(sig_local),
+                                   atol=1e-12)
+
+    def test_strain_concentration_A_R_producer(self, F):
+        """A_R (De = A^R:D) wraps and contracts identically to raw matmul."""
+        A_R = sim.A_R(F)
+        D = np.array([[0.03, 0.01, 0.0], [0.01, -0.02, 0.0], [0.0, 0.0, -0.01]])
+        D_eng = np.asarray(sim.t2v_strain(D)).ravel()
+        typed = sim.Tensor4.strain_concentration(A_R).contract(
+            sim.Tensor2.strain(D_eng))
+        np.testing.assert_allclose(typed.voigt, A_R @ D_eng, atol=1e-12)
+
+    def test_strain_concentration_inverse(self, F):
+        """inverse keeps the type, equals numpy inverse, and round-trips contract."""
+        A_R = sim.A_R(F)
+        Ac = sim.Tensor4.strain_concentration(A_R)
+        Ainv = Ac.inverse()
+        assert Ainv.type == "strain_concentration"
+        np.testing.assert_allclose(Ainv.mat, np.linalg.inv(A_R), atol=1e-10)
+        x = sim.Tensor2.strain(np.array([0.02, -0.01, -0.005, 0.012, 0.008, 0.004]))
+        back = Ainv.contract(Ac.contract(x))
+        np.testing.assert_allclose(back.voigt, x.voigt, atol=1e-12)
+
+    def test_stress_concentration_inverse(self):
+        """stress concentration inverse keeps type and round-trips."""
+        V = _t4_to_conc_voigt(_rand_minor_sym_t4(seed=5), scale_rows=False) + 3.0 * np.eye(6)
+        Bc = sim.Tensor4.stress_concentration(V)
+        Binv = Bc.inverse()
+        assert Binv.type == "stress_concentration"
+        np.testing.assert_allclose(Binv.mat, np.linalg.inv(V), atol=1e-10)
+        x = sim.Tensor2.stress(np.array([100.0, 50, -30, 20, 10, 5]))
+        back = Binv.contract(Bc.contract(x))
+        np.testing.assert_allclose(back.voigt, x.voigt, atol=1e-10)
+
+    def test_concentration_push_pull_throws(self, F):
+        """push/pull are undefined for concentration tensors (mixed indices)."""
+        A = sim.Tensor4.strain_concentration(np.eye(6))
+        B = sim.Tensor4.stress_concentration(np.eye(6))
+        for t in (A, B):
+            with pytest.raises(RuntimeError):
+                t.push_forward(F)
+            with pytest.raises(RuntimeError):
+                t.pull_back(F)
+
+    def test_rotate_accepts_scipy_rotation(self, F):
+        """Single Tensor4.rotate accepts a scipy Rotation (not only simcoon.Rotation)."""
+        from scipy.spatial.transform import Rotation as ScipyRotation
+        A = sim.Tensor4.strain_concentration(sim.A_R(F))
+        R = ScipyRotation.from_euler("z", 25, degrees=True)
+        rotated = A.rotate(R)
+        # objectivity: rotating A_R(F) equals A_R(R F R^T)
+        Rm = R.as_matrix()
+        np.testing.assert_allclose(rotated.mat, sim.A_R(Rm @ F @ Rm.T), atol=1e-7)
+
+    def test_rotate_rejects_bad_type(self):
+        """An unrecognized rotation argument raises TypeError (not an opaque C++ error)."""
+        A = sim.Tensor4.strain_concentration(np.eye(6))
+        with pytest.raises(TypeError):
+            A.rotate(np.eye(3))

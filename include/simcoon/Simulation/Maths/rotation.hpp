@@ -26,12 +26,6 @@
 
 namespace simcoon{
 
-/**
- * @file rotation.hpp
- * @brief Rotation class and convenience free functions for rotating
- *        vectors, tensors, and Voigt-notation quantities.
- */
-
 /** @addtogroup maths
  *  @{
  */

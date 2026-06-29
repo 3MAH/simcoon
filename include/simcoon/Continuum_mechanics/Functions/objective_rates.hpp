@@ -241,9 +241,7 @@ arma::mat get_BBBB(const arma::mat &F);
  * \f[
  *      \mathbf{B}_i = b_i \otimes b_i\,  \quad f(z) =  \frac{ \sqrt{\lambda_j} - \sqrt{\lambda_i} }{\sqrt{\lambda_j} + \sqrt{\lambda_i}}
  * \f]
- * 
- * (sqrt(bi(j)) - sqrt(bi(i)))/(sqrt(bi(j)) + sqrt(bi(i)));
- * 
+ *
  * \f[
  *      \mathbf{\mathcal{B}}^{\textrm{GN}} = \sum_{i \neq j} f(z) \, \mathbf{\beta} \left( b_i, b_j \right)
  * \f] 
@@ -268,7 +266,7 @@ arma::mat get_BBBB(const arma::mat &F);
  * @details Example: 
  * @code
  *      mat F = randu(3,3);
- *      mat BBBB = get_BBBB(F);
+ *      mat BBBB = get_BBBB_GN(F);
  * @endcode
 */
 arma::mat get_BBBB_GN(const arma::mat &F);

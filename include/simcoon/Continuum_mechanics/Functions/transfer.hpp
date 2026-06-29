@@ -89,7 +89,7 @@ arma::vec t2v_stress (const arma::mat &m);
 /**
  * @brief Provides the Voigt notation (arma::vec size=6) version of a symmetric tensor initially written using a matrix format (3x3 arma::mat)
  *
- * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} right) \f$
+ * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} \right) \f$
  * 
  * @param m (3x3 arma::mat) the symmetric tensor written as a 3x3 matrix 
  * @return (arma::vec size=6) the symmetric tensor written in with Voigt notation
@@ -105,7 +105,7 @@ arma::vec t2v_sym (const arma::mat &m);
 /**
  * @brief Provides the matrix (3x3 arma::mat) version of a symmetric tensor initially written with Voigt notation (arma::vec size=6)
  *
- * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} right) \f$
+ * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} \right) \f$
  * 
  * @param v (arma::vec size=6) the symmetric tensor written in with Voigt notation
  * @return (3x3 arma::mat) the symmetric tensor written as a 3x3 matrix
@@ -118,12 +118,10 @@ arma::vec t2v_sym (const arma::mat &m);
 */
 arma::mat v2t_sym (const arma::vec &v);
 
-//This function transforms a vector (6 components 11,22,33,12,13,23) into a skew-symmetric 3x3 stress matrix
-
 /**
  * @brief Provides the matrix (3x3 arma::mat) version of a skew-symmetric tensor initially written with Voigt notation (arma::vec size=6)
  *
- * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} right) \f$
+ * Note that the 6 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{22},m_{33},m_{12},m_{13},m_{23} \right) \f$
  * 
  * so that the components \f$ m_{21} = -m_{12}, \quad m_{31} = -m_{13}, \quad m_{32} = -m_{23} \f$ so that:
  * 
@@ -147,7 +145,7 @@ arma::mat v2t_skewsym (const arma::vec &v);
 /**
  * @brief Provides the matrix (3x3 arma::mat) version of a tensor initially written with Voigt notation (arma::vec size=9)
  *
- * Note that the 9 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{12},m_{13},m_{21},m_{22},m_{23},m_{31},m_{32},m_{33} right) \f$
+ * Note that the 9 components are organized as the following (it is a column vector) : \f$ \mathbf{v} \equiv \left( m_{11},m_{12},m_{13},m_{21},m_{22},m_{23},m_{31},m_{32},m_{33} \right) \f$
  * So that this operation is the opposite of a flatten (.as_col() for armadillo matrix to column vectors)
  *  
  * @param v (arma::vec size=9) the flatten tensor written in with Voigt notation

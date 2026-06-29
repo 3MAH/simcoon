@@ -855,3 +855,102 @@ class TestUnifiedTransparency:
         assert sigma.single is False
         assert len(sigma) == 5
 
+
+# ==================================================================
+# Tensor4 batch: concentration tensors (strain/stress)
+# ==================================================================
+
+@pytest.fixture
+def random_strain_conc(rng):
+    """N distinct invertible 6x6 concentration tensors (engineering convention)."""
+    raw = rng.standard_normal((N, 6, 6))
+    return raw + 3.0 * np.eye(6)          # diagonally dominant -> invertible
+
+
+class TestTensor4BatchConcentration:
+    def test_construct(self, random_strain_conc):
+        A = Tensor4.strain_concentration(random_strain_conc)
+        B = Tensor4.stress_concentration(random_strain_conc)
+        assert len(A) == N and A.type == "strain_concentration"
+        assert B.type == "stress_concentration"
+        for i in range(N):
+            assert_allclose(A[i].mat, random_strain_conc[i], atol=TOL)
+
+    def test_strain_contract_matches_single(self, random_strain_conc, random_strain_voigt):
+        A = Tensor4.strain_concentration(random_strain_conc)
+        eps = Tensor2.strain(random_strain_voigt)
+        out = A.contract(eps)
+        assert out.vtype == "strain"
+        for i in range(N):
+            assert_allclose(out[i].voigt, A[i].contract(eps[i]).voigt, atol=TOL)
+
+    def test_stress_contract_matches_single(self, random_strain_conc, random_stress_voigt):
+        B = Tensor4.stress_concentration(random_strain_conc)
+        sig = Tensor2.stress(random_stress_voigt)
+        out = B.contract(sig)
+        assert out.vtype == "stress"
+        for i in range(N):
+            assert_allclose(out[i].voigt, B[i].contract(sig[i]).voigt, atol=TOL)
+
+    def test_strain_rotate_matches_single(self, random_strain_conc, random_rotations):
+        A = Tensor4.strain_concentration(random_strain_conc)
+        rotated = A.rotate(random_rotations)
+        assert rotated.type == "strain_concentration"
+        for i in range(N):
+            R_single = smc.Rotation.from_scipy(random_rotations[i])
+            assert_allclose(rotated[i].mat, A[i].rotate(R_single).mat, atol=ROTATION_TOL)
+
+    def test_stress_rotate_matches_single(self, random_strain_conc, random_rotations):
+        B = Tensor4.stress_concentration(random_strain_conc)
+        rotated = B.rotate(random_rotations)
+        assert rotated.type == "stress_concentration"
+        for i in range(N):
+            R_single = smc.Rotation.from_scipy(random_rotations[i])
+            assert_allclose(rotated[i].mat, B[i].rotate(R_single).mat, atol=ROTATION_TOL)
+
+    def test_inverse_matches_single(self, random_strain_conc):
+        A = Tensor4.strain_concentration(random_strain_conc)
+        Ainv = A.inverse()
+        assert Ainv.type == "strain_concentration"          # type preserved
+        for i in range(N):
+            assert_allclose(Ainv[i].mat, A[i].inverse().mat, atol=1e-8)
+            assert_allclose(Ainv[i].mat, np.linalg.inv(random_strain_conc[i]), atol=1e-8)
+
+    def test_inverse_roundtrip(self, random_strain_conc, random_strain_voigt):
+        A = Tensor4.strain_concentration(random_strain_conc)
+        eps = Tensor2.strain(random_strain_voigt)
+        back = A.inverse().contract(A.contract(eps))
+        for i in range(N):
+            assert_allclose(back[i].voigt, eps[i].voigt, atol=1e-8)
+
+    def test_rotate_objectivity_against_A_R(self, rng, random_rotations):
+        """Batch rotate(A_R(F)) == A_R(R F R^T), the strain-concentration objectivity."""
+        Fs = np.eye(3) + 0.1 * rng.standard_normal((N, 3, 3))
+        A_R_batch = np.array([smc.A_R(Fs[i]) for i in range(N)])
+        rotated = Tensor4.strain_concentration(A_R_batch).rotate(random_rotations)
+        for i in range(N):
+            Rm = random_rotations[i].as_matrix()
+            assert_allclose(rotated[i].mat, smc.A_R(Rm @ Fs[i] @ Rm.T), atol=1e-7)
+
+    def test_single_vs_batch_of_one(self):
+        """Transparency: batch-of-1 matches the single-tensor path."""
+        F = np.array([[1.2, 0.15, 0.0], [0.0, 0.95, 0.0],
+                      [0.0, 0.0, 1.0 / (1.2 * 0.95)]])
+        A_R = smc.A_R(F)
+        eps_v = np.array([0.02, -0.01, -0.005, 0.012, 0.008, 0.004])
+        single = Tensor4.strain_concentration(A_R).contract(Tensor2.strain(eps_v))
+        batch = Tensor4.strain_concentration(A_R[np.newaxis]).contract(
+            Tensor2.strain(eps_v[np.newaxis]))
+        assert_allclose(batch[0].voigt, single.voigt, atol=TOL)
+
+    @pytest.mark.parametrize("size", [4, 150])  # exercise both serial and OpenMP (N>100) paths
+    def test_push_pull_throws_cleanly(self, size):
+        """Batch push/pull must raise a clean error for concentration types, including the
+        N>100 OpenMP path (the throw is rejected before the parallel region, not mid-loop)."""
+        A = Tensor4.strain_concentration(np.broadcast_to(np.eye(6), (size, 6, 6)).copy())
+        F = np.eye(3)
+        with pytest.raises(RuntimeError):
+            A.push_forward(F)
+        with pytest.raises(RuntimeError):
+            A.pull_back(F)
+

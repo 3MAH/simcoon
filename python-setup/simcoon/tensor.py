@@ -25,6 +25,16 @@ Examples
 
 >>> # Batch operations
 >>> sigma_batch = L @ eps_batch
+
+>>> # Concentration tensors (strain/stress) use the engineering Voigt convention,
+>>> # exactly like stiffness/compliance: wrap a 6x6 producer and contract it.
+>>> # The identity is eye(6) (it returns the field unchanged), and inverse keeps
+>>> # the concentration type. push_forward/pull_back are undefined (mixed indices).
+>>> F = np.array([[1.2, 0.15, 0.0], [0.0, 0.95, 0.0], [0.0, 0.0, 1.0 / (1.2 * 0.95)]])
+>>> D = np.array([[0.03, 0.01, 0.0], [0.01, -0.02, 0.0], [0.0, 0.0, -0.01]])
+>>> A = smc.Tensor4.strain_concentration(smc.A_R(F))   # De = A^R : D
+>>> De = A.contract(smc.Tensor2.strain(smc.t2v_strain(D)))
+>>> D0 = A.inverse().contract(De)                      # round-trips: D0 == D
 """
 
 import numpy as np
@@ -135,6 +145,18 @@ def _voigt_to_mat(v, type_str):
         m[..., 0, 2] = m[..., 2, 0] = v[..., 4]
         m[..., 1, 2] = m[..., 2, 1] = v[..., 5]
     return m
+
+
+def _to_cpp_rotation(R):
+    """Single-tensor rotation argument -> C++ Rotation. Accepts a simcoon or scipy Rotation,
+    raises TypeError otherwise. (Batch paths use _get_rotation_matrices instead.)"""
+    from simcoon.rotation import Rotation as SmcRotation
+    from scipy.spatial.transform import Rotation as ScipyRotation
+    if isinstance(R, SmcRotation):
+        return R._to_cpp()
+    if isinstance(R, ScipyRotation):
+        return SmcRotation.from_scipy(R)._to_cpp()
+    raise TypeError(f"Expected Rotation, got {type(R)}")
 
 
 def _get_rotation_matrices(R, N):
@@ -534,14 +556,7 @@ class Tensor2(_TensorBase):
         from scipy.spatial.transform import Rotation as ScipyRotation
 
         if self.single:
-            cpp_t2 = self._to_cpp()
-            if isinstance(R, SmcRotation):
-                cpp_rot = R._to_cpp()
-            elif isinstance(R, ScipyRotation):
-                cpp_rot = SmcRotation.from_scipy(R)._to_cpp()
-            else:
-                raise TypeError(f"Expected Rotation, got {type(R)}")
-            cpp_result = cpp_t2.rotate(cpp_rot, active)
+            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
             return Tensor2._create(np.array(cpp_result.voigt).ravel(),
                                    self._type_str)
 
@@ -748,12 +763,6 @@ class Tensor4(_TensorBase):
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
-    def identity2(cls, type_str="stiffness"):
-        _check_t4_type(type_str)
-        cpp = _CppTensor4.identity2(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
-
-    @classmethod
     def volumetric(cls, type_str="stiffness"):
         _check_t4_type(type_str)
         cpp = _CppTensor4.volumetric(_T4TYPE_MAP[type_str])
@@ -763,12 +772,6 @@ class Tensor4(_TensorBase):
     def deviatoric(cls, type_str="stiffness"):
         _check_t4_type(type_str)
         cpp = _CppTensor4.deviatoric(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
-
-    @classmethod
-    def deviatoric2(cls, type_str="stiffness"):
-        _check_t4_type(type_str)
-        cpp = _CppTensor4.deviatoric2(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
@@ -821,12 +824,7 @@ class Tensor4(_TensorBase):
         from scipy.spatial.transform import Rotation as ScipyRotation
 
         if self.single:
-            cpp_t4 = self._to_cpp()
-            if isinstance(R, SmcRotation):
-                cpp_rot = R._to_cpp()
-            else:
-                cpp_rot = R
-            cpp_result = cpp_t4.rotate(cpp_rot, active)
+            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
             return Tensor4._create(np.array(cpp_result.mat),
                                    _T4TYPE_RMAP.get(cpp_result.type, self._type_str))
 

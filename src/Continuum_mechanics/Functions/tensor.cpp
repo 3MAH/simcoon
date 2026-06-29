@@ -16,8 +16,6 @@
  */
 
 ///@file tensor.cpp
-///@brief Implementation of tensor2 and tensor4 classes with type tags and Fastor integration.
-///@version 1.0
 
 #include <iostream>
 #include <stdexcept>
@@ -161,20 +159,44 @@ static Fastor::Tensor<double,3,3,3,3> voigt_to_full(
     return C;
 }
 
-// Convert full-index Fastor tensor to Voigt matrix, applying type-dependent factors
+// Rescale a Voigt 6x6 built in the no-factor (stiffness) convention into the target type's
+// engineering convention by applying the type's Voigt factors. No-op for stiffness/generic
+// (every factor is 1), matching voigt_to_full. voigt_factor doubles shear rows for strain-like
+// outputs (compliance, strain_conc) and shear cols for stress-like inputs (compliance,
+// stress_conc). Single source for both full_to_voigt and the tensor4 projector factories:
+// identity() -> Ireal (stiffness), Ireal2 (compliance), eye(6) (strain/stress_concentration).
+static arma::mat::fixed<6,6> to_type_convention(arma::mat::fixed<6,6> m, Tensor4Type type) {
+    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic)
+        return m;
+    for (int I = 0; I < 6; ++I)
+        for (int J = 0; J < 6; ++J)
+            m(I, J) *= voigt_factor(I, J, type);
+    return m;
+}
+
+// Convert full-index Fastor tensor to Voigt matrix, applying the type-dependent factors.
 static arma::mat::fixed<6,6> full_to_voigt(
     const Fastor::Tensor<double,3,3,3,3> &C, Tensor4Type type)
 {
     arma::mat::fixed<6,6> V = fastor4_to_voigt(C);
+    return to_type_convention(V, type);
+}
 
-    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic) {
-        return V;
-    }
-
-    for (int I = 0; I < 6; ++I)
-        for (int J = 0; J < 6; ++J)
-            V(I, J) *= voigt_factor(I, J, type);
-    return V;
+// Base projectors in the no-factor (stiffness) Voigt convention. Self-contained so the tensor4
+// class does not depend on the free Ireal()/Ivol()/Idev() helpers (those stay for the arma::mat
+// UMAT code); to_type_convention then maps these to any Tensor4Type.
+static arma::mat::fixed<6,6> base_symmetric_identity() {
+    arma::mat::fixed<6,6> m;
+    m.eye();
+    for (int i = 3; i < 6; ++i) m(i,i) = 0.5;   // shear half (Voigt double-count)
+    return m;
+}
+static arma::mat::fixed<6,6> base_volumetric() {
+    arma::mat::fixed<6,6> m;
+    m.zeros();
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) m(i,j) = 1.0/3.0;
+    return m;
 }
 
 // ============================================================================
@@ -610,28 +632,15 @@ tensor4& tensor4::operator=(tensor4 &&other) noexcept {
 }
 
 tensor4 tensor4::identity(Tensor4Type type) {
-    arma::mat::fixed<6,6> m = Ireal();
-    return tensor4(m, type);
+    return tensor4(to_type_convention(base_symmetric_identity(), type), type);
 }
 
 tensor4 tensor4::volumetric(Tensor4Type type) {
-    arma::mat::fixed<6,6> m = Ivol();
-    return tensor4(m, type);
+    return tensor4(to_type_convention(base_volumetric(), type), type);
 }
 
 tensor4 tensor4::deviatoric(Tensor4Type type) {
-    arma::mat::fixed<6,6> m = Idev();
-    return tensor4(m, type);
-}
-
-tensor4 tensor4::identity2(Tensor4Type type) {
-    arma::mat::fixed<6,6> m = Ireal2();
-    return tensor4(m, type);
-}
-
-tensor4 tensor4::deviatoric2(Tensor4Type type) {
-    arma::mat::fixed<6,6> m = Idev2();
-    return tensor4(m, type);
+    return tensor4(to_type_convention(base_symmetric_identity() - base_volumetric(), type), type);
 }
 
 tensor4 tensor4::zeros(Tensor4Type type) {
@@ -692,8 +701,7 @@ tensor2 tensor4::contract(const tensor2 &t) const {
 tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
-    // Kernel branches on _type (mirrors tensor2::push_forward):
-    // stiffness/generic use F, compliance uses F^{-T}.
+    // Kernel branches on _type (mirrors tensor2::push_forward).
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/true);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
@@ -711,7 +719,7 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
 tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     _ensure_fastor();
 
-    // Pull-back inverts push-forward: stiffness/generic use F^{-1}, compliance uses F^T.
+    // Pull-back inverts push-forward.
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/false);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
@@ -1110,11 +1118,21 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
     return result;
 }
 
+// Concentration tensors mix covariant/contravariant indices, so push_forward/pull_back are
+// undefined for them (also rejected per-element in tensor4_kernel). The batch loops must reject
+// BEFORE their OpenMP parallel region: an exception escaping an active parallel region is UB.
+static void reject_concentration_transport(Tensor4Type type, const char *op) {
+    if (type == Tensor4Type::strain_concentration || type == Tensor4Type::stress_concentration)
+        throw std::runtime_error(std::string("tensor4::") + op + " not implemented for "
+                                 "concentration tensors (mixed covariant/contravariant indices)");
+}
+
 arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
                                  const arma::cube &F, bool metric) {
     int N = t4.n_slices;
     check_batch_broadcast(F.n_slices, N,
                           "batch_push_forward_t4", "F", "t4.n_slices");
+    reject_concentration_transport(t4type, "push_forward");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
@@ -1132,6 +1150,7 @@ arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
     int N = t4.n_slices;
     check_batch_broadcast(F.n_slices, N,
                           "batch_pull_back_t4", "F", "t4.n_slices");
+    reject_concentration_transport(t4type, "pull_back");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
