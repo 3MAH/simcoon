@@ -309,6 +309,36 @@ namespace simcoon
         }
     }
 
+    mat ddEq_stress_P(const vec &v, const mat &H)
+    {
+        if (norm(v, 2) <= simcoon::iota)
+        {
+            return zeros(6, 6);
+        }
+        double sigeq = Eq_stress_P(v, H);
+        if (sigeq < simcoon::iota)
+        {
+            return zeros(6, 6);
+        }
+        vec Lambda = (H * v) / sigeq; // == dEq_stress_P(v, H)
+        return (H - Lambda * Lambda.t()) / sigeq;
+    }
+
+    mat ddHill_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_Hill(params));
+    }
+
+    mat ddDFA_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_DFA(params));
+    }
+
+    mat ddAni_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_Ani(params));
+    }
+
     double Hill_stress(const vec &v, const vec &params)
     {
         mat P = P_Hill(params);

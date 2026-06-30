@@ -132,7 +132,26 @@ double Mises_stress(const arma::vec &v);
  * @endcode
 */
 arma::vec eta_stress(const arma::vec &v);
-    
+
+/**
+ * @brief Provides the derivative of the J2 stress flow w.r.t. stress, \f$ \partial \boldsymbol{\eta}_{stress} / \partial \boldsymbol{\sigma} \f$ (6x6 Voigt)
+ * @param v The input stress tensor (arma::vec, 6)
+ * @return The 6x6 Hessian of the Mises equivalent stress (arma::mat)
+ * @details With \f$ \boldsymbol{\eta}_{stress} = \mathbf{P}_{Mises}\,\boldsymbol{\sigma} / \sigma^{Mises} \f$, the derivative is the normalized-normal Hessian
+\f[
+    \frac{\partial \boldsymbol{\eta}_{stress}}{\partial \boldsymbol{\sigma}}
+        = \frac{1}{\sigma^{Mises}} \left( \mathbf{P}_{Mises}
+          - \boldsymbol{\eta}_{stress}\otimes\boldsymbol{\eta}_{stress} \right),
+\f]
+ * where \f$ \mathbf{P}_{Mises} \f$ is the Voigt metric with shear diagonal 3 (the engineering shear
+ * factor is already embedded, consistently with eta_stress() and Mises_stress()). The result is
+ * symmetric and satisfies \f$ (\partial \boldsymbol{\eta}_{stress}/\partial \boldsymbol{\sigma})\,\boldsymbol{\sigma} = \mathbf{0} \f$
+ * (degree-0 homogeneity). Returns \f$ \mathbf{0}_{6\times6} \f$ when \f$ \sigma^{Mises} < \iota \f$.
+ * It supplies \f$ \partial \boldsymbol{\Lambda}_\varepsilon / \partial \boldsymbol{\sigma} \f$ for the
+ * Simo-Hughes algorithmic tangent of J2-associated UMATs.
+ */
+arma::mat deta_stress(const arma::vec &v);
+
 /**
  * @brief Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
  * @param v The input stress tensor (arma::vec)

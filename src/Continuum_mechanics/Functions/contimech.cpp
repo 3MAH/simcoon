@@ -105,7 +105,29 @@ vec eta_stress(const vec &v) {
 
 }
     
+<<<<<<< Updated upstream
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
+=======
+mat deta_stress(const vec &v) {
+	assert(v.size()==6);
+
+	double sigeq = Mises_stress(v);
+	if (sigeq < simcoon::iota) {
+		return zeros(6,6);
+	}
+	vec eta = eta_stress(v);
+	// P_Mises in simcoon's engineering-shear Voigt basis: normal block = (3/2) dev,
+	// shear diagonal = 3 (the factor 2 is already embedded, as in eta_stress / Mises_stress).
+	mat Pm = { {  1., -0.5, -0.5, 0., 0., 0.},
+	           {-0.5,   1., -0.5, 0., 0., 0.},
+	           {-0.5, -0.5,   1., 0., 0., 0.},
+	           {  0.,   0.,   0., 3., 0., 0.},
+	           {  0.,   0.,   0., 0., 3., 0.},
+	           {  0.,   0.,   0., 0., 0., 3.} };
+	return (Pm - eta*eta.t())/sigeq;
+}
+
+>>>>>>> Stashed changes
 vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
     

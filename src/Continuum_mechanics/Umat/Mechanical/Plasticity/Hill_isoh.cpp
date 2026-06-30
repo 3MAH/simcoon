@@ -239,7 +239,16 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent. Hill associated flow Lambda_eps = dHill_stress(sigma),
+        // so dLambda_eps/dsigma = ddHill_stress(sigma, Hill_params). Isotropic hardening: no
+        // internal-variable coupling in the direction -> complete consistent correction (Q-quadratic).
+        const std::vector<mat> dLambda_dsigma_l = { ddHill_stress(stress, Hill_params) };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
     Lt = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
