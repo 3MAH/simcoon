@@ -221,6 +221,45 @@ tensor2 dev(const tensor2 &t);
 double Mises(const tensor2 &t);
 double trace(const tensor2 &t);
 
+/**
+ * @brief Normal to a von Mises / Drucker–Prager yield surface, as a plastic-flow direction.
+ *
+ * Strain-typed gradient of the yield surface
+ * \f$ \Phi(\sigma) = \sigma_{eq} + \alpha\,\mathrm{tr}\,\sigma - k \f$:
+ * \f[ \frac{\partial\Phi}{\partial\sigma}
+ *      = \frac{3}{2}\,\frac{\mathrm{dev}\,\sigma}{\sigma_{eq}} + \alpha\,I . \f]
+ * The default \f$\alpha=0\f$ gives the pure von Mises normal
+ * \f$(3/2)\,\mathrm{dev}\,\sigma/\sigma_{eq}\f$ (identical to eta_stress()). When
+ * \f$\sigma_{eq}\le\f$ @c iota the deviatoric normal is undefined (cone vertex) and
+ * is dropped; only the volumetric term \f$\alpha I\f$ is kept.
+ *
+ * @param sigma stress tensor
+ * @param alpha pressure-sensitivity (friction) coefficient; 0 → von Mises
+ * @return \f$\partial\Phi/\partial\sigma\f$, VoigtType::strain
+ * @see flow() for the plastic-potential normal (non-associative flow)
+ */
+tensor2 flow_normal(const tensor2 &sigma, double alpha = 0.0);
+
+/**
+ * @brief Normal to the plastic potential — the actual plastic-flow direction.
+ *
+ * Same form as flow_normal() but for the potential
+ * \f$ H(\sigma) = \sigma_{eq} + \beta\,\mathrm{tr}\,\sigma \f$, so that
+ * \f$ \dot\varepsilon^p = \dot\lambda\,\partial H/\partial\sigma \f$ with
+ * \f[ \frac{\partial H}{\partial\sigma}
+ *      = \frac{3}{2}\,\frac{\mathrm{dev}\,\sigma}{\sigma_{eq}} + \beta\,I . \f]
+ * Flow is non-associative when \f$H\neq\Phi\f$ (\f$\beta\neq\alpha\f$). Non-negative
+ * dissipation \f$\sigma:\partial H/\partial\sigma\ge 0\f$ (2nd law) is guaranteed when
+ * \f$H\f$ is convex and dominates the yield surface, \f$H\ge\Phi\f$ — here
+ * \f$0\le\beta\le\alpha\f$. \f$\beta=0\f$ recovers associative von Mises.
+ *
+ * @param sigma stress tensor
+ * @param beta  dilatancy coefficient (\f$\le\alpha\f$ for the 2nd law)
+ * @return \f$\partial H/\partial\sigma\f$, VoigtType::strain
+ * @see flow_normal() for the yield-surface normal
+ */
+tensor2 flow(const tensor2 &sigma, double beta = 0.0);
+
 // Reduction free functions (Armadillo-style)
 double sum(const tensor2 &t);
 double accu(const tensor2 &t);
