@@ -22,6 +22,7 @@
 #include <cmath>
 #include <armadillo>
 #include <Fastor/Fastor.h>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -532,6 +533,28 @@ double Mises(const tensor2 &t) {
     if (t.vtype() == VoigtType::strain)
         return std::sqrt((2.0/3.0) * dd);
     return std::sqrt(1.5 * dd);
+}
+
+// Gradient of a Drucker-Prager-type surface  s_eq + coeff*tr(sigma):  (3/2) dev(sigma)/s_eq + coeff*I.
+// Deviator and s_eq are formed inline (no Voigt round-trip). s_eq <= iota is the cone vertex:
+// the deviatoric normal is undefined there, so it is dropped and only the volumetric part remains.
+static tensor2 dp_surface_normal(const tensor2 &sigma, double coeff) {
+    arma::mat::fixed<3,3> n = sigma.mat();
+    double tr3 = (n(0,0) + n(1,1) + n(2,2)) / 3.0;
+    n(0,0) -= tr3; n(1,1) -= tr3; n(2,2) -= tr3;          // s = dev(sigma)
+    double seq = std::sqrt(1.5 * arma::accu(n % n));      // s_eq = sqrt(3/2 s:s)
+    if (seq > simcoon::iota) n *= (1.5 / seq);            // (3/2) s / s_eq
+    else                     n.zeros();
+    n(0,0) += coeff; n(1,1) += coeff; n(2,2) += coeff;
+    return tensor2(n, VoigtType::strain);
+}
+
+tensor2 flow_normal(const tensor2 &sigma, double alpha) {
+    return dp_surface_normal(sigma, alpha);
+}
+
+tensor2 flow(const tensor2 &sigma, double beta) {
+    return dp_surface_normal(sigma, beta);
 }
 
 double trace(const tensor2 &t) {
