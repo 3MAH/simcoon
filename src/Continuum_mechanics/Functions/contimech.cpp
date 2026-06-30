@@ -105,9 +105,6 @@ vec eta_stress(const vec &v) {
 
 }
     
-<<<<<<< Updated upstream
-//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
-=======
 mat deta_stress(const vec &v) {
 	assert(v.size()==6);
 
@@ -127,7 +124,7 @@ mat deta_stress(const vec &v) {
 	return (Pm - eta*eta.t())/sigeq;
 }
 
->>>>>>> Stashed changes
+//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
     
