@@ -329,6 +329,47 @@ namespace simcoon
     arma::vec dEq_stress_P(const arma::vec &sigma, const arma::mat &H);
 
     /**
+     * @brief Provides the second derivative (Hessian) of the anisotropic equivalent stress w.r.t. stress, \f$ \partial^2 \sigma^{eq}_{ani} / \partial \boldsymbol{\sigma}^2 \f$ (6x6)
+     * @param sigma The stress vector
+     * @param H The configurational tensor
+     * @return The 6x6 Hessian of the anisotropic equivalent stress (arma::mat)
+     * @details With \f$ \boldsymbol{\Lambda} = \mathbf{H}\,\boldsymbol{\sigma}/\sigma^{eq}_{ani} \f$ (\f$ = \f$ dEq_stress_P) and \f$ \sigma^{eq}_{ani} = \sqrt{\boldsymbol{\sigma}:\mathbf{H}:\boldsymbol{\sigma}} \f$,
+\f[
+    \frac{\partial^2 \sigma^{eq}_{ani}}{\partial \boldsymbol{\sigma}^2}
+        = \frac{1}{\sigma^{eq}_{ani}} \left( \mathbf{H} - \boldsymbol{\Lambda}\otimes\boldsymbol{\Lambda} \right).
+\f]
+     * The result is symmetric and annihilates \f$ \boldsymbol{\sigma} \f$ (degree-0 homogeneity of the
+     * normalized flow). Returns \f$ \mathbf{0}_{6\times6} \f$ when \f$ \sigma^{eq}_{ani} < \iota \f$. It
+     * supplies \f$ \partial \boldsymbol{\Lambda}_\varepsilon / \partial \boldsymbol{\sigma} \f$ for the
+     * Simo-Hughes algorithmic tangent of any UMAT whose flow follows a quadratic-form criterion.
+     */
+    arma::mat ddEq_stress_P(const arma::vec &sigma, const arma::mat &H);
+
+    /**
+     * @brief Hessian of the Hill48 equivalent stress, \f$ \partial^2 \sigma^{Hill} / \partial \boldsymbol{\sigma}^2 \f$ (6x6). Forwards to ddEq_stress_P() with \f$ \mathbf{H} = \f$ P_Hill(params).
+     * @param sigma The stress vector
+     * @param params The Hill parameters vector (F,G,H,L,M,N) - see P_Hill()
+     * @return The 6x6 Hessian (arma::mat)
+     */
+    arma::mat ddHill_stress(const arma::vec &sigma, const arma::vec &params);
+
+    /**
+     * @brief Hessian of the DFA equivalent stress, \f$ \partial^2 \sigma^{DFA} / \partial \boldsymbol{\sigma}^2 \f$ (6x6). Forwards to ddEq_stress_P() with \f$ \mathbf{H} = \f$ P_DFA(params).
+     * @param sigma The stress vector
+     * @param params The DFA parameters vector (F,G,H,L,M,N,K) - see P_DFA()
+     * @return The 6x6 Hessian (arma::mat)
+     */
+    arma::mat ddDFA_stress(const arma::vec &sigma, const arma::vec &params);
+
+    /**
+     * @brief Hessian of the anisotropic (Ani) equivalent stress, \f$ \partial^2 \sigma^{Ani} / \partial \boldsymbol{\sigma}^2 \f$ (6x6). Forwards to ddEq_stress_P() with \f$ \mathbf{H} = \f$ P_Ani(params).
+     * @param sigma The stress vector
+     * @param params The Ani parameters vector - see P_Ani()
+     * @return The 6x6 Hessian (arma::mat)
+     */
+    arma::mat ddAni_stress(const arma::vec &sigma, const arma::vec &params);
+
+    /**
      * @brief Provides the Hill48 anisotropic equivalent stress, given the stress in a vector format and a vector of parameters (F,G,H,L,M,N)
      * @param sigma The stress vector
      * @param P_params The vector of parameters

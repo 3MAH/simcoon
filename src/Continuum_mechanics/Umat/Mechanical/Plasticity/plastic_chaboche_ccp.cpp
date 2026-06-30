@@ -281,7 +281,15 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent (closest-point). J2 flow on effective stress (sigma-X):
+        // dLambda_eps/dsigma = deta_stress(stress-X). Backstress state-coupling deferred (CPP, future).
+        const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress - X) };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
     Lt = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
