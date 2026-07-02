@@ -7,6 +7,7 @@ Continuum Mechanics generic functions
 
    doc_constitutive
    doc_rotation
+   doc_tensor
    doc_contimech
    doc_criteria
    doc_transfer

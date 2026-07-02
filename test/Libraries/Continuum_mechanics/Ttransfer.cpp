@@ -16,19 +16,19 @@
  */
 
 ///@file Transfer.cpp
-///@brief Test for transfer between tensors, vectors in armadillo (vec, mat) and FTensor
+///@brief Test for transfer between tensors, vectors in armadillo (vec, mat) and Fastor
 ///@version 1.0
 
 #include <gtest/gtest.h>
 #include <armadillo>
 
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
-using namespace FTensor;
 using namespace simcoon;
 
 TEST(Ttransfer, v2t_func)
@@ -93,92 +93,30 @@ TEST(Ttransfer, v2t_func)
     
 }
 
-TEST(Ttransfer, FTensor_transfer)
+TEST(Ttransfer, Fastor_transfer)
 {
-    mat testmat = zeros(3,3);
-    Tensor2<double,3,3> temp;
-    testmat(0,0) = 4.;
-    testmat(0,1) = 4.;
-    testmat(0,2) = 1.5;
-    testmat(1,0) = 4.;
-    testmat(1,1) = 2.;
-    testmat(1,2) = 3.5;
-    testmat(2,0) = 1.5;
-    testmat(2,1) = 3.5;
-    testmat(2,2) = 6.;
-    
-    temp = mat_FTensor2(testmat);
-    mat testmat2 = FTensor2_mat(temp);
+    // Test arma <-> Fastor rank-2 round-trip
+    mat::fixed<3,3> testmat;
+    testmat(0,0) = 4.; testmat(0,1) = 4.; testmat(0,2) = 1.5;
+    testmat(1,0) = 4.; testmat(1,1) = 2.; testmat(1,2) = 3.5;
+    testmat(2,0) = 1.5; testmat(2,1) = 3.5; testmat(2,2) = 6.;
 
-    vec test = zeros(6);
-	test(0) = 4.;
-	test(1) = 2.;
-	test(2) = 6.;
-	test(3) = 4.;
-	test(4) = 1.5;
-	test(5) = 3.5;
-    
-    temp = v_FTensor2_strain(test);
-    vec test_strain = FTensor2_v_strain(temp);
+    auto fastor2 = arma_to_fastor2(testmat);
+    mat testmat2 = fastor2_to_arma(Fastor::Tensor<double,3,3>(fastor2));
+    EXPECT_LT(norm(testmat2 - testmat, 2), simcoon::iota);
 
-    temp = v_FTensor2_stress(test);
-    vec test_stress = FTensor2_v_stress(temp);
-    
-	//Test of p_ijkl function
-	mat L = zeros(6,6);
-    Tensor4<double,3,3,3,3> C;
-	
-	L(0,0) = 16.;
-	L(0,1) = 16.;
-	L(0,2) = 2.25;
-	L(0,3) = 16.;
-	L(0,4) = 6.;
-	L(0,5) = 6.;
-    
-	L(1,0) = 16.;
-	L(1,1) = 4.;
-	L(1,2) = 12.25;
-	L(1,3) = 8.;
-	L(1,4) = 14.;
-	L(1,5) = 7.;
-    
-	L(2,0) = 2.25;
-	L(2,1) = 12.25;
-	L(2,2) = 36;
-	L(2,3) = 5.25;
-	L(2,4) = 9.;
-	L(2,5) = 21.;
-	
-	L(3,0) = 16.;
-	L(3,1) = 8.;
-	L(3,2) = 5.25;
-	L(3,3) = 12.;
-	L(3,4) = 10.;
-	L(3,5) = 8.5;
-	
-	L(4,0) = 6.;
-	L(4,1) = 14.;
-	L(4,2) = 9.;
-	L(4,3) = 10.;
-	L(4,4) = 13.125;
-	L(4,5) = 14.625;
-    
-	L(5,0) = 6.;
-	L(5,1) = 7.;
-	L(5,2) = 21.;
-	L(5,3) = 8.5;
-	L(5,4) = 14.625;
-	L(5,5) = 12.125;
-    
-	//Test of p_ijkl function
-	C = mat_FTensor4(L);
-	mat L2 = FTensor4_mat(C);
+    // Test arma 6x6 <-> Fastor rank-4 round-trip (stiffness convention)
+    mat L = zeros(6,6);
+    L(0,0) = 16.; L(0,1) = 16.; L(0,2) = 2.25; L(0,3) = 16.; L(0,4) = 6.; L(0,5) = 6.;
+    L(1,0) = 16.; L(1,1) = 4.; L(1,2) = 12.25; L(1,3) = 8.; L(1,4) = 14.; L(1,5) = 7.;
+    L(2,0) = 2.25; L(2,1) = 12.25; L(2,2) = 36; L(2,3) = 5.25; L(2,4) = 9.; L(2,5) = 21.;
+    L(3,0) = 16.; L(3,1) = 8.; L(3,2) = 5.25; L(3,3) = 12.; L(3,4) = 10.; L(3,5) = 8.5;
+    L(4,0) = 6.; L(4,1) = 14.; L(4,2) = 9.; L(4,3) = 10.; L(4,4) = 13.125; L(4,5) = 14.625;
+    L(5,0) = 6.; L(5,1) = 7.; L(5,2) = 21.; L(5,3) = 8.5; L(5,4) = 14.625; L(5,5) = 12.125;
 
-    EXPECT_LT(norm(testmat2 - testmat,2),simcoon::iota);
-    EXPECT_LT(norm(test_strain - test,2),simcoon::iota);
-    EXPECT_LT(norm(test_stress - test,2),simcoon::iota);
-    EXPECT_LT(norm(L2 - L,2),simcoon::iota);
-
+    auto C = voigt_to_fastor4(mat::fixed<6,6>(L));
+    mat L2 = fastor4_to_voigt(C);
+    EXPECT_LT(norm(L2 - L, 2), simcoon::iota);
 }
 
 TEST(Ttransfer, t2v_sym_v2t_sym_roundtrip)
@@ -223,19 +161,3 @@ TEST(Ttransfer, v2t_9comp_roundtrip)
     EXPECT_LT(fabs(m(2, 2) - v(8)), simcoon::iota);  // v(8) -> m(2,2)
 }
 
-TEST(Ttransfer, vec_FTensor1_roundtrip)
-{
-    vec v = {1., 2., 3.};
-    Tensor1<double, 3> ft1 = vec_FTensor1(v);
-    vec v_back = FTensor1_vec(ft1);
-    EXPECT_LT(norm(v_back - v, 2), simcoon::iota);
-}
-
-TEST(Ttransfer, FTensor1_vec_roundtrip)
-{
-    // Create FTensor1 directly
-    vec v = {4., 5., 6.};
-    Tensor1<double, 3> ft1 = vec_FTensor1(v);
-    vec result = FTensor1_vec(ft1);
-    EXPECT_LT(norm(result - v, 2), simcoon::iota);
-}
