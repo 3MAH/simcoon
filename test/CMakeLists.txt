@@ -34,6 +34,9 @@ set(TEST_SRCS
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
   test/Libraries/Umat/Ttangent_assembly.cpp
+  test/Libraries/Umat/Ttangent_EPICP.cpp
+  test/Libraries/Umat/Ttangent_EPHIL.cpp
+  test/Libraries/Umat/Ttangent_EPCHA.cpp
   test/Libraries/Umat/Tunified_TR.cpp
 
   # UMATs
