@@ -149,6 +149,12 @@ arma::vec eta_stress(const arma::vec &v);
  * (degree-0 homogeneity). Returns \f$ \mathbf{0}_{6\times6} \f$ when \f$ \sigma^{Mises} < \iota \f$.
  * It supplies \f$ \partial \boldsymbol{\Lambda}_\varepsilon / \partial \boldsymbol{\sigma} \f$ for the
  * Simo-Hughes algorithmic tangent of J2-associated UMATs.
+ * @note **Voigt type: compliance-like** (maps stress -> strain-flow, \f$ \partial \boldsymbol{\varepsilon} / \partial \boldsymbol{\sigma} \f$ structure).
+ * Rows are strain-like (engineering, doubled shear -- as \ref eta_stress), columns are stress-like
+ * (single shear); it transforms as \f$ \mathbf{A}' = \mathbf{Q}_\varepsilon\,\mathbf{A}\,\mathbf{Q}_\sigma^{-1} \f$
+ * (like a compliance \f$ \mathbf{M} \f$), NOT as a stiffness. This matches its use as
+ * \f$ \mathbf{L}\,(\Delta s\,\partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma}) \f$ inside
+ * assemble_algorithmic_tangent(), where the strain-like output meets the stiffness \f$ \mathbf{L} \f$.
  */
 arma::mat deta_stress(const arma::vec &v);
 

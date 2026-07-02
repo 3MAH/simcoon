@@ -342,6 +342,11 @@ namespace simcoon
      * normalized flow). Returns \f$ \mathbf{0}_{6\times6} \f$ when \f$ \sigma^{eq}_{ani} < \iota \f$. It
      * supplies \f$ \partial \boldsymbol{\Lambda}_\varepsilon / \partial \boldsymbol{\sigma} \f$ for the
      * Simo-Hughes algorithmic tangent of any UMAT whose flow follows a quadratic-form criterion.
+     * @note **Voigt type: compliance-like** (maps stress -> strain-flow): strain-like rows
+     * (engineering, doubled shear -- as dEq_stress_P), stress-like columns (single shear); transforms
+     * as \f$ \mathbf{A}' = \mathbf{Q}_\varepsilon\,\mathbf{A}\,\mathbf{Q}_\sigma^{-1} \f$ (like a
+     * compliance \f$ \mathbf{M} \f$), NOT as a stiffness. Same holds for ddHill_stress / ddDFA_stress /
+     * ddAni_stress, which forward here.
      */
     arma::mat ddEq_stress_P(const arma::vec &sigma, const arma::mat &H);
 
