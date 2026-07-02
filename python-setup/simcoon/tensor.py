@@ -99,6 +99,29 @@ def _check_t4_type(ts):
         raise ValueError(f"Invalid Tensor4 type '{ts}', expected one of {sorted(_T4_TYPES)}")
 
 
+# ======================================================================
+# Kelvin-Mandel congruence factors (mirror C++ mandel_factors in tensor.hpp)
+# ======================================================================
+
+_SQ2 = float(np.sqrt(2.0))
+
+
+def _t2_mandel_factor(type_str):
+    """eng->Mandel shear factor for a Voigt 6-vector: mandel = sqrt2 * t_ij."""
+    return (1.0 / _SQ2) if type_str == "strain" else _SQ2
+
+
+def _t4_mandel_factors(type_str):
+    """eng->Mandel (row, col) shear factors for a 6x6 (Mandel->eng divides)."""
+    if type_str in ("stiffness", "generic"):
+        return _SQ2, _SQ2
+    if type_str == "compliance":
+        return 1.0 / _SQ2, 1.0 / _SQ2
+    if type_str == "strain_concentration":
+        return 1.0 / _SQ2, _SQ2
+    return _SQ2, 1.0 / _SQ2  # stress_concentration
+
+
 def _to_f_cube(arr):
     """Convert (N,R,C) C-order array to (R,C,N) F-order for zero-copy arma cube."""
     return np.asfortranarray(arr.transpose(1, 2, 0))
@@ -489,6 +512,17 @@ class Tensor2(_TensorBase):
         raise ValueError(f"Expected (6,) or (N,6), got {v.shape}")
 
     @classmethod
+    def from_mandel(cls, v, type_str):
+        """Create from a Kelvin-Mandel vector (6,) or (N,6) (inverse of .mandel)."""
+        _check_t2_type(type_str)
+        v = np.asarray(v, dtype=np.float64)
+        if not ((v.ndim == 1 and v.size == 6) or (v.ndim == 2 and v.shape[1] == 6)):
+            raise ValueError(f"Expected (6,) or (N,6), got {v.shape}")
+        v = v.copy()
+        v[..., 3:] /= _t2_mandel_factor(type_str)
+        return cls._create(v, type_str)
+
+    @classmethod
     def zeros(cls, type_str="stress"):
         _check_t2_type(type_str)
         return cls._create(np.zeros(6, dtype=np.float64), type_str)
@@ -515,6 +549,14 @@ class Tensor2(_TensorBase):
     def voigt(self):
         """Voigt vector: (6,) for single, (N,6) for batch. Returns a copy."""
         return self._data.copy()
+
+    @property
+    def mandel(self):
+        """Kelvin-Mandel vector (sqrt2 on shear, identical for stress/strain):
+        (6,) for single, (N,6) for batch. Returns a copy."""
+        v = self._data.copy()
+        v[..., 3:] *= _t2_mandel_factor(self._type_str)
+        return v
 
     @property
     def mat(self):
@@ -757,6 +799,19 @@ class Tensor4(_TensorBase):
         return cls.from_mat(v, type_str)
 
     @classmethod
+    def from_mandel(cls, m, type_str):
+        """Create from a Kelvin-Mandel (6,6) or (N,6,6) matrix (inverse of .mandel)."""
+        _check_t4_type(type_str)
+        m = np.asarray(m, dtype=np.float64)
+        if m.shape != (6, 6) and not (m.ndim == 3 and m.shape[1:] == (6, 6)):
+            raise ValueError(f"Expected (6,6) or (N,6,6), got {m.shape}")
+        r, c = _t4_mandel_factors(type_str)
+        eng = m.copy()
+        eng[..., 3:, :] /= r
+        eng[..., :, 3:] /= c
+        return cls._create(eng, type_str)
+
+    @classmethod
     def identity(cls, type_str="stiffness"):
         _check_t4_type(type_str)
         cpp = _CppTensor4.identity(_T4TYPE_MAP[type_str])
@@ -792,6 +847,16 @@ class Tensor4(_TensorBase):
     def voigt(self):
         """Alias for mat."""
         return self.mat
+
+    @property
+    def mandel(self):
+        """Kelvin-Mandel 6x6 (per-type sqrt2 congruence; identity = eye(6) for every
+        type): (6,6) single, (N,6,6) batch. Returns a copy."""
+        r, c = _t4_mandel_factors(self._type_str)
+        m = self._data.copy()
+        m[..., 3:, :] *= r
+        m[..., :, 3:] *= c
+        return m
 
     # ------------------------------------------------------------------
     # Domain methods

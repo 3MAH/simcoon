@@ -16,6 +16,7 @@
  */
 
 #pragma once
+#include <cmath>
 #include <armadillo>
 #include <string>
 #include <optional>
@@ -65,6 +66,36 @@ enum class Tensor4Type {
     stress_concentration,
     generic
 };
+
+/// Per-type engineering->Mandel shear factors: the congruence multiplies shear rows
+/// (3..5) by @p row and shear cols by @p col (Mandel->engineering divides). Encodes the
+/// Tensor4Type table above; this is the ONLY place the \f$\sqrt2\f$ patterns live.
+inline void mandel_factors(Tensor4Type type, double &row, double &col) {
+    const double s2 = std::sqrt(2.0);
+    switch (type) {
+        case Tensor4Type::stiffness:
+        case Tensor4Type::generic:               row = s2;     col = s2;     break;
+        case Tensor4Type::compliance:            row = 1.0/s2; col = 1.0/s2; break;
+        case Tensor4Type::strain_concentration:  row = 1.0/s2; col = s2;     break;
+        case Tensor4Type::stress_concentration:  row = s2;     col = 1.0/s2; break;
+    }
+}
+
+/// Engineering Voigt 6x6 -> Kelvin-Mandel 6x6, per-type congruence (see Tensor4Type).
+inline arma::mat::fixed<6,6> eng_to_mandel(arma::mat::fixed<6,6> X, Tensor4Type type) {
+    double r, c; mandel_factors(type, r, c);
+    for (int I = 3; I < 6; ++I) X.row(I) *= r;
+    for (int J = 3; J < 6; ++J) X.col(J) *= c;
+    return X;
+}
+
+/// Kelvin-Mandel 6x6 -> engineering Voigt 6x6 (exact inverse of eng_to_mandel).
+inline arma::mat::fixed<6,6> mandel_to_eng(arma::mat::fixed<6,6> X, Tensor4Type type) {
+    double r, c; mandel_factors(type, r, c);
+    for (int I = 3; I < 6; ++I) X.row(I) /= r;
+    for (int J = 3; J < 6; ++J) X.col(J) /= c;
+    return X;
+}
 
 /**
  * @brief Corotational rate type for tangent modulus push-forward.
@@ -337,10 +368,10 @@ private:
     void _invalidate_fastor() { _fastor.reset(); }
     void _ensure_fastor() const;
 
-    /// Internal: wrap an already-Mandel 6x6 directly (skips the engineering->Mandel congruence).
+public:
+    /// Wrap an already-Mandel 6x6 directly (skips the engineering->Mandel congruence).
     static tensor4 from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type type);
 
-public:
     /// Zero tensor, Tensor4Type::stiffness.
     tensor4();
     /// Zero tensor with the given type tag.
@@ -378,6 +409,11 @@ public:
     void set_mat(const arma::mat::fixed<6,6> &m);
     /// Same, from a dynamic arma::mat (must be 6x6).
     void set_mat(const arma::mat &m);
+
+    /// The Kelvin-Mandel 6x6 — the internal storage, by reference (no conversion).
+    /// Convention-symmetric across types: identity = eye(6), tensor inverse = arma::inv,
+    /// rotation = orthogonal congruence, for every Tensor4Type.
+    const arma::mat::fixed<6,6>& mandel() const { return _mandel; }
 
     /// The tensor4 type tag.
     Tensor4Type type() const { return _type; }

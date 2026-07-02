@@ -616,3 +616,71 @@ class TestTensor4MandelInvariants:
         eps_v = np.array([0.01, -0.004, -0.003, 0.006, 0.002, 0.0015])
         eps_back = Minv @ (K @ sim.Tensor2.strain(eps_v))
         np.testing.assert_allclose(eps_back.voigt, eps_v, atol=1e-10)
+
+    def test_mandel_identity_every_type(self):
+        """In Mandel every type shares the same identity: eye(6)."""
+        for ts in ("stiffness", "compliance",
+                   "strain_concentration", "stress_concentration"):
+            np.testing.assert_allclose(sim.Tensor4.identity(ts).mandel, np.eye(6),
+                                       atol=1e-12)
+
+    def test_mandel_matches_cpp_storage(self):
+        """Python .mandel (numpy congruence) == the C++ internal Mandel storage."""
+        L = _aniso_spd_stiffness()
+        for factory in (sim.Tensor4.stiffness, sim.Tensor4.compliance,
+                        sim.Tensor4.strain_concentration, sim.Tensor4.stress_concentration):
+            t = factory(L)
+            np.testing.assert_allclose(t.mandel, t._to_cpp().mandel,
+                                       rtol=1e-12, atol=1e-12)
+
+    def test_from_mandel_roundtrip(self):
+        """from_mandel(.mandel) recovers the engineering matrix for every type."""
+        L = _aniso_spd_stiffness()
+        for ts in ("stiffness", "compliance",
+                   "strain_concentration", "stress_concentration"):
+            t = sim.Tensor4.from_mat(L, ts)
+            back = sim.Tensor4.from_mandel(t.mandel, ts)
+            assert back.type == ts
+            np.testing.assert_allclose(back.mat, L, rtol=1e-11, atol=1e-11)
+
+    def test_mandel_contract_is_plain_matvec(self):
+        """sigma_mandel == L_mandel @ eps_mandel — no engineering factors anywhere."""
+        L = _aniso_spd_stiffness()
+        K = sim.Tensor4.stiffness(L)
+        eps = sim.Tensor2.strain(np.array([0.01, -0.004, -0.003, 0.006, 0.002, 0.0015]))
+        sig = K @ eps
+        np.testing.assert_allclose(sig.mandel, K.mandel @ eps.mandel,
+                                   rtol=1e-10, atol=1e-12)
+
+    def test_mandel_batch_matches_singles(self):
+        """Batch .mandel applies the same congruence slice-by-slice."""
+        rng = np.random.default_rng(3)
+        arr = rng.standard_normal((4, 6, 6))
+        b = sim.Tensor4.compliance(arr)
+        m = b.mandel
+        assert m.shape == (4, 6, 6)
+        for i in range(4):
+            np.testing.assert_allclose(m[i], sim.Tensor4.compliance(arr[i]).mandel,
+                                       rtol=1e-12)
+
+    def test_tensor2_mandel_type_independent(self, sigma_mat):
+        """The Mandel 6-vector of a given 3x3 is the same for stress and strain typing,
+        equals sqrt2-scaled true components, and matches the C++ tensor2.mandel()."""
+        s = sim.Tensor2.stress(sigma_mat)
+        e = sim.Tensor2.from_mat(sigma_mat, "strain")
+        np.testing.assert_allclose(s.mandel, e.mandel, rtol=1e-12)
+        sq2 = np.sqrt(2.0)
+        expected = np.array([sigma_mat[0, 0], sigma_mat[1, 1], sigma_mat[2, 2],
+                             sq2 * sigma_mat[0, 1], sq2 * sigma_mat[0, 2],
+                             sq2 * sigma_mat[1, 2]])
+        np.testing.assert_allclose(s.mandel, expected, rtol=1e-12)
+        np.testing.assert_allclose(s.mandel, np.asarray(s._to_cpp().mandel).ravel(),
+                                   rtol=1e-12)
+
+    def test_tensor2_from_mandel_roundtrip(self, sigma_mat):
+        """from_mandel(.mandel) recovers the 3x3 for both stress and strain typing."""
+        for ts in ("stress", "strain"):
+            t = sim.Tensor2.from_mat(sigma_mat, ts)
+            back = sim.Tensor2.from_mandel(t.mandel, ts)
+            assert back.vtype == ts
+            np.testing.assert_allclose(back.mat, sigma_mat, rtol=1e-12)

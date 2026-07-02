@@ -101,6 +101,15 @@ void register_tensor(py::module_& m) {
             py::arg("v"), py::arg("vtype"),
             "Create tensor2 from a 6-element Voigt vector")
 
+        .def_static("from_mandel",
+            [](py::array_t<double> v, simcoon::VoigtType vtype) {
+                validate_vector_size(v, 6, "v");
+                vec v_cpp = carma::arr_to_col(v);
+                return simcoon::tensor2::from_mandel(vec::fixed<6>(v_cpp.memptr()), vtype);
+            },
+            py::arg("v"), py::arg("vtype"),
+            "Create tensor2 from a Kelvin-Mandel 6-vector (sqrt2 on shear, type-independent)")
+
         .def_static("zeros",
             static_cast<simcoon::tensor2 (*)(simcoon::VoigtType)>(&simcoon::tensor2::zeros),
             py::arg("vtype") = simcoon::VoigtType::stress)
@@ -121,6 +130,12 @@ void register_tensor(py::module_& m) {
                 return carma::col_to_arr(vec(self.voigt()));
             },
             "6-element Voigt vector as numpy array")
+
+        .def_property_readonly("mandel",
+            [](const simcoon::tensor2& self) {
+                return carma::col_to_arr(vec(self.mandel()));
+            },
+            "Kelvin-Mandel 6-vector (sqrt2 on shear, identical for stress/strain) as numpy array")
 
         .def_property_readonly("vtype", &simcoon::tensor2::vtype)
 
@@ -199,6 +214,15 @@ void register_tensor(py::module_& m) {
             py::arg("m"), py::arg("type"),
             "Create tensor4 from a 6x6 Voigt matrix")
 
+        .def_static("from_mandel",
+            [](py::array_t<double> m, simcoon::Tensor4Type type) {
+                validate_matrix_size(m, 6, 6, "m");
+                mat m_cpp = carma::arr_to_mat(m);
+                return simcoon::tensor4::from_mandel(mat::fixed<6,6>(m_cpp), type);
+            },
+            py::arg("m"), py::arg("type"),
+            "Create tensor4 from a Kelvin-Mandel 6x6 matrix (stored directly, no congruence)")
+
         // Static factories
         .def_static("identity", &simcoon::tensor4::identity,
             py::arg("type") = simcoon::Tensor4Type::stiffness)
@@ -215,6 +239,12 @@ void register_tensor(py::module_& m) {
                 return carma::mat_to_arr(mat(self.mat()));
             },
             "6x6 Voigt matrix as numpy array")
+
+        .def_property_readonly("mandel",
+            [](const simcoon::tensor4& self) {
+                return carma::mat_to_arr(mat(self.mandel()));
+            },
+            "Kelvin-Mandel 6x6 (the internal storage; identity=eye(6) for every type) as numpy array")
 
         .def_property_readonly("type", &simcoon::tensor4::type)
 

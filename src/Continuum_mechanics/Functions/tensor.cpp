@@ -107,57 +107,14 @@ static arma::mat::fixed<3,3> tensor4_kernel(const arma::mat::fixed<3,3> &F,
 }
 
 // ============================================================================
-// Kelvin-Mandel convention helpers
+// Kelvin-Mandel convention
 // ============================================================================
 //
-// tensor4 stores its 6x6 in Mandel (sqrt2 on the shear rows/cols). Two boundaries:
-//   - engineering <-> Mandel: per-type congruence by N = diag(1,1,1,s2,s2,s2)
-//     (see Tensor4Type doc). Applied at the constructor / set_mat (in) and mat() (out).
-//   - Mandel <-> full-index: a single uniform sqrt2 rescale of the shear rows/cols around
-//     the factor-1 stiffness map voigt_to_fastor4 / fastor4_to_voigt. The full-index tensor
-//     is convention-free.
+// tensor4 stores its 6x6 in Mandel. Boundaries: engineering <-> Mandel per-type
+// congruence eng_to_mandel/mandel_to_eng (tensor.hpp); Mandel <-> full-index via the
+// type-free mandel_to_fastor4/fastor4_to_mandel (fastor_bridge.hpp).
 
 static const double SQ2 = std::sqrt(2.0);
-
-// eng->mandel shear factor on rows / cols (indices 3..5); mandel->eng is the reciprocal.
-static void mandel_factors(Tensor4Type type, double &row, double &col) {
-    switch (type) {
-        case Tensor4Type::stiffness:
-        case Tensor4Type::generic:               row = SQ2;     col = SQ2;     break;
-        case Tensor4Type::compliance:            row = 1.0/SQ2; col = 1.0/SQ2; break;
-        case Tensor4Type::strain_concentration:  row = 1.0/SQ2; col = SQ2;     break;
-        case Tensor4Type::stress_concentration:  row = SQ2;     col = 1.0/SQ2; break;
-    }
-}
-
-static arma::mat::fixed<6,6> eng_to_mandel(arma::mat::fixed<6,6> X, Tensor4Type type) {
-    double r, c; mandel_factors(type, r, c);
-    for (int I = 3; I < 6; ++I) X.row(I) *= r;
-    for (int J = 3; J < 6; ++J) X.col(J) *= c;
-    return X;
-}
-
-static arma::mat::fixed<6,6> mandel_to_eng(arma::mat::fixed<6,6> X, Tensor4Type type) {
-    double r, c; mandel_factors(type, r, c);
-    for (int I = 3; I < 6; ++I) X.row(I) /= r;
-    for (int J = 3; J < 6; ++J) X.col(J) /= c;
-    return X;
-}
-
-// Mandel 6x6 <-> full-index, uniform (no type dependence).
-static Fastor::Tensor<double,3,3,3,3> mandel_to_full(const arma::mat::fixed<6,6> &M) {
-    arma::mat::fixed<6,6> L = M;
-    for (int I = 3; I < 6; ++I) L.row(I) /= SQ2;
-    for (int J = 3; J < 6; ++J) L.col(J) /= SQ2;
-    return voigt_to_fastor4(L);
-}
-
-static arma::mat::fixed<6,6> full_to_mandel(const Fastor::Tensor<double,3,3,3,3> &C) {
-    arma::mat::fixed<6,6> L = fastor4_to_voigt(C);
-    for (int I = 3; I < 6; ++I) L.row(I) *= SQ2;
-    for (int J = 3; J < 6; ++J) L.col(J) *= SQ2;
-    return L;
-}
 
 // Mandel rotation operator: sigma_hat' = R6 * sigma_hat reproduces Q*sigma*Q^T for symmetric
 // tensors. R6 is orthogonal, so one congruence R6 * X * R6^T rotates every Tensor4Type exactly
@@ -634,7 +591,7 @@ tensor4::tensor4(const arma::mat &m, Tensor4Type type)
 tensor4::tensor4(const arma::mat &m, const std::string &type_str)
     : tensor4(m, parse_tensor4_type(type_str)) {}
 
-// Internal: store an already-Mandel 6x6 directly, no congruence.
+// Store an already-Mandel 6x6 directly, no congruence.
 tensor4 tensor4::from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type type) {
     tensor4 t;
     t._mandel = m_mandel;
@@ -706,7 +663,7 @@ void tensor4::set_mat(const arma::mat &m) {
 
 void tensor4::_ensure_fastor() const {
     if (!_fastor) {
-        _fastor.emplace(mandel_to_full(_mandel));
+        _fastor.emplace(mandel_to_fastor4(_mandel));
     }
 }
 
@@ -728,7 +685,7 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/true);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> mandel_result = full_to_mandel(result);
+    arma::mat::fixed<6,6> mandel_result = fastor4_to_mandel(result);
 
     if (metric) {
         double J = arma::det(F);
@@ -746,7 +703,7 @@ tensor4 tensor4::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     arma::mat::fixed<3,3> kernel_mat = tensor4_kernel(F, _type, /*forward=*/false);
     auto kernel_fastor = arma_to_fastor2(kernel_mat, false);
     Fastor::Tensor<double,3,3,3,3> result = push_forward_4(*_fastor, kernel_fastor);
-    arma::mat::fixed<6,6> mandel_result = full_to_mandel(result);
+    arma::mat::fixed<6,6> mandel_result = fastor4_to_mandel(result);
 
     if (metric) {
         double J = arma::det(F);
@@ -790,9 +747,8 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     auto F_fastor = arma_to_fastor2(F, false);
     _ensure_fastor();
     Fastor::Tensor<double,3,3,3,3> lie_full = push_forward_4(*_fastor, F_fastor);
-    // The Dtau_* corrections below operate on the ENGINEERING stiffness Voigt (solver
-    // convention). _type is stiffness/generic here, so engineering == fastor4_to_voigt.
-    arma::mat Lt_v = fastor4_to_voigt(lie_full);
+    // The Dtau_* corrections below operate on the ENGINEERING Voigt (solver convention).
+    arma::mat Lt_v = fastor4_to_voigt(lie_full, _type);
     const arma::mat::fixed<3,3> tau_mat = tau.mat();
     arma::mat result_v;
 
