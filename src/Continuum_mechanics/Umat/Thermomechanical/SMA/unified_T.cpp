@@ -617,6 +617,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
         // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
         // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
+        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+        // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+        // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
         auto lambdaTF_at = [&](const vec &s) -> vec {
             double sstar = Mises_stress(s) - sigmacrit;
             if (sstar < 0.) sstar = 0.;

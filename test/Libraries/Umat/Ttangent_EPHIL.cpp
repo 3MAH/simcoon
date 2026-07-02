@@ -17,8 +17,12 @@
 
 ///@file Ttangent_EPHIL.cpp
 ///@brief Tier-B acceptance test: the EPHIL (Hill anisotropic plasticity) algorithmic
-///       tangent (tangent_mode==1) is the exact Jacobian of the return map and converges
-///       Q-quadratically. Drives the real umat_plasticity_hill_isoh_CCP.
+///       tangent (tangent_mode==1) is symmetric, substantially closer to the discrete-map
+///       Jacobian than the continuum tangent, and converges in fewer Newton iterations.
+///       It is machine-exact for isotropic Hill (== J2); for ANISOTROPIC Hill the CCP
+///       integrator differs from a closest-point projection, so exactness is deferred to
+///       the CPP return-map rework (see the NOTE above the Jacobian test).
+///       Drives the real umat_plasticity_hill_isoh_CCP.
 ///@version 1.0
 
 #include <gtest/gtest.h>

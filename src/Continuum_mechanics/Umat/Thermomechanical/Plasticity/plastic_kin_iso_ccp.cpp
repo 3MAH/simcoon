@@ -248,6 +248,9 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     if (tangent_mode == 1) {
         // Simo-Hughes algorithmic tangent (closest-point), J2 flow on (sigma-X).
         // Backstress state-coupling deferred (CPP, future release).
+        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+        // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+        // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
         const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
         ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
     } else {
