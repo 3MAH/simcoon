@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
@@ -979,22 +980,21 @@ mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active)
 cube batch_voigt_stress_rotation(const mat &quats, const bool &active) {
     int N = quats.n_cols;
     cube result(6, 6, N);
-    #pragma omp parallel for
-    for (int n = 0; n < N; n++) {
+    // exception-safe parallel loop: a bad quaternion raises instead of terminating the process
+    simcoon_parallel_for_safe(N, [&](int n) {
         Rotation r = Rotation::from_quat(vec(quats.col(n)));
         result.slice(n) = r.as_voigt_stress_rotation(active);
-    }
+    });
     return result;
 }
 
 cube batch_voigt_strain_rotation(const mat &quats, const bool &active) {
     int N = quats.n_cols;
     cube result(6, 6, N);
-    #pragma omp parallel for
-    for (int n = 0; n < N; n++) {
+    simcoon_parallel_for_safe(N, [&](int n) {
         Rotation r = Rotation::from_quat(vec(quats.col(n)));
         result.slice(n) = r.as_voigt_strain_rotation(active);
-    }
+    });
     return result;
 }
 

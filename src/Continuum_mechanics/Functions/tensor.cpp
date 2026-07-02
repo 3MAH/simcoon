@@ -19,10 +19,12 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <exception>
 #include <cmath>
 #include <armadillo>
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -155,6 +157,27 @@ static arma::mat::fixed<6,6> full_to_mandel(const Fastor::Tensor<double,3,3,3,3>
     for (int I = 3; I < 6; ++I) L.row(I) *= SQ2;
     for (int J = 3; J < 6; ++J) L.col(J) *= SQ2;
     return L;
+}
+
+// Mandel rotation operator: sigma_hat' = R6 * sigma_hat reproduces Q*sigma*Q^T for symmetric
+// tensors. R6 is orthogonal, so one congruence R6 * X * R6^T rotates every Tensor4Type exactly
+// (~3x cheaper than the full-index einsum route, no _fastor cache build).
+// Entry: R6(I,J) = (c_I/c_J) * (Q_ik Q_jl + (1-delta_kl) Q_il Q_jk), c = (1,1,1,sqrt2,sqrt2,sqrt2).
+static arma::mat::fixed<6,6> mandel_rotation(const arma::mat::fixed<3,3> &Q) {
+    static const int pi[6] = {0,1,2,0,0,1};   // Voigt order [11,22,33,12,13,23]
+    static const int pj[6] = {0,1,2,1,2,2};
+    arma::mat::fixed<6,6> R6;
+    for (int I = 0; I < 6; ++I) {
+        const int i = pi[I], j = pj[I];
+        const double cI = (I < 3) ? 1.0 : SQ2;
+        for (int J = 0; J < 6; ++J) {
+            const int k = pi[J], l = pj[J];
+            double term = Q(i,k)*Q(j,l);
+            if (k != l) term += Q(i,l)*Q(j,k);
+            R6(I,J) = (J < 3) ? cI*term : (cI/SQ2)*term;
+        }
+    }
+    return R6;
 }
 
 // Volumetric projector (Mandel == engineering here: it has no shear entries).
@@ -516,8 +539,11 @@ tensor2 strain(const arma::vec &v) {
 }
 
 tensor2 dev(const tensor2 &t) {
-    arma::vec dv = simcoon::dev(arma::vec(t.voigt()));
-    return tensor2::from_voigt(arma::vec::fixed<6>(dv.memptr()), t.vtype());
+    // Deviator directly on the 3x3 (convention-free, like Mises below): no Voigt round-trip.
+    arma::mat::fixed<3,3> d = t.mat();
+    double tr3 = (d(0,0) + d(1,1) + d(2,2)) / 3.0;
+    d(0,0) -= tr3; d(1,1) -= tr3; d(2,2) -= tr3;
+    return tensor2(d, t.vtype());
 }
 
 double Mises(const tensor2 &t) {
@@ -817,15 +843,13 @@ tensor4 tensor4::push_forward(const arma::mat &F, CoRate rate,
 }
 
 tensor4 tensor4::rotate(const Rotation &R, bool active) const {
-    // One orthogonal rotation applied to all four indices (Q on each), valid for every type.
-    // Routed through the convention-free full-index tensor -- no per-type Voigt kernel, and
-    // no dependence on Rotation::apply_stiffness/compliance/concentration.
+    // One orthogonal rotation applied to all four indices, valid for every type: exact Mandel
+    // congruence R6 * X * R6^T (see mandel_rotation) -- no per-type Voigt kernel, no full-index
+    // einsum, no _fastor cache build.
     arma::mat::fixed<3,3> Q = R.as_matrix();
     if (!active) Q = arma::mat::fixed<3,3>(Q.t());
-    _ensure_fastor();
-    auto Qf = arma_to_fastor2(Q, false);
-    Fastor::Tensor<double,3,3,3,3> rotated = push_forward_4(*_fastor, Qf);
-    return tensor4::from_mandel(full_to_mandel(rotated), _type);
+    const arma::mat::fixed<6,6> R6 = mandel_rotation(Q);
+    return tensor4::from_mandel(arma::mat::fixed<6,6>(R6 * _mandel * R6.t()), _type);
 }
 
 tensor4 tensor4::inverse() const {
@@ -954,6 +978,9 @@ Tensor4Type infer_inverse_type(Tensor4Type t4type) {
     return t4type;
 }
 
+// Batch loops below use simcoon_parallel_for_safe (parallel.hpp): exception-safe OpenMP,
+// so a singular slice raises a catchable error instead of terminating the process.
+
 arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
                        const arma::cube &rot_matrices, bool active) {
     int N = voigt.n_cols;
@@ -962,14 +989,13 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::mat result(6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         Rotation R = Rotation::from_matrix(
             arma::mat::fixed<3,3>(rot_matrices.slice(broadcast ? 0 : i)));
         tensor2 t_rot = t.rotate(R, active);
         result.col(i) = t_rot.voigt();
-    }
+    });
     return result;
 }
 
@@ -981,12 +1007,11 @@ arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
         result.col(i) = t.push_forward(Fi, metric).voigt();
-    }
+    });
     return result;
 }
 
@@ -998,12 +1023,11 @@ arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
     bool broadcast = (F.n_slices == 1);
     arma::mat result(6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor2 t = tensor2::from_voigt(arma::vec(voigt.col(i)), vtype);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
         result.col(i) = t.pull_back(Fi, metric).voigt();
-    }
+    });
     return result;
 }
 
@@ -1071,13 +1095,12 @@ arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::cube result(6, 6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         Rotation R = Rotation::from_matrix(
             arma::mat::fixed<3,3>(rot_matrices.slice(broadcast ? 0 : i)));
         result.slice(i) = L.rotate(R, active).mat();
-    }
+    });
     return result;
 }
 
@@ -1099,12 +1122,11 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
         result.slice(i) = L.push_forward(Fi, metric).mat();
-    }
+    });
     return result;
 }
 
@@ -1117,12 +1139,11 @@ arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         arma::mat::fixed<3,3> Fi(F.slice(broadcast ? 0 : i));
         result.slice(i) = L.pull_back(Fi, metric).mat();
-    }
+    });
     return result;
 }
 
@@ -1130,11 +1151,10 @@ arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type) {
     int N = t4.n_slices;
     arma::cube result(6, 6, N);
 
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         tensor4 L(arma::mat::fixed<6,6>(t4.slice(i)), t4type);
         result.slice(i) = L.inverse().mat();
-    }
+    });
     return result;
 }
 

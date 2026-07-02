@@ -51,17 +51,7 @@
 using namespace arma;
 using namespace simcoon;
 
-#if defined(_WIN32) || defined(_WIN64)
-    #define LIB_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-    #if __GNUC__ >= 4
-        #define LIB_EXPORT __attribute__((visibility("default")))
-    #else
-        #define LIB_EXPORT
-    #endif
-#else
-    #define LIB_EXPORT
-#endif
+// LIB_EXPORT comes from umat_plugin_api.hpp
 
 class LIB_EXPORT umat_epicp_tensor : public umat_plugin_ext_api {
 public:

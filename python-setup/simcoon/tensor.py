@@ -814,7 +814,7 @@ class Tensor4(_TensorBase):
             return Tensor2._create(result, out_ts)
 
         t2 = t._data[np.newaxis] if t.single else t._data
-        t2 = np.broadcast_to(t2, (self._data.shape[0], 6))
+        # np.matmul broadcasts (1,6,1) -> (N,6,1) natively
         result = np.matmul(self._data, t2[..., np.newaxis]).squeeze(-1)
         return Tensor2._create(result, out_ts)
 
