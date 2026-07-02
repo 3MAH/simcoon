@@ -1,0 +1,17 @@
+Material
+Name	OGDEN
+Number_of_material_parameters	6
+Number_of_internal_variables	1
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+N 2
+kappa 1000.
+mu1 0.4
+alpha1 1.3
+mu2 0.1673
+alpha2 4.

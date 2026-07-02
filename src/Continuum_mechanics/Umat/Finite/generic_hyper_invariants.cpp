@@ -15,7 +15,7 @@
  
  */
 
-///@file generic_hyper_pstretch.cpp
+///@file generic_hyper_invariants.cpp
 ///@brief User subroutine for hyperelastic materials using isochoric invariants
 ///@version 1.0
 
@@ -83,10 +83,13 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     }     
     vec I_bar = isochoric_invariants(b, J);
 
-    std::map<string, int> list_potentials;
-    list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2},{"ISHAH",3},{"GETHH",4},{"SWANH",5}};
+    static const std::map<string, int> list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2},{"ISHAH",3},{"GETHH",4},{"SWANH",5}};
 
-    switch (list_potentials[umat_name]) {
+    auto it_potential = list_potentials.find(umat_name);
+    if (it_potential == list_potentials.end()) {
+        throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
+    }
+    switch (it_potential->second) {
         case 0: {
             // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$ 
             double mu = props(0);
@@ -176,12 +179,6 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
             dUdJ = kappa*log(J);
             dU2dJ2 = kappa/J;
             break;
-        }            
-
-        default: {
-            cout << "Error: The choice of hyperelastic potential could not be found in the simcoon library :" << umat_name
-             << "\n";
-                exit(0);
         }
     }
     

@@ -22,6 +22,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
@@ -226,7 +227,10 @@ vec beta_coefs(const vec &dWdlambda_bar, const vec &lambda_bar) {
 mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec &lambda_bar) {
 
     mat gamma = zeros(3,3);
-    mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + (dWdlambda_bar*lambda_bar.t())%ones(3,3);
+    // g_ab = lambda_a lambda_b W_ab + delta_ab lambda_a W_a (the W_a term is DIAGONAL,
+    // not an outer product): gamma = P.g.P with P the deviatoric projector, i.e.
+    // gamma_ab = d beta_a / d ln(lambda_b)
+    mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + diagmat(dWdlambda_bar%lambda_bar);
     vec factor_sum_col = ((-1./3.)*sum(factor,0)).t();  // sum along dim 0 returns row vec, transpose to col
     vec factor_sum_row = (-1./3.)*sum(factor,1);
 
@@ -472,7 +476,10 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
             c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
         }            
 
-        for(unsigned int j=i; j<3; j++) {
+        // shear term, summed over ordered pairs a!=b: the full 1/2-symmetrized dyadic
+        // 2*(abab(n_i,n_j) + abab(n_j,n_i)) collapses to the rank-1 outer product s*s^T
+        // with s = t2v_sym(n_i n_j^T + n_j n_i^T)
+        for(unsigned int j=i+1; j<3; j++) {
             if(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.) < 1.E-6) {
                 factor = pow(lambda_bar(i), 2.) * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
             }
@@ -480,10 +487,11 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
                 factor = (beta(j)*pow(lambda_bar(i),2.) - beta(i)*pow(lambda_bar(j),2.))/(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.));
             }
 
-            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
-        }            
-    }   
-    return (1./J)*c;    
+            vec s = t2v_sym(n_pvectors.col(i)*(n_pvectors.col(j)).t() + n_pvectors.col(j)*(n_pvectors.col(i)).t());
+            c += factor*(s*s.t());
+        }
+    }
+    return (1./J)*c;
 }
 
 mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const mat &b, const double &mJ) {
@@ -495,46 +503,15 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
             throw simcoon::exception_det("Error in det function inside L_iso_hyper_pstretch.");
-        }   
-    }    
-
-    vec lambda;
-    try {
-        lambda = eig_sym(b);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in eig_sym: " << e.what() << endl;
-        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in L_iso_hyper_pstretch.");
-    }    
+        }
+    }
 
     vec lambda_bar = zeros(3);
     mat n_pvectors = zeros(3,3);
     isochoric_pstretch(lambda_bar, n_pvectors, b, "b", J);
-
-    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
-    mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
-    mat c = zeros(6,6);
-    mat delta = eye(3,3);
-
-    double factor = 0.;
-
-    for(unsigned int i=0; i<3; i++) {
-        for(unsigned int j=0; j<3; j++) {
-            c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
-        }            
-
-        for(unsigned int j=i; j<3; j++) {
-            if(pow(lambda(j),2.)-pow(lambda(i),2.) < 1.E-6) {
-                factor = pow(lambda(i), 2.) * pow(lambda(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
-            }
-            else {
-                factor = (beta(j)*pow(lambda(i),2.) - beta(i)*pow(lambda(j),2.))/(pow(lambda(j),2.)-pow(lambda(i),2.));
-            }
-
-            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
-        }            
-    }   
-    return (1./J)*c;
-
+    // the shear coefficient is invariant under the J^(-1/3) bar-scaling, so the
+    // lambda_bar-based assembly is exact for b as well
+    return L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
 }
 
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
