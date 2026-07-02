@@ -248,7 +248,18 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         }
     }
 
-    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L);
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent (N Hill fast mechanisms): per mechanism
+        // dLambda_eps^i/dsigma = ddHill_stress(sigma, Hill_params[i]).
+        std::vector<mat> dLambda_dsigma_l(N_plas);
+        for (int i = 0; i < N_plas; i++) {
+            dLambda_dsigma_l[i] = ddHill_stress(stress, Hill_params[i]);
+        }
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma, Ds_j, L);
+    }
     Lt = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
     

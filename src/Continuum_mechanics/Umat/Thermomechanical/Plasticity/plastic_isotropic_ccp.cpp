@@ -237,7 +237,18 @@ void umat_plasticity_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent (J2): dLambda_eps/dsigma = deta_stress(sigma).
+        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+        // cross-tangents below (dSdT/drdE/drdT) are still assembled from the raw kappa_j and L
+        // (continuum form); their fully consistent kappa-tilde/L-tilde version is part of the
+        // closest-point (CPP) rework, future release.
+        const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
     dSdE = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
