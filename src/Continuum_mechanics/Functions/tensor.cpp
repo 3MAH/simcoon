@@ -611,32 +611,6 @@ tensor4 tensor4::from_voigt(const arma::mat &m, const std::string &type_str) {
     return tensor4(m, type_str);
 }
 
-tensor4::tensor4(const tensor4 &other)
-    : _mandel(other._mandel), _type(other._type),
-      _fastor(other._fastor) {}
-
-tensor4::tensor4(tensor4 &&other) noexcept
-    : _mandel(std::move(other._mandel)), _type(other._type),
-      _fastor(std::move(other._fastor)) {}
-
-tensor4& tensor4::operator=(const tensor4 &other) {
-    if (this != &other) {
-        _mandel = other._mandel;
-        _type = other._type;
-        _fastor = other._fastor;
-    }
-    return *this;
-}
-
-tensor4& tensor4::operator=(tensor4 &&other) noexcept {
-    if (this != &other) {
-        _mandel = std::move(other._mandel);
-        _type = other._type;
-        _fastor = std::move(other._fastor);
-    }
-    return *this;
-}
-
 tensor4 tensor4::identity(Tensor4Type type) {
     // Mandel identity is eye(6) for every type; mat() reads it back as Ireal/Ireal2/eye(6).
     return tensor4::from_mandel(arma::mat::fixed<6,6>(arma::fill::eye), type);

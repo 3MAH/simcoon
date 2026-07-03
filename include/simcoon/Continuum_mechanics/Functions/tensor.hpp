@@ -402,11 +402,12 @@ public:
     /// Zero tensor factory.
     static tensor4 zeros(Tensor4Type type = Tensor4Type::stiffness);
 
-    // Copy/move
-    tensor4(const tensor4 &other);
-    tensor4(tensor4 &&other) noexcept;
-    tensor4& operator=(const tensor4 &other);
-    tensor4& operator=(tensor4 &&other) noexcept;
+    // Copy/move (memberwise is correct: the _fastor cache is derived from _mandel,
+    // which is copied/moved in the same operation)
+    tensor4(const tensor4 &other) = default;
+    tensor4(tensor4 &&other) noexcept = default;
+    tensor4& operator=(const tensor4 &other) = default;
+    tensor4& operator=(tensor4 &&other) noexcept = default;
     ~tensor4() = default;
 
     /// The ENGINEERING Voigt 6x6, by value (converted from the internal Mandel storage).
