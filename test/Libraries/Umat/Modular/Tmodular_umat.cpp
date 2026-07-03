@@ -199,6 +199,48 @@ TEST(YieldCriterionTensor, VonMisesTensor2Match) {
                 1e-10);
 }
 
+// Near-zero stress: the native von Mises kernel (flow_normal) zeroes the
+// deviatoric normal below simcoon::iota — the safe cone-vertex handling the
+// typed API was introduced with. The raw eta_stress guard is only n > 0, so
+// it still returns a full-magnitude normal from numerical noise there; the
+// two paths intentionally differ inside [0, iota).
+TEST(YieldCriterionTensor, VonMisesNearZeroStress) {
+    YieldCriterion yc;
+    yc.configure_von_mises();
+
+    tensor2 sigma_t = stress(arma::vec{1e-15, -1e-15, 0., 0., 0., 0.});
+    EXPECT_NEAR(yc.equivalent_stress(sigma_t), 0.0, 1e-12);
+
+    tensor2 lambda_t = yc.flow_direction(sigma_t);
+    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt()), 2), 1e-10);
+    // Raw path normalizes the noise instead (documented difference).
+    EXPECT_NEAR(arma::norm(yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
+                std::sqrt(1.5), 1e-6);
+}
+
+// Parametric criteria must keep delegating to the raw Eq_stress dispatch:
+// Drucker here is the J2-J3 form (params b, n), NOT Drucker-Prager, so it
+// cannot route through flow_normal(sigma, alpha).
+TEST(YieldCriterionTensor, DruckerTensor2Delegates) {
+    YieldCriterion yc;
+    arma::vec props = {1.2, 6.0};  // b, n
+    int offset = 0;
+    yc.configure(YieldType::DRUCKER, props, offset);
+
+    tensor2 sigma_t = stress(arma::mat::fixed<3,3>{{200., 40., 20.},
+                                                    {40., -50., 10.},
+                                                    {20., 10., 30.}});
+    EXPECT_NEAR(yc.equivalent_stress(sigma_t),
+                yc.equivalent_stress(arma::vec(sigma_t.voigt())),
+                1e-10);
+    tensor2 lambda_t = yc.flow_direction(sigma_t);
+    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt())
+                         - yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
+              1e-10);
+}
+
 // ========== InternalVariableCollection Tests ==========
 
 class InternalVariableCollectionTest : public ::testing::Test {

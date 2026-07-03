@@ -175,4 +175,24 @@ arma::vec YieldCriterion::plastic_flow(const arma::vec& sigma) const {
     return flow_direction(sigma);
 }
 
+double YieldCriterion::equivalent_stress(const tensor2& sigma) const {
+    if (!configured_) {
+        throw std::runtime_error("YieldCriterion: not configured");
+    }
+    if (type_ == YieldType::VON_MISES) {
+        return Mises(sigma);
+    }
+    return equivalent_stress(sigma.to_arma_voigt());
+}
+
+tensor2 YieldCriterion::flow_direction(const tensor2& sigma) const {
+    if (!configured_) {
+        throw std::runtime_error("YieldCriterion: not configured");
+    }
+    if (type_ == YieldType::VON_MISES) {
+        return flow_normal(sigma);
+    }
+    return strain(flow_direction(sigma.to_arma_voigt()));
+}
+
 } // namespace simcoon

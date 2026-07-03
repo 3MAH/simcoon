@@ -182,14 +182,19 @@ public:
 
     // ========== Tensor2 overloads ==========
 
-    [[nodiscard]] double equivalent_stress(const tensor2& sigma) const {
-        return equivalent_stress(sigma.to_arma_voigt());
-    }
+    /**
+     * @brief Equivalent stress, typed path.
+     *
+     * VON_MISES evaluates natively on the 3x3 via Mises(tensor2) — no Voigt
+     * round-trip. Parametric criteria (Drucker is the J2–J3 form, not
+     * Drucker–Prager; Hill/DFA/Ani carry props) delegate to the raw
+     * Eq_stress dispatch.
+     */
+    [[nodiscard]] double equivalent_stress(const tensor2& sigma) const;
 
-    /// Associated flow: flow direction is dual to stress and lives in strain space.
-    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const {
-        return strain(flow_direction(sigma.to_arma_voigt()));
-    }
+    /// Associated flow: flow direction is dual to stress and lives in strain
+    /// space. VON_MISES uses the native flow_normal(tensor2) kernel.
+    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const;
 
     // ========== Utility ==========
 
