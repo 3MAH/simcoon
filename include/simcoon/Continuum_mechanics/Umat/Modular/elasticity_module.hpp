@@ -54,7 +54,16 @@ private:
     arma::mat L_;           ///< 6x6 stiffness tensor
     arma::mat M_;           ///< 6x6 compliance tensor
     arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
+    tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
+    tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
+
+    /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
+    /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.
+    void refresh_tensors() {
+        L_t_ = tensor4(L_, Tensor4Type::stiffness);
+        M_t_ = tensor4(M_, Tensor4Type::compliance);
+    }
 
 public:
     /**
@@ -181,18 +190,15 @@ public:
     // ========== Tensor-typed accessors (Tensor2/Tensor4 API) ==========
 
     /**
-     * @brief Stiffness as a typed Tensor4.
+     * @brief Stiffness as a typed Tensor4 (cached — built once per configure).
      *
      * Use `.contract(strain_tensor)` to obtain the elastic stress tensor2 with
-     * the correct VoigtType automatically inferred.
+     * the correct VoigtType automatically inferred. Returned by const-ref so
+     * hot loops can contract without paying the eng→Mandel congruence per call.
      */
-    [[nodiscard]] tensor4 L_tensor() const {
-        return tensor4(L_, Tensor4Type::stiffness);
-    }
+    [[nodiscard]] const tensor4& L_tensor() const noexcept { return L_t_; }
 
-    [[nodiscard]] tensor4 M_tensor() const {
-        return tensor4(M_, Tensor4Type::compliance);
-    }
+    [[nodiscard]] const tensor4& M_tensor() const noexcept { return M_t_; }
 
     [[nodiscard]] tensor2 alpha_tensor() const {
         return strain(alpha_);

@@ -55,6 +55,7 @@ void ElasticityModule::configure_isotropic(double E, double nu, double alpha_sca
     alpha_(2) = alpha_scalar;
     // Shear components are zero for thermal expansion
 
+    refresh_tensors();
     configured_ = true;
 }
 
@@ -73,6 +74,7 @@ void ElasticityModule::configure_cubic(double E, double nu, double G, double alp
     alpha_(1) = alpha_scalar;
     alpha_(2) = alpha_scalar;
 
+    refresh_tensors();
     configured_ = true;
 }
 
@@ -91,6 +93,7 @@ void ElasticityModule::configure_cubic_Cii(double C11, double C12, double C44, d
     alpha_(1) = alpha_scalar;
     alpha_(2) = alpha_scalar;
 
+    refresh_tensors();
     configured_ = true;
 }
 
@@ -125,6 +128,7 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
             break;
     }
 
+    refresh_tensors();
     configured_ = true;
 }
 
@@ -147,6 +151,7 @@ void ElasticityModule::configure_orthotropic(double E1, double E2, double E3,
     alpha_(1) = alpha2;
     alpha_(2) = alpha3;
 
+    refresh_tensors();
     configured_ = true;
 }
 
