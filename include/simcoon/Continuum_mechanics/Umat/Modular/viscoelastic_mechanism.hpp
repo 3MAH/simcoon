@@ -73,6 +73,7 @@ private:
     mutable std::vector<arma::vec> flow_i_;       ///< Strain-rate vector per branch
     mutable std::vector<arma::vec> Lambda_i_;     ///< eta_norm_strain(flow_i)
     mutable std::vector<arma::vec> kappa_i_;      ///< L_i . Lambda_i (used in tangent)
+    mutable std::vector<tensor2> kappa_t_;        ///< Typed mirror of kappa_i_ (stress) for the kappa() interface
     mutable std::vector<arma::vec> dPhi_i_dv_;    ///< invH_i . (eta_norm_strain(flow_i) % Ir05())
     mutable arma::vec K_diag_;                    ///< Cached diagonal K(i,i) = -dPhi_i_dv . kappa_i - 1/Δt
 
@@ -113,7 +114,7 @@ public:
     // depend on sigma, so dPhi_dsigma returns empty → no cross-mechanism
     // coupling inbound from stress. The mechanism still contributes kappa to
     // outbound stress perturbations seen by other mechanisms.
-    [[nodiscard]] const std::vector<arma::vec>& kappa(
+    [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref,

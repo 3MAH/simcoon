@@ -254,16 +254,17 @@ void DamageMechanism::compute_jacobian_contribution(
     B(row_offset, row_offset) = 1.0;
 }
 
-const std::vector<arma::vec>& DamageMechanism::dPhi_dsigma(
+const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
     const arma::vec& sigma, const InternalVariableCollection& /*ivc*/) const {
-    // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ.
+    // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ (strain-typed).
     // M_cached_ is populated by compute_constraints (must be called first).
-    dPhi_dsigma_cache_[0] = M_cached_valid_ ? arma::vec(M_cached_ * sigma)
-                                            : arma::zeros(6);
+    dPhi_dsigma_cache_[0] = M_cached_valid_
+        ? strain(arma::vec(M_cached_ * sigma))
+        : tensor2::zeros(VoigtType::strain);
     return dPhi_dsigma_cache_;
 }
 
-const std::vector<arma::vec>& DamageMechanism::kappa(
+const std::vector<tensor2>& DamageMechanism::kappa(
     const arma::vec& sigma, double /*DT*/, const arma::mat& /*L_ref*/,
     const InternalVariableCollection& ivc) const {
     // κ^damage = ∂M/∂D · σ. For the (1-D)·L_0 model, M(D) = (1/(1-D)) · M_0,
@@ -271,12 +272,14 @@ const std::vector<arma::vec>& DamageMechanism::kappa(
     // mechanisms' Jacobian rows (they see stress perturbations from damage
     // evolution within a single FB iteration instead of only through the
     // outer-iteration stress update).
+    // NB: strain-typed (an M·σ product) — see the header note on the
+    // deliberate convention mix in the orchestrator's B assembly.
     if (M_cached_valid_) {
         const double D = ivc.get(D_key_).scalar();
         const double factor = 1.0 / ((1.0 - D) * (1.0 - D));
-        kappa_cache_[0] = factor * (M_cached_ * sigma);
+        kappa_cache_[0] = strain(arma::vec(factor * (M_cached_ * sigma)));
     } else {
-        kappa_cache_[0].zeros();
+        kappa_cache_[0] = tensor2::zeros(VoigtType::strain);
     }
     return kappa_cache_;
 }

@@ -64,11 +64,11 @@ private:
 
     // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
     // kappa() return const-refs into these single-element buffers to avoid
-    // re-constructing std::vector<arma::vec> on every FB iteration.
+    // re-constructing the vectors on every FB iteration.
     mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
     mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
-    mutable std::vector<arma::vec> dPhi_dsigma_cache_{arma::zeros(6)};
-    mutable std::vector<arma::vec> kappa_cache_{arma::zeros(6)};
+    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
+    mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::stress)};
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
 
 public:
@@ -200,11 +200,11 @@ public:
         int row_offset
     ) const override;
 
-    [[nodiscard]] const std::vector<arma::vec>& dPhi_dsigma(
+    [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
         const arma::vec& sigma,
         const InternalVariableCollection& ivc) const override;
 
-    [[nodiscard]] const std::vector<arma::vec>& kappa(
+    [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref,

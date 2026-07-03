@@ -47,6 +47,7 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , flow_i_(N_prony)
     , Lambda_i_(N_prony)
     , kappa_i_(N_prony)
+    , kappa_t_(N_prony, tensor2(VoigtType::stress))
     , dPhi_i_dv_(N_prony)
     , K_diag_(arma::zeros(N_prony))
 {
@@ -160,11 +161,14 @@ void ViscoelasticMechanism::compute_jacobian_contribution(
     }
 }
 
-const std::vector<arma::vec>& ViscoelasticMechanism::kappa(
+const std::vector<tensor2>& ViscoelasticMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/,
     const InternalVariableCollection& /*ivc*/) const {
-    // kappa_i_ is the cached [L_i · Lambda_i] per branch; return it directly.
-    return kappa_i_;
+    // Typed mirror of the cached [L_i · Lambda_i] per branch.
+    for (int i = 0; i < N_prony_; ++i) {
+        kappa_t_[i] = stress(kappa_i_[i]);
+    }
+    return kappa_t_;
 }
 
 arma::vec ViscoelasticMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {

@@ -93,8 +93,8 @@ private:
                                         ///< compute_driving_force, dPhi_dsigma,
                                         ///< kappa, tangent_contribution.
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
-    mutable std::vector<arma::vec> dPhi_dsigma_cache_{arma::zeros(6)};
-    mutable std::vector<arma::vec> kappa_cache_{arma::zeros(6)};
+    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
+    mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::strain)};
 
     // IVC keys, cached at register_variables (avoids string concatenation
     // on every FB iteration).
@@ -139,11 +139,17 @@ public:
         int row_offset
     ) const override;
 
-    [[nodiscard]] const std::vector<arma::vec>& dPhi_dsigma(
+    /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
+    /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
+    /// orchestrator's engineering-Voigt dot therefore mixes conventions for
+    /// damage rows/columns (a strain·strain pairing); this reproduces the
+    /// established Prony/CCP-era numerics and is kept deliberately. Review as
+    /// a modeling item, not a port bug.
+    [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
         const arma::vec& sigma,
         const InternalVariableCollection& ivc) const override;
 
-    [[nodiscard]] const std::vector<arma::vec>& kappa(
+    [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref,

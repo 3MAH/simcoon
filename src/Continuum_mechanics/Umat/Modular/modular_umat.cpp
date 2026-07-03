@@ -401,20 +401,29 @@ void ModularUMAT::return_mapping(
         //          Mechanisms whose Phi is strain-form (viscoelastic) return
         //          empty dPhi_dsigma → no rows contributed here, matching the
         //          decoupled-from-stress structure.
+        //          The dot is taken on engineering Voigt components — the
+        //          work-conjugate pairing for strain-typed dPhi with
+        //          stress-typed kappa (and the established numerics for the
+        //          damage strain-typed kappa; see DamageMechanism::kappa).
         B.zeros();
+        // Fetch each mechanism's kappa list once — the const-refs stay valid
+        // for the whole phase (no compute_constraints call in between).
+        std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
+        for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+            kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
+        }
         for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
             const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma, ivc_);
             if (dPhi_l_all.empty()) continue;
             for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
                 const int row = mech_offset_[lm] + static_cast<int>(l_c);
-                const arma::vec& dPhi_l = dPhi_l_all[l_c];
+                const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
                 for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-                    const auto& kappa_j_all =
-                        mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
+                    const auto& kappa_j_all = *kappa_all[jm];
                     for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
                         if (lm == jm && l_c == j_c) continue;  // diagonal last
                         const int col = mech_offset_[jm] + static_cast<int>(j_c);
-                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c])
+                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
                                     + mechanisms_[lm]->K_cross(
                                           static_cast<int>(l_c),
                                           *mechanisms_[jm],

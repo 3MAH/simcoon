@@ -38,6 +38,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <map>
 #include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
 
 namespace simcoon {
@@ -196,7 +197,14 @@ public:
      * @brief Return dPhi^l/dsigma for each constraint l this mechanism owns.
      *
      * Used by the orchestrator to assemble the off-diagonal Jacobian entries
-     *   B_{lj} = -dot(dPhi^l/dsigma, kappa^j)
+     * \f[ B_{lj} = - \frac{\partial \Phi^l}{\partial \boldsymbol{\sigma}}
+     *              \cdot \boldsymbol{\kappa}^j \f]
+     * The contraction is evaluated on the engineering Voigt components
+     * (arma::dot of .voigt()), the work-conjugate pairing of a strain-typed
+     * dPhi with a stress-typed kappa.
+     *
+     * Typing: dPhi/dsigma is strain-typed (VoigtType::strain — the dEq_stress
+     * convention, shear slots carry the doubled gamma components).
      *
      * Returned by const-ref into mechanism-internal storage populated during
      * compute_constraints — callers must not retain the reference past the
@@ -206,12 +214,12 @@ public:
      * Prony_Nfast-style viscoelastic mechanism, whose Phi is written in
      * terms of strain and branch-internal EV_i only).
      */
-    virtual const std::vector<arma::vec>& dPhi_dsigma(
+    virtual const std::vector<tensor2>& dPhi_dsigma(
         const arma::vec& sigma,
         const InternalVariableCollection& ivc) const {
         (void)sigma;
         (void)ivc;
-        static const std::vector<arma::vec> empty;
+        static const std::vector<tensor2> empty;
         return empty;
     }
 
@@ -223,8 +231,13 @@ public:
      * i.e., delta_sigma += -kappa^j * delta_s^j during the return mapping.
      * Length must equal num_constraints(). Same const-ref lifetime contract
      * as dPhi_dsigma — reference is valid until the next compute_constraints.
+     *
+     * Typing: stress-typed (VoigtType::stress) for plasticity/viscoelasticity
+     * (kappa = L·Lambda). DamageMechanism returns a strain-typed kappa
+     * (kappa = ∂M/∂D · σ, an M·σ product) — see its override for why the
+     * orchestrator's engineering-Voigt dot is kept for that pairing too.
      */
-    virtual const std::vector<arma::vec>& kappa(
+    virtual const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
         const arma::mat& L_ref,

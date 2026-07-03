@@ -194,18 +194,18 @@ void PlasticityMechanism::compute_flow_directions(
     }
 }
 
-const std::vector<arma::vec>& PlasticityMechanism::dPhi_dsigma(
+const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
     const arma::vec& /*sigma*/, const InternalVariableCollection& /*ivc*/) const {
     // Requires compute_constraints to have been called this FB iteration.
-    dPhi_dsigma_cache_[0] = flow_dir_;
+    dPhi_dsigma_cache_[0] = strain(flow_dir_);
     return dPhi_dsigma_cache_;
 }
 
-const std::vector<arma::vec>& PlasticityMechanism::kappa(
+const std::vector<tensor2>& PlasticityMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/,
     const arma::mat& /*L_ref*/, const InternalVariableCollection& /*ivc*/) const {
     // kappa = L_ref · n, already computed by compute_constraints.
-    kappa_cache_[0] = kappa_;
+    kappa_cache_[0] = stress(kappa_);
     return kappa_cache_;
 }
 
