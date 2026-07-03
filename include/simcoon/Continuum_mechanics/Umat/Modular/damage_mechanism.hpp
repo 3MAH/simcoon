@@ -55,13 +55,17 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 namespace simcoon {
 
 /**
- * @brief Type of damage evolution law
+ * @brief Type of damage evolution law.
+ *
+ * In all laws \f$ Y_{eff} = \max(Y, Y_{max}) \f$ (history), \f$ D = 0 \f$
+ * below the threshold \f$ Y_0 \f$, and \f$ D \f$ is capped at the critical
+ * value \f$ D_c \f$.
  */
 enum class DamageType {
-    LINEAR = 0,         ///< Linear damage evolution
-    EXPONENTIAL = 1,    ///< Exponential damage evolution
-    POWER_LAW = 2,      ///< Power-law damage evolution
-    WEIBULL = 3         ///< Weibull-based damage
+    LINEAR = 0,       ///< \f$ D = \frac{Y_{eff} - Y_0}{Y_c - Y_0} \f$
+    EXPONENTIAL = 1,  ///< \f$ D = 1 - \exp\!\left(-A \frac{Y_{eff} - Y_0}{Y_c - Y_0}\right) \f$
+    POWER_LAW = 2,    ///< \f$ D = \left(\frac{Y_{eff} - Y_0}{Y_c - Y_0}\right)^{n} \f$
+    WEIBULL = 3       ///< \f$ D = 1 - \exp\!\left(-\left(\frac{Y_{eff} - Y_0}{A}\right)^{n}\right) \f$
 };
 
 /**

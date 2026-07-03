@@ -343,7 +343,13 @@ public:
 };
 
 /**
- * @brief Linear Prager kinematic hardening: X = (2/3)*C*alpha
+ * @brief Linear Prager kinematic hardening: \f$ \mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha} \f$
+ *
+ * The back-strain \f$ \boldsymbol{\alpha} \f$ is the thermodynamic internal
+ * variable (stored strain-like, factor-2 shear Voigt); the backstress
+ * \f$ \mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha} \f$ is its conjugate
+ * generalised force and is never independently stored. The same convention
+ * holds for Armstrong-Frederick and Chaboche below.
  */
 class PragerHardening final : public KinematicHardening {
 private:

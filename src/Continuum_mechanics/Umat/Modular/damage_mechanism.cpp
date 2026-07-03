@@ -123,22 +123,18 @@ double DamageMechanism::compute_damage(double Y, double Y_max) const {
 
     switch (damage_type_) {
         case DamageType::LINEAR:
-            // Linear damage evolution
             D = (Y_eff - Y_0_) / (Y_c_ - Y_0_);
             break;
 
         case DamageType::EXPONENTIAL:
-            // Exponential damage evolution
             D = 1.0 - std::exp(-A_ * (Y_eff - Y_0_) / (Y_c_ - Y_0_));
             break;
 
         case DamageType::POWER_LAW:
-            // Power law damage evolution
             D = std::pow((Y_eff - Y_0_) / (Y_c_ - Y_0_), n_);
             break;
 
         case DamageType::WEIBULL:
-            // Weibull distribution-based damage
             D = 1.0 - std::exp(-std::pow((Y_eff - Y_0_) / A_, n_));
             break;
     }

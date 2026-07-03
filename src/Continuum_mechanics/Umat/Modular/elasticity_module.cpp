@@ -42,13 +42,10 @@ ElasticityModule::ElasticityModule()
 void ElasticityModule::configure_isotropic(double E, double nu, double alpha_scalar) {
     type_ = ElasticityType::ISOTROPIC;
 
-    // Compute stiffness using existing function
     L_ = L_iso(E, nu, "Enu");
 
-    // Compute compliance
     M_ = M_iso(E, nu, "Enu");
 
-    // Isotropic CTE
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha_scalar;
     alpha_(1) = alpha_scalar;
@@ -62,13 +59,10 @@ void ElasticityModule::configure_isotropic(double E, double nu, double alpha_sca
 void ElasticityModule::configure_cubic(double E, double nu, double G, double alpha_scalar) {
     type_ = ElasticityType::CUBIC;
 
-    // Compute stiffness using existing function (EnuG convention)
     L_ = L_cubic(E, nu, G, "EnuG");
 
-    // Compute compliance
     M_ = M_cubic(E, nu, G, "EnuG");
 
-    // Cubic CTE is isotropic
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha_scalar;
     alpha_(1) = alpha_scalar;
@@ -81,13 +75,10 @@ void ElasticityModule::configure_cubic(double E, double nu, double G, double alp
 void ElasticityModule::configure_cubic_Cii(double C11, double C12, double C44, double alpha_scalar) {
     type_ = ElasticityType::CUBIC;
 
-    // Compute stiffness using existing function (Cii convention)
     L_ = L_cubic(C11, C12, C44, "Cii");
 
-    // Compute compliance
     M_ = M_cubic(C11, C12, C44, "Cii");
 
-    // Cubic CTE is isotropic
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha_scalar;
     alpha_(1) = alpha_scalar;
@@ -101,13 +92,10 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
                                                       double GLT, double alpha_L, double alpha_T, int axis) {
     type_ = ElasticityType::TRANSVERSE_ISOTROPIC;
 
-    // Compute stiffness using existing function
     L_ = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
 
-    // Compute compliance
     M_ = M_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
 
-    // Transversely isotropic CTE
     alpha_ = arma::zeros(6);
     switch (axis) {
         case 1:  // x-axis is longitudinal
@@ -138,14 +126,10 @@ void ElasticityModule::configure_orthotropic(double E1, double E2, double E3,
                                               double alpha1, double alpha2, double alpha3) {
     type_ = ElasticityType::ORTHOTROPIC;
 
-    // Compute stiffness using existing function
-    // Note: L_ortho expects EnuG convention by default
     L_ = L_ortho(E1, nu12, nu13, E2, nu23, E3, G12, G13, G23, "EnuG");
 
-    // Compute compliance
     M_ = M_ortho(E1, nu12, nu13, E2, nu23, E3, G12, G13, G23, "EnuG");
 
-    // Orthotropic CTE
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha1;
     alpha_(1) = alpha2;

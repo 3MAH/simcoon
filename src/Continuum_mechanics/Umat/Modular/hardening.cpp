@@ -41,7 +41,6 @@ inline tensor2 backstress_t(double C, const tensor2& alpha) {
 // ISOTROPIC HARDENING IMPLEMENTATIONS
 // ============================================================================
 
-// Factory method
 std::unique_ptr<IsotropicHardening> IsotropicHardening::create(IsoHardType type, int N) {
     switch (type) {
         case IsoHardType::NONE:
@@ -130,7 +129,6 @@ double CombinedVoceHardening::dR_dp(double p) const {
 // KINEMATIC HARDENING IMPLEMENTATIONS
 // ============================================================================
 
-// Factory method
 std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type, int N) {
     switch (type) {
         case KinHardType::NONE:
@@ -146,13 +144,6 @@ std::unique_ptr<KinematicHardening> KinematicHardening::create(KinHardType type,
     }
 }
 
-// PragerHardening
-//
-// Theoretical convention (chapter 6): the back-strain α is the actual
-// thermodynamic internal variable; the backstress X = (2/3) C α is the
-// conjugate generalised force (it is NOT independently stored). α is stored
-// strain-like (factor-2 shear); rotation, contraction, and arithmetic flow
-// through the typed tensor2 API.
 void PragerHardening::configure(const arma::vec& props, int& offset) {
     C_ = props(offset);
     offset += 1;
