@@ -34,6 +34,13 @@ jobs:
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.runner }}
+    env:
+      # conda.recipe/meta.yaml source selector: with CONDA_BUILD_LOCAL set,
+      # the recipe builds the checked-out tree (path: ..) instead of cloning
+      # the repository's default branch. Without it, PR runs compile master
+      # against the PR's recipe (e.g. test imports for modules the PR adds),
+      # and the workflow_call `ref` input has no effect on the built source.
+      CONDA_BUILD_LOCAL: "1"
     strategy:
       fail-fast: false
       matrix:
