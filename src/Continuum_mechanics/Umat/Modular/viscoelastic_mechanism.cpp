@@ -217,8 +217,10 @@ void ViscoelasticMechanism::tangent_contribution(
         if (Ds(offset + i) > simcoon::iota) {
             op[i] = 1.0;
         }
-        const double K_ii = -arma::dot(dPhi_i_dv_[i], kappa_i_[i]);
-        Bhat(i, i) = -K_ii;
+        // K_diag_ (cached by compute_constraints) includes the -1/DTime term;
+        // recomputing the dot product alone drops it, which roughly doubles
+        // the rank-one correction and makes Lt singular (Prony_Nfast keeps it).
+        Bhat(i, i) = -K_diag_(i);
     }
 
     for (int i = 0; i < N_prony_; ++i) {

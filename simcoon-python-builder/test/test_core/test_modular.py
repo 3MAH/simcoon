@@ -128,3 +128,43 @@ def test_voce_plasticity_runs_end_to_end(work_in_examples):
     # With sigma_Y + Q = 500 and b=10 at 2% strain, peak sits around 460 MPa
     # after the cyclic path saturates hardening.
     assert 400.0 < peak < 500.0, f"Voce peak {peak:.1f} outside expected band"
+
+
+def test_viscoelastic_matches_pronk_reference(work_in_examples):
+    """MODUL with a Viscoelasticity mechanism must reproduce the reference
+    PRONK (Prony_Nfast) UMAT through the solver on a relaxation path.
+
+    Regression for the consistent-tangent bug where tangent_contribution
+    rebuilt K(i,i) without the -1/DTime term (Lt went singular and the
+    mixed-control solver diverged)."""
+    terms = [(1500.0, 0.35, 3000.0, 1200.0),
+             (800.0, 0.35, 30000.0, 12000.0),
+             (400.0, 0.35, 300000.0, 120000.0)]
+    E0, nu0 = 3000.0, 0.35
+
+    pronk_props = np.array([E0, nu0, 0.0, len(terms)]
+                           + [x for t in terms for x in t])
+    sim.solver("PRONK", pronk_props, 7 + 7 * len(terms),
+               0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "PRONK_path.txt", "res_pronk.txt")
+    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                     / "res_pronk_global-0.txt", usecols=(8, 14))
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(E=E0, nu=nu0),
+        mechanisms=[Viscoelasticity(terms=terms)],
+    )
+    sim.solver(mat.umat_name, mat.props, mat.nstatev,
+               0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "PRONK_path.txt", "res_veq.txt")
+    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                      / "res_veq_global-0.txt", usecols=(8, 14))
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 1.0, "sanity: relaxation path produced stress"
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    assert max_diff / peak < 1e-3, (
+        f"MODUL viscoelastic deviates from PRONK by {max_diff/peak:.3%} "
+        "(consistent-tangent regression?)"
+    )
