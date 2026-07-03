@@ -974,13 +974,13 @@ TEST(Ttensor_batch, SizeMismatchThrows)
     cube t4_slice_eye(6, 6, N);
     t4_slice_eye.each_slice() = mat::fixed<6,6>(fill::eye);
 
-    EXPECT_NO_THROW(batch_rotate_t4(t4_slice_eye, Tensor4Type::stiffness, R_match, true));
-    EXPECT_NO_THROW(batch_push_forward_t4(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
-    EXPECT_NO_THROW(batch_pull_back_t4(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
+    EXPECT_NO_THROW(batch_rotate(t4_slice_eye, Tensor4Type::stiffness, R_match, true));
+    EXPECT_NO_THROW(batch_push_forward(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
+    EXPECT_NO_THROW(batch_pull_back(t4_slice_eye, Tensor4Type::stiffness, F_match, false));
 
-    EXPECT_THROW(batch_rotate_t4(t4_slice_eye, Tensor4Type::stiffness, R_mismatch, true), std::invalid_argument);
-    EXPECT_THROW(batch_push_forward_t4(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
-    EXPECT_THROW(batch_pull_back_t4(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_rotate(t4_slice_eye, Tensor4Type::stiffness, R_mismatch, true), std::invalid_argument);
+    EXPECT_THROW(batch_push_forward(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_pull_back(t4_slice_eye, Tensor4Type::stiffness, F_mismatch, false), std::invalid_argument);
 
     // batch_contract: both operands must be 1 or max(N4,N2)
     mat t2_match(6, N, fill::randu);

@@ -1094,11 +1094,11 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
     return result;
 }
 
-arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
+arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
                            const arma::cube &rot_matrices, bool active) {
     int N = t4.n_slices;
     check_batch_broadcast(rot_matrices.n_slices, N,
-                          "batch_rotate_t4", "rot_matrices", "t4.n_slices");
+                          "batch_rotate", "rot_matrices", "t4.n_slices");
     bool broadcast = (rot_matrices.n_slices == 1);
     arma::cube result(6, 6, N);
 
@@ -1120,11 +1120,11 @@ static void reject_concentration_transport(Tensor4Type type, const char *op) {
                                  "concentration tensors (mixed covariant/contravariant indices)");
 }
 
-arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
+arma::cube batch_push_forward(const arma::cube &t4, Tensor4Type t4type,
                                  const arma::cube &F, bool metric) {
     int N = t4.n_slices;
     check_batch_broadcast(F.n_slices, N,
-                          "batch_push_forward_t4", "F", "t4.n_slices");
+                          "batch_push_forward", "F", "t4.n_slices");
     reject_concentration_transport(t4type, "push_forward");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
@@ -1138,11 +1138,11 @@ arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
     return result;
 }
 
-arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
+arma::cube batch_pull_back(const arma::cube &t4, Tensor4Type t4type,
                               const arma::cube &F, bool metric) {
     int N = t4.n_slices;
     check_batch_broadcast(F.n_slices, N,
-                          "batch_pull_back_t4", "F", "t4.n_slices");
+                          "batch_pull_back", "F", "t4.n_slices");
     reject_concentration_transport(t4type, "pull_back");
     bool broadcast = (F.n_slices == 1);
     arma::cube result(6, 6, N);
@@ -1156,7 +1156,7 @@ arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
     return result;
 }
 
-arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type) {
+arma::cube batch_inverse(const arma::cube &t4, Tensor4Type t4type) {
     int N = t4.n_slices;
     arma::cube result(6, 6, N);
 

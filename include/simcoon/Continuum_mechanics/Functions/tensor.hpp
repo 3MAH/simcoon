@@ -578,21 +578,21 @@ VoigtType infer_contraction_vtype(Tensor4Type t4type);
 arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
                          const arma::mat &t2, VoigtType t2_vtype);
 
-/// Batch rotate N tensor4. t4:(6,6,N), rot:(3,3,N_r).
-arma::cube batch_rotate_t4(const arma::cube &t4, Tensor4Type t4type,
-                           const arma::cube &rot_matrices, bool active = true);
+/// Batch rotate N tensor4 (overload of the tensor2 version). t4:(6,6,N), rot:(3,3,N_r).
+arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
+                        const arma::cube &rot_matrices, bool active = true);
 
-/// Batch push-forward N tensor4. t4:(6,6,N), F:(3,3,N_f).
-arma::cube batch_push_forward_t4(const arma::cube &t4, Tensor4Type t4type,
-                                 const arma::cube &F, bool metric = true);
-
-/// Batch pull-back N tensor4. t4:(6,6,N), F:(3,3,N_f).
-arma::cube batch_pull_back_t4(const arma::cube &t4, Tensor4Type t4type,
+/// Batch push-forward N tensor4 (overload of the tensor2 version). t4:(6,6,N), F:(3,3,N_f).
+arma::cube batch_push_forward(const arma::cube &t4, Tensor4Type t4type,
                               const arma::cube &F, bool metric = true);
+
+/// Batch pull-back N tensor4 (overload of the tensor2 version). t4:(6,6,N), F:(3,3,N_f).
+arma::cube batch_pull_back(const arma::cube &t4, Tensor4Type t4type,
+                           const arma::cube &F, bool metric = true);
 
 /// Infers the resulting Tensor4Type of a tensor4 inverse from the input type.
 Tensor4Type infer_inverse_type(Tensor4Type t4type);
 /// Batch inverse N tensor4. t4:(6,6,N) → (6,6,N); pair with infer_inverse_type for the output type.
-arma::cube batch_inverse_t4(const arma::cube &t4, Tensor4Type t4type);
+arma::cube batch_inverse(const arma::cube &t4, Tensor4Type t4type);
 
 } // namespace simcoon

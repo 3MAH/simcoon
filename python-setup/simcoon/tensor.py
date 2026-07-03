@@ -51,16 +51,13 @@ from simcoon._core import (
 )
 
 from simcoon._core import (
-    _batch_t2_rotate,
-    _batch_t2_push_forward,
-    _batch_t2_pull_back,
-    _batch_t2_mises,
-    _batch_t2_trace,
-    _batch_t4_contract,
-    _batch_t4_rotate,
-    _batch_t4_push_forward,
-    _batch_t4_pull_back,
-    _batch_t4_inverse,
+    _batch_rotate,
+    _batch_push_forward,
+    _batch_pull_back,
+    _batch_mises,
+    _batch_trace,
+    _batch_contract,
+    _batch_inverse,
 )
 
 
@@ -417,7 +414,7 @@ class _TensorBase:
 
     @classmethod
     def from_tensor(cls, t, n):
-        """Broadcast a single tensor to a batch of size n."""
+        """Broadcast a single tensor to a batch of size ``n`` (copies the data)."""
         if not t.single:
             raise ValueError("from_tensor requires a single tensor")
         expand = (np.newaxis,) + (slice(None),) * t._data.ndim
@@ -427,12 +424,12 @@ class _TensorBase:
 
     @classmethod
     def from_list(cls, tensors):
-        """Stack a list of single tensors into a batch."""
+        """Stack a list of single tensors (all of the same type) into a batch."""
         return cls(list(tensors))
 
     @classmethod
     def concatenate(cls, batches):
-        """Join multiple batches (or singles) into one batch."""
+        """Join multiple batches and/or singles (all of the same type) into one batch."""
         parts = list(batches)
         if not parts:
             raise ValueError("Nothing to concatenate")
@@ -452,10 +449,29 @@ class _TensorBase:
 # ======================================================================
 
 class Tensor2(_TensorBase):
-    """A 2nd-order tensor with type tag for Voigt convention and rotation dispatch.
+    """A 2nd-order tensor with a type tag driving the Voigt convention and rotation dispatch.
 
-    Always stores a numpy array: ``(6,)`` for single, ``(N, 6)`` for batch.
-    Type is a string: ``"stress"``, ``"strain"``, ``"generic"``, or ``"none"``.
+    A single object transparently represents either one tensor or a batch
+    (scipy ``Rotation`` style): the stored numpy array is ``(6,)`` for a single
+    tensor and ``(N, 6)`` for a batch. The type is a string: ``"stress"``,
+    ``"strain"``, ``"generic"``, or ``"none"``; it selects the shear factors of
+    the Voigt vector (``2*e_ij`` for strain, ``s_ij`` for stress) and the
+    rotation/transport rules.
+
+    Construct through the typed factories (`stress`, `strain`, `from_mat`,
+    `from_voigt`, `from_mandel`), never through ``Tensor2(array)``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        sigma = sim.Tensor2.stress(np.array([100., 50., 75., 0., 0., 0.]))
+        sigma.mises()          # von Mises equivalent stress
+        eps = sim.Tensor2.strain(np.random.randn(1000, 6) * 0.01)  # batch
+        len(eps), eps[0]       # 1000, single Tensor2
     """
 
     _single_ndim = 1
@@ -481,17 +497,54 @@ class Tensor2(_TensorBase):
 
     @classmethod
     def stress(cls, data):
-        """Create stress tensor(s): (6,), (3,3), (N,6), or (N,3,3)."""
+        """Create stress tensor(s).
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,)`` Voigt vector, ``(3,3)`` matrix, ``(N,6)`` Voigt batch,
+            or ``(N,3,3)`` matrix batch.
+
+        Returns
+        -------
+        Tensor2
+            Stress-typed tensor (single or batch, matching the input shape).
+        """
         return cls._from_data(data, "stress")
 
     @classmethod
     def strain(cls, data):
-        """Create strain tensor(s): (6,), (3,3), (N,6), or (N,3,3)."""
+        """Create strain tensor(s).
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,)`` Voigt vector (with ``2*e_ij`` shear terms), ``(3,3)``
+            matrix, ``(N,6)`` Voigt batch, or ``(N,3,3)`` matrix batch.
+
+        Returns
+        -------
+        Tensor2
+            Strain-typed tensor (single or batch, matching the input shape).
+        """
         return cls._from_data(data, "strain")
 
     @classmethod
     def from_mat(cls, m, type_str):
-        """Create from (3,3) or (N,3,3) matrix with explicit type string."""
+        """Create from a 3x3 matrix representation with an explicit type.
+
+        Parameters
+        ----------
+        m : array_like
+            ``(3,3)`` matrix or ``(N,3,3)`` batch of matrices.
+        type_str : str
+            One of ``"stress"``, ``"strain"``, ``"generic"``, ``"none"``.
+
+        Returns
+        -------
+        Tensor2
+            Tensor(s) of the requested type.
+        """
         _check_t2_type(type_str)
         m = np.asarray(m, dtype=np.float64)
         if m.shape == (3, 3):
@@ -502,7 +555,21 @@ class Tensor2(_TensorBase):
 
     @classmethod
     def from_voigt(cls, v, type_str):
-        """Create from Voigt vector (6,) or batch (N,6) with explicit type string."""
+        """Create from a Voigt 6-vector with an explicit type.
+
+        Parameters
+        ----------
+        v : array_like
+            ``(6,)`` Voigt vector or ``(N,6)`` batch. Shear components follow
+            the type convention (``2*e_ij`` for strain, ``s_ij`` for stress).
+        type_str : str
+            One of ``"stress"``, ``"strain"``, ``"generic"``, ``"none"``.
+
+        Returns
+        -------
+        Tensor2
+            Tensor(s) of the requested type.
+        """
         _check_t2_type(type_str)
         v = np.asarray(v, dtype=np.float64)
         if v.ndim == 1 and v.size == 6:
@@ -513,7 +580,21 @@ class Tensor2(_TensorBase):
 
     @classmethod
     def from_mandel(cls, v, type_str):
-        """Create from a Kelvin-Mandel vector (6,) or (N,6) (inverse of .mandel)."""
+        """Create from a Kelvin-Mandel 6-vector (inverse of the `mandel` property).
+
+        Parameters
+        ----------
+        v : array_like
+            ``(6,)`` Kelvin-Mandel vector (``sqrt(2)`` factor on shear terms,
+            identical for stress and strain) or ``(N,6)`` batch.
+        type_str : str
+            One of ``"stress"``, ``"strain"``, ``"generic"``, ``"none"``.
+
+        Returns
+        -------
+        Tensor2
+            Tensor(s) of the requested type.
+        """
         _check_t2_type(type_str)
         v = np.asarray(v, dtype=np.float64)
         if not ((v.ndim == 1 and v.size == 6) or (v.ndim == 2 and v.shape[1] == 6)):
@@ -524,17 +605,33 @@ class Tensor2(_TensorBase):
 
     @classmethod
     def zeros(cls, type_str="stress"):
+        """Create a single zero tensor of the given type (default ``"stress"``)."""
         _check_t2_type(type_str)
         return cls._create(np.zeros(6, dtype=np.float64), type_str)
 
     @classmethod
     def identity(cls, type_str="stress"):
+        """Create the single identity tensor (Voigt ``[1,1,1,0,0,0]``) of the given type."""
         _check_t2_type(type_str)
         return cls._create(np.array([1, 1, 1, 0, 0, 0], dtype=np.float64), type_str)
 
     @classmethod
     def from_columns(cls, arr, type_str):
-        """Create batch from (6, N) column-major array (C++ interop)."""
+        """Create a batch from a column-major array (C++ interop).
+
+        Parameters
+        ----------
+        arr : array_like
+            ``(6, N)`` array, one Voigt vector per column (the simcoon C++
+            batch convention).
+        type_str : str
+            One of ``"stress"``, ``"strain"``, ``"generic"``, ``"none"``.
+
+        Returns
+        -------
+        Tensor2
+            Batch of N tensors.
+        """
         _check_t2_type(type_str)
         arr = np.asarray(arr, dtype=np.float64)
         if arr.ndim != 2 or arr.shape[0] != 6:
@@ -580,7 +677,17 @@ class Tensor2(_TensorBase):
     # ------------------------------------------------------------------
 
     def is_symmetric(self, tol=1e-12):
-        """Check symmetry of the 3x3 matrix (single only)."""
+        """Check symmetry of the 3x3 matrix representation (single only).
+
+        Parameters
+        ----------
+        tol : float, optional
+            Absolute tolerance on the off-diagonal differences (default 1e-12).
+
+        Returns
+        -------
+        bool
+        """
         if not self.single:
             raise NotImplementedError("is_symmetric not supported on batch")
         m = self.mat
@@ -593,7 +700,34 @@ class Tensor2(_TensorBase):
         return _CppTensor2.from_voigt(self._data, _VTYPE_MAP[self._type_str])
 
     def rotate(self, R, active=True):
-        """Rotate tensor(s) via Rotation."""
+        """Rotate the tensor(s) by a rotation.
+
+        Parameters
+        ----------
+        R : simcoon.Rotation or scipy.spatial.transform.Rotation
+            Rotation(s) to apply. On a batch, a single rotation is broadcast
+            to all N tensors; a batch of N rotations is applied slice-wise.
+        active : bool, optional
+            ``True`` (default) rotates the tensor (active convention
+            ``Q A Q^T``); ``False`` rotates the frame (passive).
+
+        Returns
+        -------
+        Tensor2
+            Rotated tensor(s), same type tag.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            import numpy as np
+            import simcoon as sim
+            from scipy.spatial.transform import Rotation
+
+            sigma = sim.Tensor2.stress(np.array([100., 0., 0., 0., 0., 0.]))
+            R = Rotation.from_euler('z', 45, degrees=True)
+            sigma_rot = sigma.rotate(R)
+        """
         from simcoon.rotation import Rotation as SmcRotation
         from scipy.spatial.transform import Rotation as ScipyRotation
 
@@ -610,11 +744,30 @@ class Tensor2(_TensorBase):
         else:
             raise TypeError(f"Expected Rotation, got {type(R)}")
 
-        result = _batch_t2_rotate(data_2d, _VTYPE_MAP[self._type_str], mats, active)
+        result = _batch_rotate(data_2d, _VTYPE_MAP[self._type_str], mats, active)
         return self._rewrap(result)
 
     def push_forward(self, F, metric=True):
-        """Push-forward via deformation gradient F."""
+        """Push-forward (reference to current configuration) via the deformation gradient.
+
+        Type-dependent transport: stress is fully contravariant
+        (``F s F^T``, Piola with ``1/J``), strain fully covariant
+        (``F^-T e F^-1``).
+
+        Parameters
+        ----------
+        F : array_like
+            ``(3,3)`` deformation gradient, or ``(N,3,3)`` batch (a single F
+            is broadcast over a tensor batch).
+        metric : bool, optional
+            ``True`` (default) includes the ``J = det(F)`` factor (proper
+            Piola transformation); ``False`` is pure transport.
+
+        Returns
+        -------
+        Tensor2
+            Transported tensor(s), same type tag.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self.single:
             cpp_result = self._to_cpp().push_forward(F, metric)
@@ -622,12 +775,28 @@ class Tensor2(_TensorBase):
                                    self._type_str)
         data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t2_push_forward(
+        result = _batch_push_forward(
             data_2d, _VTYPE_MAP[self._type_str], _to_f_cube(F_batch), metric)
         return self._rewrap(result)
 
     def pull_back(self, F, metric=True):
-        """Pull-back via deformation gradient F."""
+        """Pull-back (current to reference configuration) via the deformation gradient.
+
+        Inverse of `push_forward`; same type-dependent transport and
+        ``metric`` semantics.
+
+        Parameters
+        ----------
+        F : array_like
+            ``(3,3)`` deformation gradient, or ``(N,3,3)`` batch.
+        metric : bool, optional
+            ``True`` (default) includes the ``J = det(F)`` factor.
+
+        Returns
+        -------
+        Tensor2
+            Transported tensor(s), same type tag.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self.single:
             cpp_result = self._to_cpp().pull_back(F, metric)
@@ -635,12 +804,21 @@ class Tensor2(_TensorBase):
                                    self._type_str)
         data_2d = self._ensure_batch()
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t2_pull_back(
+        result = _batch_pull_back(
             data_2d, _VTYPE_MAP[self._type_str], _to_f_cube(F_batch), metric)
         return self._rewrap(result)
 
     def mises(self):
-        """Von Mises equivalent: float for single, (N,) for batch."""
+        """Von Mises equivalent (type-aware).
+
+        Uses the stress definition ``sqrt(3/2 s_dev:s_dev)`` for stress/generic
+        and the strain definition ``sqrt(2/3 e_dev:e_dev)`` for strain.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Scalar for a single tensor, ``(N,)`` for a batch.
+        """
         d = self._data.copy()
         tr = d[..., 0] + d[..., 1] + d[..., 2]
         d[..., 0] -= tr / 3.0
@@ -655,11 +833,23 @@ class Tensor2(_TensorBase):
         raise ValueError("Mises not defined for type 'none'")
 
     def trace(self):
-        """Trace: float for single, (N,) for batch."""
+        """Trace ``t_kk``.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Scalar for a single tensor, ``(N,)`` for a batch.
+        """
         return self._data[..., 0] + self._data[..., 1] + self._data[..., 2]
 
     def dev(self):
-        """Deviatoric part -> Tensor2 (single or batch)."""
+        """Deviatoric part ``t - tr(t)/3 I``.
+
+        Returns
+        -------
+        Tensor2
+            Deviatoric tensor(s), same type tag.
+        """
         d = self._data.copy()
         tr = d[..., 0] + d[..., 1] + d[..., 2]
         d[..., 0] -= tr / 3.0
@@ -668,7 +858,13 @@ class Tensor2(_TensorBase):
         return Tensor2._create(d, self._type_str)
 
     def norm(self):
-        """Frobenius norm: float for single, (N,) for batch."""
+        """Frobenius norm ``sqrt(t_ij t_ij)`` (type-aware shear factors).
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Scalar for a single tensor, ``(N,)`` for a batch.
+        """
         d = self._data
         diag2 = d[..., 0]**2 + d[..., 1]**2 + d[..., 2]**2
         shear2 = d[..., 3]**2 + d[..., 4]**2 + d[..., 5]**2
@@ -677,7 +873,7 @@ class Tensor2(_TensorBase):
         return np.sqrt(diag2 + 2.0 * shear2)
 
     def __mod__(self, other):
-        """Double contraction A_ij B_ij -> float or (N,)."""
+        """Double contraction ``A_ij B_ij`` (``a % b``): float for single, ``(N,)`` for batch."""
         if not isinstance(other, Tensor2):
             return NotImplemented
         ma = self.mat
@@ -716,10 +912,35 @@ class Tensor2(_TensorBase):
 # ======================================================================
 
 class Tensor4(_TensorBase):
-    """A 4th-order tensor with type tag for rotation dispatch and Voigt storage.
+    """A 4th-order tensor with a type tag driving rotation dispatch and Voigt factors.
 
-    Always stores numpy array: ``(6,6)`` for single, ``(N,6,6)`` for batch.
-    Type is a string: ``"stiffness"``, ``"compliance"``, etc.
+    A single object transparently represents either one tensor or a batch:
+    the stored numpy array is ``(6,6)`` (engineering Voigt) for a single
+    tensor and ``(N,6,6)`` for a batch. The type is a string: ``"stiffness"``,
+    ``"compliance"``, ``"strain_concentration"``, ``"stress_concentration"``,
+    or ``"generic"``; it selects the Kelvin-Mandel congruence factors and the
+    rotation/transport rules, and is propagated through operations
+    (e.g. ``stiffness.inverse()`` is a compliance).
+
+    The C++ backend works internally in the Kelvin-Mandel convention, so
+    contraction, inverse and composition are plain 6x6 linear algebra; the
+    engineering Voigt form is what `mat` / `voigt` expose.
+
+    Construct through the typed factories (`stiffness`, `compliance`,
+    `strain_concentration`, `stress_concentration`, `from_mat`, `from_mandel`),
+    never through ``Tensor4(array)``.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        L = sim.Tensor4.stiffness(sim.L_iso([70000, 0.3], 'Enu'))
+        eps = sim.Tensor2.strain(np.array([0.01, -0.003, -0.003, 0.005, 0., 0.]))
+        sigma = L @ eps                  # contraction -> stress Tensor2
+        M = L.inverse()                  # compliance Tensor4
 
     .. note::
         The underlying C++ ``tensor4`` class uses a lazy mutable Fastor cache
@@ -770,37 +991,107 @@ class Tensor4(_TensorBase):
 
     @classmethod
     def stiffness(cls, data):
-        """Create stiffness tensor(s): (6,6) single or (N,6,6) batch."""
+        """Create stiffness tensor(s) from an engineering Voigt 6x6.
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,6)`` matrix (e.g. from ``sim.L_iso``) or ``(N,6,6)`` batch.
+
+        Returns
+        -------
+        Tensor4
+        """
         return cls._typed_factory(data, "stiffness")
 
     @classmethod
     def compliance(cls, data):
-        """Create compliance tensor(s): (6,6) single or (N,6,6) batch."""
+        """Create compliance tensor(s) from an engineering Voigt 6x6.
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,6)`` matrix (e.g. from ``sim.M_iso``) or ``(N,6,6)`` batch.
+
+        Returns
+        -------
+        Tensor4
+        """
         return cls._typed_factory(data, "compliance")
 
     @classmethod
     def strain_concentration(cls, data):
-        """Create strain concentration tensor(s)."""
+        """Create strain concentration tensor(s) (``De = A : D`` maps, e.g. ``sim.A_R(F)``).
+
+        Uses the engineering Voigt convention: the identity concentration is
+        ``eye(6)`` and ``A.contract(strain)`` returns a strain.
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,6)`` matrix or ``(N,6,6)`` batch.
+
+        Returns
+        -------
+        Tensor4
+        """
         return cls._typed_factory(data, "strain_concentration")
 
     @classmethod
     def stress_concentration(cls, data):
-        """Create stress concentration tensor(s)."""
+        """Create stress concentration tensor(s) (``s_local = B : s`` maps).
+
+        Parameters
+        ----------
+        data : array_like
+            ``(6,6)`` matrix or ``(N,6,6)`` batch.
+
+        Returns
+        -------
+        Tensor4
+        """
         return cls._typed_factory(data, "stress_concentration")
 
     @classmethod
     def from_mat(cls, m, type_str):
-        """Create from (6,6) or (N,6,6) with explicit type string."""
+        """Create from an engineering Voigt 6x6 with an explicit type.
+
+        Parameters
+        ----------
+        m : array_like
+            ``(6,6)`` matrix or ``(N,6,6)`` batch.
+        type_str : str
+            One of ``"stiffness"``, ``"compliance"``, ``"strain_concentration"``,
+            ``"stress_concentration"``, ``"generic"``.
+
+        Returns
+        -------
+        Tensor4
+        """
         return cls._typed_factory(m, type_str)
 
     @classmethod
     def from_voigt(cls, v, type_str):
-        """Alias for from_mat."""
+        """Alias for `from_mat` (explicit counterpart of `from_mandel`)."""
         return cls.from_mat(v, type_str)
 
     @classmethod
     def from_mandel(cls, m, type_str):
-        """Create from a Kelvin-Mandel (6,6) or (N,6,6) matrix (inverse of .mandel)."""
+        """Create from a Kelvin-Mandel 6x6 (inverse of the `mandel` property).
+
+        Parameters
+        ----------
+        m : array_like
+            ``(6,6)`` Kelvin-Mandel matrix (per-type ``sqrt(2)`` congruence
+            factors) or ``(N,6,6)`` batch.
+        type_str : str
+            One of ``"stiffness"``, ``"compliance"``, ``"strain_concentration"``,
+            ``"stress_concentration"``, ``"generic"``.
+
+        Returns
+        -------
+        Tensor4
+        """
         _check_t4_type(type_str)
         m = np.asarray(m, dtype=np.float64)
         if m.shape != (6, 6) and not (m.ndim == 3 and m.shape[1:] == (6, 6)):
@@ -813,24 +1104,32 @@ class Tensor4(_TensorBase):
 
     @classmethod
     def identity(cls, type_str="stiffness"):
+        """Create the identity tensor of the given type (default ``"stiffness"``).
+
+        For every type the identity contracts to the unchanged field
+        (``I : t == t``); in Kelvin-Mandel it is ``eye(6)``.
+        """
         _check_t4_type(type_str)
         cpp = _CppTensor4.identity(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
     def volumetric(cls, type_str="stiffness"):
+        """Create the volumetric (spherical) projector ``J = 1/3 I⊗I`` of the given type."""
         _check_t4_type(type_str)
         cpp = _CppTensor4.volumetric(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
     def deviatoric(cls, type_str="stiffness"):
+        """Create the deviatoric projector ``K = I - J`` of the given type."""
         _check_t4_type(type_str)
         cpp = _CppTensor4.deviatoric(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
     def zeros(cls, type_str="stiffness"):
+        """Create a single zero tensor of the given type (default ``"stiffness"``)."""
         _check_t4_type(type_str)
         return cls._create(np.zeros((6, 6), dtype=np.float64), type_str)
 
@@ -869,7 +1168,24 @@ class Tensor4(_TensorBase):
         return "strain"
 
     def contract(self, t):
-        """Contract with Tensor2: result = mat @ t.voigt."""
+        """Double contraction with a Tensor2 (also available as ``L @ t``).
+
+        The output type follows the tensor4 type: stiffness and
+        stress_concentration produce a stress, compliance and
+        strain_concentration produce a strain.
+
+        Parameters
+        ----------
+        t : Tensor2
+            Single or batch. Single ⊗ batch combinations broadcast; a single
+            Tensor4 contracted with a batch Tensor2 collapses to one BLAS
+            matrix-matrix product (the fast shared-tangent path).
+
+        Returns
+        -------
+        Tensor2
+            Contracted tensor(s) with the inferred type.
+        """
         out_ts = self._infer_contraction_vtype(self._type_str)
 
         if self.single:
@@ -884,7 +1200,21 @@ class Tensor4(_TensorBase):
         return Tensor2._create(result, out_ts)
 
     def rotate(self, R, active=True):
-        """Rotate tensor(s)."""
+        """Rotate the tensor(s) by a rotation (type-dependent Voigt congruence).
+
+        Parameters
+        ----------
+        R : simcoon.Rotation or scipy.spatial.transform.Rotation
+            Rotation(s) to apply. On a batch, a single rotation is broadcast;
+            a batch of N rotations is applied slice-wise.
+        active : bool, optional
+            ``True`` (default) rotates the tensor, ``False`` the frame.
+
+        Returns
+        -------
+        Tensor4
+            Rotated tensor(s), same type tag.
+        """
         from simcoon.rotation import Rotation as SmcRotation
         from scipy.spatial.transform import Rotation as ScipyRotation
 
@@ -898,41 +1228,85 @@ class Tensor4(_TensorBase):
             mats = _get_rotation_matrices(R, N)
         else:
             raise TypeError(f"Expected Rotation, got {type(R)}")
-        result = _batch_t4_rotate(
+        result = _batch_rotate(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str], mats, active)
         return self._rewrap(_from_f_cube(result))
 
     def push_forward(self, F, metric=True):
-        """Push-forward via deformation gradient F."""
+        """Push-forward (reference to current configuration) via the deformation gradient.
+
+        Type-dependent transport: stiffness is fully contravariant
+        (``F⊗F : L : F^T⊗F^T`` with ``1/J``), compliance fully covariant.
+        Concentration types raise (mixed variance, no pure transport).
+
+        Parameters
+        ----------
+        F : array_like
+            ``(3,3)`` deformation gradient, or ``(N,3,3)`` batch (a single F
+            is broadcast over a tensor batch).
+        metric : bool, optional
+            ``True`` (default) includes the ``J = det(F)`` factor;
+            ``False`` is pure transport.
+
+        Returns
+        -------
+        Tensor4
+            Transported tensor(s), same type tag.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self.single:
             cpp_result = self._to_cpp().push_forward(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t4_push_forward(
+        result = _batch_push_forward(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str],
             _to_f_cube(F_batch), metric)
         return self._rewrap(_from_f_cube(result))
 
     def pull_back(self, F, metric=True):
-        """Pull-back via deformation gradient F."""
+        """Pull-back (current to reference configuration) via the deformation gradient.
+
+        Inverse of `push_forward`; same type-dependent transport and
+        ``metric`` semantics.
+
+        Parameters
+        ----------
+        F : array_like
+            ``(3,3)`` deformation gradient, or ``(N,3,3)`` batch.
+        metric : bool, optional
+            ``True`` (default) includes the ``J = det(F)`` factor.
+
+        Returns
+        -------
+        Tensor4
+            Transported tensor(s), same type tag.
+        """
         F = np.asarray(F, dtype=np.float64)
         if self.single:
             cpp_result = self._to_cpp().pull_back(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
         F_batch = F[np.newaxis] if F.ndim == 2 else F
-        result = _batch_t4_pull_back(
+        result = _batch_pull_back(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str],
             _to_f_cube(F_batch), metric)
         return self._rewrap(_from_f_cube(result))
 
     def inverse(self):
-        """Invert the 6x6 Voigt matrix. stiffness <-> compliance."""
+        """Invert the tensor (plain 6x6 inverse in Kelvin-Mandel).
+
+        The type follows the algebra: stiffness ↔ compliance,
+        concentration types keep their type, generic stays generic.
+
+        Returns
+        -------
+        Tensor4
+            Inverse tensor(s) with the inferred type.
+        """
         if self.single:
             cpp_result = self._to_cpp().inverse()
             inv_ts = _T4TYPE_RMAP.get(cpp_result.type, self._type_str)
             return Tensor4._create(np.array(cpp_result.mat), inv_ts)
-        result, inv_type_enum = _batch_t4_inverse(
+        result, inv_type_enum = _batch_inverse(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str])
         inv_ts = _T4TYPE_RMAP.get(inv_type_enum, self._type_str)
         return Tensor4._create(_from_f_cube(result), inv_ts)
@@ -957,7 +1331,18 @@ class Tensor4(_TensorBase):
 # ======================================================================
 
 def dyadic(a, b):
-    """Dyadic product of two single Tensor2 -> Tensor4(stiffness)."""
+    """Dyadic (outer) product ``C_ijkl = a_ij b_kl`` of two single Tensor2.
+
+    Parameters
+    ----------
+    a, b : Tensor2
+        Single tensors.
+
+    Returns
+    -------
+    Tensor4
+        Stiffness-typed tensor.
+    """
     if not (isinstance(a, Tensor2) and a.single and isinstance(b, Tensor2) and b.single):
         raise ValueError("dyadic requires two single Tensor2 arguments")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -968,7 +1353,7 @@ def dyadic(a, b):
 
 
 def auto_dyadic(a):
-    """Dyadic product of a single Tensor2 with itself -> Tensor4(stiffness)."""
+    """Dyadic product of a single Tensor2 with itself: ``C_ijkl = a_ij a_kl`` -> stiffness Tensor4."""
     if not (isinstance(a, Tensor2) and a.single):
         raise ValueError("auto_dyadic requires a single Tensor2")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -978,7 +1363,7 @@ def auto_dyadic(a):
 
 
 def sym_dyadic(a, b):
-    """Symmetric Voigt dyadic product of two single Tensor2 -> Tensor4(stiffness)."""
+    """Symmetric Voigt dyadic product ``C = v(a) v(b)^T`` of two single Tensor2 -> stiffness Tensor4."""
     if not (isinstance(a, Tensor2) and a.single and isinstance(b, Tensor2) and b.single):
         raise ValueError("sym_dyadic requires two single Tensor2 arguments")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -989,7 +1374,7 @@ def sym_dyadic(a, b):
 
 
 def auto_sym_dyadic(a):
-    """Symmetric Voigt dyadic product of a single Tensor2 with itself -> Tensor4(stiffness)."""
+    """Symmetric Voigt dyadic product of a single Tensor2 with itself -> stiffness Tensor4."""
     if not (isinstance(a, Tensor2) and a.single):
         raise ValueError("auto_sym_dyadic requires a single Tensor2")
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
@@ -999,7 +1384,18 @@ def auto_sym_dyadic(a):
 
 
 def double_contract(a, b):
-    """Batch double contraction A_ij B_ij -> float or (N,)."""
+    """Double contraction ``A_ij B_ij`` of two Tensor2 (single or batch).
+
+    Parameters
+    ----------
+    a, b : Tensor2
+        Single or batch; singles broadcast against batches.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``(N,)`` values (``(1,)`` if both are single).
+    """
     ma = a.mat
     mb = b.mat
     if ma.ndim == 2:
