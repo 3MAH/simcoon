@@ -47,7 +47,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_neo_hookean_comp(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_neo_hookean_comp(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -112,7 +112,8 @@ void umat_neo_hookean_comp(const string &umat_name, const vec &Etot, const vec &
     sigma = t2v_stress(PKII2Cauchy(S, F1));
     //sigma = t2v_stress(mu/J*(L_Cauchy_Green(F1) - I) + lambda*log(J)/J*I);
       
-    L = lambda*auto_dyadic(invC)+2.0*(mu-lambda*log(J))*dinvSdSsym(C);
+    // dinvSdSsym returns the exact (negative) dCinv/dC, so this term carries a minus sign
+    L = lambda*auto_dyadic(invC)-2.0*(mu-lambda*log(J))*dinvSdSsym(C);
     Lt = DSDE_2_DsigmaDe(L, get_BBBB(F1), F1, v2t_stress(sigma));
     
     //Computation of the mechanical and thermal work quantities

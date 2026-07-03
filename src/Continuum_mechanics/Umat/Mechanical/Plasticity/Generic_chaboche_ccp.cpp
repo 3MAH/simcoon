@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Generic_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -65,7 +66,7 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -205,7 +206,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         EP = vide;
 
         for (int i=0; i<N_kin_hard; i++) {
@@ -234,7 +235,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     }
     
     //Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec EP_start = EP;
 
     std::vector<vec> a_N_start(N_kin_hard);
@@ -259,7 +260,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -280,30 +281,30 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     switch (criteria)
     {
         case 0: {//Mises surface
-            Lambdap = eta_stress(sigma-X);
+            Lambdap = eta_stress(stress-X);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = eta_stress(sigma-X) - D[i]*a_N[i];
+                Lambdaa_N[i] = eta_stress(stress-X) - D[i]*a_N[i];
             }            
             break;   
         }     
         case 1: {//Hill
-            Lambdap = dHill_stress(sigma-X, criteria_params);
+            Lambdap = dHill_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dHill_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dHill_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }        
             break;
         }
         case 2: {//DFA
-            Lambdap = dDFA_stress(sigma-X, criteria_params);
+            Lambdap = dDFA_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dDFA_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dDFA_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }        
             break;
         }
         case 3: {//ANI
-            Lambdap = dAni_stress(sigma-X, criteria_params);
+            Lambdap = dAni_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dAni_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dAni_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }        
             break;
         }
@@ -338,54 +339,54 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     switch (criteria)
     {
         case 0: {//Mises surface
-            dPhidsigma = eta_stress(sigma-X);
+            dPhidsigma = eta_stress(stress-X);
             for (int i=0; i<N_kin_hard; i++) {
-                dPhida_N[i] = -1.*(2./3.)*C[i]*(eta_stress(sigma-X)%Ir05());
+                dPhida_N[i] = -1.*(2./3.)*C[i]*(eta_stress(stress-X)%Ir05());
             }    
             //compute Phi and the derivatives
-            Phi(0) = Mises_stress(sigma-X) - Hp - sigmaY;        
-            Lambdap = eta_stress(sigma-X);
+            Phi(0) = Mises_stress(stress-X) - Hp - sigmaY;        
+            Lambdap = eta_stress(stress-X);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = eta_stress(sigma-X) - D[i]*a_N[i];
+                Lambdaa_N[i] = eta_stress(stress-X) - D[i]*a_N[i];
             }
             break;   
         }     
         case 1: {//Hill
-            dPhidsigma = dHill_stress(sigma-X, criteria_params);
+            dPhidsigma = dHill_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                dPhida_N[i] = -1.*(2./3.)*C[i]*(dHill_stress(sigma-X, criteria_params)%Ir05());
+                dPhida_N[i] = -1.*(2./3.)*C[i]*(dHill_stress(stress-X, criteria_params)%Ir05());
             }    
             //compute Phi and the derivatives
-            Phi(0) = Hill_stress(sigma-X, criteria_params) - Hp - sigmaY;        
-            Lambdap = dHill_stress(sigma-X, criteria_params);
+            Phi(0) = Hill_stress(stress-X, criteria_params) - Hp - sigmaY;        
+            Lambdap = dHill_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dHill_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dHill_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }
             break;
         }
         case 2: {//DFA
-            dPhidsigma = dDFA_stress(sigma-X, criteria_params);
+            dPhidsigma = dDFA_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                dPhida_N[i] = -1.*(2./3.)*C[i]*(dDFA_stress(sigma-X, criteria_params)%Ir05());
+                dPhida_N[i] = -1.*(2./3.)*C[i]*(dDFA_stress(stress-X, criteria_params)%Ir05());
             }    
             //compute Phi and the derivatives
-            Phi(0) = DFA_stress(sigma-X, criteria_params) - Hp - sigmaY;        
-            Lambdap = dDFA_stress(sigma-X, criteria_params);
+            Phi(0) = DFA_stress(stress-X, criteria_params) - Hp - sigmaY;        
+            Lambdap = dDFA_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dDFA_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dDFA_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }
             break;
         }
         case 3: {//ANI
-            dPhidsigma = dAni_stress(sigma-X, criteria_params);
+            dPhidsigma = dAni_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                dPhida_N[i] = -1.*(2./3.)*C[i]*(dAni_stress(sigma-X, criteria_params)%Ir05());
+                dPhida_N[i] = -1.*(2./3.)*C[i]*(dAni_stress(stress-X, criteria_params)%Ir05());
             }    
             //compute Phi and the derivatives
-            Phi(0) = Ani_stress(sigma-X, criteria_params) - Hp - sigmaY;        
-            Lambdap = dAni_stress(sigma-X, criteria_params);
+            Phi(0) = Ani_stress(stress-X, criteria_params) - Hp - sigmaY;        
+            Lambdap = dAni_stress(stress-X, criteria_params);
             for (int i=0; i<N_kin_hard; i++) {
-                Lambdaa_N[i] = dAni_stress(sigma-X, criteria_params) - D[i]*a_N[i];
+                Lambdaa_N[i] = dAni_stress(stress-X, criteria_params) - D[i]*a_N[i];
             }
             break;
         }
@@ -393,7 +394,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
             break;
         }
     }
-//        dPhida = 0.*(eta_stress(sigma - X)%Ir05());
+//        dPhida = 0.*(eta_stress(stress - X)%Ir05());
         
         kappa_j[0] = L*Lambdap;
         K(0,0) = dPhidp ;
@@ -421,13 +422,13 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
             X+= X_N[i];
         }                
 
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
 
@@ -437,39 +438,32 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
     }                
         
     //Computation of the tangent modulus
+    //continuum elastic-plastic tangent via shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
+    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent (closest-point). Flow on effective stress (sigma-X), with
+        // the Hessian of the active criterion. Backstress state-coupling deferred (CPP, future release).
+        mat dLambda_dsigma;
+        switch (criteria) {
+            case 1:  dLambda_dsigma = ddHill_stress(stress - X, criteria_params); break;
+            case 2:  dLambda_dsigma = ddDFA_stress(stress - X, criteria_params);  break;
+            case 3:  dLambda_dsigma = ddAni_stress(stress - X, criteria_params);  break;
+            default: dLambda_dsigma = deta_stress(stress - X);                     break; // 0 = Mises
         }
+        const std::vector<mat> dLambda_dsigma_l = { dLambda_dsigma };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L*dPhidsigma);
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
-
-    Lt = L - (kappa_j[0]*P_epsilon[0].t());
     
     double A_p = -Hp;
 
@@ -478,14 +472,14 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
         A_a_N[i] = -X_N[i];
     }                
     
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP) + 0.5*(A_p_start + A_p)*Dp;
     for (int i=0; i<N_kin_hard; i++) {
         Dgamma_loc+=0.5*sum((A_a_N_start[i] + A_a_N[i])%Da_N[i]);
     }                
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     for (int i=0; i<N_kin_hard; i++) {
         Wm_r+= -0.5*sum((A_a_N_start[i] + A_a_N[i])%Da_N[i]);
     }    

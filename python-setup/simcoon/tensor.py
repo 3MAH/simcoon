@@ -25,6 +25,16 @@ Examples
 
 >>> # Batch operations
 >>> sigma_batch = L @ eps_batch
+
+>>> # Concentration tensors (strain/stress) use the engineering Voigt convention,
+>>> # exactly like stiffness/compliance: wrap a 6x6 producer and contract it.
+>>> # The identity is eye(6) (it returns the field unchanged), and inverse keeps
+>>> # the concentration type. push_forward/pull_back are undefined (mixed indices).
+>>> F = np.array([[1.2, 0.15, 0.0], [0.0, 0.95, 0.0], [0.0, 0.0, 1.0 / (1.2 * 0.95)]])
+>>> D = np.array([[0.03, 0.01, 0.0], [0.01, -0.02, 0.0], [0.0, 0.0, -0.01]])
+>>> A = smc.Tensor4.strain_concentration(smc.A_R(F))   # De = A^R : D
+>>> De = A.contract(smc.Tensor2.strain(smc.t2v_strain(D)))
+>>> D0 = A.inverse().contract(De)                      # round-trips: D0 == D
 """
 
 import numpy as np
@@ -89,6 +99,29 @@ def _check_t4_type(ts):
         raise ValueError(f"Invalid Tensor4 type '{ts}', expected one of {sorted(_T4_TYPES)}")
 
 
+# ======================================================================
+# Kelvin-Mandel congruence factors (mirror C++ mandel_factors in tensor.hpp)
+# ======================================================================
+
+_SQ2 = float(np.sqrt(2.0))
+
+
+def _t2_mandel_factor(type_str):
+    """eng->Mandel shear factor for a Voigt 6-vector: mandel = sqrt2 * t_ij."""
+    return (1.0 / _SQ2) if type_str == "strain" else _SQ2
+
+
+def _t4_mandel_factors(type_str):
+    """eng->Mandel (row, col) shear factors for a 6x6 (Mandel->eng divides)."""
+    if type_str in ("stiffness", "generic"):
+        return _SQ2, _SQ2
+    if type_str == "compliance":
+        return 1.0 / _SQ2, 1.0 / _SQ2
+    if type_str == "strain_concentration":
+        return 1.0 / _SQ2, _SQ2
+    return _SQ2, 1.0 / _SQ2  # stress_concentration
+
+
 def _to_f_cube(arr):
     """Convert (N,R,C) C-order array to (R,C,N) F-order for zero-copy arma cube."""
     return np.asfortranarray(arr.transpose(1, 2, 0))
@@ -135,6 +168,18 @@ def _voigt_to_mat(v, type_str):
         m[..., 0, 2] = m[..., 2, 0] = v[..., 4]
         m[..., 1, 2] = m[..., 2, 1] = v[..., 5]
     return m
+
+
+def _to_cpp_rotation(R):
+    """Single-tensor rotation argument -> C++ Rotation. Accepts a simcoon or scipy Rotation,
+    raises TypeError otherwise. (Batch paths use _get_rotation_matrices instead.)"""
+    from simcoon.rotation import Rotation as SmcRotation
+    from scipy.spatial.transform import Rotation as ScipyRotation
+    if isinstance(R, SmcRotation):
+        return R._to_cpp()
+    if isinstance(R, ScipyRotation):
+        return SmcRotation.from_scipy(R)._to_cpp()
+    raise TypeError(f"Expected Rotation, got {type(R)}")
 
 
 def _get_rotation_matrices(R, N):
@@ -467,6 +512,17 @@ class Tensor2(_TensorBase):
         raise ValueError(f"Expected (6,) or (N,6), got {v.shape}")
 
     @classmethod
+    def from_mandel(cls, v, type_str):
+        """Create from a Kelvin-Mandel vector (6,) or (N,6) (inverse of .mandel)."""
+        _check_t2_type(type_str)
+        v = np.asarray(v, dtype=np.float64)
+        if not ((v.ndim == 1 and v.size == 6) or (v.ndim == 2 and v.shape[1] == 6)):
+            raise ValueError(f"Expected (6,) or (N,6), got {v.shape}")
+        v = v.copy()
+        v[..., 3:] /= _t2_mandel_factor(type_str)
+        return cls._create(v, type_str)
+
+    @classmethod
     def zeros(cls, type_str="stress"):
         _check_t2_type(type_str)
         return cls._create(np.zeros(6, dtype=np.float64), type_str)
@@ -493,6 +549,14 @@ class Tensor2(_TensorBase):
     def voigt(self):
         """Voigt vector: (6,) for single, (N,6) for batch. Returns a copy."""
         return self._data.copy()
+
+    @property
+    def mandel(self):
+        """Kelvin-Mandel vector (sqrt2 on shear, identical for stress/strain):
+        (6,) for single, (N,6) for batch. Returns a copy."""
+        v = self._data.copy()
+        v[..., 3:] *= _t2_mandel_factor(self._type_str)
+        return v
 
     @property
     def mat(self):
@@ -534,14 +598,7 @@ class Tensor2(_TensorBase):
         from scipy.spatial.transform import Rotation as ScipyRotation
 
         if self.single:
-            cpp_t2 = self._to_cpp()
-            if isinstance(R, SmcRotation):
-                cpp_rot = R._to_cpp()
-            elif isinstance(R, ScipyRotation):
-                cpp_rot = SmcRotation.from_scipy(R)._to_cpp()
-            else:
-                raise TypeError(f"Expected Rotation, got {type(R)}")
-            cpp_result = cpp_t2.rotate(cpp_rot, active)
+            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
             return Tensor2._create(np.array(cpp_result.voigt).ravel(),
                                    self._type_str)
 
@@ -742,15 +799,22 @@ class Tensor4(_TensorBase):
         return cls.from_mat(v, type_str)
 
     @classmethod
+    def from_mandel(cls, m, type_str):
+        """Create from a Kelvin-Mandel (6,6) or (N,6,6) matrix (inverse of .mandel)."""
+        _check_t4_type(type_str)
+        m = np.asarray(m, dtype=np.float64)
+        if m.shape != (6, 6) and not (m.ndim == 3 and m.shape[1:] == (6, 6)):
+            raise ValueError(f"Expected (6,6) or (N,6,6), got {m.shape}")
+        r, c = _t4_mandel_factors(type_str)
+        eng = m.copy()
+        eng[..., 3:, :] /= r
+        eng[..., :, 3:] /= c
+        return cls._create(eng, type_str)
+
+    @classmethod
     def identity(cls, type_str="stiffness"):
         _check_t4_type(type_str)
         cpp = _CppTensor4.identity(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
-
-    @classmethod
-    def identity2(cls, type_str="stiffness"):
-        _check_t4_type(type_str)
-        cpp = _CppTensor4.identity2(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
@@ -763,12 +827,6 @@ class Tensor4(_TensorBase):
     def deviatoric(cls, type_str="stiffness"):
         _check_t4_type(type_str)
         cpp = _CppTensor4.deviatoric(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
-
-    @classmethod
-    def deviatoric2(cls, type_str="stiffness"):
-        _check_t4_type(type_str)
-        cpp = _CppTensor4.deviatoric2(_T4TYPE_MAP[type_str])
         return cls._create(np.array(cpp.mat), type_str)
 
     @classmethod
@@ -789,6 +847,16 @@ class Tensor4(_TensorBase):
     def voigt(self):
         """Alias for mat."""
         return self.mat
+
+    @property
+    def mandel(self):
+        """Kelvin-Mandel 6x6 (per-type sqrt2 congruence; identity = eye(6) for every
+        type): (6,6) single, (N,6,6) batch. Returns a copy."""
+        r, c = _t4_mandel_factors(self._type_str)
+        m = self._data.copy()
+        m[..., 3:, :] *= r
+        m[..., :, 3:] *= c
+        return m
 
     # ------------------------------------------------------------------
     # Domain methods
@@ -811,7 +879,7 @@ class Tensor4(_TensorBase):
             return Tensor2._create(result, out_ts)
 
         t2 = t._data[np.newaxis] if t.single else t._data
-        t2 = np.broadcast_to(t2, (self._data.shape[0], 6))
+        # np.matmul broadcasts (1,6,1) -> (N,6,1) natively
         result = np.matmul(self._data, t2[..., np.newaxis]).squeeze(-1)
         return Tensor2._create(result, out_ts)
 
@@ -821,12 +889,7 @@ class Tensor4(_TensorBase):
         from scipy.spatial.transform import Rotation as ScipyRotation
 
         if self.single:
-            cpp_t4 = self._to_cpp()
-            if isinstance(R, SmcRotation):
-                cpp_rot = R._to_cpp()
-            else:
-                cpp_rot = R
-            cpp_result = cpp_t4.rotate(cpp_rot, active)
+            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
             return Tensor4._create(np.array(cpp_result.mat),
                                    _T4TYPE_RMAP.get(cpp_result.type, self._type_str))
 

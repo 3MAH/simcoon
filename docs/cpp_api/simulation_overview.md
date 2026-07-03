@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The Simulation module provides the infrastructure for executing multi-physics simulations, parameter identification, and optimization. It includes the solver framework, phase management, mathematical utilities, and identification algorithms for material parameter calibration.
+The Simulation module provides the infrastructure for executing multi-physics simulations. It includes the solver framework, phase management, and mathematical utilities.
 
 ## Module Organization
 
@@ -88,104 +88,9 @@ Results management:
 - **read.hpp** - Phase file parsing
 - **write.hpp** - State serialization
 
-### 3. **Identification** - Parameter Identification Framework
+### 3. **Maths** - Mathematical Utilities
 
-Inverse analysis tools for material parameter calibration from experimental data.
-
-#### **Optimization Framework:**
-
-##### **identification.hpp**
-Main identification driver supporting multiple optimization algorithms:
-- Genetic Algorithms (GA)
-- Gradient-based methods (Levenberg-Marquardt)
-- Hybrid strategies
-
-##### **Core Components:**
-
-**parameters.hpp**
-Defines optimization variables:
-```cpp
-class parameters {
-  public:
-    double value;           // Current value
-    double min_value;       // Lower bound
-    double max_value;       // Upper bound
-    string key;             // Parameter identifier
-    int ninit;              // Number of initializations
-};
-```
-
-**constants.hpp**
-Fixed values during optimization:
-```cpp
-class constants {
-  public:
-    double value;
-    string key;
-    int ninit;
-};
-```
-
-**individual.hpp**
-Solution candidate in population-based methods:
-- Parameter vector
-- Cost function value
-- Constraint violations
-- Fitness ranking
-
-**generation.hpp**
-Population management for evolutionary algorithms:
-- Population initialization
-- Selection operators
-- Crossover and mutation
-- Elitism strategies
-
-**methods.hpp**
-Optimization algorithm implementations:
-- Cost function evaluation
-- Gradient computation (numerical/analytical)
-- Hessian approximation
-
-**optimize.hpp**
-High-level optimization loop:
-- Convergence checking
-- Iteration management
-- History tracking
-- Checkpointing
-
-**opti_data.hpp**
-Experimental data management:
-- Loading experimental files
-- Data interpolation
-- Weight assignment
-
-**doe.hpp** (Design of Experiments)
-Sampling strategies for parameter space exploration:
-- Latin Hypercube Sampling (LHS)
-- Random sampling
-
-**script.hpp**
-Script interpretation for identification workflows.
-
-#### **Cost Function Definition:**
-
-The identification minimizes a weighted sum of squared residuals:
-
-\f[
-f(\mathbf{p}) = \sum_{i=1}^{N_{exp}} \sum_{j=1}^{N_{pts}} w_{ij} \left( y^{exp}_{ij} - y^{sim}_{ij}(\mathbf{p}) \right)^2
-\f]
-
-where:
-- \f$ \mathbf{p} \f$ = parameter vector
-- \f$ N_{exp} \f$ = number of experimental datasets
-- \f$ N_{pts} \f$ = number of data points per dataset
-- \f$ w_{ij} \f$ = weight for point j in experiment i
-- \f$ y^{exp}_{ij} \f$ = experimental observation
-- \f$ y^{sim}_{ij}(\mathbf{p}) \f$ = simulation prediction
-
-### 4. **Maths** - Mathematical Utilities
-
-Mathematical tools supporting simulation and identification:
+Mathematical tools supporting simulation:
 
 #### **rotation.hpp**
 Rotation operations for objective stress integration:
@@ -241,7 +146,7 @@ Random number generation:
 - Seeding control
 - Reproducibility support
 
-### 5. **Geometry** - Geometric Primitives
+### 4. **Geometry** - Geometric Primitives
 
 Geometric representations for multi-phase materials:
 
@@ -312,42 +217,6 @@ solver(umat_name, props, nstatev, psi, theta, phi);
 
 Results are written to output files specified in the control file.
 
-## Parameter Identification Workflow
-
-### 1. Define Parameters to Identify
-
-```cpp
-vector<parameters> params;
-params.push_back({"E", 50000, 100000, "Young"});
-params.push_back({"sigma_Y", 100, 500, "Yield"});
-```
-
-### 2. Load Experimental Data
-
-```cpp
-opti_data data;
-data.import("tensile_test.txt");
-data.weight = 1.0;
-```
-
-### 3. Configure Optimization
-
-```cpp
-int method = 0;  // Genetic Algorithm
-int maxiter = 100;
-double tolerance = 1e-6;
-```
-
-### 4. Run Identification
-
-```cpp
-identification(method, params, constants, data_files);
-```
-
-### 5. Retrieve Optimal Parameters
-
-The identified parameters are written to `parameters_results.txt`.
-
 ## Advanced Features
 
 ### Multi-scale Modeling
@@ -375,14 +244,6 @@ The solver automatically adjusts time step size based on:
 
 Some operations support parallel execution (using OpenMP):
 - Multiple phase response
-- Population-based optimization (outdated)
-
-### Checkpointing
-
-Identification can be checkpointed for:
-- Recovery from interruptions
-- Continuation of long-running optimizations
-- Sensitivity analysis
 
 ## Configuration Files
 
@@ -448,20 +309,13 @@ Block_1:
 
 ## References
 
-1. **Genetic Algorithms:**
-   - Goldberg, D. E. (1989). *Genetic Algorithms in Search, Optimization, and Machine Learning*. Addison-Wesley.
-
-2. **Micromechanics and Multi-scale Modeling:**
+1. **Micromechanics and Multi-scale Modeling:**
    - Qu, J., & Cherkaoui, M. (2006). *Fundamentals of Micromechanics of Solids*. Wiley.
 
-3. **Parameter Identification:**
-   - Mahnken, R., & Stein, E. (1996). "Parameter identification for viscoplastic models based on analytical derivatives of a least-squares functional and stability investigations." *International Journal of Plasticity*.
-
-4. **Fischer-Burmeister Method:**
+2. **Fischer-Burmeister Method:**
    - Fischer, A. (1997). "Solution of monotone complementarity problems with locally Lipschitzian functions." *Mathematical Programming*.
 
 ## See Also
 
 - [Continuum Mechanics Module](continuum_mechanics_overview.md) - Material models and constitutive functions
 - [Solver API](solver/) - Detailed solver documentation
-- [Identification API](identification/) - Parameter identification reference

@@ -53,22 +53,12 @@
 using namespace arma;
 using namespace simcoon;
 
-#if defined(_WIN32) || defined(_WIN64)
-    #define LIB_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-    #if __GNUC__ >= 4
-        #define LIB_EXPORT __attribute__((visibility("default")))
-    #else
-        #define LIB_EXPORT
-    #endif
-#else
-    #define LIB_EXPORT
-#endif
+// LIB_EXPORT comes from umat_plugin_api.hpp
 
 class LIB_EXPORT umat_neohookean_tensor : public umat_plugin_ext_api {
 public:
 
-    std::string name() const { return "neohookean_tensor"; }
+    std::string name() const override { return "neohookean_tensor"; }
 
     void umat_external_M(
         const std::string &umat_name,
@@ -123,9 +113,9 @@ public:
         double lnJ = std::log(J);
         mat invC_mat = inv(C_mat);
 
-        // ---- PKII stress using Tensor2 ----
-        tensor2 invC_t = tensor2::from_voigt(t2v_stress(invC_mat), "stress");
-        tensor2 I_t    = tensor2::identity("stress");
+        // ---- PKII stress using Tensor2 (enum tags: no string parsing in the UMAT hot path) ----
+        tensor2 invC_t = tensor2::from_voigt(t2v_stress(invC_mat), VoigtType::stress);
+        tensor2 I_t    = tensor2::identity(VoigtType::stress);
         tensor2 S = mu * (I_t - invC_t) + lambda * lnJ * invC_t;
 
         // ---- Cauchy stress via push-forward ----
@@ -140,9 +130,9 @@ public:
 
         // ---- Material tangent using Tensor4 ----
         tensor4 L_ref(
-            lambda * auto_dyadic(invC_mat)
-          + 2.0 * (mu - lambda * lnJ) * dinvSdSsym(C_mat),
-            "stiffness");
+            mat::fixed<6,6>(lambda * auto_dyadic(invC_mat)
+          - 2.0 * (mu - lambda * lnJ) * dinvSdSsym(C_mat)),   // dinvSdSsym = exact (negative) dCinv/dC
+            Tensor4Type::stiffness);
         L_v = L_ref.mat();
 
         // ---- Spatial tangent via push_forward ----

@@ -110,7 +110,10 @@ TEST(Tobjective_rates, logarithmic_functions)
 
     //Compute log rate and increment of rotation
     mat I = eye(3,3);
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    // Reference velocity gradient must match the production rate functions: 2nd-order centered
+    // estimate L = (2/dt)(F1-F0)(F0+F1)^-1 (see objective_rates.cpp), so D_test = sym(L) lines up
+    // with what logarithmic() computes internally.
+    mat L = (2./DTime)*(F1-F0)*inv(F0+F1);
     
     //decomposition of L
     mat D_test = 0.5*(L+L.t());

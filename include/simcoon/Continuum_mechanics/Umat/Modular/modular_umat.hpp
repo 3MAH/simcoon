@@ -387,7 +387,8 @@ void umat_modular(
     const int& ndi,
     const int& nshr,
     const bool& start,
-    double& tnew_dt
+    double& tnew_dt,
+    const int& tangent_mode = 0
 );
 
 } // namespace simcoon

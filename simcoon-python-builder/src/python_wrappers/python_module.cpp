@@ -30,11 +30,6 @@
 // #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
 // #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Identification/identification.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/constants.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
-
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_criteria.hpp>
@@ -185,6 +180,8 @@ PYBIND11_MODULE(_core, m)
     // register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
     m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");
+    m.def("A_R", &A_R, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^R (rotated / log_R), 6x6 Voigt (De = A^R:D)");
+    m.def("A_F", &A_F, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^F (convected / log_F), 6x6 Voigt (De = A^F:D)");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a = true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a, "F0"_a, "F1"_a, "dtime"_a, "return_de"_a = false, "n_threads"_a = 4, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
@@ -231,18 +228,15 @@ PYBIND11_MODULE(_core, m)
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::stress_convert);
 
     // umat
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = 0);
 
     // Register the from-python converters for read and solver
     m.def("read_matprops", &read_matprops);
     m.def("read_path", &read_path);
-    m.def("solver", &solver);
+    m.def("solver", &solver, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a, "theta_rve"_a, "phi_rve"_a, "solver_type"_a, "corate_type"_a, "path_data"_a, "path_results"_a, "pathfile"_a, "outputfile"_a, "tangent_mode"_a = 0);
 
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);
     m.def("ODF_discretization", &ODF_discretization);
 
-    // Register the from-python converters for identification
-    m.def("identification", &identification);
-    m.def("calc_cost", &calc_cost, "nfiles"_a, "data_num_name"_a);
 }

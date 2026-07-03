@@ -23,7 +23,7 @@ from simcoon.modular import (
 )
 
 
-EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "umats"
+EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "mechanical"
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndar
         mat.umat_name, mat.props, mat.nstatev,
         0.0, 0.0, 0.0,        # psi_rve, theta_rve, phi_rve
         0, 1,                 # solver_type, corate_type
-        "data", results_dir, "MODUL_path.txt", outfile,
+        "../data", results_dir, "MODUL_path.txt", outfile,
     )
     out = Path(EXAMPLES_DIR) / results_dir / outfile.replace(".txt", "_global-0.txt")
     return np.loadtxt(out, usecols=(8, 14))

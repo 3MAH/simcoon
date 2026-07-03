@@ -24,18 +24,6 @@
 
 namespace simcoon{
 
-/**
- * @file derivatives.hpp
- * @brief Tensor derivative functions for continuum mechanics
- * @author Yves Chemisky
- * @version 1.0
- *
- * This file provides functions to compute derivatives of tensor invariants,
- * trace, determinant, and inverse with respect to the tensor components.
- * These derivatives are essential for constitutive model development,
- * particularly for hyperelastic materials and return mapping algorithms.
- */
-
 /** @addtogroup functions
  *  @{
  */
@@ -227,7 +215,7 @@ arma::mat ddetSdS(const arma::mat &S);
  * \f]
  *
  * @param S Input symmetric tensor (3×3 matrix), must be invertible
- * @return 3×3 matrix containing the derivative (returned in a specific contracted form)
+ * @return 6×6 Voigt matrix representing the fourth-order derivative \f$ \partial S^{-1}_{ij} / \partial S_{kl} \f$
  *
  * @warning The input tensor must be symmetric and invertible
  *

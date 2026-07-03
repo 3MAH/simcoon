@@ -31,6 +31,7 @@
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -81,7 +82,7 @@ namespace simcoon {
  A_theta =
  */
 
-void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -136,7 +137,7 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         EP = vide;
         p = 0.;
         
@@ -159,7 +160,7 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
     }
     
     //Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec EP_start = EP;
     double A_p_start = -Hp;
     
@@ -171,7 +172,7 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -183,7 +184,7 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = dHill_stress(sigma,Hill_params);
+    vec Lambdap = dHill_stress(stress,Hill_params);
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -204,13 +205,13 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
             dHpdp = 0.;
             Hp = 0.;
         }
-        dPhidsigma = dHill_stress(sigma,Hill_params);
+        dPhidsigma = dHill_stress(stress,Hill_params);
         dPhidp = -1.*dHpdp;
         
         //compute Phi and the derivatives
-        Phi(0) = Hill_stress(sigma,Hill_params) - Hp - sigmaY;
+        Phi(0) = Hill_stress(stress,Hill_params) - Hp - sigmaY;
         
-        Lambdap = dHill_stress(sigma,Hill_params);
+        Lambdap = dHill_stress(stress,Hill_params);
         kappa_j[0] = L*Lambdap;
         
         K(0,0) = dPhidp;
@@ -222,57 +223,44 @@ void umat_plasticity_hill_isoh_CCP(const string &umat_name, const vec &Etot, con
         s_j(0) += ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum elastic-plastic operator
+    //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-    
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
+
+    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent. Hill associated flow Lambda_eps = dHill_stress(sigma),
+        // so dLambda_eps/dsigma = ddHill_stress(sigma, Hill_params). Isotropic hardening: no
+        // internal-variable coupling in the direction -> complete consistent correction (Q-quadratic).
+        const std::vector<mat> dLambda_dsigma_l = { ddHill_stress(stress, Hill_params) };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
-    
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L*dPhidsigma);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
-    
-    Lt = L - (kappa_j[0]*P_epsilon[0].t());
 
     double A_p = -Hp;        
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
+    double Dgamma_loc = 0.5*sum((stress_start+stress)%DEP) + 0.5*(A_p_start + A_p)*Dp;
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
     

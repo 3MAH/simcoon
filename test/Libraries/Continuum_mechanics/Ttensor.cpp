@@ -411,16 +411,19 @@ TEST(Ttensor4, DeviatoricMatchesIdev)
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }
 
-TEST(Ttensor4, Identity2MatchesIreal2)
+// The legacy identity2/deviatoric2 (strain-convention duplicates) are gone; the strain
+// convention is now reached via the type tag: compliance scales the shear blocks, giving
+// Ireal2 / Idev2.
+TEST(Ttensor4, IdentityComplianceMatchesIreal2)
 {
-    tensor4 t = tensor4::identity2();
+    tensor4 t = tensor4::identity(Tensor4Type::compliance);
     mat Iref = Ireal2();
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }
 
-TEST(Ttensor4, Deviatoric2MatchesIdev2)
+TEST(Ttensor4, DeviatoricComplianceMatchesIdev2)
 {
-    tensor4 t = tensor4::deviatoric2();
+    tensor4 t = tensor4::deviatoric(Tensor4Type::compliance);
     mat Iref = Idev2();
     EXPECT_LT(norm(mat(t.mat()) - Iref, "fro"), 1e-12);
 }
@@ -725,10 +728,11 @@ TEST(Ttensor4, PushForwardCommutesWithInverse)
     EXPECT_LT(norm(mat(comp_then_push.mat()) - mat(push_then_comp.mat()), "fro"), 1e-8);
 }
 
-// All three logarithmic CoRate variants share the same algorithmic tangent
-// at this entry point (B^(4) is identical; the log/log_R/log_F distinction
-// lives in the stress integrators, not here).
-TEST(Ttensor4, CoRateLogarithmicVariantsAreEquivalent)
+// The corate-aware push_forward B^(4) kernels MUST match the solver's per-corate dispatch
+// (objective_rates.cpp DSDE_2_DtauDe_corate): XBM logarithmic -> get_BBBB; log_R is R-transport
+// so it shares the Green-Naghdi kernel get_BBBB_GN; log_F is the convected/Oldroyd (pure Lie,
+// B = I) rate with no spin correction.
+TEST(Ttensor4, CoRateLogarithmicVariantsMatchSolverKernels)
 {
     mat::fixed<6,6> L = L_iso(70000., 0.3, "Enu");
     tensor4 stiff(L, Tensor4Type::stiffness);
@@ -742,13 +746,16 @@ TEST(Ttensor4, CoRateLogarithmicVariantsAreEquivalent)
     tensor4 t_log   = stiff.push_forward(F, CoRate::logarithmic,   tau);
     tensor4 t_log_R = stiff.push_forward(F, CoRate::logarithmic_R, tau);
     tensor4 t_log_F = stiff.push_forward(F, CoRate::logarithmic_F, tau);
+    tensor4 t_gn    = stiff.push_forward(F, CoRate::green_naghdi,  tau);
+    tensor4 t_lie   = stiff.push_forward(F, CoRate::lie,           tau);
 
-    EXPECT_LT(norm(mat(t_log.mat()) - mat(t_log_R.mat()), "fro"), 1e-10);
-    EXPECT_LT(norm(mat(t_log.mat()) - mat(t_log_F.mat()), "fro"), 1e-10);
-
-    // Sanity: the corrected tangent differs from the plain Lie push-forward
-    tensor4 t_lie = stiff.push_forward(F, CoRate::lie, tau);
-    EXPECT_GT(norm(mat(t_log.mat()) - mat(t_lie.mat()), "fro"), 1e-3);
+    // log_R uses the Green-Naghdi kernel (R-transport)
+    EXPECT_LT(norm(mat(t_log_R.mat()) - mat(t_gn.mat()), "fro"), 1e-10);
+    // log_F is the pure Lie/convected rate (no spin correction)
+    EXPECT_LT(norm(mat(t_log_F.mat()) - mat(t_lie.mat()), "fro"), 1e-10);
+    // XBM logarithmic differs from both log_R/GN and the plain Lie push-forward
+    EXPECT_GT(norm(mat(t_log.mat()) - mat(t_log_R.mat()), "fro"), 1e-3);
+    EXPECT_GT(norm(mat(t_log.mat()) - mat(t_lie.mat()),   "fro"), 1e-3);
 }
 
 TEST(Ttensor4, ConcentrationPushForwardThrows)

@@ -15,9 +15,7 @@
  
  */
 
-///@file objective_rate.cpp
-///@brief A set of function that help to define different quantities, depending on a selected objective rate
-///@version 1.0
+///@file transfer.cpp
 
 #include <iostream>
 #include <assert.h>
@@ -31,7 +29,6 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function transforms the strain Voigt vector into a 3*3 strain matrix
 mat v2t_strain(const vec &v) {
     assert(v.size()==6);
     mat strain(3,3);
@@ -47,7 +44,6 @@ mat v2t_strain(const vec &v) {
     return strain;
 }
 
-//This function transforms a 3*3 strain matrix into a strain Voigt vector
 vec t2v_strain (const mat &strain) {
     assert((strain.n_cols==3)&&(strain.n_rows==3));
     vec v(6);
@@ -61,7 +57,6 @@ vec t2v_strain (const mat &strain) {
     return v;
 }
 
-//This function transforms the stress Voigt vector into a 3*3 stress matrix
 mat v2t_stress(const vec &v) {
     assert(v.size()==6);
     mat stress(3,3);
@@ -77,7 +72,6 @@ mat v2t_stress(const vec &v) {
     return stress;
 }
 
-//This function transforms a 3*3 stress matrix into a stress Voigt vector
 vec t2v_stress (const mat &stress) {
     assert((stress.n_cols==3)&&(stress.n_rows==3));	
     vec v(6);
@@ -91,17 +85,14 @@ vec t2v_stress (const mat &stress) {
     return v;
 }
 
-//This function transforms a 3x3 symmetric matrix into a vector (6 components 11,22,33,12,13,23)
 vec t2v_sym (const mat &m) {
     return t2v_stress(m);
 }
 
-//This function transforms a vector (6 components 11,22,33,12,13,23) into a symmetric 3x3 stress matrix
 mat v2t_sym (const vec &v) {
     return v2t_stress(v);
 }
 
-//This function transforms a vector (6 components 11,22,33,12,13,23) into a skew-symmetric 3x3 stress matrix
 mat v2t_skewsym (const vec &v) {
     assert(v.size()==6);
     mat w(3,3);

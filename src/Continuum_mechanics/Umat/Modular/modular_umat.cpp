@@ -28,6 +28,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/parameter.hpp>
 #include <stdexcept>
 #include <cmath>
 
@@ -486,8 +487,10 @@ void umat_modular(
     const int& ndi,
     const int& nshr,
     const bool& start,
-    double& tnew_dt
+    double& tnew_dt,
+    const int& tangent_mode
 ) {
+    UNUSED(tangent_mode);  // continuum tangent only for now
     // Create a fresh instance each call. Configuration is re-parsed from props
     // and state is restored from statev, ensuring correctness for multi-point
     // simulations. The cost of re-parsing props is negligible compared to the

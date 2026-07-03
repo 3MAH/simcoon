@@ -20,6 +20,7 @@
 #include <armadillo>
 #include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 namespace simcoon {
 
@@ -87,14 +88,14 @@ inline arma::mat::fixed<3,3> fastor2_to_arma(const Fastor::Tensor<double,3,3> &T
 }
 
 /**
- * @brief Voigt 6x6 matrix -> Fastor Tensor<double,3,3,3,3>
+ * @brief STIFFNESS-convention Voigt 6x6 -> Fastor Tensor<double,3,3,3,3> (factor-free).
  *
- * The conversion factors depend on the tensor type. For stiffness convention
- * (the default, matching mat_FTensor4), no factors are needed:
- * C_ijkl = L(voigt_map[i][j], voigt_map[k][l]) with minor symmetry enforcement.
+ * In the stiffness convention the Voigt matrix stores raw tensor components, so
+ * C_ijkl = L(voigt_map[i][j], voigt_map[k][l]) with minor symmetry enforcement and
+ * no factor corrections (matches the legacy mat_FTensor4 behavior).
  *
- * This matches the existing mat_FTensor4 behavior: the Voigt matrix stores
- * stiffness components directly without factor corrections.
+ * For any other convention use the typed overload voigt_to_fastor4(L, Tensor4Type),
+ * or the type-free Mandel pair mandel_to_fastor4 / fastor4_to_mandel.
  */
 inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,6> &L) {
     Fastor::Tensor<double,3,3,3,3> C;
@@ -119,10 +120,11 @@ inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,
 }
 
 /**
- * @brief Fastor Tensor<double,3,3,3,3> -> Voigt 6x6 matrix
+ * @brief Fastor Tensor<double,3,3,3,3> -> STIFFNESS-convention Voigt 6x6 (factor-free).
  *
- * Matches the existing FTensor4_mat behavior: averages minor-symmetric pairs.
- * This is the stiffness convention (no factor corrections).
+ * Averages minor-symmetric pairs (matches the legacy FTensor4_mat behavior).
+ * For any other convention use the typed overload fastor4_to_voigt(C, Tensor4Type),
+ * or the type-free Mandel pair mandel_to_fastor4 / fastor4_to_mandel.
  */
 inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,3> &C) {
     // Voigt index -> (i,j) pair
@@ -138,6 +140,61 @@ inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,
         }
     }
     return L;
+}
+
+/**
+ * @brief Kelvin-Mandel 6x6 -> Fastor Tensor<double,3,3,3,3> — TYPE-FREE.
+ *
+ * Mandel components are true tensor components in an orthonormal basis, so this
+ * conversion is identical for every Tensor4Type: a uniform \f$1/\sqrt2\f$ rescale of
+ * the shear rows/cols around the factor-free stiffness map.
+ */
+inline Fastor::Tensor<double,3,3,3,3> mandel_to_fastor4(const arma::mat::fixed<6,6> &M) {
+    const double s2 = std::sqrt(2.0);
+    arma::mat::fixed<6,6> L = M;
+    for (int I = 3; I < 6; ++I) L.row(I) /= s2;
+    for (int J = 3; J < 6; ++J) L.col(J) /= s2;
+    return voigt_to_fastor4(L);
+}
+
+/**
+ * @brief Fastor Tensor<double,3,3,3,3> -> Kelvin-Mandel 6x6 — TYPE-FREE.
+ *
+ * Exact inverse of mandel_to_fastor4 (averages minor-symmetric pairs).
+ */
+inline arma::mat::fixed<6,6> fastor4_to_mandel(const Fastor::Tensor<double,3,3,3,3> &C) {
+    const double s2 = std::sqrt(2.0);
+    arma::mat::fixed<6,6> L = fastor4_to_voigt(C);
+    for (int I = 3; I < 6; ++I) L.row(I) *= s2;
+    for (int J = 3; J < 6; ++J) L.col(J) *= s2;
+    return L;
+}
+
+/**
+ * @brief TYPED engineering Voigt 6x6 -> Fastor Tensor<double,3,3,3,3>.
+ *
+ * Composes the per-type engineering->Mandel congruence (eng_to_mandel, see Tensor4Type)
+ * with the type-free Mandel bridge, so the \f$\sqrt2\f$ factor knowledge lives only in
+ * mandel_factors. For stiffness/generic the factors cancel exactly and the factor-free
+ * fast path is taken (bit-identical to the untyped overload).
+ */
+inline Fastor::Tensor<double,3,3,3,3> voigt_to_fastor4(const arma::mat::fixed<6,6> &X,
+                                                       Tensor4Type type) {
+    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic)
+        return voigt_to_fastor4(X);
+    return mandel_to_fastor4(eng_to_mandel(X, type));
+}
+
+/**
+ * @brief Fastor Tensor<double,3,3,3,3> -> TYPED engineering Voigt 6x6.
+ *
+ * Exact inverse of the typed voigt_to_fastor4 (averages minor-symmetric pairs).
+ */
+inline arma::mat::fixed<6,6> fastor4_to_voigt(const Fastor::Tensor<double,3,3,3,3> &C,
+                                              Tensor4Type type) {
+    if (type == Tensor4Type::stiffness || type == Tensor4Type::generic)
+        return fastor4_to_voigt(C);
+    return mandel_to_eng(fastor4_to_mandel(C), type);
 }
 
 /**

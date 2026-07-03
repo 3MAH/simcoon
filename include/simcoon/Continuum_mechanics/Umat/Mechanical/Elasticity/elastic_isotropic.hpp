@@ -60,6 +60,15 @@ namespace simcoon{
  * - \f$ T \f$ is the current temperature
  * - \f$ T_0 \f$ is the reference temperature
  *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
+ *
  * **Elastic Stiffness Tensor:**
  *
  * For an isotropic material, the stiffness tensor is constructed from two independent constants:
@@ -124,12 +133,12 @@ namespace simcoon{
  * Total state variables required: \f$ n_{statev} = 1 \f$
  *
  * @param umat_name Name of the constitutive model (ELISO)
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Tangent modulus \f$ \mathbf{L}_t = \mathbf{L} \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -166,16 +175,16 @@ namespace simcoon{
  *
  * vec Etot = {0.001, 0.0, 0.0, 0.0, 0.0, 0.0};  // 0.1% strain in direction 1
  * vec DEtot = {0.0001, 0.0, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * mat DR = eye(3,3);
  *
- * umat_elasticity_iso("ELISO", Etot, DEtot, sigma, Lt, L, DR,
+ * umat_elasticity_iso("ELISO", Etot, DEtot, stress, Lt, L, DR,
  *                     3, props, 1, statev, 25.0, 5.0, 0.0, 1.0,
  *                     Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt);
  *
- * // Expected stress: sigma(0) ≈ E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
+ * // Expected stress: stress(0) ~= E*Etot(0)*(1-nu)/((1+nu)(1-2nu)) - E*alpha*DT/(1-2nu)
  * @endcode
  *
  * **References:**
@@ -183,7 +192,7 @@ namespace simcoon{
  * - Bower, A. F. (2009). *Applied Mechanics of Solids*. CRC Press.
  * - Gurtin, M. E. (1981). *An Introduction to Continuum Mechanics*. Academic Press.
  */
-void umat_elasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_elasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
                             
 
 /** @} */ // end of umat_mechanical group

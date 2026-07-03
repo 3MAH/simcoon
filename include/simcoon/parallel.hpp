@@ -51,3 +51,29 @@
   }
 
 #endif
+
+#include <exception>
+
+/// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
+///
+/// OpenMP when available (parallel only past @p cutoff items; the pragma is inert otherwise),
+/// serial fallback elsewhere. The first exception thrown by @p func is captured and rethrown
+/// AFTER the loop: an exception escaping an active OpenMP parallel region is undefined
+/// behavior (std::terminate), which would kill e.g. a Python session on the first singular
+/// slice of a batch. Deliberately NOT routed through the GCD backend above: these loops are
+/// reached from Python bindings, where GCD blocks interacting with the GIL have a deadlock
+/// history (see the parallel-UMAT fix).
+template<typename F>
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
+    std::exception_ptr eptr = nullptr;
+    #pragma omp parallel for schedule(static) if(N > cutoff)
+    for (int i = 0; i < N; i++) {
+        try {
+            func(i);
+        } catch (...) {
+            #pragma omp critical (simcoon_parallel_for_safe_eptr)
+            { if (!eptr) eptr = std::current_exception(); }
+        }
+    }
+    if (eptr) std::rethrow_exception(eptr);
+}

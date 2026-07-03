@@ -15,8 +15,6 @@
  */
 
 ///@file contimech.cpp
-///@brief Functions that computes Mises stress/strains, directions, etc
-///@version 1.0
 
 #include <iostream>
 #include <fstream>
@@ -35,21 +33,18 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns the deviatoric part of m
 mat dev(const mat &m) {
     assert((m.n_cols==3)&&(m.n_rows==3));
 
     return m - sph(m);
 }
 
-//This function returns the spherical part of m
 mat sph(const mat &m) {
     assert((m.n_cols==3)&&(m.n_rows==3));
     
     return (1./3.)*(trace(m))*eye(3,3);
 }
 
-//This function returns the trace of the tensor v
 double tr(const vec &v) {
 	assert(v.size()==6);
 	double tr = v(0) + v(1) + v(2);
@@ -57,7 +52,6 @@ double tr(const vec &v) {
 	return tr;
 }
 
-//This function returns the deviatoric part of v
 vec dev(const vec &v) {
 	assert(v.size()==6);
 
@@ -73,7 +67,6 @@ vec dev(const vec &v) {
 	return vdev;
 }
 
-//This function determines the Mises equivalent of a stress tensor, according to the Voigt convention for stress 
 double Mises_stress(const vec &v) {
 	assert(v.size()==6);
 
@@ -85,7 +78,6 @@ double Mises_stress(const vec &v) {
 	return sqrt(3./2.*sum(vdev%vdev2));
 }
 
-//This function determines the strain flow (direction) from a stress tensor (Mises convention), according to the Voigt convention for strains
 vec eta_stress(const vec &v) {
 	assert(v.size()==6);
 	
@@ -105,6 +97,25 @@ vec eta_stress(const vec &v) {
 
 }
     
+mat deta_stress(const vec &v) {
+	assert(v.size()==6);
+
+	double sigeq = Mises_stress(v);
+	if (sigeq < simcoon::iota) {
+		return zeros(6,6);
+	}
+	vec eta = eta_stress(v);
+	// P_Mises in simcoon's engineering-shear Voigt basis: normal block = (3/2) dev,
+	// shear diagonal = 3 (the factor 2 is already embedded, as in eta_stress / Mises_stress).
+	mat Pm = { {  1., -0.5, -0.5, 0., 0., 0.},
+	           {-0.5,   1., -0.5, 0., 0., 0.},
+	           {-0.5, -0.5,   1., 0., 0., 0.},
+	           {  0.,   0.,   0., 3., 0., 0.},
+	           {  0.,   0.,   0., 0., 3., 0.},
+	           {  0.,   0.,   0., 0., 0., 3.} };
+	return (Pm - eta*eta.t())/sigeq;
+}
+
 //This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 vec eta_norm_stress(const vec &v) {
     assert(v.size()==6);
@@ -123,7 +134,6 @@ vec eta_norm_stress(const vec &v) {
     }
 }
 
-//This function determines the strain flow (direction) from a stress tensor, according to the Voigt convention for strains
 vec eta_norm_strain(const vec &v) {
     assert(v.size()==6);
     
@@ -163,7 +173,6 @@ double norm_strain(const vec &v) {
     return sqrt(sum(v%v2));
 }
 
-//This function determines the Mises equivalent of a strain tensor, according to the Voigt convention for strains 
 double Mises_strain(const vec &v) {
 	assert(v.size()==6);
 
@@ -175,7 +184,6 @@ double Mises_strain(const vec &v) {
 	return sqrt(2./3.*sum(vdev%vdev2));
 }
 
-//This function determines the strain flow (direction) from a strain tensor, according to the Voigt convention for strains
 vec eta_strain(const vec &v) {
 	assert(v.size()==6);
 	
@@ -195,7 +203,6 @@ vec eta_strain(const vec &v) {
 
 }
 
-//Returns the second invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J2_stress(const vec &v) {
 	assert(v.size()==6);
 
@@ -208,7 +215,6 @@ double J2_stress(const vec &v) {
 }
 
 
-//Returns the second invariant of the deviatoric part of a second order strain tensor written as a Voigt vector
 double J2_strain(const vec &v) {
 	assert(v.size()==6);
 
@@ -220,7 +226,6 @@ double J2_strain(const vec &v) {
 	return 0.5*sum(vdev%vdev2);
 }
 
-//Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J3_stress(const vec &v) {
     vec vdev = dev(v);
     mat mat1 = v2t_stress(vdev);
@@ -228,7 +233,6 @@ double J3_stress(const vec &v) {
     return (1./3.)*accu(mat1%(mat1*mat1));
 }
 
-//Returns the third invariant of the deviatoric part of a second order stress tensor written as a Voigt vector
 double J3_strain(const vec &v) {
     vec vdev = dev(v);
     mat mat1 = v2t_strain(vdev);
@@ -236,7 +240,6 @@ double J3_strain(const vec &v) {
     return (1./3.)*accu(mat1%(mat1*mat1));
 }
     
-//This function returns the value if it's positive, zero if it's negative (Macaulay brackets <>+)
 double Macaulay_p(const double &d) {
 
     if (d >= 0)
@@ -245,7 +248,6 @@ double Macaulay_p(const double &d) {
         return 0.;
 }
     
-//This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
 double Macaulay_n(const double &d) {
 
     if (d <= 0)
@@ -254,7 +256,6 @@ double Macaulay_n(const double &d) {
         return 0.;
 }
     
-//This function returns the value if it's negative, zero if it's positive (Macaulay brackets <>-)
 double sign(const double &d) {
     
     if ((d < simcoon::iota)&&(fabs(d) > simcoon::iota))
@@ -265,7 +266,6 @@ double sign(const double &d) {
         return 0.;
 }    
 
-//Returns the normalized vector normal to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u
 vec normal_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3) {
 
 	vec normal = zeros(3);
@@ -284,7 +284,6 @@ vec normal_ellipsoid(const double &u, const double &v, const double &a1, const d
 	return normal;
 }
 
-//-----------------------------------------------------------------------
 double curvature_ellipsoid(const double &u, const double &v, const double &a1, const double &a2, const double &a3)
 {
 	double curvature = (a1*a1*a2*a2*a3*a3)/(pow((a1*a1*a2*a2*cos(v)*cos(v) + a3*a3*sin(v)*sin(v) * (a2*a2*cos(u)*cos(u) + a1*a1*sin(u)*sin(u))),2));
@@ -292,10 +291,8 @@ double curvature_ellipsoid(const double &u, const double &v, const double &a1, c
 	return curvature;
 }
 
-//Returns the normal and tangent components of the stress vector in the normal direction n to an ellipsoid with axes a1, a2, a3. The direction of the normalized vector is set by angles u
 vec sigma_int(const vec &sigma_in, const double &u, const double &v, const double &a1, const double &a2, const double &a3)
-//-----------------------------------------------------------------------
-{   
+{
 	mat s_in = v2t_stress(sigma_in);
 	vec s_in_i = zeros(3);
 	vec s_inter = zeros(2);
@@ -308,7 +305,6 @@ vec sigma_int(const vec &sigma_in, const double &u, const double &v, const doubl
     return s_inter;
 }
 
-///This computes the Hill interfacial operator according to a normal a (see papers of Siredey and Entemeyer phD dissertation)
 mat p_ikjl(const vec &a) {
 
 	mat A = (a)*trans(a);
@@ -353,7 +349,6 @@ mat p_ikjl(const vec &a) {
 }
 
 mat auto_sym_dyadic(const mat &A) {
-//T
     vec A_v = t2v_sym(A);
 
 	return A_v * A_v.t();
@@ -434,7 +429,6 @@ mat dyadic(const mat &A, const mat &B) {
     return fastor4_to_voigt(C);
 }
 
-///This computes the symmetric 4th-order dyadic product A o A = 0.5*(A(i,k)*A(j,l) + A(i,l)*A(j,k));
 mat auto_sym_dyadic_operator(const mat &A) {
 
 	mat C = zeros(6,6);
@@ -468,7 +462,6 @@ mat auto_sym_dyadic_operator(const mat &A) {
 	return C;
 }
 
-///This computes the symmetric 4th-order dyadic product A o B = 0.5*(A(i,k)*B(j,l) + A(i,l)*B(j,k));
 mat sym_dyadic_operator(const mat &A, const mat &B) {
 
 	mat C = zeros(6,6);
@@ -501,7 +494,6 @@ mat sym_dyadic_operator(const mat &A, const mat &B) {
 	return C;
 }
 
-///This computes the linear operator G^{ij} such that B_i : D : B_j = G^{ij} : D, where B_i and B_j are eigenprojection tensors
 mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 
 	mat Bij = b_i*b_j.t();
@@ -537,12 +529,5 @@ mat linearop_eigsym(const vec &b_i, const vec &b_j) {
 }
 
 
-/*mat eulerian_determinant(const mat &A) {
-	mat Id = eye(3,3);
-	vec A_Id = A*Ith();
-	double Id_A_Id = sum(Ith()%A_Id);
-	return A - (1./3.)*(sym_dyadic(Id,A_Id)+sym_dyadic(A_Id,Id))+(1./9.)*Id_A_Id*auto_sym_dyadic(Id);
-
-}*/
 
 } //namespace simcoon

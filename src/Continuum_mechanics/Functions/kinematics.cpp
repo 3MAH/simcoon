@@ -36,20 +36,9 @@ mat ER_to_F(const mat &E, const mat &R) {
     assert(R.n_rows == 3);
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat C = 2.*E+eye(3,3);
-
-    vec lambda2_alpha;
-    vec lambda_alpha = zeros(3);
-    mat N_alpha;
-
-    //Since C=U^2, an eigenvalue decomposition allows to find \lambda_alpha^2 (eigenvalues for U^2), therefore finding \lambda_alpha (eigenvalues for U) is straightforward.
-    /*eig_sym(lambda2_alpha, N_alpha, C);
-    mat U = zeros(3,3);
-    for(unsigned int i=0; i<3; i++) {
-        lambda_alpha(i) = sqrt(lambda2_alpha(i));
-        vec N = N_alpha.col(i);
-        U = U + (lambda_alpha(i)*(N*N.t()));
-    }*/
+    //symmatu() removes any numerical asymmetry so a mathematically-SPD C is not
+    //rejected by sqrtmat_sympd's symmetry check (the input E is symmetric by construction).
+    mat C = symmatu(2.*E+eye(3,3));
 
     try {
         return (R*sqrtmat_sympd(C));

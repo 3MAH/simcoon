@@ -36,30 +36,25 @@ using namespace arma;
 
 namespace simcoon{
 
-//This function returns the derivative of the first invariant (trace) of a tensor
 mat dI1DS(const mat &S) {
     UNUSED(S);
     return eye(3,3);
 }
 
-//This function returns the derivative of the second invariant of a tensor : I_2 = 1/2 S_ij S_ij
 mat dI2DS(const mat &S) {
     return S;
 }
 
-//This function returns the derivative of the third invariant of a tensor : I_3 = 1/3 S_ij S_jk S_ki
 mat dI3DS(const mat &S) {
     return (S*S).t();
 }
 
-//This function returns the derivative of the second invariant of a tensor : J_2 = 1/2 S_ij S_ij from the stress vector v in voigt notation
 mat dJ2DS(const mat &S) {
 
     mat S_dev = dev(S);  
     return S_dev;
 }
 
-//This function returns the derivative of the third invariant of a tensor : J_3 = 1/3 S_ij S_jk S_ki from the stress vector v in voigt notation
 mat dJ3DS(const mat &S) {
 
     mat S_dev = dev(S);
@@ -70,13 +65,11 @@ mat dJ3DS(const mat &S) {
 }
 
 
-//This function returns the derivative of the trace of a tensor
 mat dtrSdS(const mat &S) {
     UNUSED(S);
     return eye(3,3);
 }
 
-//This function returns the derivative of the determinant of a tensor
 mat ddetSdS(const mat &S) {
 
     try {
@@ -98,13 +91,16 @@ mat dinvSdSsym(const mat &S) {
         throw simcoon::exception_inv("Error in inv function inside dinvSdSsym.");
     }    
 
-    // dinvSdS_ijkl = 0.5*(invS_ik*invS_jl + invS_il*invS_jk)
+    // dinvSdS_ijkl = -0.5*(invS_ik*invS_jl + invS_il*invS_jk)  (exact derivative of the inverse)
     auto invS_ = arma_to_fastor2(mat::fixed<3,3>(invS));  // auto-detects symmetry
     enum {i,j,k,l};
-    auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>>(invS_, invS_);
-    auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>>(invS_, invS_);
+    // Pin the output index order explicitly with OIndex<i,j,k,l>; without it the result
+    // depends on Fastor's implicit free-index ordering, which (if it kept the written order
+    // [i,k,j,l]) would silently yield the dyad invS_ij*invS_kl instead of invS_ik*invS_jl.
+    auto term1 = Fastor::einsum<Fastor::Index<i,k>, Fastor::Index<j,l>, Fastor::OIndex<i,j,k,l>>(invS_, invS_);
+    auto term2 = Fastor::einsum<Fastor::Index<i,l>, Fastor::Index<j,k>, Fastor::OIndex<i,j,k,l>>(invS_, invS_);
     Fastor::Tensor<double,3,3,3,3> result = term1 + term2;
-    return 0.5 * fastor4_to_voigt(result);
+    return -0.5 * fastor4_to_voigt(result);
 }
     
 } //namespace simcoon

@@ -341,10 +341,15 @@ target_link_libraries(simcoon
     PRIVATE dylib
 )
 
-# OpenMP for batch tensor operations
-find_package(OpenMP)
-if(OpenMP_CXX_FOUND)
-  target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
+# OpenMP for batch tensor operations — NOT on Windows: libsimcoon is loaded into Python
+# processes whose numpy/scipy stack carries another OpenMP runtime, and vcomp + iomp in one
+# process deadlocks at the first parallel region (CI 6h hang in test_batch_apply_stress).
+# Mirrors the python-builder threading policy: GCD on macOS, OpenMP on Linux, serial on Windows.
+if(NOT WIN32)
+  find_package(OpenMP)
+  if(OpenMP_CXX_FOUND)
+    target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
+  endif()
 endif()
 
 # On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
@@ -366,7 +371,7 @@ if(WIN32 AND BUILD_PYTHON_BINDINGS)
 endif()
 
 # Compile public executables (with main functions)
-set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
+set(EXECUTABLES solver L_eff Elastic_props ODF PDF)
 foreach(exe_name ${EXECUTABLES})
   add_executable(${exe_name} software/${exe_name}.cpp)
   target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})

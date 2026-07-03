@@ -71,6 +71,15 @@ namespace simcoon{
  * \mathbf{M} = \text{diag}(1, 1-d_{22}, 1-d_{22}, 1-d_{12}, 1-d_{12}, 1)
  * \f]
  *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
+ *
  * **Damaged Elastic Stiffness:**
  *
  * The elastic stiffness degrades with damage:
@@ -98,7 +107,7 @@ namespace simcoon{
  *
  * **Damage Evolution Laws:**
  *
- * **Transverse Damage (d₂₂):**
+ * **Transverse Damage (\f$d_{22}\f$):**
  * \f[
  * \dot{d}_{22} = \begin{cases}
  * 0 & \text{if } Y_{22} < Y_{22,0} \\
@@ -112,7 +121,7 @@ namespace simcoon{
  * - \f$ Y_{22,u} \f$ is the ultimate energy release rate (failure)
  * - \f$ b \f$ is the damage evolution exponent
  *
- * **Shear Damage (d₁₂):**
+ * **Shear Damage (\f$d_{12}\f$):**
  * \f[
  * \dot{d}_{12} = \begin{cases}
  * 0 & \text{if } Y_{12} < Y_{12,0} \\
@@ -182,13 +191,13 @@ namespace simcoon{
  * | statev[8] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (engineering) | Strain |
  * | statev[9] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (engineering) | Strain |
  *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus (6×6 matrix) [output]
- * @param L Damaged elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus (\f$6 \times 6\f$ matrix) [output]
+ * @param L Damaged elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -212,8 +221,8 @@ namespace simcoon{
  * @note The model does NOT account for fiber failure (compression/tension in direction 1)
  * @note Suitable for matrix-dominated failure modes: transverse cracking, delamination
  * @note Parameter identification requires multiple test configurations:
- * @note - Transverse tension for d₂₂ parameters
- * @note - In-plane shear for d₁₂ parameters
+ * @note - Transverse tension for \f$d_{22}\f$ parameters
+ * @note - In-plane shear for \f$d_{12}\f$ parameters
  * @note - Off-axis tests for plasticity coupling
  * @note Convergence requires small load steps once damage initiates
  * @note Material axes must be properly oriented relative to global coordinates
@@ -250,13 +259,13 @@ namespace simcoon{
  *
  * vec Etot = {0.0, 0.005, 0.0, 0.0, 0.0, 0.0};  // 0.5% transverse strain (induces damage)
  * vec DEtot = {0.0, 0.0001, 0.0, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_damage_LLD_0(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+ * umat_damage_LLD_0(Etot, DEtot, stress, Lt, L, sigma_in, DR,
  *                   18, props, 10, statev, 20.0, 0.0, 0.0, 1.0,
  *                   Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
@@ -273,7 +282,7 @@ namespace simcoon{
  * - Matzenmiller, A., Lubliner, J., & Taylor, R. L. (1995). "A constitutive model for anisotropic damage in fiber-composites." *Mechanics of Materials*, 20(2), 125-152.
  * - Pinho, S. T., et al. (2012). "Material and structural response of polymer-matrix fibre-reinforced composites." *Journal of Composite Materials*, 46(19-20), 2313-2341.
  */
-void umat_damage_LLD_0(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_damage_LLD_0(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = 0);
 
 
 /** @} */ // end of umat_mechanical group

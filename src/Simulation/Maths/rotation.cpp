@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
@@ -492,7 +493,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         return identity();
     }
 
-    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / simcoon::pi : norm(rotvec));
+    vec::fixed<3> axis = rotvec / norm(rotvec);   // unit axis (degrees handled on angle above)
     double half_angle = angle / 2.0;
     double s = sin(half_angle);
     double c = cos(half_angle);
@@ -979,22 +980,76 @@ mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active)
 cube batch_voigt_stress_rotation(const mat &quats, const bool &active) {
     int N = quats.n_cols;
     cube result(6, 6, N);
-    #pragma omp parallel for
-    for (int n = 0; n < N; n++) {
+    // exception-safe parallel loop: a bad quaternion raises instead of terminating the process
+    simcoon_parallel_for_safe(N, [&](int n) {
         Rotation r = Rotation::from_quat(vec(quats.col(n)));
         result.slice(n) = r.as_voigt_stress_rotation(active);
-    }
+    });
     return result;
 }
 
 cube batch_voigt_strain_rotation(const mat &quats, const bool &active) {
     int N = quats.n_cols;
     cube result(6, 6, N);
-    #pragma omp parallel for
-    for (int n = 0; n < N; n++) {
+    simcoon_parallel_for_safe(N, [&](int n) {
         Rotation r = Rotation::from_quat(vec(quats.col(n)));
         result.slice(n) = r.as_voigt_strain_rotation(active);
+    });
+    return result;
+}
+
+cube Rotation::dR_drotvec() const {
+    return simcoon::dR_drotvec(as_rotvec());
+}
+
+namespace {
+    // Cross-product matrix [v]x such that [v]x * u = v x u.
+    inline mat::fixed<3,3> skew(const vec::fixed<3>& v) {
+        mat::fixed<3,3> S;
+        S.zeros();
+        S(0,1) = -v(2);  S(0,2) =  v(1);
+        S(1,0) =  v(2);  S(1,2) = -v(0);
+        S(2,0) = -v(1);  S(2,1) =  v(0);
+        return S;
     }
+
+    inline mat::fixed<3,3> skew_basis(int k) {
+        vec::fixed<3> e;
+        e.zeros();
+        e(k) = 1.0;
+        return skew(e);
+    }
+}
+
+cube dR_drotvec(const vec::fixed<3>& omega) {
+    double theta = norm(omega);
+    cube result(3, 3, 3);
+
+    if (theta < simcoon::iota) {
+        // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
+        for (int k = 0; k < 3; ++k) {
+            result.slice(k) = skew_basis(k);
+        }
+        return result;
+    }
+
+    mat::fixed<3,3> W  = skew(omega);
+    mat::fixed<3,3> W2 = W * W;
+
+    double s = sin(theta), c = cos(theta);
+    double t2 = theta * theta;
+    double a  = s / theta;
+    double b  = (1.0 - c) / t2;
+    double da = (c * theta - s) / t2;
+    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);
+
+    for (int k = 0; k < 3; ++k) {
+        mat::fixed<3,3> dW  = skew_basis(k);
+        mat::fixed<3,3> dW2 = dW * W + W * dW;
+        double dtk = omega(k) / theta;
+        result.slice(k) = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
+    }
+
     return result;
 }
 

@@ -42,13 +42,14 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/SMA/unified_T.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon {
 
-void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -372,32 +373,19 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double dPhiFdxiF = 0.;
     double dPhiFdxiR = 0.;
 
-    //Relative to reverse transformation
+    //Relative to reverse transformation. See the matching block in the mechanical
+    //unified_T.cpp for why the \sigma /\xi -divergent dPhihatRd{xi,ET} and dYtRd{xi,ET}
+    //legacy variables are not assembled — the K(1,\cdot ) chain rule below uses
+    //ETMean as the natural intermediate and stays finite at \xi ->0.
     vec dPhihatRdsigma = zeros(6);
-    double dPhihatRdxiF = 0.;
-    double dPhihatRdxiR = 0.;
-    vec dPhihatRdETF = zeros(6);
-    vec dPhihatRdETR = zeros(6);
-
     vec dA_xiRdsigma = zeros(6);
     double dA_xiRdxiF = 0.;
     double dA_xiRdxiR = 0.;
-
     vec dlambda0dsigma = zeros(6);
     double dlambda0dxiF = 0.;
     double dlambda0dxiR = 0.;
-
     vec dYtRdsigma = zeros(6);
-    double dYtRdxiF = 0.;
-    double dYtRdxiR = 0.;
-    vec dYtRdETF = zeros(6);
-    vec dYtRdETR = zeros(6);
-
     vec dPhiRdsigma = zeros(6);
-    double dPhiRdxiF = 0.;
-    double dPhiRdxiR = 0.;
-    vec dPhiRdETF = zeros(6);
-    vec dPhiRdETR = zeros(6);
 
     //Compute the explicit flow direction
     std::vector<vec> kappa_j(2);
@@ -539,35 +527,33 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
         //Relative to reverse transformation
         dPhihatRdsigma = ETMean;
-        dPhihatRdxiF = (-1./xi)*sum(sigma%ETMean);
-        dPhihatRdxiR = (1./xi)*sum(sigma%ETMean);
-        dPhihatRdETF = sigma/xi;
-        dPhihatRdETR = sigma/xi;
-
         dA_xiRdsigma = -1.*DM_sig -1.*Dalpha*(T+DT-T_init);
-        dA_xiRdxiF = dHfR;
+        dA_xiRdxiF =  dHfR;
         dA_xiRdxiR = -dHfR;
 
         dlambda0dsigma = zeros(6);
         dlambda0dxiF = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        dlambda0dxiR = dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+        dlambda0dxiR =     dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
-        dYtRdsigma = 1.*D*ETMean;
-        dYtRdxiF = (-D/xi)*sum(sigma%ETMean);
-        dYtRdxiR = (D/xi)*sum(sigma%ETMean);
-        dYtRdETF = D*sigma/xi;
-        dYtRdETR = D*sigma/xi;
-
+        dYtRdsigma = D*ETMean;
         dPhiRdsigma = -1.*dPhihatRdsigma + dA_xiRdsigma + dlambda0dsigma - dYtRdsigma;
-        dPhiRdxiF = -1.*dPhihatRdxiF + dA_xiRdxiF + dlambda0dxiF - dYtRdxiF;
-        dPhiRdxiR = -1.*dPhihatRdxiR + dA_xiRdxiR + dlambda0dxiR - dYtRdxiR;
-        dPhiRdETF = -1.*dPhihatRdETF - dYtRdETF;
-        dPhiRdETR = -1.*dPhihatRdETR - dYtRdETR;
+
+        // K(1,\cdot ) via \Lambda_ETMean^j chain rule — avoids the floating-point cancellation
+        // between dPhiRdxiF and sum(dPhiRdET\cdot lambdaTF) at small \xi . See the matching
+        // comment block in the mechanical unified_T.cpp for the full derivation.
+        const vec dPhiRdETMean = -(1. + D) * sigma;
+        vec Lambda_ETMean_F = zeros(6);
+        if (Mises_strain(lambdaTF - ETMean) > simcoon::iota) {
+            Lambda_ETMean_F = (lambdaTF - ETMean) / xi;
+        }
+        const vec Lambda_ETMean_R = zeros(6);
+        const double dPhiRdxiF_finite = dA_xiRdxiF + dlambda0dxiF;   // = +dHfR - d\lambda_0/d\xi 
+        const double dPhiRdxiR_finite = dA_xiRdxiR + dlambda0dxiR;   // = -dHfR + d\lambda_0/d\xi 
 
         K(0,0) = dPhiFdxiF;
         K(0,1) = dPhiFdxiR;
-        K(1,0) = dPhiRdxiF + sum(dPhiRdETF%lambdaTF);
-        K(1,1) = dPhiRdxiR + sum(dPhiRdETR%lambdaTR);
+        K(1,0) = dPhiRdxiF_finite + sum(dPhiRdETMean % Lambda_ETMean_F);
+        K(1,1) = dPhiRdxiR_finite + sum(dPhiRdETMean % Lambda_ETMean_R);
 
         B(0,0) = -1.*sum(dPhiFdsigma%kappa_j[0]) + K(0,0);
         B(0,1) = -1.*sum(dPhiFdsigma%kappa_j[1]) + K(0,1);
@@ -617,46 +603,54 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double dPhiRdtheta = dA_xiRdtheta;
 
 
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum 2-mechanism SMA operator
+    //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(2, 2);
     Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
     Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
     Bhat(1,0) = sum(dPhiRdsigma%kappa_j[0]) - K(1,0);
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
-    vec op = zeros(2);
-    mat delta = eye(2,2);
-
-    for (int i=0; i<2; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-
-    mat Bbar = zeros(2,2);
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
+    const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
+    ContinuumTangent ct;
+    if (tangent_mode == 1) {
+        // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
+        // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
+        // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
+        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+        // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+        // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
+        auto lambdaTF_at = [&](const vec &s) -> vec {
+            double sstar = Mises_stress(s) - sigmacrit;
+            if (sstar < 0.) sstar = 0.;
+            double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
+            if (aniso_criteria) {
+                return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
+            }
+            return Hc * dDrucker_stress(s, prager_b, prager_n);
+        };
+        const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
+        mat dLambdaF = zeros(6, 6);
+        for (int c = 0; c < 6; c++) {
+            vec sp = sigma, sm = sigma;
+            sp(c) += hfd;
+            sm(c) -= hfd;
+            dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
         }
+        dLambdaF += DM;
+        const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
+        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
+    } else {
+        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
-
-    mat invBbar = zeros(2, 2);
-    mat invBhat = zeros(2, 2);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-
-    std::vector<vec> P_epsilon(2);
-    P_epsilon[0] = invBhat(0, 0)*(L*dPhiFdsigma) + invBhat(1, 0)*(L*dPhiRdsigma);
-    P_epsilon[1] = invBhat(0, 1)*(L*dPhiFdsigma) + invBhat(1, 1)*(L*dPhiRdsigma);
+    dSdE = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+    const mat& invBhat = ct.invBhat;
 
     std::vector<double> P_theta(2);
     P_theta[0] = invBhat(0, 0)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 0)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
     P_theta[1] = invBhat(0, 1)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 1)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
 
-    dSdE = L - (kappa_j[0]*P_epsilon[0].t() + kappa_j[1]*P_epsilon[1].t());
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0] + kappa_j[1]*P_theta[1]);
 
     //Preliminaries for the computation of mechanical and thermal work
