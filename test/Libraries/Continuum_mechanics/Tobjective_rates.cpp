@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 #include <armadillo>
 
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -30,11 +30,11 @@
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
 using namespace simcoon;
-using namespace FTensor;
 
 TEST(Tobjective_rates, get_B)
 {
@@ -57,28 +57,24 @@ TEST(Tobjective_rates, get_B)
     eig_sym(bi, Bi, B);
 
     mat Bij = zeros(3,3);
-    Tensor2<double,3,3> Bij_ = mat_FTensor2(zeros(3,3));
-    Tensor4<double,3,3,3,3> BBBB_ = mat_FTensor4(zeros(6,6));
-    
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'m', 3> m;
-    Index<'n', 3> n;
-    
+    Fastor::Tensor<double,3,3,3,3> BBBB_fastor;
+    BBBB_fastor.zeros();
+
     double f_z = 0.;
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
-                Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                //BBBB_(k,l,m,n) = b_[i](k)*b_[j](l)*b_[i](m)*b_[j](n);
-                BBBB_(k,l,m,n) = BBBB_(k,l,m,n) + f_z*Bij_(k,l)*Bij_(m,n);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_fastor += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
-    
-    mat BBBB_test = FTensor4_mat(BBBB_);
+
+    mat BBBB_test = fastor4_to_voigt(BBBB_fastor);
 
     mat BBBB = get_BBBB(F);
 
@@ -128,34 +124,28 @@ TEST(Tobjective_rates, logarithmic_functions)
     eig_sym(bi, Bi, B_test);
 
     mat Bij = zeros(3,3);
-    Tensor2<double,3,3> Bij_ = mat_FTensor2(zeros(3,3));
-    Tensor2<double,3,3> N_ = mat_FTensor2(zeros(3,3));
-    Tensor2<double,3,3> D_= mat_FTensor2(zeros(3,3));
-    Tensor4<double,3,3,3,3> BBBB_ = mat_FTensor4(zeros(6,6));
-    
-    D_ = mat_FTensor2(D_test);
-    
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'m', 3> m;
-    Index<'n', 3> n;
-    
+    Fastor::Tensor<double,3,3,3,3> BBBB_f;
+    BBBB_f.zeros();
+
     double f_z = 0.;
-    BBBB_(k,l,m,n) = Bij_(k,l)*Bij_(m,n);
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
-                Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                //BBBB_(k,l,m,n) = b_[i](k)*b_[j](l)*b_[i](m)*b_[j](n);
-                BBBB_(k,l,m,n) = BBBB_(k,l,m,n) + f_z*Bij_(k,l)*Bij_(m,n);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_f += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
-    N_(k,l) = N_(k,l) + BBBB_(k,l,m,n)*D_(m,n);
+    // N_kl = BBBB_klmn * D_mn
+    auto D_ = arma_to_fastor2(mat::fixed<3,3>(D_test), true);
+    Fastor::Tensor<double,3,3> N_ = Fastor::einsum<Fastor::Index<k,l,m,n>, Fastor::Index<m,n>>(BBBB_f, D_);
+    mat N_mat = fastor2_to_arma(N_);
 
-    mat Omega_test = W_test + FTensor2_mat(N_);
+    mat Omega_test = W_test + N_mat;
 
     mat BBBB = get_BBBB(F1);
     mat Omega_test2 = W_test + v2t_skewsym(BBBB*t2v_strain(D_test));

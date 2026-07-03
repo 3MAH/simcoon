@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
@@ -492,7 +493,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         return identity();
     }
 
-    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / simcoon::pi : norm(rotvec));
+    vec::fixed<3> axis = rotvec / norm(rotvec);   // unit axis (degrees handled on angle above)
     double half_angle = angle / 2.0;
     double s = sin(half_angle);
     double c = cos(half_angle);
@@ -970,6 +971,31 @@ mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active)
     mat ve = fill_voigt_strain(DR, active);
     mat vs = fill_voigt_stress(DR, active);
     return vs*(B*trans(ve));
+}
+
+// =============================================================================
+// Batch Free Functions (quaternion arrays)
+// =============================================================================
+
+cube batch_voigt_stress_rotation(const mat &quats, const bool &active) {
+    int N = quats.n_cols;
+    cube result(6, 6, N);
+    // exception-safe parallel loop: a bad quaternion raises instead of terminating the process
+    simcoon_parallel_for_safe(N, [&](int n) {
+        Rotation r = Rotation::from_quat(vec(quats.col(n)));
+        result.slice(n) = r.as_voigt_stress_rotation(active);
+    });
+    return result;
+}
+
+cube batch_voigt_strain_rotation(const mat &quats, const bool &active) {
+    int N = quats.n_cols;
+    cube result(6, 6, N);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        Rotation r = Rotation::from_quat(vec(quats.col(n)));
+        result.slice(n) = r.as_voigt_strain_rotation(active);
+    });
+    return result;
 }
 
 cube Rotation::dR_drotvec() const {

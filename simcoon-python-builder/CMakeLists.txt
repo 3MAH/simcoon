@@ -33,6 +33,7 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Continuum_mechanics/objective_rates.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/recovery_props.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/stress.cpp
+  src/python_wrappers/Libraries/Continuum_mechanics/tensor.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/transfer.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/umat.cpp
 

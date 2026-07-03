@@ -10,6 +10,7 @@ if sys.platform == "win32":
 from simcoon._core import *
 from simcoon.__version__ import __version__
 from simcoon.rotation import Rotation  # override _CppRotation from star-import
+from simcoon.tensor import Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes
 from simcoon.identify import identification, calc_cost
 from simcoon.parameter import (
     Parameter,
@@ -26,3 +27,8 @@ from simcoon.constant import (
 
 # Backward compatibility alias - simmit was the legacy module name
 from simcoon import _core as simmit
+
+
+# Deprecated free projector functions (removed in simcoon 2.0). These shadow the same
+# names brought in by the `from simcoon._core import *` above; see simcoon/_deprecated.py.
+from simcoon._deprecated import Ireal, Ireal2, Ivol, Idev, Idev2

@@ -47,6 +47,30 @@
  */
 
 /**
+ * @def LIB_EXPORT
+ * @brief Cross-platform symbol-export macro for UMAT plugin factory functions.
+ *
+ * Marks the plugin class and the @c create_api / @c destroy_api factories visible to the
+ * runtime plugin loader: @c __declspec(dllexport) on Windows,
+ * @c __attribute__((visibility("default"))) on GCC/Clang (needed under
+ * @c -fvisibility=hidden), empty otherwise. Defined here once so every plugin
+ * translation unit gets it by including this header.
+ */
+#ifndef LIB_EXPORT
+    #if defined(_WIN32) || defined(_WIN64)
+        #define LIB_EXPORT __declspec(dllexport)
+    #elif defined(__GNUC__) || defined(__clang__)
+        #if __GNUC__ >= 4
+            #define LIB_EXPORT __attribute__((visibility("default")))
+        #else
+            #define LIB_EXPORT
+        #endif
+    #else
+        #define LIB_EXPORT
+    #endif
+#endif
+
+/**
  * @brief Abstract base class for external mechanical UMAT plugins
  *
  * @details This interface allows users to implement custom constitutive models

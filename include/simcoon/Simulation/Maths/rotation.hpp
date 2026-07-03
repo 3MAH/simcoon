@@ -26,12 +26,6 @@
 
 namespace simcoon{
 
-/**
- * @file rotation.hpp
- * @brief Rotation class and convenience free functions for rotating
- *        vectors, tensors, and Voigt-notation quantities.
- */
-
 /** @addtogroup maths
  *  @{
  */
@@ -631,6 +625,26 @@ arma::mat rotate_stress_concentration(const arma::mat &B, const double &angle, c
  * @return The rotated 6x6 stress concentration matrix (arma::mat)
  */
 arma::mat rotate_stress_concentration(const arma::mat &B, const arma::mat &R, const bool &active = true);
+
+// =========================================================================
+// Batch Free Functions (quaternion arrays)
+// =========================================================================
+
+/**
+ * @brief Batch-build 6x6 stress Voigt rotation matrices from N quaternions.
+ * @param quats (4, N) matrix of quaternions [qx, qy, qz, qw] (scalar-last)
+ * @param active If true (default), active rotation
+ * @return (6, 6, N) cube of stress rotation matrices
+ */
+arma::cube batch_voigt_stress_rotation(const arma::mat &quats, const bool &active = true);
+
+/**
+ * @brief Batch-build 6x6 strain Voigt rotation matrices from N quaternions.
+ * @param quats (4, N) matrix of quaternions [qx, qy, qz, qw] (scalar-last)
+ * @param active If true (default), active rotation
+ * @return (6, 6, N) cube of strain rotation matrices
+ */
+arma::cube batch_voigt_strain_rotation(const arma::mat &quats, const bool &active = true);
 
 /** @} */ // end of maths group
 

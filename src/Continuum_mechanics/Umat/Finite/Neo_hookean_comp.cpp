@@ -112,7 +112,8 @@ void umat_neo_hookean_comp(const string &umat_name, const vec &Etot, const vec &
     sigma = t2v_stress(PKII2Cauchy(S, F1));
     //sigma = t2v_stress(mu/J*(L_Cauchy_Green(F1) - I) + lambda*log(J)/J*I);
       
-    L = lambda*auto_dyadic(invC)+2.0*(mu-lambda*log(J))*dinvSdSsym(C);
+    // dinvSdSsym returns the exact (negative) dCinv/dC, so this term carries a minus sign
+    L = lambda*auto_dyadic(invC)-2.0*(mu-lambda*log(J))*dinvSdSsym(C);
     Lt = DSDE_2_DsigmaDe(L, get_BBBB(F1), F1, v2t_stress(sigma));
     
     //Computation of the mechanical and thermal work quantities
