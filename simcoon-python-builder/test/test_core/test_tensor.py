@@ -677,6 +677,16 @@ class TestTensor4MandelInvariants:
         np.testing.assert_allclose(s.mandel, np.asarray(s._to_cpp().mandel).ravel(),
                                    rtol=1e-12)
 
+    def test_from_voigt_explicit_alias(self):
+        """C++ from_voigt (engineering, named) matches the constructor path for every type."""
+        from simcoon.tensor import _CppTensor4, _T4TYPE_MAP
+        L = _aniso_spd_stiffness()
+        for ts in ("stiffness", "compliance",
+                   "strain_concentration", "stress_concentration"):
+            cpp = _CppTensor4.from_voigt(L, _T4TYPE_MAP[ts])
+            np.testing.assert_allclose(np.asarray(cpp.mandel),
+                                       sim.Tensor4.from_mat(L, ts).mandel, rtol=1e-12)
+
     def test_tensor2_from_mandel_roundtrip(self, sigma_mat):
         """from_mandel(.mandel) recovers the 3x3 for both stress and strain typing."""
         for ts in ("stress", "strain"):

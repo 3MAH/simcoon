@@ -372,6 +372,14 @@ public:
     /// Wrap an already-Mandel 6x6 directly (skips the engineering->Mandel congruence).
     static tensor4 from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type type);
 
+    /// Wrap an ENGINEERING Voigt 6x6 (same as the matrix constructor, but the call site
+    /// names the convention — explicit counterpart of from_mandel).
+    static tensor4 from_voigt(const arma::mat::fixed<6,6> &m, Tensor4Type type);
+    /// Same, from a dynamic arma::mat (must be 6x6).
+    static tensor4 from_voigt(const arma::mat &m, Tensor4Type type);
+    /// Same, with a string tag ("stiffness"/"compliance"/...).
+    static tensor4 from_voigt(const arma::mat &m, const std::string &type_str);
+
     /// Zero tensor, Tensor4Type::stiffness.
     tensor4();
     /// Zero tensor with the given type tag.

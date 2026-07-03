@@ -214,6 +214,15 @@ void register_tensor(py::module_& m) {
             py::arg("m"), py::arg("type"),
             "Create tensor4 from a 6x6 Voigt matrix")
 
+        .def_static("from_voigt",
+            [](py::array_t<double> m, simcoon::Tensor4Type type) {
+                validate_matrix_size(m, 6, 6, "m");
+                mat m_cpp = carma::arr_to_mat(m);
+                return simcoon::tensor4(mat::fixed<6,6>(m_cpp), type);
+            },
+            py::arg("m"), py::arg("type"),
+            "Create tensor4 from an ENGINEERING Voigt 6x6 (alias of from_mat; explicit counterpart of from_mandel)")
+
         .def_static("from_mandel",
             [](py::array_t<double> m, simcoon::Tensor4Type type) {
                 validate_matrix_size(m, 6, 6, "m");

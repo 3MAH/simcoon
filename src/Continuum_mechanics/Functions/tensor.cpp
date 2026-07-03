@@ -599,6 +599,18 @@ tensor4 tensor4::from_mandel(const arma::mat::fixed<6,6> &m_mandel, Tensor4Type 
     return t;
 }
 
+tensor4 tensor4::from_voigt(const arma::mat::fixed<6,6> &m, Tensor4Type type) {
+    return tensor4(m, type);
+}
+
+tensor4 tensor4::from_voigt(const arma::mat &m, Tensor4Type type) {
+    return tensor4(m, type);
+}
+
+tensor4 tensor4::from_voigt(const arma::mat &m, const std::string &type_str) {
+    return tensor4(m, type_str);
+}
+
 tensor4::tensor4(const tensor4 &other)
     : _mandel(other._mandel), _type(other._type),
       _fastor(other._fastor) {}
