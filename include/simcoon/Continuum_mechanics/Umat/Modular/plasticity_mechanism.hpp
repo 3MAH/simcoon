@@ -65,6 +65,11 @@ private:
     // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
     // kappa() return const-refs into these single-element buffers to avoid
     // re-constructing the vectors on every FB iteration.
+    // flow_dir_/kappa_ stay raw engineering Voigt: the FB loop re-derives
+    // them every iteration and the yield/hardening internals are raw, so
+    // typed members would force eng<->3x3 conversions at every boundary
+    // (benchmarked at +7% on the elastoplastic golden). The typed view is
+    // produced once per iteration in dPhi_dsigma()/kappa().
     mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
     mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
     mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};

@@ -33,6 +33,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <string>
 #include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
 
 namespace simcoon {
@@ -233,8 +234,19 @@ public:
      * @brief Get total backstress X = sum(X_i)
      * @param ivc Internal variable collection
      * @return Total backstress tensor (6 components)
+     *
+     * Convention: the components follow the back-strain (engineering strain)
+     * Voigt layout — X = (2/3) C α evaluated on the α tensor, flattened with
+     * the doubled-shear convention. total_backstress_t() exposes the same
+     * content as a typed tensor2 so the convention travels with the value.
      */
     virtual arma::vec total_backstress(const InternalVariableCollection& ivc) const = 0;
+
+    /// Typed variant of total_backstress() — identical components, tagged
+    /// with the strain Voigt convention they are stored in.
+    [[nodiscard]] tensor2 total_backstress_t(const InternalVariableCollection& ivc) const {
+        return strain(total_backstress(ivc));
+    }
 
     /**
      * @brief Compute flow direction for kinematic variable alpha_i
@@ -253,6 +265,12 @@ public:
      */
     virtual double hardening_modulus(const arma::vec& n, const InternalVariableCollection& ivc) const = 0;
 
+    /// Typed convenience overload — n is the strain-typed flow normal; the
+    /// engineering Voigt components feed the raw virtual unchanged.
+    [[nodiscard]] double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const {
+        return hardening_modulus(arma::vec(n.voigt()), ivc);
+    }
+
     /**
      * @brief Update internal variables given plastic multiplier increment
      * @param dp Plastic multiplier increment
@@ -260,6 +278,11 @@ public:
      * @param ivc Internal variable collection
      */
     virtual void update(double dp, const arma::vec& n, InternalVariableCollection& ivc) = 0;
+
+    /// Typed convenience overload of update() — same delegation as above.
+    void update(double dp, const tensor2& n, InternalVariableCollection& ivc) {
+        update(dp, arma::vec(n.voigt()), ivc);
+    }
 
     /**
      * @brief Get the hardening type

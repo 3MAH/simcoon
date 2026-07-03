@@ -151,7 +151,9 @@ void PlasticityMechanism::compute_constraints(
     double p = ivc.get(p_key_).scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening since total_backstress would return zeros(6).
+    // hardening since total_backstress would return zeros(6). The backstress
+    // components live in the back-strain Voigt convention (see
+    // KinematicHardening::total_backstress), so the shift stays on raw Voigt.
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
@@ -219,7 +221,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
     // B = -dPhi/dsigma * L * dPhi/dsigma + K
     // where K includes isotropic and kinematic hardening contributions
 
-    // dPhi/dsigma * L * dPhi/dsigma
+    // dPhi/dsigma * L * dPhi/dsigma (engineering Voigt dot = n : L : n)
     double dPhi_L_dPhi = arma::dot(flow_dir_, kappa_);
 
     // B(0,0) = -dPhi_L_dPhi + H_total
@@ -271,7 +273,8 @@ void PlasticityMechanism::tangent_contribution(
         double H_eff = n_L_n + H_total_;
 
         if (std::abs(H_eff) > simcoon::iota) {
-            // Lt -= (kappa ⊗ kappa) / H_eff
+            // Lt -= (kappa ⊗ kappa) / H_eff — raw rank-1 update (bit-identical
+            // to the typed dyadic; no eng↔Mandel round trip in the hot path)
             Lt -= (kappa_ * kappa_.t()) / H_eff;
         }
     }
