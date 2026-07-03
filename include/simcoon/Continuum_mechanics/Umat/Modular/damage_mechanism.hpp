@@ -139,6 +139,12 @@ public:
         int row_offset
     ) const override;
 
+    /// Nominal-stress CDM: the orchestrator scales its elastic prediction by
+    /// this (1 - D) factor, matching the (1 - D) * L scaling applied in
+    /// tangent_contribution.
+    [[nodiscard]] double stiffness_reduction(
+        const InternalVariableCollection& ivc) const override;
+
     /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
     /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
     /// orchestrator's engineering-Voigt dot therefore mixes conventions for

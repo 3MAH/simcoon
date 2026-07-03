@@ -284,6 +284,11 @@ const std::vector<tensor2>& DamageMechanism::kappa(
     return kappa_cache_;
 }
 
+double DamageMechanism::stiffness_reduction(
+    const InternalVariableCollection& ivc) const {
+    return 1.0 - ivc.get(D_key_).scalar();
+}
+
 arma::vec DamageMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
     // Damage doesn't contribute a separate inelastic strain
     // It affects the stiffness instead

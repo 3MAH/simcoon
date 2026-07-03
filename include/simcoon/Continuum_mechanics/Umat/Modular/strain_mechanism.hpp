@@ -277,6 +277,21 @@ public:
     }
 
     /**
+     * @brief Multiplicative stiffness-reduction factor applied to the elastic
+     * stress prediction.
+     *
+     * CDM-style mechanisms return (1 - D) so the orchestrator computes the
+     * nominal stress sigma = f * L : Eel, consistent with the (1 - D) * L
+     * scaling their tangent_contribution applies. Factors from several
+     * mechanisms compose multiplicatively. Default: 1 (no reduction).
+     */
+    [[nodiscard]] virtual double stiffness_reduction(
+        const InternalVariableCollection& ivc) const {
+        (void)ivc;
+        return 1.0;
+    }
+
+    /**
      * @brief Get inelastic strain from this mechanism
      * @param ivc Internal variable collection
      * @return Inelastic strain tensor (6 Voigt)

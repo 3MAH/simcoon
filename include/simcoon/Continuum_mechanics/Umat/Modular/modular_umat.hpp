@@ -356,6 +356,13 @@ private:
         const arma::vec& Ds_total,
         arma::mat& Lt
     );
+
+    /**
+     * @brief Product of the mechanisms' stiffness-reduction factors (CDM
+     * (1-D) scaling) applied to the elastic stress prediction. 1 when no
+     * damage-type mechanism is present.
+     */
+    [[nodiscard]] double stiffness_reduction() const;
 };
 
 /**

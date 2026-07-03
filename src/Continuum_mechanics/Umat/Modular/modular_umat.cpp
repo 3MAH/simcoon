@@ -362,13 +362,15 @@ void ModularUMAT::return_mapping(
         return;
     }
 
-    // Elastic prediction
+    // Elastic prediction. stiffness_reduction() is the multiplicative CDM
+    // (1-D) factor — without it the stress ignores damage entirely while the
+    // tangent is softened (inconsistent Newton, unsoftened response).
     arma::vec E_inel = arma::zeros(6);
     for (const auto& mech : mechanisms_) {
         E_inel += mech->inelastic_strain(ivc_);
     }
     arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
-    sigma = el_pred(elasticity_.L(), Eel, ndi);
+    sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
 
     // Allocate constraint arrays
     arma::vec Phi = arma::zeros(n_total);
@@ -447,16 +449,25 @@ void ModularUMAT::return_mapping(
             mechanisms_[m]->update(ds, mech_offset_[m], ivc_);
         }
 
-        // Recompute stress
+        // Recompute stress (D may have evolved in update, so re-evaluate the
+        // reduction factor)
         E_inel.zeros();
         for (const auto& mech : mechanisms_) {
             E_inel += mech->inelastic_strain(ivc_);
         }
         Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
-        sigma = el_pred(elasticity_.L(), Eel, ndi);
+        sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
 
         ++iter;
     }
+}
+
+double ModularUMAT::stiffness_reduction() const {
+    double f = 1.0;
+    for (const auto& mech : mechanisms_) {
+        f *= mech->stiffness_reduction(ivc_);
+    }
+    return f;
 }
 
 void ModularUMAT::compute_tangent(

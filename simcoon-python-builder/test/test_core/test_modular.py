@@ -168,3 +168,29 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
         f"MODUL viscoelastic deviates from PRONK by {max_diff/peak:.3%} "
         "(consistent-tangent regression?)"
     )
+
+
+def test_damage_softens_end_to_end(work_in_examples):
+    """LINEAR damage through sim.solver: the damaged run must (a) develop
+    0 < D-driven softening vs the undamaged elastic run at the same strain,
+    and (b) keep stress positive. Regression for the orchestrator ignoring
+    stiffness_reduction (D evolved but stress was never softened)."""
+    from simcoon.modular import Damage, elastic_model
+
+    mat_el = elastic_model(E=210000.0, nu=0.3)
+    hist_el = _run_solver(mat_el, work_in_examples, "res_el.txt")
+
+    mat_dm = ModularMaterial(
+        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        mechanisms=[Damage(Y_0=0.05, Y_c=10.0)],
+    )
+    hist_dm = _run_solver(mat_dm, work_in_examples, "res_dm.txt")
+
+    assert hist_dm.shape == hist_el.shape
+    peak_el = np.max(np.abs(hist_el[:, 1]))
+    peak_dm = np.max(np.abs(hist_dm[:, 1]))
+    assert peak_el > 0
+    assert peak_dm > 0
+    assert peak_dm < 0.95 * peak_el, (
+        f"damage peak {peak_dm:.1f} not softened vs elastic {peak_el:.1f}"
+    )

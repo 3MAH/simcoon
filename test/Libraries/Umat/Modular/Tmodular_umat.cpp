@@ -1094,3 +1094,134 @@ TEST(ModularUMATIntegration, UniaxialTension) {
         EXPECT_GT(p, 0.0);
     }
 }
+
+// ========== Damage integration tests ==========
+
+// Linear CDM through run(): strain-driven uniaxial ramp past the damage
+// threshold, then unload. Damage must grow monotonically during loading,
+// stay within [0, D_c], soften the stress against the undamaged elastic
+// reference, and stay frozen on unloading (Y < Y_max history).
+TEST(ModularUMATIntegration, DamageElasticUniaxial) {
+    ModularUMAT mumat;
+
+    vec props_el = {210000.0, 0.3, 0.0};
+    int offset_el = 0;
+    mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
+
+    // LINEAR damage: Y_0 = 0.5, Y_c = 50 -> D grows but stays < 0.3 here.
+    vec props_dm = {0.5, 50.0};
+    int offset_dm = 0;
+    mumat.add_damage(DamageType::LINEAR, props_dm, offset_dm);
+
+    int nstatev = 10;
+    vec statev = zeros(nstatev);
+    mumat.initialize(nstatev, statev);
+
+    const mat L0 = mumat.elasticity().L();
+
+    vec Etot = zeros(6);
+    vec sigma = zeros(6);
+    mat Lt(6, 6), L(6, 6);
+    mat DR = eye(3, 3);
+    vec props = zeros(10);
+    double T = 293.0, DT = 0.0, Wm = 0.0, Wm_r = 0.0, Wm_ir = 0.0, Wm_d = 0.0;
+    double tnew_dt = 1.0, Time = 0.0;
+    const double DTime = 1.0;
+    vec DEtot = {0.001, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    bool start = true;
+    double D_prev = 0.0;
+    for (int i = 0; i < 10; ++i) {
+        mumat.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev,
+                  statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, 3, 3,
+                  start, tnew_dt);
+        start = false;
+        Etot += DEtot;
+        Time += DTime;
+
+        const double D = mumat.internal_variables().get("damage0_D").scalar();
+        EXPECT_GE(D, D_prev - 1e-12) << "damage decreased during loading";
+        EXPECT_LE(D, 0.99) << "damage exceeded D_c";
+        D_prev = D;
+    }
+
+    const double D_load = D_prev;
+    EXPECT_GT(D_load, 0.0) << "ramp never crossed the damage threshold";
+
+    // Softening: measured stress below the undamaged elastic prediction.
+    const vec sigma_el = L0 * Etot;
+    EXPECT_LT(sigma(0), sigma_el(0));
+    EXPECT_NEAR(sigma(0), (1.0 - D_load) * sigma_el(0),
+                0.05 * sigma_el(0));
+
+    // Unload: D must stay frozen at its history value.
+    vec DEtot_unload = -DEtot;
+    for (int i = 0; i < 5; ++i) {
+        mumat.run("MODUL", Etot, DEtot_unload, sigma, Lt, L, DR, 10, props,
+                  nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
+                  3, 3, false, tnew_dt);
+        Etot += DEtot_unload;
+        Time += DTime;
+    }
+    const double D_unload = mumat.internal_variables().get("damage0_D").scalar();
+    EXPECT_NEAR(D_unload, D_load, 1e-8) << "damage evolved during unloading";
+}
+
+// Plasticity + damage composed: exercises the cross-mechanism phase-2
+// assembly with the strain-typed damage kappa alongside the stress-typed
+// plasticity kappa. Both mechanisms must activate, and the softened stress
+// must sit below a plasticity-only reference at the same strain.
+TEST(ModularUMATIntegration, PlasticityDamageCombined) {
+    auto drive = [](ModularUMAT& m, int nstatev) {
+        vec statev = zeros(nstatev);
+        m.initialize(nstatev, statev);
+        vec Etot = zeros(6);
+        vec sigma = zeros(6);
+        mat Lt(6, 6), L(6, 6);
+        mat DR = eye(3, 3);
+        vec props = zeros(10);
+        double T = 293.0, DT = 0.0, Wm = 0, Wm_r = 0, Wm_ir = 0, Wm_d = 0;
+        double tnew_dt = 1.0, Time = 0.0;
+        vec DEtot = {0.001, -0.0003, -0.0003, 0.0, 0.0, 0.0};
+        bool start = true;
+        for (int i = 0; i < 12; ++i) {
+            m.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev,
+                  statev, T, DT, Time, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3,
+                  start, tnew_dt);
+            start = false;
+            Etot += DEtot;
+            Time += 1.0;
+        }
+        return sigma(0);
+    };
+
+    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_pl = {300.0, 200.0, 10.0};  // sigma_Y, Voce Q, b
+    vec props_dm = {0.05, 5.0};           // Y_0, Y_c
+
+    ModularUMAT ref;  // plasticity only
+    int off = 0;
+    ref.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    off = 0;
+    ref.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE,
+                       KinHardType::NONE, 1, 0, props_pl, off);
+    const double sig_ref = drive(ref, 20);
+
+    ModularUMAT dmg;  // plasticity + damage
+    off = 0;
+    dmg.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    off = 0;
+    dmg.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE,
+                       KinHardType::NONE, 1, 0, props_pl, off);
+    off = 0;
+    dmg.add_damage(DamageType::LINEAR, props_dm, off);
+    const double sig_dmg = drive(dmg, 20);
+
+    const double p = dmg.internal_variables().get("plast0_p").scalar();
+    const double D = dmg.internal_variables().get("damage0_D").scalar();
+    EXPECT_GT(p, 0.0) << "plasticity never activated";
+    EXPECT_GT(D, 0.0) << "damage never activated";
+    EXPECT_LT(D, 0.99);
+    EXPECT_LT(sig_dmg, sig_ref) << "damage did not soften the response";
+    EXPECT_GT(sig_dmg, 0.0);
+}
