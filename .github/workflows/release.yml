@@ -8,7 +8,23 @@ permissions:
   contents: read
 
 jobs:
+  check-version:
+    name: Check tag matches pyproject.toml version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify release tag matches pyproject.toml version
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Release tag '${GITHUB_REF_NAME}' does not match pyproject.toml version '${version}'. Bump pyproject.toml before tagging."
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} matches pyproject.toml version ${version}."
+
   conda-packaging:
+    needs: check-version
     uses: ./.github/workflows/conda-packaging.yml
     permissions:
       contents: read
@@ -20,6 +36,7 @@ jobs:
       ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
 
   build-wheels:
+    needs: check-version
     uses: ./.github/workflows/wheels.yml
     permissions:
       contents: read
