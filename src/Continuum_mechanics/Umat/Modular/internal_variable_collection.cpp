@@ -21,6 +21,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <stdexcept>
 
 namespace simcoon {
@@ -65,12 +66,13 @@ InternalVariable& InternalVariableCollection::add_vec(
     return *variables_.back();
 }
 
-InternalVariable& InternalVariableCollection::add_mat(const std::string& name, const arma::mat& init, bool rotate) {
+InternalVariable& InternalVariableCollection::add_mat(const std::string& name, const arma::mat& init, bool rotate,
+                                                      Tensor4Type t4type) {
     if (has(name)) {
         throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
     }
 
-    variables_.push_back(std::make_unique<InternalVariable>(name, init, rotate));
+    variables_.push_back(std::make_unique<InternalVariable>(name, init, rotate, t4type));
     name_to_index_[name] = variables_.size() - 1;
     total_size_ += 36;
     offsets_computed_ = false;
@@ -152,8 +154,11 @@ void InternalVariableCollection::unpack_all(const arma::vec& statev) {
 }
 
 void InternalVariableCollection::rotate_all(const arma::mat& DR) {
+    // Build the Rotation once — each variable would otherwise re-extract the
+    // quaternion from the same 3x3 matrix.
+    const Rotation R = Rotation::from_matrix(DR);
     for (auto& var : variables_) {
-        var->rotate(DR);
+        var->rotate(R);
     }
 }
 

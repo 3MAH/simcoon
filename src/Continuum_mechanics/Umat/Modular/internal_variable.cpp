@@ -38,6 +38,7 @@ InternalVariable::InternalVariable(const std::string& name, double init, bool ro
     , mat_start_()
     , requires_rotation_(rotate)
     , vtype_(VoigtType::strain)
+    , t4type_(Tensor4Type::stiffness)
     , statev_offset_(0)
 {
 }
@@ -54,6 +55,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     , mat_start_()
     , requires_rotation_(rotate)
     , vtype_(vtype)
+    , t4type_(Tensor4Type::stiffness)
     , statev_offset_(0)
 {
     if (init.n_elem != 6) {
@@ -62,7 +64,8 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     }
 }
 
-InternalVariable::InternalVariable(const std::string& name, const arma::mat& init, bool rotate)
+InternalVariable::InternalVariable(const std::string& name, const arma::mat& init, bool rotate,
+                                    Tensor4Type t4type)
     : name_(name)
     , type_(IVarType::MATRIX_6x6)
     , scalar_value_(0.0)
@@ -73,6 +76,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::mat& ini
     , mat_start_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , requires_rotation_(rotate)
     , vtype_(VoigtType::strain)
+    , t4type_(t4type)
     , statev_offset_(0)
 {
     if (init.n_rows != 6 || init.n_cols != 6) {
@@ -256,7 +260,10 @@ void InternalVariable::rotate(const Rotation& R) {
             break;
         }
         case IVarType::MATRIX_6x6:
-            mat_value_ = R.apply_stiffness(mat_value_);
+            // Typed congruence: correct for stiffness- AND compliance-like
+            // storage (the Mandel rotation is one orthogonal congruence; the
+            // Tensor4Type carries the engineering factors).
+            mat_value_ = tensor4(mat_value_, t4type_).rotate(R).mat();
             break;
     }
 }
@@ -284,7 +291,9 @@ void InternalVariable::set_tensor2(const tensor2& t) {
         throw std::runtime_error("InternalVariable::set_tensor2: variable '" + name_
                                  + "' is not VECTOR_6");
     }
-    vec_value_ = t.voigt();
+    // Re-express in this variable's own convention via the 3x3 (convention-
+    // free): protects against a vtype mismatch between t and the storage.
+    vec_value_ = tensor2(t.mat(), vtype_).voigt();
 }
 
 void InternalVariable::set_tensor4(const tensor4& t) {
@@ -292,32 +301,31 @@ void InternalVariable::set_tensor4(const tensor4& t) {
         throw std::runtime_error("InternalVariable::set_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
-    mat_value_ = t.mat();
+    // Re-express in this variable's own convention via the Mandel form
+    // (convention-free): protects against a Tensor4Type mismatch.
+    mat_value_ = tensor4::from_mandel(t.mandel(), t4type_).mat();
 }
 
 // ========== Serialization ==========
 
 void InternalVariable::pack(arma::vec& statev) const {
-    unsigned int offset = statev_offset_;
-
+    const unsigned int offset = statev_offset_;
+    if (offset + size() > statev.n_elem) {
+        throw std::runtime_error("InternalVariable '" + name_ + "': pack out of bounds (offset "
+                                 + std::to_string(offset) + " + size " + std::to_string(size())
+                                 + " > nstatev " + std::to_string(statev.n_elem) + ")");
+    }
     switch (type_) {
         case IVarType::SCALAR:
-            if (offset < statev.n_elem) {
-                statev(offset) = scalar_value_;
-            }
+            statev(offset) = scalar_value_;
             break;
         case IVarType::VECTOR_6:
-            for (unsigned int i = 0; i < 6 && (offset + i) < statev.n_elem; ++i) {
-                statev(offset + i) = vec_value_(i);
-            }
+            statev.subvec(offset, offset + 5) = vec_value_;
             break;
         case IVarType::MATRIX_6x6:
             for (unsigned int i = 0; i < 6; ++i) {
                 for (unsigned int j = 0; j < 6; ++j) {
-                    unsigned int idx = offset + i * 6 + j;
-                    if (idx < statev.n_elem) {
-                        statev(idx) = mat_value_(i, j);
-                    }
+                    statev(offset + i * 6 + j) = mat_value_(i, j);
                 }
             }
             break;
@@ -325,29 +333,26 @@ void InternalVariable::pack(arma::vec& statev) const {
 }
 
 void InternalVariable::unpack(const arma::vec& statev) {
-    unsigned int offset = statev_offset_;
-
+    const unsigned int offset = statev_offset_;
+    if (offset + size() > statev.n_elem) {
+        throw std::runtime_error("InternalVariable '" + name_ + "': unpack out of bounds (offset "
+                                 + std::to_string(offset) + " + size " + std::to_string(size())
+                                 + " > nstatev " + std::to_string(statev.n_elem) + ")");
+    }
     switch (type_) {
         case IVarType::SCALAR:
-            if (offset < statev.n_elem) {
-                scalar_value_ = statev(offset);
-                scalar_start_ = statev(offset);
-            }
+            scalar_value_ = statev(offset);
+            scalar_start_ = scalar_value_;
             break;
         case IVarType::VECTOR_6:
-            for (unsigned int i = 0; i < 6 && (offset + i) < statev.n_elem; ++i) {
-                vec_value_(i) = statev(offset + i);
-                vec_start_(i) = statev(offset + i);
-            }
+            vec_value_ = statev.subvec(offset, offset + 5);
+            vec_start_ = vec_value_;
             break;
         case IVarType::MATRIX_6x6:
             for (unsigned int i = 0; i < 6; ++i) {
                 for (unsigned int j = 0; j < 6; ++j) {
-                    unsigned int idx = offset + i * 6 + j;
-                    if (idx < statev.n_elem) {
-                        mat_value_(i, j) = statev(idx);
-                        mat_start_(i, j) = statev(idx);
-                    }
+                    mat_value_(i, j) = statev(offset + i * 6 + j);
+                    mat_start_(i, j) = statev(offset + i * 6 + j);
                 }
             }
             break;

@@ -126,9 +126,11 @@ void ElasticityModule::configure_orthotropic(double E1, double E2, double E3,
                                               double alpha1, double alpha2, double alpha3) {
     type_ = ElasticityType::ORTHOTROPIC;
 
-    L_ = L_ortho(E1, nu12, nu13, E2, nu23, E3, G12, G13, G23, "EnuG");
+    // L_ortho/M_ortho "EnuG" slot order is (E1, E2, E3, nu12, nu13, nu23,
+    // G12, G13, G23) — NOT grouped (E, nu) per direction.
+    L_ = L_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
 
-    M_ = M_ortho(E1, nu12, nu13, E2, nu23, E3, G12, G13, G23, "EnuG");
+    M_ = M_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
 
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha1;

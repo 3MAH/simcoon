@@ -154,6 +154,57 @@ TEST_F(InternalVariableTest, TensorViews) {
     EXPECT_THROW(L_iv.as_strain(), std::runtime_error);
 }
 
+// Typed 6x6 rotation: a compliance-typed matrix variable must rotate with the
+// compliance congruence, i.e. rotating M = inv(L) must equal inv(rotated L).
+// The legacy path (apply_stiffness for every 6x6) breaks this identity.
+TEST_F(InternalVariableTest, Matrix66TypedRotation) {
+    arma::mat L_init = L_ortho(70000., 30000., 15000., 0.3, 0.3, 0.3,
+                               8000., 6000., 5000., "EnuG");
+    InternalVariable L_iv("L", L_init, true, Tensor4Type::stiffness);
+    InternalVariable M_iv("M", arma::mat(arma::inv(L_init)), true,
+                          Tensor4Type::compliance);
+
+    Rotation R = Rotation::from_axis_angle(0.4, 2);
+    L_iv.rotate(R);
+    M_iv.rotate(R);
+
+    EXPECT_LT(arma::norm(M_iv.mat() - arma::inv(L_iv.mat()), "fro")
+                  / arma::norm(M_iv.mat(), "fro"),
+              1e-10)
+        << "compliance-typed 6x6 did not rotate with the compliance congruence";
+}
+
+// set_tensor2 stores the TENSOR, re-expressed in the variable's own Voigt
+// convention: assigning a stress-typed tensor2 to a strain-typed variable must
+// double the shear slots (not copy the raw components).
+TEST_F(InternalVariableTest, SetTensor2ReexpressesConvention) {
+    InternalVariable EP("EP", arma::zeros(6), true, VoigtType::strain);
+    // Stress-typed tensor with t12 = 3 -> voigt slot = 3 (no factor 2).
+    tensor2 t = stress(arma::vec{1., 2., -3., 3., 0., 0.});
+    EP.set_tensor2(t);
+    // Stored in strain convention: shear slot carries gamma = 2 * t12 = 6.
+    EXPECT_DOUBLE_EQ(EP.vec()(3), 6.0);
+    EXPECT_DOUBLE_EQ(EP.vec()(0), 1.0);
+    // Matching convention: exact no-op re-expression.
+    tensor2 e = strain(arma::vec{0.01, 0., 0., 0.004, 0., 0.});
+    EP.set_tensor2(e);
+    EXPECT_DOUBLE_EQ(EP.vec()(3), 0.004);
+}
+
+// pack/unpack must throw on an out-of-bounds offset instead of silently
+// truncating (a partial write would corrupt the state without a trace).
+TEST_F(InternalVariableTest, PackUnpackOutOfBoundsThrows) {
+    arma::vec init = {1., 2., 3., 4., 5., 6.};
+    InternalVariable iv("v", init, false);
+    iv.set_offset(5);            // needs indices 5..10
+    arma::vec statev = arma::zeros(8);   // too short
+    EXPECT_THROW(iv.pack(statev), std::runtime_error);
+    EXPECT_THROW(iv.unpack(statev), std::runtime_error);
+    arma::vec ok = arma::zeros(11);
+    EXPECT_NO_THROW(iv.pack(ok));
+    EXPECT_DOUBLE_EQ(ok(10), 6.0);
+}
+
 // Rotation overload: rotate(Rotation) is equivalent to rotate(R.as_matrix()).
 TEST_F(InternalVariableTest, RotationOverload) {
     arma::vec EP_voigt = {0.01, -0.005, -0.005, 0.002, 0.001, 0.0};
@@ -459,6 +510,30 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
     tensor4 L_dmg = em.damaged_L_tensor(0.3);
     EXPECT_EQ(L_dmg.type(), Tensor4Type::stiffness);
     EXPECT_LT(norm(mat(L_dmg.mat()) - 0.7 * em.L(), "fro"), 1e-8);
+}
+
+// Orthotropic configuration: regression for the L_ortho/M_ortho argument-order
+// bug (Poisson ratios fed into the Young's-moduli slots -> indefinite L with
+// cond ~ 1e9). Checks against the direct constitutive call and positive
+// definiteness.
+TEST_F(ElasticityModuleTest, OrthotropicConfiguration) {
+    ElasticityModule em;
+    vec props = {70000., 30000., 15000., 0.3, 0.3, 0.3,
+                 8000., 6000., 5000., 1e-5, 2e-5, 3e-5};
+    int offset = 0;
+    em.configure(ElasticityType::ORTHOTROPIC, props, offset);
+
+    const mat L_ref = L_ortho(70000., 30000., 15000., 0.3, 0.3, 0.3,
+                              8000., 6000., 5000., "EnuG");
+    EXPECT_LT(norm(em.L() - L_ref, "fro") / norm(L_ref, "fro"), 1e-12);
+    EXPECT_LT(norm(em.M() - mat(inv(L_ref)), "fro") / norm(mat(inv(L_ref)), "fro"), 1e-10);
+
+    // Physically admissible: strictly positive definite.
+    vec eig = eig_sym(em.L());
+    EXPECT_GT(eig.min(), 0.0) << "orthotropic stiffness is not positive definite";
+
+    EXPECT_DOUBLE_EQ(em.alpha()(0), 1e-5);
+    EXPECT_DOUBLE_EQ(em.alpha()(2), 3e-5);
 }
 
 // ========== YieldCriterion Tests ==========

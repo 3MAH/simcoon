@@ -74,6 +74,10 @@ private:
                                  ///< rotation dispatch (tensor2.rotate) and default
                                  ///< VoigtType for as_tensor2() views. Ignored for
                                  ///< scalars and 6x6 matrices.
+    Tensor4Type t4type_;         ///< Authoritative convention for MATRIX_6x6 variables
+                                 ///< (stiffness, compliance, ...). Drives the rotation
+                                 ///< congruence (tensor4.rotate) and the default type of
+                                 ///< as_tensor4() views. Ignored for scalars and vectors.
     unsigned int statev_offset_; ///< Position in flat statev array
 
 public:
@@ -106,8 +110,12 @@ public:
      * @param name Identifier for the variable
      * @param init Initial value (default: zeros)
      * @param rotate Whether rotation should be applied (default: true for tensors)
+     * @param t4type Tensor4 convention of this variable (default: stiffness).
+     *        Controls the rotation congruence and the default type returned by
+     *        as_tensor4().
      */
-    InternalVariable(const std::string& name, const arma::mat& init, bool rotate = true);
+    InternalVariable(const std::string& name, const arma::mat& init, bool rotate = true,
+                      Tensor4Type t4type = Tensor4Type::stiffness);
 
     // Default copy/move/destructor
     InternalVariable(const InternalVariable&) = default;
@@ -149,6 +157,11 @@ public:
      * and the default VoigtType returned by as_tensor2().
      */
     [[nodiscard]] VoigtType vtype() const noexcept { return vtype_; }
+
+    /**
+     * @brief The Tensor4 convention of this variable (MATRIX_6x6 only).
+     */
+    [[nodiscard]] Tensor4Type t4type() const noexcept { return t4type_; }
 
     // ========== Value Accessors (throw if wrong type) ==========
 
@@ -257,10 +270,11 @@ public:
      * @brief Apply rotation for objectivity
      * @param DR Rotation increment matrix (3x3)
      *
-     * Scalars are left unchanged. VECTOR_6 internals are treated as Voigt-strain
-     * (factor-2 on shear — the storage convention for plastic strain, backstress,
-     * etc.) and MATRIX_6x6 internals as stiffness-like. No-op when
-     * requires_rotation_ is false.
+     * Scalars are left unchanged. VECTOR_6 internals rotate through tensor2
+     * with the variable's VoigtType (strain-rotation carries the factor-2 on
+     * shear); MATRIX_6x6 internals rotate through tensor4 with the variable's
+     * Tensor4Type, so the correct congruence is applied for stiffness- AND
+     * compliance-like storage. No-op when requires_rotation_ is false.
      */
     void rotate(const arma::mat& DR);
 
@@ -295,15 +309,25 @@ public:
     [[nodiscard]] tensor2 as_strain() const { return as_tensor2(VoigtType::strain); }
     [[nodiscard]] tensor2 as_stress() const { return as_tensor2(VoigtType::stress); }
 
+    /// Default view: the variable's own stored Tensor4Type is used (see
+    /// as_tensor2() for the same pattern on vectors).
     /// @throws std::runtime_error if type() != MATRIX_6x6
-    [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type = Tensor4Type::stiffness) const;
+    [[nodiscard]] tensor4 as_tensor4() const { return as_tensor4(t4type_); }
+    [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type) const;
 
     [[nodiscard]] tensor4 as_stiffness() const { return as_tensor4(Tensor4Type::stiffness); }
     [[nodiscard]] tensor4 as_compliance() const { return as_tensor4(Tensor4Type::compliance); }
 
+    /// Stores the TENSOR, not the raw components: the value is re-expressed
+    /// in this variable's own Voigt convention (via the 3x3), so assigning a
+    /// stress-typed tensor2 to a strain-typed variable cannot silently drop
+    /// the factor-2 shear convention. No-op re-expression when conventions
+    /// already match.
     /// @throws std::runtime_error if type() != VECTOR_6
     void set_tensor2(const tensor2& t);
 
+    /// Same contract as set_tensor2: re-expressed in the variable's own
+    /// Tensor4Type (via the convention-free Mandel form).
     /// @throws std::runtime_error if type() != MATRIX_6x6
     void set_tensor4(const tensor4& t);
 
@@ -326,6 +350,8 @@ public:
      * @param statev The state variable vector to pack into
      *
      * Writes size() values starting at statev_offset_.
+     * @throws std::runtime_error if statev_offset_ + size() exceeds statev —
+     * a partial write would silently corrupt the state.
      */
     void pack(arma::vec& statev) const;
 
@@ -333,7 +359,9 @@ public:
      * @brief Unpack value from statev array
      * @param statev The state variable vector to unpack from
      *
-     * Reads size() values starting at statev_offset_.
+     * Reads size() values starting at statev_offset_ into BOTH the current
+     * and the start value (state restoration).
+     * @throws std::runtime_error if statev_offset_ + size() exceeds statev.
      */
     void unpack(const arma::vec& statev);
 };

@@ -101,7 +101,8 @@ public:
      * @return Reference to the created variable
      * @throws std::runtime_error if name already exists
      */
-    InternalVariable& add_mat(const std::string& name, const arma::mat& init = arma::zeros(6, 6), bool rotate = true);
+    InternalVariable& add_mat(const std::string& name, const arma::mat& init = arma::zeros(6, 6), bool rotate = true,
+                              Tensor4Type t4type = Tensor4Type::stiffness);
 
     // ========== Access ==========
 
