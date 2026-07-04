@@ -32,31 +32,7 @@ using namespace arma;
 
 namespace simcoon {
 
-namespace {
 
-// Fischer-Burmeister residual with the same |diag(denom)| scaling and Y_crit normalisation as
-// Fischer_Burmeister_m (num_solve.cpp) — used only as the convergence/backtracking merit; the
-// update itself stays in Fischer_Burmeister_m.
-double fb_error(const vec &Phi, const vec &Dp, const mat &denom, const vec &Y_crit) {
-    const uword n = Phi.n_elem;
-    double err = 0.;
-    for (uword i = 0; i < n; i++) {
-        const double factor = fabs(denom(i, i));
-        const double Dpstar = Dp(i) * factor;
-        double FB = 0.;
-        if ((fabs(Phi(i)) > 0.) && (fabs(Dpstar) > 0.)) {
-            FB = sqrt(Phi(i) * Phi(i) + Dpstar * Dpstar) + Phi(i) - Dpstar;
-        } else if (fabs(Phi(i)) > 0.) {
-            FB = fabs(Phi(i)) + Phi(i);
-        } else if (fabs(Dpstar) > 0.) {
-            FB = fabs(Dpstar) - Dpstar;
-        }
-        err += fabs(FB) / fabs(Y_crit(i));
-    }
-    return err;
-}
-
-} // namespace
 
 ReturnMappingResult closest_point_return_mapping(
     const vec &sigma_tr,
@@ -101,21 +77,25 @@ ReturnMappingResult closest_point_return_mapping(
     if (!refresh(r.sigma, r.Dlambda)) return r;
     eval_basic(r.sigma, r.Dlambda);
 
-    auto fill_tangent_pieces = [&](const vec &sig, const vec &Dl) {
-        mat K = hooks.K ? hooks.K(sig, Dl) : zeros(N, N);
+    // full=false skips the expensive FD callbacks (hooks.K, flow_state_coupling,
+    // dLambda_dsigma): with Dlambda = 0 the tangent assembly masks every mechanism
+    // (Ds_j > iota gate) so those values cannot influence the returned operator.
+    auto fill_tangent_pieces = [&](const vec &sig, const vec &Dl, bool full) {
+        mat K = (full && hooks.K) ? hooks.K(sig, Dl) : zeros(N, N);
         r.Bhat_continuum = zeros(N, N);
         // Effective flux kappa_eff = L:Lambda_tilde = kappa + c (doc eq:Lambda_tilde_state):
         // the multiplier-side state chain c^j enters the consistent tangent through kappa.
         r.kappa_j.assign(kappa.begin(), kappa.end());
-        if (hooks.flow_state_coupling) {
+        if (full && hooks.flow_state_coupling) {
             const std::vector<vec> c = hooks.flow_state_coupling(sig, Dl);
             for (int j = 0; j < N && j < int(c.size()); j++) r.kappa_j[j] += c[j];
         }
         r.dPhidsigma_l.assign(n_l.begin(), n_l.end());
         r.dLambda_dsigma_l.resize(N);
         for (int j = 0; j < N; j++) {
-            r.dLambda_dsigma_l[j] = mechanisms[j].dLambda_dsigma ? mechanisms[j].dLambda_dsigma(sig)
-                                                                 : zeros(6, 6);
+            r.dLambda_dsigma_l[j] = (full && mechanisms[j].dLambda_dsigma)
+                                        ? mechanisms[j].dLambda_dsigma(sig)
+                                        : zeros(6, 6);
         }
         for (int l = 0; l < N; l++) {
             for (int j = 0; j < N; j++) {
@@ -125,13 +105,18 @@ ReturnMappingResult closest_point_return_mapping(
     };
 
     // Elastic guard: trial state admissible -> return it (bit-identical elasticity).
+    // Cheap fill: all mechanisms are inactive, the expensive FD pieces are masked out.
     if (Phi.max() <= 0.) {
-        fill_tangent_pieces(r.sigma, r.Dlambda);
+        fill_tangent_pieces(r.sigma, r.Dlambda, false);
         r.converged = true;
         return r;
     }
 
     const mat I6 = eye(6, 6);
+    // Stall thresholds for the boundary-hovering safeguards below: plain semi-smooth
+    // Newton must fail to converge for this many iterations before either kicks in.
+    const int snap_niter = 20;
+    const int stall_niter = 25;
 
     for (r.niter = 0; r.niter < maxiter; r.niter++) {
 
@@ -163,29 +148,35 @@ ReturnMappingResult closest_point_return_mapping(
         }
 
         // Combined error on the TRUE residuals (Phi, R_sigma) at the current iterate.
-        const double err_fb = fb_error(Phi, r.Dlambda, B_red, Y_crit);
+        const double err_fb = Fischer_Burmeister_residual(Phi, r.Dlambda, B_red, Y_crit);
         const double err_R = norm(R_sigma, 2) / sigma_ref;
         const double err = err_fb + err_R;
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(r.sigma, r.Dlambda);
+            fill_tangent_pieces(r.sigma, r.Dlambda, true);
             r.converged = true;
             return r;
         }
         // Stall-guarded loose acceptance: semi-smooth iterations can hover at the
-        // complementarity boundary (Phi ~ +-1e-4 * Y_crit with a vanishing multiplier and
+        // complementarity boundary (Phi slightly negative with a vanishing multiplier and
         // R_sigma at machine precision) without ever reaching the tight tolerance. Once the
-        // iteration has demonstrably stalled, accept when the stress residual is converged
-        // and the KKT violation is below 0.1% of the criterion scale -- the corresponding
-        // stress error is orders of magnitude below any FE-level tolerance.
-        if ((r.niter >= 25) && (err_R < precision) && (err_fb < 1.e-2)) {
+        // iteration has demonstrably stalled (>= 25 iterations), accept when the stress
+        // residual is converged and the KKT violation is below 1% of the criterion scale --
+        // the corresponding stress error is orders of magnitude below any FE-level tolerance.
+        if ((r.niter >= stall_niter) && (err_R < precision) && (err_fb < 1.e-2)) {
+            bool snapped = false;
             for (int l = 0; l < N; l++) {
                 if ((Phi(l) < 0.) && (r.Dlambda(l) * fabs(B_red(l, l)) < 1.e-2 * Y_crit(l))) {
                     r.Dlambda(l) = 0.;   // final cleanup of boundary-hovering multipliers
+                    snapped = true;
                 }
             }
-            fill_tangent_pieces(r.sigma, r.Dlambda);
+            // Keep the returned (sigma, Dlambda, internal state) triple consistent:
+            // re-solve the state at the cleaned multipliers before assembling the tangent.
+            if (snapped && !refresh(r.sigma, r.Dlambda)) return r;
+            if (snapped) eval_basic(r.sigma, r.Dlambda);
+            fill_tangent_pieces(r.sigma, r.Dlambda, true);
             r.converged = true;
             return r;
         }
@@ -218,12 +209,16 @@ ReturnMappingResult closest_point_return_mapping(
             // (admissible Phi < 0 with a vanishing multiplier) is EXACTLY inactive;
             // snapping Dlambda to zero zeroes its Fischer-Burmeister residual and
             // prevents an asymptotic grind to maxiter at onset/unloading points.
-            for (int l = 0; l < N; l++) {
-                // Threshold 1e-4*Y_crit: the snapped multiplier's stress impact
-                // Dl*||kappa|| is then ~1e-6 relative -- far below any FE tolerance --
-                // while genuinely active mechanisms (Phi = 0, sizeable Dl*|B|) are untouched.
-                if ((Phi(l) < 0.) && (r.Dlambda(l) * fabs(B_red(l, l)) < 1.e-2 * Y_crit(l))) {
-                    r.Dlambda(l) = 0.;
+            // Threshold 1e-2*Y_crit on Dl*|B| (~1% of the criterion scale in stress terms);
+            // GATED on a stalled iteration (niter >= 20) so a genuinely active mechanism
+            // with a small per-increment multiplier -- whose Phi can transiently dip
+            // negative under fine time-stepping -- always gets the plain Newton first
+            // (Q-quadratic solves finish well within 20 iterations).
+            if (r.niter >= snap_niter) {
+                for (int l = 0; l < N; l++) {
+                    if ((Phi(l) < 0.) && (r.Dlambda(l) * fabs(B_red(l, l)) < 1.e-2 * Y_crit(l))) {
+                        r.Dlambda(l) = 0.;
+                    }
                 }
             }
             if (!refresh(r.sigma, r.Dlambda)) {
@@ -235,7 +230,7 @@ ReturnMappingResult closest_point_return_mapping(
                 if (std::getenv("SIMCOON_CPP_DEBUG")) std::fprintf(stderr, "[CPP fail] NaN niter=%d\n", r.niter);
                 return r;
             }
-            const double err_new = fb_error(Phi, r.Dlambda, B_red, Y_crit) + norm(R_sigma, 2) / sigma_ref;
+            const double err_new = Fischer_Burmeister_residual(Phi, r.Dlambda, B_red, Y_crit) + norm(R_sigma, 2) / sigma_ref;
             if (err_new <= 2. * err || bt >= control.max_backtrack) break;
             scale *= 0.5;
             bt++;
@@ -285,9 +280,13 @@ ReturnMappingResult closest_point_return_mapping(
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const mat &L) {
     if (!r.converged || r.kappa_j.empty()) {
         // Precondition not met: return the elastic operator as a safe placeholder.
+        // P_epsilon must be SIZED (zeros): thermomechanical UMATs read P_epsilon[l]
+        // unconditionally on this path.
         ContinuumTangent ct;
         ct.Lt = L;
-        ct.invBhat = zeros(r.Dlambda.n_elem, r.Dlambda.n_elem);
+        const uword Nm = std::max(r.Dlambda.n_elem, uword(1));
+        ct.invBhat = zeros(Nm, Nm);
+        ct.P_epsilon.assign(Nm, zeros(6));
         return ct;
     }
     return assemble_algorithmic_tangent(r.Bhat_continuum, r.kappa_j, r.dPhidsigma_l,

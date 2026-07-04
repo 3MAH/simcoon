@@ -34,6 +34,12 @@ void Fischer_Burmeister(const arma::vec &, const arma::vec &, const arma::mat &,
 
 void Fischer_Burmeister_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);
 
+///@brief Canonical normalised Fischer-Burmeister residual: sum_i |FB_i| / |Y_crit_i| with
+///Dp scaled by |diag(denom)|. This is THE definition of the FB error — Fischer_Burmeister_m
+///reports it and the closest-point return mapping (return_mapping.cpp) uses it as its
+///convergence/backtracking merit; keep both on this single implementation.
+double Fischer_Burmeister_residual(const arma::vec &Phi, const arma::vec &Dp, const arma::mat &denom, const arma::vec &Y_crit);
+
 void Fischer_Burmeister_m(const arma::vec &, const arma::vec &, const arma::mat &, arma::vec &, arma::vec &, double &);
 
 void Fischer_Burmeister_m_limits(const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::vec &, double &);

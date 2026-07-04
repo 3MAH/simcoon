@@ -250,6 +250,27 @@ void Fischer_Burmeister_limits(const vec &Phi_p, const vec &Phi_l, const vec &Y_
     
 }
     
+double Fischer_Burmeister_residual(const vec &Phi, const vec &Dp, const mat &denom, const vec &Y_crit)
+{
+    int n=Phi.n_elem;
+    double error = 0.;
+    for (int i=0; i<n; i++) {
+        double Dpstar = Dp(i)*fabs(denom(i,i));
+        double FB = 0.;
+        if ((fabs(Phi(i)) > 0.)&&(fabs(Dpstar) > 0.)) {
+            FB = sqrt(pow(Phi(i),2.) + pow(Dpstar,2.)) + Phi(i) - Dpstar;
+        }
+        else if(fabs(Phi(i)) > 0.) {
+            FB = sqrt(pow(Phi(i),2.)) + Phi(i);
+        }
+        else if(fabs(Dpstar) > 0.) {
+            FB = sqrt(pow(Dpstar,2.)) - Dpstar;
+        }
+        error += fabs(FB)/fabs(Y_crit(i));
+    }
+    return error;
+}
+
 void Fischer_Burmeister_m(const vec &Phi, const vec &Y_crit, const mat &denom, vec &Dp, vec &dp, double &error)
 {
     int n=Phi.n_elem;

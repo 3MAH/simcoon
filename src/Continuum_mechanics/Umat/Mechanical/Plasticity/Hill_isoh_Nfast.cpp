@@ -81,12 +81,12 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         sigmaY(i) = props(4+i*9);
         k(i) = props(4+i*9+1);
         m(i) = props(4+i*9+2);
-        F_hill = props(4+i*9+3);
-        G_hill = props(4+i*9+4);
-        H_hill = props(4+i*9+5);
-        L_hill = props(4+i*9+6);
-        M_hill = props(4+i*9+7);
-        N_hill = props(4+i*9+8);
+        F_hill(i) = props(4+i*9+3);
+        G_hill(i) = props(4+i*9+4);
+        H_hill(i) = props(4+i*9+5);
+        L_hill(i) = props(4+i*9+6);
+        M_hill(i) = props(4+i*9+7);
+        N_hill(i) = props(4+i*9+8);
     }
 
     std::vector<vec> Hill_params(N_plas);
@@ -133,7 +133,7 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     }
     
     vec stress_start = stress;
-    vec EP_start = stress;
+    vec EP_start = EP;
     
     if(start) { //Initialization
         T_init = T;

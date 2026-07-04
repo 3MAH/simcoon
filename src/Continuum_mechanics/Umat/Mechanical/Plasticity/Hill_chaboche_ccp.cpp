@@ -34,6 +34,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/chaboche_cpp.hpp>
 
 using namespace std;
 using namespace arma;
@@ -249,100 +250,15 @@ void umat_hill_chaboche_CCP(const string &umat_name, const vec &Etot, const vec 
         const double Hp_n = Hp;
         const vec a_1n = a_1, a_2n = a_2;
         const vec X_1n = X_1, X_2n = X_2;
-        // Backward-Euler state at (sig, Dl): fixed point on X; returns nothing, updates captures.
-        auto solve_state = [&](const vec &sig, double Dl) {
-            for (int it_fp = 0; it_fp < 20; it_fp++) {
-                const vec eta_xi = dHill_stress(sig - X, Hill_params);
-                const vec a1l = (a_1n + Dl*eta_xi)/(1. + Dl*D_1);
-                const vec a2l = (a_2n + Dl*eta_xi)/(1. + Dl*D_2);
-                const vec X1l = X_1n + (2./3.)*C_1*((a1l - a_1n) % Ir05());
-                const vec X2l = X_2n + (2./3.)*C_2*((a2l - a_2n) % Ir05());
-                const vec Xn = X1l + X2l;
-                const double dX = norm(Xn - X, 2);
-                a_1 = a1l; a_2 = a2l; X_1 = X1l; X_2 = X2l; X = Xn;
-                if (dX < 1e-12*(norm(Xn, 2) + 1.)) break;
-            }
-            Hp = (Hp_n + b*Q*Dl)/(1. + b*Dl);
-            dHpdp = b*(Q - Hp);
-        };
-        // Guarded probe of Phi at (sig, Dl) with the inner state solved, captures restored.
-        auto probe_Phi = [&](const vec &sig, double Dl) {
-            const vec Xs1 = X_1, Xs2 = X_2, Xs = X, as1 = a_1, as2 = a_2;
-            const double Hs = Hp, dHs = dHpdp;
-            solve_state(sig, Dl);
-            const double v = Hill_stress(sig - X, Hill_params) - Hp - sigmaY;
-            X_1 = Xs1; X_2 = Xs2; X = Xs; a_1 = as1; a_2 = as2;
-            Hp = Hs; dHpdp = dHs;
-            return v;
-        };
-        // With the inner-consistent state map (X, Hp) = V_hat(sigma, Dl), ALL derivative
-        // callbacks must be TOTAL derivatives of the composed map (partial-only inputs
-        // leave an O(dX/dsigma) error in the consistent tangent).
-        ReturnMechanism mech;
-        mech.Phi            = [&](const vec &sig) { return Hill_stress(sig - X, Hill_params) - Hp - sigmaY; };
-        mech.dPhi_dsigma    = [&](const vec &sig) {
-            const double hfd = 1.e-5*(norm(sig, 2) + 1.);
-            const double Dl = p - p_n;
-            vec g(6);
-            for (int c6 = 0; c6 < 6; c6++) {
-                vec sp = sig, sm = sig;
-                sp(c6) += hfd;
-                sm(c6) -= hfd;
-                g(c6) = (probe_Phi(sp, Dl) - probe_Phi(sm, Dl))/(2.*hfd);
-            }
-            return g;
-        };
-        mech.Lambda         = [&](const vec &sig) { return dHill_stress(sig - X, Hill_params); };
-        mech.dLambda_dsigma = [&](const vec &sig) {
-            const double hfd = 1.e-5*(norm(sig, 2) + 1.);
-            const double Dl = p - p_n;
-            const vec Xsave1 = X_1, Xsave2 = X_2, Xsave = X, asave1 = a_1, asave2 = a_2;
-            const double Hpsave = Hp, dHsave = dHpdp;
-            mat D(6, 6);
-            for (int c6 = 0; c6 < 6; c6++) {
-                vec sp = sig, sm = sig;
-                sp(c6) += hfd;
-                sm(c6) -= hfd;
-                solve_state(sp, Dl);
-                const vec ep = dHill_stress(sp - X, Hill_params);
-                solve_state(sm, Dl);
-                const vec em = dHill_stress(sm - X, Hill_params);
-                D.col(c6) = (ep - em)/(2.*hfd);
-            }
-            X_1 = Xsave1; X_2 = Xsave2; X = Xsave; a_1 = asave1; a_2 = asave2;
-            Hp = Hpsave; dHpdp = dHsave;
-            return D;
-        };
-        rm = closest_point_return_mapping(stress, L, mech,
-                 [&](const vec &sig, double Dl) {
-                     p = p_n + Dl;
-                     solve_state(sig, Dl);
-                     return true;
-                 },
-                 // TOTAL dPhi/dDlambda at fixed sigma (Voce + both backstress chains).
-                 [&](const vec &sig, double Dl) {
-                     const double hDl = 1.e-6*(fabs(Dl) + 1.e-8);
-                     const double Dlp = Dl + hDl;
-                     const double Dlm = std::max(Dl - hDl, 0.);
-                     return (probe_Phi(sig, Dlp) - probe_Phi(sig, Dlm))/(Dlp - Dlm);
-                 },
-                 sigmaY,
-                 // multiplier-side state chain c = Dl*L*dLambda/dDl (FD of the consistent map):
-                 // required for the exact consistent tangent with backstress (doc eq:Lambda_tilde_state).
-                 [&](const vec &sig, double Dl) -> vec {
-                     const vec Xs1 = X_1, Xs2 = X_2, Xs = X, as1 = a_1, as2 = a_2;
-                     const double Hs = Hp, dHs = dHpdp;
-                     const double hDl = 1.e-6*(fabs(Dl) + 1.e-8);
-                     const double Dlp = Dl + hDl;
-                     const double Dlm = std::max(Dl - hDl, 0.);
-                     solve_state(sig, Dlp);
-                     const vec ep = dHill_stress(sig - X, Hill_params);
-                     solve_state(sig, Dlm);
-                     const vec em = dHill_stress(sig - X, Hill_params);
-                     X_1 = Xs1; X_2 = Xs2; X = Xs; a_1 = as1; a_2 = as2;
-                     Hp = Hs; dHpdp = dHs;
-                     return vec(Dl*(L*((ep - em)/(Dlp - Dlm))));
-                 });
+        // Shared Chaboche-family CPP solve (chaboche_cpp.cpp): Voce + 2 AF backstresses,
+        // parameterised by the criterion/flow pair. State references are inner-consistent
+        // on a converged return.
+        rm = chaboche_cpp_return_mapping(stress, L,
+                 [&](const vec &x) { return Hill_stress(x, Hill_params); },
+                 [&](const vec &x) { return vec(dHill_stress(x, Hill_params)); },
+                 sigmaY, Q, b, C_1, D_1, C_2, D_2,
+                 p_n, a_1n, a_2n, X_1n, X_2n, Hp_n,
+                 p, Hp, dHpdp, a_1, a_2, X_1, X_2, X);
         if (rm.converged) {
             stress = rm.sigma;
             Ds_j(0) = rm.Dlambda(0);
