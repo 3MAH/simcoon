@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 
 using namespace std;
@@ -183,10 +184,56 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     //Loop parameters
     int compteur = 0;
     double error = 1.;
-    
+
+    // tangent_mode 2: closest-point projection replaces the CCP loop (doc §cpp_return_mapping).
+    // Condensed states (ndi < 3) keep the CCP loop; mode 2 then degrades to the mode-1 tangent.
+    ReturnMappingResult rm;
+    const bool use_cpp = (tangent_mode == 2) && (ndi == 3);
+    if (use_cpp) {
+        const double p_n = s_j(0);
+        auto refresh_hard = [&](double pv) {
+            p = pv;
+            if (p > simcoon::iota) { dHpdp = m*k*pow(p, m-1); Hp = k*pow(p, m); }
+            else                   { dHpdp = 0.; Hp = 0.; }
+        };
+        ReturnMechanism mech;
+        mech.Phi            = [&](const vec &sig) { return Mises_stress(sig) - Hp - sigmaY; };
+        mech.dPhi_dsigma    = [&](const vec &sig) { return eta_stress(sig); };
+        mech.dLambda_dsigma = [&](const vec &sig) { return deta_stress(sig); };
+        rm = closest_point_return_mapping(stress, L, mech,
+                 [&](const vec &, double Dl) { refresh_hard(p_n + Dl); return true; },
+                 [&](const vec &, double) { return -dHpdp; },
+                 sigmaY);
+        if (rm.converged) {
+            stress = rm.sigma;
+            Ds_j(0) = rm.Dlambda(0);
+            s_j(0) = p_n + Ds_j(0);
+            refresh_hard(s_j(0));
+            dPhidsigma = rm.dPhidsigma_l[0];
+            Lambdap = dPhidsigma;
+            kappa_j = rm.kappa_j;
+            K(0,0) = -dHpdp;
+            EP = EP_start + Ds_j(0)*Lambdap;   // CPP: flow at the CONVERGED stress
+        }
+        else {
+            // Local CPP solve failed: request the standard step-cut and restore the
+            // start-of-increment state (never a silent CCP fallback).
+            tnew_dt = 0.5;
+            stress = stress_start;
+            EP = EP_start;
+            s_j(0) = p_n;
+            refresh_hard(p_n);
+            Ds_j(0) = 0.;
+            dPhidsigma = eta_stress(stress);
+            Lambdap = dPhidsigma;
+            kappa_j[0] = L*Lambdap;
+            K(0,0) = -dHpdp;
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
+
         p = s_j(0);
         if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
@@ -218,12 +265,13 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         stress = el_pred(L, Eel, ndi);
     }
-    
+    }
+
     //Computation of the increments of variables
     vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
-    
+
     //Computation of the tangent modulus — continuum elastic-plastic operator
     //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(1, 1);
@@ -231,11 +279,16 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (use_cpp) {
+        // Exact consistent tangent of the converged CPP map (doc §cpp_return_mapping).
+        // If the local solve failed (step being cut), this returns the elastic placeholder.
+        ct = cpp_consistent_tangent(rm, L);
+    } else if (tangent_mode >= 1) {
         // Simo-Hughes algorithmic (consistent) tangent. J2 associated flow
         // Lambda_eps = eta_stress(sigma), so dLambda_eps/dsigma = d2Phi/dsigma2 = deta_stress(sigma).
         // Isotropic hardening: the direction has no internal-variable coupling, so this single
         // dLambda/dsigma term is the complete consistent correction (Q-quadratic).
+        // (Also the ndi<3 route of tangent_mode 2, which keeps the CCP loop.)
         const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
         ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
     } else {

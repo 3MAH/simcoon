@@ -613,7 +613,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (tangent_mode >= 1) {  // mode 2 degrades to the mode-1 tangent until CPP is wired here
         // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
         // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
         // ETMean held fixed (transformation-state coupling deferred to CPP, future release).

@@ -40,6 +40,7 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - UMAT helpers (shared across all dissipative UMATs)
   Continuum_mechanics/Umat/tangent_assembly.cpp
+  Continuum_mechanics/Umat/return_mapping.cpp
 
   # Continuum Mechanics - UMAT Finite
   Continuum_mechanics/Umat/Finite/generic_hyper_invariants.cpp

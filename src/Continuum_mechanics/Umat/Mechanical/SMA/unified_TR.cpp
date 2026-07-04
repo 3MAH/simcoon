@@ -657,7 +657,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma, dPhiReodsigma };
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (tangent_mode >= 1) {  // mode 2 degrades to the mode-1 tangent until CPP is wired here
         // Simo-Hughes algorithmic tangent (closest-point), 3-mechanism. dLambda/dsigma by central
         // FD of the transformation flows: forward Hcur(sigma)*dDrucker(sigma); reorientation
         // xi_start*dDrucker(sigma_eff), sigma_eff = sigma-(1+lambda1Reo)*X; plus the analytic linear

@@ -158,3 +158,37 @@ TEST(Ttangent_EPICP, convergence_rate_continuum_vs_algorithmic)
         << "algorithmic iters " << r_algo.size()
         << " not fewer than continuum " << r_cont.size();
 }
+
+// ---------------------------------------------------------------------
+// Test 4 (tangent_mode == 2, CPP integrator): radial J2 degeneracy — the
+// closest-point and cutting-plane integrators coincide for the von Mises
+// flow, so the converged stress must match mode 0 to solver tolerance,
+// and the consistent tangent stays machine-exact.
+// ---------------------------------------------------------------------
+TEST(Ttangent_EPICP, mode2_cpp_equals_ccp_for_radial_flow)
+{
+    const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
+    EpicpOut ccp = run_epicp(Deps, 0);
+    EpicpOut cpp = run_epicp(Deps, 2);
+    ASSERT_TRUE(cpp.plastic);
+
+    // Radial flow: identical discrete solutions (up to the two solver tolerances).
+    EXPECT_LT(norm(cpp.sigma - ccp.sigma, 2), 1e-5 * norm(ccp.sigma, 2));
+
+    // Exact consistent tangent of the mode-2 map.
+    const double h = 1.e-7;
+    mat J_ref(6, 6);
+    for (int j = 0; j < 6; ++j) {
+        vec Dp = Deps; Dp(j) += h;
+        vec Dm = Deps; Dm(j) -= h;
+        J_ref.col(j) = (run_epicp(Dp, 2).sigma - run_epicp(Dm, 2).sigma) / (2. * h);
+    }
+    EXPECT_LT(norm(cpp.Lt - J_ref, "fro"), 1.);
+
+    // Elastic parity across all three modes (bit-identical trial return).
+    const vec Deps_el = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.};
+    EpicpOut e0 = run_epicp(Deps_el, 0);
+    EpicpOut e2 = run_epicp(Deps_el, 2);
+    EXPECT_LT(norm(e2.sigma - e0.sigma, 2), 1e-14);
+    EXPECT_LT(norm(e2.Lt - e0.Lt, "fro"), 1e-12);
+}

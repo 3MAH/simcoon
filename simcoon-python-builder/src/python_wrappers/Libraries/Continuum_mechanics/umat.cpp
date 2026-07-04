@@ -7,6 +7,8 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
+#include <cstdio>
+#include <exception>
 #include <simcoon/parallel.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
@@ -65,8 +67,15 @@ namespace py=pybind11;
 namespace simpy {
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
-		// tangent_mode: 0 = continuum (default, current behaviour),
-		//               1 = algorithmic (Simo–Hughes consistent tangent, planned for simcoon 2.0 default
+		// tangent_mode: 0 = continuum tangent (default, current behaviour),
+		//               1 = algorithmic/Simo-Hughes consistent tangent on the legacy CCP
+		//                   integrator (stress and state response identical to mode 0;
+		//                   planned simcoon 2.0 default),
+		//               2 = closest-point-projection (CPP) return mapping + exact consistent
+		//                   tangent. Changes the local integrator: the discrete solution
+		//                   differs from CCP by O(step^2) at finite step size (zero for radial
+		//                   flows); both converge to the same continuous model as step -> 0.
+		//                   UMATs not yet CPP-wired degrade to the mode-1 tangent.
 
 		std::map<string, int> list_umat;
 		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0 
@@ -275,15 +284,28 @@ namespace simpy {
 				T = vec_T(pt);
 			}
 
-			switch (arguments_type) {
-				case 1: {
-					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
-					break;
+			// Exceptions must NOT escape this lambda: inside dispatch_apply/omp they cannot
+			// propagate and would std::terminate the whole (python) process. A UMAT throwing
+			// on a degenerate input (e.g. garbage strains after a singular global solve) is
+			// contained to its point: outputs are left as-is and a warning is emitted; the
+			// FE residual then rejects the increment instead of the process dying.
+			try {
+				switch (arguments_type) {
+					case 1: {
+						umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
+						break;
+					}
+					case 2: {
+						umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
+						break;
+					}
 				}
-				case 2: {
-					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
-					break;
-				}
+			}
+			catch (const std::exception &e) {
+				std::fprintf(stderr, "[simcoon umat] point %d: exception '%s' -- outputs left as-is\n", pt, e.what());
+			}
+			catch (...) {
+				std::fprintf(stderr, "[simcoon umat] point %d: unknown exception -- outputs left as-is\n", pt);
 			}
 		});
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));

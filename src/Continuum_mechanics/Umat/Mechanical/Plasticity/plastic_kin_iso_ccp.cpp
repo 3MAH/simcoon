@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 using namespace std;
 using namespace arma;
@@ -186,10 +187,126 @@ void umat_plasticity_kin_iso_CCP(const string &umat_name, const vec &Etot, const
     //Loop parameters
     int compteur = 0;
     double error = 1.;
-    
+
+    // tangent_mode 2: closest-point projection replaces the CCP loop (doc §cpp_return_mapping).
+    // The backstress is resolved by an inner backward-Euler fixed point (linear kinematic law:
+    // a = a_n + Dl*eta(sigma-X), X = kX*(a%Ir05)), and dLambda/dsigma is the TOTAL derivative of
+    // the inner-consistent map (central FD) so the consistent tangent carries the dLambda/dX chain.
+    ReturnMappingResult rm;
+    const bool use_cpp = (tangent_mode == 2) && (ndi == 3);
+    if (use_cpp) {
+        const double p_n = s_j(0);
+        const vec a_n = a;
+        auto refresh_hard = [&](double pv) {
+            p = pv;
+            if (p > simcoon::iota) { dHpdp = m*k*pow(p, m-1); Hp = k*pow(p, m); }
+            else                   { dHpdp = 0.; Hp = 0.; }
+        };
+        // Backward-Euler backstress at (sig, Dl): fixed point on X.
+        auto solve_X = [&](const vec &sig, double Dl) {
+            vec Xl = X;
+            for (int it_fp = 0; it_fp < 20; it_fp++) {
+                const vec al = a_n + Dl*eta_stress(sig - Xl);
+                const vec Xn = kX*(al % Ir05());
+                const double dX = norm(Xn - Xl, 2);
+                Xl = Xn;
+                if (dX < 1e-12*(norm(Xn, 2) + 1.)) break;
+            }
+            return Xl;
+        };
+        // Isotropic hardening value at a given p (local, does not clobber Hp/dHpdp captures).
+        auto Hp_at = [&](double pv) { return (pv > simcoon::iota) ? k*pow(pv, m) : 0.; };
+        // With the inner-consistent state map X = X_hat(sigma, Dl), ALL derivative callbacks
+        // must be TOTAL derivatives of the composed map (partial-only inputs leave an O(dX/dsigma)
+        // error in the tangent). They are obtained by central FD around the inner solve.
+        ReturnMechanism mech;
+        mech.Phi            = [&](const vec &sig) { return Mises_stress(sig - X) - Hp - sigmaY; };
+        mech.dPhi_dsigma    = [&](const vec &sig) {
+            const double hfd = 1.e-5*(norm(sig, 2) + 1.);
+            const double Dl = p - p_n;
+            vec g(6);
+            for (int c6 = 0; c6 < 6; c6++) {
+                vec sp = sig, sm = sig;
+                sp(c6) += hfd;
+                sm(c6) -= hfd;
+                g(c6) = (Mises_stress(sp - solve_X(sp, Dl)) - Mises_stress(sm - solve_X(sm, Dl)))/(2.*hfd);
+            }
+            return g;
+        };
+        mech.Lambda         = [&](const vec &sig) { return eta_stress(sig - X); };
+        mech.dLambda_dsigma = [&](const vec &sig) {
+            const double hfd = 1.e-5*(norm(sig, 2) + 1.);
+            const double Dl = p - p_n;
+            mat D(6, 6);
+            for (int c6 = 0; c6 < 6; c6++) {
+                vec sp = sig, sm = sig;
+                sp(c6) += hfd;
+                sm(c6) -= hfd;
+                D.col(c6) = (eta_stress(sp - solve_X(sp, Dl)) - eta_stress(sm - solve_X(sm, Dl)))/(2.*hfd);
+            }
+            return D;
+        };
+        rm = closest_point_return_mapping(stress, L, mech,
+                 [&](const vec &sig, double Dl) {
+                     refresh_hard(p_n + Dl);
+                     X = solve_X(sig, Dl);
+                     a = a_n + Dl*eta_stress(sig - X);
+                     return true;
+                 },
+                 // TOTAL dPhi/dDlambda at fixed sigma (hardening + backstress chains).
+                 [&](const vec &sig, double Dl) {
+                     const double hDl = 1.e-6*(fabs(Dl) + 1.e-8);
+                     const double Dlp = Dl + hDl;
+                     const double Dlm = std::max(Dl - hDl, 0.);
+                     const double Pp = Mises_stress(sig - solve_X(sig, Dlp)) - Hp_at(p_n + Dlp);
+                     const double Pm = Mises_stress(sig - solve_X(sig, Dlm)) - Hp_at(p_n + Dlm);
+                     return (Pp - Pm)/(Dlp - Dlm);
+                 },
+                 sigmaY,
+                 // multiplier-side state chain c = Dl*L*dLambda/dDl (doc eq:Lambda_tilde_state).
+                 [&](const vec &sig, double Dl) -> vec {
+                     const double hDl = 1.e-6*(fabs(Dl) + 1.e-8);
+                     const double Dlp = Dl + hDl;
+                     const double Dlm = std::max(Dl - hDl, 0.);
+                     const vec ep = eta_stress(sig - solve_X(sig, Dlp));
+                     const vec em = eta_stress(sig - solve_X(sig, Dlm));
+                     return vec(Dl*(L*((ep - em)/(Dlp - Dlm))));
+                 });
+        if (rm.converged) {
+            stress = rm.sigma;
+            Ds_j(0) = rm.Dlambda(0);
+            s_j(0) = p_n + Ds_j(0);
+            refresh_hard(s_j(0));
+            dPhidsigma = rm.dPhidsigma_l[0];
+            Lambdap = eta_stress(stress - X);       // flow direction (NOT the total dPhi/dsigma)
+            Lambdaa = Lambdap;
+            kappa_j = rm.kappa_j;
+            dPhida = -1.*kX*(Lambdap % Ir05());
+            K(0,0) = -dHpdp + sum(dPhida % Lambdaa);
+            EP = EP_start + Ds_j(0)*Lambdap;   // CPP: flow at the CONVERGED stress
+            // a and X already inner-consistent from the last state solve.
+        }
+        else {
+            tnew_dt = 0.5;                     // step-cut; never a silent CCP fallback
+            stress = stress_start;
+            EP = EP_start;
+            a = a_n;
+            X = kX*(a % Ir05());
+            s_j(0) = p_n;
+            refresh_hard(p_n);
+            Ds_j(0) = 0.;
+            dPhidsigma = eta_stress(stress - X);
+            Lambdap = dPhidsigma;
+            Lambdaa = dPhidsigma;
+            kappa_j[0] = L*Lambdap;
+            dPhida = -1.*kX*(dPhidsigma % Ir05());
+            K(0,0) = -dHpdp + sum(dPhida % Lambdaa);
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
+
         p = s_j(0);
         if (p > simcoon::iota)	{
             dHpdp = m*k*pow(p, m-1);
@@ -225,13 +342,14 @@ void umat_plasticity_kin_iso_CCP(const string &umat_name, const vec &Etot, const
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         stress = el_pred(L, Eel, ndi);
     }
-    
+    }
+
     //Computation of the increments of variables
     vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
     vec Da = a - a_start;
-    
+
     //Computation of the tangent modulus — continuum elastic-plastic operator
     //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(1, 1);
@@ -239,7 +357,11 @@ void umat_plasticity_kin_iso_CCP(const string &umat_name, const vec &Etot, const
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (use_cpp) {
+        // Exact consistent tangent of the converged CPP map (doc §cpp_return_mapping):
+        // dLambda_dsigma carried the full dLambda/dX chain via the inner-consistent FD.
+        ct = cpp_consistent_tangent(rm, L);
+    } else if (tangent_mode >= 1) {
         // Simo-Hughes algorithmic tangent (closest-point). J2 flow on effective stress (sigma-X):
         // dLambda_eps/dsigma = deta_stress(stress-X). Backstress state-coupling (dLambda/dX . dX/dsigma)
         // is deferred to the closest-point (CPP) return-map rework, future release.

@@ -31,6 +31,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 using namespace std;
 using namespace arma;
@@ -193,9 +194,80 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     int compteur = 0;
     double error = 1.;
 
+    // tangent_mode 2: closest-point projection replaces the CCP loop (doc §cpp_return_mapping),
+    // exercising the N-mechanism reduced system. Condensed states (ndi < 3) keep the CCP loop.
+    ReturnMappingResult rm;
+    const bool use_cpp = (tangent_mode == 2) && (ndi == 3);
+    if (use_cpp) {
+        const vec p_n = s_j;
+        const std::vector<vec> EP_branch_start = EP_branch;
+        auto refresh_hard = [&](const vec &pv) {
+            p = pv;
+            for (int i = 0; i < N_plas; i++) {
+                if (p[i] > simcoon::iota) {
+                    dHpdp[i] = m[i]*k[i]*pow(p[i], m[i]-1.0);
+                    Hp[i] = k[i]*pow(p[i], m[i]);
+                }
+                else {
+                    dHpdp[i] = 0.;
+                    Hp[i] = 0.;
+                }
+            }
+        };
+        std::vector<ReturnMechanism> mechs(N_plas);
+        for (int i = 0; i < N_plas; i++) {
+            mechs[i].Phi = [&, i](const vec &sig) {
+                return Hill_stress(sig, Hill_params[i]) - Hp[i] - sigmaY[i];
+            };
+            mechs[i].dPhi_dsigma = [&, i](const vec &sig) { return dHill_stress(sig, Hill_params[i]); };
+            mechs[i].dLambda_dsigma = [&, i](const vec &sig) { return ddHill_stress(sig, Hill_params[i]); };
+        }
+        ReturnStateHooks hooks;
+        hooks.update_state = [&](const vec &, const vec &Dl) { refresh_hard(p_n + Dl); return true; };
+        hooks.K = [&](const vec &, const vec &) {
+            mat Km = zeros(N_plas, N_plas);
+            for (int i = 0; i < N_plas; i++) Km(i, i) = -dHpdp[i];
+            return Km;
+        };
+        vec Ycrit_cpp(N_plas);
+        for (int i = 0; i < N_plas; i++) Ycrit_cpp(i) = sigmaY[i];
+
+        rm = closest_point_return_mapping(stress, L, mechs, hooks, Ycrit_cpp);
+        if (rm.converged) {
+            stress = rm.sigma;
+            Ds_j = rm.Dlambda;
+            s_j = p_n + Ds_j;
+            refresh_hard(s_j);
+            EP = EP_start;
+            for (int i = 0; i < N_plas; i++) {
+                dPhidsigma[i] = rm.dPhidsigma_l[i];
+                Lambdap[i] = dPhidsigma[i];
+                K(i, i) = -dHpdp[i];
+                EP_branch[i] = EP_branch_start[i] + Ds_j(i)*Lambdap[i];   // flow at converged stress
+                EP += Ds_j(i)*Lambdap[i];
+            }
+            kappa_j = rm.kappa_j;
+        }
+        else {
+            tnew_dt = 0.5;                     // step-cut; never a silent CCP fallback
+            stress = stress_start;
+            EP = EP_start;
+            EP_branch = EP_branch_start;
+            s_j = p_n;
+            refresh_hard(p_n);
+            Ds_j = zeros(N_plas);
+            for (int i = 0; i < N_plas; i++) {
+                dPhidsigma[i] = dHill_stress(stress, Hill_params[i]);
+                Lambdap[i] = dPhidsigma[i];
+                kappa_j[i] = L*Lambdap[i];
+                K(i, i) = -dHpdp[i];
+            }
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
+
         p = s_j;
         for (int i=0; i<N_plas; i++) {
             if (p[i] > simcoon::iota)	{
@@ -233,12 +305,13 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         stress = el_pred(L, Eel, ndi);
     }
-    
+    }
+
     //Computation of the increments of variables
     vec Dsigma = stress - stress_start;
     vec DEP = EP - EP_start;
     vec Dp = Ds_j;
-    
+
     //Computation of the tangent modulus — continuum elastic-plastic operator
     //assembled via the shared leading-mechanism helper (doc §7.4).
     mat Bhat = zeros(N_plas, N_plas);
@@ -249,7 +322,10 @@ void umat_plasticity_hill_isoh_CCP_N(const string &umat_name, const vec &Etot, c
     }
 
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (use_cpp) {
+        // Exact consistent tangent of the converged CPP map (doc §cpp_return_mapping).
+        ct = cpp_consistent_tangent(rm, L);
+    } else if (tangent_mode >= 1) {
         // Simo-Hughes algorithmic tangent (N Hill fast mechanisms): per mechanism
         // dLambda_eps^i/dsigma = ddHill_stress(sigma, Hill_params[i]).
         std::vector<mat> dLambda_dsigma_l(N_plas);

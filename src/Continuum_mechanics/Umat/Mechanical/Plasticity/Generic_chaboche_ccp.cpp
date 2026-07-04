@@ -444,7 +444,7 @@ void umat_generic_chaboche_CCP(const string &umat_name, const vec &Etot, const v
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
     ContinuumTangent ct;
-    if (tangent_mode == 1) {
+    if (tangent_mode >= 1) {  // mode 2 degrades to the mode-1 tangent until CPP is wired here
         // Simo-Hughes algorithmic tangent (closest-point). Flow on effective stress (sigma-X), with
         // the Hessian of the active criterion. Backstress state-coupling deferred (CPP, future release).
         mat dLambda_dsigma;

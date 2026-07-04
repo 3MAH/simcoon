@@ -58,7 +58,16 @@ namespace simcoon{
  * @param path_results Path to results directory (default: "results")
  * @param pathfile Name of loading path file (default: "path.txt")
  * @param outputfile Name of output file (default: "result_job.txt")
- * 
+ * @param tangent_mode Tangent/integrator selector (default 0). 0: continuum tangent;
+ *        1: Simo-Hughes algorithmic (consistent) tangent — both run the legacy
+ *        convex-cutting-plane local integrator and preserve the legacy stress response
+ *        exactly. 2: closest-point-projection (CPP) return mapping with the exact
+ *        consistent tangent — a different local integrator whose discrete solution
+ *        differs from CCP by O(step^2) at finite step size (identical for radial flows;
+ *        same continuous model as the step size -> 0). UMATs not yet CPP-wired degrade
+ *        to the mode-1 tangent; CPP local non-convergence triggers the standard
+ *        tnew_dt step-cut, never a silent CCP fallback.
+ *
  * @details This function drives the simulation by:
  * - Reading the loading path from input files
  * - Managing time stepping with adaptive incrementation

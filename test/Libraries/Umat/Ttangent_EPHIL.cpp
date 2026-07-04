@@ -148,3 +148,41 @@ TEST(Ttangent_EPHIL, convergence_rate_continuum_vs_algorithmic)
     EXPECT_LT(r_algo.back(), 1e-8);
     EXPECT_LT(r_algo.size(), r_cont.size());
 }
+
+// ---------------------------------------------------------------------
+// Test 4 (tangent_mode == 2, CPP integrator): THE PAYOFF for anisotropic
+// Hill. Under the closest-point integrator the discrete map is symmetric
+// and its consistent tangent is machine-exact — the strict assertions the
+// CCP-based mode 1 could not satisfy (see the NOTE above).
+// ---------------------------------------------------------------------
+TEST(Ttangent_EPHIL, mode2_exact_symmetric_tangent_anisotropic)
+{
+    const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
+    Out a = run_ephil(Deps, 2);
+    ASSERT_TRUE(a.plastic) << "Test set-up did not yield - increase Deps.";
+
+    const double h = 1.e-7;
+    mat J_ref(6, 6);
+    for (int j = 0; j < 6; ++j) {
+        vec Dp = Deps; Dp(j) += h;
+        vec Dm = Deps; Dm(j) -= h;
+        J_ref.col(j) = (run_ephil(Dp, 2).sigma - run_ephil(Dm, 2).sigma) / (2. * h);
+    }
+    const double err = norm(a.Lt - J_ref, "fro");
+    if (verbose()) {
+        std::cout << "\n[Ttangent_EPHIL mode2] ||Lt - dsigma/dDeps||_F = " << err
+                  << "  ||J-J^T||/||J|| = "
+                  << norm(J_ref - J_ref.t(), "fro") / norm(J_ref, "fro") << "\n";
+    }
+    // Machine-exact consistent tangent (like EPICP), for the ANISOTROPIC flow.
+    EXPECT_LT(err, 1.);
+    // The discrete map itself is symmetric under CPP.
+    EXPECT_LT(norm(J_ref - J_ref.t(), "fro"), 1e-4 * norm(J_ref, "fro"));
+
+    // Elastic parity across modes.
+    const vec Deps_el = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.};
+    Out e0 = run_ephil(Deps_el, 0);
+    Out e2 = run_ephil(Deps_el, 2);
+    EXPECT_LT(norm(e2.sigma - e0.sigma, 2), 1e-14);
+    EXPECT_LT(norm(e2.Lt - e0.Lt, "fro"), 1e-12);
+}

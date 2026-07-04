@@ -121,3 +121,39 @@ TEST(Ttangent_EPCHA, convergence_no_worse_than_continuum)
     // chaboche set, and a strict <= would flake on platform/BLAS rounding noise.
     EXPECT_LE(r_algo.back(), r_cont.back() * (1. + 1.e-3));
 }
+
+// ---------------------------------------------------------------------
+// Test 4 (tangent_mode == 2, CPP integrator): backstress payoff. With the
+// inner backward-Euler state and the FD-total dLambda/dsigma (which carries
+// the dLambda/dX chain), the consistent tangent of the mode-2 map is exact
+// and the map symmetric — what neither mode 0 nor mode 1 could deliver on CCP.
+// ---------------------------------------------------------------------
+TEST(Ttangent_EPCHA, mode2_exact_symmetric_tangent_backstress)
+{
+    const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
+    Out a = run_epcha(Deps, 2);
+    ASSERT_TRUE(a.plastic);
+
+    const double h = 1.e-7;
+    mat J_ref(6, 6);
+    for (int j = 0; j < 6; ++j) {
+        vec Dp = Deps; Dp(j) += h; vec Dm = Deps; Dm(j) -= h;
+        J_ref.col(j) = (run_epcha(Dp, 2).sigma - run_epcha(Dm, 2).sigma) / (2. * h);
+    }
+    const double err = norm(a.Lt - J_ref, "fro");
+    if (verbose())
+        std::cout << "\n[Ttangent_EPCHA mode2] ||Lt - J_FD||_F = " << err
+                  << "  ||J-J^T||/||J|| = "
+                  << norm(J_ref - J_ref.t(), "fro") / norm(J_ref, "fro") << "\n";
+    // Exact consistent tangent (FD reference carries ~1e-2-level noise through the
+    // inner fixed point, hence the tolerance of 5 instead of EPICP/EPHIL's 1).
+    EXPECT_LT(err, 5.);
+    EXPECT_LT(norm(J_ref - J_ref.t(), "fro"), 1e-3 * norm(J_ref, "fro"));
+
+    // Elastic parity across modes.
+    const vec Deps_el = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.};
+    Out e0 = run_epcha(Deps_el, 0);
+    Out e2 = run_epcha(Deps_el, 2);
+    EXPECT_LT(norm(e2.sigma - e0.sigma, 2), 1e-14);
+    EXPECT_LT(norm(e2.Lt - e0.Lt, "fro"), 1e-12);
+}

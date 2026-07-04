@@ -83,7 +83,20 @@ class state_variables
         arma::vec statev; ///< Internal state variables vector
         arma::vec statev_start; ///< Internal state variables at start of increment
 
-        int tangent_mode = 0; // Tangent-mode selector 0 = continuum (current behaviour, default in simcoon 1.x), 1 = algorithmic / Simo–Hughes consistent tangent (planned 2.0 default).
+        int tangent_mode = 0; // Tangent/integrator selector.
+                              // 0 = continuum tangent (legacy default in simcoon 1.x);
+                              // 1 = Simo-Hughes algorithmic (consistent) tangent on the legacy
+                              //     convex-cutting-plane (CCP) integrator. Modes 0 and 1 preserve
+                              //     the stress/state response bit-for-bit; only Lt changes.
+                              //     (planned 2.0 default)
+                              // 2 = closest-point-projection (CPP) return mapping with its exact
+                              //     consistent tangent (doc §cpp_return_mapping). Mode 2 changes the
+                              //     LOCAL INTEGRATOR: at finite step size the converged stress
+                              //     differs from CCP by O(||Deps||^2) (identically zero for radial
+                              //     flows); both discretisations converge to the same continuous
+                              //     model as the step size -> 0. UMATs not yet CPP-wired degrade
+                              //     to the mode-1 tangent. CPP local non-convergence triggers the
+                              //     standard tnew_dt step-cut, never a silent CCP fallback.
     
         natural_basis nb; ///< Natural basis for covariant/contravariant operations
     

@@ -36,6 +36,9 @@ set(TEST_SRCS
   test/Libraries/Umat/Ttangent_EPICP.cpp
   test/Libraries/Umat/Ttangent_EPHIL.cpp
   test/Libraries/Umat/Ttangent_EPCHA.cpp
+  test/Libraries/Umat/Treturn_mapping.cpp
+  test/Libraries/Umat/Tcpp_ccp_robustness.cpp
+  test/Libraries/Umat/Ttangent_SMAUT.cpp
   test/Libraries/Umat/Tunified_TR.cpp
 
   # UMATs
