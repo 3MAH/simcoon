@@ -28,7 +28,9 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/parameter.hpp>
+#include <algorithm>
 #include <stdexcept>
 #include <cmath>
 
@@ -259,7 +261,8 @@ void ModularUMAT::run(
     int ndi,
     int nshr,
     bool start,
-    double& tnew_dt
+    double& tnew_dt,
+    int tangent_mode
 ) {
     // Initialize if first call
     if (!initialized_ || start) {
@@ -307,7 +310,7 @@ void ModularUMAT::run(
 
     // Compute consistent tangent
     Lt = L;  // Start with elastic stiffness
-    compute_tangent(sigma, Ds_total, Lt);
+    compute_tangent(sigma, Ds_total, Lt, tangent_mode);
 
     // Compute work quantities
     // Elastic strain
@@ -398,49 +401,8 @@ void ModularUMAT::return_mapping(
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
 
-        // Phase 2: assemble cross-mechanism off-diagonal Jacobian entries per
-        //          theory eq B_{lj} = -dPhi^l/dsigma · kappa^j + K^{lj}.
-        //          Mechanisms whose Phi is strain-form (viscoelastic) return
-        //          empty dPhi_dsigma → no rows contributed here, matching the
-        //          decoupled-from-stress structure.
-        //          The dot is taken on engineering Voigt components — the
-        //          work-conjugate pairing for strain-typed dPhi with
-        //          stress-typed kappa (and the established numerics for the
-        //          damage strain-typed kappa; see DamageMechanism::kappa).
-        B.zeros();
-        // Fetch each mechanism's kappa list once — the const-refs stay valid
-        // for the whole phase (no compute_constraints call in between).
-        std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
-        for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-            kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
-        }
-        for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-            const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma, ivc_);
-            if (dPhi_l_all.empty()) continue;
-            for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
-                const int row = mech_offset_[lm] + static_cast<int>(l_c);
-                const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
-                for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-                    const auto& kappa_j_all = *kappa_all[jm];
-                    for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
-                        if (lm == jm && l_c == j_c) continue;  // diagonal last
-                        const int col = mech_offset_[jm] + static_cast<int>(j_c);
-                        B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
-                                    + mechanisms_[lm]->K_cross(
-                                          static_cast<int>(l_c),
-                                          *mechanisms_[jm],
-                                          static_cast<int>(j_c),
-                                          ivc_);
-                    }
-                }
-            }
-        }
-
-        // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
-        for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            mechanisms_[m]->compute_jacobian_contribution(
-                sigma, elasticity_.L(), ivc_, B, mech_offset_[m]);
-        }
+        // Phases 2 and 3: local multiplier Jacobian from the mechanism caches.
+        assemble_jacobian(sigma, DT, B);
 
         // Solve using Fischer-Burmeister
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
@@ -462,6 +424,56 @@ void ModularUMAT::return_mapping(
     }
 }
 
+void ModularUMAT::assemble_jacobian(
+    const arma::vec& sigma,
+    double DT,
+    arma::mat& B
+) {
+    // Phase 2: cross-mechanism off-diagonal Jacobian entries per theory eq
+    //          B_{lj} = -dPhi^l/dsigma · kappa^j + K^{lj}.
+    //          Mechanisms whose Phi is strain-form (viscoelastic) return
+    //          empty dPhi_dsigma → no rows contributed here, matching the
+    //          decoupled-from-stress structure.
+    //          The dot is taken on engineering Voigt components — the
+    //          work-conjugate pairing for strain-typed dPhi with
+    //          stress-typed kappa (and the established numerics for the
+    //          damage strain-typed kappa; see DamageMechanism::kappa).
+    B.zeros();
+    // Fetch each mechanism's kappa list once — the const-refs stay valid
+    // for the whole phase (no compute_constraints call in between).
+    std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
+    for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
+    }
+    for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
+        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma, ivc_);
+        if (dPhi_l_all.empty()) continue;
+        for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
+            const int row = mech_offset_[lm] + static_cast<int>(l_c);
+            const arma::vec::fixed<6> dPhi_l = dPhi_l_all[l_c].voigt();
+            for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
+                const auto& kappa_j_all = *kappa_all[jm];
+                for (size_t j_c = 0; j_c < kappa_j_all.size(); ++j_c) {
+                    if (lm == jm && l_c == j_c) continue;  // diagonal last
+                    const int col = mech_offset_[jm] + static_cast<int>(j_c);
+                    B(row, col) = -arma::dot(dPhi_l, kappa_j_all[j_c].voigt())
+                                + mechanisms_[lm]->K_cross(
+                                      static_cast<int>(l_c),
+                                      *mechanisms_[jm],
+                                      static_cast<int>(j_c),
+                                      ivc_);
+                }
+            }
+        }
+    }
+
+    // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        mechanisms_[m]->compute_jacobian_contribution(
+            sigma, elasticity_.L(), ivc_, B, mech_offset_[m]);
+    }
+}
+
 double ModularUMAT::stiffness_reduction() const {
     double f = 1.0;
     for (const auto& mech : mechanisms_) {
@@ -473,12 +485,73 @@ double ModularUMAT::stiffness_reduction() const {
 void ModularUMAT::compute_tangent(
     const arma::vec& sigma,
     const arma::vec& Ds_total,
-    arma::mat& Lt
+    arma::mat& Lt,
+    int tangent_mode
 ) {
-    Lt = elasticity_.L();
+    const arma::mat& L = elasticity_.L();
+    Lt = L;
+
+    // Mechanisms opting into the algorithmic assembly: stress-dependent Phi
+    // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
+    // criteria) keep their continuum tangent_contribution in every mode.
+    std::vector<size_t> algo;
+    if (tangent_mode == 1) {
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            if (mechanisms_[m]->dLambda_dsigma(sigma, ivc_) != nullptr &&
+                !mechanisms_[m]->dPhi_dsigma(sigma, ivc_).empty()) {
+                algo.push_back(m);
+            }
+        }
+    }
+
+    if (!algo.empty()) {
+        // Rebuild the local Jacobian at the converged state (the mechanism
+        // caches were refreshed by the last compute_constraints call) and
+        // hand the opted-in sub-block to the Simo-Hughes assembly.
+        // Sign: modular B = -dPhi·kappa + K, tangent_assembly Bhat = dPhi·kappa - K,
+        // hence Bhat = -B.
+        int n_total = 0;
+        for (const auto& mech : mechanisms_) {
+            n_total += mech->num_constraints();
+        }
+        arma::mat B(n_total, n_total);
+        assemble_jacobian(sigma, 0.0, B);
+
+        std::vector<int> rows;
+        std::vector<arma::vec> kappa_j;
+        std::vector<arma::vec> dPhi_l;
+        std::vector<arma::mat> dLambda_l;
+        for (size_t m : algo) {
+            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma, ivc_);
+            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L, ivc_);
+            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma, ivc_);
+            for (size_t c = 0; c < dPhi_all.size(); ++c) {
+                rows.push_back(mech_offset_[m] + static_cast<int>(c));
+                dPhi_l.emplace_back(dPhi_all[c].voigt());
+                kappa_j.emplace_back(kappa_all[c].voigt());
+                dLambda_l.emplace_back(hess_all[c].mat());
+            }
+        }
+        const size_t nb = rows.size();
+        arma::mat Bhat(nb, nb);
+        arma::vec Ds_sub(nb);
+        for (size_t i = 0; i < nb; ++i) {
+            Ds_sub(i) = Ds_total(rows[i]);
+            for (size_t j = 0; j < nb; ++j) {
+                Bhat(i, j) = -B(rows[i], rows[j]);
+            }
+        }
+        const ContinuumTangent ct =
+            assemble_algorithmic_tangent(Bhat, kappa_j, dPhi_l, Ds_sub, L, dLambda_l);
+        Lt = ct.Lt;
+    }
+
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        if (std::find(algo.begin(), algo.end(), m) != algo.end()) {
+            continue;
+        }
         mechanisms_[m]->tangent_contribution(
-            sigma, elasticity_.L(), Ds_total, mech_offset_[m], ivc_, Lt);
+            sigma, L, Ds_total, mech_offset_[m], ivc_, Lt);
     }
 }
 
@@ -510,7 +583,6 @@ void umat_modular(
     double& tnew_dt,
     const int& tangent_mode
 ) {
-    UNUSED(tangent_mode);  // continuum tangent only for now
     // Create a fresh instance each call. Configuration is re-parsed from props
     // and state is restored from statev, ensuring correctness for multi-point
     // simulations. The cost of re-parsing props is negligible compared to the
@@ -522,7 +594,7 @@ void umat_modular(
         nprops, props, nstatev, statev,
         T, DT, Time, DTime,
         Wm, Wm_r, Wm_ir, Wm_d,
-        ndi, nshr, start, tnew_dt
+        ndi, nshr, start, tnew_dt, tangent_mode
     );
 }
 

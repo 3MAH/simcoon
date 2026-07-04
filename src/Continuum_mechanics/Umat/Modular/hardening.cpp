@@ -173,6 +173,13 @@ void PragerHardening::update(double dp, const arma::vec& n, InternalVariableColl
     a_var.set_tensor2(a_var.as_tensor2() + dp * strain(n));
 }
 
+void PragerHardening::refresh_state(double dp, const arma::vec& n,
+                                    InternalVariableCollection& ivc) const {
+    // Linear: alpha = alpha_n + dp n (exact backward Euler).
+    auto& a_var = ivc.get(a_key_);
+    a_var.vec() = a_var.vec_start() + dp * n;
+}
+
 // ArmstrongFrederickHardening
 void ArmstrongFrederickHardening::configure(const arma::vec& props, int& offset) {
     C_ = props(offset);
@@ -208,6 +215,13 @@ void ArmstrongFrederickHardening::update(double dp, const arma::vec& n,
     auto& a_var = ivc.get(a_key_);
     const tensor2 a_t = a_var.as_tensor2();
     a_var.set_tensor2(a_t + dp * (strain(n) - D_ * a_t));
+}
+
+void ArmstrongFrederickHardening::refresh_state(double dp, const arma::vec& n,
+                                                InternalVariableCollection& ivc) const {
+    // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp).
+    auto& a_var = ivc.get(a_key_);
+    a_var.vec() = (a_var.vec_start() + dp * n) / (1.0 + D_ * dp);
 }
 
 // ChabocheHardening
@@ -262,6 +276,15 @@ void ChabocheHardening::update(double dp, const arma::vec& n,
         auto& a_var = ivc.get(a_keys_[i]);
         const tensor2 a_t = a_var.as_tensor2();
         a_var.set_tensor2(a_t + dp * (n_t - D_(i) * a_t));
+    }
+}
+
+void ChabocheHardening::refresh_state(double dp, const arma::vec& n,
+                                      InternalVariableCollection& ivc) const {
+    // Per-branch backward Euler closed form (see ArmstrongFrederick).
+    for (int i = 0; i < N_; ++i) {
+        auto& a_var = ivc.get(a_keys_[i]);
+        a_var.vec() = (a_var.vec_start() + dp * n) / (1.0 + D_(i) * dp);
     }
 }
 

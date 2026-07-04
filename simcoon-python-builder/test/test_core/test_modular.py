@@ -194,3 +194,79 @@ def test_damage_softens_end_to_end(work_in_examples):
     assert peak_dm < 0.95 * peak_el, (
         f"damage peak {peak_dm:.1f} not softened vs elastic {peak_el:.1f}"
     )
+
+
+def test_tangent_mode_1_same_converged_response(work_in_examples):
+    """tangent_mode=1 (Simo-Hughes algorithmic) must reproduce the mode-0
+    converged response — the tangent steers the global Newton, not the
+    residual. Guards the mode-1 assembly (Bhat = -B sign convention and the
+    coupled sub-block extraction) at solver level."""
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.0,
+            isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
+            kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=172.0),
+        )],
+    )
+
+    outs = {}
+    for mode in (0, 1):
+        out = f"res_tg{mode}.txt"
+        sim.solver(mat.umat_name, mat.props, mat.nstatev,
+                   0.0, 0.0, 0.0, 0, 1,
+                   "../data", work_in_examples, "MODUL_path.txt", out,
+                   mode)
+        outs[mode] = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                                / out.replace(".txt", "_global-0.txt"))
+
+    assert outs[0].shape == outs[1].shape
+    peak = np.max(np.abs(outs[0][:, 14]))
+    diff = np.max(np.abs(outs[0][:, 14] - outs[1][:, 14]))
+    assert peak > 100.0
+    assert diff / peak < 1e-5, (
+        f"mode-1 response deviates from mode-0 by {diff/peak:.2e} "
+        "(algorithmic tangent must not change the converged solution)"
+    )
+
+
+def test_chaboche_matches_epcha_reference(work_in_examples):
+    """MODUL (Voce + 2-term Chaboche) must reproduce the reference EPCHA UMAT
+    through the solver on the cyclic path.
+
+    Regression for the FB-Jacobian hardening-sign bug: B carried +H_total
+    instead of -H_total (dPhi/dp = -H), a wrong Newton slope that made the FB
+    error metric report convergence prematurely — 4.4% peak-stress error vs
+    EPCHA on this path, invisible to every monotonic test."""
+    from simcoon.modular import ChabocheHardening
+
+    epcha_props = np.array([210000.0, 0.3, 0.0,
+                            300.0, 200.0, 20.0,
+                            30000.0, 172.0, 19500.0, 301.0])
+    sim.solver("EPCHA", epcha_props, 33, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "MODUL_path.txt", "res_epcha.txt")
+    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                     / "res_epcha_global-0.txt", usecols=(8, 14))
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.0,
+            isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000.0, 172.0), (19500.0, 301.0))),
+        )],
+    )
+    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "MODUL_path.txt", "res_mchab.txt")
+    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                      / "res_mchab_global-0.txt", usecols=(8, 14))
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    assert peak > 500.0, "sanity: cyclic path reached the hardened regime"
+    assert max_diff / peak < 2e-3, (
+        f"MODUL Chaboche deviates from EPCHA by {max_diff/peak:.3%} "
+        "(FB Jacobian sign regression?)"
+    )

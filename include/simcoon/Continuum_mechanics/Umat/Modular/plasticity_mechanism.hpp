@@ -74,6 +74,7 @@ private:
     mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
     mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
     mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::stress)};
+    mutable std::vector<tensor4> hessian_cache_{tensor4(Tensor4Type::compliance)};
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
 
 public:
@@ -214,6 +215,22 @@ public:
         double DT,
         const arma::mat& L_ref,
         const InternalVariableCollection& ivc) const override;
+
+    /// Flow Hessian dLambda/dsigma at the shifted stress (sigma - X), via the
+    /// yield criterion's analytic kernel (deta_stress / ddHill / ddDFA / ddAni).
+    /// nullptr for criteria without one (Tresca, Drucker) -> continuum fallback.
+    [[nodiscard]] const std::vector<tensor4>* dLambda_dsigma(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const override;
+
+    /// Backward-Euler refresh from start values (CPP contract): p = p_n + dp,
+    /// EP = EP_n + dp n, back-strains via closed forms; short fixed point on
+    /// the n <-> X coupling when kinematic hardening is present.
+    bool refresh_state(
+        const arma::vec& sigma,
+        const arma::vec& Ds_total,
+        int offset,
+        InternalVariableCollection& ivc) const override;
 
     arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
 

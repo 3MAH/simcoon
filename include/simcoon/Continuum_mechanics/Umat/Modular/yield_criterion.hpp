@@ -180,6 +180,23 @@ public:
     /// Plastic flow direction (associated flow: equals flow_direction).
     arma::vec plastic_flow(const arma::vec& sigma) const;
 
+    /**
+     * @brief Whether an analytic flow Hessian is available for this criterion
+     * (required by tangent_mode >= 1; Tresca and Drucker J2-J3 have none).
+     */
+    [[nodiscard]] bool has_flow_hessian() const noexcept;
+
+    /**
+     * @brief Analytic flow Hessian $ \mathrm{d}oldsymbol{\Lambda}/
+     * \mathrm{d}oldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
+     * oldsymbol{\sigma}^2 $ (6x6, compliance-like Voigt).
+     *
+     * Dispatch: VON_MISES → deta_stress; HILL/DFA/ANISOTROPIC →
+     * ddHill_stress / ddDFA_stress / ddAni_stress with the configured params.
+     * @throws std::runtime_error if has_flow_hessian() is false.
+     */
+    [[nodiscard]] arma::mat flow_hessian(const arma::vec& sigma) const;
+
     // ========== Tensor2 overloads ==========
 
     /**

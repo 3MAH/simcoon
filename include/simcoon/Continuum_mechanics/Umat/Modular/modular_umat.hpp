@@ -218,6 +218,12 @@ public:
     InternalVariableCollection& internal_variables() { return ivc_; }
     const InternalVariableCollection& internal_variables() const { return ivc_; }
 
+    /// Local return-mapping controls (defaults: 100 iterations, 1e-9).
+    void set_solver_params(int maxiter, double precision) {
+        maxiter_ = maxiter;
+        precision_ = precision;
+    }
+
     /**
      * @brief Get total number of state variables required
      * @return nstatev
@@ -305,7 +311,8 @@ public:
         int ndi,
         int nshr,
         bool start,
-        double& tnew_dt
+        double& tnew_dt,
+        int tangent_mode = 0
     );
 
 private:
@@ -346,15 +353,41 @@ private:
     );
 
     /**
-     * @brief Compute consistent tangent modulus
-     * @param sigma Current stress
+     * @brief Compute the tangent modulus.
+     *
+     * tangent_mode == 0: each mechanism applies its continuum
+     * tangent_contribution() in composition order (legacy behaviour).
+     *
+     * tangent_mode == 1: mechanisms exposing a flow Hessian
+     * (dLambda_dsigma() != nullptr, stress-dependent Phi) are assembled
+     * together through assemble_algorithmic_tangent() — the Simo–Hughes
+     * consistent operator of the coupled sub-system, built from the converged
+     * local Jacobian \f$ \hat{B} = -B \f$ and the mechanism caches. The
+     * remaining mechanisms (Prony viscoelasticity, scalar damage — flows
+     * independent of stress) keep their continuum contribution, applied on
+     * top in composition order, exactly as in mode 0.
+     *
+     * @param sigma Current (converged) stress
      * @param Ds_total Total multiplier increments
      * @param Lt Output: tangent modulus
+     * @param tangent_mode 0 = continuum, 1 = algorithmic (Simo–Hughes)
      */
     void compute_tangent(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
-        arma::mat& Lt
+        arma::mat& Lt,
+        int tangent_mode = 0
+    );
+
+    /**
+     * @brief Assemble the local multiplier Jacobian B (phases 2 and 3 of the
+     * return mapping) from the mechanism caches at the current state.
+     * Shared by the FB loop and the mode-1 tangent assembly.
+     */
+    void assemble_jacobian(
+        const arma::vec& sigma,
+        double DT,
+        arma::mat& B
     );
 
     /**

@@ -211,6 +211,49 @@ const std::vector<tensor2>& PlasticityMechanism::kappa(
     return kappa_cache_;
 }
 
+const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
+    const arma::vec& sigma, const InternalVariableCollection& ivc) const {
+    if (!yield_->has_flow_hessian()) {
+        return nullptr;
+    }
+    const bool has_kin = kin_hard_->num_backstresses() > 0;
+    const arma::vec sigma_eff =
+        has_kin ? arma::vec(sigma - kin_hard_->total_backstress(ivc)) : sigma;
+    hessian_cache_[0] =
+        tensor4(arma::mat(yield_->flow_hessian(sigma_eff)), Tensor4Type::compliance);
+    return &hessian_cache_;
+}
+
+bool PlasticityMechanism::refresh_state(
+    const arma::vec& sigma,
+    const arma::vec& Ds_total,
+    int offset,
+    InternalVariableCollection& ivc) const {
+    const double dp = Ds_total(offset);
+
+    auto& p_var = ivc.get(p_key_);
+    p_var.scalar() = p_var.scalar_start() + dp;
+
+    // n and the back-strains couple through X(alpha): fixed point (direct for
+    // pure isotropic hardening; contraction ~ dp C / sigma_eq per iteration).
+    const int n_fp = (kin_hard_->num_backstresses() > 0) ? 50 : 1;
+    arma::vec n = arma::zeros(6);
+    for (int it = 0; it < n_fp; ++it) {
+        const arma::vec X = kin_hard_->total_backstress(ivc);
+        const arma::vec n_new = yield_->flow_direction(sigma - X);
+        const double dn = arma::norm(n_new - n, 2);
+        n = n_new;
+        kin_hard_->refresh_state(dp, n, ivc);
+        if (it > 0 && dn < 1e-14) {
+            break;
+        }
+    }
+
+    auto& EP_var = ivc.get(EP_key_);
+    EP_var.vec() = EP_var.vec_start() + dp * n;
+    return true;
+}
+
 void PlasticityMechanism::compute_jacobian_contribution(
     const arma::vec& sigma,
     const arma::mat& L,
@@ -218,15 +261,14 @@ void PlasticityMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // B = -dPhi/dsigma * L * dPhi/dsigma + K
-    // where K includes isotropic and kinematic hardening contributions
+    // B = -dPhi/dsigma : kappa + K with K = dPhi/dp = -H_total (hardening
+    // REDUCES Phi as Dp grows) — the plastic_isotropic_ccp convention, so the
+    // mode-1 assembly's Bhat = -B = n:kappa + H_total holds exactly.
 
     // dPhi/dsigma * L * dPhi/dsigma (engineering Voigt dot = n : L : n)
     double dPhi_L_dPhi = arma::dot(flow_dir_, kappa_);
 
-    // B(0,0) = -dPhi_L_dPhi + H_total
-    // Note: H_total already includes both iso and kin contributions
-    B(row_offset, row_offset) = -dPhi_L_dPhi + H_total_;
+    B(row_offset, row_offset) = -dPhi_L_dPhi - H_total_;
 }
 
 arma::vec PlasticityMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {

@@ -285,6 +285,22 @@ public:
     }
 
     /**
+     * @brief Backward-Euler refresh of the back-strains FROM THE START VALUES
+     * (closest-point / tangent_mode == 2 contract).
+     *
+     * Unlike update() (incremental, frozen flow), this solves the implicit
+     * update \f$ \boldsymbol{\alpha} = \boldsymbol{\alpha}_n + \Delta p\,
+     * (\mathbf{n} - D\,\boldsymbol{\alpha}) \f$ in closed form
+     * \f$ \boldsymbol{\alpha} = (\boldsymbol{\alpha}_n + \Delta p\,\mathbf{n})
+     * / (1 + D\,\Delta p) \f$ so the CPP Newton can re-evaluate the state at
+     * every iterate. Default: no state, nothing to do.
+     */
+    virtual void refresh_state(double dp, const arma::vec& n,
+                               InternalVariableCollection& ivc) const {
+        (void)dp; (void)n; (void)ivc;
+    }
+
+    /**
      * @brief Get the hardening type
      * @return Hardening type enum
      */
@@ -363,6 +379,7 @@ public:
     arma::vec alpha_flow(int i, const arma::vec& n, const InternalVariableCollection& ivc) const override;
     double hardening_modulus(const arma::vec& n, const InternalVariableCollection& ivc) const override;
     void update(double dp, const arma::vec& n, InternalVariableCollection& ivc) override;
+    void refresh_state(double dp, const arma::vec& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::PRAGER; }
     int num_backstresses() const override { return 1; }
 };
@@ -383,6 +400,7 @@ public:
     arma::vec alpha_flow(int i, const arma::vec& n, const InternalVariableCollection& ivc) const override;
     double hardening_modulus(const arma::vec& n, const InternalVariableCollection& ivc) const override;
     void update(double dp, const arma::vec& n, InternalVariableCollection& ivc) override;
+    void refresh_state(double dp, const arma::vec& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::ARMSTRONG_FREDERICK; }
     int num_backstresses() const override { return 1; }
 };
@@ -406,6 +424,7 @@ public:
     arma::vec alpha_flow(int i, const arma::vec& n, const InternalVariableCollection& ivc) const override;
     double hardening_modulus(const arma::vec& n, const InternalVariableCollection& ivc) const override;
     void update(double dp, const arma::vec& n, InternalVariableCollection& ivc) override;
+    void refresh_state(double dp, const arma::vec& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::CHABOCHE; }
     int num_backstresses() const override { return N_; }
 };

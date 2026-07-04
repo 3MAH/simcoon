@@ -22,6 +22,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/yield_criterion.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <stdexcept>
 
 namespace simcoon {
@@ -173,6 +174,37 @@ arma::vec YieldCriterion::flow_direction(const arma::vec& sigma) const {
 
 arma::vec YieldCriterion::plastic_flow(const arma::vec& sigma) const {
     return flow_direction(sigma);
+}
+
+bool YieldCriterion::has_flow_hessian() const noexcept {
+    switch (type_) {
+        case YieldType::VON_MISES:
+        case YieldType::HILL:
+        case YieldType::DFA:
+        case YieldType::ANISOTROPIC:
+            return true;
+        default:
+            return false;
+    }
+}
+
+arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
+    if (!configured_) {
+        throw std::runtime_error("YieldCriterion: not configured");
+    }
+    switch (type_) {
+        case YieldType::VON_MISES:
+            return deta_stress(sigma);
+        case YieldType::HILL:
+            return ddHill_stress(sigma, params_);
+        case YieldType::DFA:
+            return ddDFA_stress(sigma, params_);
+        case YieldType::ANISOTROPIC:
+            return ddAni_stress(sigma, params_);
+        default:
+            throw std::runtime_error(
+                "YieldCriterion: no analytic flow Hessian for " + type_string());
+    }
 }
 
 double YieldCriterion::equivalent_stress(const tensor2& sigma) const {

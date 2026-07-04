@@ -1225,3 +1225,137 @@ TEST(ModularUMATIntegration, PlasticityDamageCombined) {
     EXPECT_LT(sig_dmg, sig_ref) << "damage did not soften the response";
     EXPECT_GT(sig_dmg, 0.0);
 }
+
+// ========== tangent_mode 1 (algorithmic tangent) ==========
+
+namespace {
+// Drive one plastic increment from a saved state on a FRESH ModularUMAT
+// (von Mises + Voce). Returns sigma; fills Lt. Used for finite-difference
+// validation of the consistent tangent.
+vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
+                             const vec& DEtot, int tangent_mode, mat& Lt) {
+    ModularUMAT m;
+    vec props_el = {210000.0, 0.3, 0.0};
+    int off = 0;
+    m.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    vec props_pl = {300.0, 200.0, 10.0};
+    off = 0;
+    m.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE,
+                     KinHardType::NONE, 1, 0, props_pl, off);
+    int nstatev = 20;
+    vec statev = statev_in;
+    m.initialize(nstatev, statev);
+    // FD noise control: the converged-stress residual scales with the local
+    // tolerance and is amplified by 1/h in the difference quotient.
+    m.set_solver_params(200, 1e-13);
+
+    vec sigma = zeros(6);
+    // Recover the converged stress of the previous increment from the elastic
+    // relation (state variables carry EP): sigma = L (Etot - EP).
+    sigma = m.elasticity().L() *
+            (Etot - m.internal_variables().get("plast0_EP").vec());
+
+    Lt.set_size(6, 6);
+    mat L(6, 6);
+    mat DR = eye(3, 3);
+    vec props = zeros(10);
+    double T = 293.0, DT = 0.0, Wm = 0, Wm_r = 0, Wm_ir = 0, Wm_d = 0;
+    double tnew_dt = 1.0;
+    m.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev, statev,
+          T, DT, 1.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt,
+          tangent_mode);
+    return sigma;
+}
+}  // namespace
+
+// The mode-1 (Simo-Hughes) tangent must match the finite-difference Jacobian
+// of the discrete stress update. Von Mises flow is radial, so CCP == CPP and
+// the algorithmic tangent is exact; the continuum (mode 0) tangent is not.
+TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
+    // Increment 1 (from virgin state) to build a plastic state.
+    ModularUMAT m0;
+    vec props_el = {210000.0, 0.3, 0.0};
+    int off = 0;
+    m0.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    vec props_pl = {300.0, 200.0, 10.0};
+    off = 0;
+    m0.add_plasticity(YieldType::VON_MISES, IsoHardType::VOCE,
+                      KinHardType::NONE, 1, 0, props_pl, off);
+    int nstatev = 20;
+    vec statev = zeros(nstatev);
+    m0.initialize(nstatev, statev);
+    vec Etot = zeros(6);
+    vec DEtot1 = {0.003, -0.0009, -0.0009, 0.0005, 0.0, 0.0};
+    vec sigma = zeros(6);
+    mat Lt(6, 6), L(6, 6);
+    mat DR = eye(3, 3);
+    vec props = zeros(10);
+    double T = 293.0, DT = 0.0, Wm = 0, Wm_r = 0, Wm_ir = 0, Wm_d = 0;
+    double tnew_dt = 1.0;
+    m0.run("MODUL", Etot, DEtot1, sigma, Lt, L, DR, 10, props, nstatev, statev,
+           T, DT, 0.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt);
+    Etot += DEtot1;
+    const vec statev1 = statev;   // converged state after increment 1
+
+    // Increment 2: plastic loading step used for the FD check.
+    const vec DEtot2 = {0.002, -0.0006, -0.0006, 0.0008, 0.0, 0.0};
+    mat Lt1, Lt0, Lt_dummy;
+    const vec sigma_base = run_one_increment_epvoce(statev1, Etot, DEtot2, 1, Lt1);
+    run_one_increment_epvoce(statev1, Etot, DEtot2, 0, Lt0);
+
+    // Finite-difference Jacobian of the update map DEtot -> sigma.
+    const double h = 1.0e-8;
+    mat FD(6, 6);
+    for (int i = 0; i < 6; ++i) {
+        vec DEp = DEtot2;
+        DEp(i) += h;
+        const vec sig_p = run_one_increment_epvoce(statev1, Etot, DEp, 0, Lt_dummy);
+        FD.col(i) = (sig_p - sigma_base) / h;
+    }
+
+    const double err1 = norm(Lt1 - FD, "fro") / norm(FD, "fro");
+    const double err0 = norm(Lt0 - FD, "fro") / norm(FD, "fro");
+    EXPECT_LT(err1, 1e-3) << "algorithmic tangent deviates from FD Jacobian";
+    EXPECT_GT(err0, 10.0 * err1)
+        << "continuum tangent unexpectedly as accurate as algorithmic";
+}
+
+// refresh_state (CPP contract): rebuilds p, EP and the AF back-strain from
+// the START values under a total Dp — the backward-Euler closed form, not an
+// incremental update. Verified against the implicit relation.
+TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
+    PlasticityMechanism pm(YieldType::VON_MISES, IsoHardType::LINEAR,
+                           KinHardType::ARMSTRONG_FREDERICK);
+    vec props = {300.0, 1000.0, 30000.0, 172.0};  // sigma_Y, H, C, D
+    int off = 0;
+    pm.configure(props, off);
+
+    InternalVariableCollection ivc;
+    pm.register_variables(ivc);
+    ivc.compute_offsets(0);
+
+    // Non-trivial start state.
+    ivc.get("p").scalar() = 0.01;
+    ivc.get("a").vec() = vec{0.002, -0.001, -0.001, 0.0005, 0.0, 0.0};
+    ivc.to_start_all();
+
+    const vec sigma = {400.0, 50.0, -30.0, 60.0, 10.0, 0.0};
+    const double dp = 5.0e-3;
+    const vec Ds = {dp};
+    ASSERT_TRUE(pm.refresh_state(sigma, Ds, 0, ivc));
+
+    EXPECT_DOUBLE_EQ(ivc.get("p").scalar(), 0.01 + dp);
+
+    // Implicit consistency: alpha == (alpha_n + dp n(sigma - X(alpha)))/(1 + D dp)
+    const double D = 172.0;
+    const vec alpha = ivc.get("a").vec();
+    const vec X = pm.kinematic_hardening().total_backstress(ivc);
+    const vec n = pm.yield_criterion().flow_direction(sigma - X);
+    const vec alpha_expected =
+        (ivc.get("a").vec_start() + dp * n) / (1.0 + D * dp);
+    EXPECT_LT(norm(alpha - alpha_expected, 2), 1e-10)
+        << "AF backward-Euler closed form not satisfied";
+
+    const vec EP_expected = ivc.get("EP").vec_start() + dp * n;
+    EXPECT_LT(norm(ivc.get("EP").vec() - EP_expected, 2), 1e-12);
+}

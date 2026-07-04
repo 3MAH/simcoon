@@ -276,6 +276,56 @@ public:
         return 0.0;
     }
 
+    // ========== tangent_mode >= 1 hooks (algorithmic tangent / CPP) ==========
+
+    /**
+     * @brief Flow-direction Hessians \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
+     * \mathrm{d}\boldsymbol{\sigma} \f$ per constraint, for tangent_mode >= 1.
+     *
+     * Compliance-typed tensor4 (a stress → strain map, so the engineering↔Mandel
+     * congruence carries the correct shear factors by construction — the Hessian
+     * shear coefficient is 1, not 2/3). Evaluated at the same (shifted) stress as
+     * dPhi_dsigma; same const-ref lifetime contract.
+     *
+     * Default: nullptr — the mechanism opts out and keeps its continuum
+     * tangent_contribution() in every tangent_mode (correct for mechanisms whose
+     * flow does not depend on stress: Prony viscoelasticity, scalar damage).
+     */
+    [[nodiscard]] virtual const std::vector<tensor4>* dLambda_dsigma(
+        const arma::vec& sigma,
+        const InternalVariableCollection& ivc) const {
+        (void)sigma;
+        (void)ivc;
+        return nullptr;
+    }
+
+    /**
+     * @brief Backward-Euler state refresh from the IVC start values, for the
+     * closest-point (tangent_mode == 2) integrator.
+     *
+     * Contract (matches ReturnStateHooks::update_state of return_mapping.hpp):
+     * rebuild the mechanism's internal variables as
+     * \f$ \mathbf{V} = \mathbf{V}_n + \sum_j \Delta s^j\,\boldsymbol{\Lambda}_V^j \f$
+     * from the *start* values stored in the IVC and the TOTAL multiplier
+     * increments — NOT an incremental update; each call starts over from
+     * \f$ \mathbf{V}_n \f$ so the CPP Newton can re-evaluate the state at every
+     * iterate. Closed forms preferred (e.g. Armstrong–Frederick backward Euler).
+     *
+     * @return false if the mechanism does not support the implicit refresh
+     * (default) — the orchestrator then falls back to the CCP integrator.
+     */
+    virtual bool refresh_state(
+        const arma::vec& sigma,
+        const arma::vec& Ds_total,
+        int offset,
+        InternalVariableCollection& ivc) const {
+        (void)sigma;
+        (void)Ds_total;
+        (void)offset;
+        (void)ivc;
+        return false;
+    }
+
     /**
      * @brief Multiplicative stiffness-reduction factor applied to the elastic
      * stress prediction.
