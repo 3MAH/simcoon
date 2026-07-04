@@ -48,3 +48,20 @@ dispatch to vectorised kernels over the ``(N, ...)`` data.
    shared-tangent GEMM path above, which needs no new type; ``Tensor2`` stays
    the general 3x3 type (it remains the only one able to hold a non-symmetric
    tensor such as ``F``, ``L``, ``R``).
+
+API reference
+-------------
+
+.. autoclass:: simcoon.Tensor2
+   :members:
+   :inherited-members:
+
+.. autoclass:: simcoon.Tensor4
+   :members:
+   :inherited-members:
+
+.. autofunction:: simcoon.dyadic
+.. autofunction:: simcoon.auto_dyadic
+.. autofunction:: simcoon.sym_dyadic
+.. autofunction:: simcoon.auto_sym_dyadic
+.. autofunction:: simcoon.double_contract

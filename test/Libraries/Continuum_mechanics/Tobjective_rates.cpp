@@ -61,17 +61,15 @@ TEST(Tobjective_rates, get_B)
     BBBB_fastor.zeros();
 
     double f_z = 0.;
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                // Accumulate outer product: BBBB_klmn += f_z * Bij_kl * Bij_mn
-                for (int kk=0; kk<3; ++kk)
-                for (int ll=0; ll<3; ++ll)
-                for (int mm=0; mm<3; ++mm)
-                for (int nn=0; nn<3; ++nn)
-                    BBBB_fastor(kk,ll,mm,nn) += f_z * Bij(kk,ll) * Bij(mm,nn);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_fastor += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
@@ -130,29 +128,22 @@ TEST(Tobjective_rates, logarithmic_functions)
     BBBB_f.zeros();
 
     double f_z = 0.;
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                for (int kk=0; kk<3; ++kk)
-                for (int ll=0; ll<3; ++ll)
-                for (int mm=0; mm<3; ++mm)
-                for (int nn=0; nn<3; ++nn)
-                    BBBB_f(kk,ll,mm,nn) += f_z * Bij(kk,ll) * Bij(mm,nn);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_f += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
-    // N_kl = BBBB_klmn * D_mn (double contraction)
-    mat N_mat = zeros(3,3);
-    for (int kk=0; kk<3; ++kk)
-    for (int ll=0; ll<3; ++ll) {
-        double s = 0.0;
-        for (int mm=0; mm<3; ++mm)
-        for (int nn=0; nn<3; ++nn)
-            s += BBBB_f(kk,ll,mm,nn) * D_test(mm,nn);
-        N_mat(kk,ll) = s;
-    }
+    // N_kl = BBBB_klmn * D_mn
+    auto D_ = arma_to_fastor2(mat::fixed<3,3>(D_test), true);
+    Fastor::Tensor<double,3,3> N_ = Fastor::einsum<Fastor::Index<k,l,m,n>, Fastor::Index<m,n>>(BBBB_f, D_);
+    mat N_mat = fastor2_to_arma(N_);
 
     mat Omega_test = W_test + N_mat;
 

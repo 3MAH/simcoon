@@ -327,41 +327,55 @@ void register_tensor(py::module_& m) {
     // Python side prepares:
     //   voigt as (N,6) C-order → converted via np2d_to_mat6N (carma + .t())
     //   cubes as (R,C,N) F-order → zero-copy via carma::arr_to_cube
+    // Each name is a pybind overload set (tensor2 + tensor4 variants), mirroring
+    // the C++ batch_* overloads; dispatch is disambiguated by the enum argument.
 
-    m.def("_batch_t2_rotate",
+    m.def("_batch_rotate",
         [](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> rot_matrices, bool active) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube r_cpp = carma::arr_to_cube<double>(rot_matrices);
-            mat result = simcoon::batch_rotate(v_cpp, vtype, r_cpp, active);
+            mat result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_rotate(v_cpp, vtype, r_cpp, active);
+            }
             return mat6N_to_np2d(result);
         },
         py::arg("voigt"), py::arg("vtype"), py::arg("rot_matrices"), py::arg("active") = true);
 
-    m.def("_batch_t2_push_forward",
+    m.def("_batch_push_forward",
         [](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
-            mat result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp, metric);
+            mat result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_push_forward(v_cpp, vtype, f_cpp, metric);
+            }
             return mat6N_to_np2d(result);
         },
         py::arg("voigt"), py::arg("vtype"), py::arg("F"), py::arg("metric") = true);
 
-    m.def("_batch_t2_pull_back",
+    m.def("_batch_pull_back",
         [](
            py::array_t<double> voigt, simcoon::VoigtType vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
-            mat result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp, metric);
+            mat result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_pull_back(v_cpp, vtype, f_cpp, metric);
+            }
             return mat6N_to_np2d(result);
         },
         py::arg("voigt"), py::arg("vtype"), py::arg("F"), py::arg("metric") = true);
 
-    m.def("_batch_t2_mises",
+    m.def("_batch_mises",
         [](py::array_t<double> voigt, simcoon::VoigtType vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_mises(v_cpp, vtype);
@@ -369,7 +383,7 @@ void register_tensor(py::module_& m) {
         },
         py::arg("voigt"), py::arg("vtype"));
 
-    m.def("_batch_t2_trace",
+    m.def("_batch_trace",
         [](py::array_t<double> voigt, simcoon::VoigtType vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_trace(v_cpp, vtype);
@@ -377,56 +391,76 @@ void register_tensor(py::module_& m) {
         },
         py::arg("voigt"), py::arg("vtype"));
 
-    m.def("_batch_t4_contract",
+    m.def("_batch_contract",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> t2_arr, simcoon::VoigtType t2_vtype) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             mat t2_cpp = np2d_to_mat6N(t2_arr);
-            mat result = simcoon::batch_contract(t4_cpp, t4type, t2_cpp, t2_vtype);
+            mat result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_contract(t4_cpp, t4type, t2_cpp, t2_vtype);
+            }
             simcoon::VoigtType out_vtype = simcoon::infer_contraction_vtype(t4type);
             return py::make_tuple(mat6N_to_np2d(result), out_vtype);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("t2"), py::arg("t2_vtype"));
 
-    m.def("_batch_t4_rotate",
+    m.def("_batch_rotate",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> rot_matrices, bool active) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             cube r_cpp = carma::arr_to_cube<double>(rot_matrices);
-            cube result = simcoon::batch_rotate_t4(t4_cpp, t4type, r_cpp, active);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_rotate(t4_cpp, t4type, r_cpp, active);
+            }
             return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("rot_matrices"), py::arg("active") = true);
 
-    m.def("_batch_t4_push_forward",
+    m.def("_batch_push_forward",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
-            cube result = simcoon::batch_push_forward_t4(t4_cpp, t4type, f_cpp, metric);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_push_forward(t4_cpp, t4type, f_cpp, metric);
+            }
             return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
-    m.def("_batch_t4_pull_back",
+    m.def("_batch_pull_back",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
            py::array_t<double> F_arr, bool metric) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
-            cube result = simcoon::batch_pull_back_t4(t4_cpp, t4type, f_cpp, metric);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_pull_back(t4_cpp, t4type, f_cpp, metric);
+            }
             return carma::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
-    m.def("_batch_t4_inverse",
+    m.def("_batch_inverse",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
-            cube result = simcoon::batch_inverse_t4(t4_cpp, t4type);
+            cube result;
+            {
+                py::gil_scoped_release release;
+                result = simcoon::batch_inverse(t4_cpp, t4type);
+            }
             simcoon::Tensor4Type inv_type = simcoon::infer_inverse_type(t4type);
             return py::make_tuple(carma::cube_to_arr(result, false), inv_type);
         },

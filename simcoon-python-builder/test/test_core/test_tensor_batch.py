@@ -954,3 +954,42 @@ class TestTensor4BatchConcentration:
         with pytest.raises(RuntimeError):
             A.pull_back(F)
 
+
+
+class TestBatchParallelPath:
+    """Exercise the parallel branch of simcoon_parallel_for_safe (N > 100 cutoff:
+    GCD on macOS, OpenMP on Linux): correctness vs singles, and a mid-loop throw
+    (singular slice) must surface as a clean Python exception, not a process kill."""
+
+    N_PAR = 300
+
+    def _spd_batch(self, seed=11):
+        rng = np.random.default_rng(seed)
+        A = rng.standard_normal((self.N_PAR, 6, 6))
+        return A @ A.transpose(0, 2, 1) + 6.0 * np.eye(6)
+
+    def test_inverse_parallel_matches_singles(self):
+        arr = self._spd_batch()
+        batch_inv = Tensor4.stiffness(arr).inverse()
+        assert batch_inv.type == "compliance"
+        for i in (0, 137, self.N_PAR - 1):
+            single_inv = Tensor4.stiffness(arr[i]).inverse()
+            assert_allclose(batch_inv.mat[i], single_inv.mat, rtol=1e-9, atol=1e-9)
+
+    def test_rotate_parallel_matches_singles(self):
+        arr = self._spd_batch(seed=12)
+        rng = np.random.default_rng(13)
+        quats = rng.standard_normal((self.N_PAR, 4))
+        quats /= np.linalg.norm(quats, axis=1, keepdims=True)
+        R = smc.Rotation.from_quat(quats)
+        batch_rot = Tensor4.stiffness(arr).rotate(R)
+        for i in (0, 137, self.N_PAR - 1):
+            single_rot = Tensor4.stiffness(arr[i]).rotate(smc.Rotation.from_quat(quats[i]))
+            assert_allclose(batch_rot.mat[i], single_rot.mat, rtol=1e-9, atol=1e-8)
+
+    def test_singular_slice_raises_cleanly(self):
+        """A throw INSIDE the parallel loop (not pre-checked) is captured and rethrown."""
+        arr = self._spd_batch(seed=14)
+        arr[137] = 0.0  # singular slice mid-batch
+        with pytest.raises(RuntimeError, match="singular"):
+            Tensor4.stiffness(arr).inverse()

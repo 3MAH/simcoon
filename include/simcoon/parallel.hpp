@@ -53,16 +53,62 @@
 #endif
 
 #include <exception>
+#include <mutex>
+#include <thread>
+#include <algorithm>
 
 /// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
 ///
-/// OpenMP when available (parallel only past @p cutoff items; the pragma is inert otherwise),
-/// serial fallback elsewhere. The first exception thrown by @p func is captured and rethrown
-/// AFTER the loop: an exception escaping an active OpenMP parallel region is undefined
+/// GCD on macOS, OpenMP on Linux (both parallel only past @p cutoff items), serial fallback
+/// elsewhere. The first exception thrown by @p func is captured and rethrown AFTER the loop:
+/// an exception escaping an active OpenMP parallel region (or a GCD block) is undefined
 /// behavior (std::terminate), which would kill e.g. a Python session on the first singular
-/// slice of a batch. Deliberately NOT routed through the GCD backend above: these loops are
-/// reached from Python bindings, where GCD blocks interacting with the GIL have a deadlock
-/// history (see the parallel-UMAT fix).
+/// slice of a batch.
+///
+/// @warning CONTRACT: @p func must not touch Python memory (numpy allocation, refcounts,
+/// anything needing the GIL). Worker threads acquiring the GIL while the calling thread
+/// blocks on the loop is the lock cycle behind the 1.11.2 macOS parallel-UMAT deadlock
+/// (carma copy -> PyDataMem_NEW -> GIL inside GCD). Do all numpy<->arma conversion BEFORE
+/// the loop, and release the GIL around the C++ call in the Python bindings.
+#if defined(__APPLE__)
+
+template<typename F>
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
+    if (N <= cutoff) {
+        for (int i = 0; i < N; i++) func(i);
+        return;
+    }
+    // Manual chunking (contiguous ranges, like OpenMP schedule(static)): dispatch_apply
+    // hands out its iterations through a contended atomic counter, which at ~1 microsecond
+    // per item costs more than the parallelism gains. ~8 chunks per core balances load
+    // without paying that per-item toll.
+    const int hw = std::max(1u, std::thread::hardware_concurrency());
+    const int chunk = std::max(N / (8 * hw), 32);
+    const size_t nblocks = static_cast<size_t>((N + chunk - 1) / chunk);
+    std::exception_ptr eptr = nullptr;
+    std::mutex mtx;
+    // dispatch_apply is synchronous, so pointers to these stack locals stay valid; the
+    // block captures the pointers by value (no __block C++-object machinery needed).
+    std::exception_ptr *pe = &eptr;
+    std::mutex *pm = &mtx;
+    dispatch_apply(nblocks, DISPATCH_APPLY_AUTO, ^(size_t b) {
+        const int start = static_cast<int>(b) * chunk;
+        const int end = std::min(N, start + chunk);
+        try {
+            for (int i = start; i < end; i++) func(i);
+        } catch (...) {
+            // Remaining items of THIS chunk are skipped; other chunks still run
+            // (same semantics as the OpenMP branch: no cancellation, first
+            // exception rethrown after the join).
+            std::lock_guard<std::mutex> lk(*pm);
+            if (!*pe) *pe = std::current_exception();
+        }
+    });
+    if (eptr) std::rethrow_exception(eptr);
+}
+
+#else
+
 template<typename F>
 void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
     std::exception_ptr eptr = nullptr;
@@ -77,3 +123,5 @@ void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
     }
     if (eptr) std::rethrow_exception(eptr);
 }
+
+#endif
