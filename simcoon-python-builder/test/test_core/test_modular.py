@@ -270,3 +270,44 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
         f"MODUL Chaboche deviates from EPCHA by {max_diff/peak:.3%} "
         "(FB Jacobian sign regression?)"
     )
+
+
+def test_hill_matches_ephil_reference(work_in_examples):
+    """MODUL (Hill yield + linear hardening) must reproduce the reference
+    EPHIL UMAT bit-for-bit through the solver.
+
+    End-to-end coverage for the anisotropic-criterion path (Hill params ->
+    P_Hill dispatch -> flow direction). Linear hardening (power-law exponent
+    m = 1) is used deliberately: the general power-law tangent
+    dR/dp = m k p^(m-1) is singular at p = 0, so the two CCP loops differ by
+    a transient (~1.4%) at yield onset that re-converges — with m = 1 that
+    singularity is absent and the integrators agree to machine precision,
+    isolating the Hill criterion itself."""
+    from simcoon.modular import HillYield, PowerLawHardening
+
+    ephil_props = np.array([210000., 0.3, 0., 300., 5000., 1.0,
+                            0.5, 0.4, 0.6, 1.5, 1.5, 1.5])
+    sim.solver("EPHIL", ephil_props, 33, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "MODUL_path.txt", "res_ephil.txt")
+    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                     / "res_ephil_global-0.txt", usecols=(8, 14))
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(E=210000., nu=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=PowerLawHardening(k=5000., m=1.0),
+        )],
+    )
+    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "MODUL_path.txt", "res_mhill.txt")
+    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                      / "res_mhill_global-0.txt", usecols=(8, 14))
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 500.0, "sanity: reached the hardened regime"
+    assert np.max(np.abs(hist[:, 1] - ref[:, 1])) < 1e-6, (
+        "MODUL Hill deviates from EPHIL (criterion params/dispatch regression?)"
+    )
