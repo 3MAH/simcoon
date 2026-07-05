@@ -141,9 +141,10 @@ void ViscoelasticMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // Diagonal entry K(i,i) cached by compute_constraints (it has DTime).
-    // Cross-branch off-diagonals dPhi_i/dv_j are filled in the cross-coupling
-    // pass (separate commit).
+    // Diagonal-only by structure: Phi_i depends on EV_i alone (EV_j is driven
+    // solely by v_j), so dPhi_i/dv_j = 0 for j != i. K_diag_(i) is cached by
+    // compute_constraints (it carries the -1/DTime term). The block coupling
+    // between branches enters only the consistent tangent (tangent_contribution).
     for (int i = 0; i < N_prony_; ++i) {
         B(row_offset + i, row_offset + i) = K_diag_(i);
     }

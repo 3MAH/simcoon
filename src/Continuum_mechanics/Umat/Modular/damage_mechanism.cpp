@@ -177,19 +177,13 @@ void DamageMechanism::compute_constraints(
     // Compute current driving force
     Y_current_ = compute_driving_force(sigma, M_cached_);
 
-    // Update Y_max if necessary
-    double Y_eff = std::max(Y_current_, Y_max);
+    const double Y_eff = std::max(Y_current_, Y_max);
 
-    // Compute damage based on driving force
-    double D_new = compute_damage(Y_current_, Y_max);
-
-    // Constraint: D - D_computed = 0 when loading, D - D_old = 0 when unloading
-    // Use Fischer-Burmeister formulation: Phi <= 0 and dD >= 0
-    //
-    // For damage, the constraint is:
-    // Phi = Y - Y_max (loading condition)
-    // If Phi > 0, damage evolves; otherwise, elastic unloading
-
+    // History-type constraint: Phi = Y - Y_max. Damage is integrated
+    // EXPLICITLY (update() sets Y_max = max(Y, Y_max) and D = f(Y_max)), not
+    // through the FB multiplier — so after update() Phi self-satisfies
+    // (Y == Y_max under loading, Phi <= 0 under unloading). The FB row exists
+    // only to carry damage into the coupled convergence check.
     Phi(0) = Y_current_ - Y_max;
 
     // Critical value for convergence
@@ -226,14 +220,12 @@ void DamageMechanism::compute_jacobian_contribution(
     arma::mat& B,
     int row_offset
 ) const {
-    // The Jacobian contribution for damage
-    // dPhi/dD = 0 (Phi is independent of D directly)
-    // The coupling comes through the stress
-
-    // For the loading condition Phi = Y - Y_max:
-    // B = dPhi/dDs = dY/dsigma * dsigma/dDs
-
-    // Simplified: assume a unit stiffness for the constraint
+    // Unit diagonal for the history-type damage row. Phi = Y - Y_max is
+    // integrated explicitly (see compute_constraints / update), so the damage
+    // multiplier is not solved implicitly; a unit slope keeps the FB system
+    // well-conditioned without steering the (self-satisfying) damage row.
+    // Cross-mechanism coupling (plasticity <-> damage) still flows through the
+    // off-diagonal dPhi_dsigma . kappa terms assembled by the orchestrator.
     B(row_offset, row_offset) = 1.0;
 }
 
@@ -279,19 +271,16 @@ arma::vec DamageMechanism::inelastic_strain(const InternalVariableCollection& iv
 }
 
 void DamageMechanism::update(
-    const arma::vec& ds,
-    int offset,
+    const arma::vec& /*ds*/,
+    int /*offset*/,
     InternalVariableCollection& ivc
 ) {
-    double dY = ds(offset);
-
-    // Update Y_max if we're loading
+    // Explicit integration: the FB multiplier increment is unused here.
+    // Advance the history and recompute damage directly from Y_max.
     double& Y_max = ivc.get(Y_max_key_).scalar();
     if (Y_current_ > Y_max) {
         Y_max = Y_current_;
     }
-
-    // Compute and update damage
     double& D = ivc.get(D_key_).scalar();
     D = compute_damage(Y_current_, Y_max);
 }
