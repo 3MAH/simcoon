@@ -92,6 +92,15 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
                                                       double GLT, double alpha_L, double alpha_T, int axis) {
     type_ = ElasticityType::TRANSVERSE_ISOTROPIC;
 
+    // Validate BEFORE calling the library builders: L_isotrans terminates the
+    // process (exit(0)!) on an invalid axis — a throw here keeps the failure
+    // catchable and attributable.
+    if (axis < 1 || axis > 3) {
+        throw std::runtime_error(
+            "ElasticityModule: transverse-isotropic axis must be 1, 2 or 3, got "
+            + std::to_string(axis));
+    }
+
     L_ = L_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
 
     M_ = M_isotrans(EL, ET, nuTL, nuTT, GLT, axis);
@@ -108,8 +117,7 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
             alpha_(1) = alpha_L;
             alpha_(2) = alpha_T;
             break;
-        case 3:  // z-axis is longitudinal (default)
-        default:
+        default:  // 3: z-axis is longitudinal
             alpha_(0) = alpha_T;
             alpha_(1) = alpha_T;
             alpha_(2) = alpha_L;

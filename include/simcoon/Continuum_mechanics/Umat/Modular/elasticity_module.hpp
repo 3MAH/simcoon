@@ -28,6 +28,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #include <armadillo>
+#include <stdexcept>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 namespace simcoon {
@@ -60,7 +61,20 @@ private:
 
     /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
     /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.
+    /// Also validates the material: L must be strictly positive definite —
+    /// a wrong parameter order or inadmissible constants (e.g. Poisson
+    /// combinations) otherwise reach the return mapping as an indefinite
+    /// stiffness and fail far from the cause.
     void refresh_tensors() {
+        // Cholesky is the cheap positive-definiteness test (succeeds iff SPD,
+        // ~2-3x faster than a full eigendecomposition) — matters because
+        // umat_modular reconstructs the module on every integration-point call.
+        arma::mat R;
+        if (!arma::chol(R, L_)) {
+            throw std::runtime_error(
+                "ElasticityModule: stiffness is not positive definite "
+                "(check the elastic constants and their order)");
+        }
         L_t_ = tensor4(L_, Tensor4Type::stiffness);
         M_t_ = tensor4(M_, Tensor4Type::compliance);
     }
@@ -101,6 +115,9 @@ public:
      * from isotropy (A=1 for isotropic).
      *
      * Alternative: use configure_cubic_Cii() with C11, C12, C44 directly.
+     * NB: the Cii form is reachable only through the direct C++ API — the
+     * props-driven configure() (and the Python dataclasses) express cubic
+     * elasticity in the EnuG form.
      */
     void configure_cubic(double E, double nu, double G, double alpha);
 

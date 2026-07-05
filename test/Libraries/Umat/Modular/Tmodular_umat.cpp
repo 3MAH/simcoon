@@ -536,6 +536,35 @@ TEST_F(ElasticityModuleTest, OrthotropicConfiguration) {
     EXPECT_DOUBLE_EQ(em.alpha()(2), 3e-5);
 }
 
+// Guards added by review: an indefinite stiffness (here: the pre-fix
+// argument-order mistake, Poisson ratios in the moduli slots) must be
+// rejected at configuration; so must an invalid transverse-iso axis.
+TEST_F(ElasticityModuleTest, RejectsInadmissibleMaterial) {
+    ElasticityModule em;
+    // Old (wrong) ortho ordering -> indefinite L: must throw now.
+    EXPECT_THROW(
+        em.configure_orthotropic(70000., 0.3, 0.3, 30000., 0.3, 15000.,
+                                 8000., 6000., 5000., 0., 0., 0.),
+        std::runtime_error);
+
+    ElasticityModule em2;
+    // Invalid axis: L_isotrans would exit(0); the guard throws instead.
+    EXPECT_THROW(
+        em2.configure_transverse_isotropic(230000., 15000., 0.02, 0.4,
+                                           50000., 0., 0., /*axis*/ 0),
+        std::runtime_error);
+    // Physically inadmissible (nuTL^2 * EL/ET too large -> indefinite L):
+    // caught by the positive-definiteness check.
+    EXPECT_THROW(
+        em2.configure_transverse_isotropic(230000., 15000., 0.2, 0.4,
+                                           50000., 0., 0., /*axis*/ 3),
+        std::runtime_error);
+    // Admissible carbon-fibre-like constants: accepted.
+    EXPECT_NO_THROW(
+        em2.configure_transverse_isotropic(230000., 15000., 0.02, 0.4,
+                                           50000., 0., 0., /*axis*/ 3));
+}
+
 // ========== YieldCriterion Tests ==========
 
 class YieldCriterionTest : public ::testing::Test {
