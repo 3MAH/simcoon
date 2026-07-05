@@ -128,13 +128,6 @@ public:
         arma::vec& Phi,
         arma::vec& Y_crit
     ) const override;
-
-    void compute_flow_directions(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
-        std::map<std::string, arma::vec>& Lambda_map
-    ) const override;
-
     void compute_jacobian_contribution(
         const arma::vec& sigma,
         const arma::mat& L,

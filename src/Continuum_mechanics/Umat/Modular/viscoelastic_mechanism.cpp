@@ -134,18 +134,6 @@ void ViscoelasticMechanism::compute_constraints(
         Y_crit(i) = std::max(flow_mag, simcoon::precision_umat);
     }
 }
-
-void ViscoelasticMechanism::compute_flow_directions(
-    const arma::vec& /*sigma*/,
-    const InternalVariableCollection& /*ivc*/,
-    std::map<std::string, arma::vec>& Lambda_map
-) const {
-    // Lambda_i_ is populated by compute_constraints (CCP: frozen from previous iterate).
-    for (int i = 0; i < N_prony_; ++i) {
-        Lambda_map["EV_" + std::to_string(i)] = Lambda_i_[i];
-    }
-}
-
 void ViscoelasticMechanism::compute_jacobian_contribution(
     const arma::vec& /*sigma*/,
     const arma::mat& /*L*/,

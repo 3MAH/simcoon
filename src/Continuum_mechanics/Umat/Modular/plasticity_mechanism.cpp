@@ -178,23 +178,6 @@ void PlasticityMechanism::compute_constraints(
     H_total_ = dR_dp + kin_hard_->hardening_modulus(flow_dir_, ivc);
 }
 
-void PlasticityMechanism::compute_flow_directions(
-    const arma::vec& sigma,
-    const InternalVariableCollection& ivc,
-    std::map<std::string, arma::vec>& Lambda_map
-) const {
-    const int N_kin = kin_hard_->num_backstresses();
-    const arma::vec n = (N_kin == 0)
-        ? yield_->flow_direction(sigma)
-        : yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc));
-
-    Lambda_map["EP"] = n;
-
-    for (int i = 0; i < N_kin; ++i) {
-        Lambda_map["a_" + std::to_string(i)] = kin_hard_->alpha_flow(i, n, ivc);
-    }
-}
-
 const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
     const arma::vec& /*sigma*/, const InternalVariableCollection& /*ivc*/) const {
     // Requires compute_constraints to have been called this FB iteration.

@@ -64,7 +64,6 @@ class StrainMechanism {
 protected:
     std::string name_;        ///< Mechanism name for debugging
     std::string ivc_prefix_;  ///< Prefix for IVC variable keys (empty = bare names)
-    bool active_;             ///< Whether this mechanism is currently active
 
     /// Compose the IVC key for a base variable name; empty prefix yields the
     /// bare name, preserving legacy behavior when a mechanism is used standalone.
@@ -77,7 +76,7 @@ public:
      * @brief Constructor
      * @param name Mechanism identifier
      */
-    explicit StrainMechanism(const std::string& name) : name_(name), ivc_prefix_(), active_(true) {}
+    explicit StrainMechanism(const std::string& name) : name_(name), ivc_prefix_() {}
 
     virtual ~StrainMechanism() = default;
 
@@ -116,18 +115,6 @@ public:
     [[nodiscard]] virtual MechanismType type() const = 0;
 
     /**
-     * @brief Check if mechanism is active
-     * @return True if mechanism contributes to constitutive response
-     */
-    [[nodiscard]] bool is_active() const noexcept { return active_; }
-
-    /**
-     * @brief Set mechanism active state
-     * @param active Whether mechanism should be active
-     */
-    void set_active(bool active) noexcept { active_ = active; }
-
-    /**
      * @brief Get number of constraint equations
      * @return Number of active constraints
      */
@@ -157,18 +144,6 @@ public:
         const InternalVariableCollection& ivc,
         arma::vec& Phi,
         arma::vec& Y_crit
-    ) const = 0;
-
-    /**
-     * @brief Compute flow directions for internal variables
-     * @param sigma Current stress tensor (6 Voigt)
-     * @param ivc Internal variable collection
-     * @param Lambda_map Output: map of variable name to flow direction
-     */
-    virtual void compute_flow_directions(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
-        std::map<std::string, arma::vec>& Lambda_map
     ) const = 0;
 
     /**

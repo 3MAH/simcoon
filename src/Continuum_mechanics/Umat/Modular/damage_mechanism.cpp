@@ -219,19 +219,6 @@ void DamageMechanism::compute_constraints(
         dD_dY_ = 0.0;
     }
 }
-
-void DamageMechanism::compute_flow_directions(
-    const arma::vec& sigma,
-    const InternalVariableCollection& ivc,
-    std::map<std::string, arma::vec>& Lambda_map
-) const {
-    // Damage doesn't have a strain-like flow direction
-    // The "direction" is the derivative of the driving force w.r.t. stress
-    // dY/dsigma = S : sigma (for quadratic Y)
-
-    // Not applicable for scalar damage - leave empty
-}
-
 void DamageMechanism::compute_jacobian_contribution(
     const arma::vec& sigma,
     const arma::mat& L,
