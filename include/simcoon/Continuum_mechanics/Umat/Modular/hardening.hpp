@@ -233,19 +233,16 @@ public:
     /**
      * @brief Get total backstress X = sum(X_i)
      * @param ivc Internal variable collection
-     * @return Total backstress tensor (6 components)
-     *
-     * Convention: the components follow the back-strain (engineering strain)
-     * Voigt layout — X = (2/3) C α evaluated on the α tensor, flattened with
-     * the doubled-shear convention. total_backstress_t() exposes the same
-     * content as a typed tensor2 so the convention travels with the value.
+     * @return Total backstress \f$ \mathbf{X} = \sum_i \tfrac{2}{3} C_i
+     *         \boldsymbol{\alpha}_i \f$ in STRESS Voigt convention (no
+     *         factor-2 on shear), so \f$ \boldsymbol{\sigma} - \mathbf{X} \f$
+     *         and \f$ \mathbf{X} : \mathbf{n} \f$ are convention-correct.
      */
     virtual arma::vec total_backstress(const InternalVariableCollection& ivc) const = 0;
 
-    /// Typed variant of total_backstress() — identical components, tagged
-    /// with the strain Voigt convention they are stored in.
+    /// Typed variant of total_backstress() — stress-typed tensor2.
     [[nodiscard]] tensor2 total_backstress_t(const InternalVariableCollection& ivc) const {
-        return strain(total_backstress(ivc));
+        return stress(total_backstress(ivc));
     }
 
     /**

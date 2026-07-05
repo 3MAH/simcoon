@@ -151,9 +151,8 @@ void PlasticityMechanism::compute_constraints(
     double p = ivc.get(p_key_).scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening since total_backstress would return zeros(6). The backstress
-    // components live in the back-strain Voigt convention (see
-    // KinematicHardening::total_backstress), so the shift stays on raw Voigt.
+    // hardening since total_backstress would return zeros(6). X is returned in
+    // stress Voigt (KinematicHardening::total_backstress), matching sigma.
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {

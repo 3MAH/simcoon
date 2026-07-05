@@ -311,3 +311,45 @@ def test_hill_matches_ephil_reference(work_in_examples):
     assert np.max(np.abs(hist[:, 1] - ref[:, 1])) < 1e-6, (
         "MODUL Hill deviates from EPHIL (criterion params/dispatch regression?)"
     )
+
+
+def test_chaboche_shear_matches_epcha_reference(work_in_examples):
+    """MODUL Chaboche kinematic hardening under SHEAR loading must match the
+    reference EPCHA UMAT.
+
+    Regression for the backstress convention bug: X = (2/3) C a is a
+    stress-like tensor, but it was carried in the back-strain (engineering
+    strain) Voigt convention and subtracted from sigma / contracted with the
+    flow n — doubling the shear terms. Invisible on the uniaxial path (zero
+    shear, hence the earlier uniaxial EPCHA test passed at 3.7e-4); a pure
+    shear path exposed a 24.7% stress error. Two sites: backstress_t and the
+    ChabocheHardening total_backstress accumulator."""
+    from simcoon.modular import ChabocheHardening
+    # SHEAR_path.txt drives E12 with all other components stress-free.
+    ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
+    sim.solver("EPCHA", ep, 33, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "SHEAR_path.txt", "sh_epcha.txt")
+    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                     / "sh_epcha_global-0.txt", usecols=(11, 17))  # eps12, sig12
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(E=210000., nu=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 300.), (19500., 172.))),
+        )],
+    )
+    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+               "../data", work_in_examples, "SHEAR_path.txt", "sh_modul.txt")
+    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                      / "sh_modul_global-0.txt", usecols=(11, 17))
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 100.0, "sanity: shear path yielded"
+    assert np.max(np.abs(hist[:, 1] - ref[:, 1])) / peak < 1e-3, (
+        "MODUL Chaboche under shear deviates from EPCHA (backstress "
+        "convention regression?)"
+    )
+
