@@ -304,9 +304,22 @@ void ModularUMAT::run(
         n_total += mech->num_constraints();
     }
 
-    // Perform return mapping
+    // Perform return mapping. return_mapping reports FB convergence, but by the
+    // reference CCP convention a finite unconverged-at-maxiter state is still
+    // committed (the damage row in particular is integrated explicitly and
+    // never drives the FB error to precision_). Only a NON-FINITE result
+    // (true divergence -> NaN/Inf) is unusable and triggers a step cut.
     arma::vec Ds_total = arma::zeros(n_total);
     return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total);
+    if (!sigma.is_finite()) {
+        // Ask the global solver to halve the increment and retry. statev is
+        // left at its incoming values (pack_all is skipped) so the retry
+        // restarts from the correct state; Lt is set elastic to keep the
+        // rejected-step output well-defined.
+        tnew_dt = 0.5;
+        Lt = elasticity_.L();
+        return;
+    }
 
     // Compute consistent tangent
     Lt = L;  // Start with elastic stiffness
