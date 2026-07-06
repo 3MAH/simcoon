@@ -353,3 +353,30 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
         "convention regression?)"
     )
 
+
+
+def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
+    """The ArmstrongFrederickHardening dataclass routes to a DISTINCT C++
+    class (ArmstrongFrederickHardening, not ChabocheHardening). A single-term
+    Chaboche is the same physics, so the two must agree bit-for-bit — locking
+    the AF total_backstress path (which uses backstress_t directly, no
+    accumulator) under shear, where the backstress convention matters."""
+    from simcoon.modular import ArmstrongFrederickHardening, ChabocheHardening
+
+    def run(kin, out):
+        m = ModularMaterial(
+            elasticity=IsotropicElasticity(E=210000., nu=0.3),
+            mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
+        )
+        sim.solver(m.umat_name, m.props, m.nstatev, 0.0, 0.0, 0.0, 0, 1,
+                   "../data", work_in_examples, "SHEAR_path.txt", out)
+        return np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
+                          / out.replace(".txt", "_global-0.txt"), usecols=(11, 17))
+
+    af = run(ArmstrongFrederickHardening(C=30000., D=300.), "af_af.txt")
+    ch = run(ChabocheHardening(terms=((30000., 300.),)), "af_ch.txt")
+    assert af.shape == ch.shape
+    assert np.max(np.abs(af[:, 1] - ch[:, 1])) < 1e-9, (
+        "AF class diverges from single-term Chaboche (distinct C++ path bug?)"
+    )
+    assert np.max(np.abs(af[:, 1])) > 100.0, "sanity: shear yielded"
