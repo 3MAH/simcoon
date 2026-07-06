@@ -189,6 +189,18 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
                                 ") < required (" + std::to_string(required) + ")");
     }
 
+    // required_nstatev() is a hand-counted pre-initialize estimate (callers
+    // size their statev array with it). Guard it against silent drift from the
+    // authoritative count that register_variables() just produced — any
+    // mechanism that gains/loses a variable without updating required_nstatev()
+    // fails here on the first initialize, not with a corrupted statev later.
+    if (required_nstatev() != required) {
+        throw std::runtime_error(
+            "ModularUMAT: required_nstatev() (" + std::to_string(required_nstatev()) +
+            ") disagrees with the registered statev size (" + std::to_string(required) +
+            ") — the hand-counted estimate has drifted from register_variables()");
+    }
+
     // Unpack initial values from statev
     ivc_.unpack_all(statev);
 
