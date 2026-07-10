@@ -91,7 +91,7 @@ private:
     arma::vec sigma_start_; ///< Stress at start of increment
     bool initialized_;      ///< Whether initialize() has been called
 
-    // Solver parameters
+    // Return-mapping controls (local internal-equilibrium Newton loop)
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
 
@@ -219,8 +219,10 @@ public:
     StrainMechanism& mechanism(size_t i) { return *mechanisms_[i]; }
     const StrainMechanism& mechanism(size_t i) const { return *mechanisms_[i]; }
 
-    /// Local return-mapping controls (defaults: 100 iterations, 1e-9).
-    void set_solver_params(int maxiter, double precision) {
+    /// Controls of the local return-mapping Newton loop — the internal
+    /// (material-point) equilibrium iteration, not the global solver.
+    /// Defaults: 100 iterations, 1e-9.
+    void set_return_mapping_params(int maxiter, double precision) {
         maxiter_ = maxiter;
         precision_ = precision;
     }
@@ -236,20 +238,6 @@ public:
      * @return True if initialize() has been called
      */
     [[nodiscard]] bool is_initialized() const noexcept { return initialized_; }
-
-    // ========== Solver Parameters ==========
-
-    /**
-     * @brief Set maximum iterations
-     * @param maxiter Maximum number of return mapping iterations
-     */
-    void set_max_iterations(int maxiter) { maxiter_ = maxiter; }
-
-    /**
-     * @brief Set convergence precision
-     * @param precision Relative tolerance for convergence
-     */
-    void set_precision(double precision) { precision_ = precision; }
 
     // ========== Main UMAT Entry Point ==========
 

@@ -1415,7 +1415,7 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
     m.initialize(nstatev, statev);
     // FD noise control: the converged-stress residual scales with the local
     // tolerance and is amplified by 1/h in the difference quotient.
-    m.set_solver_params(200, 1e-13);
+    m.set_return_mapping_params(200, 1e-13);
 
     vec sigma = zeros(6);
     // Recover the converged stress of the previous increment from the elastic
