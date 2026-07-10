@@ -79,14 +79,14 @@ void ViscoelasticMechanism::configure(const arma::vec& props, int& offset) {
     offset += 4 * N_prony_;
 }
 
-void ViscoelasticMechanism::register_variables(InternalVariableCollection& ivc) {
-    // Resolve and cache the full prefixed keys once — they're used every FB
-    // iteration in compute_constraints / inelastic_strain / update.
+void ViscoelasticMechanism::register_variables() {
+    // Resolve and cache the keys once — they're used every FB iteration in
+    // compute_constraints / inelastic_strain / update.
     for (int i = 0; i < N_prony_; ++i) {
-        v_key_[i]  = key("v_"  + std::to_string(i));
-        ev_key_[i] = key("EV_" + std::to_string(i));
-        ivc.add_scalar(v_key_[i],  0.0);
-        ivc.add_vec   (ev_key_[i], arma::zeros(6), true);
+        v_key_[i]  = "v_"  + std::to_string(i);
+        ev_key_[i] = "EV_" + std::to_string(i);
+        ivc_.add_scalar(v_key_[i],  0.0);
+        ivc_.add_vec   (ev_key_[i], arma::zeros(6), true);
     }
 }
 
@@ -103,7 +103,6 @@ void ViscoelasticMechanism::compute_constraints(
     const arma::vec& E_total,
     const arma::mat& /*L*/,
     double DTime,
-    const InternalVariableCollection& ivc,
     arma::vec& Phi,
     arma::vec& Y_crit
 ) const {
@@ -111,7 +110,7 @@ void ViscoelasticMechanism::compute_constraints(
     Y_crit.set_size(N_prony_);
 
     for (int i = 0; i < N_prony_; ++i) {
-        const arma::vec& EV_i = ivc.get(ev_key_[i]).raw_voigt();
+        const arma::vec& EV_i = ivc_.get(ev_key_[i]).raw_voigt();
 
         // Branch flow rate: driving stress through branch viscosity.
         flow_i_[i] = invH_i_[i] * (L_i_[i] * (E_total - EV_i));
@@ -121,7 +120,7 @@ void ViscoelasticMechanism::compute_constraints(
         dPhi_i_dv_[i] = invH_i_[i] * (Lambda_i_[i] % Ir05());
 
         const double flow_mag = norm_strain(flow_i_[i]);
-        const double Delta_v_i = ivc.get(v_key_[i]).delta_scalar();
+        const double Delta_v_i = ivc_.get(v_key_[i]).delta_scalar();
 
         if (DTime > simcoon::iota) {
             Phi(i) = flow_mag - Delta_v_i / DTime;
@@ -137,7 +136,6 @@ void ViscoelasticMechanism::compute_constraints(
 void ViscoelasticMechanism::compute_jacobian_contribution(
     const arma::vec& /*sigma*/,
     const arma::mat& /*L*/,
-    const InternalVariableCollection& /*ivc*/,
     arma::mat& B,
     int row_offset
 ) const {
@@ -151,8 +149,7 @@ void ViscoelasticMechanism::compute_jacobian_contribution(
 }
 
 const std::vector<tensor2>& ViscoelasticMechanism::kappa(
-    const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/,
-    const InternalVariableCollection& /*ivc*/) const {
+    const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
     // Typed mirror of the cached [L_i · Lambda_i] per branch.
     for (int i = 0; i < N_prony_; ++i) {
         kappa_t_[i] = stress(kappa_i_[i]);
@@ -160,30 +157,29 @@ const std::vector<tensor2>& ViscoelasticMechanism::kappa(
     return kappa_t_;
 }
 
-arma::vec ViscoelasticMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
+arma::vec ViscoelasticMechanism::inelastic_strain() const {
     // EV_tilde = sum_i (M_0 · L_i) · EV_i  (Prony_Nfast form).
     // M0_L_i_ is pre-multiplied in set_reference_stiffness to avoid a 6x6·6x6
     // matmul on every FB iteration.
     arma::vec EV_tilde = arma::zeros(6);
     for (int i = 0; i < N_prony_; ++i) {
-        EV_tilde += M0_L_i_[i] * ivc.get(ev_key_[i]).raw_voigt();
+        EV_tilde += M0_L_i_[i] * ivc_.get(ev_key_[i]).raw_voigt();
     }
     return EV_tilde;
 }
 
 void ViscoelasticMechanism::update(
     const arma::vec& ds,
-    int offset,
-    InternalVariableCollection& ivc
+    int offset
 ) {
     // Apply the multiplier increment to each branch:
     //   v_i   += ds_i      (lead scalar / accumulated flow length)
     //   EV_i  += ds_i * Lambda_i
     for (int i = 0; i < N_prony_; ++i) {
         const double ds_i = ds(offset + i);
-        double& v_i = ivc.get(v_key_[i]).scalar();
+        double& v_i = ivc_.get(v_key_[i]).scalar();
         v_i += ds_i;
-        arma::vec& EV_i = ivc.get(ev_key_[i]).raw_voigt();
+        arma::vec& EV_i = ivc_.get(ev_key_[i]).raw_voigt();
         EV_i += ds_i * Lambda_i_[i];
     }
 }
@@ -193,7 +189,6 @@ void ViscoelasticMechanism::tangent_contribution(
     const arma::mat& /*L*/,
     const arma::vec& Ds,
     int offset,
-    const InternalVariableCollection& /*ivc*/,
     arma::mat& Lt
 ) const {
     // Consistent tangent contribution, Prony_Nfast lines 231-269. Active
@@ -243,7 +238,6 @@ void ViscoelasticMechanism::tangent_contribution(
 void ViscoelasticMechanism::compute_work(
     const arma::vec& sigma_start,
     const arma::vec& sigma,
-    const InternalVariableCollection& ivc,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d
@@ -259,7 +253,7 @@ void ViscoelasticMechanism::compute_work(
 
     const arma::vec sigma_avg = 0.5 * (sigma_start + sigma);
     for (int i = 0; i < N_prony_; ++i) {
-        const arma::vec DEV_i = ivc.get(ev_key_[i]).delta_vec();
+        const arma::vec DEV_i = ivc_.get(ev_key_[i]).delta_vec();
         Wm_d += arma::dot(sigma_avg, DEV_i);
     }
 }

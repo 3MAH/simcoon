@@ -100,11 +100,6 @@ private:
     mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
     mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::strain)};
 
-    // IVC keys, cached at register_variables (avoids string concatenation
-    // on every FB iteration).
-    std::string D_key_;
-    std::string Y_max_key_;
-
 public:
     /**
      * @brief Constructor
@@ -114,7 +109,7 @@ public:
 
     // StrainMechanism interface
     void configure(const arma::vec& props, int& offset) override;
-    void register_variables(InternalVariableCollection& ivc) override;
+    void register_variables() override;
 
     [[nodiscard]] int num_constraints() const override { return 1; }
     [[nodiscard]] MechanismType type() const override { return MechanismType::DAMAGE; }
@@ -124,14 +119,12 @@ public:
         const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
-        const InternalVariableCollection& ivc,
         arma::vec& Phi,
         arma::vec& Y_crit
     ) const override;
     void compute_jacobian_contribution(
         const arma::vec& sigma,
         const arma::mat& L,
-        const InternalVariableCollection& ivc,
         arma::mat& B,
         int row_offset
     ) const override;
@@ -139,8 +132,7 @@ public:
     /// Nominal-stress CDM: the orchestrator scales its elastic prediction by
     /// this (1 - D) factor, matching the (1 - D) * L scaling applied in
     /// tangent_contribution.
-    [[nodiscard]] double stiffness_reduction(
-        const InternalVariableCollection& ivc) const override;
+    [[nodiscard]] double stiffness_reduction() const override;
 
     /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
     /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
@@ -149,21 +141,18 @@ public:
     /// established Prony/CCP-era numerics and is kept deliberately. Review as
     /// a modeling item, not a port bug.
     [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const override;
+        const arma::vec& sigma) const override;
 
     [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
-        const arma::mat& L_ref,
-        const InternalVariableCollection& ivc) const override;
+        const arma::mat& L_ref) const override;
 
-    arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
+    arma::vec inelastic_strain() const override;
 
     void update(
         const arma::vec& ds,
-        int offset,
-        InternalVariableCollection& ivc
+        int offset
     ) override;
 
     void tangent_contribution(
@@ -171,14 +160,12 @@ public:
         const arma::mat& L,
         const arma::vec& Ds,
         int offset,
-        const InternalVariableCollection& ivc,
         arma::mat& Lt
     ) const override;
 
     void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d
@@ -204,10 +191,9 @@ public:
 
     /**
      * @brief Get the current damage value
-     * @param ivc Internal variable collection
      * @return Current damage D
      */
-    double get_damage(const InternalVariableCollection& ivc) const;
+    double get_damage() const;
 
     /**
      * @brief Invalidate the cached compliance M_cached_.

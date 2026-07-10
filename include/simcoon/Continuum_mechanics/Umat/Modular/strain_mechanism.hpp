@@ -23,13 +23,19 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * total strain decomposition: Etot = Eel + E_plastic + E_viscous + ...
  *
  * Each mechanism:
- * - Registers its internal variables
+ * - Owns its internal variables (a mechanism-local InternalVariableCollection)
  * - Contributes constraint functions (yield/evolution equations)
  * - Contributes to the Jacobian matrix
  * - Updates its internal variables during return mapping
  *
+ * Owning the state makes a mechanism self-contained: it can back a composed
+ * ModularUMAT or a dedicated single-mechanism UMAT without an external
+ * registry, and two mechanisms of the same type can never collide on
+ * variable names. The orchestrator serializes state by iterating mechanisms
+ * (see compute_offsets / pack / unpack below).
+ *
  * @see PlasticityMechanism, ViscoelasticMechanism, DamageMechanism, ModularUMAT
- * @version 1.0
+ * @version 2.0
  */
 
 #pragma once
@@ -62,28 +68,48 @@ enum class MechanismType {
  */
 class StrainMechanism {
 protected:
-    std::string name_;        ///< Mechanism name for debugging
-    std::string ivc_prefix_;  ///< Prefix for IVC variable keys (empty = bare names)
-
-    /// Compose the IVC key for a base variable name; empty prefix yields the
-    /// bare name, preserving legacy behavior when a mechanism is used standalone.
-    [[nodiscard]] std::string key(const std::string& base) const {
-        return ivc_prefix_.empty() ? base : ivc_prefix_ + base;
-    }
+    std::string name_;                  ///< Mechanism name for debugging
+    InternalVariableCollection ivc_;    ///< Mechanism-owned internal variables
 
 public:
     /**
      * @brief Constructor
      * @param name Mechanism identifier
      */
-    explicit StrainMechanism(const std::string& name) : name_(name), ivc_prefix_() {}
+    explicit StrainMechanism(const std::string& name) : name_(name) {}
 
     virtual ~StrainMechanism() = default;
 
-    /// Set a prefix applied to every IVC key registered or queried by this
-    /// mechanism. ModularUMAT uses this to disambiguate same-type mechanisms.
-    virtual void set_ivc_prefix(const std::string& prefix) { ivc_prefix_ = prefix; }
-    [[nodiscard]] const std::string& ivc_prefix() const noexcept { return ivc_prefix_; }
+    // ========== State access & statev serialization ==========
+    //
+    // Non-virtual, implemented once against the owned collection. The
+    // orchestrator serializes the composed state as
+    //   statev = [orchestrator scalars | mech 0 | mech 1 | ...]
+    // by assigning each mechanism a base offset then delegating pack/unpack.
+
+    /// The mechanism's internal-variable collection (state lives here).
+    InternalVariableCollection& variables() noexcept { return ivc_; }
+    const InternalVariableCollection& variables() const noexcept { return ivc_; }
+
+    /// Assign absolute statev offsets to the owned variables, starting at
+    /// @p base_offset. Must be called after register_variables() and before
+    /// pack()/unpack().
+    void compute_offsets(unsigned int base_offset) { ivc_.compute_offsets(base_offset); }
+
+    /// Number of statev slots consumed by this mechanism's variables.
+    [[nodiscard]] unsigned int statev_size() const noexcept { return ivc_.total_statev_size(); }
+
+    /// Serialize the owned variables into statev at their absolute offsets.
+    void pack(arma::vec& statev) const { ivc_.pack_all(statev); }
+
+    /// Restore the owned variables from statev (also resets start values).
+    void unpack(const arma::vec& statev) { ivc_.unpack_all(statev); }
+
+    /// Co-rotate every objective owned variable with the rotation increment.
+    void rotate(const arma::mat& DR) { ivc_.rotate_all(DR); }
+
+    /// Copy current values to start values for all owned variables.
+    void to_start() { ivc_.to_start_all(); }
 
     // ========== Configuration ==========
 
@@ -95,10 +121,10 @@ public:
     virtual void configure(const arma::vec& props, int& offset) = 0;
 
     /**
-     * @brief Register internal variables for this mechanism
-     * @param ivc Internal variable collection
+     * @brief Register this mechanism's internal variables into its owned
+     * collection. Call once, after configure().
      */
-    virtual void register_variables(InternalVariableCollection& ivc) = 0;
+    virtual void register_variables() = 0;
 
     // ========== Mechanism Properties ==========
 
@@ -128,7 +154,6 @@ public:
      * @param E_total Total mechanical strain at current iterate (Etot + DEtot, 6 Voigt)
      * @param L Elastic stiffness tensor (6x6)
      * @param DTime Time increment
-     * @param ivc Internal variable collection
      * @param Phi Output: constraint function values
      * @param Y_crit Output: critical values for convergence
      *
@@ -141,7 +166,6 @@ public:
         const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
-        const InternalVariableCollection& ivc,
         arma::vec& Phi,
         arma::vec& Y_crit
     ) const = 0;
@@ -150,7 +174,6 @@ public:
      * @brief Compute contribution to Jacobian matrix B
      * @param sigma Current stress tensor (6 Voigt)
      * @param L Elastic stiffness tensor (6x6)
-     * @param ivc Internal variable collection
      * @param B Jacobian matrix to update
      * @param row_offset Starting row for this mechanism's contributions
      *
@@ -161,7 +184,6 @@ public:
     virtual void compute_jacobian_contribution(
         const arma::vec& sigma,
         const arma::mat& L,
-        const InternalVariableCollection& ivc,
         arma::mat& B,
         int row_offset
     ) const = 0;
@@ -190,10 +212,8 @@ public:
      * terms of strain and branch-internal EV_i only).
      */
     virtual const std::vector<tensor2>& dPhi_dsigma(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const {
+        const arma::vec& sigma) const {
         (void)sigma;
-        (void)ivc;
         static const std::vector<tensor2> empty;
         return empty;
     }
@@ -215,8 +235,7 @@ public:
     virtual const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
-        const arma::mat& L_ref,
-        const InternalVariableCollection& ivc) const = 0;
+        const arma::mat& L_ref) const = 0;
 
     // ========== Weak-coupling hooks (see theory chapter 7) ==========
 
@@ -233,6 +252,8 @@ public:
      * caches (flow direction, kappa, dD_dY, ...) drive the partial
      * derivatives.
      *
+     * Read the other mechanism's state through other.variables().
+     *
      * @param l_constraint_idx Index within this mechanism's constraints.
      * @param other The mechanism whose lead variable s^j we differentiate with
      *              respect to (may be this — diagonal hardening is handled in
@@ -242,12 +263,10 @@ public:
     virtual double K_cross(
         int l_constraint_idx,
         const StrainMechanism& other,
-        int j_lead_idx,
-        const InternalVariableCollection& ivc) const {
+        int j_lead_idx) const {
         (void)l_constraint_idx;
         (void)other;
         (void)j_lead_idx;
-        (void)ivc;
         return 0.0;
     }
 
@@ -267,10 +286,8 @@ public:
      * flow does not depend on stress: Prony viscoelasticity, scalar damage).
      */
     [[nodiscard]] virtual const std::vector<tensor4>* dLambda_dsigma(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const {
+        const arma::vec& sigma) const {
         (void)sigma;
-        (void)ivc;
         return nullptr;
     }
 
@@ -281,10 +298,11 @@ public:
      * Contract (matches ReturnStateHooks::update_state of return_mapping.hpp):
      * rebuild the mechanism's internal variables as
      * \f$ \mathbf{V} = \mathbf{V}_n + \sum_j \Delta s^j\,\boldsymbol{\Lambda}_V^j \f$
-     * from the *start* values stored in the IVC and the TOTAL multiplier
-     * increments — NOT an incremental update; each call starts over from
-     * \f$ \mathbf{V}_n \f$ so the CPP Newton can re-evaluate the state at every
-     * iterate. Closed forms preferred (e.g. Armstrong–Frederick backward Euler).
+     * from the *start* values stored in the owned collection and the TOTAL
+     * multiplier increments — NOT an incremental update; each call starts over
+     * from \f$ \mathbf{V}_n \f$ so the CPP Newton can re-evaluate the state at
+     * every iterate. Closed forms preferred (e.g. Armstrong–Frederick backward
+     * Euler).
      *
      * @return false if the mechanism does not support the implicit refresh
      * (default) — the orchestrator then falls back to the CCP integrator.
@@ -292,12 +310,10 @@ public:
     virtual bool refresh_state(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
-        int offset,
-        InternalVariableCollection& ivc) const {
+        int offset) {
         (void)sigma;
         (void)Ds_total;
         (void)offset;
-        (void)ivc;
         return false;
     }
 
@@ -310,29 +326,24 @@ public:
      * scaling their tangent_contribution applies. Factors from several
      * mechanisms compose multiplicatively. Default: 1 (no reduction).
      */
-    [[nodiscard]] virtual double stiffness_reduction(
-        const InternalVariableCollection& ivc) const {
-        (void)ivc;
+    [[nodiscard]] virtual double stiffness_reduction() const {
         return 1.0;
     }
 
     /**
      * @brief Get inelastic strain from this mechanism
-     * @param ivc Internal variable collection
      * @return Inelastic strain tensor (6 Voigt)
      */
-    virtual arma::vec inelastic_strain(const InternalVariableCollection& ivc) const = 0;
+    virtual arma::vec inelastic_strain() const = 0;
 
     /**
      * @brief Update internal variables given multiplier increments
      * @param ds Multiplier increment vector
      * @param offset Starting index in ds for this mechanism
-     * @param ivc Internal variable collection to update
      */
     virtual void update(
         const arma::vec& ds,
-        int offset,
-        InternalVariableCollection& ivc
+        int offset
     ) = 0;
 
     /**
@@ -341,7 +352,6 @@ public:
      * @param L Elastic stiffness tensor
      * @param Ds Total multiplier increments
      * @param offset Starting index in Ds for this mechanism
-     * @param ivc Internal variable collection
      * @param Lt Tangent modulus to update
      */
     virtual void tangent_contribution(
@@ -349,7 +359,6 @@ public:
         const arma::mat& L,
         const arma::vec& Ds,
         int offset,
-        const InternalVariableCollection& ivc,
         arma::mat& Lt
     ) const = 0;
 
@@ -359,7 +368,6 @@ public:
      * @brief Compute work decomposition
      * @param sigma_start Stress at start of increment
      * @param sigma Current stress
-     * @param ivc Internal variable collection
      * @param Wm_r Output: recoverable work increment
      * @param Wm_ir Output: irrecoverable (stored) work increment
      * @param Wm_d Output: dissipated work increment
@@ -367,7 +375,6 @@ public:
     virtual void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d

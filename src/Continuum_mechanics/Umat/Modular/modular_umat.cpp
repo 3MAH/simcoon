@@ -41,7 +41,6 @@ namespace simcoon {
 ModularUMAT::ModularUMAT()
     : elasticity_()
     , mechanisms_()
-    , ivc_()
     , T_init_(0.0)
     , sigma_start_(arma::zeros(6))
     , initialized_(false)
@@ -56,18 +55,6 @@ void ModularUMAT::set_elasticity(ElasticityType type, const arma::vec& props, in
     elasticity_.configure(type, props, offset);
 }
 
-namespace {
-// Count how many existing mechanisms have the given type, so each new mechanism
-// receives a unique IVC prefix (plast0_, plast1_, ...). Prevents key collisions
-// when the user composes multiple mechanisms of the same kind.
-int count_of_type(
-    const std::vector<std::unique_ptr<StrainMechanism>>& mechs, MechanismType t) {
-    int n = 0;
-    for (const auto& m : mechs) if (m->type() == t) ++n;
-    return n;
-}
-}  // namespace
-
 PlasticityMechanism& ModularUMAT::add_plasticity(
     YieldType yield_type,
     IsoHardType iso_type,
@@ -77,9 +64,7 @@ PlasticityMechanism& ModularUMAT::add_plasticity(
     const arma::vec& props,
     int& offset
 ) {
-    const int idx = count_of_type(mechanisms_, MechanismType::PLASTICITY);
     auto mech = std::make_unique<PlasticityMechanism>(yield_type, iso_type, kin_type, N_iso, N_kin);
-    mech->set_ivc_prefix("plast" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mechanisms_.push_back(std::move(mech));
     return static_cast<PlasticityMechanism&>(*mechanisms_.back());
@@ -90,9 +75,7 @@ ViscoelasticMechanism& ModularUMAT::add_viscoelasticity(
     const arma::vec& props,
     int& offset
 ) {
-    const int idx = count_of_type(mechanisms_, MechanismType::VISCOELASTICITY);
     auto mech = std::make_unique<ViscoelasticMechanism>(N_prony);
-    mech->set_ivc_prefix("visco" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mech->set_reference_stiffness(elasticity_.L());
     mechanisms_.push_back(std::move(mech));
@@ -104,9 +87,7 @@ DamageMechanism& ModularUMAT::add_damage(
     const arma::vec& props,
     int& offset
 ) {
-    const int idx = count_of_type(mechanisms_, MechanismType::DAMAGE);
     auto mech = std::make_unique<DamageMechanism>(damage_type);
-    mech->set_ivc_prefix("damage" + std::to_string(idx) + "_");
     mech->configure(props, offset);
     mechanisms_.push_back(std::move(mech));
     return static_cast<DamageMechanism&>(*mechanisms_.back());
@@ -170,20 +151,20 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
 }
 
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
-    // Register all internal variables
-    // First: T_init (temperature reference)
-    ivc_.add_scalar("T_init", 0.0);
-
-    // Register variables from each mechanism
+    // Each mechanism registers its variables into its OWN collection, then
+    // receives a base offset into the shared statev layout:
+    //   statev = [T_init | mech 0 | mech 1 | ...]  (composition order)
     for (auto& mech : mechanisms_) {
-        mech->register_variables(ivc_);
+        mech->register_variables();
+    }
+    unsigned int base = 1;  // statev(0) = T_init (orchestrator-owned)
+    for (auto& mech : mechanisms_) {
+        mech->compute_offsets(base);
+        base += mech->statev_size();
     }
 
-    // Compute offsets (T_init is at offset 0)
-    ivc_.compute_offsets(0);
-
     // Check that we have enough state variables
-    int required = ivc_.total_statev_size();
+    int required = static_cast<int>(base);
     if (nstatev < required) {
         throw std::runtime_error("ModularUMAT: nstatev (" + std::to_string(nstatev) +
                                 ") < required (" + std::to_string(required) + ")");
@@ -202,7 +183,10 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
     }
 
     // Unpack initial values from statev
-    ivc_.unpack_all(statev);
+    T_init_ = statev(0);
+    for (auto& mech : mechanisms_) {
+        mech->unpack(statev);
+    }
 
     // Cache per-mechanism constraint-row offsets (constant for the rest of
     // the object's lifetime).
@@ -292,20 +276,25 @@ void ModularUMAT::run(
         T_init_ = statev(0);
         if (start) {
             T_init_ = T;
-            ivc_.get("T_init").scalar() = T_init_;
         }
     } else {
         // Unpack state variables
-        ivc_.unpack_all(statev);
-        T_init_ = ivc_.get("T_init").scalar();
+        T_init_ = statev(0);
+        for (auto& mech : mechanisms_) {
+            mech->unpack(statev);
+        }
     }
 
     // Apply rotation for objectivity
-    ivc_.rotate_all(DR);
+    for (auto& mech : mechanisms_) {
+        mech->rotate(DR);
+    }
 
     // Save start values
     sigma_start_ = sigma;
-    ivc_.to_start_all();
+    for (auto& mech : mechanisms_) {
+        mech->to_start();
+    }
 
     // Set elastic stiffness
     L = elasticity_.L();
@@ -341,7 +330,7 @@ void ModularUMAT::run(
     // Elastic strain
     arma::vec E_inel = arma::zeros(6);
     for (const auto& mech : mechanisms_) {
-        E_inel += mech->inelastic_strain(ivc_);
+        E_inel += mech->inelastic_strain();
     }
     arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init_) - E_inel;
 
@@ -354,7 +343,7 @@ void ModularUMAT::run(
     Wm_d = 0.0;
     for (const auto& mech : mechanisms_) {
         double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
-        mech->compute_work(sigma_start_, sigma, ivc_, Wm_r_m, Wm_ir_m, Wm_d_m);
+        mech->compute_work(sigma_start_, sigma, Wm_r_m, Wm_ir_m, Wm_d_m);
         Wm_ir += Wm_ir_m;
         Wm_d += Wm_d_m;
     }
@@ -363,7 +352,10 @@ void ModularUMAT::run(
     Wm = Wm_r + Wm_ir + Wm_d;
 
     // Pack state variables
-    ivc_.pack_all(statev);
+    statev(0) = T_init_;
+    for (const auto& mech : mechanisms_) {
+        mech->pack(statev);
+    }
 }
 
 void ModularUMAT::return_mapping(
@@ -395,7 +387,7 @@ void ModularUMAT::return_mapping(
     // tangent is softened (inconsistent Newton, unsoftened response).
     arma::vec E_inel = arma::zeros(6);
     for (const auto& mech : mechanisms_) {
-        E_inel += mech->inelastic_strain(ivc_);
+        E_inel += mech->inelastic_strain();
     }
     arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
     sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
@@ -421,7 +413,7 @@ void ModularUMAT::return_mapping(
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
-                sigma, Etot + DEtot, elasticity_.L(), DTime, ivc_, Phi_m, Y_crit_m);
+                sigma, Etot + DEtot, elasticity_.L(), DTime, Phi_m, Y_crit_m);
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
@@ -433,14 +425,14 @@ void ModularUMAT::return_mapping(
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
 
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            mechanisms_[m]->update(ds, mech_offset_[m], ivc_);
+            mechanisms_[m]->update(ds, mech_offset_[m]);
         }
 
         // Recompute stress (D may have evolved in update, so re-evaluate the
         // reduction factor)
         E_inel.zeros();
         for (const auto& mech : mechanisms_) {
-            E_inel += mech->inelastic_strain(ivc_);
+            E_inel += mech->inelastic_strain();
         }
         Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
         sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
@@ -468,10 +460,10 @@ void ModularUMAT::assemble_jacobian(
     // for the whole phase (no compute_constraints call in between).
     std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
     for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L(), ivc_);
+        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L());
     }
     for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma, ivc_);
+        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma);
         if (dPhi_l_all.empty()) continue;
         for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
             const int row = mech_offset_[lm] + static_cast<int>(l_c);
@@ -485,8 +477,7 @@ void ModularUMAT::assemble_jacobian(
                                 + mechanisms_[lm]->K_cross(
                                       static_cast<int>(l_c),
                                       *mechanisms_[jm],
-                                      static_cast<int>(j_c),
-                                      ivc_);
+                                      static_cast<int>(j_c));
                 }
             }
         }
@@ -495,14 +486,14 @@ void ModularUMAT::assemble_jacobian(
     // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         mechanisms_[m]->compute_jacobian_contribution(
-            sigma, elasticity_.L(), ivc_, B, mech_offset_[m]);
+            sigma, elasticity_.L(), B, mech_offset_[m]);
     }
 }
 
 double ModularUMAT::stiffness_reduction() const {
     double f = 1.0;
     for (const auto& mech : mechanisms_) {
-        f *= mech->stiffness_reduction(ivc_);
+        f *= mech->stiffness_reduction();
     }
     return f;
 }
@@ -522,8 +513,8 @@ void ModularUMAT::compute_tangent(
     std::vector<size_t> algo;
     if (tangent_mode == 1) {
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            if (mechanisms_[m]->dLambda_dsigma(sigma, ivc_) != nullptr &&
-                !mechanisms_[m]->dPhi_dsigma(sigma, ivc_).empty()) {
+            if (mechanisms_[m]->dLambda_dsigma(sigma) != nullptr &&
+                !mechanisms_[m]->dPhi_dsigma(sigma).empty()) {
                 algo.push_back(m);
             }
         }
@@ -547,9 +538,9 @@ void ModularUMAT::compute_tangent(
         std::vector<arma::vec> dPhi_l;
         std::vector<arma::mat> dLambda_l;
         for (size_t m : algo) {
-            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma, ivc_);
-            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L, ivc_);
-            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma, ivc_);
+            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma);
+            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L);
+            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma);
             for (size_t c = 0; c < dPhi_all.size(); ++c) {
                 rows.push_back(mech_offset_[m] + static_cast<int>(c));
                 dPhi_l.emplace_back(dPhi_all[c].voigt());
@@ -576,7 +567,7 @@ void ModularUMAT::compute_tangent(
             continue;
         }
         mechanisms_[m]->tangent_contribution(
-            sigma, L, Ds_total, mech_offset_[m], ivc_, Lt);
+            sigma, L, Ds_total, mech_offset_[m], Lt);
     }
 }
 

@@ -156,7 +156,6 @@ void PragerHardening::configure(const arma::vec& props, int& offset) {
 }
 
 void PragerHardening::register_variables(InternalVariableCollection& ivc) {
-    a_key_ = key("a");
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
@@ -189,7 +188,6 @@ void ArmstrongFrederickHardening::configure(const arma::vec& props, int& offset)
 }
 
 void ArmstrongFrederickHardening::register_variables(InternalVariableCollection& ivc) {
-    a_key_ = key("a");
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
@@ -232,7 +230,7 @@ void ChabocheHardening::configure(const arma::vec& props, int& offset) {
 void ChabocheHardening::register_variables(InternalVariableCollection& ivc) {
     a_keys_.resize(static_cast<size_t>(N_));
     for (int i = 0; i < N_; ++i) {
-        a_keys_[i] = key("a_" + std::to_string(i));
+        a_keys_[i] = "a_" + std::to_string(i);
         ivc.add_vec(a_keys_[i], arma::zeros(6), true);
     }
 }

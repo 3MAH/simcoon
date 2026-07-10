@@ -49,7 +49,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <string>
 #include <armadillo>
-#include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
 
@@ -69,13 +68,18 @@ enum class DamageType;
  *
  * This class provides a composable constitutive model framework where
  * different elasticity types and strain mechanisms can be combined.
+ *
+ * State ownership: each StrainMechanism owns its internal variables. The
+ * orchestrator serializes the composed state as
+ *   statev = [T_init | mechanism 0 | mechanism 1 | ...]
+ * in composition order, by assigning each mechanism a base offset at
+ * initialize() and delegating pack/unpack/rotate/to_start per mechanism.
  */
 class ModularUMAT {
 private:
     // Modules
     ElasticityModule elasticity_;
     std::vector<std::unique_ptr<StrainMechanism>> mechanisms_;
-    InternalVariableCollection ivc_;
 
     // Constraint-row offset per mechanism; computed once in initialize() and
     // reused by every FB iteration (it only changes if mechanisms are
@@ -207,19 +211,13 @@ public:
     [[nodiscard]] size_t num_mechanisms() const noexcept { return mechanisms_.size(); }
 
     /**
-     * @brief Get mechanism by index
+     * @brief Get mechanism by index (its internal variables are reachable
+     * through StrainMechanism::variables())
      * @param i Index
      * @return Reference to mechanism
      */
     StrainMechanism& mechanism(size_t i) { return *mechanisms_[i]; }
     const StrainMechanism& mechanism(size_t i) const { return *mechanisms_[i]; }
-
-    /**
-     * @brief Get internal variable collection
-     * @return Reference to internal variable collection
-     */
-    InternalVariableCollection& internal_variables() { return ivc_; }
-    const InternalVariableCollection& internal_variables() const { return ivc_; }
 
     /// Local return-mapping controls (defaults: 100 iterations, 1e-9).
     void set_solver_params(int maxiter, double precision) {

@@ -94,11 +94,9 @@ void DamageMechanism::configure(const arma::vec& props, int& offset) {
     }
 }
 
-void DamageMechanism::register_variables(InternalVariableCollection& ivc) {
-    D_key_     = key("D");
-    Y_max_key_ = key("Y_max");
-    ivc.add_scalar(D_key_,     0.0);
-    ivc.add_scalar(Y_max_key_, 0.0);
+void DamageMechanism::register_variables() {
+    ivc_.add_scalar("D",     0.0);
+    ivc_.add_scalar("Y_max", 0.0);
 }
 
 // ========== Constitutive Computations ==========
@@ -143,8 +141,8 @@ double DamageMechanism::compute_damage(double Y, double Y_max) const {
     return std::min(D, D_c_);
 }
 
-double DamageMechanism::get_damage(const InternalVariableCollection& ivc) const {
-    return ivc.get(D_key_).scalar();
+double DamageMechanism::get_damage() const {
+    return ivc_.get("D").scalar();
 }
 
 void DamageMechanism::compute_constraints(
@@ -152,7 +150,6 @@ void DamageMechanism::compute_constraints(
     const arma::vec& /*E_total*/,
     const arma::mat& L,
     double /*DTime*/,
-    const InternalVariableCollection& ivc,
     arma::vec& Phi,
     arma::vec& Y_crit
 ) const {
@@ -160,8 +157,8 @@ void DamageMechanism::compute_constraints(
     Y_crit.set_size(1);
 
     // Get current damage and history
-    D_current_ = ivc.get(D_key_).scalar();
-    double Y_max = ivc.get(Y_max_key_).scalar();
+    D_current_ = ivc_.get("D").scalar();
+    double Y_max = ivc_.get("Y_max").scalar();
 
     // Compute and cache compliance (raw + typed) on first use.
     if (!M_cached_valid_) {
@@ -212,7 +209,6 @@ void DamageMechanism::compute_constraints(
 void DamageMechanism::compute_jacobian_contribution(
     const arma::vec& sigma,
     const arma::mat& L,
-    const InternalVariableCollection& ivc,
     arma::mat& B,
     int row_offset
 ) const {
@@ -226,7 +222,7 @@ void DamageMechanism::compute_jacobian_contribution(
 }
 
 const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
-    const arma::vec& sigma, const InternalVariableCollection& /*ivc*/) const {
+    const arma::vec& sigma) const {
     // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ (strain-typed).
     // M_cached_ is populated by compute_constraints (must be called first).
     dPhi_dsigma_cache_[0] = M_cached_valid_
@@ -236,8 +232,7 @@ const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
 }
 
 const std::vector<tensor2>& DamageMechanism::kappa(
-    const arma::vec& sigma, double /*DT*/, const arma::mat& /*L_ref*/,
-    const InternalVariableCollection& ivc) const {
+    const arma::vec& sigma, double /*DT*/, const arma::mat& /*L_ref*/) const {
     // κ^damage = ∂M/∂D · σ. For the (1-D)·L_0 model, M(D) = (1/(1-D)) · M_0,
     // so ∂M/∂D = (1/(1-D)²) · M_0. This enables weak coupling into other
     // mechanisms' Jacobian rows (they see stress perturbations from damage
@@ -246,7 +241,7 @@ const std::vector<tensor2>& DamageMechanism::kappa(
     // NB: strain-typed (an M·σ product) — see the header note on the
     // deliberate convention mix in the orchestrator's B assembly.
     if (M_cached_valid_) {
-        const double D = ivc.get(D_key_).scalar();
+        const double D = ivc_.get("D").scalar();
         const double factor = 1.0 / ((1.0 - D) * (1.0 - D));
         kappa_cache_[0] = strain(arma::vec(factor * (M_cached_ * sigma)));
     } else {
@@ -255,12 +250,11 @@ const std::vector<tensor2>& DamageMechanism::kappa(
     return kappa_cache_;
 }
 
-double DamageMechanism::stiffness_reduction(
-    const InternalVariableCollection& ivc) const {
-    return 1.0 - ivc.get(D_key_).scalar();
+double DamageMechanism::stiffness_reduction() const {
+    return 1.0 - ivc_.get("D").scalar();
 }
 
-arma::vec DamageMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
+arma::vec DamageMechanism::inelastic_strain() const {
     // Damage doesn't contribute a separate inelastic strain
     // It affects the stiffness instead
     return arma::zeros(6);
@@ -268,16 +262,15 @@ arma::vec DamageMechanism::inelastic_strain(const InternalVariableCollection& iv
 
 void DamageMechanism::update(
     const arma::vec& /*ds*/,
-    int /*offset*/,
-    InternalVariableCollection& ivc
+    int /*offset*/
 ) {
     // Explicit integration: the FB multiplier increment is unused here.
     // Advance the history and recompute damage directly from Y_max.
-    double& Y_max = ivc.get(Y_max_key_).scalar();
+    double& Y_max = ivc_.get("Y_max").scalar();
     if (Y_current_ > Y_max) {
         Y_max = Y_current_;
     }
-    double& D = ivc.get(D_key_).scalar();
+    double& D = ivc_.get("D").scalar();
     D = compute_damage(Y_current_, Y_max);
 }
 
@@ -286,10 +279,9 @@ void DamageMechanism::tangent_contribution(
     const arma::mat& L,
     const arma::vec& Ds,
     int offset,
-    const InternalVariableCollection& ivc,
     arma::mat& Lt
 ) const {
-    double D = ivc.get(D_key_).scalar();
+    double D = ivc_.get("D").scalar();
 
     // Apply damage to tangent
     // L_damaged = (1 - D) * L
@@ -310,13 +302,12 @@ void DamageMechanism::tangent_contribution(
 void DamageMechanism::compute_work(
     const arma::vec& sigma_start,
     const arma::vec& sigma,
-    const InternalVariableCollection& ivc,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d
 ) const {
     // Get damage increment
-    double dD = ivc.get(D_key_).delta_scalar();
+    double dD = ivc_.get("D").delta_scalar();
 
     Wm_r = 0.0;
     Wm_ir = 0.0;

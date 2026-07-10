@@ -826,14 +826,13 @@ TEST_F(PlasticityMechanismTest, Construction) {
 TEST_F(PlasticityMechanismTest, InelasticStrainInitiallyZero) {
     PlasticityMechanism pm(YieldType::VON_MISES, IsoHardType::NONE, KinHardType::NONE, 0, 0);
 
-    InternalVariableCollection ivc;
-    pm.register_variables(ivc);
-    ivc.compute_offsets(0);
+    pm.register_variables();
+    pm.compute_offsets(0);
 
-    vec statev = zeros(ivc.total_statev_size());
-    ivc.unpack_all(statev);
+    vec statev = zeros(pm.statev_size());
+    pm.unpack(statev);
 
-    vec EP = pm.inelastic_strain(ivc);
+    vec EP = pm.inelastic_strain();
     EXPECT_DOUBLE_EQ(norm(EP), 0.0);
 }
 
@@ -848,39 +847,38 @@ TEST_F(PlasticityMechanismTest, YieldAccessors) {
     int offset = 0;
     pm.configure(props, offset);
 
-    InternalVariableCollection ivc;
-    pm.register_variables(ivc);
-    ivc.compute_offsets(0);
-    vec statev = zeros(ivc.total_statev_size());
-    ivc.unpack_all(statev);
+    pm.register_variables();
+    pm.compute_offsets(0);
+    vec statev = zeros(pm.statev_size());
+    pm.unpack(statev);
 
     // Uniaxial elastic stress below yield: sigma_11 = 200 < sigma_Y = 300.
     vec sigma = {200.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     // Mises of uniaxial 200 MPa == 200 MPa.
-    double seq = pm.equivalent_stress(sigma, ivc);
+    double seq = pm.equivalent_stress(sigma);
     EXPECT_NEAR(seq, 200.0, 1e-10);
 
     // Phi = 200 - R(0) - 300 = -100 (elastic).
-    double Phi = pm.yield_function(sigma, ivc);
+    double Phi = pm.yield_function(sigma);
     EXPECT_NEAR(Phi, -100.0, 1e-10);
 
     // Flow direction: non-zero, points in deviatoric direction.
-    vec n = pm.flow_direction(sigma, ivc);
+    vec n = pm.flow_direction(sigma);
     EXPECT_GT(norm(n), 0.0);
 
     // tensor2 overloads must match the arma::vec versions.
     tensor2 sig_t = stress(sigma);
-    EXPECT_NEAR(pm.equivalent_stress(sig_t, ivc), seq, 1e-10);
-    EXPECT_NEAR(pm.yield_function(sig_t, ivc), Phi, 1e-10);
-    tensor2 n_t = pm.flow_direction(sig_t, ivc);
+    EXPECT_NEAR(pm.equivalent_stress(sig_t), seq, 1e-10);
+    EXPECT_NEAR(pm.yield_function(sig_t), Phi, 1e-10);
+    tensor2 n_t = pm.flow_direction(sig_t);
     EXPECT_EQ(n_t.vtype(), VoigtType::strain);
     EXPECT_LT(norm(vec(n_t.voigt()) - n, 2), 1e-10);
 
     // Uniaxial stress above yield: sigma_11 = 400 > sigma_Y => Phi > 0.
     vec sigma_high = {400.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    EXPECT_NEAR(pm.equivalent_stress(sigma_high, ivc), 400.0, 1e-10);
-    EXPECT_GT(pm.yield_function(sigma_high, ivc), 0.0);
+    EXPECT_NEAR(pm.equivalent_stress(sigma_high), 400.0, 1e-10);
+    EXPECT_GT(pm.yield_function(sigma_high), 0.0);
 }
 
 // ========== ModularUMAT Tests ==========
@@ -1068,11 +1066,19 @@ TEST(ModularUMATIntegration, ArbitraryMultiMechanismInitialize) {
     vec statev = zeros(mumat.required_nstatev());
     EXPECT_NO_THROW(mumat.initialize(mumat.required_nstatev(), statev));
 
-    // All prefixed keys exist (no collision).
-    for (const auto& k : {"plast0_p", "plast1_p", "plast0_EP", "plast1_EP",
-                           "visco0_v_0", "visco1_v_0", "visco0_EV_0", "visco1_EV_0",
-                           "damage0_D", "damage1_D", "damage0_Y_max", "damage1_Y_max"}) {
-        EXPECT_NO_THROW(mumat.internal_variables().get(k)) << "missing key: " << k;
+    // Each mechanism owns its variables under bare keys — same-type
+    // mechanisms can never collide (separate collections).
+    for (size_t i : {0, 1}) {  // plasticity
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("p"));
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("EP"));
+    }
+    for (size_t i : {2, 3}) {  // viscoelasticity
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("v_0"));
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("EV_0"));
+    }
+    for (size_t i : {4, 5}) {  // damage
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("D"));
+        EXPECT_NO_THROW(mumat.mechanism(i).variables().get("Y_max"));
     }
 }
 
@@ -1158,8 +1164,8 @@ TEST(ModularUMATIntegration, TwoPlasticityEquivalentToOne) {
         << "two    = " << sigma_two.t();
 }
 
-// Two Plasticity mechanisms must coexist without IVC key collisions. The
-// orchestrator auto-prefixes each mechanism's variables (plast0_, plast1_, ...).
+// Two Plasticity mechanisms must coexist without state collisions: each
+// mechanism owns its internal-variable collection.
 TEST(ModularUMATIntegration, TwoPlasticityMechanismsInitialize) {
     ModularUMAT mumat;
 
@@ -1182,11 +1188,11 @@ TEST(ModularUMATIntegration, TwoPlasticityMechanismsInitialize) {
     EXPECT_NO_THROW(mumat.initialize(nstatev, statev));
     EXPECT_EQ(mumat.num_mechanisms(), 2u);
 
-    // Both p and EP exist under their disambiguated keys.
-    EXPECT_NO_THROW(mumat.internal_variables().get("plast0_p"));
-    EXPECT_NO_THROW(mumat.internal_variables().get("plast1_p"));
-    EXPECT_NO_THROW(mumat.internal_variables().get("plast0_EP"));
-    EXPECT_NO_THROW(mumat.internal_variables().get("plast1_EP"));
+    // Both mechanisms hold p and EP in their own collections.
+    EXPECT_NO_THROW(mumat.mechanism(0).variables().get("p"));
+    EXPECT_NO_THROW(mumat.mechanism(1).variables().get("p"));
+    EXPECT_NO_THROW(mumat.mechanism(0).variables().get("EP"));
+    EXPECT_NO_THROW(mumat.mechanism(1).variables().get("EP"));
 }
 
 TEST(ModularUMATIntegration, UniaxialTension) {
@@ -1248,10 +1254,9 @@ TEST(ModularUMATIntegration, UniaxialTension) {
     double sigma_11 = sigma(0);
     EXPECT_GT(sigma_11, sigma_Y - 50.0);  // Should be near or above yield
 
-    // Accumulated plastic strain should be positive.
-    // ModularUMAT prefixes each mechanism's variables with plast<i>_, so the
-    // first plasticity mechanism's "p" is registered as "plast0_p".
-    double p = mumat.internal_variables().get("plast0_p").scalar();
+    // Accumulated plastic strain should be positive (read from the
+    // plasticity mechanism's own collection).
+    double p = mumat.mechanism(0).variables().get("p").scalar();
     // If we strained enough to yield, p should be positive
     if (sigma_11 > sigma_Y - 10.0) {
         EXPECT_GT(p, 0.0);
@@ -1302,7 +1307,7 @@ TEST(ModularUMATIntegration, DamageElasticUniaxial) {
         Etot += DEtot;
         Time += DTime;
 
-        const double D = mumat.internal_variables().get("damage0_D").scalar();
+        const double D = mumat.mechanism(0).variables().get("D").scalar();
         EXPECT_GE(D, D_prev - 1e-12) << "damage decreased during loading";
         EXPECT_LE(D, 0.99) << "damage exceeded D_c";
         D_prev = D;
@@ -1326,7 +1331,7 @@ TEST(ModularUMATIntegration, DamageElasticUniaxial) {
         Etot += DEtot_unload;
         Time += DTime;
     }
-    const double D_unload = mumat.internal_variables().get("damage0_D").scalar();
+    const double D_unload = mumat.mechanism(0).variables().get("D").scalar();
     EXPECT_NEAR(D_unload, D_load, 1e-8) << "damage evolved during unloading";
 }
 
@@ -1380,8 +1385,8 @@ TEST(ModularUMATIntegration, PlasticityDamageCombined) {
     dmg.add_damage(DamageType::LINEAR, props_dm, off);
     const double sig_dmg = drive(dmg, 20);
 
-    const double p = dmg.internal_variables().get("plast0_p").scalar();
-    const double D = dmg.internal_variables().get("damage0_D").scalar();
+    const double p = dmg.mechanism(0).variables().get("p").scalar();
+    const double D = dmg.mechanism(1).variables().get("D").scalar();
     EXPECT_GT(p, 0.0) << "plasticity never activated";
     EXPECT_GT(D, 0.0) << "damage never activated";
     EXPECT_LT(D, 0.99);
@@ -1416,7 +1421,7 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
     // Recover the converged stress of the previous increment from the elastic
     // relation (state variables carry EP): sigma = L (Etot - EP).
     sigma = m.elasticity().L() *
-            (Etot - m.internal_variables().get("plast0_EP").raw_voigt());
+            (Etot - m.mechanism(0).variables().get("EP").raw_voigt());
 
     Lt.set_size(6, 6);
     mat L(6, 6);
@@ -1493,9 +1498,9 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     int off = 0;
     pm.configure(props, off);
 
-    InternalVariableCollection ivc;
-    pm.register_variables(ivc);
-    ivc.compute_offsets(0);
+    pm.register_variables();
+    pm.compute_offsets(0);
+    auto& ivc = pm.variables();
 
     // Non-trivial start state.
     ivc.get("p").scalar() = 0.01;
@@ -1505,7 +1510,7 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     const vec sigma = {400.0, 50.0, -30.0, 60.0, 10.0, 0.0};
     const double dp = 5.0e-3;
     const vec Ds = {dp};
-    ASSERT_TRUE(pm.refresh_state(sigma, Ds, 0, ivc));
+    ASSERT_TRUE(pm.refresh_state(sigma, Ds, 0));
 
     EXPECT_DOUBLE_EQ(ivc.get("p").scalar(), 0.01 + dp);
 

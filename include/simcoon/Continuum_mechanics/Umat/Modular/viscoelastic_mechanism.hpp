@@ -64,10 +64,10 @@ private:
 
     arma::mat M_0_;                     ///< Reference compliance = inv(L_0), set by orchestrator
 
-    // Fully-prefixed IVC keys, cached at register_variables (avoids string
-    // concatenation and key() calls inside the FB hot loop).
-    std::vector<std::string> ev_key_;   ///< key("EV_" + i) per branch
-    std::vector<std::string> v_key_;    ///< key("v_" + i) per branch
+    // IVC keys, cached at register_variables (avoids string concatenation
+    // inside the FB hot loop).
+    std::vector<std::string> ev_key_;   ///< "EV_<i>" per branch
+    std::vector<std::string> v_key_;    ///< "v_<i>" per branch
 
     // Per-iteration caches (CCP: frozen flow direction from previous iteration)
     mutable std::vector<arma::vec> flow_i_;       ///< Strain-rate vector per branch
@@ -81,7 +81,7 @@ public:
     explicit ViscoelasticMechanism(int N_prony);
 
     void configure(const arma::vec& props, int& offset) override;
-    void register_variables(InternalVariableCollection& ivc) override;
+    void register_variables() override;
 
     [[nodiscard]] int num_constraints() const override { return N_prony_; }
     [[nodiscard]] MechanismType type() const override { return MechanismType::VISCOELASTICITY; }
@@ -91,14 +91,12 @@ public:
         const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
-        const InternalVariableCollection& ivc,
         arma::vec& Phi,
         arma::vec& Y_crit
     ) const override;
     void compute_jacobian_contribution(
         const arma::vec& sigma,
         const arma::mat& L,
-        const InternalVariableCollection& ivc,
         arma::mat& B,
         int row_offset
     ) const override;
@@ -110,15 +108,13 @@ public:
     [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
-        const arma::mat& L_ref,
-        const InternalVariableCollection& ivc) const override;
+        const arma::mat& L_ref) const override;
 
-    [[nodiscard]] arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
+    [[nodiscard]] arma::vec inelastic_strain() const override;
 
     void update(
         const arma::vec& ds,
-        int offset,
-        InternalVariableCollection& ivc
+        int offset
     ) override;
 
     void tangent_contribution(
@@ -126,14 +122,12 @@ public:
         const arma::mat& L,
         const arma::vec& Ds,
         int offset,
-        const InternalVariableCollection& ivc,
         arma::mat& Lt
     ) const override;
 
     void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d

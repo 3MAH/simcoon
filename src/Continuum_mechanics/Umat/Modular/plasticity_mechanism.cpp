@@ -83,57 +83,43 @@ void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
     kin_hard_->configure(props, offset);
 }
 
-void PlasticityMechanism::register_variables(InternalVariableCollection& ivc) {
-    p_key_  = key("p");
-    EP_key_ = key("EP");
-    ivc.add_scalar(p_key_, 0.0);
-    ivc.add_vec(EP_key_, arma::zeros(6), true);
-    kin_hard_->register_variables(ivc);
-}
-
-// Override to forward the prefix to our owned kinematic-hardening instance.
-void PlasticityMechanism::set_ivc_prefix(const std::string& prefix) {
-    StrainMechanism::set_ivc_prefix(prefix);
-    kin_hard_->set_ivc_prefix(prefix);
+void PlasticityMechanism::register_variables() {
+    ivc_.add_scalar("p", 0.0);
+    ivc_.add_vec("EP", arma::zeros(6), true);
+    kin_hard_->register_variables(ivc_);
 }
 
 // ========== Yield-side queries ==========
 
-double PlasticityMechanism::equivalent_stress(
-    const arma::vec& sigma, const InternalVariableCollection& ivc) const {
+double PlasticityMechanism::equivalent_stress(const arma::vec& sigma) const {
     if (kin_hard_->num_backstresses() == 0) {
         return yield_->equivalent_stress(sigma);
     }
-    return yield_->equivalent_stress(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt());
+    return yield_->equivalent_stress(sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt());
 }
 
-double PlasticityMechanism::equivalent_stress(
-    const tensor2& sigma, const InternalVariableCollection& ivc) const {
-    return equivalent_stress(sigma.to_arma_voigt(), ivc);
+double PlasticityMechanism::equivalent_stress(const tensor2& sigma) const {
+    return equivalent_stress(sigma.to_arma_voigt());
 }
 
-double PlasticityMechanism::yield_function(
-    const arma::vec& sigma, const InternalVariableCollection& ivc) const {
-    const double p = ivc.get(p_key_).scalar();
-    return equivalent_stress(sigma, ivc) - iso_hard_->R(p) - sigma_Y_;
+double PlasticityMechanism::yield_function(const arma::vec& sigma) const {
+    const double p = ivc_.get("p").scalar();
+    return equivalent_stress(sigma) - iso_hard_->R(p) - sigma_Y_;
 }
 
-double PlasticityMechanism::yield_function(
-    const tensor2& sigma, const InternalVariableCollection& ivc) const {
-    return yield_function(sigma.to_arma_voigt(), ivc);
+double PlasticityMechanism::yield_function(const tensor2& sigma) const {
+    return yield_function(sigma.to_arma_voigt());
 }
 
-arma::vec PlasticityMechanism::flow_direction(
-    const arma::vec& sigma, const InternalVariableCollection& ivc) const {
+arma::vec PlasticityMechanism::flow_direction(const arma::vec& sigma) const {
     if (kin_hard_->num_backstresses() == 0) {
         return yield_->flow_direction(sigma);
     }
-    return yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt());
+    return yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt());
 }
 
-tensor2 PlasticityMechanism::flow_direction(
-    const tensor2& sigma, const InternalVariableCollection& ivc) const {
-    return strain(flow_direction(sigma.to_arma_voigt(), ivc));
+tensor2 PlasticityMechanism::flow_direction(const tensor2& sigma) const {
+    return strain(flow_direction(sigma.to_arma_voigt()));
 }
 
 // ========== Constitutive Computations ==========
@@ -143,12 +129,11 @@ void PlasticityMechanism::compute_constraints(
     const arma::vec& /*E_total*/,
     const arma::mat& L,
     double /*DTime*/,
-    const InternalVariableCollection& ivc,
     arma::vec& Phi,
     arma::vec& Y_crit
 ) const {
     // Get internal variables
-    double p = ivc.get(p_key_).scalar();
+    double p = ivc_.get("p").scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
     // hardening since total_backstress would return zero. X is a stress-typed
@@ -156,7 +141,7 @@ void PlasticityMechanism::compute_constraints(
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
-        const arma::vec sigma_eff = sigma - kin_hard_->total_backstress(ivc).to_arma_voigt();
+        const arma::vec sigma_eff = sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt();
         sigma_eq = yield_->equivalent_stress(sigma_eff);
         flow_dir_ = yield_->flow_direction(sigma_eff);
     } else {
@@ -175,32 +160,31 @@ void PlasticityMechanism::compute_constraints(
     Y_crit(0) = std::max(sigma_Y_, 1.0);
 
     kappa_ = L * flow_dir_;
-    H_total_ = dR_dp + kin_hard_->hardening_modulus(strain(flow_dir_), ivc);
+    H_total_ = dR_dp + kin_hard_->hardening_modulus(strain(flow_dir_), ivc_);
 }
 
 const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
-    const arma::vec& /*sigma*/, const InternalVariableCollection& /*ivc*/) const {
+    const arma::vec& /*sigma*/) const {
     // Requires compute_constraints to have been called this FB iteration.
     dPhi_dsigma_cache_[0] = strain(flow_dir_);
     return dPhi_dsigma_cache_;
 }
 
 const std::vector<tensor2>& PlasticityMechanism::kappa(
-    const arma::vec& /*sigma*/, double /*DT*/,
-    const arma::mat& /*L_ref*/, const InternalVariableCollection& /*ivc*/) const {
+    const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
     // kappa = L_ref · n, already computed by compute_constraints.
     kappa_cache_[0] = stress(kappa_);
     return kappa_cache_;
 }
 
 const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
-    const arma::vec& sigma, const InternalVariableCollection& ivc) const {
+    const arma::vec& sigma) const {
     if (!yield_->has_flow_hessian()) {
         return nullptr;
     }
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     const arma::vec sigma_eff =
-        has_kin ? arma::vec(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt()) : sigma;
+        has_kin ? arma::vec(sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt()) : sigma;
     hessian_cache_[0] =
         tensor4(arma::mat(yield_->flow_hessian(sigma_eff)), Tensor4Type::compliance);
     return &hessian_cache_;
@@ -209,11 +193,10 @@ const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
 bool PlasticityMechanism::refresh_state(
     const arma::vec& sigma,
     const arma::vec& Ds_total,
-    int offset,
-    InternalVariableCollection& ivc) const {
+    int offset) {
     const double dp = Ds_total(offset);
 
-    auto& p_var = ivc.get(p_key_);
+    auto& p_var = ivc_.get("p");
     p_var.scalar() = p_var.scalar_start() + dp;
 
     // n and the back-strains couple through X(alpha): fixed point (direct for
@@ -221,17 +204,17 @@ bool PlasticityMechanism::refresh_state(
     const int n_fp = (kin_hard_->num_backstresses() > 0) ? 50 : 1;
     arma::vec n = arma::zeros(6);
     for (int it = 0; it < n_fp; ++it) {
-        const arma::vec X = kin_hard_->total_backstress(ivc).to_arma_voigt();
+        const arma::vec X = kin_hard_->total_backstress(ivc_).to_arma_voigt();
         const arma::vec n_new = yield_->flow_direction(sigma - X);
         const double dn = arma::norm(n_new - n, 2);
         n = n_new;
-        kin_hard_->refresh_state(dp, strain(n), ivc);
+        kin_hard_->refresh_state(dp, strain(n), ivc_);
         if (it > 0 && dn < 1e-14) {
             break;
         }
     }
 
-    auto& EP_var = ivc.get(EP_key_);
+    auto& EP_var = ivc_.get("EP");
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
     return true;
 }
@@ -239,7 +222,6 @@ bool PlasticityMechanism::refresh_state(
 void PlasticityMechanism::compute_jacobian_contribution(
     const arma::vec& sigma,
     const arma::mat& L,
-    const InternalVariableCollection& ivc,
     arma::mat& B,
     int row_offset
 ) const {
@@ -253,28 +235,27 @@ void PlasticityMechanism::compute_jacobian_contribution(
     B(row_offset, row_offset) = -dPhi_L_dPhi - H_total_;
 }
 
-arma::vec PlasticityMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
-    return ivc.get(EP_key_).raw_voigt();
+arma::vec PlasticityMechanism::inelastic_strain() const {
+    return ivc_.get("EP").raw_voigt();
 }
 
 void PlasticityMechanism::update(
     const arma::vec& ds,
-    int offset,
-    InternalVariableCollection& ivc
+    int offset
 ) {
     double dp = ds(offset);
 
     if (dp > simcoon::iota) {
         // Update accumulated plastic strain
-        double& p = ivc.get(p_key_).scalar();
+        double& p = ivc_.get("p").scalar();
         p += dp;
 
         // Update plastic strain
-        arma::vec& EP = ivc.get(EP_key_).raw_voigt();
+        arma::vec& EP = ivc_.get("EP").raw_voigt();
         EP += dp * flow_dir_;
 
         // Update kinematic hardening variables
-        kin_hard_->update(dp, strain(flow_dir_), ivc);
+        kin_hard_->update(dp, strain(flow_dir_), ivc_);
     }
 }
 
@@ -283,7 +264,6 @@ void PlasticityMechanism::tangent_contribution(
     const arma::mat& L,
     const arma::vec& Ds,
     int offset,
-    const InternalVariableCollection& ivc,
     arma::mat& Lt
 ) const {
     double Dp = Ds(offset);
@@ -307,20 +287,19 @@ void PlasticityMechanism::tangent_contribution(
 void PlasticityMechanism::compute_work(
     const arma::vec& sigma_start,
     const arma::vec& sigma,
-    const InternalVariableCollection& ivc,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d
 ) const {
     // Get increments
-    double Dp = ivc.get(p_key_).delta_scalar();
-    arma::vec DEP = ivc.get(EP_key_).delta_vec();
+    double Dp = ivc_.get("p").delta_scalar();
+    arma::vec DEP = ivc_.get("EP").delta_vec();
 
     // Average stress during increment
     arma::vec sigma_avg = 0.5 * (sigma_start + sigma);
 
     // Get backstress (if any)
-    const arma::vec X = kin_hard_->total_backstress(ivc).to_arma_voigt();
+    const arma::vec X = kin_hard_->total_backstress(ivc_).to_arma_voigt();
 
     // Dissipated work: sigma : dEP
     Wm_d = arma::dot(sigma_avg, DEP);

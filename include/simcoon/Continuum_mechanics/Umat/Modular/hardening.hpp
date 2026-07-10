@@ -201,21 +201,16 @@ enum class KinHardType {
 
 /**
  * @brief Base class for kinematic hardening
+ *
+ * Hardening models are components of a PlasticityMechanism: they register
+ * their back-strains into the OWNING MECHANISM's internal-variable
+ * collection (passed explicitly), they do not own state themselves. Since
+ * every mechanism owns a separate collection, the bare keys ("a", "a_0", ...)
+ * can never collide across mechanisms.
  */
 class KinematicHardening {
-protected:
-    std::string ivc_prefix_;
-
-    [[nodiscard]] std::string key(const std::string& base) const {
-        return ivc_prefix_.empty() ? base : ivc_prefix_ + base;
-    }
-
 public:
     virtual ~KinematicHardening() = default;
-
-    /// Prefix applied to every IVC key this hardening registers/queries.
-    /// Set by the owning PlasticityMechanism when mechanisms are disambiguated.
-    virtual void set_ivc_prefix(const std::string& prefix) { ivc_prefix_ = prefix; }
 
     /**
      * @brief Configure from props array
@@ -226,7 +221,7 @@ public:
 
     /**
      * @brief Register internal variables for this hardening model
-     * @param ivc Internal variable collection
+     * @param ivc The owning mechanism's internal variable collection
      */
     virtual void register_variables(InternalVariableCollection& ivc) = 0;
 
@@ -342,7 +337,7 @@ public:
 class PragerHardening final : public KinematicHardening {
 private:
     double C_;  ///< Kinematic hardening modulus
-    std::string a_key_;  ///< Cached IVC key for the back-strain α
+    std::string a_key_{"a"};  ///< IVC key for the back-strain α
 public:
     PragerHardening() : C_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -362,7 +357,7 @@ class ArmstrongFrederickHardening final : public KinematicHardening {
 private:
     double C_;  ///< Hardening parameter
     double D_;  ///< Dynamic recovery parameter
-    std::string a_key_;  ///< Cached IVC key for the back-strain α
+    std::string a_key_{"a"};  ///< IVC key for the back-strain α
 public:
     ArmstrongFrederickHardening() : C_(0.0), D_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
@@ -385,7 +380,7 @@ private:
     int N_;                          ///< Number of backstress terms
     arma::vec C_;                    ///< Hardening parameters
     arma::vec D_;                    ///< Dynamic recovery parameters
-    std::vector<std::string> a_keys_; ///< Cached IVC keys for back-strains α_i
+    std::vector<std::string> a_keys_; ///< IVC keys for back-strains α_i ("a_0", "a_1", ...)
 public:
     explicit ChabocheHardening(int N = 1) : N_(N), C_(arma::zeros(N)), D_(arma::zeros(N)) {}
     void configure(const arma::vec& props, int& offset) override;

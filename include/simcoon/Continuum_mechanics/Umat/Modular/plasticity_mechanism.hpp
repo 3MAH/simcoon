@@ -58,10 +58,6 @@ private:
     std::unique_ptr<KinematicHardening> kin_hard_;
     double sigma_Y_;  ///< Initial yield stress
 
-    // IVC keys, cached at register_variables.
-    std::string p_key_;
-    std::string EP_key_;
-
     // Per-iteration caches populated by compute_constraints. dPhi_dsigma() and
     // kappa() return const-refs into these single-element buffers to avoid
     // re-constructing the vectors on every FB iteration.
@@ -104,8 +100,7 @@ public:
     // ========== Configuration ==========
 
     void configure(const arma::vec& props, int& offset) override;
-    void register_variables(InternalVariableCollection& ivc) override;
-    void set_ivc_prefix(const std::string& prefix) override;
+    void register_variables() override;
 
     // ========== Mechanism Properties ==========
 
@@ -140,7 +135,7 @@ public:
     //
     // These helpers expose the stress-side yield machinery (criteria.cpp
     // Eq_stress dispatch) with the backstress shift applied internally, so
-    // callers do not need to reach into kin_hard_->total_backstress(ivc).
+    // callers do not need to reach into kin_hard_->total_backstress().
 
     /**
      * @brief Equivalent stress of (sigma - X) under the configured yield criterion.
@@ -148,14 +143,10 @@ public:
      * Dispatches through YieldCriterion to criteria.cpp::Eq_stress
      * (Mises / Tresca / Drucker / Hill / DFA / Ani).
      */
-    [[nodiscard]] double equivalent_stress(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] double equivalent_stress(const arma::vec& sigma) const;
 
     /// tensor2-typed overload.
-    [[nodiscard]] double equivalent_stress(
-        const tensor2& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] double equivalent_stress(const tensor2& sigma) const;
 
     /**
      * @brief Yield function value Phi = sigma_eq(sigma - X) - R(p) - sigma_Y.
@@ -163,22 +154,14 @@ public:
      * Phi <= 0 inside the elastic domain; the return-mapping drives Phi to 0
      * when the trial state lies outside.
      */
-    [[nodiscard]] double yield_function(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] double yield_function(const arma::vec& sigma) const;
 
-    [[nodiscard]] double yield_function(
-        const tensor2& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] double yield_function(const tensor2& sigma) const;
 
     /// Flow direction dPhi/dsigma at (sigma - X), strain-typed in the tensor2 overload.
-    [[nodiscard]] arma::vec flow_direction(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] arma::vec flow_direction(const arma::vec& sigma) const;
 
-    [[nodiscard]] tensor2 flow_direction(
-        const tensor2& sigma,
-        const InternalVariableCollection& ivc) const;
+    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const;
 
     // ========== Constitutive Computations ==========
 
@@ -187,34 +170,29 @@ public:
         const arma::vec& E_total,
         const arma::mat& L,
         double DTime,
-        const InternalVariableCollection& ivc,
         arma::vec& Phi,
         arma::vec& Y_crit
     ) const override;
     void compute_jacobian_contribution(
         const arma::vec& sigma,
         const arma::mat& L,
-        const InternalVariableCollection& ivc,
         arma::mat& B,
         int row_offset
     ) const override;
 
     [[nodiscard]] const std::vector<tensor2>& dPhi_dsigma(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const override;
+        const arma::vec& sigma) const override;
 
     [[nodiscard]] const std::vector<tensor2>& kappa(
         const arma::vec& sigma,
         double DT,
-        const arma::mat& L_ref,
-        const InternalVariableCollection& ivc) const override;
+        const arma::mat& L_ref) const override;
 
     /// Flow Hessian dLambda/dsigma at the shifted stress (sigma - X), via the
     /// yield criterion's analytic kernel (deta_stress / ddHill / ddDFA / ddAni).
     /// nullptr for criteria without one (Tresca, Drucker) -> continuum fallback.
     [[nodiscard]] const std::vector<tensor4>* dLambda_dsigma(
-        const arma::vec& sigma,
-        const InternalVariableCollection& ivc) const override;
+        const arma::vec& sigma) const override;
 
     /// Backward-Euler refresh from start values (CPP contract): p = p_n + dp,
     /// EP = EP_n + dp n, back-strains via closed forms; short fixed point on
@@ -222,15 +200,13 @@ public:
     bool refresh_state(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
-        int offset,
-        InternalVariableCollection& ivc) const override;
+        int offset) override;
 
-    arma::vec inelastic_strain(const InternalVariableCollection& ivc) const override;
+    arma::vec inelastic_strain() const override;
 
     void update(
         const arma::vec& ds,
-        int offset,
-        InternalVariableCollection& ivc
+        int offset
     ) override;
 
     void tangent_contribution(
@@ -238,14 +214,12 @@ public:
         const arma::mat& L,
         const arma::vec& Ds,
         int offset,
-        const InternalVariableCollection& ivc,
         arma::mat& Lt
     ) const override;
 
     void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
-        const InternalVariableCollection& ivc,
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d
