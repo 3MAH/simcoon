@@ -544,14 +544,10 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
     EXPECT_EQ(alpha_t.vtype(), VoigtType::strain);
     EXPECT_LT(norm(vec(alpha_t.voigt()) - em.alpha(), 2), 1e-12);
 
-    // thermal_strain_tensor and damaged_L_tensor consistency
+    // thermal_strain_tensor consistency
     double DT = 50.0;
     tensor2 eth = em.thermal_strain_tensor(DT);
     EXPECT_LT(norm(vec(eth.voigt()) - em.thermal_strain(DT), 2), 1e-12);
-
-    tensor4 L_dmg = em.damaged_L_tensor(0.3);
-    EXPECT_EQ(L_dmg.type(), Tensor4Type::stiffness);
-    EXPECT_LT(norm(mat(L_dmg.mat()) - 0.7 * em.L(), "fro"), 1e-8);
 }
 
 // Orthotropic configuration: regression for the L_ortho/M_ortho argument-order

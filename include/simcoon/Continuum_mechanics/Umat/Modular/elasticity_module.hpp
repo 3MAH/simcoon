@@ -291,17 +291,6 @@ public:
     // ========== Derived Quantities ==========
 
     /**
-     * @brief Get damaged stiffness tensor
-     * @param d Damage variable (0 = undamaged, 1 = fully damaged)
-     * @return Degraded stiffness (1-d)*L
-     */
-    [[nodiscard]] arma::mat damaged_L(double d) const;
-
-    [[nodiscard]] tensor4 damaged_L_tensor(double d) const {
-        return tensor4(damaged_L(d), Tensor4Type::stiffness);
-    }
-
-    /**
      * @brief Get thermal strain
      * @param DT Temperature increment
      * @return Thermal strain vector (alpha * DT)

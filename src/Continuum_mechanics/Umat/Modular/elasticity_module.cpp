@@ -248,13 +248,6 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
 
 // ========== Derived Quantities ==========
 
-arma::mat ElasticityModule::damaged_L(double d) const {
-    if (!configured_) {
-        throw std::runtime_error("ElasticityModule: not configured");
-    }
-    return (1.0 - d) * L_;
-}
-
 arma::vec ElasticityModule::thermal_strain(double DT) const {
     if (!configured_) {
         throw std::runtime_error("ElasticityModule: not configured");

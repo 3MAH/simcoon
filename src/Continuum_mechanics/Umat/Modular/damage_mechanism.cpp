@@ -147,10 +147,6 @@ double DamageMechanism::get_damage(const InternalVariableCollection& ivc) const 
     return ivc.get(D_key_).scalar();
 }
 
-arma::mat DamageMechanism::damaged_stiffness(const arma::mat& L, double D) {
-    return (1.0 - D) * L;
-}
-
 void DamageMechanism::compute_constraints(
     const arma::vec& sigma,
     const arma::vec& /*E_total*/,

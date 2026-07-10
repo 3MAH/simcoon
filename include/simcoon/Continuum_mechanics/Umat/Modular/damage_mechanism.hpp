@@ -210,14 +210,6 @@ public:
     double get_damage(const InternalVariableCollection& ivc) const;
 
     /**
-     * @brief Get damaged stiffness tensor
-     * @param L Undamaged stiffness
-     * @param D Damage value
-     * @return Damaged stiffness (1-D)*L
-     */
-    static arma::mat damaged_stiffness(const arma::mat& L, double D);
-
-    /**
      * @brief Invalidate the cached compliance M_cached_.
      *
      * M_cached_ is lazily built on first use as inv(L) where L is the
