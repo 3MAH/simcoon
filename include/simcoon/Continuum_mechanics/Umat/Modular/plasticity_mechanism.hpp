@@ -71,6 +71,10 @@ private:
     mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
     mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::stress)};
     mutable std::vector<tensor4> hessian_cache_{tensor4(Tensor4Type::compliance)};
+    mutable std::vector<tensor2> X_branches_;   ///< Per-branch backstresses, built
+                                                ///< ONCE per FB iteration in
+                                                ///< compute_constraints and reused
+                                                ///< for sigma_eff + hardening_modulus
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
 
 public:

@@ -136,12 +136,18 @@ void PlasticityMechanism::compute_constraints(
     double p = ivc_.get("p").scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening since total_backstress would return zero. X is a stress-typed
-    // tensor2; its stress-Voigt components match sigma.
+    // hardening. The branch backstresses X_i are built ONCE here and reused
+    // for hardening_modulus below — they are only valid within this FB
+    // iteration (the back-strains move in update()).
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
-        const arma::vec sigma_eff = sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt();
+        kin_hard_->compute_backstresses(ivc_, X_branches_);
+        tensor2 X_t = tensor2::zeros(VoigtType::stress);
+        for (const auto& x : X_branches_) {
+            X_t += x;
+        }
+        const arma::vec sigma_eff = sigma - X_t.to_arma_voigt();
         sigma_eq = yield_->equivalent_stress(sigma_eff);
         flow_dir_ = yield_->flow_direction(sigma_eff);
     } else {
@@ -160,7 +166,9 @@ void PlasticityMechanism::compute_constraints(
     Y_crit(0) = std::max(sigma_Y_, 1.0);
 
     kappa_ = L * flow_dir_;
-    H_total_ = dR_dp + kin_hard_->hardening_modulus(strain(flow_dir_), ivc_);
+    H_total_ = dR_dp + (has_kin
+        ? kin_hard_->hardening_modulus(strain(flow_dir_), X_branches_)
+        : 0.0);
 }
 
 const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
@@ -243,20 +251,24 @@ void PlasticityMechanism::update(
     const arma::vec& ds,
     int offset
 ) {
+    // Apply the FB correction UNCONDITIONALLY, including ds < 0: negative
+    // per-iteration corrections walk back an overshoot (Fischer-Burmeister
+    // enforces Dp >= 0 at convergence, not per iteration; legacy CCP loops
+    // apply s_j += ds_j directly). Gating on dp > iota froze the state after
+    // any overshoot — the loop then spun to maxiter with a constant ~1 MPa
+    // yield-surface violation and a 12x slowdown.
     double dp = ds(offset);
 
-    if (dp > simcoon::iota) {
-        // Update accumulated plastic strain
-        double& p = ivc_.get("p").scalar();
-        p += dp;
+    // Update accumulated plastic strain
+    double& p = ivc_.get("p").scalar();
+    p += dp;
 
-        // Update plastic strain
-        arma::vec& EP = ivc_.get("EP").raw_voigt();
-        EP += dp * flow_dir_;
+    // Update plastic strain
+    arma::vec& EP = ivc_.get("EP").raw_voigt();
+    EP += dp * flow_dir_;
 
-        // Update kinematic hardening variables
-        kin_hard_->update(dp, strain(flow_dir_), ivc_);
-    }
+    // Update kinematic hardening variables
+    kin_hard_->update(dp, strain(flow_dir_), ivc_);
 }
 
 void PlasticityMechanism::tangent_contribution(

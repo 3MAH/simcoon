@@ -159,13 +159,19 @@ void PragerHardening::register_variables(InternalVariableCollection& ivc) {
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
-tensor2 PragerHardening::total_backstress(const InternalVariableCollection& ivc) const {
-    return backstress_t(C_, ivc.get(a_key_).as_tensor2());
+void PragerHardening::compute_backstresses(const InternalVariableCollection& ivc,
+                                           std::vector<tensor2>& X_i) const {
+    X_i.resize(1, tensor2(VoigtType::stress));
+    X_i[0] = backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
-double PragerHardening::hardening_modulus(const tensor2& /*n*/,
-                                           const InternalVariableCollection& /*ivc*/) const {
-    return (2.0 / 3.0) * C_;
+double PragerHardening::hardening_modulus(const tensor2& n,
+                                          const std::vector<tensor2>& /*X_i*/) const {
+    // Exact slope n : dX/dp = (2/3) C <n,n> (tensorial contraction; = C for a
+    // von Mises normal, <n,n> = 3/2). The former (2/3)C underestimated it by
+    // C/3, driving a systematic Newton overshoot (frozen FB loop) and a wrong
+    // continuum tangent via H_eff.
+    return (2.0 / 3.0) * C_ * arma::accu(n.mat() % n.mat());
 }
 
 void PragerHardening::update(double dp, const tensor2& n, InternalVariableCollection& ivc) {
@@ -191,16 +197,20 @@ void ArmstrongFrederickHardening::register_variables(InternalVariableCollection&
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
-tensor2 ArmstrongFrederickHardening::total_backstress(const InternalVariableCollection& ivc) const {
-    return backstress_t(C_, ivc.get(a_key_).as_tensor2());
+void ArmstrongFrederickHardening::compute_backstresses(
+    const InternalVariableCollection& ivc, std::vector<tensor2>& X_i) const {
+    X_i.resize(1, tensor2(VoigtType::stress));
+    X_i[0] = backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
 double ArmstrongFrederickHardening::hardening_modulus(
-    const tensor2& n, const InternalVariableCollection& ivc) const {
-    // H_kin = (2/3) C  −  D · (X : n) — stress-Voigt · engineering-strain-Voigt
-    // is the work-conjugate pairing of the full double contraction.
-    const tensor2 X_t = backstress_t(C_, ivc.get(a_key_).as_tensor2());
-    return (2.0 / 3.0) * C_ - D_ * arma::dot(X_t.to_arma_voigt(), n.to_arma_voigt());
+    const tensor2& n, const std::vector<tensor2>& X_i) const {
+    // Exact slope n : dX/dp with dX/dp = (2/3)C(n − D α):
+    // H_kin = (2/3) C <n,n> − D (X : n)  (tensorial <n,n> = 3/2 for von Mises,
+    // giving the classical C − D(X:n)). X:n as stress-Voigt · engineering-
+    // strain-Voigt is the work-conjugate pairing of the full contraction.
+    const double nn = arma::accu(n.mat() % n.mat());
+    return (2.0 / 3.0) * C_ * nn - D_ * arma::dot(X_i[0].to_arma_voigt(), n.to_arma_voigt());
 }
 
 void ArmstrongFrederickHardening::update(double dp, const tensor2& n,
@@ -235,25 +245,27 @@ void ChabocheHardening::register_variables(InternalVariableCollection& ivc) {
     }
 }
 
-tensor2 ChabocheHardening::total_backstress(const InternalVariableCollection& ivc) const {
-    // X = Σ_i (2/3) C_i α_i. Accumulate STRESS-typed (backstress_t returns
-    // stress-typed): a strain-typed accumulator re-tags the sum and puts the
-    // factor-2 shear back — wrong under any loading with shear.
-    tensor2 X_t = tensor2::zeros(VoigtType::stress);
+void ChabocheHardening::compute_backstresses(const InternalVariableCollection& ivc,
+                                             std::vector<tensor2>& X_i) const {
+    // X_i = (2/3) C_i α_i, STRESS-typed (backstress_t re-tags through the 3x3;
+    // a strain-typed carrier would put the factor-2 shear back — wrong under
+    // any loading with shear).
+    X_i.resize(static_cast<size_t>(N_), tensor2(VoigtType::stress));
     for (int i = 0; i < N_; ++i) {
-        X_t += backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
+        X_i[static_cast<size_t>(i)] = backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
     }
-    return X_t;
 }
 
 double ChabocheHardening::hardening_modulus(const tensor2& n,
-                                              const InternalVariableCollection& ivc) const {
-    // H_kin = Σ_i [ (2/3) C_i − D_i (X_i : n) ]
+                                            const std::vector<tensor2>& X_i) const {
+    // H_kin = Σ_i [ (2/3) C_i <n,n> − D_i (X_i : n) ] — exact slope per
+    // branch (see ArmstrongFrederick).
     const arma::vec n_v = n.to_arma_voigt();
+    const double nn = arma::accu(n.mat() % n.mat());
     double H_kin = 0.0;
     for (int i = 0; i < N_; ++i) {
-        const tensor2 X_i_t = backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
-        H_kin += (2.0 / 3.0) * C_(i) - D_(i) * arma::dot(X_i_t.to_arma_voigt(), n_v);
+        H_kin += (2.0 / 3.0) * C_(i) * nn
+                 - D_(i) * arma::dot(X_i[static_cast<size_t>(i)].to_arma_voigt(), n_v);
     }
     return H_kin;
 }

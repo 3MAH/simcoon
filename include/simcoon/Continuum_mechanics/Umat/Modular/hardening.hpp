@@ -226,24 +226,55 @@ public:
     virtual void register_variables(InternalVariableCollection& ivc) = 0;
 
     /**
-     * @brief Get total backstress X = sum(X_i)
+     * @brief Compute the per-branch backstresses \f$ \mathbf{X}_i = \tfrac{2}{3}
+     * C_i \boldsymbol{\alpha}_i \f$ (STRESS-typed tensor2, re-tagged through the
+     * convention-free 3x3).
+     *
+     * This is the ONE place the backstresses are built from the back-strains.
+     * The hot caller (PlasticityMechanism::compute_constraints) invokes it once
+     * per FB iteration and reuses the result for the shifted stress
+     * \f$ \boldsymbol{\sigma} - \sum_i \mathbf{X}_i \f$ AND for
+     * hardening_modulus(n, X_i) — the branch backstresses are only valid within
+     * that iteration (the back-strains move in update()).
+     *
      * @param ivc Internal variable collection
-     * @return Total backstress \f$ \mathbf{X} = \sum_i \tfrac{2}{3} C_i
-     *         \boldsymbol{\alpha}_i \f$ as a STRESS-typed tensor2: the
-     *         strain-typed back-strains \f$ \boldsymbol{\alpha}_i \f$ are
-     *         re-tagged through the convention-free 3x3, so
-     *         \f$ \boldsymbol{\sigma} - \mathbf{X} \f$ and
-     *         \f$ \mathbf{X} : \mathbf{n} \f$ are convention-correct by type.
+     * @param X_i Output: resized to num_backstresses(), branch order fixed
      */
-    virtual tensor2 total_backstress(const InternalVariableCollection& ivc) const = 0;
+    virtual void compute_backstresses(const InternalVariableCollection& ivc,
+                                      std::vector<tensor2>& X_i) const = 0;
 
     /**
-     * @brief Compute total kinematic hardening modulus contribution
+     * @brief Kinematic hardening modulus from PRECOMPUTED branch backstresses
+     * (same order as compute_backstresses)
      * @param n Plastic flow direction (strain-typed tensor2)
-     * @param ivc Internal variable collection
-     * @return Hardening modulus contribution to K
+     * @param X_i Branch backstresses from compute_backstresses()
+     * @return Exact slope \f$ \sum_i \tfrac{2}{3} C_i \langle \mathbf{n},
+     *         \mathbf{n} \rangle - D_i (\mathbf{X}_i : \mathbf{n}) \f$
      */
-    virtual double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const = 0;
+    virtual double hardening_modulus(const tensor2& n,
+                                     const std::vector<tensor2>& X_i) const = 0;
+
+    // ---- Convenience forms (cold paths: refresh_state fixed point, work
+    // computation, tests). Hot loops use the two virtuals above directly. ----
+
+    /// Total backstress X = sum(X_i), stress-typed.
+    [[nodiscard]] tensor2 total_backstress(const InternalVariableCollection& ivc) const {
+        std::vector<tensor2> X_i;
+        compute_backstresses(ivc, X_i);
+        tensor2 X_t = tensor2::zeros(VoigtType::stress);
+        for (const auto& x : X_i) {
+            X_t += x;
+        }
+        return X_t;
+    }
+
+    /// Hardening modulus computed from the collection directly.
+    [[nodiscard]] double hardening_modulus(const tensor2& n,
+                                           const InternalVariableCollection& ivc) const {
+        std::vector<tensor2> X_i;
+        compute_backstresses(ivc, X_i);
+        return hardening_modulus(n, X_i);
+    }
 
     /**
      * @brief Update internal variables given plastic multiplier increment
@@ -314,10 +345,12 @@ class NoKinematicHardening final : public KinematicHardening {
 public:
     void configure(const arma::vec& props, int& offset) override {}
     void register_variables(InternalVariableCollection& ivc) override {}
-    tensor2 total_backstress(const InternalVariableCollection& ivc) const override {
-        return tensor2::zeros(VoigtType::stress);
+    void compute_backstresses(const InternalVariableCollection& ivc,
+                              std::vector<tensor2>& X_i) const override {
+        X_i.clear();
     }
-    double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const override {
+    double hardening_modulus(const tensor2& n,
+                             const std::vector<tensor2>& X_i) const override {
         return 0.0;
     }
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override {}
@@ -342,8 +375,10 @@ public:
     PragerHardening() : C_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
     void register_variables(InternalVariableCollection& ivc) override;
-    tensor2 total_backstress(const InternalVariableCollection& ivc) const override;
-    double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const override;
+    void compute_backstresses(const InternalVariableCollection& ivc,
+                              std::vector<tensor2>& X_i) const override;
+    double hardening_modulus(const tensor2& n,
+                             const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::PRAGER; }
@@ -362,8 +397,10 @@ public:
     ArmstrongFrederickHardening() : C_(0.0), D_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
     void register_variables(InternalVariableCollection& ivc) override;
-    tensor2 total_backstress(const InternalVariableCollection& ivc) const override;
-    double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const override;
+    void compute_backstresses(const InternalVariableCollection& ivc,
+                              std::vector<tensor2>& X_i) const override;
+    double hardening_modulus(const tensor2& n,
+                             const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::ARMSTRONG_FREDERICK; }
@@ -385,8 +422,10 @@ public:
     explicit ChabocheHardening(int N = 1) : N_(N), C_(arma::zeros(N)), D_(arma::zeros(N)) {}
     void configure(const arma::vec& props, int& offset) override;
     void register_variables(InternalVariableCollection& ivc) override;
-    tensor2 total_backstress(const InternalVariableCollection& ivc) const override;
-    double hardening_modulus(const tensor2& n, const InternalVariableCollection& ivc) const override;
+    void compute_backstresses(const InternalVariableCollection& ivc,
+                              std::vector<tensor2>& X_i) const override;
+    double hardening_modulus(const tensor2& n,
+                             const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
     KinHardType type() const override { return KinHardType::CHABOCHE; }
