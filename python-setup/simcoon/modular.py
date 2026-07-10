@@ -14,7 +14,7 @@ Example
 ...     Plasticity, VonMisesYield, VoceHardening
 ... )
 >>> mat = ModularMaterial(
-...     elasticity=IsotropicElasticity(E=210000., nu=0.3, alpha=1.2e-5),
+...     elasticity=IsotropicElasticity(C1=210000., C2=0.3, alpha=1.2e-5),
 ...     mechanisms=[
 ...         Plasticity(
 ...             sigma_Y=300.,
@@ -41,6 +41,9 @@ __all__ = [
     # Enums
     "ElasticityType", "YieldType", "IsoHardType", "KinHardType",
     "DamageType", "MechanismType",
+    # Elastic-constant conventions
+    "IsoConvention", "CubicConvention",
+    "IsotransConvention", "OrthoConvention",
     # Elasticity
     "IsotropicElasticity", "CubicElasticity",
     "TransverseIsotropicElasticity", "OrthotropicElasticity",
@@ -75,6 +78,96 @@ class ElasticityType(IntEnum):
     CUBIC = 1
     TRANSVERSE_ISOTROPIC = 2
     ORTHOTROPIC = 3
+
+
+class IsoConvention(IntEnum):
+    """Parameterization of the two isotropic elastic constants (C1, C2).
+
+    Mirrors the convention strings of ``sim.L_iso`` (C++ ``IsoConv``):
+
+    ========= ============== ========== ==========
+    value     string         C1         C2
+    ========= ============== ========== ==========
+    ENU       ``Enu``        E          nu
+    NUE       ``nuE``        nu         E
+    KMU       ``Kmu``        K          mu (= G)
+    MUK       ``muK``        mu (= G)   K
+    LAMBDAMU  ``lambdamu``   lambda     mu (= G)
+    MULAMBDA  ``mulambda``   mu (= G)   lambda
+    ========= ============== ========== ==========
+    """
+    ENU = 0
+    NUE = 1
+    KMU = 2
+    MUK = 3
+    LAMBDAMU = 4
+    MULAMBDA = 5
+
+
+class CubicConvention(IntEnum):
+    """Parameterization of the three cubic elastic constants (C1, C2, C3).
+
+    ENUG: C1 = E, C2 = nu, C3 = G. CII: C1 = C11, C2 = C12, C3 = C44.
+    """
+    ENUG = 0
+    CII = 1
+
+
+class IsotransConvention(IntEnum):
+    """Parameterization of the transversely isotropic constants.
+
+    A single parameterization exists (EL, ET, nuTL, nuTT, GLT); the enum
+    keeps the props layout uniform and future parameterizations additive.
+    """
+    ENUG = 0
+
+
+class OrthoConvention(IntEnum):
+    """Parameterization of the nine orthotropic elastic constants (C1..C9).
+
+    ENUG: (E1, E2, E3, nu12, nu13, nu23, G12, G13, G23).
+    CII: (C11, C12, C13, C22, C23, C33, C44, C55, C66).
+    """
+    ENUG = 0
+    CII = 1
+
+
+# String spellings accepted anywhere a convention is expected — identical to
+# the C++ convention strings of L_iso/L_cubic/L_ortho (constitutive.cpp),
+# including their aliases ("KG" for "Kmu", etc.).
+_ISO_CONV_FROM_STR = {
+    "Enu": IsoConvention.ENU,
+    "nuE": IsoConvention.NUE,
+    "Kmu": IsoConvention.KMU, "KG": IsoConvention.KMU,
+    "muK": IsoConvention.MUK, "GK": IsoConvention.MUK,
+    "lambdamu": IsoConvention.LAMBDAMU, "lambdaG": IsoConvention.LAMBDAMU,
+    "mulambda": IsoConvention.MULAMBDA, "Glambda": IsoConvention.MULAMBDA,
+}
+_CUBIC_CONV_FROM_STR = {
+    "EnuG": CubicConvention.ENUG,
+    "Cii": CubicConvention.CII,
+}
+_ISOTRANS_CONV_FROM_STR = {
+    "EnuG": IsotransConvention.ENUG,
+}
+_ORTHO_CONV_FROM_STR = {
+    "EnuG": OrthoConvention.ENUG,
+    "Cii": OrthoConvention.CII,
+}
+
+
+def _as_convention(value, enum_cls, str_map):
+    """Normalize a convention given as enum, int code, or string."""
+    if isinstance(value, enum_cls):
+        return value
+    if isinstance(value, str):
+        try:
+            return str_map[value]
+        except KeyError:
+            raise ValueError(
+                f"unknown {enum_cls.__name__} string {value!r} "
+                f"(valid: {sorted(str_map)})") from None
+    return enum_cls(value)  # int code; raises ValueError if out of range
 
 
 class YieldType(IntEnum):
@@ -127,18 +220,37 @@ class MechanismType(IntEnum):
 class IsotropicElasticity:
     """Isotropic elasticity.
 
+    The two elastic constants are ordinal slots whose meaning is set by
+    ``convention`` (default ``"Enu"``: C1 = E, C2 = nu) — see
+    :class:`IsoConvention`. The interpretation is done by the C++ builders
+    (``L_iso``); no conversion happens in Python.
+
     Parameters
     ----------
-    E : float
-        Young's modulus.
-    nu : float
-        Poisson's ratio.
+    C1 : float
+        First elastic constant (E, nu, K, mu or lambda per the convention).
+    C2 : float
+        Second elastic constant.
     alpha : float
         Coefficient of thermal expansion.
+    convention : IsoConvention or str
+        Parameterization of (C1, C2). Accepts the enum, its integer code,
+        or the ``L_iso`` string (``"Enu"``, ``"Kmu"``, ``"lambdamu"``, ...).
+
+    Examples
+    --------
+    >>> IsotropicElasticity(C1=210000., C2=0.3, alpha=1.2e-5)   # E, nu
+    >>> IsotropicElasticity(C1=175000., C2=80769., convention="Kmu")  # K, mu
     """
-    E: float
-    nu: float
+    C1: float
+    C2: float
     alpha: float = 0.0
+    convention: IsoConvention = IsoConvention.ENU
+
+    def __post_init__(self):
+        object.__setattr__(self, "convention",
+                           _as_convention(self.convention, IsoConvention,
+                                          _ISO_CONV_FROM_STR))
 
     @property
     def elasticity_type(self) -> ElasticityType:
@@ -146,43 +258,59 @@ class IsotropicElasticity:
 
     def to_props(self) -> List[float]:
         """Return the props values for this elasticity."""
-        return [self.E, self.nu, self.alpha]
+        return [float(self.convention), self.C1, self.C2, self.alpha]
 
     @property
     def nprops(self) -> int:
-        return 3
+        return 4
 
 
 @dataclass(frozen=True)
 class CubicElasticity:
     """Cubic elasticity (3 independent constants).
 
+    The constants are ordinal slots whose meaning is set by ``convention``
+    (default ``"EnuG"``: C1 = E, C2 = nu, C3 = G; ``"Cii"``: C1 = C11,
+    C2 = C12, C3 = C44) — see :class:`CubicConvention`.
+
+    For cubic symmetry G is independent from E and nu (Zener ratio
+    A = 2*G*(1+nu)/E != 1 in general).
+
     Parameters
     ----------
-    E : float
-        Young's modulus.
-    nu : float
-        Poisson's ratio.
-    G : float
-        Shear modulus (independent from E and nu for cubic symmetry).
+    C1, C2, C3 : float
+        The three elastic constants, interpreted per the convention.
     alpha : float
         Coefficient of thermal expansion.
+    convention : CubicConvention or str
+        Parameterization of (C1, C2, C3): ``"EnuG"`` or ``"Cii"``.
+
+    Examples
+    --------
+    >>> CubicElasticity(C1=185000., C2=0.28, C3=39700.)  # E, nu, G
+    >>> CubicElasticity(C1=185000., C2=158000., C3=39700., convention="Cii")
     """
-    E: float
-    nu: float
-    G: float
+    C1: float
+    C2: float
+    C3: float
     alpha: float = 0.0
+    convention: CubicConvention = CubicConvention.ENUG
+
+    def __post_init__(self):
+        object.__setattr__(self, "convention",
+                           _as_convention(self.convention, CubicConvention,
+                                          _CUBIC_CONV_FROM_STR))
 
     @property
     def elasticity_type(self) -> ElasticityType:
         return ElasticityType.CUBIC
 
     def to_props(self) -> List[float]:
-        return [self.E, self.nu, self.G, self.alpha]
+        return [float(self.convention), self.C1, self.C2, self.C3, self.alpha]
 
     @property
     def nprops(self) -> int:
-        return 4
+        return 5
 
 
 @dataclass(frozen=True)
@@ -207,6 +335,9 @@ class TransverseIsotropicElasticity:
         Transverse CTE.
     axis : int
         Axis of symmetry (1=x, 2=y, 3=z).
+    convention : IsotransConvention or str
+        Parameterization of the constants. A single one exists (``"EnuG"``);
+        the field keeps the props layout uniform across elasticity types.
     """
     EL: float
     ET: float
@@ -216,61 +347,80 @@ class TransverseIsotropicElasticity:
     alpha_L: float = 0.0
     alpha_T: float = 0.0
     axis: int = 3
+    convention: IsotransConvention = IsotransConvention.ENUG
+
+    def __post_init__(self):
+        object.__setattr__(self, "convention",
+                           _as_convention(self.convention, IsotransConvention,
+                                          _ISOTRANS_CONV_FROM_STR))
 
     @property
     def elasticity_type(self) -> ElasticityType:
         return ElasticityType.TRANSVERSE_ISOTROPIC
 
     def to_props(self) -> List[float]:
-        return [self.EL, self.ET, self.nuTL, self.nuTT,
+        return [float(self.convention),
+                self.EL, self.ET, self.nuTL, self.nuTT,
                 self.GLT, self.alpha_L, self.alpha_T, float(self.axis)]
 
     @property
     def nprops(self) -> int:
-        return 8
+        return 9
 
 
 @dataclass(frozen=True)
 class OrthotropicElasticity:
     """Orthotropic elasticity (9 independent elastic constants).
 
+    The constants are ordinal slots whose meaning is set by ``convention``
+    (see :class:`OrthoConvention`):
+
+    - ``"EnuG"`` (default): C1..C9 = E1, E2, E3, nu12, nu13, nu23,
+      G12, G13, G23.
+    - ``"Cii"``: C1..C9 = C11, C12, C13, C22, C23, C33, C44, C55, C66.
+
     Parameters
     ----------
-    E1, E2, E3 : float
-        Young's moduli in directions 1, 2, 3.
-    nu12, nu13, nu23 : float
-        Poisson's ratios.
-    G12, G13, G23 : float
-        Shear moduli.
+    C1, ..., C9 : float
+        The nine elastic constants, interpreted per the convention.
     alpha1, alpha2, alpha3 : float
         Coefficients of thermal expansion.
+    convention : OrthoConvention or str
+        Parameterization of the nine constants: ``"EnuG"`` or ``"Cii"``.
     """
-    E1: float
-    E2: float
-    E3: float
-    nu12: float
-    nu13: float
-    nu23: float
-    G12: float
-    G13: float
-    G23: float
+    C1: float
+    C2: float
+    C3: float
+    C4: float
+    C5: float
+    C6: float
+    C7: float
+    C8: float
+    C9: float
     alpha1: float = 0.0
     alpha2: float = 0.0
     alpha3: float = 0.0
+    convention: OrthoConvention = OrthoConvention.ENUG
+
+    def __post_init__(self):
+        object.__setattr__(self, "convention",
+                           _as_convention(self.convention, OrthoConvention,
+                                          _ORTHO_CONV_FROM_STR))
 
     @property
     def elasticity_type(self) -> ElasticityType:
         return ElasticityType.ORTHOTROPIC
 
     def to_props(self) -> List[float]:
-        return [self.E1, self.E2, self.E3,
-                self.nu12, self.nu13, self.nu23,
-                self.G12, self.G13, self.G23,
+        return [float(self.convention),
+                self.C1, self.C2, self.C3,
+                self.C4, self.C5, self.C6,
+                self.C7, self.C8, self.C9,
                 self.alpha1, self.alpha2, self.alpha3]
 
     @property
     def nprops(self) -> int:
-        return 12
+        return 13
 
 
 Elasticity = Union[IsotropicElasticity, CubicElasticity,
@@ -904,13 +1054,13 @@ class ModularMaterial:
     --------
     Pure elasticity:
 
-    >>> mat = ModularMaterial(elasticity=IsotropicElasticity(E=210000., nu=0.3))
+    >>> mat = ModularMaterial(elasticity=IsotropicElasticity(C1=210000., C2=0.3))
     >>> mat.props  # array([0., 210000., 0.3, 0., 0.])
 
     Elastoplastic with Voce hardening:
 
     >>> mat = ModularMaterial(
-    ...     elasticity=IsotropicElasticity(E=210000., nu=0.3, alpha=1.2e-5),
+    ...     elasticity=IsotropicElasticity(C1=210000., C2=0.3, alpha=1.2e-5),
     ...     mechanisms=[
     ...         Plasticity(
     ...             sigma_Y=300.,
@@ -923,7 +1073,7 @@ class ModularMaterial:
     Coupled plasticity + viscoelasticity:
 
     >>> mat = ModularMaterial(
-    ...     elasticity=IsotropicElasticity(E=70000., nu=0.33, alpha=2.3e-5),
+    ...     elasticity=IsotropicElasticity(C1=70000., C2=0.33, alpha=2.3e-5),
     ...     mechanisms=[
     ...         Plasticity(sigma_Y=200., isotropic_hardening=PowerLawHardening(k=500., m=0.3)),
     ...         Viscoelasticity(terms=(
@@ -965,7 +1115,9 @@ class ModularMaterial:
         The props format follows the ``configure_from_props()`` convention:
 
         - ``props[0]``: elasticity type
-        - ``props[1..N_el]``: elasticity parameters
+        - ``props[1]``: elastic-constant convention code (see
+          :class:`IsoConvention` and friends)
+        - ``props[2..N_el]``: elasticity parameters
         - ``props[N_el+1]``: number of mechanisms
         - For each mechanism: type code + mechanism-specific parameters
         """
@@ -1019,16 +1171,18 @@ class ModularMaterial:
         el = self._elasticity
         lines.append(f"  Elasticity: {el.__class__.__name__}")
         if isinstance(el, IsotropicElasticity):
-            lines.append(f"    E={el.E}, nu={el.nu}, alpha={el.alpha}")
+            lines.append(f"    C1={el.C1}, C2={el.C2}, alpha={el.alpha} "
+                         f"[{el.convention.name}]")
         elif isinstance(el, CubicElasticity):
-            lines.append(f"    E={el.E}, nu={el.nu}, G={el.G}, alpha={el.alpha}")
+            lines.append(f"    C1={el.C1}, C2={el.C2}, C3={el.C3}, alpha={el.alpha} "
+                         f"[{el.convention.name}]")
         elif isinstance(el, TransverseIsotropicElasticity):
             lines.append(f"    EL={el.EL}, ET={el.ET}, nuTL={el.nuTL}, nuTT={el.nuTT}")
             lines.append(f"    GLT={el.GLT}, alpha_L={el.alpha_L}, alpha_T={el.alpha_T}, axis={el.axis}")
         elif isinstance(el, OrthotropicElasticity):
-            lines.append(f"    E1={el.E1}, E2={el.E2}, E3={el.E3}")
-            lines.append(f"    nu12={el.nu12}, nu13={el.nu13}, nu23={el.nu23}")
-            lines.append(f"    G12={el.G12}, G13={el.G13}, G23={el.G23}")
+            lines.append(f"    C1={el.C1}, C2={el.C2}, C3={el.C3}")
+            lines.append(f"    C4={el.C4}, C5={el.C5}, C6={el.C6}")
+            lines.append(f"    C7={el.C7}, C8={el.C8}, C9={el.C9} [{el.convention.name}]")
             lines.append(f"    alpha1={el.alpha1}, alpha2={el.alpha2}, alpha3={el.alpha3}")
 
         if not self._mechanisms:
@@ -1079,7 +1233,7 @@ def elastic_model(E: float, nu: float, alpha: float = 0.0) -> ModularMaterial:
     ModularMaterial
     """
     return ModularMaterial(
-        elasticity=IsotropicElasticity(E=E, nu=nu, alpha=alpha)
+        elasticity=IsotropicElasticity(C1=E, C2=nu, alpha=alpha)
     )
 
 
@@ -1113,7 +1267,7 @@ def elastoplastic_model(
     ModularMaterial
     """
     return ModularMaterial(
-        elasticity=IsotropicElasticity(E=E, nu=nu, alpha=alpha),
+        elasticity=IsotropicElasticity(C1=E, C2=nu, alpha=alpha),
         mechanisms=[
             Plasticity(
                 sigma_Y=sigma_Y,
@@ -1148,7 +1302,7 @@ def viscoelastic_model(
     ModularMaterial
     """
     return ModularMaterial(
-        elasticity=IsotropicElasticity(E=E, nu=nu, alpha=alpha),
+        elasticity=IsotropicElasticity(C1=E, C2=nu, alpha=alpha),
         mechanisms=[
             Viscoelasticity(terms=tuple(prony_terms)),
         ],

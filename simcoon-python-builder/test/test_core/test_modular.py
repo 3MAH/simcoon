@@ -68,6 +68,32 @@ def test_viscoelasticity_legacy_tuple_rejected():
         Viscoelasticity(terms=[(0.3, 1.0), (0.2, 10.0)])
 
 
+def test_elastic_convention_equivalence(work_in_examples):
+    """The same isotropic material given as (E, nu) and as (K, mu) must give
+    identical stress — the convention slot in props selects the
+    interpretation; all conversions live in the C++ builders (L_iso)."""
+    E, nu = 210000.0, 0.3
+    K = E / (3.0 * (1.0 - 2.0 * nu))
+    mu = E / (2.0 * (1.0 + nu))
+
+    mat_enu = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=nu))
+    mat_kmu = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=K, C2=mu, convention="Kmu"))
+
+    # The convention code travels as the first slot of the elasticity block.
+    assert mat_enu.props[1] == 0.0
+    assert mat_kmu.props[1] == 2.0
+
+    hist_enu = _run_solver(mat_enu, work_in_examples, "res_conv_enu.txt")
+    hist_kmu = _run_solver(mat_kmu, work_in_examples, "res_conv_kmu.txt")
+    np.testing.assert_allclose(hist_kmu, hist_enu, rtol=1e-10)
+
+
+def test_convention_string_rejected_if_unknown():
+    with pytest.raises(ValueError, match="IsoConvention"):
+        IsotropicElasticity(C1=1.0, C2=0.3, convention="Envy")
+
+
 def test_two_plasticity_equivalent_to_one_linear(work_in_examples):
     """Two identical linear-hardening plasticity mechanisms with modulus 2H
     each must give the same stress as a single mechanism with modulus H, by
@@ -77,14 +103,14 @@ def test_two_plasticity_equivalent_to_one_linear(work_in_examples):
     E, nu, sigma_Y, H = 210000.0, 0.3, 300.0, 10000.0
 
     mat_single = ModularMaterial(
-        elasticity=IsotropicElasticity(E=E, nu=nu),
+        elasticity=IsotropicElasticity(C1=E, C2=nu),
         mechanisms=[Plasticity(
             sigma_Y=sigma_Y,
             isotropic_hardening=LinearIsotropicHardening(H=H),
         )],
     )
     mat_two = ModularMaterial(
-        elasticity=IsotropicElasticity(E=E, nu=nu),
+        elasticity=IsotropicElasticity(C1=E, C2=nu),
         mechanisms=[
             Plasticity(sigma_Y=sigma_Y,
                        isotropic_hardening=LinearIsotropicHardening(H=2 * H)),
@@ -117,7 +143,7 @@ def test_voce_plasticity_runs_end_to_end(work_in_examples):
     statev allocation are in sync between Python and C++ after any modular
     refactor."""
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000.0, nu=0.3, alpha=1.2e-5),
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3, alpha=1.2e-5),
         mechanisms=[Plasticity(
             sigma_Y=300.0,
             isotropic_hardening=VoceHardening(Q=200.0, b=10.0),
@@ -151,7 +177,7 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
                      / "res_pronk_global-0.txt", usecols=(8, 14))
 
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=E0, nu=nu0),
+        elasticity=IsotropicElasticity(C1=E0, C2=nu0),
         mechanisms=[Viscoelasticity(terms=terms)],
     )
     sim.solver(mat.umat_name, mat.props, mat.nstatev,
@@ -181,7 +207,7 @@ def test_damage_softens_end_to_end(work_in_examples):
     hist_el = _run_solver(mat_el, work_in_examples, "res_el.txt")
 
     mat_dm = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
         mechanisms=[Damage(Y_0=0.05, Y_c=10.0)],
     )
     hist_dm = _run_solver(mat_dm, work_in_examples, "res_dm.txt")
@@ -202,7 +228,7 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
     residual. Guards the mode-1 assembly (Bhat = -B sign convention and the
     coupled sub-block extraction) at solver level."""
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
         mechanisms=[Plasticity(
             sigma_Y=300.0,
             isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
@@ -249,7 +275,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
                      / "res_epcha_global-0.txt", usecols=(8, 14))
 
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000.0, nu=0.3),
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
         mechanisms=[Plasticity(
             sigma_Y=300.0,
             isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
@@ -293,7 +319,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
                      / "res_ephil_global-0.txt", usecols=(8, 14))
 
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000., nu=0.3),
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
         mechanisms=[Plasticity(
             sigma_Y=300.,
             yield_criterion=HillYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5),
@@ -333,7 +359,7 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
                      / "sh_epcha_global-0.txt", usecols=(11, 17))  # eps12, sig12
 
     mat = ModularMaterial(
-        elasticity=IsotropicElasticity(E=210000., nu=0.3),
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
         mechanisms=[Plasticity(
             sigma_Y=300.,
             kinematic_hardening=ChabocheHardening(
@@ -365,7 +391,7 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
 
     def run(kin, out):
         m = ModularMaterial(
-            elasticity=IsotropicElasticity(E=210000., nu=0.3),
+            elasticity=IsotropicElasticity(C1=210000., C2=0.3),
             mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
         )
         sim.solver(m.umat_name, m.props, m.nstatev, 0.0, 0.0, 0.0, 0, 1,

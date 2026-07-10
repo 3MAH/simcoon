@@ -365,13 +365,13 @@ TEST_F(ElasticityModuleTest, IsotropicConfiguration) {
     ElasticityModule em;
 
     // E = 210000 MPa, nu = 0.3, alpha = 1.2e-5
-    vec props = {210000.0, 0.3, 1.2e-5};
+    vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha
     int offset = 0;
 
     em.configure(ElasticityType::ISOTROPIC, props, offset);
 
     EXPECT_TRUE(em.is_configured());
-    EXPECT_EQ(offset, 3);
+    EXPECT_EQ(offset, 4);
 
     // Check stiffness properties
     mat L = em.L();
@@ -394,13 +394,13 @@ TEST_F(ElasticityModuleTest, CubicConfiguration) {
 
     // Cubic: E = 185000, nu = 0.28, G = 39700, alpha = 1.2e-5
     // Note: for cubic, G is independent from E and nu
-    vec props = {185000.0, 0.28, 39700.0, 1.2e-5};
+    vec props = {0.0, 185000.0, 0.28, 39700.0, 1.2e-5};  // conv=EnuG, E, nu, G, alpha
     int offset = 0;
 
     em.configure(ElasticityType::CUBIC, props, offset);
 
     EXPECT_TRUE(em.is_configured());
-    EXPECT_EQ(offset, 4);
+    EXPECT_EQ(offset, 5);
 
     mat L = em.L();
     EXPECT_EQ(L.n_rows, 6u);
@@ -442,7 +442,7 @@ TEST_F(ElasticityModuleTest, CubicCiiConfiguration) {
 
     // Typical values for an FCC metal (e.g., copper-like)
     // C11 = 185000, C12 = 158000, C44 = 39700
-    em.configure_cubic_Cii(185000.0, 158000.0, 39700.0, 0.0);
+    em.configure_cubic(185000.0, 158000.0, 39700.0, 0.0, CubicConv::Cii);
 
     EXPECT_TRUE(em.is_configured());
 
@@ -454,10 +454,52 @@ TEST_F(ElasticityModuleTest, CubicCiiConfiguration) {
     EXPECT_NEAR(L(3, 3), 39700.0, 1e-6);
 }
 
+// The same material expressed in different parameterizations must produce
+// the same stiffness — the interpretation of the constant slots happens in
+// the classical builders (L_iso/L_cubic), selected by the convention enum.
+TEST_F(ElasticityModuleTest, ConventionEquivalence) {
+    const double E = 210000.0, nu = 0.3;
+    const double K = E / (3.0 * (1.0 - 2.0 * nu));
+    const double mu = E / (2.0 * (1.0 + nu));
+    const double lambda = K - 2.0 * mu / 3.0;
+
+    ElasticityModule em_ref, em_kmu, em_lam;
+    em_ref.configure_isotropic(E, nu, 0.0);  // default IsoConv::Enu
+    em_kmu.configure_isotropic(K, mu, 0.0, IsoConv::Kmu);
+    em_lam.configure_isotropic(lambda, mu, 0.0, IsoConv::lambdamu);
+
+    EXPECT_LT(norm(em_kmu.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
+    EXPECT_LT(norm(em_lam.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
+
+    // Props-driven path: the leading conv slot selects the interpretation.
+    ElasticityModule em_props;
+    vec props = {2.0, K, mu, 0.0};  // conv=2 (Kmu), C1=K, C2=mu, alpha
+    int offset = 0;
+    em_props.configure(ElasticityType::ISOTROPIC, props, offset);
+    EXPECT_EQ(offset, 4);
+    EXPECT_LT(norm(em_props.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
+
+    // Cubic through props with the Cii convention.
+    ElasticityModule em_cii;
+    vec props_cii = {1.0, 185000.0, 158000.0, 39700.0, 0.0};  // conv=1 (Cii)
+    offset = 0;
+    em_cii.configure(ElasticityType::CUBIC, props_cii, offset);
+    EXPECT_NEAR(em_cii.L()(0, 0), 185000.0, 1e-6);
+    EXPECT_NEAR(em_cii.L()(0, 1), 158000.0, 1e-6);
+    EXPECT_NEAR(em_cii.L()(3, 3), 39700.0, 1e-6);
+
+    // An unknown convention code must be rejected, not silently misread.
+    ElasticityModule em_bad;
+    vec props_bad = {9.0, E, nu, 0.0};
+    offset = 0;
+    EXPECT_THROW(em_bad.configure(ElasticityType::ISOTROPIC, props_bad, offset),
+                 std::runtime_error);
+}
+
 TEST_F(ElasticityModuleTest, ThermalExpansion) {
     ElasticityModule em;
 
-    vec props = {210000.0, 0.3, 1.2e-5};
+    vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha
     int offset = 0;
 
     em.configure(ElasticityType::ISOTROPIC, props, offset);
@@ -476,7 +518,7 @@ TEST_F(ElasticityModuleTest, ThermalExpansion) {
 // that drive the right Voigt convention and rotation/contraction dispatch.
 TEST_F(ElasticityModuleTest, TensorAccessors) {
     ElasticityModule em;
-    vec props = {210000.0, 0.3, 1.2e-5};
+    vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha
     int offset = 0;
     em.configure(ElasticityType::ISOTROPIC, props, offset);
 
@@ -518,8 +560,8 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
 // definiteness.
 TEST_F(ElasticityModuleTest, OrthotropicConfiguration) {
     ElasticityModule em;
-    vec props = {70000., 30000., 15000., 0.3, 0.3, 0.3,
-                 8000., 6000., 5000., 1e-5, 2e-5, 3e-5};
+    vec props = {0.0, 70000., 30000., 15000., 0.3, 0.3, 0.3,
+                 8000., 6000., 5000., 1e-5, 2e-5, 3e-5};  // conv=EnuG
     int offset = 0;
     em.configure(ElasticityType::ORTHOTROPIC, props, offset);
 
@@ -842,7 +884,7 @@ TEST_F(ModularUMATTest, ElasticConfiguration) {
     ModularUMAT mumat;
 
     // E = 210000 MPa, nu = 0.3, alpha = 0
-    vec props = {210000.0, 0.3, 0.0};
+    vec props = {0.0, 210000.0, 0.3, 0.0};
     int offset = 0;
 
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props, offset);
@@ -855,7 +897,7 @@ TEST_F(ModularUMATTest, AddPlasticity) {
     ModularUMAT mumat;
 
     // Elasticity: E = 210000, nu = 0.3, alpha = 0
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -871,7 +913,7 @@ TEST_F(ModularUMATTest, ElasticResponse) {
     ModularUMAT mumat;
 
     // Very high yield stress to ensure elastic response
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -919,7 +961,7 @@ TEST_F(ModularUMATTest, ElasticResponse) {
 TEST(ModularUMATIntegration, ViscoelasticRelaxation) {
     ModularUMAT mumat;
 
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -976,7 +1018,7 @@ TEST(ModularUMATIntegration, ViscoelasticRelaxation) {
 TEST(ModularUMATIntegration, ArbitraryMultiMechanismInitialize) {
     ModularUMAT mumat;
 
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int off = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
 
@@ -1033,7 +1075,7 @@ TEST(ModularUMATIntegration, TwoPlasticityEquivalentToOne) {
     // Single plasticity mechanism (reference)
     ModularUMAT mumat_single;
     {
-        vec props_el = {E, nu, 0.0};
+        vec props_el = {0.0, E, nu, 0.0};
         int off = 0;
         mumat_single.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
         vec props_pl = {sigma_Y, H_iso};
@@ -1047,7 +1089,7 @@ TEST(ModularUMATIntegration, TwoPlasticityEquivalentToOne) {
     // Two identical plasticity mechanisms
     ModularUMAT mumat_two;
     {
-        vec props_el = {E, nu, 0.0};
+        vec props_el = {0.0, E, nu, 0.0};
         int off = 0;
         mumat_two.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
         // Two identical linear-hardening plasticities with HALF the modulus
@@ -1104,7 +1146,7 @@ TEST(ModularUMATIntegration, TwoPlasticityEquivalentToOne) {
 TEST(ModularUMATIntegration, TwoPlasticityMechanismsInitialize) {
     ModularUMAT mumat;
 
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -1134,7 +1176,7 @@ TEST(ModularUMATIntegration, UniaxialTension) {
     ModularUMAT mumat;
 
     // Isotropic elasticity: E = 210000, nu = 0.3, alpha = 0
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -1208,7 +1250,7 @@ TEST(ModularUMATIntegration, UniaxialTension) {
 TEST(ModularUMATIntegration, DamageElasticUniaxial) {
     ModularUMAT mumat;
 
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int offset_el = 0;
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props_el, offset_el);
 
@@ -1299,7 +1341,7 @@ TEST(ModularUMATIntegration, PlasticityDamageCombined) {
         return sigma(0);
     };
 
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     vec props_pl = {300.0, 200.0, 10.0};  // sigma_Y, Voce Q, b
     vec props_dm = {0.05, 5.0};           // Y_0, Y_c
 
@@ -1339,7 +1381,7 @@ namespace {
 vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
                              const vec& DEtot, int tangent_mode, mat& Lt) {
     ModularUMAT m;
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int off = 0;
     m.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
     vec props_pl = {300.0, 200.0, 10.0};
@@ -1378,7 +1420,7 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
 TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
     // Increment 1 (from virgin state) to build a plastic state.
     ModularUMAT m0;
-    vec props_el = {210000.0, 0.3, 0.0};
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
     int off = 0;
     m0.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
     vec props_pl = {300.0, 200.0, 10.0};

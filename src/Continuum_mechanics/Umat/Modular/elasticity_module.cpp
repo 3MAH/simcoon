@@ -26,6 +26,39 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
+// Enum -> convention string of the classical builders (single source of the
+// parameterization math — L_iso/L_cubic/L_ortho in constitutive.cpp).
+static const char* conv_string(IsoConv conv) {
+    switch (conv) {
+        case IsoConv::Enu:      return "Enu";
+        case IsoConv::nuE:      return "nuE";
+        case IsoConv::Kmu:      return "Kmu";
+        case IsoConv::muK:      return "muK";
+        case IsoConv::lambdamu: return "lambdamu";
+        case IsoConv::mulambda: return "mulambda";
+    }
+    throw std::runtime_error("ElasticityModule: unknown isotropic convention code "
+                             + std::to_string(static_cast<int>(conv)) + " (valid: 0..5)");
+}
+
+static const char* conv_string(CubicConv conv) {
+    switch (conv) {
+        case CubicConv::EnuG: return "EnuG";
+        case CubicConv::Cii:  return "Cii";
+    }
+    throw std::runtime_error("ElasticityModule: unknown cubic convention code "
+                             + std::to_string(static_cast<int>(conv)) + " (valid: 0..1)");
+}
+
+static const char* conv_string(OrthoConv conv) {
+    switch (conv) {
+        case OrthoConv::EnuG: return "EnuG";
+        case OrthoConv::Cii:  return "Cii";
+    }
+    throw std::runtime_error("ElasticityModule: unknown orthotropic convention code "
+                             + std::to_string(static_cast<int>(conv)) + " (valid: 0..1)");
+}
+
 // ========== Constructor ==========
 
 ElasticityModule::ElasticityModule()
@@ -39,12 +72,14 @@ ElasticityModule::ElasticityModule()
 
 // ========== Configuration ==========
 
-void ElasticityModule::configure_isotropic(double E, double nu, double alpha_scalar) {
+void ElasticityModule::configure_isotropic(double C1, double C2, double alpha_scalar,
+                                           IsoConv conv) {
     type_ = ElasticityType::ISOTROPIC;
 
-    L_ = L_iso(E, nu, "Enu");
+    const char* str = conv_string(conv);
+    L_ = L_iso(C1, C2, str);
 
-    M_ = M_iso(E, nu, "Enu");
+    M_ = M_iso(C1, C2, str);
 
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha_scalar;
@@ -56,28 +91,14 @@ void ElasticityModule::configure_isotropic(double E, double nu, double alpha_sca
     configured_ = true;
 }
 
-void ElasticityModule::configure_cubic(double E, double nu, double G, double alpha_scalar) {
+void ElasticityModule::configure_cubic(double C1, double C2, double C3, double alpha_scalar,
+                                       CubicConv conv) {
     type_ = ElasticityType::CUBIC;
 
-    L_ = L_cubic(E, nu, G, "EnuG");
+    const char* str = conv_string(conv);
+    L_ = L_cubic(C1, C2, C3, str);
 
-    M_ = M_cubic(E, nu, G, "EnuG");
-
-    alpha_ = arma::zeros(6);
-    alpha_(0) = alpha_scalar;
-    alpha_(1) = alpha_scalar;
-    alpha_(2) = alpha_scalar;
-
-    refresh_tensors();
-    configured_ = true;
-}
-
-void ElasticityModule::configure_cubic_Cii(double C11, double C12, double C44, double alpha_scalar) {
-    type_ = ElasticityType::CUBIC;
-
-    L_ = L_cubic(C11, C12, C44, "Cii");
-
-    M_ = M_cubic(C11, C12, C44, "Cii");
+    M_ = M_cubic(C1, C2, C3, str);
 
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha_scalar;
@@ -89,8 +110,17 @@ void ElasticityModule::configure_cubic_Cii(double C11, double C12, double C44, d
 }
 
 void ElasticityModule::configure_transverse_isotropic(double EL, double ET, double nuTL, double nuTT,
-                                                      double GLT, double alpha_L, double alpha_T, int axis) {
+                                                      double GLT, double alpha_L, double alpha_T, int axis,
+                                                      IsotransConv conv) {
     type_ = ElasticityType::TRANSVERSE_ISOTROPIC;
+
+    // Single parameterization today — reject unknown codes now so a future
+    // convention cannot be silently misread from old props streams.
+    if (conv != IsotransConv::EnuG) {
+        throw std::runtime_error(
+            "ElasticityModule: unknown transverse-isotropic convention code "
+            + std::to_string(static_cast<int>(conv)) + " (valid: 0)");
+    }
 
     // Validate BEFORE calling the library builders: L_isotrans terminates the
     // process (exit(0)!) on an invalid axis — a throw here keeps the failure
@@ -128,17 +158,19 @@ void ElasticityModule::configure_transverse_isotropic(double EL, double ET, doub
     configured_ = true;
 }
 
-void ElasticityModule::configure_orthotropic(double E1, double E2, double E3,
-                                              double nu12, double nu13, double nu23,
-                                              double G12, double G13, double G23,
-                                              double alpha1, double alpha2, double alpha3) {
+void ElasticityModule::configure_orthotropic(double C1, double C2, double C3,
+                                              double C4, double C5, double C6,
+                                              double C7, double C8, double C9,
+                                              double alpha1, double alpha2, double alpha3,
+                                              OrthoConv conv) {
     type_ = ElasticityType::ORTHOTROPIC;
 
     // L_ortho/M_ortho "EnuG" slot order is (E1, E2, E3, nu12, nu13, nu23,
     // G12, G13, G23) — NOT grouped (E, nu) per direction.
-    L_ = L_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    const char* str = conv_string(conv);
+    L_ = L_ortho(C1, C2, C3, C4, C5, C6, C7, C8, C9, str);
 
-    M_ = M_ortho(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, "EnuG");
+    M_ = M_ortho(C1, C2, C3, C4, C5, C6, C7, C8, C9, str);
 
     alpha_ = arma::zeros(6);
     alpha_(0) = alpha1;
@@ -150,57 +182,63 @@ void ElasticityModule::configure_orthotropic(double E1, double E2, double E3,
 }
 
 void ElasticityModule::configure(ElasticityType type, const arma::vec& props, int& offset) {
+    // Every block starts with the convention slot; the conv_string helpers
+    // (and the isotrans guard) validate the code inside the configure_* call.
     switch (type) {
         case ElasticityType::ISOTROPIC: {
-            // props: E, nu, alpha
-            double E = props(offset);
-            double nu = props(offset + 1);
-            double alpha = props(offset + 2);
-            configure_isotropic(E, nu, alpha);
-            offset += 3;
-            break;
-        }
-        case ElasticityType::CUBIC: {
-            // props: E, nu, G, alpha
-            double E = props(offset);
-            double nu = props(offset + 1);
-            double G = props(offset + 2);
+            // props: conv, C1, C2, alpha
+            IsoConv conv = static_cast<IsoConv>(static_cast<int>(props(offset)));
+            double C1 = props(offset + 1);
+            double C2 = props(offset + 2);
             double alpha = props(offset + 3);
-            configure_cubic(E, nu, G, alpha);
+            configure_isotropic(C1, C2, alpha, conv);
             offset += 4;
             break;
         }
+        case ElasticityType::CUBIC: {
+            // props: conv, C1, C2, C3, alpha
+            CubicConv conv = static_cast<CubicConv>(static_cast<int>(props(offset)));
+            double C1 = props(offset + 1);
+            double C2 = props(offset + 2);
+            double C3 = props(offset + 3);
+            double alpha = props(offset + 4);
+            configure_cubic(C1, C2, C3, alpha, conv);
+            offset += 5;
+            break;
+        }
         case ElasticityType::TRANSVERSE_ISOTROPIC: {
-            // props: EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis
-            double EL = props(offset);
-            double ET = props(offset + 1);
-            double nuTL = props(offset + 2);
-            double nuTT = props(offset + 3);
-            double GLT = props(offset + 4);
-            double alpha_L = props(offset + 5);
-            double alpha_T = props(offset + 6);
-            int axis = static_cast<int>(props(offset + 7));
-            configure_transverse_isotropic(EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis);
-            offset += 8;
+            // props: conv, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis
+            IsotransConv conv = static_cast<IsotransConv>(static_cast<int>(props(offset)));
+            double EL = props(offset + 1);
+            double ET = props(offset + 2);
+            double nuTL = props(offset + 3);
+            double nuTT = props(offset + 4);
+            double GLT = props(offset + 5);
+            double alpha_L = props(offset + 6);
+            double alpha_T = props(offset + 7);
+            int axis = static_cast<int>(props(offset + 8));
+            configure_transverse_isotropic(EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis, conv);
+            offset += 9;
             break;
         }
         case ElasticityType::ORTHOTROPIC: {
-            // props: E1, E2, E3, nu12, nu13, nu23, G12, G13, G23, alpha1, alpha2, alpha3
-            double E1 = props(offset);
-            double E2 = props(offset + 1);
-            double E3 = props(offset + 2);
-            double nu12 = props(offset + 3);
-            double nu13 = props(offset + 4);
-            double nu23 = props(offset + 5);
-            double G12 = props(offset + 6);
-            double G13 = props(offset + 7);
-            double G23 = props(offset + 8);
-            double alpha1 = props(offset + 9);
-            double alpha2 = props(offset + 10);
-            double alpha3 = props(offset + 11);
-            configure_orthotropic(E1, E2, E3, nu12, nu13, nu23, G12, G13, G23,
-                                 alpha1, alpha2, alpha3);
-            offset += 12;
+            // props: conv, C1..C9, alpha1, alpha2, alpha3
+            OrthoConv conv = static_cast<OrthoConv>(static_cast<int>(props(offset)));
+            double C1 = props(offset + 1);
+            double C2 = props(offset + 2);
+            double C3 = props(offset + 3);
+            double C4 = props(offset + 4);
+            double C5 = props(offset + 5);
+            double C6 = props(offset + 6);
+            double C7 = props(offset + 7);
+            double C8 = props(offset + 8);
+            double C9 = props(offset + 9);
+            double alpha1 = props(offset + 10);
+            double alpha2 = props(offset + 11);
+            double alpha3 = props(offset + 12);
+            configure_orthotropic(C1, C2, C3, C4, C5, C6, C7, C8, C9,
+                                 alpha1, alpha2, alpha3, conv);
+            offset += 13;
             break;
         }
         default:

@@ -166,7 +166,10 @@ public:
      *
      * Props format:
      * - props[0]: elasticity_type (0=iso, 1=cubic, 2=trans_iso, 3=ortho)
-     * - props[1..N_el]: elasticity parameters
+     * - props[1]: elastic-constant convention code (IsoConv/CubicConv/...,
+     *   selects the interpretation of the constant slots — see
+     *   ElasticityModule::configure)
+     * - props[2..N_el]: elasticity parameters
      * - props[N_el+1]: num_mechanisms
      * - For each mechanism:
      *   - props[i]: mechanism_type (0=plasticity, 1=viscoelasticity, 2=damage)

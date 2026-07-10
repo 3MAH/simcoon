@@ -35,7 +35,7 @@ plt.rcParams["figure.figsize"] = (14, 6)
 # Parameters: E=210 GPa, nu=0.3, sigma_Y=300 MPa, Q=200 MPa, b=10.
 
 mat = ModularMaterial(
-    elasticity=IsotropicElasticity(E=210000.0, nu=0.3, alpha=1.2e-5),
+    elasticity=IsotropicElasticity(C1=210000.0, C2=0.3, alpha=1.2e-5),
     mechanisms=[
         Plasticity(
             sigma_Y=300.0,
