@@ -68,7 +68,7 @@ private:
     arma::mat mat_value_;        ///< Current matrix value (6x6)
     arma::mat mat_start_;        ///< Matrix value at start of increment
 
-    bool requires_rotation_;     ///< Whether to apply rotation for objectivity
+    bool is_objective_;          ///< Whether the quantity is objective (frame-indifferent)
     VoigtType vtype_;            ///< Authoritative Voigt convention for this variable
                                  ///< (VECTOR_6): strain, stress, or generic. Drives
                                  ///< rotation dispatch (tensor2.rotate) and default
@@ -85,15 +85,17 @@ public:
      * @brief Construct a scalar internal variable
      * @param name Identifier for the variable
      * @param init Initial value (default: 0.0)
-     * @param rotate Whether rotation should be applied (default: false for scalars)
+     *
+     * Scalars are ALWAYS objective (frame-invariant) — there is no flag.
      */
-    InternalVariable(const std::string& name, double init = 0.0, bool rotate = false);
+    InternalVariable(const std::string& name, double init = 0.0);
 
     /**
      * @brief Construct a vector internal variable (6 Voigt components)
      * @param name  Identifier for the variable
      * @param init  Initial value (default: zeros)
-     * @param rotate  Whether rotation should be applied (default: true for tensors)
+     * @param objective  Whether the quantity is objective (default: true; see
+     *        is_objective() — pass false for velocity/rate-like variables)
      * @param vtype  Voigt convention for this variable:
      *        VoigtType::strain (default) for strain-like variables (EP, EV, α, ...),
      *        VoigtType::stress for stress-like variables (stored generalised forces),
@@ -102,19 +104,20 @@ public:
      *        and is returned by default from as_tensor2().
      */
     InternalVariable(const std::string& name, const arma::vec& init,
-                      bool rotate = true,
+                      bool objective = true,
                       VoigtType vtype = VoigtType::strain);
 
     /**
      * @brief Construct a matrix internal variable (6x6)
      * @param name Identifier for the variable
      * @param init Initial value (default: zeros)
-     * @param rotate Whether rotation should be applied (default: true for tensors)
+     * @param objective Whether the quantity is objective (default: true; see
+     *        is_objective())
      * @param t4type Tensor4 convention of this variable (default: stiffness).
      *        Controls the rotation congruence and the default type returned by
      *        as_tensor4().
      */
-    InternalVariable(const std::string& name, const arma::mat& init, bool rotate = true,
+    InternalVariable(const std::string& name, const arma::mat& init, bool objective = true,
                       Tensor4Type t4type = Tensor4Type::stiffness);
 
     // Default copy/move/destructor
@@ -145,10 +148,17 @@ public:
     unsigned int size() const;
 
     /**
-     * @brief Check if this variable requires rotation for objectivity
-     * @return True if rotation should be applied
+     * @brief Is the stored quantity objective (frame-indifferent)?
+     *
+     * If TRUE, a rigid rotation of the components (co-rotation with the
+     * material frame, rotate()) is the correct and sufficient objectivity
+     * treatment. Scalars are ALWAYS objective (trivially invariant; rotate()
+     * is a no-op for them). If FALSE (e.g. a velocity / rate-like variable),
+     * a rigid rotation is NOT sufficient — rotate() leaves the variable
+     * untouched and the owning mechanism must provide the appropriate
+     * transport itself.
      */
-    [[nodiscard]] bool requires_rotation() const noexcept { return requires_rotation_; }
+    [[nodiscard]] bool is_objective() const noexcept { return is_objective_; }
 
     /**
      * @brief The Voigt convention of this variable.
@@ -185,8 +195,10 @@ public:
      * "raw" is deliberate: this is the escape hatch past set_tensor2()'s
      * convention re-expression — the components are engineering Voigt in this
      * variable's own VoigtType, and the CALLER owns keeping them consistent
-     * (safe for same-convention linear combinations, e.g. the backward-Euler
-     * closed forms; use set_tensor2() whenever the source is a typed tensor).
+     * (safe for same-convention linear combinations; use set_tensor2()
+     * whenever the source is a typed tensor). To reconstruct the tensorial
+     * quantity, do NOT re-tag raw copies — use as_tensor2()/as_tensor2_start(),
+     * which pair the components with the variable's own vtype().
      * @throws std::runtime_error if type is not VECTOR_6
      */
     arma::vec& raw_voigt();
@@ -249,12 +261,6 @@ public:
      */
     arma::vec delta_vec() const;
 
-    /**
-     * @brief Compute matrix increment (current - start)
-     * @return The increment matrix
-     */
-    arma::mat delta_mat() const;
-
     // ========== State Management ==========
 
     /**
@@ -265,13 +271,6 @@ public:
     void to_start();
 
     /**
-     * @brief Copy start value to current value
-     *
-     * Call to restore state to beginning of increment.
-     */
-    void set_start();
-
-    /**
      * @brief Apply rotation for objectivity
      * @param DR Rotation increment matrix (3x3)
      *
@@ -279,7 +278,9 @@ public:
      * with the variable's VoigtType (strain-rotation carries the factor-2 on
      * shear); MATRIX_6x6 internals rotate through tensor4 with the variable's
      * Tensor4Type, so the correct congruence is applied for stiffness- AND
-     * compliance-like storage. No-op when requires_rotation_ is false.
+     * compliance-like storage. No-op when is_objective() is false: a
+     * non-objective quantity must not be blindly co-rotated — its transport
+     * is mechanism-specific.
      */
     void rotate(const arma::mat& DR);
 
@@ -311,6 +312,13 @@ public:
     [[nodiscard]] tensor2 as_tensor2() const { return as_tensor2(vtype_); }
     [[nodiscard]] tensor2 as_tensor2(VoigtType vtype) const;
 
+    /// Typed view of the START value (state at the beginning of the
+    /// increment) — the tensorial counterpart of raw_voigt_start(), so
+    /// backward-Euler closed forms can be written fully typed.
+    /// @throws std::runtime_error if type() != VECTOR_6
+    [[nodiscard]] tensor2 as_tensor2_start() const { return as_tensor2_start(vtype_); }
+    [[nodiscard]] tensor2 as_tensor2_start(VoigtType vtype) const;
+
     [[nodiscard]] tensor2 as_strain() const { return as_tensor2(VoigtType::strain); }
     [[nodiscard]] tensor2 as_stress() const { return as_tensor2(VoigtType::stress); }
 
@@ -319,6 +327,11 @@ public:
     /// @throws std::runtime_error if type() != MATRIX_6x6
     [[nodiscard]] tensor4 as_tensor4() const { return as_tensor4(t4type_); }
     [[nodiscard]] tensor4 as_tensor4(Tensor4Type t4type) const;
+
+    /// Typed view of the START value (see as_tensor2_start()).
+    /// @throws std::runtime_error if type() != MATRIX_6x6
+    [[nodiscard]] tensor4 as_tensor4_start() const { return as_tensor4_start(t4type_); }
+    [[nodiscard]] tensor4 as_tensor4_start(Tensor4Type t4type) const;
 
     [[nodiscard]] tensor4 as_stiffness() const { return as_tensor4(Tensor4Type::stiffness); }
     [[nodiscard]] tensor4 as_compliance() const { return as_tensor4(Tensor4Type::compliance); }

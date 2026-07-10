@@ -27,7 +27,7 @@ namespace simcoon {
 
 // ========== Constructors ==========
 
-InternalVariable::InternalVariable(const std::string& name, double init, bool rotate)
+InternalVariable::InternalVariable(const std::string& name, double init)
     : name_(name)
     , type_(IVarType::SCALAR)
     , scalar_value_(init)
@@ -36,7 +36,7 @@ InternalVariable::InternalVariable(const std::string& name, double init, bool ro
     , vec_start_()
     , mat_value_()
     , mat_start_()
-    , requires_rotation_(rotate)
+    , is_objective_(true)   // scalars are always objective (frame-invariant)
     , vtype_(VoigtType::strain)
     , t4type_(Tensor4Type::stiffness)
     , statev_offset_(0)
@@ -44,7 +44,7 @@ InternalVariable::InternalVariable(const std::string& name, double init, bool ro
 }
 
 InternalVariable::InternalVariable(const std::string& name, const arma::vec& init,
-                                    bool rotate, VoigtType vtype)
+                                    bool objective, VoigtType vtype)
     : name_(name)
     , type_(IVarType::VECTOR_6)
     , scalar_value_(0.0)
@@ -53,7 +53,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     , vec_start_(init.n_elem == 6 ? init : arma::zeros(6))
     , mat_value_()
     , mat_start_()
-    , requires_rotation_(rotate)
+    , is_objective_(objective)
     , vtype_(vtype)
     , t4type_(Tensor4Type::stiffness)
     , statev_offset_(0)
@@ -64,7 +64,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::vec& ini
     }
 }
 
-InternalVariable::InternalVariable(const std::string& name, const arma::mat& init, bool rotate,
+InternalVariable::InternalVariable(const std::string& name, const arma::mat& init, bool objective,
                                     Tensor4Type t4type)
     : name_(name)
     , type_(IVarType::MATRIX_6x6)
@@ -74,7 +74,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::mat& ini
     , vec_start_()
     , mat_value_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , mat_start_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
-    , requires_rotation_(rotate)
+    , is_objective_(objective)
     , vtype_(VoigtType::strain)
     , t4type_(t4type)
     , statev_offset_(0)
@@ -203,13 +203,6 @@ arma::vec InternalVariable::delta_vec() const {
     return vec_value_ - vec_start_;
 }
 
-arma::mat InternalVariable::delta_mat() const {
-    if (type_ != IVarType::MATRIX_6x6) {
-        throw std::runtime_error("InternalVariable '" + name_ + "': attempted delta_mat on non-matrix type");
-    }
-    return mat_value_ - mat_start_;
-}
-
 // ========== State Management ==========
 
 void InternalVariable::to_start() {
@@ -226,26 +219,12 @@ void InternalVariable::to_start() {
     }
 }
 
-void InternalVariable::set_start() {
-    switch (type_) {
-        case IVarType::SCALAR:
-            scalar_value_ = scalar_start_;
-            break;
-        case IVarType::VECTOR_6:
-            vec_value_ = vec_start_;
-            break;
-        case IVarType::MATRIX_6x6:
-            mat_value_ = mat_start_;
-            break;
-    }
-}
-
 void InternalVariable::rotate(const arma::mat& DR) {
     rotate(Rotation::from_matrix(DR));
 }
 
 void InternalVariable::rotate(const Rotation& R) {
-    if (!requires_rotation_) {
+    if (!is_objective_) {
         return;
     }
     switch (type_) {
@@ -278,12 +257,28 @@ tensor2 InternalVariable::as_tensor2(VoigtType vtype) const {
     return tensor2::from_voigt(vec_value_, vtype);
 }
 
+tensor2 InternalVariable::as_tensor2_start(VoigtType vtype) const {
+    if (type_ != IVarType::VECTOR_6) {
+        throw std::runtime_error("InternalVariable::as_tensor2_start: variable '" + name_
+                                 + "' is not VECTOR_6");
+    }
+    return tensor2::from_voigt(vec_start_, vtype);
+}
+
 tensor4 InternalVariable::as_tensor4(Tensor4Type t4type) const {
     if (type_ != IVarType::MATRIX_6x6) {
         throw std::runtime_error("InternalVariable::as_tensor4: variable '" + name_
                                  + "' is not MATRIX_6x6");
     }
     return tensor4(mat_value_, t4type);
+}
+
+tensor4 InternalVariable::as_tensor4_start(Tensor4Type t4type) const {
+    if (type_ != IVarType::MATRIX_6x6) {
+        throw std::runtime_error("InternalVariable::as_tensor4_start: variable '" + name_
+                                 + "' is not MATRIX_6x6");
+    }
+    return tensor4(mat_start_, t4type);
 }
 
 void InternalVariable::set_tensor2(const tensor2& t) {

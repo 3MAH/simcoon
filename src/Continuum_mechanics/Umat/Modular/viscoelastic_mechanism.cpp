@@ -85,7 +85,7 @@ void ViscoelasticMechanism::register_variables(InternalVariableCollection& ivc) 
     for (int i = 0; i < N_prony_; ++i) {
         v_key_[i]  = key("v_"  + std::to_string(i));
         ev_key_[i] = key("EV_" + std::to_string(i));
-        ivc.add_scalar(v_key_[i],  0.0, false);
+        ivc.add_scalar(v_key_[i],  0.0);
         ivc.add_vec   (ev_key_[i], arma::zeros(6), true);
     }
 }

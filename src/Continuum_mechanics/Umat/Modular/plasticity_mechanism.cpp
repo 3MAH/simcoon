@@ -86,7 +86,7 @@ void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
 void PlasticityMechanism::register_variables(InternalVariableCollection& ivc) {
     p_key_  = key("p");
     EP_key_ = key("EP");
-    ivc.add_scalar(p_key_, 0.0, false);
+    ivc.add_scalar(p_key_, 0.0);
     ivc.add_vec(EP_key_, arma::zeros(6), true);
     kin_hard_->register_variables(ivc);
 }

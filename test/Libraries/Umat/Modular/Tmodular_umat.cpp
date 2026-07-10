@@ -48,13 +48,19 @@ protected:
 };
 
 TEST_F(InternalVariableTest, ScalarConstruction) {
-    InternalVariable iv("test_scalar", 1.5, false);
+    InternalVariable iv("test_scalar", 1.5);
 
     EXPECT_EQ(iv.name(), "test_scalar");
     EXPECT_EQ(iv.type(), IVarType::SCALAR);
     EXPECT_DOUBLE_EQ(iv.scalar(), 1.5);
     EXPECT_EQ(iv.size(), 1u);
-    EXPECT_FALSE(iv.requires_rotation());
+    // Scalars are ALWAYS objective (frame-invariant) — no flag exists.
+    EXPECT_TRUE(iv.is_objective());
+
+    // A non-objective tensorial variable opts out of the rigid co-rotation
+    // (rate-like quantities need mechanism-specific transport).
+    InternalVariable iv_rate("rate_like", arma::vec(arma::zeros(6)), false);
+    EXPECT_FALSE(iv_rate.is_objective());
 }
 
 TEST_F(InternalVariableTest, VectorConstruction) {
@@ -64,7 +70,7 @@ TEST_F(InternalVariableTest, VectorConstruction) {
     EXPECT_EQ(iv.name(), "test_vec");
     EXPECT_EQ(iv.type(), IVarType::VECTOR_6);
     EXPECT_EQ(iv.size(), 6u);
-    EXPECT_TRUE(iv.requires_rotation());
+    EXPECT_TRUE(iv.is_objective());
 
     for (int i = 0; i < 6; i++) {
         EXPECT_DOUBLE_EQ(iv.raw_voigt()(i), init(i));
@@ -78,11 +84,11 @@ TEST_F(InternalVariableTest, MatrixConstruction) {
     EXPECT_EQ(iv.name(), "test_mat");
     EXPECT_EQ(iv.type(), IVarType::MATRIX_6x6);
     EXPECT_EQ(iv.size(), 36u);
-    EXPECT_TRUE(iv.requires_rotation());
+    EXPECT_TRUE(iv.is_objective());
 }
 
 TEST_F(InternalVariableTest, ScalarPackUnpack) {
-    InternalVariable iv("test", 3.14, false);
+    InternalVariable iv("test", 3.14);
     iv.set_offset(5);
 
     vec statev = zeros(10);
@@ -116,7 +122,7 @@ TEST_F(InternalVariableTest, VectorPackUnpack) {
 }
 
 TEST_F(InternalVariableTest, DeltaComputation) {
-    InternalVariable iv("test", 1.0, false);
+    InternalVariable iv("test", 1.0);
     iv.to_start();  // Save current as start
 
     iv.scalar() = 3.0;  // Modify
@@ -146,12 +152,26 @@ TEST_F(InternalVariableTest, TensorViews) {
     EXPECT_EQ(L_t.type(), Tensor4Type::stiffness);
     EXPECT_LT(arma::norm(arma::mat(L_t.mat()) - L_init, "fro"), 1e-10);
 
+    // Typed START views: after to_start + a further mutation, as_tensor2()
+    // sees the current value while as_tensor2_start() reconstructs the
+    // start-of-increment state with the variable's own vtype.
+    EP.to_start();
+    arma::vec newer_EP = {0.03, -0.015, -0.015, 0.006, 0.0, 0.0};
+    EP.set_tensor2(tensor2::from_voigt(newer_EP, VoigtType::strain));
+    EXPECT_EQ(EP.as_tensor2_start().vtype(), VoigtType::strain);
+    EXPECT_LT(arma::norm(arma::vec(EP.as_tensor2_start().voigt()) - new_EP, 2), 1e-12);
+    EXPECT_LT(arma::norm(arma::vec(EP.as_tensor2().voigt()) - newer_EP, 2), 1e-12);
+    EXPECT_EQ(L_iv.as_tensor4_start().type(), Tensor4Type::stiffness);
+    EXPECT_LT(arma::norm(arma::mat(L_iv.as_tensor4_start().mat()) - L_init, "fro"), 1e-10);
+
     // Type-mismatch rejection
-    InternalVariable scalar_iv("d", 0.1, false);
+    InternalVariable scalar_iv("d", 0.1);
     EXPECT_THROW(scalar_iv.as_strain(), std::runtime_error);
     EXPECT_THROW(scalar_iv.as_stiffness(), std::runtime_error);
     EXPECT_THROW(EP.as_stiffness(), std::runtime_error);
     EXPECT_THROW(L_iv.as_strain(), std::runtime_error);
+    EXPECT_THROW(scalar_iv.as_tensor2_start(), std::runtime_error);
+    EXPECT_THROW(EP.as_tensor4_start(), std::runtime_error);
 }
 
 // Typed 6x6 rotation: a compliance-typed matrix variable must rotate with the
@@ -297,9 +317,9 @@ TEST(YieldCriterionTensor, DruckerTensor2Delegates) {
 class InternalVariableCollectionTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        ivc_.add_scalar("p", 0.0, false);
+        ivc_.add_scalar("p", 0.0);
         ivc_.add_vec("EP", zeros(6), true);
-        ivc_.add_scalar("D", 0.0, false);
+        ivc_.add_scalar("D", 0.0);
     }
 
     InternalVariableCollection ivc_;

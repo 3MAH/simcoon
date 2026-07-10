@@ -97,8 +97,8 @@ void DamageMechanism::configure(const arma::vec& props, int& offset) {
 void DamageMechanism::register_variables(InternalVariableCollection& ivc) {
     D_key_     = key("D");
     Y_max_key_ = key("Y_max");
-    ivc.add_scalar(D_key_,     0.0, false);
-    ivc.add_scalar(Y_max_key_, 0.0, false);
+    ivc.add_scalar(D_key_,     0.0);
+    ivc.add_scalar(Y_max_key_, 0.0);
 }
 
 // ========== Constitutive Computations ==========

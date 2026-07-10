@@ -176,10 +176,9 @@ void PragerHardening::update(double dp, const tensor2& n, InternalVariableCollec
 
 void PragerHardening::refresh_state(double dp, const tensor2& n,
                                     InternalVariableCollection& ivc) const {
-    // Linear: alpha = alpha_n + dp n (exact backward Euler); alpha and n share
-    // the strain convention, so the raw start-value combination is safe.
+    // Linear: alpha = alpha_n + dp n (exact backward Euler).
     auto& a_var = ivc.get(a_key_);
-    a_var.raw_voigt() = a_var.raw_voigt_start() + dp * n.to_arma_voigt();
+    a_var.set_tensor2(a_var.as_tensor2_start() + dp * n);
 }
 
 // ArmstrongFrederickHardening
@@ -216,10 +215,9 @@ void ArmstrongFrederickHardening::update(double dp, const tensor2& n,
 
 void ArmstrongFrederickHardening::refresh_state(double dp, const tensor2& n,
                                                 InternalVariableCollection& ivc) const {
-    // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp);
-    // alpha and n share the strain convention (raw combination safe).
+    // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp).
     auto& a_var = ivc.get(a_key_);
-    a_var.raw_voigt() = (a_var.raw_voigt_start() + dp * n.to_arma_voigt()) / (1.0 + D_ * dp);
+    a_var.set_tensor2((1.0 / (1.0 + D_ * dp)) * (a_var.as_tensor2_start() + dp * n));
 }
 
 // ChabocheHardening
@@ -275,10 +273,10 @@ void ChabocheHardening::update(double dp, const tensor2& n,
 void ChabocheHardening::refresh_state(double dp, const tensor2& n,
                                       InternalVariableCollection& ivc) const {
     // Per-branch backward Euler closed form (see ArmstrongFrederick).
-    const arma::vec n_v = n.to_arma_voigt();
     for (int i = 0; i < N_; ++i) {
         auto& a_var = ivc.get(a_keys_[i]);
-        a_var.raw_voigt() = (a_var.raw_voigt_start() + dp * n_v) / (1.0 + D_(i) * dp);
+        a_var.set_tensor2((1.0 / (1.0 + D_(i) * dp))
+                          * (a_var.as_tensor2_start() + dp * n));
     }
 }
 

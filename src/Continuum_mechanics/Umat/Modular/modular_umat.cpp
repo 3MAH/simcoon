@@ -172,7 +172,7 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
     // Register all internal variables
     // First: T_init (temperature reference)
-    ivc_.add_scalar("T_init", 0.0, false);
+    ivc_.add_scalar("T_init", 0.0);
 
     // Register variables from each mechanism
     for (auto& mech : mechanisms_) {
