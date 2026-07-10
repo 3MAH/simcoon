@@ -35,6 +35,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/parameter.hpp>
 
 using namespace std;
 using namespace arma;
@@ -231,7 +232,8 @@ TEST_F(InternalVariableTest, RotationOverload) {
     InternalVariable EP_a("EP", EP_voigt, true);
     InternalVariable EP_b("EP", EP_voigt, true);
 
-    Rotation R = Rotation::from_axis_angle(M_PI / 6.0, 3);
+    // simcoon::pi, not M_PI -- MSVC does not define M_PI without _USE_MATH_DEFINES.
+    Rotation R = Rotation::from_axis_angle(simcoon::pi / 6.0, 3);
     arma::mat DR = R.as_matrix();
 
     EP_a.rotate(DR);

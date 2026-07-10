@@ -54,8 +54,15 @@ jobs:
       - name: Editable install
         run: |
           uv venv
-          uv pip install scikit-build-core pybind11 numpy
-          uv pip install -e .[dev]
+          # scikit-build-core pinned <1: the 1.x editable install changed where
+          # the compiled extension lands, which breaks the Windows DLL-vendoring
+          # step below (green on 0.12.2, DLL load failure on 1.0.2). Lift the pin
+          # together with a rework of that step. --no-build-isolation so the
+          # pinned backend in the venv is the one that actually builds the
+          # editable wheel (isolation would re-resolve pyproject's
+          # scikit-build-core>=0.11 to 1.x).
+          uv pip install "scikit-build-core<1" pybind11 numpy
+          uv pip install -e .[dev] --no-build-isolation
 
       - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
         if: runner.os == 'Windows'
