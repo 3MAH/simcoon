@@ -111,7 +111,7 @@ void ViscoelasticMechanism::compute_constraints(
     Y_crit.set_size(N_prony_);
 
     for (int i = 0; i < N_prony_; ++i) {
-        const arma::vec& EV_i = ivc.get(ev_key_[i]).vec();
+        const arma::vec& EV_i = ivc.get(ev_key_[i]).raw_voigt();
 
         // Branch flow rate: driving stress through branch viscosity.
         flow_i_[i] = invH_i_[i] * (L_i_[i] * (E_total - EV_i));
@@ -166,7 +166,7 @@ arma::vec ViscoelasticMechanism::inelastic_strain(const InternalVariableCollecti
     // matmul on every FB iteration.
     arma::vec EV_tilde = arma::zeros(6);
     for (int i = 0; i < N_prony_; ++i) {
-        EV_tilde += M0_L_i_[i] * ivc.get(ev_key_[i]).vec();
+        EV_tilde += M0_L_i_[i] * ivc.get(ev_key_[i]).raw_voigt();
     }
     return EV_tilde;
 }
@@ -183,7 +183,7 @@ void ViscoelasticMechanism::update(
         const double ds_i = ds(offset + i);
         double& v_i = ivc.get(v_key_[i]).scalar();
         v_i += ds_i;
-        arma::vec& EV_i = ivc.get(ev_key_[i]).vec();
+        arma::vec& EV_i = ivc.get(ev_key_[i]).raw_voigt();
         EV_i += ds_i * Lambda_i_[i];
     }
 }

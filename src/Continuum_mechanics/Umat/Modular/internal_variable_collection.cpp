@@ -182,12 +182,12 @@ void InternalVariableCollection::reset_all() {
                 var->scalar_start() = 0.0;
                 break;
             case IVarType::VECTOR_6:
-                var->vec().zeros();
-                var->vec_start().zeros();
+                var->raw_voigt().zeros();
+                var->raw_voigt_start().zeros();
                 break;
             case IVarType::MATRIX_6x6:
-                var->mat().zeros();
-                var->mat_start().zeros();
+                var->raw_mat().zeros();
+                var->raw_mat_start().zeros();
                 break;
         }
     }

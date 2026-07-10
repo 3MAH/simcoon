@@ -115,28 +115,28 @@ const double& InternalVariable::scalar() const {
     return scalar_value_;
 }
 
-arma::vec& InternalVariable::vec() {
+arma::vec& InternalVariable::raw_voigt() {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
     }
     return vec_value_;
 }
 
-const arma::vec& InternalVariable::vec() const {
+const arma::vec& InternalVariable::raw_voigt() const {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec on non-vector type");
     }
     return vec_value_;
 }
 
-arma::mat& InternalVariable::mat() {
+arma::mat& InternalVariable::raw_mat() {
     if (type_ != IVarType::MATRIX_6x6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
     }
     return mat_value_;
 }
 
-const arma::mat& InternalVariable::mat() const {
+const arma::mat& InternalVariable::raw_mat() const {
     if (type_ != IVarType::MATRIX_6x6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat on non-matrix type");
     }
@@ -159,28 +159,28 @@ const double& InternalVariable::scalar_start() const {
     return scalar_start_;
 }
 
-arma::vec& InternalVariable::vec_start() {
+arma::vec& InternalVariable::raw_voigt_start() {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
     }
     return vec_start_;
 }
 
-const arma::vec& InternalVariable::vec_start() const {
+const arma::vec& InternalVariable::raw_voigt_start() const {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access vec_start on non-vector type");
     }
     return vec_start_;
 }
 
-arma::mat& InternalVariable::mat_start() {
+arma::mat& InternalVariable::raw_mat_start() {
     if (type_ != IVarType::MATRIX_6x6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
     }
     return mat_start_;
 }
 
-const arma::mat& InternalVariable::mat_start() const {
+const arma::mat& InternalVariable::raw_mat_start() const {
     if (type_ != IVarType::MATRIX_6x6) {
         throw std::runtime_error("InternalVariable '" + name_ + "': attempted to access mat_start on non-matrix type");
     }

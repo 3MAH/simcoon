@@ -232,7 +232,7 @@ bool PlasticityMechanism::refresh_state(
     }
 
     auto& EP_var = ivc.get(EP_key_);
-    EP_var.vec() = EP_var.vec_start() + dp * n;
+    EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
     return true;
 }
 
@@ -254,7 +254,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
 }
 
 arma::vec PlasticityMechanism::inelastic_strain(const InternalVariableCollection& ivc) const {
-    return ivc.get(EP_key_).vec();
+    return ivc.get(EP_key_).raw_voigt();
 }
 
 void PlasticityMechanism::update(
@@ -270,7 +270,7 @@ void PlasticityMechanism::update(
         p += dp;
 
         // Update plastic strain
-        arma::vec& EP = ivc.get(EP_key_).vec();
+        arma::vec& EP = ivc.get(EP_key_).raw_voigt();
         EP += dp * flow_dir_;
 
         // Update kinematic hardening variables

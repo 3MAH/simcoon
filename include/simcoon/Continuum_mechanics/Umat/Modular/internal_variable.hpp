@@ -180,32 +180,38 @@ public:
     const double& scalar() const;
 
     /**
-     * @brief Access vector value (mutable)
-     * @return Reference to vector value
+     * @brief Access the raw Voigt components (mutable).
+     *
+     * "raw" is deliberate: this is the escape hatch past set_tensor2()'s
+     * convention re-expression — the components are engineering Voigt in this
+     * variable's own VoigtType, and the CALLER owns keeping them consistent
+     * (safe for same-convention linear combinations, e.g. the backward-Euler
+     * closed forms; use set_tensor2() whenever the source is a typed tensor).
      * @throws std::runtime_error if type is not VECTOR_6
      */
-    arma::vec& vec();
+    arma::vec& raw_voigt();
 
     /**
-     * @brief Access vector value (const)
-     * @return Const reference to vector value
+     * @brief Access the raw Voigt components (const)
+     * @return Const reference to the 6-component vector (this variable's
+     *         VoigtType convention)
      * @throws std::runtime_error if type is not VECTOR_6
      */
-    const arma::vec& vec() const;
+    const arma::vec& raw_voigt() const;
 
     /**
-     * @brief Access matrix value (mutable)
-     * @return Reference to matrix value
+     * @brief Access the raw 6x6 components (mutable). Same escape-hatch
+     * semantics as raw_voigt(): components are in this variable's Tensor4Type
+     * convention; prefer set_tensor4() for typed sources.
      * @throws std::runtime_error if type is not MATRIX_6x6
      */
-    arma::mat& mat();
+    arma::mat& raw_mat();
 
     /**
-     * @brief Access matrix value (const)
-     * @return Const reference to matrix value
+     * @brief Access the raw 6x6 components (const)
      * @throws std::runtime_error if type is not MATRIX_6x6
      */
-    const arma::mat& mat() const;
+    const arma::mat& raw_mat() const;
 
     // ========== Start Value Accessors ==========
 
@@ -217,18 +223,17 @@ public:
     const double& scalar_start() const;
 
     /**
-     * @brief Access vector start value
-     * @return Reference to vector start value
+     * @brief Access the raw Voigt start value (same convention/escape-hatch
+     * semantics as raw_voigt())
      */
-    arma::vec& vec_start();
-    const arma::vec& vec_start() const;
+    arma::vec& raw_voigt_start();
+    const arma::vec& raw_voigt_start() const;
 
     /**
-     * @brief Access matrix start value
-     * @return Reference to matrix start value
+     * @brief Access the raw 6x6 start value (see raw_mat())
      */
-    arma::mat& mat_start();
-    const arma::mat& mat_start() const;
+    arma::mat& raw_mat_start();
+    const arma::mat& raw_mat_start() const;
 
     // ========== Increment Computation ==========
 

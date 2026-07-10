@@ -179,7 +179,7 @@ void PragerHardening::refresh_state(double dp, const tensor2& n,
     // Linear: alpha = alpha_n + dp n (exact backward Euler); alpha and n share
     // the strain convention, so the raw start-value combination is safe.
     auto& a_var = ivc.get(a_key_);
-    a_var.vec() = a_var.vec_start() + dp * n.to_arma_voigt();
+    a_var.raw_voigt() = a_var.raw_voigt_start() + dp * n.to_arma_voigt();
 }
 
 // ArmstrongFrederickHardening
@@ -219,7 +219,7 @@ void ArmstrongFrederickHardening::refresh_state(double dp, const tensor2& n,
     // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp);
     // alpha and n share the strain convention (raw combination safe).
     auto& a_var = ivc.get(a_key_);
-    a_var.vec() = (a_var.vec_start() + dp * n.to_arma_voigt()) / (1.0 + D_ * dp);
+    a_var.raw_voigt() = (a_var.raw_voigt_start() + dp * n.to_arma_voigt()) / (1.0 + D_ * dp);
 }
 
 // ChabocheHardening
@@ -278,7 +278,7 @@ void ChabocheHardening::refresh_state(double dp, const tensor2& n,
     const arma::vec n_v = n.to_arma_voigt();
     for (int i = 0; i < N_; ++i) {
         auto& a_var = ivc.get(a_keys_[i]);
-        a_var.vec() = (a_var.vec_start() + dp * n_v) / (1.0 + D_(i) * dp);
+        a_var.raw_voigt() = (a_var.raw_voigt_start() + dp * n_v) / (1.0 + D_(i) * dp);
     }
 }
 

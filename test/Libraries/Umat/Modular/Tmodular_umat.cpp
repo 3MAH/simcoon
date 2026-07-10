@@ -67,7 +67,7 @@ TEST_F(InternalVariableTest, VectorConstruction) {
     EXPECT_TRUE(iv.requires_rotation());
 
     for (int i = 0; i < 6; i++) {
-        EXPECT_DOUBLE_EQ(iv.vec()(i), init(i));
+        EXPECT_DOUBLE_EQ(iv.raw_voigt()(i), init(i));
     }
 }
 
@@ -111,7 +111,7 @@ TEST_F(InternalVariableTest, VectorPackUnpack) {
     statev.subvec(2, 7).fill(10.0);
     iv.unpack(statev);
     for (int i = 0; i < 6; i++) {
-        EXPECT_DOUBLE_EQ(iv.vec()(i), 10.0);
+        EXPECT_DOUBLE_EQ(iv.raw_voigt()(i), 10.0);
     }
 }
 
@@ -137,7 +137,7 @@ TEST_F(InternalVariableTest, TensorViews) {
     arma::vec new_EP = {0.02, -0.01, -0.01, 0.004, 0.0, 0.0};
     tensor2 new_EP_t = tensor2::from_voigt(new_EP, VoigtType::strain);
     EP.set_tensor2(new_EP_t);
-    EXPECT_LT(arma::norm(EP.vec() - new_EP, 2), 1e-12);
+    EXPECT_LT(arma::norm(EP.raw_voigt() - new_EP, 2), 1e-12);
 
     // MATRIX_6x6 → tensor4 stiffness
     arma::mat L_init = L_iso(70000., 0.3, "Enu");
@@ -168,8 +168,8 @@ TEST_F(InternalVariableTest, Matrix66TypedRotation) {
     L_iv.rotate(R);
     M_iv.rotate(R);
 
-    EXPECT_LT(arma::norm(M_iv.mat() - arma::inv(L_iv.mat()), "fro")
-                  / arma::norm(M_iv.mat(), "fro"),
+    EXPECT_LT(arma::norm(M_iv.raw_mat() - arma::inv(L_iv.raw_mat()), "fro")
+                  / arma::norm(M_iv.raw_mat(), "fro"),
               1e-10)
         << "compliance-typed 6x6 did not rotate with the compliance congruence";
 }
@@ -183,12 +183,12 @@ TEST_F(InternalVariableTest, SetTensor2ReexpressesConvention) {
     tensor2 t = stress(arma::vec{1., 2., -3., 3., 0., 0.});
     EP.set_tensor2(t);
     // Stored in strain convention: shear slot carries gamma = 2 * t12 = 6.
-    EXPECT_DOUBLE_EQ(EP.vec()(3), 6.0);
-    EXPECT_DOUBLE_EQ(EP.vec()(0), 1.0);
+    EXPECT_DOUBLE_EQ(EP.raw_voigt()(3), 6.0);
+    EXPECT_DOUBLE_EQ(EP.raw_voigt()(0), 1.0);
     // Matching convention: exact no-op re-expression.
     tensor2 e = strain(arma::vec{0.01, 0., 0., 0.004, 0., 0.});
     EP.set_tensor2(e);
-    EXPECT_DOUBLE_EQ(EP.vec()(3), 0.004);
+    EXPECT_DOUBLE_EQ(EP.raw_voigt()(3), 0.004);
 }
 
 // pack/unpack must throw on an out-of-bounds offset instead of silently
@@ -217,7 +217,7 @@ TEST_F(InternalVariableTest, RotationOverload) {
     EP_a.rotate(DR);
     EP_b.rotate(R);
 
-    EXPECT_LT(arma::norm(EP_a.vec() - EP_b.vec(), 2), 1e-12);
+    EXPECT_LT(arma::norm(EP_a.raw_voigt() - EP_b.raw_voigt(), 2), 1e-12);
 }
 
 // ========== YieldCriterion Tensor2 overloads ==========
@@ -316,8 +316,8 @@ TEST_F(InternalVariableCollectionTest, Access) {
     ivc_.get("p").scalar() = 0.5;
     EXPECT_DOUBLE_EQ(ivc_.get("p").scalar(), 0.5);
 
-    ivc_.get("EP").vec()(0) = 1.0;
-    EXPECT_DOUBLE_EQ(ivc_.get("EP").vec()(0), 1.0);
+    ivc_.get("EP").raw_voigt()(0) = 1.0;
+    EXPECT_DOUBLE_EQ(ivc_.get("EP").raw_voigt()(0), 1.0);
 }
 
 TEST_F(InternalVariableCollectionTest, OffsetComputation) {
@@ -334,7 +334,7 @@ TEST_F(InternalVariableCollectionTest, PackUnpackAll) {
     ivc_.compute_offsets(0);
 
     ivc_.get("p").scalar() = 0.1;
-    ivc_.get("EP").vec().fill(0.01);
+    ivc_.get("EP").raw_voigt().fill(0.01);
     ivc_.get("D").scalar() = 0.05;
 
     vec statev = zeros(10);
@@ -1396,7 +1396,7 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
     // Recover the converged stress of the previous increment from the elastic
     // relation (state variables carry EP): sigma = L (Etot - EP).
     sigma = m.elasticity().L() *
-            (Etot - m.internal_variables().get("plast0_EP").vec());
+            (Etot - m.internal_variables().get("plast0_EP").raw_voigt());
 
     Lt.set_size(6, 6);
     mat L(6, 6);
@@ -1479,7 +1479,7 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
 
     // Non-trivial start state.
     ivc.get("p").scalar() = 0.01;
-    ivc.get("a").vec() = vec{0.002, -0.001, -0.001, 0.0005, 0.0, 0.0};
+    ivc.get("a").raw_voigt() = vec{0.002, -0.001, -0.001, 0.0005, 0.0, 0.0};
     ivc.to_start_all();
 
     const vec sigma = {400.0, 50.0, -30.0, 60.0, 10.0, 0.0};
@@ -1491,14 +1491,14 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
 
     // Implicit consistency: alpha == (alpha_n + dp n(sigma - X(alpha)))/(1 + D dp)
     const double D = 172.0;
-    const vec alpha = ivc.get("a").vec();
+    const vec alpha = ivc.get("a").raw_voigt();
     const vec X = pm.kinematic_hardening().total_backstress(ivc).to_arma_voigt();
     const vec n = pm.yield_criterion().flow_direction(sigma - X);
     const vec alpha_expected =
-        (ivc.get("a").vec_start() + dp * n) / (1.0 + D * dp);
+        (ivc.get("a").raw_voigt_start() + dp * n) / (1.0 + D * dp);
     EXPECT_LT(norm(alpha - alpha_expected, 2), 1e-10)
         << "AF backward-Euler closed form not satisfied";
 
-    const vec EP_expected = ivc.get("EP").vec_start() + dp * n;
-    EXPECT_LT(norm(ivc.get("EP").vec() - EP_expected, 2), 1e-12);
+    const vec EP_expected = ivc.get("EP").raw_voigt_start() + dp * n;
+    EXPECT_LT(norm(ivc.get("EP").raw_voigt() - EP_expected, 2), 1e-12);
 }
