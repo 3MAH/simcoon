@@ -160,30 +160,26 @@ void PragerHardening::register_variables(InternalVariableCollection& ivc) {
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
-arma::vec PragerHardening::total_backstress(const InternalVariableCollection& ivc) const {
-    return backstress_t(C_, ivc.get(a_key_).as_tensor2()).to_arma_voigt();
+tensor2 PragerHardening::total_backstress(const InternalVariableCollection& ivc) const {
+    return backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
-arma::vec PragerHardening::alpha_flow(int /*i*/, const arma::vec& n,
-                                       const InternalVariableCollection& /*ivc*/) const {
-    return n;   // Prager: no recall
-}
-
-double PragerHardening::hardening_modulus(const arma::vec& /*n*/,
+double PragerHardening::hardening_modulus(const tensor2& /*n*/,
                                            const InternalVariableCollection& /*ivc*/) const {
     return (2.0 / 3.0) * C_;
 }
 
-void PragerHardening::update(double dp, const arma::vec& n, InternalVariableCollection& ivc) {
+void PragerHardening::update(double dp, const tensor2& n, InternalVariableCollection& ivc) {
     auto& a_var = ivc.get(a_key_);
-    a_var.set_tensor2(a_var.as_tensor2() + dp * strain(n));
+    a_var.set_tensor2(a_var.as_tensor2() + dp * n);
 }
 
-void PragerHardening::refresh_state(double dp, const arma::vec& n,
+void PragerHardening::refresh_state(double dp, const tensor2& n,
                                     InternalVariableCollection& ivc) const {
-    // Linear: alpha = alpha_n + dp n (exact backward Euler).
+    // Linear: alpha = alpha_n + dp n (exact backward Euler); alpha and n share
+    // the strain convention, so the raw start-value combination is safe.
     auto& a_var = ivc.get(a_key_);
-    a_var.vec() = a_var.vec_start() + dp * n;
+    a_var.vec() = a_var.vec_start() + dp * n.to_arma_voigt();
 }
 
 // ArmstrongFrederickHardening
@@ -198,36 +194,32 @@ void ArmstrongFrederickHardening::register_variables(InternalVariableCollection&
     ivc.add_vec(a_key_, arma::zeros(6), true);   // back-strain (strain-like)
 }
 
-arma::vec ArmstrongFrederickHardening::total_backstress(const InternalVariableCollection& ivc) const {
-    return backstress_t(C_, ivc.get(a_key_).as_tensor2()).to_arma_voigt();
-}
-
-arma::vec ArmstrongFrederickHardening::alpha_flow(
-    int /*i*/, const arma::vec& n, const InternalVariableCollection& ivc) const {
-    // dα/dp = n − D α  (AF in α-form; equivalent to dX/dp = (2/3)C n − D X)
-    return (strain(n) - D_ * ivc.get(a_key_).as_tensor2()).to_arma_voigt();
+tensor2 ArmstrongFrederickHardening::total_backstress(const InternalVariableCollection& ivc) const {
+    return backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
 double ArmstrongFrederickHardening::hardening_modulus(
-    const arma::vec& n, const InternalVariableCollection& ivc) const {
-    // H_kin = (2/3) C  −  D · (X : n)
+    const tensor2& n, const InternalVariableCollection& ivc) const {
+    // H_kin = (2/3) C  −  D · (X : n) — stress-Voigt · engineering-strain-Voigt
+    // is the work-conjugate pairing of the full double contraction.
     const tensor2 X_t = backstress_t(C_, ivc.get(a_key_).as_tensor2());
-    return (2.0 / 3.0) * C_ - D_ * arma::dot(X_t.to_arma_voigt(), n);
+    return (2.0 / 3.0) * C_ - D_ * arma::dot(X_t.to_arma_voigt(), n.to_arma_voigt());
 }
 
-void ArmstrongFrederickHardening::update(double dp, const arma::vec& n,
+void ArmstrongFrederickHardening::update(double dp, const tensor2& n,
                                           InternalVariableCollection& ivc) {
-    // dα = (n − D α) dp
+    // dα = (n − D α) dp  (AF in α-form; equivalent to dX/dp = (2/3)C n − D X)
     auto& a_var = ivc.get(a_key_);
     const tensor2 a_t = a_var.as_tensor2();
-    a_var.set_tensor2(a_t + dp * (strain(n) - D_ * a_t));
+    a_var.set_tensor2(a_t + dp * (n - D_ * a_t));
 }
 
-void ArmstrongFrederickHardening::refresh_state(double dp, const arma::vec& n,
+void ArmstrongFrederickHardening::refresh_state(double dp, const tensor2& n,
                                                 InternalVariableCollection& ivc) const {
-    // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp).
+    // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp);
+    // alpha and n share the strain convention (raw combination safe).
     auto& a_var = ivc.get(a_key_);
-    a_var.vec() = (a_var.vec_start() + dp * n) / (1.0 + D_ * dp);
+    a_var.vec() = (a_var.vec_start() + dp * n.to_arma_voigt()) / (1.0 + D_ * dp);
 }
 
 // ChabocheHardening
@@ -247,7 +239,7 @@ void ChabocheHardening::register_variables(InternalVariableCollection& ivc) {
     }
 }
 
-arma::vec ChabocheHardening::total_backstress(const InternalVariableCollection& ivc) const {
+tensor2 ChabocheHardening::total_backstress(const InternalVariableCollection& ivc) const {
     // X = Σ_i (2/3) C_i α_i. Accumulate STRESS-typed (backstress_t returns
     // stress-typed): a strain-typed accumulator re-tags the sum and puts the
     // factor-2 shear back — wrong under any loading with shear.
@@ -255,44 +247,38 @@ arma::vec ChabocheHardening::total_backstress(const InternalVariableCollection& 
     for (int i = 0; i < N_; ++i) {
         X_t += backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
     }
-    return X_t.to_arma_voigt();
+    return X_t;
 }
 
-arma::vec ChabocheHardening::alpha_flow(int i, const arma::vec& n,
-                                         const InternalVariableCollection& ivc) const {
-    // dα_i/dp = n − D_i α_i
-    return (strain(n) - D_(i) * ivc.get(a_keys_[i]).as_tensor2())
-        .to_arma_voigt();
-}
-
-double ChabocheHardening::hardening_modulus(const arma::vec& n,
+double ChabocheHardening::hardening_modulus(const tensor2& n,
                                               const InternalVariableCollection& ivc) const {
     // H_kin = Σ_i [ (2/3) C_i − D_i (X_i : n) ]
+    const arma::vec n_v = n.to_arma_voigt();
     double H_kin = 0.0;
     for (int i = 0; i < N_; ++i) {
         const tensor2 X_i_t = backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
-        H_kin += (2.0 / 3.0) * C_(i) - D_(i) * arma::dot(X_i_t.to_arma_voigt(), n);
+        H_kin += (2.0 / 3.0) * C_(i) - D_(i) * arma::dot(X_i_t.to_arma_voigt(), n_v);
     }
     return H_kin;
 }
 
-void ChabocheHardening::update(double dp, const arma::vec& n,
+void ChabocheHardening::update(double dp, const tensor2& n,
                                  InternalVariableCollection& ivc) {
     // dα_i = (n − D_i α_i) dp
-    const tensor2 n_t = strain(n);
     for (int i = 0; i < N_; ++i) {
         auto& a_var = ivc.get(a_keys_[i]);
         const tensor2 a_t = a_var.as_tensor2();
-        a_var.set_tensor2(a_t + dp * (n_t - D_(i) * a_t));
+        a_var.set_tensor2(a_t + dp * (n - D_(i) * a_t));
     }
 }
 
-void ChabocheHardening::refresh_state(double dp, const arma::vec& n,
+void ChabocheHardening::refresh_state(double dp, const tensor2& n,
                                       InternalVariableCollection& ivc) const {
     // Per-branch backward Euler closed form (see ArmstrongFrederick).
+    const arma::vec n_v = n.to_arma_voigt();
     for (int i = 0; i < N_; ++i) {
         auto& a_var = ivc.get(a_keys_[i]);
-        a_var.vec() = (a_var.vec_start() + dp * n) / (1.0 + D_(i) * dp);
+        a_var.vec() = (a_var.vec_start() + dp * n_v) / (1.0 + D_(i) * dp);
     }
 }
 

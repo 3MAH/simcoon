@@ -751,16 +751,16 @@ TEST_F(KinematicHardeningTest, ChabocheDuplicateEqualsDoubledAF) {
     ivc_af.unpack_all(statev_af);
     ivc_cha.unpack_all(statev_cha);
 
-    // Uniaxial tensile flow direction (Voigt strain convention, factor-2 shear).
-    vec n = {1.0, -0.5, -0.5, 0.0, 0.0, 0.0};
+    // Uniaxial tensile flow direction (strain-typed, factor-2 shear Voigt).
+    const tensor2 n = strain(vec{1.0, -0.5, -0.5, 0.0, 0.0, 0.0});
     const double dp = 1e-4;
 
     for (int step = 0; step < 100; ++step) {
         af->update(dp, n, ivc_af);
         cha->update(dp, n, ivc_cha);
 
-        vec X_af  = af->total_backstress(ivc_af);
-        vec X_cha = cha->total_backstress(ivc_cha);
+        vec X_af  = af->total_backstress(ivc_af).to_arma_voigt();
+        vec X_cha = cha->total_backstress(ivc_cha).to_arma_voigt();
         EXPECT_LT(norm(X_cha - X_af, 2), 1e-8) << "drift at step " << step;
 
         EXPECT_NEAR(cha->hardening_modulus(n, ivc_cha),
@@ -778,12 +778,13 @@ TEST_F(KinematicHardeningTest, PragerHardening) {
 
     hard->register_variables(ivc_);
 
-    // Check initial backstress is zero
-    vec X = hard->total_backstress(ivc_);
-    EXPECT_DOUBLE_EQ(norm(X), 0.0);
+    // Check initial backstress is zero (stress-typed by signature)
+    tensor2 X = hard->total_backstress(ivc_);
+    EXPECT_EQ(X.vtype(), VoigtType::stress);
+    EXPECT_DOUBLE_EQ(norm(vec(X.to_arma_voigt())), 0.0);
 
     // Hardening modulus should be (2/3)*C for Prager kinematic hardening
-    vec n = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    const tensor2 n = strain(vec{1.0, 0.0, 0.0, 0.0, 0.0, 0.0});
     double H = hard->hardening_modulus(n, ivc_);
     EXPECT_NEAR(H, (2.0 / 3.0) * 10000.0, 1e-6);
 }
@@ -1491,7 +1492,7 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     // Implicit consistency: alpha == (alpha_n + dp n(sigma - X(alpha)))/(1 + D dp)
     const double D = 172.0;
     const vec alpha = ivc.get("a").vec();
-    const vec X = pm.kinematic_hardening().total_backstress(ivc);
+    const vec X = pm.kinematic_hardening().total_backstress(ivc).to_arma_voigt();
     const vec n = pm.yield_criterion().flow_direction(sigma - X);
     const vec alpha_expected =
         (ivc.get("a").vec_start() + dp * n) / (1.0 + D * dp);

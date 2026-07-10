@@ -104,7 +104,7 @@ double PlasticityMechanism::equivalent_stress(
     if (kin_hard_->num_backstresses() == 0) {
         return yield_->equivalent_stress(sigma);
     }
-    return yield_->equivalent_stress(sigma - kin_hard_->total_backstress(ivc));
+    return yield_->equivalent_stress(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt());
 }
 
 double PlasticityMechanism::equivalent_stress(
@@ -128,7 +128,7 @@ arma::vec PlasticityMechanism::flow_direction(
     if (kin_hard_->num_backstresses() == 0) {
         return yield_->flow_direction(sigma);
     }
-    return yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc));
+    return yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt());
 }
 
 tensor2 PlasticityMechanism::flow_direction(
@@ -151,12 +151,12 @@ void PlasticityMechanism::compute_constraints(
     double p = ivc.get(p_key_).scalar();
 
     // Shifted stress (sigma - X); skip the subtraction under pure isotropic
-    // hardening since total_backstress would return zeros(6). X is returned in
-    // stress Voigt (KinematicHardening::total_backstress), matching sigma.
+    // hardening since total_backstress would return zero. X is a stress-typed
+    // tensor2; its stress-Voigt components match sigma.
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     double sigma_eq;
     if (has_kin) {
-        const arma::vec sigma_eff = sigma - kin_hard_->total_backstress(ivc);
+        const arma::vec sigma_eff = sigma - kin_hard_->total_backstress(ivc).to_arma_voigt();
         sigma_eq = yield_->equivalent_stress(sigma_eff);
         flow_dir_ = yield_->flow_direction(sigma_eff);
     } else {
@@ -175,7 +175,7 @@ void PlasticityMechanism::compute_constraints(
     Y_crit(0) = std::max(sigma_Y_, 1.0);
 
     kappa_ = L * flow_dir_;
-    H_total_ = dR_dp + kin_hard_->hardening_modulus(flow_dir_, ivc);
+    H_total_ = dR_dp + kin_hard_->hardening_modulus(strain(flow_dir_), ivc);
 }
 
 const std::vector<tensor2>& PlasticityMechanism::dPhi_dsigma(
@@ -200,7 +200,7 @@ const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
     }
     const bool has_kin = kin_hard_->num_backstresses() > 0;
     const arma::vec sigma_eff =
-        has_kin ? arma::vec(sigma - kin_hard_->total_backstress(ivc)) : sigma;
+        has_kin ? arma::vec(sigma - kin_hard_->total_backstress(ivc).to_arma_voigt()) : sigma;
     hessian_cache_[0] =
         tensor4(arma::mat(yield_->flow_hessian(sigma_eff)), Tensor4Type::compliance);
     return &hessian_cache_;
@@ -221,11 +221,11 @@ bool PlasticityMechanism::refresh_state(
     const int n_fp = (kin_hard_->num_backstresses() > 0) ? 50 : 1;
     arma::vec n = arma::zeros(6);
     for (int it = 0; it < n_fp; ++it) {
-        const arma::vec X = kin_hard_->total_backstress(ivc);
+        const arma::vec X = kin_hard_->total_backstress(ivc).to_arma_voigt();
         const arma::vec n_new = yield_->flow_direction(sigma - X);
         const double dn = arma::norm(n_new - n, 2);
         n = n_new;
-        kin_hard_->refresh_state(dp, n, ivc);
+        kin_hard_->refresh_state(dp, strain(n), ivc);
         if (it > 0 && dn < 1e-14) {
             break;
         }
@@ -274,7 +274,7 @@ void PlasticityMechanism::update(
         EP += dp * flow_dir_;
 
         // Update kinematic hardening variables
-        kin_hard_->update(dp, flow_dir_, ivc);
+        kin_hard_->update(dp, strain(flow_dir_), ivc);
     }
 }
 
@@ -320,7 +320,7 @@ void PlasticityMechanism::compute_work(
     arma::vec sigma_avg = 0.5 * (sigma_start + sigma);
 
     // Get backstress (if any)
-    arma::vec X = kin_hard_->total_backstress(ivc);
+    const arma::vec X = kin_hard_->total_backstress(ivc).to_arma_voigt();
 
     // Dissipated work: sigma : dEP
     Wm_d = arma::dot(sigma_avg, DEP);
