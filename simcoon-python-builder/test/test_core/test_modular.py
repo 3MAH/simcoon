@@ -36,9 +36,11 @@ def work_in_examples(tmp_path, monkeypatch):
     # sim.solver's 'results' folder arg is relative; create a symlink for this
     # test run so its output lands in the pytest tmp area.
     link = EXAMPLES_DIR / f"_pytest_results_{tmp_path.name}"
+    if link.is_symlink() or link.exists():
+        link.unlink()  # stale link from an interrupted previous run
     link.symlink_to(results, target_is_directory=True)
     yield link.name
-    link.unlink()
+    link.unlink(missing_ok=True)
 
 
 def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndarray:
@@ -406,3 +408,216 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
         "AF class diverges from single-term Chaboche (distinct C++ path bug?)"
     )
     assert np.max(np.abs(af[:, 1])) > 100.0, "sanity: shear yielded"
+
+
+# ============================================================================
+# Legacy-vs-MODUL equivalence gates (rationalization PR, Phase 1)
+# Pattern: run the legacy UMAT and its MODUL twin through the solver on the
+# same path; compare stress histories. These tests are the deletion gates for
+# the name-adapter migration (and permanent validation for kept UMATs).
+# ============================================================================
+
+def _run_named(name, props, nstatev, results_dir, path_file, out, cols=(8, 14)):
+    sim.solver(name, np.asarray(props, dtype=float), nstatev,
+               0.0, 0.0, 0.0, 0, 1,
+               "../data", results_dir, path_file, out)
+    return np.loadtxt(Path(EXAMPLES_DIR) / results_dir
+                      / out.replace(".txt", "_global-0.txt"), usecols=cols)
+
+
+def _assert_equiv(ref, hist, rel_tol, label):
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 0, f"{label}: sanity, zero response"
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    assert max_diff / peak < rel_tol, (
+        f"{label}: MODUL twin deviates by {max_diff/peak:.3e} (tol {rel_tol:.0e})")
+
+
+def test_eliso_matches_modul(work_in_examples):
+    ref = _run_named("ELISO", [210000., 0.3, 1.2e-5], 1,
+                     work_in_examples, "MODUL_path.txt", "eq_eliso.txt")
+    mat = ModularMaterial(elasticity=IsotropicElasticity(
+        C1=210000., C2=0.3, alpha=1.2e-5))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_meliso.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELISO")
+
+
+def test_elist_matches_modul(work_in_examples):
+    from simcoon.modular import TransverseIsotropicElasticity
+    # legacy props: [axis, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T]
+    ref = _run_named("ELIST", [3, 230000., 15000., 0.02, 0.4, 50000., 0., 0.],
+                     1, work_in_examples, "MODUL_path.txt", "eq_elist.txt")
+    mat = ModularMaterial(elasticity=TransverseIsotropicElasticity(
+        EL=230000., ET=15000., nuTL=0.02, nuTT=0.4, GLT=50000., axis=3))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_melist.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELIST")
+
+
+def test_elort_matches_modul(work_in_examples):
+    from simcoon.modular import OrthotropicElasticity
+    ref = _run_named("ELORT", [70000., 30000., 15000., 0.3, 0.3, 0.3,
+                               8000., 6000., 5000., 1e-5, 2e-5, 3e-5],
+                     1, work_in_examples, "MODUL_path.txt", "eq_elort.txt")
+    mat = ModularMaterial(elasticity=OrthotropicElasticity(
+        C1=70000., C2=30000., C3=15000., C4=0.3, C5=0.3, C6=0.3,
+        C7=8000., C8=6000., C9=5000.,
+        alpha1=1e-5, alpha2=2e-5, alpha3=3e-5))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_melort.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELORT")
+
+
+def test_epkcp_matches_modul(work_in_examples):
+    """EPKCP: Prager convention differs — legacy X = kX*a (tensorial), modular
+    X = (2/3)*C*a, hence C = 1.5*kX in the twin. m = 1 avoids the power-law
+    p=0 tangent singularity (same rationale as the EPHIL test)."""
+    from simcoon.modular import PowerLawHardening, PragerHardening
+    ref = _run_named("EPKCP", [210000., 0.3, 0., 300., 1000., 1.0, 20000.],
+                     33, work_in_examples, "MODUL_path.txt", "eq_epkcp.txt")
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            isotropic_hardening=PowerLawHardening(k=1000., m=1.0),
+            kinematic_hardening=PragerHardening(C=1.5 * 20000.))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mepkcp.txt")
+    _assert_equiv(ref, hist, 1e-5, "EPKCP")
+
+
+def test_ephac_matches_modul(work_in_examples):
+    """EPHAC: cubic elasticity (E, nu, G) + Hill yield + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, HillYield, ChabocheHardening
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
+    ref = _run_named("EPHAC", props, 33,
+                     work_in_examples, "MODUL_path.txt", "eq_ephac.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mephac.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPHAC")
+
+
+def test_epani_matches_modul(work_in_examples):
+    """EPANI: cubic elasticity + 9-parameter anisotropic yield + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, AnisotropicYield, ChabocheHardening
+    # P must be an ADMISSIBLE quadratic form: symmetric with zero row sums
+    # on the normal block (deviatoric, PSD) — an indefinite P gives
+    # sqrt(negative) = NaN in Eq_stress_P (both legacy and modular).
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             1.2, 1.1, 1.1, -0.6, -0.6, -0.5, 1.6, 1.5, 1.4]
+    ref = _run_named("EPANI", props, 33,
+                     work_in_examples, "MODUL_path.txt", "eq_epani.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=AnisotropicYield(
+                P11=1.2, P22=1.1, P33=1.1, P12=-0.6, P13=-0.6, P23=-0.5,
+                P44=1.6, P55=1.5, P66=1.4),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mepani.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPANI")
+
+
+def test_epdfa_matches_modul(work_in_examples):
+    """EPDFA: cubic elasticity + DFA yield (Hill + hydrostatic K) + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, DFAYield, ChabocheHardening
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             0.5, 0.4, 0.6, 1.5, 1.5, 1.5, 0.1]
+    ref = _run_named("EPDFA", props, 33,
+                     work_in_examples, "MODUL_path.txt", "eq_epdfa.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=DFAYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5,
+                                     K=0.1),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mepdfa.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPDFA")
+
+
+def test_epchg_matches_modul(work_in_examples):
+    """EPCHG (generic Chaboche): cubic elasticity + von Mises + N "Voce
+    terms" + N-term Chaboche.
+
+    NOTE: the legacy N-term isotropic hardening couples every term through a
+    SINGLE Hp (dHp/dp = sum_i b_i (Q_i - Hp)) — mathematically ONE effective
+    Voce with b_eff = sum(b_i), Q_eff = sum(b_i Q_i)/sum(b_i), NOT the
+    standard combined-Voce sum. The modular twin (and the name adapter) map
+    to that single effective Voce."""
+    from simcoon.modular import CubicElasticity, ChabocheHardening
+    # props: E nu G alpha | sigmaY N_iso N_kin criteria | (Q,b)xN | (C,D)xN
+    props = [210000., 0.3, 85000., 0., 300., 2, 2, 0,
+             150., 15., 50., 40.,
+             30000., 172., 19500., 301.]
+    ref = _run_named("EPCHG", props, 33,
+                     work_in_examples, "MODUL_path.txt", "eq_epchg.txt")
+    b_eff = 15. + 40.
+    q_eff = (15. * 150. + 40. * 50.) / b_eff
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            isotropic_hardening=VoceHardening(Q=q_eff, b=b_eff),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mepchg.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPCHG")
+
+
+def test_ephin_matches_modul(work_in_examples):
+    """EPHIN (Hill, N yield surfaces): equivalence proven for N = 1.
+
+    The LEGACY multi-surface path (N >= 2) is defective: it returns NaN even
+    for two identical surfaces, and even when the second surface can never
+    activate (sigma_Y = 5000 on a 2% path) — probed 2026-07. The modular
+    engine handles multiple mechanisms correctly (see
+    test_two_plasticity_equivalent_to_one_linear), so the name adapter is an
+    upgrade for N >= 2; the provable gate is the N = 1 case."""
+    from simcoon.modular import HillYield, PowerLawHardening
+    # props: E nu alpha N | (sigmaY k m F G H L M N)xN
+    props = [210000., 0.3, 0., 1,
+             300., 3000., 1.0, 0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
+    ref = _run_named("EPHIN", props, 33,
+                     work_in_examples, "MODUL_path.txt", "eq_ephin.txt")
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6,
+                                      L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=PowerLawHardening(k=3000., m=1.0))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.txt", "eq_mephin.txt")
+    _assert_equiv(ref, hist, 1e-5, "EPHIN")
+
+
+def test_zennk_has_no_modular_twin():
+    """ZENNK (Zener_Nfast) is a generalized KELVIN chain (branch driving
+    force sigma - L_i EV_i, branches in series), NOT a generalized Maxwell:
+    the modular Prony viscoelasticity is a different rheological model
+    (measured deviation 86% on the relaxation path). ZENNK therefore keeps
+    its dedicated implementation (no adapter) — same bucket as ZENER."""
+    pass

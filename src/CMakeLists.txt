@@ -110,6 +110,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Modular/viscoelastic_mechanism.cpp
   Continuum_mechanics/Umat/Modular/damage_mechanism.cpp
   Continuum_mechanics/Umat/Modular/modular_umat.cpp
+  Continuum_mechanics/Umat/Modular/legacy_adapters.cpp
 
   # Continuum Mechanics - UMAT Core
   Continuum_mechanics/Umat/fea_transfer.cpp
