@@ -75,7 +75,9 @@ vec translate_EPHIL(const vec& p) {
 // Chaboche-family head: E nu G alpha | sigmaY Q b | C1 D1 C2 D2 | criterion...
 // (cubic elasticity, Voce iso, 2 AF backstresses)
 vec chaboche_family(const vec& p, int yield_type, int n_crit) {
-    vec out(6 + 7 + 6 + static_cast<uword>(n_crit));
+    // 14 head slots (elasticity 6 + n_mech + mech type + 5 config + sigma_Y)
+    // + criterion params + Voce (2) + two AF terms (4)
+    vec out(20 + static_cast<uword>(n_crit));
     out(0) = 1; out(1) = 0;                       // cubic, EnuG
     out(2) = p(0); out(3) = p(1); out(4) = p(2); out(5) = p(3);
     out(6) = 1;                                   // n_mech
@@ -113,23 +115,36 @@ vec translate_EPCHG(const vec& p) {
     const int n_crit = n_crit_map[crit_legacy];
     const uword legacy_crit_off = 8 + 2 * static_cast<uword>(N_iso + N_kin);
 
-    vec out(6 + 7 + 2 * static_cast<uword>(N_iso + N_kin)
-            + static_cast<uword>(n_crit));
+    // The legacy N-term isotropic hardening couples every term through a
+    // SINGLE Hp (dHp/dp = sum_i b_i (Q_i - Hp)) — mathematically ONE
+    // effective Voce with b_eff = sum(b_i), Q_eff = sum(b_i Q_i)/sum(b_i),
+    // NOT the standard combined-Voce sum (proven by the Phase-1 equivalence
+    // test at 2.6e-4). Map accordingly.
+    double b_eff = 0.0, bq = 0.0;
+    for (int i = 0; i < N_iso; ++i) {
+        const double Q_i = p(8 + 2 * static_cast<uword>(i));
+        const double b_i = p(9 + 2 * static_cast<uword>(i));
+        b_eff += b_i;
+        bq += b_i * Q_i;
+    }
+    const double Q_eff = (b_eff > 0.0) ? bq / b_eff : 0.0;
+
+    // 14 head slots + criterion params + effective Voce (2) + 2*N_kin
+    vec out(16 + 2 * static_cast<uword>(N_kin) + static_cast<uword>(n_crit));
     out(0) = 1; out(1) = 0;
     out(2) = p(0); out(3) = p(1); out(4) = p(2); out(5) = p(3);
     out(6) = 1;
     out(7) = 0;
     out(8) = yield_map[crit_legacy];
-    out(9) = 4; out(10) = 3;                       // CombinedVoce, Chaboche
-    out(11) = N_iso; out(12) = N_kin;
+    out(9) = 3; out(10) = 3;                       // Voce (effective), Chaboche
+    out(11) = 1; out(12) = N_kin;
     out(13) = p(4);
     uword o = 14;
     for (int i = 0; i < n_crit; ++i) {
         out(o++) = p(legacy_crit_off + static_cast<uword>(i));
     }
-    for (int i = 0; i < 2 * N_iso; ++i) {
-        out(o++) = p(8 + static_cast<uword>(i));
-    }
+    out(o++) = Q_eff;
+    out(o++) = b_eff;
     for (int i = 0; i < 2 * N_kin; ++i) {
         out(o++) = p(8 + 2 * static_cast<uword>(N_iso) + static_cast<uword>(i));
     }
@@ -158,21 +173,6 @@ vec translate_EPHIN(const vec& p) {
     return out;
 }
 
-vec translate_ZENNK(const vec& p) {
-    // legacy: E0 nu0 alpha N | (E_i nu_i etaB_i etaS_i)xN — branch quadruples
-    // are 1:1 with the modular viscoelastic block.
-    const int N = static_cast<int>(p(3));
-    vec out(5 + 2 + 4 * static_cast<uword>(N));
-    out(0) = 0; out(1) = 0;
-    out(2) = p(0); out(3) = p(1); out(4) = p(2);
-    out(5) = 1;
-    out(6) = 1;                                              // viscoelasticity
-    out(7) = N;
-    for (int i = 0; i < 4 * N; ++i) {
-        out(8 + static_cast<uword>(i)) = p(4 + static_cast<uword>(i));
-    }
-    return out;
-}
 
 const std::map<std::string, LegacyPropsTranslator>& registry() {
     static const std::map<std::string, LegacyPropsTranslator> reg = {
@@ -187,7 +187,6 @@ const std::map<std::string, LegacyPropsTranslator>& registry() {
         {"EPDFA", translate_EPDFA},
         {"EPCHG", translate_EPCHG},
         {"EPHIN", translate_EPHIN},
-        {"ZENNK", translate_ZENNK},
     };
     return reg;
 }

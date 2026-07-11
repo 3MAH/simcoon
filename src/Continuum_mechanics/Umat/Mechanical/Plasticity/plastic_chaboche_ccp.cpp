@@ -30,7 +30,6 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;

@@ -58,20 +58,10 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Mechanical/Damage/damage_weibull.cpp
 
   # Continuum Mechanics - UMAT Mechanical Elasticity
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.cpp
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_orthotropic.cpp
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_transverse_isotropic.cpp
 
   # Continuum Mechanics - UMAT Mechanical Plasticity
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Ani_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/DFA_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Generic_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.cpp
 
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp

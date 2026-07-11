@@ -142,7 +142,8 @@ public:
     /**
      * @brief Add a viscoelastic mechanism (Prony series)
      * @param N_prony Number of Prony terms
-     * @param props Material properties (g_i, tau_i pairs for each term)
+     * @param props Material properties: per Prony branch a quadruple
+     *        (E_i, nu_i, etaB_i, etaS_i) — same layout as the legacy PRONK/ZENNK
      * @param offset Current offset in props (will be updated)
      * @return Reference to the added mechanism
      */
@@ -180,7 +181,7 @@ public:
      *   - For plasticity (type 0):
      *     - yield_type, iso_type, kin_type, N_iso, N_kin, sigma_Y, [yield params], [iso params], [kin params]
      *   - For viscoelasticity (type 1):
-     *     - N_prony, then N_prony pairs of (g_i, tau_i)
+     *     - N_prony, then N_prony quadruples of (E_i, nu_i, etaB_i, etaS_i)
      *   - For damage (type 2):
      *     - damage_type (0=linear, 1=exp, 2=power, 3=weibull), Y_0, Y_c, [type-specific params]
      *

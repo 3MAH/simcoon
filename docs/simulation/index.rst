@@ -6,6 +6,7 @@ Simulation
    :caption: Contents:
 
    solver.rst
+   umat_catalog.rst
    identification.rst
    output.rst
    fea_integration.rst

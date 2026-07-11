@@ -22,7 +22,7 @@
 ///       It is machine-exact for isotropic Hill (== J2); for ANISOTROPIC Hill the CCP
 ///       integrator differs from a closest-point projection, so exactness is deferred to
 ///       the CPP return-map rework (see the NOTE above the Jacobian test).
-///       Drives the real umat_plasticity_hill_isoh_CCP.
+///       Drives the EPHIL name through the modular adapter path.
 ///@version 1.0
 
 #include <gtest/gtest.h>
@@ -32,7 +32,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 
 using namespace std;
 using namespace arma;
@@ -57,7 +57,7 @@ Out run_ephil(const vec &DEtot, int tangent_mode) {
     double T = 293.15, DT = 0., Time = 0., DTime = 1.;
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., tnew_dt = 1.;
 
-    umat_plasticity_hill_isoh_CCP("EPHIL", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
+    umat_legacy_modular("EPHIL", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
                                   nstatev, statev, T, DT, Time, DTime,
                                   Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt, tangent_mode);
     return {sigma, Lt, statev(1) > simcoon::iota};

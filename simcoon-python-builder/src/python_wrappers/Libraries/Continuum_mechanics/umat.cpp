@@ -12,18 +12,8 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_transverse_isotropic.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_orthotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Ani_chaboche_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/DFA_chaboche_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Generic_chaboche_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_T.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.hpp>
@@ -37,6 +27,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 
 #include <simcoon/Simulation/Maths/rotation.hpp> //for rotate_strain
 
@@ -138,17 +129,17 @@ namespace simpy {
 
 		switch (id_umat) {
 			case 2: {
-				umat_function = &simcoon::umat_elasticity_iso;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 3: {
-				umat_function = &simcoon::umat_elasticity_trans_iso;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 4: {
-				umat_function = &simcoon::umat_elasticity_ortho;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
@@ -158,7 +149,7 @@ namespace simpy {
 				break;
 			}
 			case 6: {
-				umat_function = &simcoon::umat_plasticity_kin_iso_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
@@ -168,27 +159,27 @@ namespace simpy {
 				break;
 			}
 			case 8: {
-				umat_function = &simcoon::umat_plasticity_hill_isoh_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 9: {
-				umat_function = &simcoon::umat_hill_chaboche_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 10: {
-				umat_function = &simcoon::umat_ani_chaboche_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 11: {
-				umat_function = &simcoon::umat_dfa_chaboche_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
 			case 12: {
-				umat_function = &simcoon::umat_plasticity_hill_isoh_CCP_N;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
@@ -240,7 +231,7 @@ namespace simpy {
 				break;
 			}
 			case 27: {
-				umat_function = &simcoon::umat_generic_chaboche_CCP;
+				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
@@ -336,7 +327,7 @@ namespace simpy {
 						arguments_type = 0;
 					}
 					else {
-						umat_function = &simcoon::umat_plasticity_kin_iso_CCP;
+						umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 						arguments_type = 1;
 						//simcoon::umat_plasticity_kin_iso_CCP(etot, Detot, sigma, Lt, L, sigma_in, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, solver_type, tnew_dt);
 					}

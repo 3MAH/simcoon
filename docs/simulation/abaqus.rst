@@ -281,40 +281,56 @@ The following constitutive models are available through ``select_umat_M()``:
 
    * - Code
      - Model
-     - Properties
+     - Properties (in order)
      - State Variables
    * - ELISO
      - Isotropic elasticity
      - E, ν, α
-     - 1 (start flag)
+     - 1
    * - ELIST
      - Transversely isotropic elasticity
-     - E₁, E₂, ν₁₂, ν₂₃, G₁₂, α₁, α₂
+     - axis, EL, ET, νTL, νTT, GLT, αL, αT
      - 1
    * - ELORT
      - Orthotropic elasticity
      - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
      - 1
    * - EPICP
-     - Isotropic plasticity (isotropic hardening)
-     - E, ν, α, σ_y, H
-     - 8 (p, Hp, ...)
+     - Von Mises plasticity, power-law isotropic hardening
+     - E, ν, α, σ_Y, k, m
+     - 8 (T_init, p, EP)
    * - EPKCP
-     - Kinematic + isotropic hardening
-     - E, ν, α, σ_y, H, C, γ
-     - 14
+     - Von Mises, power-law isotropic + Prager kinematic
+     - E, ν, α, σ_Y, k, m, kX
+     - 14 (T_init, p, EP, a)
    * - EPCHA
-     - Chaboche cyclic plasticity
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, ...
-     - 14+
-   * - EPHIL
-     - Hill anisotropic plasticity (iso hardening)
-     - E, ν, α, σ_y, H, F, G, H, L, M, N
-     - 8
+     - Von Mises + Voce + 2× Armstrong-Frederick
+     - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
+     - 33
+   * - EPHIL / EPTRI
+     - Hill yield + power-law isotropic hardening
+     - E, ν, α, σ_Y, k, m, F, G, H, L, M, N
+     - 8 (T_init, p, EP)
    * - EPHAC
-     - Hill + Chaboche
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, F, G, H, L, M, N
-     - 14+
+     - Cubic elasticity + Hill + Voce + 2× AF
+     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N
+     - 33
+   * - EPANI
+     - Cubic elasticity + anisotropic yield + Voce + 2× AF
+     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, P₁₁..P₆₆ (9)
+     - 33
+   * - EPDFA
+     - Cubic elasticity + DFA yield + Voce + 2× AF
+     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N, K
+     - 33
+   * - EPCHG
+     - Generic Chaboche (selectable yield, N iso/kin terms)
+     - E, ν, G, α, σ_Y, N_iso, N_kin, criteria, (Q,b)×N, (C,D)×N, crit. params
+     - 33
+   * - EPHIN
+     - N Hill yield surfaces
+     - E, ν, α, N, per surface: σ_Y, k, m, F, G, H, L, M, N
+     - 1 + 7N
    * - SMAUT
      - SMA unified model
      - See SMA documentation
@@ -324,21 +340,29 @@ The following constitutive models are available through ``select_umat_M()``:
      - See SMA documentation
      - 24
    * - LLDM0
-     - Lemaitre-Chaboche damage
-     - E, ν, α, σ_y, H, S, s, D_c
+     - Lemaitre-Ladeveze-Dufailly damage
+     - See header documentation
      - 9
    * - ZENER
-     - Zener viscoelastic (single branch)
-     - E₀, E₁, η
-     - 7
+     - Kelvin viscoelastic (single branch)
+     - E₀, ν₀, α, E₁, ν₁, ηB₁, ηS₁
+     - 14
    * - ZENNK
-     - Zener viscoelastic (N branches)
-     - E₀, E₁, η₁, E₂, η₂, ...
-     - 1+6N
+     - Kelvin viscoelastic (N branches)
+     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - 7 + 7N
    * - PRONK
-     - Prony series viscoelastic
-     - G₀, K₀, g₁, τ₁, k₁, τ'₁, ...
-     - 1+12N
+     - Prony series viscoelastic (generalized Maxwell)
+     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - 7 + 7N
+   * - MODUL
+     - Composable modular UMAT
+     - self-describing stream (see :mod:`simcoon.modular`)
+     - model-dependent
+
+Several of these names are served by the modular engine through
+props-translating adapters — identical usage and results; see
+:doc:`umat_catalog` for per-name status and state-variable layout notes.
 
 .. list-table:: Micromechanics Models
    :header-rows: 1
