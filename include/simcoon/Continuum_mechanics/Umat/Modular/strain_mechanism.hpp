@@ -270,7 +270,7 @@ public:
         return 0.0;
     }
 
-    // ========== tangent_mode >= 1 hooks (algorithmic tangent / CPP) ==========
+    // ========== tangent_mode >= tangent_algorithmic hooks (algorithmic tangent / CPP) ==========
 
     /**
      * @brief Flow-direction Hessians \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/

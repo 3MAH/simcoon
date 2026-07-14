@@ -21,6 +21,7 @@
 ///@version 1.9
 
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <string>
 #include <assert.h>
@@ -53,6 +54,10 @@ using namespace arma;
 namespace simcoon{
 
 void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
+    if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
+        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
+                                    + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+    }
 
     //Check if the required directories exist:
     if(!filesystem::is_directory(path_data)) {

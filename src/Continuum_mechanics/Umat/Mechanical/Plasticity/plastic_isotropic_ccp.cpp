@@ -241,7 +241,6 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
             return dLambda_dsigma_l;
         });
     Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
     P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));

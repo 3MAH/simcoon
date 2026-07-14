@@ -346,8 +346,11 @@ private:
     /**
      * @brief Compute the tangent modulus.
      *
-     * tangent_mode == 0: each mechanism applies its continuum
-     * tangent_contribution() in composition order (legacy behaviour).
+     * tangent_none (0): no assembly — Lt stays the elastic operator
+     * (explicit integration).
+     *
+     * tangent_continuum (1): each mechanism applies its continuum
+     * tangent_contribution() in composition order (pre-2.0 mode 0).
      *
      * tangent_algorithmic (2): mechanisms exposing a flow Hessian
      * (dLambda_dsigma() != nullptr, stress-dependent Phi) are assembled
@@ -356,12 +359,14 @@ private:
      * local Jacobian \f$ \hat{B} = -B \f$ and the mechanism caches. The
      * remaining mechanisms (Prony viscoelasticity, scalar damage — flows
      * independent of stress) keep their continuum contribution, applied on
-     * top in composition order, exactly as in mode 0.
+     * top in composition order, exactly as in the continuum mode.
      *
      * @param sigma Current (converged) stress
      * @param Ds_total Total multiplier increments
      * @param Lt Output: tangent modulus
-     * @param tangent_mode 0 = continuum, 1 = algorithmic (Simo–Hughes)
+     * @param tangent_mode tangent_* constant (parameter.hpp): 0 = none
+     *        (Lt = elastic L), 1 = continuum, 2 = algorithmic (Simo–Hughes),
+     *        3 = closest-point (reserved, throws)
      */
     void compute_tangent(
         const arma::vec& sigma,

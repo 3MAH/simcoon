@@ -189,6 +189,11 @@ ContinuumTangent assemble_algorithmic_tangent(
  */
 using HessianProvider = std::function<std::vector<arma::mat>()>;
 
+// NOTE: only the iterative (plasticity/SMA/thermomechanical) kernels dispatch
+// on tangent_mode. The finite-strain hyperelastic, viscoelastic, damage and
+// elastic kernels always return their exact tangent and accept-but-ignore the
+// mode (documented in docs/simulation/umat_catalog.rst).
+
 /**
  * @brief Mode dispatch over the shared tangent assemblies — the single entry
  * point UMATs call after their return mapping, keeping only the physical

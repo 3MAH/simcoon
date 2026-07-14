@@ -38,6 +38,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -612,8 +613,15 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
+    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities
+    // feed the PHYSICAL heat source r and its linearization (drdE/drdT), not
+    // just the Newton operator. Explicit-integration callers get the continuum
+    // operator in the thermomechanical kernels (the mechanical-only kernels
+    // honor tangent_none).
+    const int tangent_mode_eff = (tangent_mode == tangent_none)
+        ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
             // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
@@ -622,13 +630,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
             // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
             // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
             auto lambdaTF_at = [&](const vec &s) -> vec {
-                double sstar = Mises_stress(s) - sigmacrit;
-                if (sstar < 0.) sstar = 0.;
-                double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-                if (aniso_criteria) {
-                    return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
-                }
-                return Hc * dDrucker_stress(s, prager_b, prager_n);
+                return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
+                                               aniso_criteria, DFA_params,
+                                               prager_b, prager_n);
             };
             const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
             mat dLambdaF = zeros(6, 6);

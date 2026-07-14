@@ -25,7 +25,6 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
-#include <simcoon/parameter.hpp>
 #include <stdexcept>
 
 namespace simcoon {

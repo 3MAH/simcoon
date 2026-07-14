@@ -276,6 +276,13 @@ void ModularUMAT::run(
         T_init_ = statev(0);
         if (start) {
             T_init_ = T;
+            // Legacy contract: the cumulative work accumulators are RESET on
+            // the start increment (every legacy kernel zeroes them in its
+            // if(start) block); stale caller-supplied values must not leak in.
+            Wm = 0.0;
+            Wm_r = 0.0;
+            Wm_ir = 0.0;
+            Wm_d = 0.0;
         }
     } else {
         // Unpack state variables
@@ -512,6 +519,11 @@ void ModularUMAT::compute_tangent(
         throw std::invalid_argument(
             "ModularUMAT::compute_tangent: tangent_closest_point (3) is "
             "reserved and not implemented in this release");
+    }
+    if (tangent_mode != tangent_continuum && tangent_mode != tangent_algorithmic) {
+        throw std::invalid_argument(
+            "ModularUMAT::compute_tangent: unknown tangent_mode "
+            + std::to_string(tangent_mode));
     }
 
     // Mechanisms opting into the algorithmic assembly: stress-dependent Phi

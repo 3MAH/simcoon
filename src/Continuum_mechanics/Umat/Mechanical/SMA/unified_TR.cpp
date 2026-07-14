@@ -38,6 +38,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -665,11 +666,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
             // DM term. ETMean, X, lambda1Reo held fixed -> transformation/back-strain state-coupling is
             // the deferred term (closest-point/CPP rework, future release).
             auto lambdaTF_at = [&](const vec &s) -> vec {
-                double sstar = Mises_stress(s) - sigmacrit;
-                if (sstar < 0.) sstar = 0.;
-                double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-                return aniso_criteria ? Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n)
-                                      : Hc * dDrucker_stress(s, prager_b, prager_n);
+                return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
+                                               aniso_criteria, DFA_params,
+                                               prager_b, prager_n);
             };
             auto lambdaReo_raw_at = [&](const vec &s) -> vec {
                 vec se = s - (1. + lambda1Reo) * X;

@@ -38,6 +38,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -645,13 +646,9 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             // The transformation-state coupling (dLambda/dETMean . dETMean/dsigma, dxi/dsigma) is the
             // deferred state-coupling term (closest-point/CPP rework, future release).
             auto lambdaTF_at = [&](const vec &s) -> vec {
-                double sstar = Mises_stress(s) - sigmacrit;
-                if (sstar < 0.) sstar = 0.;
-                double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-                if (aniso_criteria) {
-                    return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
-                }
-                return Hc * dDrucker_stress(s, prager_b, prager_n);
+                return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
+                                               aniso_criteria, DFA_params,
+                                               prager_b, prager_n);
             };
             const double hfd = 1.e-5 * (norm(stress, 2) + 1.);
             mat dLambdaF = zeros(6, 6);
@@ -666,7 +663,6 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             return dLambda_dsigma_l;
         });
     Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
     //Preliminaries for the computation of mechanical work
     double Dgamma_loc = 0.5*sum((stress_start+stress)%(DETF-DETR)) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
