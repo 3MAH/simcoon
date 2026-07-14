@@ -1396,7 +1396,7 @@ TEST(ModularUMATIntegration, PlasticityDamageCombined) {
     EXPECT_GT(sig_dmg, 0.0);
 }
 
-// ========== tangent_mode 1 (algorithmic tangent) ==========
+// ========== tangent_mode 2 (algorithmic tangent) ==========
 
 namespace {
 // Drive one plastic increment from a saved state on a FRESH ModularUMAT
@@ -1438,9 +1438,10 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
 }
 }  // namespace
 
-// The mode-1 (Simo-Hughes) tangent must match the finite-difference Jacobian
-// of the discrete stress update. Von Mises flow is radial, so CCP == CPP and
-// the algorithmic tangent is exact; the continuum (mode 0) tangent is not.
+// The algorithmic (Simo-Hughes, tangent_algorithmic) tangent must match the
+// finite-difference Jacobian of the discrete stress update. Von Mises flow is
+// radial, so CCP == CPP and the algorithmic tangent is exact; the continuum
+// tangent is not.
 TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
     // Increment 1 (from virgin state) to build a plastic state.
     ModularUMAT m0;
@@ -1470,8 +1471,8 @@ TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
     // Increment 2: plastic loading step used for the FD check.
     const vec DEtot2 = {0.002, -0.0006, -0.0006, 0.0008, 0.0, 0.0};
     mat Lt1, Lt0, Lt_dummy;
-    const vec sigma_base = run_one_increment_epvoce(statev1, Etot, DEtot2, 1, Lt1);
-    run_one_increment_epvoce(statev1, Etot, DEtot2, 0, Lt0);
+    const vec sigma_base = run_one_increment_epvoce(statev1, Etot, DEtot2, tangent_algorithmic, Lt1);
+    run_one_increment_epvoce(statev1, Etot, DEtot2, tangent_continuum, Lt0);
 
     // Finite-difference Jacobian of the update map DEtot -> sigma.
     const double h = 1.0e-8;
@@ -1479,7 +1480,7 @@ TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
     for (int i = 0; i < 6; ++i) {
         vec DEp = DEtot2;
         DEp(i) += h;
-        const vec sig_p = run_one_increment_epvoce(statev1, Etot, DEp, 0, Lt_dummy);
+        const vec sig_p = run_one_increment_epvoce(statev1, Etot, DEp, tangent_continuum, Lt_dummy);
         FD.col(i) = (sig_p - sigma_base) / h;
     }
 
@@ -1493,6 +1494,20 @@ TEST(ModularUMATTangent, AlgorithmicMatchesFiniteDifference) {
 // refresh_state (CPP contract): rebuilds p, EP and the AF back-strain from
 // the START values under a total Dp — the backward-Euler closed form, not an
 // incremental update. Verified against the implicit relation.
+
+// tangent_none: no assembly — Lt must remain the ELASTIC operator after a
+// plastic increment (explicit-integration contract of the 2.0 mode 0).
+TEST(ModularUMATTangent, NoneModeReturnsElasticOperator) {
+    vec Etot = zeros(6);
+    vec DEtot = {0.003, -0.0009, -0.0009, 0.0005, 0.0, 0.0};  // plastic step
+    mat Lt(6, 6);
+    vec statev0 = zeros(20);
+    run_one_increment_epvoce(statev0, Etot, DEtot, tangent_none, Lt);
+    const mat L_el = L_iso(210000.0, 0.3, "Enu");
+    EXPECT_LT(norm(Lt - L_el, "fro") / norm(L_el, "fro"), 1e-12)
+        << "tangent_none must leave Lt = elastic L";
+}
+
 TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     PlasticityMechanism pm(YieldType::VON_MISES, IsoHardType::LINEAR,
                            KinHardType::ARMSTRONG_FREDERICK);

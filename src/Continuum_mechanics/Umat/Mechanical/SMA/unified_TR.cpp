@@ -656,43 +656,42 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     }
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma, dPhiReodsigma };
-    ContinuumTangent ct;
-    if (tangent_mode == 1) {
-        // Simo-Hughes algorithmic tangent (closest-point), 3-mechanism. dLambda/dsigma by central
-        // FD of the transformation flows: forward Hcur(sigma)*dDrucker(sigma); reorientation
-        // xi_start*dDrucker(sigma_eff), sigma_eff = sigma-(1+lambda1Reo)*X; plus the analytic linear
-        // DM term. ETMean, X, lambda1Reo held fixed -> transformation/back-strain state-coupling is
-        // the deferred term (closest-point/CPP rework, future release).
-        auto lambdaTF_at = [&](const vec &s) -> vec {
-            double sstar = Mises_stress(s) - sigmacrit;
-            if (sstar < 0.) sstar = 0.;
-            double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-            return aniso_criteria ? Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n)
-                                  : Hc * dDrucker_stress(s, prager_b, prager_n);
-        };
-        auto lambdaReo_raw_at = [&](const vec &s) -> vec {
-            vec se = s - (1. + lambda1Reo) * X;
-            if (Mises_stress(se) > simcoon::iota) {
-                return aniso_criteria ? dDrucker_ani_stress(se, DFA_params, prager_b, prager_n)
-                                      : dDrucker_stress(se, prager_b, prager_n);
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic tangent (closest-point), 3-mechanism. dLambda/dsigma by central
+            // FD of the transformation flows: forward Hcur(sigma)*dDrucker(sigma); reorientation
+            // xi_start*dDrucker(sigma_eff), sigma_eff = sigma-(1+lambda1Reo)*X; plus the analytic linear
+            // DM term. ETMean, X, lambda1Reo held fixed -> transformation/back-strain state-coupling is
+            // the deferred term (closest-point/CPP rework, future release).
+            auto lambdaTF_at = [&](const vec &s) -> vec {
+                double sstar = Mises_stress(s) - sigmacrit;
+                if (sstar < 0.) sstar = 0.;
+                double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
+                return aniso_criteria ? Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n)
+                                      : Hc * dDrucker_stress(s, prager_b, prager_n);
+            };
+            auto lambdaReo_raw_at = [&](const vec &s) -> vec {
+                vec se = s - (1. + lambda1Reo) * X;
+                if (Mises_stress(se) > simcoon::iota) {
+                    return aniso_criteria ? dDrucker_ani_stress(se, DFA_params, prager_b, prager_n)
+                                          : dDrucker_stress(se, prager_b, prager_n);
+                }
+                return zeros(6);
+            };
+            const double hfd = 1.e-5 * (norm(stress, 2) + 1.);
+            mat dLambdaF = zeros(6, 6), dLambdaReo = zeros(6, 6);
+            for (int c = 0; c < 6; c++) {
+                vec sp = stress, sm = stress;
+                sp(c) += hfd;
+                sm(c) -= hfd;
+                dLambdaF.col(c)   = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
+                dLambdaReo.col(c) = xi_start * (lambdaReo_raw_at(sp) - lambdaReo_raw_at(sm)) / (2. * hfd);
             }
-            return zeros(6);
-        };
-        const double hfd = 1.e-5 * (norm(stress, 2) + 1.);
-        mat dLambdaF = zeros(6, 6), dLambdaReo = zeros(6, 6);
-        for (int c = 0; c < 6; c++) {
-            vec sp = stress, sm = stress;
-            sp(c) += hfd;
-            sm(c) -= hfd;
-            dLambdaF.col(c)   = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
-            dLambdaReo.col(c) = xi_start * (lambdaReo_raw_at(sp) - lambdaReo_raw_at(sm)) / (2. * hfd);
-        }
-        dLambdaF += DM;
-        const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM, dLambdaReo };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
-    } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
-    }
+            dLambdaF += DM;
+            const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM, dLambdaReo };
+            return dLambda_dsigma_l;
+        });
     Lt = ct.Lt;
 
     // ---- Energy partition (SMA: Wm_ir is always 0; everything is either recoverable or dissipated) ----

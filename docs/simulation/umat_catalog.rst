@@ -155,6 +155,17 @@ order; trailing legacy slots are left untouched. Code that read specific
 legacy statev columns (e.g. the stored X_i of EPHAC) must be updated to the
 modular layout.
 
+Tangent-operator mode
+=====================
+
+All models receive the solver's ``tangent_mode`` (named constants in
+``parameter.hpp`` / ``sim.tangent_*``): 0 = none (Lt = elastic L, explicit
+integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
+3 = closest-point (reserved). Pre-2.0 numbering was 0 = continuum,
+1 = algorithmic — see :doc:`solver` for the migration note. The
+finite-strain hyperelastic models ignore the mode (their tangent is always
+the exact one of the hyperelastic law).
+
 Validation and performance
 ==========================
 

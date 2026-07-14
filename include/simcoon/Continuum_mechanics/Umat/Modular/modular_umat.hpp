@@ -49,6 +49,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
 
@@ -302,7 +303,7 @@ public:
         int nshr,
         bool start,
         double& tnew_dt,
-        int tangent_mode = 0
+        int tangent_mode = tangent_default
     );
 
 private:
@@ -348,7 +349,7 @@ private:
      * tangent_mode == 0: each mechanism applies its continuum
      * tangent_contribution() in composition order (legacy behaviour).
      *
-     * tangent_mode == 1: mechanisms exposing a flow Hessian
+     * tangent_algorithmic (2): mechanisms exposing a flow Hessian
      * (dLambda_dsigma() != nullptr, stress-dependent Phi) are assembled
      * together through assemble_algorithmic_tangent() — the Simo–Hughes
      * consistent operator of the coupled sub-system, built from the converged
@@ -366,7 +367,7 @@ private:
         const arma::vec& sigma,
         const arma::vec& Ds_total,
         arma::mat& Lt,
-        int tangent_mode = 0
+        int tangent_mode = tangent_default
     );
 
     /**
@@ -418,7 +419,7 @@ void umat_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode = 0
+    const int& tangent_mode = tangent_default
 );
 
 } // namespace simcoon

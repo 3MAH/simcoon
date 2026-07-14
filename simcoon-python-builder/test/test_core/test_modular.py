@@ -225,10 +225,11 @@ def test_damage_softens_end_to_end(work_in_examples):
 
 
 def test_tangent_mode_1_same_converged_response(work_in_examples):
-    """tangent_mode=1 (Simo-Hughes algorithmic) must reproduce the mode-0
-    converged response — the tangent steers the global Newton, not the
-    residual. Guards the mode-1 assembly (Bhat = -B sign convention and the
-    coupled sub-block extraction) at solver level."""
+    """The algorithmic tangent (mode 2, the default) must reproduce the
+    continuum-mode (1) converged response — the tangent steers the global
+    Newton, not the residual. Guards the algorithmic assembly (Bhat = -B sign
+    convention and the coupled sub-block extraction) at solver level.
+    2.0 renumbering: 0 = none/explicit, 1 = continuum, 2 = algorithmic."""
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
         mechanisms=[Plasticity(
@@ -239,7 +240,7 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
     )
 
     outs = {}
-    for mode in (0, 1):
+    for mode in (1, 2):
         out = f"res_tg{mode}.txt"
         sim.solver(mat.umat_name, mat.props, mat.nstatev,
                    0.0, 0.0, 0.0, 0, 1,
@@ -248,13 +249,13 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
         outs[mode] = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                                 / out.replace(".txt", "_global-0.txt"))
 
-    assert outs[0].shape == outs[1].shape
-    peak = np.max(np.abs(outs[0][:, 14]))
-    diff = np.max(np.abs(outs[0][:, 14] - outs[1][:, 14]))
+    assert outs[1].shape == outs[2].shape
+    peak = np.max(np.abs(outs[1][:, 14]))
+    diff = np.max(np.abs(outs[1][:, 14] - outs[2][:, 14]))
     assert peak > 100.0
     assert diff / peak < 1e-5, (
-        f"mode-1 response deviates from mode-0 by {diff/peak:.2e} "
-        "(algorithmic tangent must not change the converged solution)"
+        f"algorithmic-mode response deviates from continuum mode by {diff/peak:.2e} "
+        "(the tangent must not change the converged solution)"
     )
 
 

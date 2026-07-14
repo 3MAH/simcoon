@@ -274,7 +274,7 @@ public:
 
     /**
      * @brief Flow-direction Hessians \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
-     * \mathrm{d}\boldsymbol{\sigma} \f$ per constraint, for tangent_mode >= 1.
+     * \mathrm{d}\boldsymbol{\sigma} \f$ per constraint, for tangent_mode >= tangent_algorithmic.
      *
      * Compliance-typed tensor4 (a stress → strain map, so the engineering↔Mandel
      * congruence carries the correct shear factors by construction — the Hessian
@@ -293,7 +293,7 @@ public:
 
     /**
      * @brief Backward-Euler state refresh from the IVC start values, for the
-     * closest-point (tangent_mode == 2) integrator.
+     * closest-point (tangent_mode == tangent_closest_point) integrator.
      *
      * Contract (matches ReturnStateHooks::update_state of return_mapping.hpp):
      * rebuild the mechanism's internal variables as

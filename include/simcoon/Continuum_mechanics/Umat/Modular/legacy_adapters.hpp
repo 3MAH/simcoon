@@ -36,6 +36,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon {
 
@@ -78,7 +79,7 @@ void umat_legacy_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode = 0
+    const int& tangent_mode = tangent_default
 );
 
 } // namespace simcoon

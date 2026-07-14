@@ -25,6 +25,8 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/parameter.hpp>
+#include <stdexcept>
 
 namespace simcoon {
 
@@ -171,6 +173,68 @@ ContinuumTangent assemble_algorithmic_tangent(
     const arma::vec kappa_t  = Minv * kappa;
     const double    Bhat_t   = Bhat_scalar + arma::dot(dPhidsigma, (Minv - arma::eye(6, 6)) * kappa);
     return assemble_continuum_tangent(Bhat_t, kappa_t, dPhidsigma, Ds, L_tilde);
+}
+
+
+
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    const arma::mat& Bhat,
+    const std::vector<arma::vec>& kappa_j,
+    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::vec& Ds_j,
+    const arma::mat& L,
+    const HessianProvider& dLambda_dsigma) {
+
+    if (tangent_mode == simcoon::tangent_none) {
+        // Explicit integration: elastic operator, zeroed sensitivities so the
+        // thermomechanical P_theta algebra degrades consistently.
+        ContinuumTangent ct;
+        ct.Lt = L;
+        ct.P_epsilon.assign(kappa_j.size(), arma::zeros(6));
+        ct.invBhat = arma::zeros(Bhat.n_rows, Bhat.n_cols);
+        return ct;
+    }
+    if (tangent_mode == simcoon::tangent_continuum) {
+        return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
+    if (tangent_mode == simcoon::tangent_algorithmic) {
+        if (!dLambda_dsigma) {
+            // Flow independent of stress: the algorithmic operator IS the
+            // continuum one.
+            return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+        }
+        return assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+                                            dLambda_dsigma());
+    }
+    if (tangent_mode == simcoon::tangent_closest_point) {
+        throw std::invalid_argument(
+            "compute_tangent_operator: tangent_closest_point (3) is reserved "
+            "and not implemented in this release");
+    }
+    throw std::invalid_argument("compute_tangent_operator: unknown tangent_mode "
+                                + std::to_string(tangent_mode));
+}
+
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    double Bhat_scalar,
+    const arma::vec& kappa,
+    const arma::vec& dPhidsigma,
+    double Ds,
+    const arma::mat& L,
+    const std::function<arma::mat()>& dLambda_dsigma) {
+
+    HessianProvider provider = nullptr;
+    if (dLambda_dsigma) {
+        provider = [&dLambda_dsigma]() {
+            return std::vector<arma::mat>{dLambda_dsigma()};
+        };
+    }
+    arma::mat Bhat(1, 1);
+    Bhat(0, 0) = Bhat_scalar;
+    return compute_tangent_operator(tangent_mode, Bhat, {kappa}, {dPhidsigma},
+                                    arma::vec{Ds}, L, provider);
 }
 
 } // namespace simcoon

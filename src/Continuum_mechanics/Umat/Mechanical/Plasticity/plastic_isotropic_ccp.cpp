@@ -230,17 +230,16 @@ void umat_plasticity_iso_CCP(const string &umat_name, const vec &Etot, const vec
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    ContinuumTangent ct;
-    if (tangent_mode == 1) {
-        // Simo-Hughes algorithmic (consistent) tangent. J2 associated flow
-        // Lambda_eps = eta_stress(sigma), so dLambda_eps/dsigma = d2Phi/dsigma2 = deta_stress(sigma).
-        // Isotropic hardening: the direction has no internal-variable coupling, so this single
-        // dLambda/dsigma term is the complete consistent correction (Q-quadratic).
-        const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
-    } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
-    }
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic (consistent) tangent. J2 associated flow
+            // Lambda_eps = eta_stress(sigma), so dLambda_eps/dsigma = d2Phi/dsigma2 = deta_stress(sigma).
+            // Isotropic hardening: the direction has no internal-variable coupling, so this single
+            // dLambda/dsigma term is the complete consistent correction (Q-quadratic).
+            const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress) };
+            return dLambda_dsigma_l;
+        });
     Lt = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 

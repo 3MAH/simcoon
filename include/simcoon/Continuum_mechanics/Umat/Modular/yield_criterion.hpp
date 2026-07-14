@@ -182,7 +182,7 @@ public:
 
     /**
      * @brief Whether an analytic flow Hessian is available for this criterion
-     * (required by tangent_mode >= 1; Tresca and Drucker J2-J3 have none).
+     * (required by tangent_mode >= tangent_algorithmic; Tresca and Drucker J2-J3 have none).
      */
     [[nodiscard]] bool has_flow_hessian() const noexcept;
 

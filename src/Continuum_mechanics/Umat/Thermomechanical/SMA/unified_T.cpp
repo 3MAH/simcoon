@@ -612,37 +612,36 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
-    ContinuumTangent ct;
-    if (tangent_mode == 1) {
-        // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
-        // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
-        // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
-        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-        // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
-        // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
-        auto lambdaTF_at = [&](const vec &s) -> vec {
-            double sstar = Mises_stress(s) - sigmacrit;
-            if (sstar < 0.) sstar = 0.;
-            double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-            if (aniso_criteria) {
-                return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
+            // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
+            // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
+            // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+            // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
+            auto lambdaTF_at = [&](const vec &s) -> vec {
+                double sstar = Mises_stress(s) - sigmacrit;
+                if (sstar < 0.) sstar = 0.;
+                double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
+                if (aniso_criteria) {
+                    return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
+                }
+                return Hc * dDrucker_stress(s, prager_b, prager_n);
+            };
+            const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
+            mat dLambdaF = zeros(6, 6);
+            for (int c = 0; c < 6; c++) {
+                vec sp = sigma, sm = sigma;
+                sp(c) += hfd;
+                sm(c) -= hfd;
+                dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
             }
-            return Hc * dDrucker_stress(s, prager_b, prager_n);
-        };
-        const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
-        mat dLambdaF = zeros(6, 6);
-        for (int c = 0; c < 6; c++) {
-            vec sp = sigma, sm = sigma;
-            sp(c) += hfd;
-            sm(c) -= hfd;
-            dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
-        }
-        dLambdaF += DM;
-        const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
-    } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
-    }
+            dLambdaF += DM;
+            const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
+            return dLambda_dsigma_l;
+        });
     dSdE = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
     const mat& invBhat = ct.invBhat;

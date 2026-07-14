@@ -326,30 +326,27 @@ void ModularUMAT::run(
     Lt = L;  // Start with elastic stiffness
     compute_tangent(sigma, Ds_total, Lt, tangent_mode);
 
-    // Compute work quantities
-    // Elastic strain
-    arma::vec E_inel = arma::zeros(6);
-    for (const auto& mech : mechanisms_) {
-        E_inel += mech->inelastic_strain();
-    }
-    arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init_) - E_inel;
+    // Work quantities — CUMULATIVE in/out, the legacy UMAT contract
+    // (Wm += increment each call; the solver reports the path integral).
+    // Total mechanical work increment: trapezoidal sigma:dE on the total
+    // strain increment, exactly as the legacy kernels.
+    const double Wm_inc = 0.5 * arma::dot(sigma_start_ + sigma, DEtot);
 
-    // Elastic work (recoverable)
-    double Wm_r_new = 0.5 * arma::dot(sigma, Eel);
-    Wm_r = Wm_r_new - 0.5 * arma::dot(sigma_start_, Eel);
-
-    // Dissipated and stored work from mechanisms
-    Wm_ir = 0.0;
-    Wm_d = 0.0;
+    // Stored/dissipated increments from the mechanisms; the recoverable part
+    // closes the energy balance (guarantees Wm = Wm_r + Wm_ir + Wm_d and
+    // reduces to the legacy elastic trapezoid when no mechanism is present).
+    double Wm_ir_inc = 0.0, Wm_d_inc = 0.0;
     for (const auto& mech : mechanisms_) {
         double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
         mech->compute_work(sigma_start_, sigma, Wm_r_m, Wm_ir_m, Wm_d_m);
-        Wm_ir += Wm_ir_m;
-        Wm_d += Wm_d_m;
+        Wm_ir_inc += Wm_ir_m;
+        Wm_d_inc += Wm_d_m;
     }
 
-    // Total mechanical work
-    Wm = Wm_r + Wm_ir + Wm_d;
+    Wm += Wm_inc;
+    Wm_ir += Wm_ir_inc;
+    Wm_d += Wm_d_inc;
+    Wm_r += Wm_inc - Wm_ir_inc - Wm_d_inc;
 
     // Pack state variables
     statev(0) = T_init_;
@@ -507,11 +504,21 @@ void ModularUMAT::compute_tangent(
     const arma::mat& L = elasticity_.L();
     Lt = L;
 
+    if (tangent_mode == tangent_none) {
+        // Explicit integration: elastic operator, no assembly.
+        return;
+    }
+    if (tangent_mode == tangent_closest_point) {
+        throw std::invalid_argument(
+            "ModularUMAT::compute_tangent: tangent_closest_point (3) is "
+            "reserved and not implemented in this release");
+    }
+
     // Mechanisms opting into the algorithmic assembly: stress-dependent Phi
     // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
     // criteria) keep their continuum tangent_contribution in every mode.
     std::vector<size_t> algo;
-    if (tangent_mode == 1) {
+    if (tangent_mode == tangent_algorithmic) {
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             if (mechanisms_[m]->dLambda_dsigma(sigma) != nullptr &&
                 !mechanisms_[m]->dPhi_dsigma(sigma).empty()) {

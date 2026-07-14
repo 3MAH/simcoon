@@ -286,7 +286,7 @@ public:
 
     /**
      * @brief Backward-Euler refresh of the back-strains FROM THE START VALUES
-     * (closest-point / tangent_mode == 2 contract).
+     * (closest-point / tangent_mode == tangent_closest_point contract).
      *
      * Unlike update() (incremental, frozen flow), this solves the implicit
      * update \f$ \boldsymbol{\alpha} = \boldsymbol{\alpha}_n + \Delta p\,
