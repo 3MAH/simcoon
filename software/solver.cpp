@@ -76,7 +76,14 @@ int main() {
         cerr << "Configuration error: " << e.what() << endl;
         return 1;
     }
-    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
-    
+    try {
+        solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
+    } catch (const exception& e) {
+        //solver errors are exceptions since the in-memory refactor: report and exit
+        //cleanly instead of std::terminate
+        cerr << "Solver error: " << e.what() << endl;
+        return 1;
+    }
+
 	return 0;
 }

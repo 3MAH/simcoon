@@ -111,7 +111,7 @@ path_results = "results"
 pathfile = "ELISO_path.txt"
 outputfile = "results_ELISO.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

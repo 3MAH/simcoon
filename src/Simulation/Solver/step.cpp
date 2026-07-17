@@ -26,6 +26,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -109,8 +110,9 @@ step::step(const step& st)
     
     times = st.times;
     BC_Time = st.BC_Time;
-    
+
     file = st.file;
+    tab_data = st.tab_data;
 }
 
 /*!
@@ -135,6 +137,52 @@ void step::generate()
         assert(ninc*Dn_inc==1.);
     }
     times = zeros(ninc);
+}
+
+//-------------------------------------------------------------
+int step::mode3_ninc() const
+//-------------------------------------------------------------
+{
+    if (tab_data.n_rows > 0) {
+        return static_cast<int>(tab_data.n_rows);
+    }
+    int n = 0;
+    string buffer;
+    ifstream pathinc(file, ios::in);
+    if(!pathinc)
+    {
+        cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and if you have added the extension\n";
+    }
+    while (!pathinc.eof())
+    {
+        getline (pathinc,buffer);
+        if (buffer != "") {
+            n++;
+        }
+    }
+    return n;
+}
+
+//-------------------------------------------------------------
+mat step::mode3_rows(const unsigned int &size_BC) const
+//-------------------------------------------------------------
+{
+    if (tab_data.n_rows > 0) {
+        if (tab_data.n_cols != size_BC) {
+            throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): tab_data has " + std::to_string(tab_data.n_cols) + " columns but the control flags require " + std::to_string(size_BC));
+        }
+        return tab_data;
+    }
+    mat rows = zeros(ninc, size_BC);
+    string buffer;
+    ifstream pathinc(file, ios::in);
+    for (int i = 0; i < ninc; i++) {
+        pathinc >> buffer;
+        for (unsigned int j = 0; j < size_BC; j++) {
+            pathinc >> rows(i,j);
+        }
+    }
+    return rows;
 }
 
 //----------------------------------------------------------------------
@@ -194,9 +242,10 @@ step& step::operator = (const step& st)
     
     times = st.times;
     BC_Time = st.BC_Time;
-    
+
     file = st.file;
-    
+    tab_data = st.tab_data;
+
 	return *this;
 }
 

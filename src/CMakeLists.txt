@@ -136,6 +136,7 @@ target_sources(simcoon PRIVATE
   Simulation/Solver/output.cpp
   Simulation/Solver/read.cpp
   Simulation/Solver/solver.cpp
+  Simulation/Solver/solver_sink.cpp
   Simulation/Solver/step.cpp
   Simulation/Solver/step_meca.cpp
   Simulation/Solver/step_thermomeca.cpp

@@ -74,7 +74,7 @@ path_results = "results"
 pathfile = "ELIST_path.txt"
 outputfile = "results_ELIST.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

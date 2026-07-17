@@ -50,6 +50,7 @@ pybind11_add_module(_core
   # Solver
   src/python_wrappers/Libraries/Solver/read.cpp
   src/python_wrappers/Libraries/Solver/solver.cpp
+  src/python_wrappers/Libraries/Solver/solver_run.cpp
 )
 
 # Set RPATH based on build mode

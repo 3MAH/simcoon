@@ -63,7 +63,7 @@ path_results = "results"
 pathfile = "THERM_ZENER_path.txt"
 outputfile = "results_THERM_ZENER.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,
@@ -154,7 +154,7 @@ outputfile_globals = {}
 for inc in increments:
     pathfile = f"THERM_ZENER_path_{inc}.txt"
     outputfile = f"results_THERM_ZENER_{inc}.txt"
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

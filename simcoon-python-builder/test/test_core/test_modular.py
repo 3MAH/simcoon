@@ -1,6 +1,6 @@
 """Regression tests for the modular UMAT Python API.
 
-These tests exercise the end-to-end `ModularMaterial → sim.solver("MODUL", ...)`
+These tests exercise the end-to-end `ModularMaterial → sim._core.solver("MODUL", ...)`
 path for the cases that would silently break if the modular C++ orchestrator
 or Python props-serialization regressed.
 """
@@ -46,7 +46,7 @@ def work_in_examples(tmp_path, monkeypatch):
 def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndarray:
     """Run the MODUL solver through the standard path file; return the
     (n_steps, 2) array of (eps_11, sigma_11)."""
-    sim.solver(
+    sim._core.solver(
         mat.umat_name, mat.props, mat.nstatev,
         0.0, 0.0, 0.0,        # psi_rve, theta_rve, phi_rve
         0, 1,                 # solver_type, corate_type
@@ -172,7 +172,7 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
 
     pronk_props = np.array([E0, nu0, 0.0, len(terms)]
                            + [x for t in terms for x in t])
-    sim.solver("PRONK", pronk_props, 7 + 7 * len(terms),
+    sim._core.solver("PRONK", pronk_props, 7 + 7 * len(terms),
                0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "PRONK_path.txt", "res_pronk.txt")
     ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
@@ -182,7 +182,7 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
         elasticity=IsotropicElasticity(C1=E0, C2=nu0),
         mechanisms=[Viscoelasticity(terms=terms)],
     )
-    sim.solver(mat.umat_name, mat.props, mat.nstatev,
+    sim._core.solver(mat.umat_name, mat.props, mat.nstatev,
                0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "PRONK_path.txt", "res_veq.txt")
     hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
@@ -242,7 +242,7 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
     outs = {}
     for mode in (1, 2):
         out = f"res_tg{mode}.txt"
-        sim.solver(mat.umat_name, mat.props, mat.nstatev,
+        sim._core.solver(mat.umat_name, mat.props, mat.nstatev,
                    0.0, 0.0, 0.0, 0, 1,
                    "../data", work_in_examples, "MODUL_path.txt", out,
                    mode)
@@ -272,7 +272,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
     epcha_props = np.array([210000.0, 0.3, 0.0,
                             300.0, 200.0, 20.0,
                             30000.0, 172.0, 19500.0, 301.0])
-    sim.solver("EPCHA", epcha_props, 33, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver("EPCHA", epcha_props, 33, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "MODUL_path.txt", "res_epcha.txt")
     ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                      / "res_epcha_global-0.txt", usecols=(8, 14))
@@ -286,7 +286,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
                 terms=((30000.0, 172.0), (19500.0, 301.0))),
         )],
     )
-    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "MODUL_path.txt", "res_mchab.txt")
     hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                       / "res_mchab_global-0.txt", usecols=(8, 14))
@@ -316,7 +316,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
 
     ephil_props = np.array([210000., 0.3, 0., 300., 5000., 1.0,
                             0.5, 0.4, 0.6, 1.5, 1.5, 1.5])
-    sim.solver("EPHIL", ephil_props, 33, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver("EPHIL", ephil_props, 33, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "MODUL_path.txt", "res_ephil.txt")
     ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                      / "res_ephil_global-0.txt", usecols=(8, 14))
@@ -329,7 +329,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
             isotropic_hardening=PowerLawHardening(k=5000., m=1.0),
         )],
     )
-    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "MODUL_path.txt", "res_mhill.txt")
     hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                       / "res_mhill_global-0.txt", usecols=(8, 14))
@@ -356,7 +356,7 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
     from simcoon.modular import ChabocheHardening
     # SHEAR_path.txt drives E12 with all other components stress-free.
     ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
-    sim.solver("EPCHA", ep, 33, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver("EPCHA", ep, 33, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "SHEAR_path.txt", "sh_epcha.txt")
     ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                      / "sh_epcha_global-0.txt", usecols=(11, 17))  # eps12, sig12
@@ -369,7 +369,7 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
                 terms=((30000., 300.), (19500., 172.))),
         )],
     )
-    sim.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
+    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
                "../data", work_in_examples, "SHEAR_path.txt", "sh_modul.txt")
     hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                       / "sh_modul_global-0.txt", usecols=(11, 17))
@@ -397,7 +397,7 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
             elasticity=IsotropicElasticity(C1=210000., C2=0.3),
             mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
         )
-        sim.solver(m.umat_name, m.props, m.nstatev, 0.0, 0.0, 0.0, 0, 1,
+        sim._core.solver(m.umat_name, m.props, m.nstatev, 0.0, 0.0, 0.0, 0, 1,
                    "../data", work_in_examples, "SHEAR_path.txt", out)
         return np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
                           / out.replace(".txt", "_global-0.txt"), usecols=(11, 17))
@@ -419,7 +419,7 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
 # ============================================================================
 
 def _run_named(name, props, nstatev, results_dir, path_file, out, cols=(8, 14)):
-    sim.solver(name, np.asarray(props, dtype=float), nstatev,
+    sim._core.solver(name, np.asarray(props, dtype=float), nstatev,
                0.0, 0.0, 0.0, 0, 1,
                "../data", results_dir, path_file, out)
     return np.loadtxt(Path(EXAMPLES_DIR) / results_dir

@@ -236,6 +236,12 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
                 exit(0);
         }
     }
+    // Thermomechanical route is small strain (F = I, J = 1): the UMATs return Cauchy sigma;
+    // mirror the mechanical stress-route convention (see select_umat_M/_finite) so the
+    // Kirchhoff-route consumers (output tau/J, set_start, sinks) stay correct: tau = J sigma = sigma,
+    // PKII = sigma. Without this the thermomechanical outputs read an empty tau (zero stress).
+    umat_T->tau = umat_T->sigma;
+    umat_T->PKII = umat_T->sigma;
     rve.local2global();
     
 }

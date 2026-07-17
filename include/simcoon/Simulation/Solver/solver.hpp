@@ -46,7 +46,7 @@ namespace simcoon{
  * @param psi_rve First Euler angle of RVE orientation (rad)
  * @param theta_rve Second Euler angle of RVE orientation (rad)
  * @param phi_rve Third Euler angle of RVE orientation (rad)
- * @param solver_type Type of solver (0: small strain, 1: finite strain)
+ * @param solver_type Global resolution scheme (0: classic Newton-Raphson, 1: RNL — control_type 1 only)
  * @param corate_type Type of corotational formulation
  * @param div Divisor for time stepping (default: 0.5)
  * @param mul Multiplier for time stepping (default: 2.0)
@@ -59,6 +59,7 @@ namespace simcoon{
  * @param path_results Path to results directory (default: "results")
  * @param pathfile Name of loading path file (default: "path.txt")
  * @param outputfile Name of output file (default: "result_job.txt")
+ * @param tangent_mode Tangent operator mode (tangent_* constants of parameter.hpp; default: tangent_default)
  * 
  * @details This function drives the simulation by:
  * - Reading the loading path from input files

@@ -15,7 +15,7 @@
  
  */
 
-///@file constitutive.hpp
+///@file solver.cpp
 ///@brief solver: solve the mechanical thermomechanical equilibrium			//
 //	for a homogeneous loading path, allowing repeatable steps
 ///@version 1.9
@@ -47,75 +47,68 @@
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
+#include <simcoon/Simulation/Solver/solver_sink.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
 
-void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
-    if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
+int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink) {
+
+    if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_algorithmic) {
         throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
-                                    + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+                                    + std::to_string(ctrl.tangent_mode) + " (3 = closest-point is reserved)");
+    }
+    // tabular (mode 3) steps carry an ABSOLUTE time column: repeating them (ncycle > 1)
+    // is ill-defined (and generate() consumes the '2' hold flags on the first pass)
+    for (const auto &bl : blocks) {
+        if (bl.ncycle > 1) {
+            for (const auto &sptr : bl.steps) {
+                if (sptr->mode == 3) {
+                    throw simcoon::exception_solver("block " + std::to_string(bl.number) + ": tabular (mode 3) steps cannot be cycled (ncycle > 1); unroll the cycles into explicit steps");
+                }
+            }
+        }
     }
 
-    //Check if the required directories exist:
-    if(!filesystem::is_directory(path_data)) {
-        cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
-        return;
-    }
-    if(!filesystem::is_directory(path_results)) {
-        cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        filesystem::create_directory(path_results);
-    }
-    
-    std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
-    std::string filename = outputfile.substr(0,outputfile.length()-4); //to remove the extension
-    
-    std::string outputfile_global = filename + "_global" + ext_filename;
-    std::string outputfile_local = filename + "_local" + ext_filename;
-    
-    std::string output_info_file = "output.dat";
-    
+    // aliases keep the extracted historical solver() body below textually identical
+    const double &div_tnew_dt_solver = ctrl.div_tnew_dt;
+    const double &mul_tnew_dt_solver = ctrl.mul_tnew_dt;
+    const int &miniter_solver = ctrl.miniter;
+    const int &maxiter_solver = ctrl.maxiter;
+    const int &inforce_solver = ctrl.inforce;
+    const double &precision_solver = ctrl.precision;
+    const double &lambda_solver = ctrl.lambda;
+    const int &tangent_mode = ctrl.tangent_mode;
+
 	///Usefull UMAT variables
 	int ndi = 3;
-	int nshr = 3;    
-    std::vector<block> blocks;  //loading blocks
+	int nshr = 3;
     phase_characteristics rve;  // Representative volume element
-    
+
     unsigned int size_meca = 0; //6 for small perturbation, 9 for finite deformation
 	bool start = true;
 	double Time = 0.;
 	double DTime = 0.;
-    double T_init = 0.;
     double tnew_dt = 1.;
-    
+
     mat C = zeros(6,6); //Stiffness dS/dE
     mat c = zeros(6,6); //stifness dtau/deps
     mat DR = eye(3,3);
     mat R = eye(3,3);
-    
+
 //    mat dSdE = zeros(6,6);
 //    mat dSdT = zeros(1,6);
     mat dQdE = zeros(6,1);
     mat dQdT = zeros(1,1);
-    
-    //read the material properties
-    //Read the loading path
-    read_path(blocks, T_init, path_data, pathfile);
-    
-    ///Material properties reading, use "material.dat" to specify parameters values
+
+    ///Material properties
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
-    
+
     //Output
     int o_ncount = 0;
     double o_tcount = 0.;
-    
-    solver_output so(blocks.size());
-    read_output(so, blocks.size(), nstatev, path_data, output_info_file);
-    
-    //Check output and step files
-    check_path_output(blocks, so);
 
     double error = 0.;
     vec residual;
@@ -195,16 +188,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
-                    return;
+                    return 1;
                 }
-                
+
                 if(start) {
-                    //Use the number of phases saved to define the files
-                    rve.define_output(path_results, outputfile_global, "global");
-                    rve.define_output(path_results, outputfile_local, "local");
-                    //Write the initial results
-//                    rve.output(so, -1, -1, -1, -1, Time, "global");
-//                    rve.output(so, -1, -1, -1, -1, Time, "local");
+                    sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
                 rve.set_start(corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
@@ -235,8 +223,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
                         }
                         else {
-                            cout << "error in Simulation/Solver/solver.cpp: control_type should be a int value in a range of 1 to 5" << endl;
-                            exit(0);
+                            throw simcoon::exception_solver("error in Simulation/Solver/solver.cpp: control_type should be a int value in a range of 1 to 6");
                         }
                     
                         nK = sum(sptr_meca->cBC_meca);
@@ -412,8 +399,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                     }                                    
                                     else {
-                                        cout << "error , Those control types are inteded for use in strain-controlled loading only" << endl;
-                                        exit(0);
+                                        throw simcoon::exception_solver("error, control types 5 and 6 are intended for use in strain-controlled loading only");
                                     }
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
 
@@ -649,14 +635,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
-                                        else return;
-                                        
+                                        else return 1;
+
                                     }
                                     else {
                                         tnew_dt = div_tnew_dt_solver;
                                     }
                                 }
-                                
+
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
@@ -701,9 +687,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             //Write the results
                             if (((so.o_type(i) == 1)&&(o_ncount == so.o_nfreq(i)))||(((so.o_type(i) == 2)&&(fabs(o_tcount - so.o_tfreq(i)) < 1.E-12)))) {
 
-                                rve.output(so, i, n, j, inc, Time, "global");
-                                rve.output(so, i, n, j, inc, Time, "local");
-                                
+                                sink.record(rve, so, i, n, j, inc, Time);
+
                                 if (so.o_type(i) == 1) {
                                     o_ncount = 0;
                                 }
@@ -711,13 +696,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     o_tcount = 0.;
                                 }
                             }
-                            
+
                             tinc = 0.;
                             inc++;
                          }
-                                                
+
                     }
-                        
+
                 }
                 break;
             }
@@ -779,16 +764,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
-                    return;
+                    return 1;
                 }
-                
+
                 if(start) {
-                    //Use the number of phases saved to define the files
-                    rve.define_output(path_results, outputfile_global, "global");
-                    rve.define_output(path_results, outputfile_local, "local");
-                    //Write the initial results
-//                    rve.output(so, -1, -1, -1, -1, Time, "global");
-//                    rve.output(so, -1, -1, -1, -1, Time, "local");
+                    sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
                 rve.set_start(corate_type); //DEtot = 0 and DT = 0 so we can use it safely here
@@ -869,9 +849,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     else {
                                         cout << "error : The Thermal BC is not recognized\n";
-                                        return;
+                                        return 1;
                                     }
-                                    
+
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
                                         if(solver_type != 1){
@@ -959,7 +939,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                         else {
                                             cout << "error : The Thermal BC is not recognized\n";
-                                            return;
+                                            return 1;
                                         }
                                         
                                         compteur++;
@@ -1010,19 +990,19 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
-                                        else return;
-                                        
+                                        else return 1;
+
                                     }
                                     else {
                                         tnew_dt = div_tnew_dt_solver;
                                     }
                                 }
-                                
+
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
                                 compteur = 0;
-                                
+
                                 sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
@@ -1038,9 +1018,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             //Write the results
                             if (((so.o_type(i) == 1)&&(o_ncount == so.o_nfreq(i)))||(((so.o_type(i) == 2)&&(fabs(o_tcount - so.o_tfreq(i)) < 1.E-12)))) {
-                    
-                                rve.output(so, i, n, j, inc, Time, "global");
-                                rve.output(so, i, n, j, inc, Time, "local");
+
+                                sink.record(rve, so, i, n, j, inc, Time);
+
                                 if (so.o_type(i) == 1) {
                                     o_ncount = 0;
                                 }
@@ -1048,13 +1028,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     o_tcount = 0.;
                                 }
                             }
-                            
+
                             tinc = 0.;
                             inc++;
                         }
-                        
+
                     }
-                    
+
                 }
                 break;
             }
@@ -1065,7 +1045,59 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
         }
         //end of blocks loops
     }
-    
+
+    return 0;
+}
+
+void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
+    if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
+        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
+                                    + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+    }
+
+    //Check if the required directories exist:
+    if(!filesystem::is_directory(path_data)) {
+        cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
+        return;
+    }
+    if(!filesystem::is_directory(path_results)) {
+        cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
+        filesystem::create_directory(path_results);
+    }
+
+    std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
+    std::string filename = outputfile.substr(0,outputfile.length()-4); //to remove the extension
+
+    std::string outputfile_global = filename + "_global" + ext_filename;
+    std::string outputfile_local = filename + "_local" + ext_filename;
+
+    std::string output_info_file = "output.dat";
+
+    std::vector<block> blocks;  //loading blocks
+    double T_init = 0.;
+
+    //Read the loading path
+    read_path(blocks, T_init, path_data, pathfile);
+
+    solver_output so(blocks.size());
+    read_output(so, blocks.size(), nstatev, path_data, output_info_file);
+
+    //Check output and step files
+    check_path_output(blocks, so);
+
+    solver_params ctrl;
+    ctrl.div_tnew_dt = div_tnew_dt_solver;
+    ctrl.mul_tnew_dt = mul_tnew_dt_solver;
+    ctrl.miniter = miniter_solver;
+    ctrl.maxiter = maxiter_solver;
+    ctrl.inforce = inforce_solver;
+    ctrl.precision = precision_solver;
+    ctrl.lambda = lambda_solver;
+    ctrl.tangent_mode = tangent_mode;
+
+    solver_file_sink sink(path_results, outputfile_global, outputfile_local);
+    //status intentionally ignored: the historical file-driven solver() returned void on early aborts
+    solver_run(blocks, T_init, so, umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink);
 }
     
 } //namespace simcoon

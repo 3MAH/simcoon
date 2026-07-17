@@ -1,7 +1,7 @@
 Use the solver
 ================================
 
-The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This documentation covers the Python interface, solver parameters, and the structure of input files.
+The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the legacy file-driven workflow (``path.txt`` / ``material.dat`` in, result text files out) through the low-level binding ``sim._core.solver``. Since simcoon 2.0 the recommended interface is the in-memory API (see :doc:`python_solver`); legacy files parse into loading objects with ``sim.solver.from_file``.
 
 Elastic tensile test
 --------------------
@@ -86,7 +86,7 @@ Finally, call the solver function:
 
 .. code-block:: python
 
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

@@ -71,7 +71,7 @@ path_results = "results"
 pathfile = "PRONK_path.txt"
 outputfile = "results_PRONK.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

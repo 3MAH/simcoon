@@ -62,7 +62,7 @@ path_results = "results"
 pathfile = "EPKCP_path.txt"
 outputfile = "results_EPKCP.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

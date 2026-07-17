@@ -95,7 +95,7 @@ def build_props(x):
 
 def run_one_test(props, pathfile, outputfile, path_data, path_results):
     """Run one solver call and return the predicted σ11 trajectory."""
-    sim.solver(
+    sim._core.solver(
         UMAT_NAME, props, NSTATEV,
         0.0, 0.0, 0.0,                  # psi, theta, phi
         SOLVER_TYPE, CORATE_TYPE,

@@ -57,7 +57,7 @@ data = []
 for inc in increments:
     pathfile = f"EPICP_path_{inc}.txt"
     outputfile = f"results_conv_{inc}.txt"
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

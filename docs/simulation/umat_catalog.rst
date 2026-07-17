@@ -169,9 +169,21 @@ the exact one of the hyperelastic law).
 Validation and performance
 ==========================
 
-Each adapter-served name has a dedicated equivalence test
-(``simcoon-python-builder/test/test_core/test_modular.py``, the
-``*_matches_modul`` family) and a benchmark row
-(``bench/bench_legacy_vs_modular.py``): results are bit-identical to the
-explicit ``MODUL`` configuration with no measurable overhead, and the modular
+Each adapter-served name is validated at two levels:
+
+- **Translator correctness**: a pytest equivalence test
+  (``simcoon-python-builder/test/test_core/test_modular.py``, the
+  ``*_matches_modul`` family) proves the legacy name and the explicit
+  ``MODUL`` configuration are bit-identical through the solver.
+- **Independent physics**: the removed legacy kernels are retained VERBATIM
+  as test-only reference oracles under
+  ``test/Libraries/Umat/reference_kernels/`` (compiled only into the
+  ``Treference_umats`` gtest, never into ``libsimcoon``, not dispatchable by
+  name). Every adapter is driven side by side with its reference kernel on a
+  cyclic strain path each test run — machine precision for the
+  elastic/power-law families, < 2e-3 for the Voce/Chaboche family (legacy
+  incremental vs modular closed-form Voce integration).
+
+A benchmark row per family lives in ``bench/bench_legacy_vs_modular.py``:
+results show no measurable adapter overhead, and the modular
 engine runs at 0.8-1.2x the speed of the removed kernels on all families.

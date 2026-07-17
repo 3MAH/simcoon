@@ -337,7 +337,7 @@ for i, umat in enumerate(list_umats):
     outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim.solver(
+    sim._core.solver(
         umat.name,
         params,
         nstatev,
@@ -453,7 +453,7 @@ for i, umat in enumerate(list_umats):
     outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim.solver(
+    sim._core.solver(
         umat.name,
         params,
         nstatev,
@@ -569,7 +569,7 @@ for i, umat in enumerate(list_umats):
     outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim.solver(
+    sim._core.solver(
         umat.name,
         params,
         nstatev,

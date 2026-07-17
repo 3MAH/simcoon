@@ -81,7 +81,7 @@ path_results = "results"
 pathfile = "ELORT_path.txt"
 outputfile = "results_ELORT.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,
