@@ -38,6 +38,7 @@ set(TEST_SRCS
   test/Libraries/Umat/Ttangent_EPHIL.cpp
   test/Libraries/Umat/Ttangent_EPCHA.cpp
   test/Libraries/Umat/Tunified_TR.cpp
+  test/Libraries/Umat/Modular/Tmodular_umat.cpp
 
   # UMATs
   test/Umats/ELISO/TELISO.cpp

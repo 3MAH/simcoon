@@ -1,0 +1,236 @@
+/* This file is part of simcoon.
+
+simcoon is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+simcoon is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+/**
+ * @file yield_criterion.hpp
+ * @brief Yield criterion module for modular UMAT.
+ *
+ * This module wraps existing yield criterion functions from criteria.hpp
+ * (Eq_stress, dEq_stress) to provide configurable yield surfaces.
+ *
+ * @version 1.0
+ */
+
+#pragma once
+
+#include <string>
+#include <armadillo>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+
+namespace simcoon {
+
+/**
+ * @brief Types of yield criteria
+ */
+enum class YieldType {
+    VON_MISES = 0,    ///< Isotropic von Mises (J2)
+    TRESCA = 1,       ///< Tresca (max shear stress)
+    DRUCKER = 2,      ///< Drucker (pressure-dependent)
+    HILL = 3,         ///< Hill 1948 anisotropic
+    DFA = 4,          ///< Deshpande-Fleck-Ashby
+    ANISOTROPIC = 5   ///< Generic anisotropic (9 params)
+};
+
+/**
+ * @brief Yield criterion module for modular UMAT
+ *
+ * This class encapsulates yield surface computations, wrapping the
+ * existing Eq_stress and dEq_stress functions from criteria.hpp.
+ */
+class YieldCriterion {
+private:
+    YieldType type_;
+    arma::vec params_;      ///< Criterion-specific parameters
+    bool configured_;
+
+    /**
+     * @brief Convert YieldType to string for Eq_stress
+     * @return String identifier for the criterion
+     */
+    std::string type_string() const;
+
+public:
+    /**
+     * @brief Default constructor (von Mises)
+     */
+    YieldCriterion();
+
+    // Default copy/move/destructor
+    YieldCriterion(const YieldCriterion&) = default;
+    YieldCriterion(YieldCriterion&&) = default;
+    YieldCriterion& operator=(const YieldCriterion&) = default;
+    YieldCriterion& operator=(YieldCriterion&&) = default;
+    ~YieldCriterion() = default;
+
+    // ========== Configuration ==========
+
+    /**
+     * @brief Configure as von Mises criterion
+     */
+    void configure_von_mises();
+
+    /**
+     * @brief Configure as Tresca criterion
+     */
+    void configure_tresca();
+
+    /**
+     * @brief Configure as Drucker criterion
+     * @param b J3 influence parameter
+     * @param n Exponent parameter
+     */
+    void configure_drucker(double b, double n);
+
+    /**
+     * @brief Configure as Hill 1948 criterion
+     * @param F Hill parameter F
+     * @param G Hill parameter G
+     * @param H Hill parameter H
+     * @param L Hill parameter L
+     * @param M Hill parameter M
+     * @param N Hill parameter N
+     */
+    void configure_hill(double F, double G, double H, double L, double M, double N);
+
+    /**
+     * @brief Configure as DFA criterion
+     * @param F DFA parameter F
+     * @param G DFA parameter G
+     * @param H DFA parameter H
+     * @param L DFA parameter L
+     * @param M DFA parameter M
+     * @param N DFA parameter N
+     * @param K Hydrostatic sensitivity parameter
+     */
+    void configure_dfa(double F, double G, double H, double L, double M, double N, double K);
+
+    /**
+     * @brief Configure as generic anisotropic criterion
+     * @param P11 Anisotropic tensor component (1,1)
+     * @param P22 Anisotropic tensor component (2,2)
+     * @param P33 Anisotropic tensor component (3,3)
+     * @param P12 Anisotropic tensor component (1,2)
+     * @param P13 Anisotropic tensor component (1,3)
+     * @param P23 Anisotropic tensor component (2,3)
+     * @param P44 Anisotropic tensor component (4,4)
+     * @param P55 Anisotropic tensor component (5,5)
+     * @param P66 Anisotropic tensor component (6,6)
+     */
+    void configure_anisotropic(double P11, double P22, double P33,
+                               double P12, double P13, double P23,
+                               double P44, double P55, double P66);
+
+    /**
+     * @brief Configure from props array
+     * @param type Yield criterion type
+     * @param props Material properties vector
+     * @param offset Current offset in props (will be updated)
+     */
+    void configure(YieldType type, const arma::vec& props, int& offset);
+
+    // ========== Accessors ==========
+
+    /**
+     * @brief Get the yield criterion type
+     * @return The configured type
+     */
+    [[nodiscard]] YieldType type() const noexcept { return type_; }
+
+    /**
+     * @brief Check if the criterion is configured
+     * @return True if configure has been called
+     */
+    [[nodiscard]] bool is_configured() const noexcept { return configured_; }
+
+    /**
+     * @brief Get the criterion parameters
+     * @return Const reference to parameters
+     */
+    [[nodiscard]] const arma::vec& params() const noexcept { return params_; }
+
+    // ========== Yield Function Computations ==========
+
+    /**
+     * @brief Equivalent stress under the configured criterion.
+     *
+     * For a backstress shift, callers pass ``sigma - X`` directly — both
+     * ``arma::vec`` and ``tensor2`` support ``operator-``.
+     */
+    double equivalent_stress(const arma::vec& sigma) const;
+
+    /**
+     * @brief Flow direction dPhi/dsigma under the configured criterion.
+     */
+    arma::vec flow_direction(const arma::vec& sigma) const;
+
+    /// Plastic flow direction (associated flow: equals flow_direction).
+    arma::vec plastic_flow(const arma::vec& sigma) const;
+
+    /**
+     * @brief Whether an analytic flow Hessian is available for this criterion
+     * (required by tangent_mode >= 1; Tresca and Drucker J2-J3 have none).
+     */
+    [[nodiscard]] bool has_flow_hessian() const noexcept;
+
+    /**
+     * @brief Analytic flow Hessian $ \mathrm{d}oldsymbol{\Lambda}/
+     * \mathrm{d}oldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
+     * oldsymbol{\sigma}^2 $ (6x6, compliance-like Voigt).
+     *
+     * Dispatch: VON_MISES → deta_stress; HILL/DFA/ANISOTROPIC →
+     * ddHill_stress / ddDFA_stress / ddAni_stress with the configured params.
+     * @throws std::runtime_error if has_flow_hessian() is false.
+     */
+    [[nodiscard]] arma::mat flow_hessian(const arma::vec& sigma) const;
+
+    // ========== Tensor2 overloads ==========
+
+    /**
+     * @brief Equivalent stress, typed path.
+     *
+     * VON_MISES evaluates natively on the 3x3 via Mises(tensor2) — no Voigt
+     * round-trip. Parametric criteria (Drucker is the J2–J3 form, not
+     * Drucker–Prager; Hill/DFA/Ani carry props) delegate to the raw
+     * Eq_stress dispatch.
+     */
+    [[nodiscard]] double equivalent_stress(const tensor2& sigma) const;
+
+    /// Associated flow: flow direction is dual to stress and lives in strain
+    /// space. VON_MISES uses the native flow_normal(tensor2) kernel.
+    [[nodiscard]] tensor2 flow_direction(const tensor2& sigma) const;
+
+    // ========== Utility ==========
+
+    /**
+     * @brief Get number of props consumed by this yield criterion type
+     * @param type The yield criterion type
+     * @return Number of properties required
+     */
+    [[nodiscard]] static constexpr int props_count(YieldType type) {
+        switch (type) {
+            case YieldType::VON_MISES:   return 0;
+            case YieldType::TRESCA:      return 0;
+            case YieldType::DRUCKER:     return 2;
+            case YieldType::HILL:        return 6;
+            case YieldType::DFA:         return 7;
+            case YieldType::ANISOTROPIC: return 9;
+        }
+        return 0;
+    }
+};
+
+} // namespace simcoon

@@ -8,6 +8,7 @@ if sys.platform == "win32":
     os.environ["PATH"] = _pkg_dir + os.pathsep + os.environ.get("PATH", "")
 
 from simcoon._core import *
+from simcoon import modular
 from simcoon.__version__ import __version__
 from simcoon.rotation import Rotation  # override _CppRotation from star-import
 from simcoon.tensor import Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes
