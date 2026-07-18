@@ -54,14 +54,10 @@ jobs:
       - name: Editable install
         run: |
           uv venv
-          # scikit-build-core pinned <1: the 1.x editable install changed where
-          # the compiled extension lands, which breaks the Windows DLL-vendoring
-          # step below (green on 0.12.2, DLL load failure on 1.0.2). Lift the pin
-          # together with a rework of that step. --no-build-isolation so the
-          # pinned backend in the venv is the one that actually builds the
-          # editable wheel (isolation would re-resolve pyproject's
-          # scikit-build-core>=0.11 to 1.x).
-          uv pip install "scikit-build-core<1" pybind11 numpy
+          # --no-build-isolation so the backend in the venv is the one that
+          # actually builds the editable wheel (and so later direct cmake
+          # rebuilds share its build tree).
+          uv pip install scikit-build-core pybind11 numpy
           uv pip install -e .[dev] --no-build-isolation
 
       - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
@@ -70,13 +66,18 @@ jobs:
           # Trigger the lazy scikit-build-core editable build so the extension and its
           # install dir exist (the import itself fails on the missing BLAS DLL -- expected).
           uv run python -c "import simcoon" 2>&1 | Out-Null
-          # simcoon/__init__.py adds its own package dir to the DLL search
-          # (os.add_dll_directory). Copy conda's reference BLAS/LAPACK + Fortran runtime
-          # there so _core resolves its transitive deps under the uv venv: unlike the conda
-          # Python used by ci.yml, the venv does not see C:\Miniconda\Library\bin, and
-          # Python 3.8+ ignores PATH for extension-module dependencies.
-          $dst = ".venv\Lib\site-packages\simcoon"
-          Copy-Item "$env:CONDA\Library\bin\*.dll" $dst -Force -ErrorAction SilentlyContinue
+          # Copy conda's reference BLAS/LAPACK + Fortran runtime NEXT TO _core.pyd:
+          # Windows resolves an extension module's dependencies from the pyd's own
+          # directory (PATH is ignored since Python 3.8, and the uv venv does not see
+          # C:\Miniconda\Library\bin like ci.yml's conda Python does). The pyd's
+          # location depends on the scikit-build-core editable layout (site-packages
+          # on 0.x, redirected to the build dir on 1.x), so locate it instead of
+          # hardcoding either.
+          $pyds = Get-ChildItem -Path build, .venv\Lib\site-packages -Recurse -Filter "_core*.pyd" -ErrorAction SilentlyContinue
+          if (-not $pyds) { Write-Error "editable _core.pyd not found"; exit 1 }
+          foreach ($pyd in $pyds) {
+            Copy-Item "$env:CONDA\Library\bin\*.dll" $pyd.DirectoryName -Force -ErrorAction SilentlyContinue
+          }
           exit 0
 
       - name: Verify cmake rebuild works (Unix)
