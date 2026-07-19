@@ -251,16 +251,23 @@ void PlasticityMechanism::update(
     const arma::vec& ds,
     int offset
 ) {
-    // Apply the FB correction UNCONDITIONALLY, including ds < 0: negative
-    // per-iteration corrections walk back an overshoot (Fischer-Burmeister
-    // enforces Dp >= 0 at convergence, not per iteration; legacy CCP loops
-    // apply s_j += ds_j directly). Gating on dp > iota froze the state after
-    // any overshoot — the loop then spun to maxiter with a constant ~1 MPa
-    // yield-surface violation and a 12x slowdown.
+    // Apply the FB correction PROJECTED onto Dp >= 0: negative per-iteration
+    // corrections walk back an overshoot (gating on dp > iota froze the state
+    // after any overshoot — maxiter spins with a ~1 MPa yield violation and a
+    // 12x slowdown), but the multiplier never drops below its start-of-
+    // increment value. Without the projection a tiny negative Dp is a SPURIOUS
+    // Fischer-Burmeister root whenever Phi > 0 is large (phi(Phi, Dp) ~ Dp for
+    // |Dp| << Phi) — reached in practice for near-singular hardening slopes,
+    // e.g. power-law R = k p^m with m < 1 at first yield (p < 0, Phi -> +100
+    // MPa, mechanism inert).
     double dp = ds(offset);
 
-    // Update accumulated plastic strain
+    // Update accumulated plastic strain (projected: p never below p_start)
     double& p = ivc_.get("p").scalar();
+    const double p_start = ivc_.get("p").scalar_start();
+    if (p + dp < p_start) {
+        dp = p_start - p;
+    }
     p += dp;
 
     // Update plastic strain
