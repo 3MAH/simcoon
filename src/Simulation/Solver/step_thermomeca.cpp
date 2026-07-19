@@ -212,6 +212,13 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
 
         //For mode 3, no rotation is considered yet
         for (int i=0; i<ninc; i++) {
@@ -367,6 +374,13 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
         
         //Read all the informations and fill the meca accordingly
         const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
 
         for (int i=0; i<ninc; i++) {
 

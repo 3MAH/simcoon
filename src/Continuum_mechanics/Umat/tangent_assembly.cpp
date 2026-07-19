@@ -129,7 +129,15 @@ ContinuumTangent assemble_algorithmic_tangent(
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
-    const arma::mat Minv = arma::inv(I6 + L * sumDsLambdaSigma);
+    // The \partial \Lambda /\partial \sigma blocks may come from finite differences (SMA
+    // transformation flow) and can be ill-conditioned near activation
+    // boundaries; whether inv() flags such a matrix as singular is
+    // LAPACK-backend dependent. Fall back to the (always well-posed)
+    // continuum operator rather than aborting the whole solve.
+    arma::mat Minv;
+    if (!arma::inv(Minv, I6 + L * sumDsLambdaSigma)) {
+        return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
 
     // Algorithmic operators:  \tilde{L} = M^{-1} L,  \tilde{\kappa}^j = M^{-1} \kappa^j,
     // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
@@ -167,7 +175,12 @@ ContinuumTangent assemble_algorithmic_tangent(
     {
         return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
     }
-    const arma::mat Minv     = arma::inv(arma::eye(6, 6) + L * (Ds * dLambda_dsigma));
+    arma::mat Minv;
+    if (!arma::inv(Minv, arma::eye(6, 6) + L * (Ds * dLambda_dsigma))) {
+        // Ill-conditioned FD Hessian (backend-dependent detection): fall back
+        // to the continuum operator instead of aborting the solve.
+        return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
+    }
     const arma::mat L_tilde  = Minv * L;
     const arma::vec kappa_t  = Minv * kappa;
     const double    Bhat_t   = Bhat_scalar + arma::dot(dPhidsigma, (Minv - arma::eye(6, 6)) * kappa);
