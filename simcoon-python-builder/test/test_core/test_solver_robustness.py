@@ -4,19 +4,18 @@ Stress-controlled UNLOADING through the plastic->elastic branch flip used to
 diverge geometrically when the hardening tangent is soft and SATURATING: the
 predictor (elastoplastic tangent) overshoots past the reverse-yield span, the
 trial re-yields in compression, and the undamped Newton oscillates with
-exploding corrections (traced DE11: 8e-3 -> 0.83 -> 433 -> 4e13) while the
-residual stays bounded (the yield surface caps the stress). The run died on a
-singular inverse (tangent assembly / RU_decomposition), uncaught by the
-step-cut machinery.
+exploding corrections (traced DE11: 8e-3 -> 0.83 -> 433 -> 4e13). The run died
+on a singular inverse (tangent assembly / RU_decomposition).
 
-Guards under test (solver.cpp, tangent_assembly.cpp, modular_umat.cpp):
-- Newton correction-norm cap -> step cut before the box integrates garbage;
-- singular global Jacobian K -> step cut, loud at the minimal fraction;
-- exception_inv / exception_det from kinematics or tangent assembly -> step
-  cut (rethrown only at Dn_mini);
-- ModularUMAT rejects pathological plastic multipliers (dp > 1 per increment,
-  or committed negative dp) with tnew_dt = 0.5 instead of committing a
-  hardening-saturated garbage state.
+Guards under test:
+- ModularUMAT rejects a pathological plastic multiplier (dp > 1 per increment)
+  with tnew_dt = 0.5 instead of committing a hardening-saturated garbage state,
+  so the solver bisects the increment away (modular_umat.cpp);
+- tangent assembly falls back to the elastic operator on a degenerate inverse
+  instead of aborting (tangent_assembly.cpp);
+- singular global Jacobian K -> step cut, loud only at the minimal fraction;
+  exception_inv / exception_det from the kinematics -> step cut, rethrown only
+  at Dn_mini (solver.cpp).
 
 Control type 1 on purpose: reproduces without the finite-strain MODUL
 registration, and EPICP shows the failure was never modular-specific.

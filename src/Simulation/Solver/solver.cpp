@@ -54,19 +54,6 @@ using namespace arma;
 
 namespace {
 
-// Newton divergence guard: cap on the norm of one strain correction. A
-// correction beyond any physical strain scale means the iteration is flipping
-// between constitutive branches (elastic <-> plastic) and diverging
-// geometrically. The residual itself stays BOUNDED while this happens (the
-// yield surface caps the stress), so only the correction norm reveals the
-// divergence; traced growth on a saturating-hardening unload:
-// |Delta| = 8e-3 -> 0.83 -> 433 -> 4e13 while the residual oscillated in the
-// hundreds. The cap must catch the FIRST excursion (0.83 above): once a
-// garbage trial saturates the hardening state, its tangent reseeds the
-// divergence on every retry down to Dn_mini. One full unit of strain is
-// beyond any legitimate Newton step for this solver's strain measures.
-constexpr double Delta_cap_solver = 1.0;
-
 // Single definition of the step-cut decision: bisect the increment unless it
 // is already at its minimal fraction. Returns whether the cut was applied —
 // call sites decide what a refusal means (throw a typed error, rethrow, ...).
@@ -502,17 +489,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             Delta = -invK * residual;
                                         }
 
-                                        // Divergence guard (see Delta_cap_solver): bail
-                                        // out to a step cut BEFORE applying the insane
-                                        // correction, so the box never integrates it.
-                                        if (norm(Delta, 2) > Delta_cap_solver) {
-                                            if (try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
-                                                compteur = maxiter_solver;
-                                                break;
-                                            }
-                                            throw simcoon::exception_solver("Diverging Newton correction (norm above Delta_cap_solver) persisting at the minimal increment fraction.");
-                                        }
-
                                         if (blocks[i].control_type == 1) {
                                             sv_M->DR = eye(3,3);
                                             sv_M->DEtot += Delta;
@@ -943,18 +919,6 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             sigma_in_red(6) = -1.*sv_T->r_in;
                                             Delta = -invK * residual;
                                         }
-                                        
-                                        // Divergence guard on the STRAIN rows only (Delta(6) is a
-                                        // temperature correction in Kelvin, a different scale);
-                                        // same policy as the mechanical Newton loop.
-                                        if (norm(Delta.subvec(0,5), 2) > Delta_cap_solver) {
-                                            if (try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
-                                                compteur = maxiter_solver;
-                                                break;
-                                            }
-                                            throw simcoon::exception_solver("Diverging thermomechanical Newton correction (norm above Delta_cap_solver) persisting at the minimal increment fraction.");
-                                        }
-
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             sv_T->DEtot(k) += Delta(k);
