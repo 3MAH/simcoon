@@ -52,7 +52,19 @@ ContinuumTangent assemble_continuum_tangent(
     // mask(i,j) = op(i)*op(j); Bbar = mask \circ Bhat + diag(1-op).
     const arma::mat mask    = op * op.t();
     const arma::mat Bbar    = mask % Bhat + arma::diagmat(1.0 - op);
-    arma::mat       invBhat = mask % arma::inv(Bbar);   // zero out inactive rows/cols
+    arma::mat       invBbar;
+    if (!arma::inv(invBbar, Bbar) || !invBbar.is_finite()) {
+        // Degenerate hardening system (e.g. SMA transformation plateau,
+        // Bhat -> 0): fall back to the elastic operator for this increment
+        // instead of poisoning Lt/P with inf (the solver's own K inversion
+        // would then throw and abort the whole solve).
+        ContinuumTangent out;
+        out.Lt = L;
+        out.P_epsilon.assign(Nmech, arma::zeros(6));
+        out.invBhat.zeros(Nmech, Nmech);
+        return out;
+    }
+    arma::mat invBhat = mask % invBbar;   // zero out inactive rows/cols
 
     // Stack \partial \Phi^m gradients into a 6\times Nmech matrix so the double sum over
     // (l, m) becomes one GEMM: P = (L \cdot \partial \Phi ) \cdot invBhat.
@@ -85,8 +97,11 @@ ContinuumTangent assemble_continuum_tangent(
     out.P_epsilon.assign(1, arma::zeros(6));
     out.invBhat.zeros(1, 1);
 
-    if (Ds <= simcoon::iota) {
-        // Mechanism inactive — invBhat masked to 0, P_eps = 0, Lt = L.
+    if (Ds <= simcoon::iota || std::abs(Bhat_scalar) < simcoon::iota ||
+        !std::isfinite(Bhat_scalar)) {
+        // Mechanism inactive, or degenerate hardening (Bhat -> 0, e.g. SMA
+        // transformation plateau): invBhat masked to 0, P_eps = 0, Lt = L —
+        // 1/Bhat would poison Lt with inf and abort the solve downstream.
         out.Lt = L;
         return out;
     }
