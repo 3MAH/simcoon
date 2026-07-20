@@ -127,7 +127,10 @@ Small-strain mechanical models
      - modular (native)
      - self-describing stream — build it with
        :class:`simcoon.modular.ModularMaterial`
-     -
+     - Also available under finite strain (NLGEOM control types 2-6), where
+       the composition is a Hencky hyperelastic law on the logarithmic
+       strain; requires ``corate_type = 3`` (log_R) — any other corate is
+       rejected with a ``RuntimeError`` (hyper/hypo consistency)
 
 Shape memory alloys, finite strain, multiscale, plugins
 ========================================================

@@ -22,6 +22,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <string>
 #include <fstream>
 #include <assert.h>
 #include <string.h>
@@ -33,6 +34,7 @@
 #include <filesystem>
 
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -250,7 +252,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
 {
     std::map<string, int> list_umat;
     
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201}};
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200}};
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     
@@ -279,6 +281,24 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
                 umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
+            case 200: {
+                // MODUL under NLGEOM is a Hencky hyperelastic composition:
+                // sigma = L : (ln V - sum eps_inel) is a genuine stored-energy
+                // law ONLY when the accumulated corotational strain is exactly
+                // the logarithmic strain, i.e. corate 3 (log_R). Any other
+                // corate degrades it to a non-integrable hypoelastic rate
+                // (spurious dissipation in closed cycles), so it is rejected
+                // rather than silently accepted.
+                if (corate_type != 3) {
+                    throw simcoon::exception_solver(
+                        "MODUL under finite strain requires corate_type = 3 "
+                        "(log_R): the modular composition is hyperelastic in "
+                        "the logarithmic strain; got corate_type = "
+                        + std::to_string(corate_type));
+                }
+                umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                break;
+            }
             case 9: {
                 umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
@@ -302,8 +322,15 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
         // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Small-strain/
         // log-strain boxes already return Kirchhoff (sigma = L:(ln V - hp), no 1/J); genuine finite boxes
         // return Cauchy, mapped to tau here. Cauchy is a derived OUTPUT (tau/J), never on the route.
-        const std::set<int> kirchhoff_box = {2,3,4,6,7,16,17,18,19,20,21}; // HYPOO(5) kept in the Cauchy group for now
-        if (kirchhoff_box.count(list_umat[rve.sptr_matprops->umat_name]) > 0)
+        // Keyed on umat NAMES, not dispatch ids: the ids are renumbered when
+        // kernels move (the legacy->201 remap orphaned the previous id-keyed
+        // set, silently giving every 201 adapter a spurious Cauchy->Kirchhoff
+        // x J conversion under NLGEOM). HYPOO kept in the Cauchy group for now.
+        static const std::set<std::string> kirchhoff_box = {
+            "EPICP", "MODUL",
+            "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
+            "EPANI", "EPDFA", "EPCHG", "EPHIN"};  // log-strain boxes: sigma out IS Kirchhoff
+        if (kirchhoff_box.count(rve.sptr_matprops->umat_name) > 0)
             umat_M->tau = umat_M->sigma;                                                      // box output is already the Kirchhoff stress
         else
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff

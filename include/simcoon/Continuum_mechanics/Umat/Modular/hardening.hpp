@@ -139,14 +139,24 @@ public:
 };
 
 /**
- * @brief Power-law isotropic hardening: R = k * p^m
+ * @brief Power-law isotropic hardening: \f$ R = k\,p^m \f$
+ *
+ * For \f$ m < 1 \f$ the exact modulus \f$ dR/dp = k\,m\,p^{m-1} \f$ diverges
+ * at the onset \f$ p \to 0^+ \f$, which destabilizes the return-map Newton.
+ * The law is therefore regularized below a small cutoff \f$ p_{reg} = 10^{-6} \f$
+ * by a C\f$^1\f$ quadratic blend anchored at \f$ R(0)=0 \f$ and matched in
+ * value and slope at \f$ p_{reg} \f$ — the same tangent-continuation idiom as
+ * the SMA volume-fraction barriers (lagrange_pow_0/1). The law is exact for
+ * \f$ p \ge p_{reg} \f$ and unmodified when \f$ m \ge 1 \f$.
  */
 class PowerLawHardening final : public IsotropicHardening {
 private:
     double k_;  ///< Hardening coefficient
     double m_;  ///< Hardening exponent
+    double a_reg_;  ///< Onset-blend linear coefficient (precomputed, m < 1 only)
+    double b_reg_;  ///< Onset-blend quadratic coefficient (precomputed, m < 1 only)
 public:
-    PowerLawHardening() : k_(0.0), m_(1.0) {}
+    PowerLawHardening() : k_(0.0), m_(1.0), a_reg_(0.0), b_reg_(0.0) {}
     void configure(const arma::vec& props, int& offset) override;
     double R(double p) const override;
     double dR_dp(double p) const override;

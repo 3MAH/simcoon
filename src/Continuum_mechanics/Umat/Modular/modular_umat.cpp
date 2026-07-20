@@ -36,6 +36,12 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
+namespace {
+// Per-increment plastic-multiplier runaway cap for the committed-state guard
+// in ModularUMAT::run (see the reject block there for the rationale).
+constexpr double Ds_cap_plastic = 1.0;
+}  // namespace
+
 // ========== Constructor ==========
 
 ModularUMAT::ModularUMAT()
@@ -319,7 +325,27 @@ void ModularUMAT::run(
     // (true divergence -> NaN/Inf) is unusable and triggers a step cut.
     arma::vec Ds_total = arma::zeros(n_total);
     return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total);
-    if (!sigma.is_finite()) {
+
+    // Reject unusable committed states with a step cut: (a) non-finite stress
+    // (true divergence); (b) a pathological PLASTIC multiplier beyond
+    // Ds_cap_plastic — the first FB runaway excursion (traced: 0.83 -> 433 ->
+    // 4e13) must be caught before it saturates the hardening state, whose
+    // garbage tangent would reseed the divergence on every solver retry.
+    // (Negative multipliers are handled at the source: PlasticityMechanism
+    // projects the FB update onto p >= p_start, and PowerLawHardening is
+    // C1-regularized at onset, so no negative-Ds check is needed here.)
+    // Plasticity rows only: damage rows are energy-release-typed
+    // (Phi = Y - Y_max, MPa scale) and legitimately exceed this bound.
+    bool reject = !sigma.is_finite();
+    for (size_t m = 0; !reject && m < mechanisms_.size(); ++m) {
+        if (mechanisms_[m]->type() != MechanismType::PLASTICITY) continue;
+        const int n = mechanisms_[m]->num_constraints();
+        if (n == 0) continue;
+        const auto Ds_m = Ds_total.subvec(mech_offset_[m],
+                                          mech_offset_[m] + n - 1);
+        reject = (Ds_m.max() > Ds_cap_plastic);
+    }
+    if (reject) {
         // Ask the global solver to halve the increment and retry. statev is
         // left at its incoming values (pack_all is skipped) so the retry
         // restarts from the correct state; Lt is set elastic to keep the

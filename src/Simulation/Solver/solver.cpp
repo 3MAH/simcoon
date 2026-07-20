@@ -52,6 +52,47 @@
 using namespace std;
 using namespace arma;
 
+namespace {
+
+// Newton divergence guard: cap on the norm of one strain correction. A
+// correction beyond any physical strain scale means the iteration is flipping
+// between constitutive branches (elastic <-> plastic) and diverging
+// geometrically. The residual itself stays BOUNDED while this happens (the
+// yield surface caps the stress), so only the correction norm reveals the
+// divergence; traced growth on a saturating-hardening unload:
+// |Delta| = 8e-3 -> 0.83 -> 433 -> 4e13 while the residual oscillated in the
+// hundreds. The cap must catch the FIRST excursion (0.83 above): once a
+// garbage trial saturates the hardening state, its tangent reseeds the
+// divergence on every retry down to Dn_mini. One full unit of strain is
+// beyond any legitimate Newton step for this solver's strain measures.
+constexpr double Delta_cap_solver = 1.0;
+
+// Single definition of the step-cut decision: bisect the increment unless it
+// is already at its minimal fraction. Returns whether the cut was applied —
+// call sites decide what a refusal means (throw a typed error, rethrow, ...).
+inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
+                         const double &div_tnew_dt, double &tnew_dt) {
+    if (fabs(Dtinc_cur - Dn_mini) > simcoon::iota) {
+        tnew_dt = div_tnew_dt;
+        return true;
+    }
+    return false;
+}
+
+// Step-cut-or-rethrow policy shared by every recoverable-failure catch in the
+// solver Newton loops. Must only be called from inside a catch block.
+inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
+                                const double &div_tnew_dt, double &tnew_dt,
+                                int &compteur) {
+    if (try_step_cut(Dtinc_cur, Dn_mini, div_tnew_dt, tnew_dt)) {
+        compteur = 0;
+    } else {
+        throw;
+    }
+}
+
+}  // namespace
+
 namespace simcoon{
 
 int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink) {
@@ -433,7 +474,14 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during Newton-Raphson iteration.");
+                                                // Degenerate tangent at the trial state: cut, or fail
+                                                // LOUD once already at the minimal fraction (never the
+                                                // silent inforce path).
+                                                if (try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
+                                                    compteur = maxiter_solver;
+                                                    break;
+                                                }
+                                                throw simcoon::exception_solver("Singular Jacobian matrix during Newton-Raphson iteration (persists at the minimal increment fraction).");
                                             }
 
                                             /// Prediction of the component of the strain tensor
@@ -453,7 +501,18 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             }
                                             Delta = -invK * residual;
                                         }
-                                        
+
+                                        // Divergence guard (see Delta_cap_solver): bail
+                                        // out to a step cut BEFORE applying the insane
+                                        // correction, so the box never integrates it.
+                                        if (norm(Delta, 2) > Delta_cap_solver) {
+                                            if (try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
+                                                compteur = maxiter_solver;
+                                                break;
+                                            }
+                                            throw simcoon::exception_solver("Diverging Newton correction (norm above Delta_cap_solver) persisting at the minimal increment fraction.");
+                                        }
+
                                         if (blocks[i].control_type == 1) {
                                             sv_M->DR = eye(3,3);
                                             sv_M->DEtot += Delta;
@@ -648,27 +707,21 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 }
                                 compteur = 0;
                                 }
+                                // Recoverable failures of the trial state — F-reconstruction
+                                // (sqrtmat/expmat), singular inverse in the kinematics or the
+                                // tangent assembly, singular return-map Jacobian (FB det) —
+                                // are bisected away; anything else propagates.
                                 catch (const simcoon::exception_sqrtmat_sympd &) {
-                                    // F-reconstruction (ER_to_F: sqrtmat_sympd of 2E+I, control_type 2) failed
-                                    // because the controlled Green-Lagrange strain pushed 2E+I out of positive-
-                                    // definiteness. Bisect the increment and retry instead of aborting the whole
-                                    // run; only give up (rethrow) once the step is already at its minimal fraction.
-                                    if (fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota) {
-                                        tnew_dt = div_tnew_dt_solver;
-                                        compteur = 0;
-                                    } else {
-                                        throw;
-                                    }
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
                                 catch (const simcoon::exception_expmat_sym &) {
-                                    // V-reconstruction (eR_to_F: expmat_sym of ln V, control_type 3) failed; same
-                                    // step-cut policy as the sqrtmat_sympd path above.
-                                    if (fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota) {
-                                        tnew_dt = div_tnew_dt_solver;
-                                        compteur = 0;
-                                    } else {
-                                        throw;
-                                    }
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_inv &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_det &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
@@ -806,7 +859,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                             }
                             
                             while (tinc<1.) {
-                                
+
+                                try {
                                 sptr_thermomeca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
                                 
                                 if(nK + sptr_thermomeca->cBC_T == 0){
@@ -863,7 +917,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical Newton-Raphson iteration.");
+                                                // Same cut-or-loud policy as the mechanical Newton loop.
+                                                if (try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
+                                                    compteur = maxiter_solver;
+                                                    break;
+                                                }
+                                                throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical Newton-Raphson iteration (persists at the minimal increment fraction).");
                                             }
 
                                             /// Prediction of the component of the strain tensor
@@ -885,6 +944,17 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             Delta = -invK * residual;
                                         }
                                         
+                                        // Divergence guard on the STRAIN rows only (Delta(6) is a
+                                        // temperature correction in Kelvin, a different scale);
+                                        // same policy as the mechanical Newton loop.
+                                        if (norm(Delta.subvec(0,5), 2) > Delta_cap_solver) {
+                                            if (try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
+                                                compteur = maxiter_solver;
+                                                break;
+                                            }
+                                            throw simcoon::exception_solver("Diverging thermomechanical Newton correction (norm above Delta_cap_solver) persisting at the minimal increment fraction.");
+                                        }
+
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             sv_T->DEtot(k) += Delta(k);
@@ -1002,6 +1072,21 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
                                 compteur = 0;
+                                }
+                                // Same recoverable-failure set and step-cut policy as the
+                                // mechanical Newton loop above.
+                                catch (const simcoon::exception_sqrtmat_sympd &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_expmat_sym &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_inv &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_det &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
 
                                 sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment

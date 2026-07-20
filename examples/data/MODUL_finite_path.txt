@@ -1,0 +1,69 @@
+#Initial_temperature
+293
+#Number_of_blocks
+1
+
+#Block
+1
+#Loading_type
+1
+#Control_type(NLGEOM)
+3
+#Repeat
+1
+#Steps
+3
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 0.001
+#Dn_inc 0.01
+#time
+1
+#prescribed_mechanical_state
+E 0.15
+S 0 S 0
+S 0 S 0 S 0
+#spin
+0. 0. 0.
+0. 0. 0.
+0. 0. 0.
+#prescribed_temperature_state
+T 293
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 0.001
+#Dn_inc 0.01
+#time
+1
+#prescribed_mechanical_state
+E -0.15
+S 0 S 0
+S 0 S 0 S 0
+#spin
+0. 0. 0.
+0. 0. 0.
+0. 0. 0.
+#prescribed_temperature_state
+T 293
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 0.001
+#Dn_inc 0.01
+#time
+1
+#prescribed_mechanical_state
+E 0.
+S 0 S 0
+S 0 S 0 S 0
+#spin
+0. 0. 0.
+0. 0. 0.
+0. 0. 0.
+#prescribed_temperature_state
+T 293
