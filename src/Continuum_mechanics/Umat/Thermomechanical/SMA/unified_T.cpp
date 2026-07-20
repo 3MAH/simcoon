@@ -618,7 +618,13 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     // just the Newton operator. Explicit-integration callers get the continuum
     // operator in the thermomechanical kernels (the mechanical-only kernels
     // honor tangent_none).
-    const int tangent_mode_eff = (tangent_mode == tangent_none)
+    // tangent_algorithmic is ALSO clamped to continuum for this kernel: the
+    // finite-difference flow Hessian makes the local transformation system
+    // near-singular on the plateau (rcond ~ 1e-17 — approx-solved state then
+    // NaN-poisons the mixture stiffness and aborts the solve; LAPACK-backend
+    // dependent). Re-enable together with the exact CPP Hessian rework.
+    const int tangent_mode_eff = (tangent_mode == tangent_none ||
+                                  tangent_mode == tangent_algorithmic)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
