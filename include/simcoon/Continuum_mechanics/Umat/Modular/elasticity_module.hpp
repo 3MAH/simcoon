@@ -277,7 +277,7 @@ public:
      * @brief Stiffness as a typed Tensor4 (cached — built once per configure).
      *
      * Use `.contract(strain_tensor)` to obtain the elastic stress tensor2 with
-     * the correct VoigtType automatically inferred. Returned by const-ref so
+     * the correct Tensor2Type automatically inferred. Returned by const-ref so
      * hot loops can contract without paying the eng→Mandel congruence per call.
      */
     [[nodiscard]] const tensor4& L_tensor() const noexcept { return L_t_; }

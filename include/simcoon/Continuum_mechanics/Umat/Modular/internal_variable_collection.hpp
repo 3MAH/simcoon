@@ -79,7 +79,7 @@ public:
     InternalVariable& add_vec(const std::string& name,
                                const arma::vec& init = arma::zeros(6),
                                bool objective = true,
-                               VoigtType vtype = VoigtType::strain);
+                               Tensor2Type vtype = Tensor2Type::strain);
 
     /**
      * @brief Add a 6x6 matrix internal variable

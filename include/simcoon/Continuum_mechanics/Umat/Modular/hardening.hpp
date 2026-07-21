@@ -271,7 +271,7 @@ public:
     [[nodiscard]] tensor2 total_backstress(const InternalVariableCollection& ivc) const {
         std::vector<tensor2> X_i;
         compute_backstresses(ivc, X_i);
-        tensor2 X_t = tensor2::zeros(VoigtType::stress);
+        tensor2 X_t = tensor2::zeros(Tensor2Type::stress);
         for (const auto& x : X_i) {
             X_t += x;
         }

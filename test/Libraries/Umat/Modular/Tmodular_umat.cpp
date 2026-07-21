@@ -137,12 +137,12 @@ TEST_F(InternalVariableTest, TensorViews) {
     InternalVariable EP("EP", EP_voigt, true);
 
     tensor2 EP_t = EP.as_strain();
-    EXPECT_EQ(EP_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(EP_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(arma::norm(arma::vec(EP_t.voigt()) - EP_voigt, 2), 1e-12);
 
     // Mutate via typed setter and read back
     arma::vec new_EP = {0.02, -0.01, -0.01, 0.004, 0.0, 0.0};
-    tensor2 new_EP_t = tensor2::from_voigt(new_EP, VoigtType::strain);
+    tensor2 new_EP_t = tensor2::from_voigt(new_EP, Tensor2Type::strain);
     EP.set_tensor2(new_EP_t);
     EXPECT_LT(arma::norm(EP.raw_voigt() - new_EP, 2), 1e-12);
 
@@ -158,8 +158,8 @@ TEST_F(InternalVariableTest, TensorViews) {
     // start-of-increment state with the variable's own vtype.
     EP.to_start();
     arma::vec newer_EP = {0.03, -0.015, -0.015, 0.006, 0.0, 0.0};
-    EP.set_tensor2(tensor2::from_voigt(newer_EP, VoigtType::strain));
-    EXPECT_EQ(EP.as_tensor2_start().vtype(), VoigtType::strain);
+    EP.set_tensor2(tensor2::from_voigt(newer_EP, Tensor2Type::strain));
+    EXPECT_EQ(EP.as_tensor2_start().vtype(), Tensor2Type::strain);
     EXPECT_LT(arma::norm(arma::vec(EP.as_tensor2_start().voigt()) - new_EP, 2), 1e-12);
     EXPECT_LT(arma::norm(arma::vec(EP.as_tensor2().voigt()) - newer_EP, 2), 1e-12);
     EXPECT_EQ(L_iv.as_tensor4_start().type(), Tensor4Type::stiffness);
@@ -199,7 +199,7 @@ TEST_F(InternalVariableTest, Matrix66TypedRotation) {
 // convention: assigning a stress-typed tensor2 to a strain-typed variable must
 // double the shear slots (not copy the raw components).
 TEST_F(InternalVariableTest, SetTensor2ReexpressesConvention) {
-    InternalVariable EP("EP", arma::zeros(6), true, VoigtType::strain);
+    InternalVariable EP("EP", arma::zeros(6), true, Tensor2Type::strain);
     // Stress-typed tensor with t12 = 3 -> voigt slot = 3 (no factor 2).
     tensor2 t = stress(arma::vec{1., 2., -3., 3., 0., 0.});
     EP.set_tensor2(t);
@@ -257,7 +257,7 @@ TEST(YieldCriterionTensor, VonMisesTensor2Match) {
                 1e-10);
 
     tensor2 lambda_t = yc.flow_direction(sigma_t);
-    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(lambda_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt())
                          - yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
               1e-10);
@@ -285,7 +285,7 @@ TEST(YieldCriterionTensor, VonMisesNearZeroStress) {
     EXPECT_NEAR(yc.equivalent_stress(sigma_t), 0.0, 1e-12);
 
     tensor2 lambda_t = yc.flow_direction(sigma_t);
-    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(lambda_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt()), 2), 1e-10);
     // Raw path normalizes the noise instead (documented difference).
     EXPECT_NEAR(arma::norm(yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
@@ -308,7 +308,7 @@ TEST(YieldCriterionTensor, DruckerTensor2Delegates) {
                 yc.equivalent_stress(arma::vec(sigma_t.voigt())),
                 1e-10);
     tensor2 lambda_t = yc.flow_direction(sigma_t);
-    EXPECT_EQ(lambda_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(lambda_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(arma::norm(arma::vec(lambda_t.voigt())
                          - yc.flow_direction(arma::vec(sigma_t.voigt())), 2),
               1e-10);
@@ -556,14 +556,14 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
 
     // Stiffness × compliance round-trip via typed contraction
     vec eps_voigt = {1e-3, -3e-4, -3e-4, 0.0, 0.0, 0.0};
-    tensor2 eps_t = tensor2::from_voigt(eps_voigt, VoigtType::strain);
+    tensor2 eps_t = tensor2::from_voigt(eps_voigt, Tensor2Type::strain);
     tensor2 sig_t = L_t.contract(eps_t);
-    EXPECT_EQ(sig_t.vtype(), VoigtType::stress);
+    EXPECT_EQ(sig_t.vtype(), Tensor2Type::stress);
     EXPECT_LT(norm(vec(sig_t.voigt()) - em.L() * eps_voigt, 2), 1e-8);
 
-    // alpha_tensor: VoigtType::strain (factor-2 on shear is irrelevant here, all shear=0)
+    // alpha_tensor: Tensor2Type::strain (factor-2 on shear is irrelevant here, all shear=0)
     tensor2 alpha_t = em.alpha_tensor();
-    EXPECT_EQ(alpha_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(alpha_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(norm(vec(alpha_t.voigt()) - em.alpha(), 2), 1e-12);
 
     // thermal_strain_tensor consistency
@@ -802,7 +802,7 @@ TEST_F(KinematicHardeningTest, PragerHardening) {
 
     // Check initial backstress is zero (stress-typed by signature)
     tensor2 X = hard->total_backstress(ivc_);
-    EXPECT_EQ(X.vtype(), VoigtType::stress);
+    EXPECT_EQ(X.vtype(), Tensor2Type::stress);
     EXPECT_DOUBLE_EQ(norm(vec(X.to_arma_voigt())), 0.0);
 
     // Hardening modulus should be (2/3)*C for Prager kinematic hardening
@@ -874,7 +874,7 @@ TEST_F(PlasticityMechanismTest, YieldAccessors) {
     EXPECT_NEAR(pm.equivalent_stress(sig_t), seq, 1e-10);
     EXPECT_NEAR(pm.yield_function(sig_t), Phi, 1e-10);
     tensor2 n_t = pm.flow_direction(sig_t);
-    EXPECT_EQ(n_t.vtype(), VoigtType::strain);
+    EXPECT_EQ(n_t.vtype(), Tensor2Type::strain);
     EXPECT_LT(norm(vec(n_t.voigt()) - n, 2), 1e-10);
 
     // Uniaxial stress above yield: sigma_11 = 400 > sigma_Y => Phi > 0.

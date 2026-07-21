@@ -46,7 +46,7 @@ from simcoon._core import (
     _auto_dyadic,
     _sym_dyadic,
     _auto_sym_dyadic,
-    VoigtType as _VoigtType,
+    Tensor2Type as _Tensor2Type,
     Tensor4Type as _T4Type,
 )
 
@@ -66,10 +66,10 @@ from simcoon._core import (
 # ======================================================================
 
 _VTYPE_MAP = {
-    "stress": _VoigtType.stress,
-    "strain": _VoigtType.strain,
-    "generic": _VoigtType.generic,
-    "none": _VoigtType.none,
+    "stress": _Tensor2Type.stress,
+    "strain": _Tensor2Type.strain,
+    "generic": _Tensor2Type.generic,
+    "none": _Tensor2Type.none,
 }
 _VTYPE_RMAP = {v: k for k, v in _VTYPE_MAP.items()}
 

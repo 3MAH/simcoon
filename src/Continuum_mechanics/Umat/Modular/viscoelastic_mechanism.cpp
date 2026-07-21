@@ -47,7 +47,7 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , flow_i_(N_prony)
     , Lambda_i_(N_prony)
     , kappa_i_(N_prony)
-    , kappa_t_(N_prony, tensor2(VoigtType::stress))
+    , kappa_t_(N_prony, tensor2(Tensor2Type::stress))
     , dPhi_i_dv_(N_prony)
     , K_diag_(arma::zeros(N_prony))
 {

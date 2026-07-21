@@ -41,38 +41,38 @@ TEST(Ttensor2, DefaultConstructor)
 {
     tensor2 t;
     EXPECT_TRUE(arma::approx_equal(t.mat(), mat::fixed<3,3>(fill::zeros), "absdiff", 1e-15));
-    EXPECT_EQ(t.vtype(), VoigtType::stress);
+    EXPECT_EQ(t.vtype(), Tensor2Type::stress);
 }
 
-TEST(Ttensor2, VoigtTypeConstructor)
+TEST(Ttensor2, Tensor2TypeConstructor)
 {
-    tensor2 t(VoigtType::strain);
+    tensor2 t(Tensor2Type::strain);
     EXPECT_TRUE(arma::approx_equal(t.mat(), mat::fixed<3,3>(fill::zeros), "absdiff", 1e-15));
-    EXPECT_EQ(t.vtype(), VoigtType::strain);
+    EXPECT_EQ(t.vtype(), Tensor2Type::strain);
 }
 
 TEST(Ttensor2, MatrixConstructor)
 {
     mat::fixed<3,3> m = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
-    tensor2 t(m, VoigtType::stress);
+    tensor2 t(m, Tensor2Type::stress);
     EXPECT_TRUE(arma::approx_equal(t.mat(), m, "absdiff", 1e-15));
 }
 
 TEST(Ttensor2, DynamicMatConstructor)
 {
     mat m = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
-    tensor2 t(m, VoigtType::stress);
+    tensor2 t(m, Tensor2Type::stress);
     mat::fixed<3,3> expected = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
     EXPECT_TRUE(arma::approx_equal(t.mat(), expected, "absdiff", 1e-15));
 }
 
 TEST(Ttensor2, Factories)
 {
-    tensor2 z = tensor2::zeros(VoigtType::strain);
+    tensor2 z = tensor2::zeros(Tensor2Type::strain);
     EXPECT_TRUE(arma::approx_equal(z.mat(), mat::fixed<3,3>(fill::zeros), "absdiff", 1e-15));
-    EXPECT_EQ(z.vtype(), VoigtType::strain);
+    EXPECT_EQ(z.vtype(), Tensor2Type::strain);
 
-    tensor2 id = tensor2::identity(VoigtType::stress);
+    tensor2 id = tensor2::identity(Tensor2Type::stress);
     EXPECT_TRUE(arma::approx_equal(id.mat(), mat::fixed<3,3>(fill::eye), "absdiff", 1e-15));
 }
 
@@ -84,7 +84,7 @@ TEST(Ttensor2, StressVoigtMatchesTransfer)
 {
     // Create a symmetric stress tensor
     mat::fixed<3,3> sigma = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
-    tensor2 t(sigma, VoigtType::stress);
+    tensor2 t(sigma, Tensor2Type::stress);
 
     vec::fixed<6> v = t.voigt();
     vec v_ref = t2v_stress(mat(sigma));
@@ -96,7 +96,7 @@ TEST(Ttensor2, StrainVoigtMatchesTransfer)
 {
     // Create a symmetric strain tensor
     mat::fixed<3,3> eps = {{0.01, 0.005, 0.003}, {0.005, 0.02, 0.004}, {0.003, 0.004, 0.03}};
-    tensor2 t(eps, VoigtType::strain);
+    tensor2 t(eps, Tensor2Type::strain);
 
     vec::fixed<6> v = t.voigt();
     vec v_ref = t2v_strain(mat(eps));
@@ -107,7 +107,7 @@ TEST(Ttensor2, StrainVoigtMatchesTransfer)
 TEST(Ttensor2, FromVoigtStress)
 {
     vec::fixed<6> v = {100, 200, 300, 30, 20, 40};
-    tensor2 t = tensor2::from_voigt(v, VoigtType::stress);
+    tensor2 t = tensor2::from_voigt(v, Tensor2Type::stress);
 
     // Should reconstruct the matrix
     mat m_ref = v2t_stress(vec(v));
@@ -120,7 +120,7 @@ TEST(Ttensor2, FromVoigtStress)
 TEST(Ttensor2, FromVoigtStrain)
 {
     vec::fixed<6> v = {0.01, 0.02, 0.03, 0.01, 0.006, 0.008};
-    tensor2 t = tensor2::from_voigt(v, VoigtType::strain);
+    tensor2 t = tensor2::from_voigt(v, Tensor2Type::strain);
 
     // Should reconstruct the matrix (shear halved in matrix form)
     mat m_ref = v2t_strain(vec(v));
@@ -133,7 +133,7 @@ TEST(Ttensor2, FromVoigtStrain)
 TEST(Ttensor2, VoigtThrowsForNone)
 {
     mat::fixed<3,3> F = {{1.1, 0.1, 0}, {0, 1, 0.05}, {0, 0, 0.95}};
-    tensor2 t(F, VoigtType::none);
+    tensor2 t(F, Tensor2Type::none);
     EXPECT_THROW(t.voigt(), std::runtime_error);
 }
 
@@ -143,7 +143,7 @@ TEST(Ttensor2, VoigtThrowsForNone)
 
 TEST(Ttensor2, SetVoigt)
 {
-    tensor2 t(VoigtType::stress);
+    tensor2 t(Tensor2Type::stress);
     vec::fixed<6> v = {100, 200, 300, 30, 20, 40};
     t.set_voigt(v);
     EXPECT_LT(norm(vec(t.voigt()) - vec(v), 2), 1e-12);
@@ -151,7 +151,7 @@ TEST(Ttensor2, SetVoigt)
 
 TEST(Ttensor2, SetMat)
 {
-    tensor2 t(VoigtType::stress);
+    tensor2 t(Tensor2Type::stress);
     mat::fixed<3,3> m = {{10, 3, 2}, {3, 20, 4}, {2, 4, 30}};
     t.set_mat(m);
     EXPECT_TRUE(arma::approx_equal(t.mat(), m, "absdiff", 1e-15));
@@ -164,11 +164,11 @@ TEST(Ttensor2, SetMat)
 TEST(Ttensor2, SymmetryCheck)
 {
     mat::fixed<3,3> sym = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
-    tensor2 ts(sym, VoigtType::stress);
+    tensor2 ts(sym, Tensor2Type::stress);
     EXPECT_TRUE(ts.is_symmetric());
 
     mat::fixed<3,3> nonsym = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-    tensor2 tn(nonsym, VoigtType::none);
+    tensor2 tn(nonsym, Tensor2Type::none);
     EXPECT_FALSE(tn.is_symmetric());
 }
 
@@ -179,7 +179,7 @@ TEST(Ttensor2, SymmetryCheck)
 TEST(Ttensor2, FastorMap)
 {
     mat::fixed<3,3> m = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}};
-    tensor2 t(m, VoigtType::none);
+    tensor2 t(m, Tensor2Type::none);
 
     auto fmap = t.fastor();
     // Check a few elements (Fastor and armadillo are both column-major)
@@ -196,16 +196,16 @@ TEST(Ttensor2, StressStrainFreeFunctions)
 {
     mat::fixed<3,3> m = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
     tensor2 s = stress(m);
-    EXPECT_EQ(s.vtype(), VoigtType::stress);
+    EXPECT_EQ(s.vtype(), Tensor2Type::stress);
 
     tensor2 e = strain(m);
-    EXPECT_EQ(e.vtype(), VoigtType::strain);
+    EXPECT_EQ(e.vtype(), Tensor2Type::strain);
 }
 
 TEST(Ttensor2, Trace)
 {
     mat::fixed<3,3> m = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
-    tensor2 t(m, VoigtType::stress);
+    tensor2 t(m, Tensor2Type::stress);
     EXPECT_DOUBLE_EQ(trace(t), 600.0);
 }
 
@@ -213,9 +213,9 @@ TEST(Ttensor2, DevStress)
 {
     // Hydrostatic stress => deviatoric part is zero
     mat::fixed<3,3> hydro = {{100, 0, 0}, {0, 100, 0}, {0, 0, 100}};
-    tensor2 t(hydro, VoigtType::stress);
+    tensor2 t(hydro, Tensor2Type::stress);
     tensor2 d = dev(t);
-    EXPECT_EQ(d.vtype(), VoigtType::stress);
+    EXPECT_EQ(d.vtype(), Tensor2Type::stress);
     EXPECT_LT(norm(d), 1e-12);
 }
 
@@ -225,7 +225,7 @@ TEST(Ttensor2, Mises)
     double Y = 250.0;
     mat::fixed<3,3> tension = fill::zeros;
     tension(0,0) = Y;
-    tensor2 t(tension, VoigtType::stress);
+    tensor2 t(tension, Tensor2Type::stress);
     EXPECT_NEAR(Mises(t), Y, 1e-10);
 }
 
@@ -238,14 +238,14 @@ TEST(Ttensor2, SchurProduct)
     // operator% returns a tensor2 (element-wise on 3x3), like Armadillo
     mat::fixed<3,3> a_m = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
     mat::fixed<3,3> b_m = {{0.01, 0.005, 0.003}, {0.005, 0.02, 0.004}, {0.003, 0.004, 0.03}};
-    tensor2 a(a_m, VoigtType::stress);
-    tensor2 b(b_m, VoigtType::strain);
+    tensor2 a(a_m, Tensor2Type::stress);
+    tensor2 b(b_m, Tensor2Type::strain);
 
     tensor2 c = a % b;
     mat::fixed<3,3> expected;
     expected = a_m % b_m;
     EXPECT_TRUE(arma::approx_equal(c.mat(), expected, "absdiff", 1e-14));
-    EXPECT_EQ(c.vtype(), VoigtType::stress); // preserves left operand type
+    EXPECT_EQ(c.vtype(), Tensor2Type::stress); // preserves left operand type
 }
 
 TEST(Ttensor2, SumSchurWork)
@@ -259,8 +259,8 @@ TEST(Ttensor2, SumSchurWork)
     vec::fixed<6> eps_v = {0.01, -0.003, -0.003, 0.005, 0.002, 0.001};
     vec::fixed<6> sig_v = L * eps_v;
 
-    tensor2 sigma = tensor2::from_voigt(sig_v, VoigtType::stress);
-    tensor2 eps = tensor2::from_voigt(eps_v, VoigtType::strain);
+    tensor2 sigma = tensor2::from_voigt(sig_v, Tensor2Type::stress);
+    tensor2 eps = tensor2::from_voigt(eps_v, Tensor2Type::strain);
 
     double W_tensor = sum(sigma % eps);
     double W_voigt = dot(sig_v, eps_v);
@@ -276,8 +276,8 @@ TEST(Ttensor2, Addition)
 {
     mat::fixed<3,3> a = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
     mat::fixed<3,3> b = {{10, 20, 30}, {20, 50, 60}, {30, 60, 90}};
-    tensor2 ta(a, VoigtType::stress);
-    tensor2 tb(b, VoigtType::stress);
+    tensor2 ta(a, Tensor2Type::stress);
+    tensor2 tb(b, Tensor2Type::stress);
     tensor2 tc = ta + tb;
     mat::fixed<3,3> expected;
     expected = a + b;
@@ -287,7 +287,7 @@ TEST(Ttensor2, Addition)
 TEST(Ttensor2, ScalarMultiply)
 {
     mat::fixed<3,3> a = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
-    tensor2 ta(a, VoigtType::stress);
+    tensor2 ta(a, Tensor2Type::stress);
     tensor2 tb = ta * 3.0;
     tensor2 tc = 3.0 * ta;
     mat::fixed<3,3> expected;
@@ -299,9 +299,9 @@ TEST(Ttensor2, ScalarMultiply)
 TEST(Ttensor2, Equality)
 {
     mat::fixed<3,3> a = {{1, 2, 3}, {2, 5, 6}, {3, 6, 9}};
-    tensor2 ta(a, VoigtType::stress);
-    tensor2 tb(a, VoigtType::stress);
-    tensor2 tc(a, VoigtType::strain);
+    tensor2 ta(a, Tensor2Type::stress);
+    tensor2 tb(a, Tensor2Type::stress);
+    tensor2 tc(a, Tensor2Type::strain);
     EXPECT_TRUE(ta == tb);
     EXPECT_FALSE(ta == tc);
 }
@@ -314,7 +314,7 @@ TEST(Ttensor2, RotationStressRoundtrip)
 {
     // Rotate a stress tensor by some angle and back: should recover original
     mat::fixed<3,3> sigma = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
-    tensor2 t(sigma, VoigtType::stress);
+    tensor2 t(sigma, Tensor2Type::stress);
 
     Rotation R = Rotation::from_euler(0.3, 0.5, 0.7, "zxz");
     tensor2 t_rot = t.rotate(R, true);
@@ -327,7 +327,7 @@ TEST(Ttensor2, RotationStressRoundtrip)
 TEST(Ttensor2, RotationStrainRoundtrip)
 {
     mat::fixed<3,3> eps = {{0.01, 0.005, 0.003}, {0.005, 0.02, 0.004}, {0.003, 0.004, 0.03}};
-    tensor2 t(eps, VoigtType::strain);
+    tensor2 t(eps, Tensor2Type::strain);
 
     Rotation R = Rotation::from_euler(0.3, 0.5, 0.7, "zxz");
     tensor2 t_rot = t.rotate(R, true);
@@ -345,7 +345,7 @@ TEST(Ttensor2, PushPullBackStress)
 {
     // Push-forward then pull-back should be identity
     mat::fixed<3,3> sigma = {{100, 30, 20}, {30, 200, 40}, {20, 40, 300}};
-    tensor2 t(sigma, VoigtType::stress);
+    tensor2 t(sigma, Tensor2Type::stress);
 
     mat::fixed<3,3> F = {{1.1, 0.1, 0.05}, {0.02, 0.95, 0.03}, {0.01, 0.04, 1.05}};
 
@@ -358,7 +358,7 @@ TEST(Ttensor2, PushPullBackStress)
 TEST(Ttensor2, PushPullBackStrain)
 {
     mat::fixed<3,3> eps = {{0.01, 0.005, 0.003}, {0.005, 0.02, 0.004}, {0.003, 0.004, 0.03}};
-    tensor2 t(eps, VoigtType::strain);
+    tensor2 t(eps, Tensor2Type::strain);
 
     mat::fixed<3,3> F = {{1.1, 0.1, 0.05}, {0.02, 0.95, 0.03}, {0.01, 0.04, 1.05}};
 
@@ -441,10 +441,10 @@ TEST(Ttensor4, ContractStiffnessGivesStress)
 
     // Uniaxial strain eps_11 = 0.01
     vec::fixed<6> eps_v = {0.01, 0.0, 0.0, 0.0, 0.0, 0.0};
-    tensor2 eps = tensor2::from_voigt(eps_v, VoigtType::strain);
+    tensor2 eps = tensor2::from_voigt(eps_v, Tensor2Type::strain);
 
     tensor2 sigma = stiffness.contract(eps);
-    EXPECT_EQ(sigma.vtype(), VoigtType::stress);
+    EXPECT_EQ(sigma.vtype(), Tensor2Type::stress);
 
     // Cross-validate with raw matrix-vector product
     vec sig_ref = L * eps_v;
@@ -459,10 +459,10 @@ TEST(Ttensor4, ContractComplianceGivesStrain)
     tensor4 compliance(M, Tensor4Type::compliance);
 
     vec::fixed<6> sig_v = {100, 0, 0, 0, 0, 0};
-    tensor2 sig = tensor2::from_voigt(sig_v, VoigtType::stress);
+    tensor2 sig = tensor2::from_voigt(sig_v, Tensor2Type::stress);
 
     tensor2 eps = compliance.contract(sig);
-    EXPECT_EQ(eps.vtype(), VoigtType::strain);
+    EXPECT_EQ(eps.vtype(), Tensor2Type::strain);
 
     vec eps_ref = M * sig_v;
     EXPECT_LT(norm(vec(eps.voigt()) - eps_ref, 2), 1e-10);
@@ -741,7 +741,7 @@ TEST(Ttensor4, CoRateLogarithmicVariantsMatchSolverKernels)
 
     // Non-zero Kirchhoff stress so the B-correction actually contributes
     mat::fixed<3,3> tau_mat = {{120., 30., 10.}, {30., -50., 5.}, {10., 5., 80.}};
-    tensor2 tau(tau_mat, VoigtType::stress);
+    tensor2 tau(tau_mat, Tensor2Type::stress);
 
     tensor4 t_log   = stiff.push_forward(F, CoRate::logarithmic,   tau);
     tensor4 t_log_R = stiff.push_forward(F, CoRate::logarithmic_R, tau);
@@ -824,8 +824,8 @@ TEST(Ttensor4, Dyadic)
 {
     mat::fixed<3,3> a = {{1, 0, 0}, {0, 0, 0}, {0, 0, 0}};
     mat::fixed<3,3> b = {{0, 0, 0}, {0, 1, 0}, {0, 0, 0}};
-    tensor2 ta(a, VoigtType::stress);
-    tensor2 tb(b, VoigtType::stress);
+    tensor2 ta(a, Tensor2Type::stress);
+    tensor2 tb(b, Tensor2Type::stress);
 
     tensor4 d = dyadic(ta, tb);
     // a has Voigt [1,0,0,0,0,0], b has Voigt [0,1,0,0,0,0]
@@ -838,7 +838,7 @@ TEST(Ttensor4, Dyadic)
 TEST(Ttensor4, AutoDyadic)
 {
     mat::fixed<3,3> hydro = fill::eye;
-    tensor2 t(hydro, VoigtType::stress);
+    tensor2 t(hydro, Tensor2Type::stress);
 
     tensor4 ad = auto_dyadic(t);
     // Identity tensor has Voigt [1,1,1,0,0,0]
@@ -877,7 +877,7 @@ TEST(Ttensor_integration, StiffnessContractStrain)
 
     // A general strain state
     vec::fixed<6> eps_v = {0.01, -0.003, -0.003, 0.005, 0.002, 0.001};
-    tensor2 eps = tensor2::from_voigt(eps_v, VoigtType::strain);
+    tensor2 eps = tensor2::from_voigt(eps_v, Tensor2Type::strain);
 
     // Contract: sigma = L : epsilon
     tensor2 sigma = L.contract(eps);
@@ -885,7 +885,7 @@ TEST(Ttensor_integration, StiffnessContractStrain)
     // Verify against raw arma computation
     vec sig_ref = L_iso(E, nu, "Enu") * eps_v;
     EXPECT_LT(norm(vec(sigma.voigt()) - sig_ref, 2), 1e-10);
-    EXPECT_EQ(sigma.vtype(), VoigtType::stress);
+    EXPECT_EQ(sigma.vtype(), Tensor2Type::stress);
 }
 
 TEST(Ttensor_integration, ComplianceContractStress)
@@ -898,7 +898,7 @@ TEST(Ttensor_integration, ComplianceContractStress)
 
     // A general stress state
     vec::fixed<6> sig_v = {100, 50, 75, 30, 20, 10};
-    tensor2 sig = tensor2::from_voigt(sig_v, VoigtType::stress);
+    tensor2 sig = tensor2::from_voigt(sig_v, Tensor2Type::stress);
 
     // Contract: epsilon = M : sigma
     tensor2 eps = M.contract(sig);
@@ -906,7 +906,7 @@ TEST(Ttensor_integration, ComplianceContractStress)
     // Verify against raw arma computation
     vec eps_ref = M_iso(E, nu, "Enu") * sig_v;
     EXPECT_LT(norm(vec(eps.voigt()) - eps_ref, 2), 1e-10);
-    EXPECT_EQ(eps.vtype(), VoigtType::strain);
+    EXPECT_EQ(eps.vtype(), Tensor2Type::strain);
 }
 
 TEST(Ttensor_integration, FullCycle_Stress_Rotate_Contract)
@@ -917,7 +917,7 @@ TEST(Ttensor_integration, FullCycle_Stress_Rotate_Contract)
     // Build stiffness and strain
     tensor4 L(L_iso(E, nu, "Enu"), Tensor4Type::stiffness);
     vec::fixed<6> eps_v = {0.01, -0.003, -0.003, 0.005, 0.002, 0.001};
-    tensor2 eps = tensor2::from_voigt(eps_v, VoigtType::strain);
+    tensor2 eps = tensor2::from_voigt(eps_v, Tensor2Type::strain);
 
     // Compute stress in material frame
     tensor2 sigma = L.contract(eps);
@@ -959,15 +959,15 @@ TEST(Ttensor_batch, SizeMismatchThrows)
     R_match.each_slice() = mat::fixed<3,3>(fill::eye);
 
     // Matched and broadcast should succeed
-    EXPECT_NO_THROW(batch_rotate(v_stress, VoigtType::stress, R_match, true));
-    EXPECT_NO_THROW(batch_push_forward(v_stress, VoigtType::stress, F_match, false));
-    EXPECT_NO_THROW(batch_push_forward(v_stress, VoigtType::stress, F_bcast, false));
-    EXPECT_NO_THROW(batch_pull_back(v_stress, VoigtType::stress, F_match, false));
+    EXPECT_NO_THROW(batch_rotate(v_stress, Tensor2Type::stress, R_match, true));
+    EXPECT_NO_THROW(batch_push_forward(v_stress, Tensor2Type::stress, F_match, false));
+    EXPECT_NO_THROW(batch_push_forward(v_stress, Tensor2Type::stress, F_bcast, false));
+    EXPECT_NO_THROW(batch_pull_back(v_stress, Tensor2Type::stress, F_match, false));
 
     // Mismatched secondary must throw
-    EXPECT_THROW(batch_rotate(v_stress, VoigtType::stress, R_mismatch, true), std::invalid_argument);
-    EXPECT_THROW(batch_push_forward(v_stress, VoigtType::stress, F_mismatch, false), std::invalid_argument);
-    EXPECT_THROW(batch_pull_back(v_stress, VoigtType::stress, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_rotate(v_stress, Tensor2Type::stress, R_mismatch, true), std::invalid_argument);
+    EXPECT_THROW(batch_push_forward(v_stress, Tensor2Type::stress, F_mismatch, false), std::invalid_argument);
+    EXPECT_THROW(batch_pull_back(v_stress, Tensor2Type::stress, F_mismatch, false), std::invalid_argument);
 
     // tensor4 variants
     cube t4(6, 6, N, fill::randu);
@@ -989,10 +989,10 @@ TEST(Ttensor_batch, SizeMismatchThrows)
     cube t4_bcast(6, 6, 1);
     t4_bcast.slice(0) = mat::fixed<6,6>(fill::eye);
 
-    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_match, VoigtType::strain));
-    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_bcast, VoigtType::strain));
-    EXPECT_NO_THROW(batch_contract(t4_bcast, Tensor4Type::stiffness, t2_match, VoigtType::strain));
+    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_match, Tensor2Type::strain));
+    EXPECT_NO_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_bcast, Tensor2Type::strain));
+    EXPECT_NO_THROW(batch_contract(t4_bcast, Tensor4Type::stiffness, t2_match, Tensor2Type::strain));
     // N4=N, N2=N_MISMATCH — both non-broadcast, sizes differ → must throw
-    EXPECT_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_mismatch, VoigtType::strain),
+    EXPECT_THROW(batch_contract(t4_slice_eye, Tensor4Type::stiffness, t2_mismatch, Tensor2Type::strain),
                  std::invalid_argument);
 }

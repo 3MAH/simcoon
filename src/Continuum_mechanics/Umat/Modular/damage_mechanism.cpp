@@ -227,7 +227,7 @@ const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
     // M_cached_ is populated by compute_constraints (must be called first).
     dPhi_dsigma_cache_[0] = M_cached_valid_
         ? strain(arma::vec(M_cached_ * sigma))
-        : tensor2::zeros(VoigtType::strain);
+        : tensor2::zeros(Tensor2Type::strain);
     return dPhi_dsigma_cache_;
 }
 
@@ -245,7 +245,7 @@ const std::vector<tensor2>& DamageMechanism::kappa(
         const double factor = 1.0 / ((1.0 - D) * (1.0 - D));
         kappa_cache_[0] = strain(arma::vec(factor * (M_cached_ * sigma)));
     } else {
-        kappa_cache_[0] = tensor2::zeros(VoigtType::strain);
+        kappa_cache_[0] = tensor2::zeros(Tensor2Type::strain);
     }
     return kappa_cache_;
 }

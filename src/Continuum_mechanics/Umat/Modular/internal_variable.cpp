@@ -37,14 +37,14 @@ InternalVariable::InternalVariable(const std::string& name, double init)
     , mat_value_()
     , mat_start_()
     , is_objective_(true)   // scalars are always objective (frame-invariant)
-    , vtype_(VoigtType::strain)
+    , vtype_(Tensor2Type::strain)
     , t4type_(Tensor4Type::stiffness)
     , statev_offset_(0)
 {
 }
 
 InternalVariable::InternalVariable(const std::string& name, const arma::vec& init,
-                                    bool objective, VoigtType vtype)
+                                    bool objective, Tensor2Type vtype)
     : name_(name)
     , type_(IVarType::VECTOR_6)
     , scalar_value_(0.0)
@@ -75,7 +75,7 @@ InternalVariable::InternalVariable(const std::string& name, const arma::mat& ini
     , mat_value_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , mat_start_(init.n_rows == 6 && init.n_cols == 6 ? init : arma::zeros(6, 6))
     , is_objective_(objective)
-    , vtype_(VoigtType::strain)
+    , vtype_(Tensor2Type::strain)
     , t4type_(t4type)
     , statev_offset_(0)
 {
@@ -233,7 +233,7 @@ void InternalVariable::rotate(const Rotation& R) {
         case IVarType::VECTOR_6: {
             // Route through tensor2 so the rotation kernel (apply_strain vs
             // apply_stress, and the future generic path) is chosen once, inside
-            // tensor2::rotate, from the variable's authoritative VoigtType.
+            // tensor2::rotate, from the variable's authoritative Tensor2Type.
             const tensor2 t = tensor2::from_voigt(vec_value_, vtype_).rotate(R);
             vec_value_ = t.to_arma_voigt();
             break;
@@ -249,7 +249,7 @@ void InternalVariable::rotate(const Rotation& R) {
 
 // ========== Tensor-typed views ==========
 
-tensor2 InternalVariable::as_tensor2(VoigtType vtype) const {
+tensor2 InternalVariable::as_tensor2(Tensor2Type vtype) const {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable::as_tensor2: variable '" + name_
                                  + "' is not VECTOR_6");
@@ -257,7 +257,7 @@ tensor2 InternalVariable::as_tensor2(VoigtType vtype) const {
     return tensor2::from_voigt(vec_value_, vtype);
 }
 
-tensor2 InternalVariable::as_tensor2_start(VoigtType vtype) const {
+tensor2 InternalVariable::as_tensor2_start(Tensor2Type vtype) const {
     if (type_ != IVarType::VECTOR_6) {
         throw std::runtime_error("InternalVariable::as_tensor2_start: variable '" + name_
                                  + "' is not VECTOR_6");
