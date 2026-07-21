@@ -19,7 +19,7 @@
  
  */
 
-///@file Iso_Nfast.cpp
+///@file Hill_isoh_Nfast.cpp
 ///@brief User subroutine for Multiple plasticity model in 3D case
 ///@author Chemisky, Chatzigeorgiou
 ///@version 1.0

@@ -15,7 +15,7 @@
  
  */
 
-///@file step_thermomeca.hpp
+///@file step_thermomeca.cpp
 ///@brief object that defines a thermomechanical step
 ///@version 1.0
 

@@ -157,11 +157,11 @@ def bench_family(key, results_dir, repeats):
     out_l, out_m = f"b_{key}_l.txt", f"b_{key}_m.txt"
     for _ in range(repeats):
         t0 = time.perf_counter()
-        sim.solver(name, props, nstatev, 0., 0., 0., 0, 1,
+        sim._core.solver(name, props, nstatev, 0., 0., 0., 0, 1,
                    "../data", results_dir, path_file, out_l)
         t_leg.append(time.perf_counter() - t0)
         t0 = time.perf_counter()
-        sim.solver("MODUL", mat.props, mat.nstatev, 0., 0., 0., 0, 1,
+        sim._core.solver("MODUL", mat.props, mat.nstatev, 0., 0., 0., 0, 1,
                    "../data", results_dir, path_file, out_m)
         t_mod.append(time.perf_counter() - t0)
     # discard the first (warmup) pair; min = least-noise estimator

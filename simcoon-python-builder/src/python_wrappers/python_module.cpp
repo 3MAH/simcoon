@@ -230,6 +230,12 @@ PYBIND11_MODULE(_core, m)
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::stress_convert);
 
     // umat
+    // NOTE (single/direct callers): kernels may request a step cut instead of
+    // integrating a too-large increment (e.g. the modular engine rejects a
+    // non-finite or runaway return-mapping result and leaves statev untouched
+    // with an elastic Lt). The simcoon solver honors this via tnew_dt < 1 and
+    // retries with a smaller increment; couplers driving umat directly must
+    // subdivide the increment themselves in that situation.
     m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default);
     m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default);
 

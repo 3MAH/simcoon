@@ -19,7 +19,7 @@
  
  */
 
-///@file Elastic_orthotropic.cpp
+///@file elastic_orthotropic.cpp
 ///@brief User subroutine for ortothropic elastic materials in 3D case
 
 #include <iostream>

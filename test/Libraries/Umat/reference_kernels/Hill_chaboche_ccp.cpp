@@ -19,7 +19,7 @@
  
  */
 
-///@file plastic_kin_iso_ccp.cpp
+///@file Hill_chaboche_ccp.cpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief This subroutines uses a convex cutting plane algorithm
 ///@brief Linear Kinematical hardening coupled with a power-law hardenig is considered

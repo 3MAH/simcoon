@@ -60,15 +60,12 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 - Isotropic, Orthotropic, Transversely Isotropic
 
 **Plasticity:**
-- `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening
-- `plastic_kin_iso_ccp` - Combined kinematic-isotropic hardening
-- `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model
-- `Hill_isoh` - Hill anisotropic plasticity with isotropic hardening
-- `Hill_isoh_Nfast` - Hill plasticity with multiple hardening mechanisms
-- `Hill_chaboche_ccp` - Hill plasticity with Chaboche hardening
-- `Ani_chaboche_ccp` - General anisotropic plasticity with Chaboche hardening
-- `DFA_chaboche_ccp` - Distortion-based anisotropy with Chaboche hardening
-- `Generic_chaboche_ccp` - Generic anisotropic plasticity framework
+- `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening (kept as a readable reference implementation)
+- `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model (kept as a readable reference implementation)
+- All other plasticity variants (kinematic-isotropic `EPKCP`, Hill `EPHIL`/`EPTRI`/`EPHIN`,
+  Hill-Chaboche `EPHAC`, anisotropic Chaboche `EPANI`/`EPDFA`/`EPCHG`) are served since 2.0
+  by the **modular UMAT engine** through `umat_legacy_modular` name adapters — legacy names
+  and props ABI preserved. See the UMAT catalog (`docs/simulation/umat_catalog.rst`).
 
 **Viscoelasticity:**
 - `Zener_fast` - Single Zener (Standard Linear Solid) element

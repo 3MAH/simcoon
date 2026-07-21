@@ -19,7 +19,7 @@
  *   ``L - dyadic(kappa, kappa/Bhat)``      L - (kappa (x) kappa) / Bhat
  *
  * Overhead: the typed objects are fixed-size (stack, no heap). Construction uses
- * the ``VoigtType`` *enum* (no per-call string parsing), and the only Voigt->tensor
+ * the ``Tensor2Type`` *enum* (no per-call string parsing), and the only Voigt->tensor
  * conversion sits *before* the Newton loop — the hot loop never touches a string
  * tag or rebuilds a tensor from a raw vector.
  *
@@ -101,15 +101,15 @@ public:
         L_out = L.mat();
 
         // ---- Wrap incoming state as tensors (the only Voigt->tensor conversions) ----
-        tensor2 sig       = tensor2::from_voigt(sigma, VoigtType::stress);
-        tensor2 EP        = tensor2::from_voigt(vec(statev.subvec(2, 7)), VoigtType::strain);
+        tensor2 sig       = tensor2::from_voigt(sigma, Tensor2Type::stress);
+        tensor2 EP        = tensor2::from_voigt(vec(statev.subvec(2, 7)), Tensor2Type::strain);
         tensor2 sig_start = sig;
         tensor2 EP_start  = EP;
 
         // ---- Trial mechanical strain (built once, reused every iteration) ----
         vec alpha_v = {alpha, alpha, alpha, 0., 0., 0.};
         tensor2 eps_tot = tensor2::from_voigt(
-            vec(Etot + DEtot - alpha_v * (T + DT - T_init)), VoigtType::strain);
+            vec(Etot + DEtot - alpha_v * (T + DT - T_init)), Tensor2Type::strain);
 
         // ---- Hardening at the start of the step ----
         double Hp = 0., dHpdp = 0.;
@@ -123,7 +123,7 @@ public:
         sig = L.contract(eps_tot - EP);
 
         // ---- Return mapping (CCP) — scalars stay primitive, tensors stay typed ----
-        tensor2 N(VoigtType::strain), kappa(VoigtType::stress);
+        tensor2 N(Tensor2Type::strain), kappa(Tensor2Type::stress);
         double error = 1.;
         for (int iter = 0;
              iter < simcoon::maxiter_umat && error > simcoon::precision_umat;
@@ -165,7 +165,7 @@ public:
         // ---- Work (typed double contractions  sigma : d_eps) ----
         tensor2 sig_sum = sig_start + sig;
         tensor2 DEP     = EP - EP_start;
-        tensor2 DEtot_t = tensor2::from_voigt(DEtot, VoigtType::strain);
+        tensor2 DEtot_t = tensor2::from_voigt(DEtot, Tensor2Type::strain);
         double  Dp      = p - p_old;
         double  A_p     = -Hp;
 

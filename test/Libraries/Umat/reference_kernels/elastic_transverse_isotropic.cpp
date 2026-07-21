@@ -19,7 +19,7 @@
  
  */
 
-///@file elastic_transversely_isotropic.cpp
+///@file elastic_transverse_isotropic.cpp
 ///@brief User subroutine for transversely isotropic elastic materials in 3D case
 ///@version 1.0
 

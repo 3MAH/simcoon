@@ -22,6 +22,12 @@
 #include <optional>
 #include <Fastor/Fastor.h>
 
+/**
+ * @file tensor.hpp
+ * @brief Typed 2nd- and 4th-order tensor API: type-tagged Voigt/Mandel conversions,
+ * convention-aware contractions and rotations (Voigt order [11,22,33,12,13,23], units MPa).
+ */
+
 namespace simcoon {
 
 // Forward declarations
