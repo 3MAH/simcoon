@@ -78,19 +78,30 @@ All simcoon constitutive models are available through the FEA bridges:
 ELISO (isotropic), ELIST (transversely isotropic), ELORT (orthotropic)
 
 **Plasticity:**
-EPICP (isotropic hardening), EPKCP (kinematic), EPCHA (Chaboche), EPHIL (Hill), EPHAC (Hill-Chaboche)
+EPICP (isotropic hardening), EPKCP (kinematic), EPCHA (Chaboche),
+EPHIL/EPTRI (Hill), EPHAC (Hill-Chaboche), EPANI (anisotropic-Chaboche),
+EPDFA (DFA-Chaboche), EPCHG (generic Chaboche), EPHIN (N Hill surfaces)
 
 **Viscoelasticity:**
-ZENER (single branch), ZENNK (N branches), PRONK (Prony series)
+ZENER (Kelvin, single branch), ZENNK (Kelvin, N branches), PRONK (Prony series)
 
 **Shape Memory Alloys:**
 SMAUT (unified), SMANI (anisotropic)
 
 **Damage:**
-LLDM0 (Lemaitre-Chaboche)
+LLDM0 (Lemaitre-Ladeveze-Dufailly)
 
 **Micromechanics:**
 MIHEN (Mori-Tanaka), MIMTN (multi-phase), MISCN (self-consistent), MIPLN (layered)
+
+**Composable:**
+MODUL (modular UMAT — elasticity + any combination of plasticity,
+viscoelasticity and damage mechanisms; see :mod:`simcoon.modular`)
+
+Many legacy names are now served by the modular engine through
+props-translating adapters (identical calling convention and results): see
+:doc:`umat_catalog` for the complete per-name status, props layouts and
+state-variable notes.
 
 See the individual Abaqus and Ansys pages for complete property and state variable specifications.
 

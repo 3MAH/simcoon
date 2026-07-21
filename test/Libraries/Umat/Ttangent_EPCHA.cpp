@@ -75,8 +75,8 @@ bool verbose() { return std::getenv("SIMCOON_TEST_VERBOSE") != nullptr; }
 TEST(Ttangent_EPCHA, parity_elastic_step)
 {
     const vec DEtot = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.};
-    Out c = run_epcha(DEtot, 0);
-    Out a = run_epcha(DEtot, 1);
+    Out c = run_epcha(DEtot, simcoon::tangent_continuum);
+    Out a = run_epcha(DEtot, simcoon::tangent_algorithmic);
     ASSERT_FALSE(c.plastic);
     EXPECT_LT(norm(c.Lt - a.Lt, "fro"), 1.e-12);
 }
@@ -84,15 +84,15 @@ TEST(Ttangent_EPCHA, parity_elastic_step)
 TEST(Ttangent_EPCHA, algorithmic_tangent_better_than_continuum)
 {
     const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
-    Out c = run_epcha(Deps, 0);
-    Out a = run_epcha(Deps, 1);
+    Out c = run_epcha(Deps, simcoon::tangent_continuum);
+    Out a = run_epcha(Deps, simcoon::tangent_algorithmic);
     ASSERT_TRUE(a.plastic);
 
     const double h = 1.e-7;
     mat J_ref(6, 6);
     for (int j = 0; j < 6; ++j) {
         vec Dp = Deps; Dp(j) += h; vec Dm = Deps; Dm(j) -= h;
-        J_ref.col(j) = (run_epcha(Dp, 0).sigma - run_epcha(Dm, 0).sigma) / (2. * h);
+        J_ref.col(j) = (run_epcha(Dp, simcoon::tangent_continuum).sigma - run_epcha(Dm, simcoon::tangent_continuum).sigma) / (2. * h);
     }
     const double err_algo = norm(a.Lt - J_ref, "fro");
     const double err_cont = norm(c.Lt - J_ref, "fro");
@@ -110,8 +110,8 @@ TEST(Ttangent_EPCHA, convergence_no_worse_than_continuum)
     vec Deps0 = solve(L, sig_t); Deps0 *= 1.2;
     Deps0(3) += 3.e-3; Deps0(4) += 1.5e-3; Deps0(1) += 1.e-3;
 
-    auto r_cont = stress_target_newton(sig_t, Deps0, 0, 40);
-    auto r_algo = stress_target_newton(sig_t, Deps0, 1, 40);
+    auto r_cont = stress_target_newton(sig_t, Deps0, simcoon::tangent_continuum, 40);
+    auto r_algo = stress_target_newton(sig_t, Deps0, simcoon::tangent_algorithmic, 40);
     if (verbose())
         std::cout << "[Ttangent_EPCHA] final residual cont=" << r_cont.back()
                   << " algo=" << r_algo.back() << "\n";

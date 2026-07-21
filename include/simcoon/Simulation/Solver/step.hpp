@@ -68,8 +68,20 @@ protected:
     
     arma::vec times; ///< Vector of time values for the step
     double BC_Time; ///< Boundary condition application time
-    
+
     std::string file; ///< Input/output file for loading path values
+
+    /**
+     * @brief In-memory tabular loading data (alternative to \ref file for mode 3).
+     *
+     * When non-empty, mode-3 generation reads increments from this matrix instead
+     * of opening \ref file. One row per increment; columns follow the exact layout
+     * of a mode-3 path file without the leading label token:
+     * [time, (T if cBC_T==0, or Q if cBC_T==1 for thermomechanical steps),
+     *  controlled mechanical components with cBC_meca(k) < 2, in internal Voigt
+     *  order (6 components for control_type <= 4, 9 for 5/6)].
+     */
+    arma::mat tab_data;
     
     /**
      * @brief Default constructor.
@@ -102,7 +114,21 @@ protected:
      * @brief Generate the time discretization for the step.
      */
     virtual void generate();
-    
+
+    /**
+     * @brief Number of increments of a tabular (mode 3) step: tab_data rows if set,
+     * otherwise the number of non-empty lines of \ref file.
+     */
+    int mode3_ninc() const;
+
+    /**
+     * @brief Full tabular (mode 3) loading table, one row per increment.
+     * Returns \ref tab_data (validated against size_BC) when set, otherwise parses
+     * \ref file, skipping the leading label token of each line.
+     * @param size_BC Expected number of columns (see \ref tab_data for the layout)
+     */
+    arma::mat mode3_rows(const unsigned int &size_BC) const;
+
     /**
      * @brief Compute the next increment parameters.
      * @param tnew_dt Suggested new time increment ratio (output)

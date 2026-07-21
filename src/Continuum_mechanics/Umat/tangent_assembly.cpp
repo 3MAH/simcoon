@@ -25,6 +25,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <stdexcept>
 
 namespace simcoon {
 
@@ -51,7 +52,19 @@ ContinuumTangent assemble_continuum_tangent(
     // mask(i,j) = op(i)*op(j); Bbar = mask \circ Bhat + diag(1-op).
     const arma::mat mask    = op * op.t();
     const arma::mat Bbar    = mask % Bhat + arma::diagmat(1.0 - op);
-    arma::mat       invBhat = mask % arma::inv(Bbar);   // zero out inactive rows/cols
+    arma::mat       invBbar;
+    if (!arma::inv(invBbar, Bbar) || !invBbar.is_finite()) {
+        // Degenerate hardening system (e.g. SMA transformation plateau,
+        // Bhat -> 0): fall back to the elastic operator for this increment
+        // instead of poisoning Lt/P with inf (the solver's own K inversion
+        // would then throw and abort the whole solve).
+        ContinuumTangent out;
+        out.Lt = L;
+        out.P_epsilon.assign(Nmech, arma::zeros(6));
+        out.invBhat.zeros(Nmech, Nmech);
+        return out;
+    }
+    arma::mat invBhat = mask % invBbar;   // zero out inactive rows/cols
 
     // Stack \partial \Phi^m gradients into a 6\times Nmech matrix so the double sum over
     // (l, m) becomes one GEMM: P = (L \cdot \partial \Phi ) \cdot invBhat.
@@ -84,8 +97,11 @@ ContinuumTangent assemble_continuum_tangent(
     out.P_epsilon.assign(1, arma::zeros(6));
     out.invBhat.zeros(1, 1);
 
-    if (Ds <= simcoon::iota) {
-        // Mechanism inactive — invBhat masked to 0, P_eps = 0, Lt = L.
+    if (Ds <= simcoon::iota || std::abs(Bhat_scalar) < simcoon::iota ||
+        !std::isfinite(Bhat_scalar)) {
+        // Mechanism inactive, or degenerate hardening (Bhat -> 0, e.g. SMA
+        // transformation plateau): invBhat masked to 0, P_eps = 0, Lt = L —
+        // 1/Bhat would poison Lt with inf and abort the solve downstream.
         out.Lt = L;
         return out;
     }
@@ -128,7 +144,15 @@ ContinuumTangent assemble_algorithmic_tangent(
         return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
     }
 
-    const arma::mat Minv = arma::inv(I6 + L * sumDsLambdaSigma);
+    // The \partial \Lambda /\partial \sigma blocks may come from finite differences (SMA
+    // transformation flow) and can be ill-conditioned near activation
+    // boundaries; whether inv() flags such a matrix as singular is
+    // LAPACK-backend dependent. Fall back to the (always well-posed)
+    // continuum operator rather than aborting the whole solve.
+    arma::mat Minv;
+    if (!arma::inv(Minv, I6 + L * sumDsLambdaSigma)) {
+        return assemble_continuum_tangent(Bhat_continuum, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
 
     // Algorithmic operators:  \tilde{L} = M^{-1} L,  \tilde{\kappa}^j = M^{-1} \kappa^j,
     // \tilde{B}^{lj} = Bhat_continuum^{lj} + \partial \Phi^l \cdot (M^{-1} - I) \cdot \kappa^j  (Bhat_continuum = \partial \Phi \cdot \kappa - K).
@@ -166,11 +190,78 @@ ContinuumTangent assemble_algorithmic_tangent(
     {
         return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
     }
-    const arma::mat Minv     = arma::inv(arma::eye(6, 6) + L * (Ds * dLambda_dsigma));
+    arma::mat Minv;
+    if (!arma::inv(Minv, arma::eye(6, 6) + L * (Ds * dLambda_dsigma))) {
+        // Ill-conditioned FD Hessian (backend-dependent detection): fall back
+        // to the continuum operator instead of aborting the solve.
+        return assemble_continuum_tangent(Bhat_scalar, kappa, dPhidsigma, Ds, L);
+    }
     const arma::mat L_tilde  = Minv * L;
     const arma::vec kappa_t  = Minv * kappa;
     const double    Bhat_t   = Bhat_scalar + arma::dot(dPhidsigma, (Minv - arma::eye(6, 6)) * kappa);
     return assemble_continuum_tangent(Bhat_t, kappa_t, dPhidsigma, Ds, L_tilde);
+}
+
+
+
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    const arma::mat& Bhat,
+    const std::vector<arma::vec>& kappa_j,
+    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::vec& Ds_j,
+    const arma::mat& L,
+    const HessianProvider& dLambda_dsigma) {
+
+    if (tangent_mode == simcoon::tangent_none) {
+        // Explicit integration: elastic operator, zeroed sensitivities so the
+        // thermomechanical P_theta algebra degrades consistently.
+        ContinuumTangent ct;
+        ct.Lt = L;
+        ct.P_epsilon.assign(kappa_j.size(), arma::zeros(6));
+        ct.invBhat = arma::zeros(Bhat.n_rows, Bhat.n_cols);
+        return ct;
+    }
+    if (tangent_mode == simcoon::tangent_continuum) {
+        return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+    }
+    if (tangent_mode == simcoon::tangent_algorithmic) {
+        if (!dLambda_dsigma) {
+            // Flow independent of stress: the algorithmic operator IS the
+            // continuum one.
+            return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
+        }
+        return assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+                                            dLambda_dsigma());
+    }
+    if (tangent_mode == simcoon::tangent_closest_point) {
+        throw std::invalid_argument(
+            "compute_tangent_operator: tangent_closest_point (3) is reserved "
+            "and not implemented in this release");
+    }
+    throw std::invalid_argument("compute_tangent_operator: unknown tangent_mode "
+                                + std::to_string(tangent_mode));
+}
+
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    double Bhat_scalar,
+    const arma::vec& kappa,
+    const arma::vec& dPhidsigma,
+    double Ds,
+    const arma::mat& L,
+    const std::function<arma::mat()>& dLambda_dsigma) {
+
+    HessianProvider provider = nullptr;
+    if (dLambda_dsigma) {
+        provider = [&dLambda_dsigma]() {
+            return std::vector<arma::mat>{dLambda_dsigma()};
+        };
+    }
+    arma::mat Bhat(1, 1);
+    Bhat(0, 0) = Bhat_scalar;
+    return compute_tangent_operator(tangent_mode, Bhat, {kappa}, {dPhidsigma},
+                                    arma::vec{Ds}, L, provider);
 }
 
 } // namespace simcoon

@@ -64,7 +64,7 @@ path_results = "results"
 pathfile = "ZENNK_path.txt"
 outputfile = "results_ZENNK.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

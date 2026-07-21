@@ -71,7 +71,7 @@ outputfile = "results_MODUL.txt"
 
 os.makedirs(path_results, exist_ok=True)
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

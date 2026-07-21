@@ -17,8 +17,8 @@
 
 ///@file Ttangent_EPICP.cpp
 ///@brief Tier-A acceptance test: the EPICP (J2 isotropic plasticity) algorithmic
-///       tangent (tangent_mode==1) is the exact Jacobian of the discrete return map
-///       and converges Q-quadratically, while tangent_mode==0 stays the continuum tangent.
+///       tangent (algorithmic mode (tangent_algorithmic)) is the exact Jacobian of the discrete return map
+///       and converges Q-quadratically, while tangent_continuum stays the continuum tangent.
 ///       Drives the real umat_plasticity_iso_CCP, toggling tangent_mode.
 ///@version 1.0
 
@@ -88,8 +88,8 @@ bool verbose() { return std::getenv("SIMCOON_TEST_VERBOSE") != nullptr; }
 TEST(Ttangent_EPICP, parity_elastic_step)
 {
     const vec DEtot = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.}; // Mises ~ 7 MPa << sigmaY
-    EpicpOut c = run_epicp(DEtot, 0);
-    EpicpOut a = run_epicp(DEtot, 1);
+    EpicpOut c = run_epicp(DEtot, simcoon::tangent_continuum);
+    EpicpOut a = run_epicp(DEtot, simcoon::tangent_algorithmic);
     ASSERT_FALSE(c.plastic) << "Parity step unexpectedly yielded.";
     EXPECT_LT(norm(c.Lt - a.Lt, "fro"), 1.e-12);
 }
@@ -101,8 +101,8 @@ TEST(Ttangent_EPICP, parity_elastic_step)
 TEST(Ttangent_EPICP, algorithmic_tangent_is_exact_jacobian)
 {
     const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.}; // non-radial -> yields
-    EpicpOut c = run_epicp(Deps, 0);
-    EpicpOut a = run_epicp(Deps, 1);
+    EpicpOut c = run_epicp(Deps, simcoon::tangent_continuum);
+    EpicpOut a = run_epicp(Deps, simcoon::tangent_algorithmic);
     ASSERT_TRUE(a.plastic) << "Test set-up did not yield - increase Deps.";
 
     const double h = 1.e-7;
@@ -110,7 +110,7 @@ TEST(Ttangent_EPICP, algorithmic_tangent_is_exact_jacobian)
     for (int j = 0; j < 6; ++j) {
         vec Dp = Deps; Dp(j) += h;
         vec Dm = Deps; Dm(j) -= h;
-        J_ref.col(j) = (run_epicp(Dp, 0).sigma - run_epicp(Dm, 0).sigma) / (2. * h);
+        J_ref.col(j) = (run_epicp(Dp, simcoon::tangent_continuum).sigma - run_epicp(Dm, simcoon::tangent_continuum).sigma) / (2. * h);
     }
 
     const double err_algo = norm(a.Lt - J_ref, "fro");
@@ -139,8 +139,8 @@ TEST(Ttangent_EPICP, convergence_rate_continuum_vs_algorithmic)
     Deps0(1) += 1.e-3;
 
     const int max_iter = 30;
-    auto r_cont = stress_target_newton(sigma_target, Deps0, 0, max_iter);
-    auto r_algo = stress_target_newton(sigma_target, Deps0, 1, max_iter);
+    auto r_cont = stress_target_newton(sigma_target, Deps0, simcoon::tangent_continuum, max_iter);
+    auto r_algo = stress_target_newton(sigma_target, Deps0, simcoon::tangent_algorithmic, max_iter);
 
     if (verbose()) {
         std::cout << "\n[Ttangent_EPICP] residual history (cont vs algo):\n";

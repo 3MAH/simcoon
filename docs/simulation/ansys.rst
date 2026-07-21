@@ -22,6 +22,8 @@ The Ansys ``USERMAT`` subroutine interface differs from Abaqus in several ways:
 - **No time step control**: Cannot request smaller time steps from within USERMAT
 - **State variable initialization**: Cannot set non-zero initial values
 - **Model selection**: Uses numeric model code in props[0] instead of material name
+  (the code maps to the same 5-character names — see :doc:`umat_catalog` for
+  the complete per-name reference)
 
 Prerequisites
 -------------
@@ -119,23 +121,23 @@ Model Codes
    * - 3
      - ELIST
      - Transversely isotropic elasticity
-     - E₁, E₂, ν₁₂, ν₂₃, G₁₂, α₁, α₂
+     - axis, EL, ET, νTL, νTT, GLT, αL, αT
    * - 4
      - ELORT
      - Orthotropic elasticity
      - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
    * - 5
      - EPICP
-     - Isotropic plasticity (isotropic hardening)
-     - E, ν, α, σ_y, H
+     - Von Mises plasticity, power-law isotropic hardening
+     - E, ν, α, σ_Y, k, m
    * - 6
      - EPKCP
-     - Kinematic + isotropic hardening
-     - E, ν, α, σ_y, H, C, γ
+     - Von Mises, power-law isotropic + Prager kinematic
+     - E, ν, α, σ_Y, k, m, kX
    * - 7
      - EPCHA
-     - Chaboche cyclic plasticity
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, ...
+     - Von Mises + Voce + 2× Armstrong-Frederick
+     - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
    * - 8
      - SMAUT
      - SMA unified model
@@ -146,24 +148,24 @@ Model Codes
      - E, ν, α, σ_y, H, S, s, D_c
    * - 11
      - ZENER
-     - Zener viscoelastic (single branch)
-     - E₀, E₁, η
+     - Kelvin viscoelastic (single branch)
+     - E₀, ν₀, α, E₁, ν₁, ηB₁, ηS₁
    * - 12
      - ZENNK
-     - Zener viscoelastic (N branches)
-     - E₀, E₁, η₁, E₂, η₂, ...
+     - Kelvin viscoelastic (N branches)
+     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
    * - 13
      - PRONK
-     - Prony series viscoelastic
-     - G₀, K₀, g₁, τ₁, k₁, τ'₁, ...
+     - Prony series viscoelastic (generalized Maxwell)
+     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
    * - 17
      - EPHIL
-     - Hill anisotropic plasticity
-     - E, ν, α, σ_y, H, F, G, H, L, M, N
+     - Hill yield + power-law isotropic hardening
+     - E, ν, α, σ_Y, k, m, F, G, H, L, M, N
    * - 18
      - EPHAC
-     - Hill + Chaboche
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, F, G, H, L, M, N
+     - Cubic elasticity + Hill + Voce + 2× AF
+     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N
 
 How It Works
 ------------

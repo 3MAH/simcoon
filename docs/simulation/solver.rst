@@ -1,7 +1,7 @@
 Use the solver
 ================================
 
-The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This documentation covers the Python interface, solver parameters, and the structure of input files.
+The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the legacy file-driven workflow (``path.txt`` / ``material.dat`` in, result text files out) through the low-level binding ``sim._core.solver``. Since simcoon 2.0 the recommended interface is the in-memory API (see :doc:`python_solver`); legacy files parse into loading objects with ``sim.solver.from_file``.
 
 Elastic tensile test
 --------------------
@@ -86,7 +86,7 @@ Finally, call the solver function:
 
 .. code-block:: python
 
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,
@@ -151,6 +151,51 @@ The solver function takes the following parameters:
    * - outputfile
      - string
      - Name of the output result file
+   * - tangent_mode
+     - int
+     - Tangent-operator mode (optional keyword, default 2): see below
+
+Tangent-operator modes
+^^^^^^^^^^^^^^^^^^^^^^
+
+The ``tangent_mode`` keyword selects the tangent operator returned by the
+constitutive models (also exposed as named constants:
+``sim.tangent_none``, ``sim.tangent_continuum``, ``sim.tangent_algorithmic``,
+``sim.tangent_closest_point``):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 25 65
+
+   * - Value
+     - Name
+     - Description
+   * - 0
+     - none
+     - No tangent assembly — ``Lt`` stays the elastic operator (explicit
+       integration schemes)
+   * - 1
+     - continuum
+     - Continuum elasto-(visco)plastic operator (this was mode 0 before the
+       2.0 renumbering)
+   * - 2
+     - algorithmic
+     - Simo–Hughes consistent (algorithmic) operator — **default**; exact
+       Jacobian of the discrete return map for J2-type flows, Q-quadratic
+       global convergence (this was mode 1 before the 2.0 renumbering)
+   * - 3
+     - closest-point
+     - Reserved for the closest-point-projection exact operator (future
+       release); currently raises an error
+
+.. note::
+   **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and
+   ``1`` meant *algorithmic*; there was no "none" mode. The converged
+   response is identical in every mode (the tangent steers the global
+   Newton iteration, not the residual) — only iteration counts and run
+   time change. Scripts passing explicit values should shift them by +1;
+   scripts relying on the default silently upgrade from continuum to the
+   (faster) algorithmic operator.
 
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

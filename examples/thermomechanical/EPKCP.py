@@ -65,7 +65,7 @@ path_results = "results"
 pathfile = "THERM_EPKCP_path.txt"
 outputfile = "results_THERM_EPKCP.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,
@@ -156,7 +156,7 @@ outputfile_globals = {}
 for inc in increments:
     pathfile = f"THERM_EPKCP_path_{inc}.txt"
     outputfile = f"results_THERM_EPKCP_{inc}.txt"
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

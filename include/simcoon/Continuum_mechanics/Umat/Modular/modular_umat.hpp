@@ -49,6 +49,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
 
@@ -142,7 +143,8 @@ public:
     /**
      * @brief Add a viscoelastic mechanism (Prony series)
      * @param N_prony Number of Prony terms
-     * @param props Material properties (g_i, tau_i pairs for each term)
+     * @param props Material properties: per Prony branch a quadruple
+     *        (E_i, nu_i, etaB_i, etaS_i) — same layout as the legacy PRONK/ZENNK
      * @param offset Current offset in props (will be updated)
      * @return Reference to the added mechanism
      */
@@ -180,7 +182,7 @@ public:
      *   - For plasticity (type 0):
      *     - yield_type, iso_type, kin_type, N_iso, N_kin, sigma_Y, [yield params], [iso params], [kin params]
      *   - For viscoelasticity (type 1):
-     *     - N_prony, then N_prony pairs of (g_i, tau_i)
+     *     - N_prony, then N_prony quadruples of (E_i, nu_i, etaB_i, etaS_i)
      *   - For damage (type 2):
      *     - damage_type (0=linear, 1=exp, 2=power, 3=weibull), Y_0, Y_c, [type-specific params]
      *
@@ -301,7 +303,7 @@ public:
         int nshr,
         bool start,
         double& tnew_dt,
-        int tangent_mode = 0
+        int tangent_mode = tangent_default
     );
 
 private:
@@ -344,28 +346,33 @@ private:
     /**
      * @brief Compute the tangent modulus.
      *
-     * tangent_mode == 0: each mechanism applies its continuum
-     * tangent_contribution() in composition order (legacy behaviour).
+     * tangent_none (0): no assembly — Lt stays the elastic operator
+     * (explicit integration).
      *
-     * tangent_mode == 1: mechanisms exposing a flow Hessian
+     * tangent_continuum (1): each mechanism applies its continuum
+     * tangent_contribution() in composition order (pre-2.0 mode 0).
+     *
+     * tangent_algorithmic (2): mechanisms exposing a flow Hessian
      * (dLambda_dsigma() != nullptr, stress-dependent Phi) are assembled
      * together through assemble_algorithmic_tangent() — the Simo–Hughes
      * consistent operator of the coupled sub-system, built from the converged
      * local Jacobian \f$ \hat{B} = -B \f$ and the mechanism caches. The
      * remaining mechanisms (Prony viscoelasticity, scalar damage — flows
      * independent of stress) keep their continuum contribution, applied on
-     * top in composition order, exactly as in mode 0.
+     * top in composition order, exactly as in the continuum mode.
      *
      * @param sigma Current (converged) stress
      * @param Ds_total Total multiplier increments
      * @param Lt Output: tangent modulus
-     * @param tangent_mode 0 = continuum, 1 = algorithmic (Simo–Hughes)
+     * @param tangent_mode tangent_* constant (parameter.hpp): 0 = none
+     *        (Lt = elastic L), 1 = continuum, 2 = algorithmic (Simo–Hughes),
+     *        3 = closest-point (reserved, throws)
      */
     void compute_tangent(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
         arma::mat& Lt,
-        int tangent_mode = 0
+        int tangent_mode = tangent_default
     );
 
     /**
@@ -417,7 +424,7 @@ void umat_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode = 0
+    const int& tangent_mode = tangent_default
 );
 
 } // namespace simcoon

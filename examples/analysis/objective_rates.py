@@ -82,7 +82,7 @@ plot_info = [
 for i, rate_name in enumerate(rate):
     corate_type = i
     outputfile = f"results_ELISO_{i}.txt"
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

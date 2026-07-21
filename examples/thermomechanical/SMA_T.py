@@ -107,7 +107,7 @@ path_results = "results"
 pathfile = "THERM_SMAUT_path.txt"
 outputfile = "results_THERM_SMAUT.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,
@@ -198,7 +198,7 @@ outputfile_globals = {}
 for inc in increments:
     pathfile = f"THERM_SMAUT_path_{inc}.txt"
     outputfile = f"results_THERM_SMAUT_{inc}.txt"
-    sim.solver(
+    sim._core.solver(
         umat_name,
         props,
         nstatev,

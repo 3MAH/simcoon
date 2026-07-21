@@ -23,6 +23,7 @@
 
 #include <armadillo>
 #include <vector>
+#include <functional>
 
 namespace simcoon {
 
@@ -178,5 +179,64 @@ ContinuumTangent assemble_algorithmic_tangent(
     double Ds,
     const arma::mat& L,
     const arma::mat& dLambda_dsigma);
+
+/**
+ * @brief Lazy per-mechanism Hessian provider for compute_tangent_operator().
+ *
+ * Invoked ONLY when the algorithmic operator is requested — expensive Hessians
+ * (e.g. the SMA finite-difference $ \partial oldsymbol{\Lambda}/\partial
+ * oldsymbol{\sigma} $) must not be evaluated in the other modes.
+ */
+using HessianProvider = std::function<std::vector<arma::mat>()>;
+
+// NOTE: only the iterative (plasticity/SMA/thermomechanical) kernels dispatch
+// on tangent_mode. The finite-strain hyperelastic, viscoelastic, damage and
+// elastic kernels always return their exact tangent and accept-but-ignore the
+// mode (documented in docs/simulation/umat_catalog.rst).
+
+/**
+ * @brief Mode dispatch over the shared tangent assemblies — the single entry
+ * point UMATs call after their return mapping, keeping only the physical
+ * inputs at the call site.
+ *
+ * - @c tangent_none: no assembly; returns { Lt = L, per-mechanism zero
+ *   P_epsilon, zero invBhat } so downstream thermomechanical algebra
+ *   (P_theta from P_epsilon/invBhat) degrades consistently to the elastic
+ *   operator (explicit integration).
+ * - @c tangent_continuum: assemble_continuum_tangent().
+ * - @c tangent_algorithmic: assemble_algorithmic_tangent() with
+ *   @p dLambda_dsigma(); falls back to the continuum operator when no
+ *   provider is given (flow independent of stress).
+ * - @c tangent_closest_point: reserved — throws std::invalid_argument.
+ *
+ * @param tangent_mode One of the tangent_* constants (parameter.hpp)
+ * @param Bhat Local Jacobian (N x N), as in assemble_continuum_tangent
+ * @param kappa_j Flux directions (N x 6-vector)
+ * @param dPhidsigma_l Criterion gradients (N x 6-vector)
+ * @param Ds_j Multiplier increments (active-set mask, N)
+ * @param L Elastic stiffness (6 x 6)
+ * @param dLambda_dsigma Lazy provider of the per-mechanism flow Hessians
+ */
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    const arma::mat& Bhat,
+    const std::vector<arma::vec>& kappa_j,
+    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::vec& Ds_j,
+    const arma::mat& L,
+    const HessianProvider& dLambda_dsigma = nullptr);
+
+/**
+ * @brief Single-mechanism convenience overload of compute_tangent_operator().
+ * @param dLambda_dsigma Lazy provider of the single flow Hessian (6 x 6)
+ */
+ContinuumTangent compute_tangent_operator(
+    int tangent_mode,
+    double Bhat_scalar,
+    const arma::vec& kappa,
+    const arma::vec& dPhidsigma,
+    double Ds,
+    const arma::mat& L,
+    const std::function<arma::mat()>& dLambda_dsigma = nullptr);
 
 } // namespace simcoon

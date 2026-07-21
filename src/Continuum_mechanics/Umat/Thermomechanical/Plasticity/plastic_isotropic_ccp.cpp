@@ -237,23 +237,33 @@ void umat_plasticity_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    ContinuumTangent ct;
-    if (tangent_mode == 1) {
-        // Simo-Hughes algorithmic tangent (J2): dLambda_eps/dsigma = deta_stress(sigma).
-        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-        // cross-tangents below (dSdT/drdE/drdT) are still assembled from the raw kappa_j and L
-        // (continuum form); their fully consistent kappa-tilde/L-tilde version is part of the
-        // closest-point (CPP) rework, future release.
-        const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
-    } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
-    }
+    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities
+    // feed the PHYSICAL heat source r and its linearization (drdE/drdT), not
+    // just the Newton operator. Explicit-integration callers get the continuum
+    // operator in the thermomechanical kernels (the mechanical-only kernels
+    // honor tangent_none).
+    const int tangent_mode_eff = (tangent_mode == tangent_none)
+        ? tangent_continuum : tangent_mode;
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic tangent (J2): dLambda_eps/dsigma = deta_stress(sigma).
+            // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+            // cross-tangents below (dSdT/drdE/drdT) are still assembled from the raw kappa_j and L
+            // (continuum form); their fully consistent kappa-tilde/L-tilde version is part of the
+            // closest-point (CPP) rework, future release.
+            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
+            return dLambda_dsigma_l;
+        });
     dSdE = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
 
     std::vector<double> P_theta(1);
-    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
+    // Consistency relation: P_theta = invBhat * (dPhi/dtheta - dPhi/dsigma:L:alpha)
+    // (units 1/K; cf. the SMA thermomechanical kernel). invBhat is active-set
+    // masked, so elastic steps correctly give P_theta = 0 — the previous form
+    // omitted invBhat (units 1/MPa missing) and polluted elastic steps.
+    P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%(L*alpha)));
 
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0]);
     

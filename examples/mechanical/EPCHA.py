@@ -69,7 +69,7 @@ path_results = "results"
 pathfile = "EPCHA_path.txt"
 outputfile = "results_EPCHA.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

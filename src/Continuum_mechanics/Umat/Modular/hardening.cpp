@@ -70,25 +70,50 @@ void LinearHardening::configure(const arma::vec& props, int& offset) {
     offset += 1;
 }
 
-// PowerLawHardening
+// PowerLawHardening — onset regularization for m < 1 (rationale and the SMA
+// lagrange_pow analogy are in the header Doxygen). Implementation notes only:
+// the p <= 0 branch extends R linearly (slope a_reg_) so a transient negative
+// FB iterate meets a finite, consistent slope instead of pow(negative, m).
+namespace {
+constexpr double p_reg_powerlaw = 1.0e-6;  ///< onset regularization cutoff (see header)
+}
+
 void PowerLawHardening::configure(const arma::vec& props, int& offset) {
     k_ = props(offset);
     m_ = props(offset + 1);
     offset += 2;
+    // Precompute the onset-blend coefficients (value AND slope share them, so
+    // the C1 match between R and dR_dp cannot drift).
+    if (m_ < 1.0) {
+        a_reg_ = k_ * std::pow(p_reg_powerlaw, m_ - 1.0) * (2.0 - m_);
+        b_reg_ = k_ * std::pow(p_reg_powerlaw, m_ - 2.0) * (m_ - 1.0);
+    }
 }
 
 double PowerLawHardening::R(double p) const {
-    if (p > simcoon::iota) {
+    if (m_ >= 1.0) {
+        return (p > 0.0) ? k_ * std::pow(p, m_) : 0.0;
+    }
+    if (p >= p_reg_powerlaw) {
         return k_ * std::pow(p, m_);
     }
-    return 0.0;
+    if (p <= 0.0) {
+        return a_reg_ * p;
+    }
+    return a_reg_ * p + b_reg_ * p * p;
 }
 
 double PowerLawHardening::dR_dp(double p) const {
-    if (p > simcoon::iota) {
+    if (m_ >= 1.0) {
+        return (p > 0.0) ? k_ * m_ * std::pow(p, m_ - 1.0) : 0.0;
+    }
+    if (p >= p_reg_powerlaw) {
         return k_ * m_ * std::pow(p, m_ - 1.0);
     }
-    return 0.0;
+    if (p <= 0.0) {
+        return a_reg_;
+    }
+    return a_reg_ + 2.0 * b_reg_ * p;
 }
 
 // VoceHardening

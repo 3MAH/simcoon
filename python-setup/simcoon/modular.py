@@ -1082,6 +1082,18 @@ class ModularMaterial:
     ...         )),
     ...     ]
     ... )
+
+    Notes
+    -----
+    Under finite strain (NLGEOM control types 2-6), the composition becomes a
+    Hencky hyperelastic law: the solver kinematics feed the model the
+    logarithmic strain, so the elasticity block acts as a stored-energy
+    function of ln V and the mechanisms ride additively on that measure.
+    This holds only when the accumulated corotational strain is exactly the
+    logarithmic strain, so the solver requires ``corate_type=3`` (log_R) for
+    ``"MODUL"`` under NLGEOM and raises a ``RuntimeError`` for any other
+    corate (which would degrade the model to a non-integrable hypoelastic
+    rate with spurious dissipation in closed cycles).
     """
 
     def __init__(

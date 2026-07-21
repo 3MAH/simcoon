@@ -17,12 +17,12 @@
 
 ///@file Ttangent_EPHIL.cpp
 ///@brief Tier-B acceptance test: the EPHIL (Hill anisotropic plasticity) algorithmic
-///       tangent (tangent_mode==1) is symmetric, substantially closer to the discrete-map
+///       tangent (algorithmic mode (tangent_algorithmic)) is symmetric, substantially closer to the discrete-map
 ///       Jacobian than the continuum tangent, and converges in fewer Newton iterations.
 ///       It is machine-exact for isotropic Hill (== J2); for ANISOTROPIC Hill the CCP
 ///       integrator differs from a closest-point projection, so exactness is deferred to
 ///       the CPP return-map rework (see the NOTE above the Jacobian test).
-///       Drives the real umat_plasticity_hill_isoh_CCP.
+///       Drives the EPHIL name through the modular adapter path.
 ///@version 1.0
 
 #include <gtest/gtest.h>
@@ -32,7 +32,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 
 using namespace std;
 using namespace arma;
@@ -57,7 +57,7 @@ Out run_ephil(const vec &DEtot, int tangent_mode) {
     double T = 293.15, DT = 0., Time = 0., DTime = 1.;
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., tnew_dt = 1.;
 
-    umat_plasticity_hill_isoh_CCP("EPHIL", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
+    umat_legacy_modular("EPHIL", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
                                   nstatev, statev, T, DT, Time, DTime,
                                   Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt, tangent_mode);
     return {sigma, Lt, statev(1) > simcoon::iota};
@@ -82,8 +82,8 @@ bool verbose() { return std::getenv("SIMCOON_TEST_VERBOSE") != nullptr; }
 TEST(Ttangent_EPHIL, parity_elastic_step)
 {
     const vec DEtot = {1.e-4, -0.3e-4, -0.3e-4, 0., 0., 0.};
-    Out c = run_ephil(DEtot, 0);
-    Out a = run_ephil(DEtot, 1);
+    Out c = run_ephil(DEtot, simcoon::tangent_continuum);
+    Out a = run_ephil(DEtot, simcoon::tangent_algorithmic);
     ASSERT_FALSE(c.plastic) << "Parity step unexpectedly yielded.";
     EXPECT_LT(norm(c.Lt - a.Lt, "fro"), 1.e-12);
 }
@@ -97,8 +97,8 @@ TEST(Ttangent_EPHIL, parity_elastic_step)
 TEST(Ttangent_EPHIL, algorithmic_tangent_better_than_continuum)
 {
     const vec Deps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 0.};
-    Out c = run_ephil(Deps, 0);
-    Out a = run_ephil(Deps, 1);
+    Out c = run_ephil(Deps, simcoon::tangent_continuum);
+    Out a = run_ephil(Deps, simcoon::tangent_algorithmic);
     ASSERT_TRUE(a.plastic) << "Test set-up did not yield - increase Deps.";
 
     const double h = 1.e-7;
@@ -106,7 +106,7 @@ TEST(Ttangent_EPHIL, algorithmic_tangent_better_than_continuum)
     for (int j = 0; j < 6; ++j) {
         vec Dp = Deps; Dp(j) += h;
         vec Dm = Deps; Dm(j) -= h;
-        J_ref.col(j) = (run_ephil(Dp, 0).sigma - run_ephil(Dm, 0).sigma) / (2. * h);
+        J_ref.col(j) = (run_ephil(Dp, simcoon::tangent_continuum).sigma - run_ephil(Dm, simcoon::tangent_continuum).sigma) / (2. * h);
     }
     const double err_algo = norm(a.Lt - J_ref, "fro");
     const double err_cont = norm(c.Lt - J_ref, "fro");
@@ -134,8 +134,8 @@ TEST(Ttangent_EPHIL, convergence_rate_continuum_vs_algorithmic)
     Deps0(1) += 1.e-3;
 
     const int max_iter = 30;
-    auto r_cont = stress_target_newton(sigma_target, Deps0, 0, max_iter);
-    auto r_algo = stress_target_newton(sigma_target, Deps0, 1, max_iter);
+    auto r_cont = stress_target_newton(sigma_target, Deps0, simcoon::tangent_continuum, max_iter);
+    auto r_algo = stress_target_newton(sigma_target, Deps0, simcoon::tangent_algorithmic, max_iter);
 
     if (verbose()) {
         std::cout << "\n[Ttangent_EPHIL] residual history (cont vs algo):\n";

@@ -112,7 +112,7 @@ def build_props(x):
 
 def run_case(props, pathfile, outputfile, path_data, path_results):
     """Run one solver call and return its ``(lambda, P_11)`` trajectory."""
-    sim.solver(
+    sim._core.solver(
         UMAT_NAME, props, NSTATEV,
         0.0, 0.0, 0.0,                 # psi, theta, phi (no RVE rotation)
         SOLVER_TYPE, CORATE_TYPE,

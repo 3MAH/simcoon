@@ -125,30 +125,14 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
 //-------------------------------------------------------------
 {
     assert(control_type <= 4);
-    
-    //This in for the case of an incremental path file, to get the number of increments
-    string buffer;
-    ifstream pathinc;
+
+    //For an incremental (mode 3) step, the number of increments comes from the table
     if(mode == 3){
-        ninc = 0;
-        pathinc.open(file, ios::in);
-        if(!pathinc)
-        {
-            cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and is you have added the extension\n";
-        }
-        //read the file to get the number of increments
-        while (!pathinc.eof())
-        {
-            getline (pathinc,buffer);
-            if (buffer != "") {
-                ninc++;
-            }
-        }
-        pathinc.close();
+        ninc = mode3_ninc();
     }
-    
+
     step::generate();
-    
+
     Ts = zeros(ninc);
     BC_Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
@@ -217,17 +201,24 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
         }
         
         //Read all the informations and fill the meca accordingly
-        pathinc.open(file, ios::in);
-        
-        //For mode 3, no rotation is considered yet        
+        const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
+
+        //For mode 3, no rotation is considered yet
         for (int i=0; i<ninc; i++) {
 
-            pathinc >> buffer;
-            for (unsigned int j=0; j<size_BC; j++) {
-                pathinc >> BC_file(j);
-            }
-            
+            BC_file = tab_rows.row(i).t();
+
             times(i) = (BC_file(0) - BC_file_n(0));
+            if (times(i) < 0.) {
+                throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): non-increasing time column at increment " + std::to_string(i+1) + " -- the time column is ABSOLUTE and must continue from the previous step's end time");
+            }
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);
@@ -266,6 +257,54 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     
 }
 
+namespace {
+
+// Real 3x3 matrix logarithm via inverse scaling-and-squaring with
+// Denman-Beavers square roots — real arithmetic + inv() only. Avoids
+// arma::logmat's complex Schur (zgees) LAPACK path, which crashes (access
+// violation) inside netlib reference LAPACK on Windows. Valid for matrices
+// with no eigenvalue on the closed negative real axis — true for the relative
+// deformation gradient of a physically meaningful step (det F > 0, rotation
+// per step < 180 deg). Returns false when the iteration does not converge;
+// the caller falls back to arma::logmat.
+bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
+    const arma::mat I = arma::eye(3, 3);
+    arma::mat A = A_in;
+    int k = 0;
+    // Square-root until A is close to I (log converges fast there).
+    while (arma::norm(A - I, 2) > 0.25) {
+        if (++k > 40) return false;
+        arma::mat Y = A, Z = I;   // Denman-Beavers: Y -> sqrt(A)
+        bool converged = false;
+        for (int it = 0; it < 60; ++it) {
+            arma::mat Zi, Yi;
+            if (!arma::inv(Zi, Z) || !arma::inv(Yi, Y)) return false;
+            const arma::mat Yn = 0.5 * (Y + Zi);
+            const arma::mat Zn = 0.5 * (Z + Yi);
+            converged = arma::norm(Yn - Y, 2) <= 1e-14 * arma::norm(Yn, 2);
+            Y = Yn; Z = Zn;
+            if (converged) break;
+        }
+        if (!converged || !Y.is_finite()) return false;
+        A = Y;
+    }
+    // Gregory (atanh) series: log A = 2 * sum z^(2m+1)/(2m+1), z = (A-I)(A+I)^-1.
+    arma::mat ApIi;
+    if (!arma::inv(ApIi, A + I)) return false;
+    const arma::mat z = (A - I) * ApIi;
+    const arma::mat z2 = z * z;
+    arma::mat S = arma::zeros(3, 3);
+    arma::mat P = z;
+    for (int m = 0; m < 12; ++m) {
+        S += P / static_cast<double>(2 * m + 1);
+        P = P * z2;
+    }
+    logA = std::ldexp(2.0, k) * S;   // 2 * 2^k * S
+    return logA.is_finite();
+}
+
+} // namespace
+
 //-------------------------------------------------------------
 void step_meca::generate_kin(const double &mTime, const mat &mF, const double &mT)
 //-------------------------------------------------------------
@@ -277,27 +316,11 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
     }
     
     mat I2 = eye(3,3);
-    //This in for the case of an incremental path file, to get the number of increments
-    string buffer;
-    ifstream pathinc;
+    //For an incremental (mode 3) step, the number of increments comes from the table
     if(mode == 3){
-        ninc = 0;
-        pathinc.open(file, ios::in);
-        if(!pathinc)
-        {
-            cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and is you have added the extension\n";
-        }
-        //read the file to get the number of increments
-        while (!pathinc.eof())
-        {
-            getline (pathinc,buffer);
-            if (buffer != "") {
-                ninc++;
-            }
-        }
-        pathinc.close();
+        ninc = mode3_ninc();
     }
-    
+
     step::generate();
     Ts = zeros(ninc);
     BC_Ts = zeros(ninc);
@@ -333,8 +356,13 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         }
         arma::mat F_tilde = F_target * F_prev_inv;
 
-        // Logarithm of total transformation
-        arma::cx_mat logF = arma::logmat(F_tilde);
+        // Logarithm of the total transformation: real-arithmetic path first
+        // (portable — see real_logmat_3x3), arma::logmat (complex Schur) only
+        // as a fallback for pathological steps.
+        arma::mat logF;
+        if (!real_logmat_3x3(F_tilde, logF)) {
+            logF = arma::real(arma::logmat(F_tilde));
+        }
 
         // Normalization of incremental weights
         double wsum = arma::accu(inc_coef);
@@ -353,10 +381,10 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             times(inc) = (inc_coef(inc) / wsum) * BC_Time;
 
             // Incremental generator (normalized weights)
-            arma::cx_mat delta_L = (inc_coef(inc) / wsum) * logF;
+            arma::mat delta_L = (inc_coef(inc) / wsum) * logF;
 
-            // Exponential map
-            arma::mat D_i = arma::real(arma::expmat(delta_L));
+            // Exponential map (real Pade scaling-and-squaring — no LAPACK Schur)
+            arma::mat D_i = arma::expmat(delta_L);
 
             // Multiplicative update
             F_i = D_i * F_i;
@@ -410,16 +438,23 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         }
         
         //Read all the informations and fill the meca accordingly
-        pathinc.open(file, ios::in);
-        
+        const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
+
         for (int i=0; i<ninc; i++) {
-            
-            pathinc >> buffer;
-            for (unsigned int j=0; j<size_BC; j++) {
-                pathinc >> BC_file(j);
-            }
-            
+
+            BC_file = tab_rows.row(i).t();
+
             times(i) = (BC_file(0) - BC_file_n(0));
+            if (times(i) < 0.) {
+                throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): non-increasing time column at increment " + std::to_string(i+1) + " -- the time column is ABSOLUTE and must continue from the previous step's end time");
+            }
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);

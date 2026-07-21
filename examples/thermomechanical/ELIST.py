@@ -84,7 +84,7 @@ path_results = "results"
 pathfile = "THERM_ELISO_path_1.txt"
 outputfile_1 = "results_THERM_ELIST_1.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,
@@ -110,7 +110,7 @@ outputfile_macro_1 = os.path.join(path_results, "results_THERM_ELIST_1_global-0.
 pathfile = "THERM_ELISO_path_2.txt"
 outputfile_2 = "results_THERM_ELIST_2.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

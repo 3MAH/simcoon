@@ -21,6 +21,7 @@
 
 #pragma once
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <string>
 
 namespace simcoon{
@@ -45,7 +46,7 @@ namespace simcoon{
  * @param psi_rve First Euler angle of RVE orientation (rad)
  * @param theta_rve Second Euler angle of RVE orientation (rad)
  * @param phi_rve Third Euler angle of RVE orientation (rad)
- * @param solver_type Type of solver (0: small strain, 1: finite strain)
+ * @param solver_type Global resolution scheme (0: classic Newton-Raphson, 1: RNL — control_type 1 only)
  * @param corate_type Type of corotational formulation
  * @param div Divisor for time stepping (default: 0.5)
  * @param mul Multiplier for time stepping (default: 2.0)
@@ -58,6 +59,7 @@ namespace simcoon{
  * @param path_results Path to results directory (default: "results")
  * @param pathfile Name of loading path file (default: "path.txt")
  * @param outputfile Name of output file (default: "result_job.txt")
+ * @param tangent_mode Tangent operator mode (tangent_* constants of parameter.hpp; default: tangent_default)
  * 
  * @details This function drives the simulation by:
  * - Reading the loading path from input files
@@ -66,7 +68,7 @@ namespace simcoon{
  * - Writing results to output files
  * 
  */
-void solver(const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div = 0.5, const double &mul = 2., const int &miniter = 10, const int &maxiter = 100, const int &inforce_solver = 1, const double &precision = 1.E-6, const double &lambda_eff = 10000., const std::string &path_data = "data", const std::string &path_results = "results", const std::string &pathfile = "path.txt", const std::string &outputfile = "result_job.txt", const int &tangent_mode = 0);
+void solver(const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div = 0.5, const double &mul = 2., const int &miniter = 10, const int &maxiter = 100, const int &inforce_solver = 1, const double &precision = 1.E-6, const double &lambda_eff = 10000., const std::string &path_data = "data", const std::string &path_results = "results", const std::string &pathfile = "path.txt", const std::string &outputfile = "result_job.txt", const int &tangent_mode = tangent_default);
 
 
 /** @} */ // end of solver group

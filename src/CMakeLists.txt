@@ -58,20 +58,10 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Mechanical/Damage/damage_weibull.cpp
 
   # Continuum Mechanics - UMAT Mechanical Elasticity
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_isotropic.cpp
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_orthotropic.cpp
-  Continuum_mechanics/Umat/Mechanical/Elasticity/elastic_transverse_isotropic.cpp
 
   # Continuum Mechanics - UMAT Mechanical Plasticity
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Ani_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/DFA_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Generic_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_chaboche_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/Hill_isoh_Nfast.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp
-  Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_kin_iso_ccp.cpp
 
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
@@ -110,6 +100,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Modular/viscoelastic_mechanism.cpp
   Continuum_mechanics/Umat/Modular/damage_mechanism.cpp
   Continuum_mechanics/Umat/Modular/modular_umat.cpp
+  Continuum_mechanics/Umat/Modular/legacy_adapters.cpp
 
   # Continuum Mechanics - UMAT Core
   Continuum_mechanics/Umat/fea_transfer.cpp
@@ -145,6 +136,7 @@ target_sources(simcoon PRIVATE
   Simulation/Solver/output.cpp
   Simulation/Solver/read.cpp
   Simulation/Solver/solver.cpp
+  Simulation/Solver/solver_sink.cpp
   Simulation/Solver/step.cpp
   Simulation/Solver/step_meca.cpp
   Simulation/Solver/step_thermomeca.cpp

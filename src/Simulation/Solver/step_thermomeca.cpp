@@ -26,6 +26,7 @@
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
@@ -121,30 +122,14 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
 {
 
     assert(control_type <= 3);
-    
-    //This in for the case of an incremental path file, to get the number of increments
-    string buffer;
-    ifstream pathinc;
+
+    //For an incremental (mode 3) step, the number of increments comes from the table
     if(mode == 3){
-        ninc = 0;
-        pathinc.open(file, ios::in);
-        if(!pathinc)
-        {
-            cout << "Error: cannot open the file << " << file << "\n Please check if the file is correct and is you have added the extension\n";
-        }
-        //read the file to get the number of increments
-        while (!pathinc.eof())
-        {
-            getline (pathinc,buffer);
-            if (buffer != "") {
-                ninc++;
-            }
-        }
-        pathinc.close();
+        ninc = mode3_ninc();
     }
-    
+
     step::generate();
-    
+
     Ts = zeros(ninc);
     BC_Ts = zeros(ninc);
     unsigned int size_meca = BC_meca.n_elem;
@@ -196,10 +181,10 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
                 size_BC--;
             }
         }
-        if (cBC_T > 2 ) {
+        if (cBC_T >= 2 ) { //no thermal column for a constant-temperature (2) or convection (3) step
             size_BC--;
         }
-        
+
         vec BC_file_n = zeros(size_BC); //vector that temporarly stores the previous values
         vec BC_file = zeros(size_BC); //vector that temporarly stores the values
         
@@ -226,17 +211,24 @@ void step_thermomeca::generate(const double &mTime, const vec &mEtot, const vec 
         }
                 
         //Read all the informations and fill the meca accordingly
-        pathinc.open(file, ios::in);
-        
+        const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
+
         //For mode 3, no rotation is considered yet
         for (int i=0; i<ninc; i++) {
-            
-            pathinc >> buffer;
-            for (unsigned int j=0; j<size_BC; j++) {
-                pathinc >> BC_file(j);
-            }
-            
+
+            BC_file = tab_rows.row(i).t();
+
             times(i) = (BC_file(0) - BC_file_n(0));
+            if (times(i) < 0.) {
+                throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): non-increasing time column at increment " + std::to_string(i+1) + " -- the time column is ABSOLUTE and must continue from the previous step's end time");
+            }
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);
@@ -300,27 +292,11 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
     assert (cBC_T == 0);
     
     mat I2 = eye(3,3);
-    //This in for the case of an incremental path file, to get the number of increments
-    string buffer;
-    ifstream pathinc;
+    //For an incremental (mode 3) step, the number of increments comes from the table
     if(mode == 3){
-        ninc = 0;
-        pathinc.open(file, ios::in);
-        if(!pathinc)
-        {
-            cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and is you have added the extension\n";
-        }
-        //read the file to get the number of increments
-        while (!pathinc.eof())
-        {
-            getline (pathinc,buffer);
-            if (buffer != "") {
-                ninc++;
-            }
-        }
-        pathinc.close();
+        ninc = mode3_ninc();
     }
-    
+
     step::generate();
     Ts = zeros(ninc);
     BC_Ts = zeros(ninc);
@@ -397,16 +373,23 @@ void step_thermomeca::generate_kin(const double &mTime, const mat &mF, const dou
         }
         
         //Read all the informations and fill the meca accordingly
-        pathinc.open(file, ios::in);
-        
+        const mat tab_rows = mode3_rows(size_BC);
+        if (tab_data.n_rows == 0 && tab_rows.n_rows > 0 && tab_rows(0,0) < BC_file_n(0)) {
+            // Legacy mode-3 FILE convention: the time axis restarts at each step
+            // (first row = anchor at the current state). Shift the axis so it
+            // continues from the current time. In-memory tab_data keeps the strict
+            // absolute-time contract (see solver/blocks.py).
+            BC_file_n(0) = tab_rows(0,0);
+        }
+
         for (int i=0; i<ninc; i++) {
-            
-            pathinc >> buffer;
-            for (unsigned int j=0; j<size_BC; j++) {
-                pathinc >> BC_file(j);
-            }
-            
+
+            BC_file = tab_rows.row(i).t();
+
             times(i) = (BC_file(0) - BC_file_n(0));
+            if (times(i) < 0.) {
+                throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): non-increasing time column at increment " + std::to_string(i+1) + " -- the time column is ABSOLUTE and must continue from the previous step's end time");
+            }
             kT = 0;
             if (cBC_T == 0) {
                 Ts(i) = BC_file(kT+1) - BC_file_n(kT+1);

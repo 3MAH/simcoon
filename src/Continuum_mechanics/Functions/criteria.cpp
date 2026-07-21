@@ -20,6 +20,7 @@
 ///@version 1.0
 
 #include <iostream>
+#include <stdexcept>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
@@ -397,10 +398,17 @@ namespace simcoon
         {
             return Ani_stress(v, param);
         }
+        else if (eq_type == "DFA")
+        {
+            return DFA_stress(v, param);
+        }
         else
         {
-            cout << "Error in Eq_stress : No valid arguement is given\n";
-            exit(0);
+            // throw, do NOT exit(0): an invalid criterion string must be
+            // reportable by the caller (an exit kills the host process,
+            // e.g. the Python interpreter).
+            throw std::invalid_argument("Eq_stress: unknown criterion '"
+                                        + eq_type + "'");
         }
     }
 
@@ -426,10 +434,14 @@ namespace simcoon
         {
             return dAni_stress(v, param);
         }
+        else if (eq_type == "DFA")
+        {
+            return dDFA_stress(v, param);
+        }
         else
         {
-            cout << "Error in dEq_stress : No valid arguement is given\n";
-            exit(0);
+            throw std::invalid_argument("dEq_stress: unknown criterion '"
+                                        + eq_type + "'");
         }
     }
 

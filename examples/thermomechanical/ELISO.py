@@ -73,7 +73,7 @@ path_results = "results"
 pathfile = "THERM_ELISO_path.txt"
 outputfile = "results_THERM_ELISO.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

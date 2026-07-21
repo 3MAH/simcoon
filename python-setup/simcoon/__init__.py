@@ -9,6 +9,12 @@ if sys.platform == "win32":
 
 from simcoon._core import *
 from simcoon import modular
+# In-memory solver API (2.0): the subpackage replaces the pre-2.0 file-driven
+# `solver` function from the star-import above (still reachable as
+# simcoon._core.solver; parse legacy files with simcoon.solver.from_file).
+# `import` (not `from ... import`) is required: the latter would return the
+# existing function attribute without importing the subpackage.
+import simcoon.solver
 from simcoon.__version__ import __version__
 from simcoon.rotation import Rotation  # override _CppRotation from star-import
 from simcoon.tensor import Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes

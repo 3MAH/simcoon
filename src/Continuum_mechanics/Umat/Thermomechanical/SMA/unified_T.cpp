@@ -38,6 +38,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/recovery_props.hpp>
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/sma_flow.hpp>
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -612,37 +613,45 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
-    ContinuumTangent ct;
-    if (tangent_mode == 1) {
-        // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
-        // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
-        // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
-        // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-        // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
-        // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
-        auto lambdaTF_at = [&](const vec &s) -> vec {
-            double sstar = Mises_stress(s) - sigmacrit;
-            if (sstar < 0.) sstar = 0.;
-            double Hc = Hmin + (Hmax - Hmin) * (1. - exp(-1. * k1 * sstar));
-            if (aniso_criteria) {
-                return Hc * dDrucker_ani_stress(s, DFA_params, prager_b, prager_n);
+    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities
+    // feed the PHYSICAL heat source r and its linearization (drdE/drdT), not
+    // just the Newton operator. Explicit-integration callers get the continuum
+    // operator in the thermomechanical kernels (the mechanical-only kernels
+    // honor tangent_none).
+    // tangent_algorithmic is ALSO clamped to continuum for this kernel: the
+    // finite-difference flow Hessian makes the local transformation system
+    // near-singular on the plateau (rcond ~ 1e-17 — approx-solved state then
+    // NaN-poisons the mixture stiffness and aborts the solve; LAPACK-backend
+    // dependent). Re-enable together with the exact CPP Hessian rework.
+    const int tangent_mode_eff = (tangent_mode == tangent_none ||
+                                  tangent_mode == tangent_algorithmic)
+        ? tangent_continuum : tangent_mode;
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic tangent (closest-point). dLambda^F/dsigma by central finite
+            // difference of the transformation flow Hcur(sigma)*dDrucker(sigma) + analytic linear DM;
+            // ETMean held fixed (transformation-state coupling deferred to CPP, future release).
+            // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+            // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
+            auto lambdaTF_at = [&](const vec &s) -> vec {
+                return sma_transformation_flow(s, sigmacrit, Hmin, Hmax, k1,
+                                               aniso_criteria, DFA_params,
+                                               prager_b, prager_n);
+            };
+            const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
+            mat dLambdaF = zeros(6, 6);
+            for (int c = 0; c < 6; c++) {
+                vec sp = sigma, sm = sigma;
+                sp(c) += hfd;
+                sm(c) -= hfd;
+                dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
             }
-            return Hc * dDrucker_stress(s, prager_b, prager_n);
-        };
-        const double hfd = 1.e-5 * (norm(sigma, 2) + 1.);
-        mat dLambdaF = zeros(6, 6);
-        for (int c = 0; c < 6; c++) {
-            vec sp = sigma, sm = sigma;
-            sp(c) += hfd;
-            sm(c) -= hfd;
-            dLambdaF.col(c) = (lambdaTF_at(sp) - lambdaTF_at(sm)) / (2. * hfd);
-        }
-        dLambdaF += DM;
-        const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
-        ct = assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, dLambda_dsigma_l);
-    } else {
-        ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
-    }
+            dLambdaF += DM;
+            const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
+            return dLambda_dsigma_l;
+        });
     dSdE = ct.Lt;
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
     const mat& invBhat = ct.invBhat;

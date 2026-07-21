@@ -54,7 +54,7 @@ path_results = "results"
 pathfile = "ZENER_path.txt"
 outputfile = "results_ZENER.txt"
 
-sim.solver(
+sim._core.solver(
     umat_name,
     props,
     nstatev,

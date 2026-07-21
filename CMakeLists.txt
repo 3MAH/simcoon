@@ -370,13 +370,6 @@ if(WIN32 AND BUILD_PYTHON_BINDINGS)
   endif()
 endif()
 
-# Compile public executables (with main functions)
-set(EXECUTABLES solver L_eff Elastic_props ODF PDF)
-foreach(exe_name ${EXECUTABLES})
-  add_executable(${exe_name} software/${exe_name}.cpp)
-  target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})
-endforeach()
-
 ##Testing
 if(SIMCOON_BUILD_TESTS)
   # Test plugin libraries
