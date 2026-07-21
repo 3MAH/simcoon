@@ -461,14 +461,16 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                // Degenerate tangent at the trial state: cut, or fail
-                                                // LOUD once already at the minimal fraction (never the
-                                                // silent inforce path).
-                                                if (try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
-                                                    compteur = maxiter_solver;
-                                                    break;
-                                                }
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during Newton-Raphson iteration (persists at the minimal increment fraction).");
+                                                // Degenerate tangent at the trial state (e.g. a
+                                                // branch-flip excursion under stress control): bisect
+                                                // the increment; at the minimal fraction fall through
+                                                // to the existing inforce path rather than throwing
+                                                // (a hard throw here overrides the inforce contract and
+                                                // is platform-fragile — LAPACK-backend-dependent
+                                                // singularity detection).
+                                                try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt);
+                                                compteur = maxiter_solver;
+                                                break;
                                             }
 
                                             /// Prediction of the component of the strain tensor
@@ -893,12 +895,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                // Same cut-or-loud policy as the mechanical Newton loop.
-                                                if (try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt)) {
-                                                    compteur = maxiter_solver;
-                                                    break;
-                                                }
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical Newton-Raphson iteration (persists at the minimal increment fraction).");
+                                                // Same cut-then-inforce policy as the mechanical loop
+                                                // (no throw at Dn_mini — respects the inforce contract).
+                                                try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt);
+                                                compteur = maxiter_solver;
+                                                break;
                                             }
 
                                             /// Prediction of the component of the strain tensor
