@@ -200,7 +200,7 @@ public:
      * (arma::dot of .voigt()), the work-conjugate pairing of a strain-typed
      * dPhi with a stress-typed kappa.
      *
-     * Typing: dPhi/dsigma is strain-typed (VoigtType::strain — the dEq_stress
+     * Typing: dPhi/dsigma is strain-typed (Tensor2Type::strain — the dEq_stress
      * convention, shear slots carry the doubled gamma components).
      *
      * Returned by const-ref into mechanism-internal storage populated during
@@ -227,7 +227,7 @@ public:
      * Length must equal num_constraints(). Same const-ref lifetime contract
      * as dPhi_dsigma — reference is valid until the next compute_constraints.
      *
-     * Typing: stress-typed (VoigtType::stress) for plasticity/viscoelasticity
+     * Typing: stress-typed (Tensor2Type::stress) for plasticity/viscoelasticity
      * (kappa = L·Lambda). DamageMechanism returns a strain-typed kappa
      * (kappa = ∂M/∂D · σ, an M·σ product) — see its override for why the
      * orchestrator's engineering-Voigt dot is kept for that pairing too.

@@ -186,7 +186,7 @@ void PragerHardening::register_variables(InternalVariableCollection& ivc) {
 
 void PragerHardening::compute_backstresses(const InternalVariableCollection& ivc,
                                            std::vector<tensor2>& X_i) const {
-    X_i.resize(1, tensor2(VoigtType::stress));
+    X_i.resize(1, tensor2(Tensor2Type::stress));
     X_i[0] = backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
@@ -224,7 +224,7 @@ void ArmstrongFrederickHardening::register_variables(InternalVariableCollection&
 
 void ArmstrongFrederickHardening::compute_backstresses(
     const InternalVariableCollection& ivc, std::vector<tensor2>& X_i) const {
-    X_i.resize(1, tensor2(VoigtType::stress));
+    X_i.resize(1, tensor2(Tensor2Type::stress));
     X_i[0] = backstress_t(C_, ivc.get(a_key_).as_tensor2());
 }
 
@@ -275,7 +275,7 @@ void ChabocheHardening::compute_backstresses(const InternalVariableCollection& i
     // X_i = (2/3) C_i α_i, STRESS-typed (backstress_t re-tags through the 3x3;
     // a strain-typed carrier would put the factor-2 shear back — wrong under
     // any loading with shear).
-    X_i.resize(static_cast<size_t>(N_), tensor2(VoigtType::stress));
+    X_i.resize(static_cast<size_t>(N_), tensor2(Tensor2Type::stress));
     for (int i = 0; i < N_; ++i) {
         X_i[static_cast<size_t>(i)] = backstress_t(C_(i), ivc.get(a_keys_[i]).as_tensor2());
     }

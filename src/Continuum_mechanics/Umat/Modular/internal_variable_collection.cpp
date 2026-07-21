@@ -43,7 +43,7 @@ InternalVariable& InternalVariableCollection::add_scalar(const std::string& name
 
 InternalVariable& InternalVariableCollection::add_vec(
     const std::string& name, const arma::vec& init,
-    bool objective, VoigtType vtype) {
+    bool objective, Tensor2Type vtype) {
     if (has(name)) {
         throw std::runtime_error("InternalVariableCollection: variable '" + name + "' already exists");
     }

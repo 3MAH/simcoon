@@ -36,13 +36,13 @@
 
 namespace simcoon {
 
-// Helper: string → VoigtType
-static VoigtType parse_voigt_type(const std::string &s) {
-    if (s == "stress")  return VoigtType::stress;
-    if (s == "strain")  return VoigtType::strain;
-    if (s == "generic") return VoigtType::generic;
-    if (s == "none")    return VoigtType::none;
-    throw std::invalid_argument("Unknown VoigtType string: '" + s + "'. "
+// Helper: string → Tensor2Type
+static Tensor2Type parse_voigt_type(const std::string &s) {
+    if (s == "stress")  return Tensor2Type::stress;
+    if (s == "strain")  return Tensor2Type::strain;
+    if (s == "generic") return Tensor2Type::generic;
+    if (s == "none")    return Tensor2Type::none;
+    throw std::invalid_argument("Unknown Tensor2Type string: '" + s + "'. "
         "Expected: stress, strain, generic, none");
 }
 
@@ -178,14 +178,14 @@ static arma::mat::fixed<6,6> base_volumetric() {
 // tensor2 implementation
 // ============================================================================
 
-tensor2::tensor2() : _mat(arma::fill::zeros), _vtype(VoigtType::stress) {}
+tensor2::tensor2() : _mat(arma::fill::zeros), _vtype(Tensor2Type::stress) {}
 
-tensor2::tensor2(VoigtType vtype) : _mat(arma::fill::zeros), _vtype(vtype) {}
+tensor2::tensor2(Tensor2Type vtype) : _mat(arma::fill::zeros), _vtype(vtype) {}
 
-tensor2::tensor2(const arma::mat::fixed<3,3> &m, VoigtType vtype)
+tensor2::tensor2(const arma::mat::fixed<3,3> &m, Tensor2Type vtype)
     : _mat(m), _vtype(vtype) {}
 
-tensor2::tensor2(const arma::mat &m, VoigtType vtype)
+tensor2::tensor2(const arma::mat &m, Tensor2Type vtype)
     : _vtype(vtype) {
     if (m.n_rows != 3 || m.n_cols != 3)
         throw std::invalid_argument("tensor2: expected 3x3 matrix, got "
@@ -193,26 +193,26 @@ tensor2::tensor2(const arma::mat &m, VoigtType vtype)
     _mat = m;
 }
 
-tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, VoigtType vtype) {
+tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
     arma::mat::fixed<3,3> m;
-    if (vtype == VoigtType::strain) {
+    if (vtype == Tensor2Type::strain) {
         m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
         m(0,1) = 0.5 * v(3); m(1,0) = 0.5 * v(3);
         m(0,2) = 0.5 * v(4); m(2,0) = 0.5 * v(4);
         m(1,2) = 0.5 * v(5); m(2,1) = 0.5 * v(5);
-    } else if (vtype == VoigtType::stress || vtype == VoigtType::generic) {
+    } else if (vtype == Tensor2Type::stress || vtype == Tensor2Type::generic) {
         m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
         m(0,1) = v(3); m(1,0) = v(3);
         m(0,2) = v(4); m(2,0) = v(4);
         m(1,2) = v(5); m(2,1) = v(5);
     } else {
-        throw std::runtime_error("Cannot construct tensor2 from Voigt with VoigtType::none");
+        throw std::runtime_error("Cannot construct tensor2 from Voigt with Tensor2Type::none");
     }
     tensor2 result(m, vtype);
     return result;
 }
 
-tensor2 tensor2::from_voigt(const arma::vec &v, VoigtType vtype) {
+tensor2 tensor2::from_voigt(const arma::vec &v, Tensor2Type vtype) {
     if (v.n_elem != 6)
         throw std::invalid_argument("tensor2: expected 6-element vector, got "
             + std::to_string(v.n_elem));
@@ -224,7 +224,7 @@ tensor2 tensor2::from_voigt(const arma::vec &v, const std::string &type_str) {
     return from_voigt(v, parse_voigt_type(type_str));
 }
 
-tensor2 tensor2::from_mandel(const arma::vec::fixed<6> &v, VoigtType vtype) {
+tensor2 tensor2::from_mandel(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
     // Mandel shear = sqrt2 * true component, identical for stress and strain.
     arma::mat::fixed<3,3> m;
     m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
@@ -234,7 +234,7 @@ tensor2 tensor2::from_mandel(const arma::vec::fixed<6> &v, VoigtType vtype) {
     return tensor2(m, vtype);
 }
 
-tensor2 tensor2::zeros(VoigtType vtype) {
+tensor2 tensor2::zeros(Tensor2Type vtype) {
     return tensor2(vtype);
 }
 
@@ -242,7 +242,7 @@ tensor2 tensor2::zeros(const std::string &type_str) {
     return zeros(parse_voigt_type(type_str));
 }
 
-tensor2 tensor2::identity(VoigtType vtype) {
+tensor2 tensor2::identity(Tensor2Type vtype) {
     return tensor2(arma::mat::fixed<3,3>(arma::fill::eye), vtype);
 }
 
@@ -269,18 +269,18 @@ void tensor2::set_mat(const arma::mat &m) {
 }
 
 void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
-    if (_vtype == VoigtType::strain) {
+    if (_vtype == Tensor2Type::strain) {
         _mat(0,0) = v(0); _mat(1,1) = v(1); _mat(2,2) = v(2);
         _mat(0,1) = 0.5 * v(3); _mat(1,0) = 0.5 * v(3);
         _mat(0,2) = 0.5 * v(4); _mat(2,0) = 0.5 * v(4);
         _mat(1,2) = 0.5 * v(5); _mat(2,1) = 0.5 * v(5);
-    } else if (_vtype == VoigtType::stress || _vtype == VoigtType::generic) {
+    } else if (_vtype == Tensor2Type::stress || _vtype == Tensor2Type::generic) {
         _mat(0,0) = v(0); _mat(1,1) = v(1); _mat(2,2) = v(2);
         _mat(0,1) = v(3); _mat(1,0) = v(3);
         _mat(0,2) = v(4); _mat(2,0) = v(4);
         _mat(1,2) = v(5); _mat(2,1) = v(5);
     } else {
-        throw std::runtime_error("Cannot set_voigt on VoigtType::none tensor");
+        throw std::runtime_error("Cannot set_voigt on Tensor2Type::none tensor");
     }
 }
 
@@ -293,14 +293,14 @@ void tensor2::set_voigt(const arma::vec &v) {
 }
 
 arma::vec::fixed<6> tensor2::voigt() const {
-    if (_vtype == VoigtType::none) {
-        throw std::runtime_error("Cannot compute Voigt vector for VoigtType::none (non-symmetric tensor)");
+    if (_vtype == Tensor2Type::none) {
+        throw std::runtime_error("Cannot compute Voigt vector for Tensor2Type::none (non-symmetric tensor)");
     }
 
     arma::vec::fixed<6> v;
     v(0) = _mat(0,0); v(1) = _mat(1,1); v(2) = _mat(2,2);
 
-    if (_vtype == VoigtType::strain) {
+    if (_vtype == Tensor2Type::strain) {
         v(3) = _mat(0,1) + _mat(1,0);
         v(4) = _mat(0,2) + _mat(2,0);
         v(5) = _mat(1,2) + _mat(2,1);
@@ -313,8 +313,8 @@ arma::vec::fixed<6> tensor2::voigt() const {
 }
 
 arma::vec::fixed<6> tensor2::mandel() const {
-    if (_vtype == VoigtType::none) {
-        throw std::runtime_error("Cannot compute Mandel vector for VoigtType::none (non-symmetric tensor)");
+    if (_vtype == Tensor2Type::none) {
+        throw std::runtime_error("Cannot compute Mandel vector for Tensor2Type::none (non-symmetric tensor)");
     }
     // Mandel shear = sqrt2 * true component (= sqrt2 * symmetric part), same for stress/strain.
     arma::vec::fixed<6> v;
@@ -326,7 +326,7 @@ arma::vec::fixed<6> tensor2::mandel() const {
 }
 
 Fastor::Tensor<double,3,3> tensor2::fastor() const {
-    return arma_to_fastor2(_mat, _vtype != VoigtType::none);
+    return arma_to_fastor2(_mat, _vtype != Tensor2Type::none);
 }
 
 bool tensor2::is_symmetric(double tol) const {
@@ -337,7 +337,7 @@ bool tensor2::is_symmetric(double tol) const {
 
 tensor2 tensor2::rotate(const Rotation &R, bool active) const {
     // The 3x3 holds the true tensor, so a single full-index rotation Q*X*Q^T covers every
-    // VoigtType (stress, strain, generic, non-symmetric). Q orthogonal => exact for all.
+    // Tensor2Type (stress, strain, generic, non-symmetric). Q orthogonal => exact for all.
     arma::mat::fixed<3,3> Q = R.as_matrix();
     if (!active) Q = arma::mat::fixed<3,3>(Q.t());
     arma::mat::fixed<3,3> result = Q * _mat * Q.t();
@@ -346,32 +346,32 @@ tensor2 tensor2::rotate(const Rotation &R, bool active) const {
 
 tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const {
     switch (_vtype) {
-        case VoigtType::stress: {
+        case Tensor2Type::stress: {
             arma::mat::fixed<3,3> result;
             result = F * _mat * F.t();
             if (metric) {
                 double J = arma::det(F);
                 result *= (1.0 / J);
             }
-            return tensor2(result, VoigtType::stress);
+            return tensor2(result, Tensor2Type::stress);
         }
-        case VoigtType::strain: {
+        case Tensor2Type::strain: {
             arma::mat::fixed<3,3> invF = inv33(F);
             arma::mat::fixed<3,3> result;
             result = invF.t() * _mat * invF;
             // strain factor is 1 — no metric correction needed
-            return tensor2(result, VoigtType::strain);
+            return tensor2(result, Tensor2Type::strain);
         }
-        case VoigtType::generic:
-        case VoigtType::none:
-            throw std::runtime_error("push_forward requires VoigtType::stress or VoigtType::strain");
+        case Tensor2Type::generic:
+        case Tensor2Type::none:
+            throw std::runtime_error("push_forward requires Tensor2Type::stress or Tensor2Type::strain");
     }
     return *this;
 }
 
 tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
     switch (_vtype) {
-        case VoigtType::stress: {
+        case Tensor2Type::stress: {
             arma::mat::fixed<3,3> invF = inv33(F);
             arma::mat::fixed<3,3> result;
             result = invF * _mat * invF.t();
@@ -379,17 +379,17 @@ tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
                 double J = arma::det(F);
                 result *= J;
             }
-            return tensor2(result, VoigtType::stress);
+            return tensor2(result, Tensor2Type::stress);
         }
-        case VoigtType::strain: {
+        case Tensor2Type::strain: {
             arma::mat::fixed<3,3> result;
             result = F.t() * _mat * F;
             // strain factor is 1 — no metric correction needed
-            return tensor2(result, VoigtType::strain);
+            return tensor2(result, Tensor2Type::strain);
         }
-        case VoigtType::generic:
-        case VoigtType::none:
-            throw std::runtime_error("pull_back requires VoigtType::stress or VoigtType::strain");
+        case Tensor2Type::generic:
+        case Tensor2Type::none:
+            throw std::runtime_error("pull_back requires Tensor2Type::stress or Tensor2Type::strain");
     }
     return *this;
 }
@@ -492,35 +492,35 @@ bool tensor2::operator!=(const tensor2 &other) const {
 
 // Free functions
 tensor2 stress(const arma::mat::fixed<3,3> &m) {
-    return tensor2(m, VoigtType::stress);
+    return tensor2(m, Tensor2Type::stress);
 }
 
 tensor2 stress(const arma::vec::fixed<6> &v) {
-    return tensor2::from_voigt(v, VoigtType::stress);
+    return tensor2::from_voigt(v, Tensor2Type::stress);
 }
 
 tensor2 stress(const arma::mat &m) {
-    return tensor2(m, VoigtType::stress);
+    return tensor2(m, Tensor2Type::stress);
 }
 
 tensor2 stress(const arma::vec &v) {
-    return tensor2::from_voigt(v, VoigtType::stress);
+    return tensor2::from_voigt(v, Tensor2Type::stress);
 }
 
 tensor2 strain(const arma::mat::fixed<3,3> &m) {
-    return tensor2(m, VoigtType::strain);
+    return tensor2(m, Tensor2Type::strain);
 }
 
 tensor2 strain(const arma::vec::fixed<6> &v) {
-    return tensor2::from_voigt(v, VoigtType::strain);
+    return tensor2::from_voigt(v, Tensor2Type::strain);
 }
 
 tensor2 strain(const arma::mat &m) {
-    return tensor2(m, VoigtType::strain);
+    return tensor2(m, Tensor2Type::strain);
 }
 
 tensor2 strain(const arma::vec &v) {
-    return tensor2::from_voigt(v, VoigtType::strain);
+    return tensor2::from_voigt(v, Tensor2Type::strain);
 }
 
 tensor2 dev(const tensor2 &t) {
@@ -532,8 +532,8 @@ tensor2 dev(const tensor2 &t) {
 }
 
 double Mises(const tensor2 &t) {
-    if (t.vtype() == VoigtType::none)
-        throw std::runtime_error("Mises not defined for VoigtType::none");
+    if (t.vtype() == Tensor2Type::none)
+        throw std::runtime_error("Mises not defined for Tensor2Type::none");
     // From the 3x3 deviator (convention-free): stress -> sqrt(3/2 dev:dev),
     // strain -> sqrt(2/3 dev:dev). accu(dev % dev) is the double contraction (off-diagonals
     // counted twice via symmetry), so no engineering shear factors are needed.
@@ -541,7 +541,7 @@ double Mises(const tensor2 &t) {
     double tr = (d(0,0) + d(1,1) + d(2,2)) / 3.0;
     d(0,0) -= tr; d(1,1) -= tr; d(2,2) -= tr;
     double dd = arma::accu(d % d);
-    if (t.vtype() == VoigtType::strain)
+    if (t.vtype() == Tensor2Type::strain)
         return std::sqrt((2.0/3.0) * dd);
     return std::sqrt(1.5 * dd);
 }
@@ -557,7 +557,7 @@ static tensor2 dp_surface_normal(const tensor2 &sigma, double coeff) {
     if (seq > simcoon::iota) n *= (1.5 / seq);            // (3/2) s / s_eq
     else                     n.zeros();
     n(0,0) += coeff; n(1,1) += coeff; n(2,2) += coeff;
-    return tensor2(n, VoigtType::strain);
+    return tensor2(n, Tensor2Type::strain);
 }
 
 tensor2 flow_normal(const tensor2 &sigma, double alpha) {
@@ -949,17 +949,17 @@ tensor4 auto_dyadic(const tensor2 &a) {
 // Batch operations
 // ============================================================================
 
-VoigtType infer_contraction_vtype(Tensor4Type t4type) {
+Tensor2Type infer_contraction_vtype(Tensor4Type t4type) {
     switch (t4type) {
         case Tensor4Type::stiffness:
         case Tensor4Type::stress_concentration:
         case Tensor4Type::generic:
-            return VoigtType::stress;
+            return Tensor2Type::stress;
         case Tensor4Type::compliance:
         case Tensor4Type::strain_concentration:
-            return VoigtType::strain;
+            return Tensor2Type::strain;
     }
-    return VoigtType::stress;
+    return Tensor2Type::stress;
 }
 
 Tensor4Type infer_inverse_type(Tensor4Type t4type) {
@@ -990,7 +990,7 @@ static arma::vec::fixed<6> col_fixed6(const arma::mat &m, arma::uword j) {
     return v;
 }
 
-arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
                        const arma::cube &rot_matrices, bool active) {
     int N = voigt.n_cols;
     check_batch_broadcast(rot_matrices.n_slices, N,
@@ -1006,7 +1006,7 @@ arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
     return result;
 }
 
-arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_push_forward(const arma::mat &voigt, Tensor2Type vtype,
                              const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
     check_batch_broadcast(F.n_slices, N,
@@ -1022,7 +1022,7 @@ arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
     return result;
 }
 
-arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_pull_back(const arma::mat &voigt, Tensor2Type vtype,
                           const arma::cube &F, bool metric) {
     int N = voigt.n_cols;
     check_batch_broadcast(F.n_slices, N,
@@ -1038,7 +1038,7 @@ arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
     return result;
 }
 
-arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype) {
+arma::vec batch_mises(const arma::mat &voigt, Tensor2Type vtype) {
     // Stress: sqrt(3/2 * (diag^2 + 2*shear^2))
     // Strain: sqrt(2/3 * (diag^2 + 0.5*shear^2))  (shear Voigt = 2*eij)
     arma::mat dev = voigt;
@@ -1050,19 +1050,19 @@ arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype) {
     arma::rowvec diag2 = arma::sum(dev.rows(0,2) % dev.rows(0,2), 0);
     arma::rowvec shear2 = arma::sum(dev.rows(3,5) % dev.rows(3,5), 0);
 
-    if (vtype == VoigtType::strain) {
+    if (vtype == Tensor2Type::strain) {
         return arma::sqrt((2.0/3.0) * (diag2 + 0.5 * shear2)).t();
     }
     return arma::sqrt(1.5 * (diag2 + 2.0 * shear2)).t();
 }
 
-arma::vec batch_trace(const arma::mat &voigt, VoigtType /*vtype*/) {
-    // trace = v(0) + v(1) + v(2) regardless of VoigtType
+arma::vec batch_trace(const arma::mat &voigt, Tensor2Type /*vtype*/) {
+    // trace = v(0) + v(1) + v(2) regardless of Tensor2Type
     return arma::vectorise(voigt.row(0) + voigt.row(1) + voigt.row(2));
 }
 
 arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
-                         const arma::mat &t2, VoigtType t2_vtype) {
+                         const arma::mat &t2, Tensor2Type t2_vtype) {
     int N4 = t4.n_slices;
     int N2 = t2.n_cols;
     int N = std::max(N4, N2);

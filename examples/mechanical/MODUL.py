@@ -33,9 +33,15 @@ plt.rcParams["figure.figsize"] = (14, 6)
 # ----------------------------------
 # Isotropic elasticity + von Mises yield + Voce isotropic hardening.
 # Parameters: E=210 GPa, nu=0.3, sigma_Y=300 MPa, Q=200 MPa, b=10.
+#
+# The elastic constants C1/C2 are ordinal slots whose meaning is fixed by the
+# ``convention`` argument — here ``"Enu"`` (C1 = E, C2 = nu). Other
+# parameterizations ("Kmu", "lambdamu", ...) are accepted as well.
 
 mat = ModularMaterial(
-    elasticity=IsotropicElasticity(C1=210000.0, C2=0.3, alpha=1.2e-5),
+    elasticity=IsotropicElasticity(
+        C1=210000.0, C2=0.3, alpha=1.2e-5, convention="Enu"
+    ),
     mechanisms=[
         Plasticity(
             sigma_Y=300.0,

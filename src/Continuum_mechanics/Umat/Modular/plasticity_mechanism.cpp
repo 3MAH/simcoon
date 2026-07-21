@@ -143,7 +143,7 @@ void PlasticityMechanism::compute_constraints(
     double sigma_eq;
     if (has_kin) {
         kin_hard_->compute_backstresses(ivc_, X_branches_);
-        tensor2 X_t = tensor2::zeros(VoigtType::stress);
+        tensor2 X_t = tensor2::zeros(Tensor2Type::stress);
         for (const auto& x : X_branches_) {
             X_t += x;
         }

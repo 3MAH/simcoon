@@ -97,8 +97,8 @@ private:
                                         ///< compute_driving_force, dPhi_dsigma,
                                         ///< kappa, tangent_contribution.
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
-    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
-    mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::strain)};
+    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(Tensor2Type::strain)};
+    mutable std::vector<tensor2> kappa_cache_{tensor2(Tensor2Type::strain)};
 
 public:
     /**

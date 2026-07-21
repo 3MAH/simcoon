@@ -68,8 +68,8 @@ private:
     // produced once per iteration in dPhi_dsigma()/kappa().
     mutable arma::vec flow_dir_;                ///< ∂Φ/∂σ (associated flow direction)
     mutable arma::vec kappa_;                   ///< L_ref · flow_dir_
-    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(VoigtType::strain)};
-    mutable std::vector<tensor2> kappa_cache_{tensor2(VoigtType::stress)};
+    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(Tensor2Type::strain)};
+    mutable std::vector<tensor2> kappa_cache_{tensor2(Tensor2Type::stress)};
     mutable std::vector<tensor4> hessian_cache_{tensor4(Tensor4Type::compliance)};
     mutable std::vector<tensor2> X_branches_;   ///< Per-branch backstresses, built
                                                 ///< ONCE per FB iteration in

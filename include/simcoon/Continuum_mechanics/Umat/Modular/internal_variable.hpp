@@ -69,10 +69,10 @@ private:
     arma::mat mat_start_;        ///< Matrix value at start of increment
 
     bool is_objective_;          ///< Whether the quantity is objective (frame-indifferent)
-    VoigtType vtype_;            ///< Authoritative Voigt convention for this variable
+    Tensor2Type vtype_;            ///< Authoritative Voigt convention for this variable
                                  ///< (VECTOR_6): strain, stress, or generic. Drives
                                  ///< rotation dispatch (tensor2.rotate) and default
-                                 ///< VoigtType for as_tensor2() views. Ignored for
+                                 ///< Tensor2Type for as_tensor2() views. Ignored for
                                  ///< scalars and 6x6 matrices.
     Tensor4Type t4type_;         ///< Authoritative convention for MATRIX_6x6 variables
                                  ///< (stiffness, compliance, ...). Drives the rotation
@@ -97,15 +97,15 @@ public:
      * @param objective  Whether the quantity is objective (default: true; see
      *        is_objective() — pass false for velocity/rate-like variables)
      * @param vtype  Voigt convention for this variable:
-     *        VoigtType::strain (default) for strain-like variables (EP, EV, α, ...),
-     *        VoigtType::stress for stress-like variables (stored generalised forces),
-     *        VoigtType::generic for plain 6-component vectors without Voigt semantics.
+     *        Tensor2Type::strain (default) for strain-like variables (EP, EV, α, ...),
+     *        Tensor2Type::stress for stress-like variables (stored generalised forces),
+     *        Tensor2Type::generic for plain 6-component vectors without Voigt semantics.
      *        Controls the rotation kernel (strain-rotation has factor-2 on shear)
      *        and is returned by default from as_tensor2().
      */
     InternalVariable(const std::string& name, const arma::vec& init,
                       bool objective = true,
-                      VoigtType vtype = VoigtType::strain);
+                      Tensor2Type vtype = Tensor2Type::strain);
 
     /**
      * @brief Construct a matrix internal variable (6x6)
@@ -164,9 +164,9 @@ public:
      * @brief The Voigt convention of this variable.
      *
      * For VECTOR_6 variables, this tag drives the objectivity rotation kernel
-     * and the default VoigtType returned by as_tensor2().
+     * and the default Tensor2Type returned by as_tensor2().
      */
-    [[nodiscard]] VoigtType vtype() const noexcept { return vtype_; }
+    [[nodiscard]] Tensor2Type vtype() const noexcept { return vtype_; }
 
     /**
      * @brief The Tensor4 convention of this variable (MATRIX_6x6 only).
@@ -194,7 +194,7 @@ public:
      *
      * "raw" is deliberate: this is the escape hatch past set_tensor2()'s
      * convention re-expression — the components are engineering Voigt in this
-     * variable's own VoigtType, and the CALLER owns keeping them consistent
+     * variable's own Tensor2Type, and the CALLER owns keeping them consistent
      * (safe for same-convention linear combinations; use set_tensor2()
      * whenever the source is a typed tensor). To reconstruct the tensorial
      * quantity, do NOT re-tag raw copies — use as_tensor2()/as_tensor2_start(),
@@ -206,7 +206,7 @@ public:
     /**
      * @brief Access the raw Voigt components (const)
      * @return Const reference to the 6-component vector (this variable's
-     *         VoigtType convention)
+     *         Tensor2Type convention)
      * @throws std::runtime_error if type is not VECTOR_6
      */
     const arma::vec& raw_voigt() const;
@@ -275,7 +275,7 @@ public:
      * @param DR Rotation increment matrix (3x3)
      *
      * Scalars are left unchanged. VECTOR_6 internals rotate through tensor2
-     * with the variable's VoigtType (strain-rotation carries the factor-2 on
+     * with the variable's Tensor2Type (strain-rotation carries the factor-2 on
      * shear); MATRIX_6x6 internals rotate through tensor4 with the variable's
      * Tensor4Type, so the correct congruence is applied for stiffness- AND
      * compliance-like storage. No-op when is_objective() is false: a
@@ -295,32 +295,32 @@ public:
     /**
      * @brief View the stored vector as a typed tensor2.
      *
-     * The caller selects the VoigtType matching the physical quantity:
-     * - VoigtType::strain  for plastic strain, viscous strain, strain-form
+     * The caller selects the Tensor2Type matching the physical quantity:
+     * - Tensor2Type::strain  for plastic strain, viscous strain, strain-form
      *   backstress — assumes the factor-2 shear convention used by rotate()
      *   and pack().
-     * - VoigtType::stress  for stress-conjugate variables stored without the
+     * - Tensor2Type::stress  for stress-conjugate variables stored without the
      *   factor-2.
-     * - VoigtType::generic when no specific physical convention applies.
+     * - Tensor2Type::generic when no specific physical convention applies.
      *
      * @throws std::runtime_error if type() != VECTOR_6
      */
     /// When @p vtype_override is left default (none), the variable's own
-    /// stored VoigtType is used — callers never need to pass it explicitly
+    /// stored Tensor2Type is used — callers never need to pass it explicitly
     /// unless they want to reinterpret the raw Voigt components under a
     /// different convention (rare).
     [[nodiscard]] tensor2 as_tensor2() const { return as_tensor2(vtype_); }
-    [[nodiscard]] tensor2 as_tensor2(VoigtType vtype) const;
+    [[nodiscard]] tensor2 as_tensor2(Tensor2Type vtype) const;
 
     /// Typed view of the START value (state at the beginning of the
     /// increment) — the tensorial counterpart of raw_voigt_start(), so
     /// backward-Euler closed forms can be written fully typed.
     /// @throws std::runtime_error if type() != VECTOR_6
     [[nodiscard]] tensor2 as_tensor2_start() const { return as_tensor2_start(vtype_); }
-    [[nodiscard]] tensor2 as_tensor2_start(VoigtType vtype) const;
+    [[nodiscard]] tensor2 as_tensor2_start(Tensor2Type vtype) const;
 
-    [[nodiscard]] tensor2 as_strain() const { return as_tensor2(VoigtType::strain); }
-    [[nodiscard]] tensor2 as_stress() const { return as_tensor2(VoigtType::stress); }
+    [[nodiscard]] tensor2 as_strain() const { return as_tensor2(Tensor2Type::strain); }
+    [[nodiscard]] tensor2 as_stress() const { return as_tensor2(Tensor2Type::stress); }
 
     /// Default view: the variable's own stored Tensor4Type is used (see
     /// as_tensor2() for the same pattern on vectors).

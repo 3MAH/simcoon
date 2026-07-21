@@ -52,14 +52,17 @@ namespace {
 
 void register_tensor(py::module_& m) {
 
-    // VoigtType enum
-    py::enum_<simcoon::VoigtType>(m, "VoigtType",
+    // Tensor2Type enum
+    py::enum_<simcoon::Tensor2Type>(m, "Tensor2Type",
         "Type tag for 2nd-order tensors, determines Voigt conversion factors and rotation rules.")
-        .value("stress", simcoon::VoigtType::stress, "Voigt = [s11, s22, s33, s12, s13, s23]")
-        .value("strain", simcoon::VoigtType::strain, "Voigt = [e11, e22, e33, 2*e12, 2*e13, 2*e23]")
-        .value("generic", simcoon::VoigtType::generic, "Same storage as stress (symmetric tensor)")
-        .value("none", simcoon::VoigtType::none, "Non-symmetric tensor, voigt() throws")
+        .value("stress", simcoon::Tensor2Type::stress, "Voigt = [s11, s22, s33, s12, s13, s23]")
+        .value("strain", simcoon::Tensor2Type::strain, "Voigt = [e11, e22, e33, 2*e12, 2*e13, 2*e23]")
+        .value("generic", simcoon::Tensor2Type::generic, "Same storage as stress (symmetric tensor)")
+        .value("none", simcoon::Tensor2Type::none, "Non-symmetric tensor, voigt() throws")
         .export_values();
+
+    // Deprecated pre-2.0 alias (see tensor.hpp)
+    m.attr("VoigtType") = m.attr("Tensor2Type");
 
     // Tensor4Type enum
     py::enum_<simcoon::Tensor4Type>(m, "Tensor4Type",
@@ -81,10 +84,10 @@ void register_tensor(py::module_& m) {
 
         // Constructors
         .def(py::init<>())
-        .def(py::init<simcoon::VoigtType>(), py::arg("vtype"))
+        .def(py::init<simcoon::Tensor2Type>(), py::arg("vtype"))
 
         .def_static("from_mat",
-            [](py::array_t<double> m, simcoon::VoigtType vtype) {
+            [](py::array_t<double> m, simcoon::Tensor2Type vtype) {
                 validate_matrix_size(m, 3, 3, "m");
                 mat m_cpp = carma::arr_to_mat(m);
                 return simcoon::tensor2(mat::fixed<3,3>(m_cpp), vtype);
@@ -93,7 +96,7 @@ void register_tensor(py::module_& m) {
             "Create tensor2 from a 3x3 numpy array")
 
         .def_static("from_voigt",
-            [](py::array_t<double> v, simcoon::VoigtType vtype) {
+            [](py::array_t<double> v, simcoon::Tensor2Type vtype) {
                 validate_vector_size(v, 6, "v");
                 vec v_cpp = carma::arr_to_col(v);
                 return simcoon::tensor2::from_voigt(vec::fixed<6>(v_cpp.memptr()), vtype);
@@ -102,7 +105,7 @@ void register_tensor(py::module_& m) {
             "Create tensor2 from a 6-element Voigt vector")
 
         .def_static("from_mandel",
-            [](py::array_t<double> v, simcoon::VoigtType vtype) {
+            [](py::array_t<double> v, simcoon::Tensor2Type vtype) {
                 validate_vector_size(v, 6, "v");
                 vec v_cpp = carma::arr_to_col(v);
                 return simcoon::tensor2::from_mandel(vec::fixed<6>(v_cpp.memptr()), vtype);
@@ -111,12 +114,12 @@ void register_tensor(py::module_& m) {
             "Create tensor2 from a Kelvin-Mandel 6-vector (sqrt2 on shear, type-independent)")
 
         .def_static("zeros",
-            static_cast<simcoon::tensor2 (*)(simcoon::VoigtType)>(&simcoon::tensor2::zeros),
-            py::arg("vtype") = simcoon::VoigtType::stress)
+            static_cast<simcoon::tensor2 (*)(simcoon::Tensor2Type)>(&simcoon::tensor2::zeros),
+            py::arg("vtype") = simcoon::Tensor2Type::stress)
 
         .def_static("identity",
-            static_cast<simcoon::tensor2 (*)(simcoon::VoigtType)>(&simcoon::tensor2::identity),
-            py::arg("vtype") = simcoon::VoigtType::stress)
+            static_cast<simcoon::tensor2 (*)(simcoon::Tensor2Type)>(&simcoon::tensor2::identity),
+            py::arg("vtype") = simcoon::Tensor2Type::stress)
 
         // Properties
         .def_property_readonly("mat",
@@ -185,10 +188,10 @@ void register_tensor(py::module_& m) {
         .def("__repr__", [](const simcoon::tensor2& self) {
             string vtype_str;
             switch (self.vtype()) {
-                case simcoon::VoigtType::stress: vtype_str = "stress"; break;
-                case simcoon::VoigtType::strain: vtype_str = "strain"; break;
-                case simcoon::VoigtType::generic: vtype_str = "generic"; break;
-                case simcoon::VoigtType::none: vtype_str = "none"; break;
+                case simcoon::Tensor2Type::stress: vtype_str = "stress"; break;
+                case simcoon::Tensor2Type::strain: vtype_str = "strain"; break;
+                case simcoon::Tensor2Type::generic: vtype_str = "generic"; break;
+                case simcoon::Tensor2Type::none: vtype_str = "none"; break;
             }
             return "Tensor2(vtype=" + vtype_str + ")";
         });
@@ -332,7 +335,7 @@ void register_tensor(py::module_& m) {
 
     m.def("_batch_rotate",
         [](
-           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> rot_matrices, bool active) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube r_cpp = carma::arr_to_cube<double>(rot_matrices);
@@ -347,7 +350,7 @@ void register_tensor(py::module_& m) {
 
     m.def("_batch_push_forward",
         [](
-           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
@@ -362,7 +365,7 @@ void register_tensor(py::module_& m) {
 
     m.def("_batch_pull_back",
         [](
-           py::array_t<double> voigt, simcoon::VoigtType vtype,
+           py::array_t<double> voigt, simcoon::Tensor2Type vtype,
            py::array_t<double> F_arr, bool metric) {
             mat v_cpp = np2d_to_mat6N(voigt);
             cube f_cpp = carma::arr_to_cube<double>(F_arr);
@@ -376,7 +379,7 @@ void register_tensor(py::module_& m) {
         py::arg("voigt"), py::arg("vtype"), py::arg("F"), py::arg("metric") = true);
 
     m.def("_batch_mises",
-        [](py::array_t<double> voigt, simcoon::VoigtType vtype) {
+        [](py::array_t<double> voigt, simcoon::Tensor2Type vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_mises(v_cpp, vtype);
             return carma::col_to_arr(result);
@@ -384,7 +387,7 @@ void register_tensor(py::module_& m) {
         py::arg("voigt"), py::arg("vtype"));
 
     m.def("_batch_trace",
-        [](py::array_t<double> voigt, simcoon::VoigtType vtype) {
+        [](py::array_t<double> voigt, simcoon::Tensor2Type vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_trace(v_cpp, vtype);
             return carma::col_to_arr(result);
@@ -394,7 +397,7 @@ void register_tensor(py::module_& m) {
     m.def("_batch_contract",
         [](
            py::array_t<double> t4_arr, simcoon::Tensor4Type t4type,
-           py::array_t<double> t2_arr, simcoon::VoigtType t2_vtype) {
+           py::array_t<double> t2_arr, simcoon::Tensor2Type t2_vtype) {
             cube t4_cpp = carma::arr_to_cube<double>(t4_arr);
             mat t2_cpp = np2d_to_mat6N(t2_arr);
             mat result;
@@ -402,7 +405,7 @@ void register_tensor(py::module_& m) {
                 py::gil_scoped_release release;
                 result = simcoon::batch_contract(t4_cpp, t4type, t2_cpp, t2_vtype);
             }
-            simcoon::VoigtType out_vtype = simcoon::infer_contraction_vtype(t4type);
+            simcoon::Tensor2Type out_vtype = simcoon::infer_contraction_vtype(t4type);
             return py::make_tuple(mat6N_to_np2d(result), out_vtype);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("t2"), py::arg("t2_vtype"));

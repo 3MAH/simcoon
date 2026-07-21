@@ -36,12 +36,17 @@ class tensor4;
  * - generic: same storage as stress (symmetric tensor, no physical convention)
  * - none:    non-symmetric tensor (e.g. F), .voigt() throws
  */
-enum class VoigtType {
+enum class Tensor2Type {
     stress,
     strain,
     generic,
     none
 };
+
+/// Deprecated pre-2.0 alias — the tag was named after the Voigt encoding
+/// rather than the tensor rank (asymmetric with Tensor4Type). Kept for
+/// external users (e.g. fedoo); prefer Tensor2Type.
+using VoigtType = Tensor2Type;
 
 /**
  * @brief Type tag for 4th-order tensors: selects the engineering<->Mandel congruence,
@@ -137,35 +142,35 @@ enum class CoRate {
 class tensor2 {
 private:
     arma::mat::fixed<3,3> _mat;
-    VoigtType _vtype;
+    Tensor2Type _vtype;
 
 public:
-    /// Zero tensor, VoigtType::stress.
+    /// Zero tensor, Tensor2Type::stress.
     tensor2();
     /// Zero tensor with the given type tag.
-    explicit tensor2(VoigtType vtype);
+    explicit tensor2(Tensor2Type vtype);
     /// Wrap a 3x3 matrix (true components, no Voigt factor) with a type tag.
-    tensor2(const arma::mat::fixed<3,3> &m, VoigtType vtype);
+    tensor2(const arma::mat::fixed<3,3> &m, Tensor2Type vtype);
     /// Same, from a dynamic arma::mat (must be 3x3).
-    tensor2(const arma::mat &m, VoigtType vtype);
+    tensor2(const arma::mat &m, Tensor2Type vtype);
 
     /// Build from an engineering Voigt 6-vector \f$[t_{11},t_{22},t_{33},t_{12},t_{13},t_{23}]\f$;
     /// strain halves the shear entries (engineering \f$\gamma_{ij}=2\varepsilon_{ij}\f$), stress uses them as-is.
-    static tensor2 from_voigt(const arma::vec::fixed<6> &v, VoigtType vtype);
+    static tensor2 from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype);
     /// Same, from a dynamic arma::vec (must have 6 elements).
-    static tensor2 from_voigt(const arma::vec &v, VoigtType vtype);
+    static tensor2 from_voigt(const arma::vec &v, Tensor2Type vtype);
     /// Same, with a string tag ("stress"/"strain"/"generic") — parses per call; prefer the enum overload in loops.
     static tensor2 from_voigt(const arma::vec &v, const std::string &type_str);
 
     /// Build from a Kelvin-Mandel vector (shear scaled by \f$\sqrt2\f$, identical for stress/strain).
-    static tensor2 from_mandel(const arma::vec::fixed<6> &v, VoigtType vtype);
+    static tensor2 from_mandel(const arma::vec::fixed<6> &v, Tensor2Type vtype);
 
     /// Zero tensor factory.
-    static tensor2 zeros(VoigtType vtype = VoigtType::stress);
+    static tensor2 zeros(Tensor2Type vtype = Tensor2Type::stress);
     /// Zero tensor factory (string tag).
     static tensor2 zeros(const std::string &type_str);
     /// Identity tensor \f$\mathbf{I}\f$ factory.
-    static tensor2 identity(VoigtType vtype = VoigtType::stress);
+    static tensor2 identity(Tensor2Type vtype = Tensor2Type::stress);
     /// Identity tensor factory (string tag).
     static tensor2 identity(const std::string &type_str);
 
@@ -190,12 +195,12 @@ public:
     void set_voigt(const arma::vec &v);
 
     /// The Voigt type tag.
-    VoigtType vtype() const { return _vtype; }
+    Tensor2Type vtype() const { return _vtype; }
 
     /**
      * @brief Compute Voigt vector on the fly (6 lookups + factor-2 on shear for strain).
      * @return vec::fixed<6> by value
-     * @throws std::runtime_error if VoigtType::none
+     * @throws std::runtime_error if Tensor2Type::none
      */
     arma::vec::fixed<6> voigt() const;
 
@@ -223,7 +228,7 @@ public:
     /// Rotate: \f$\mathbf{Q}\,\mathbf{X}\,\mathbf{Q}^T\f$ (passive uses \f$\mathbf{Q}^T\f$).
     tensor2 rotate(const Rotation &R, bool active = true) const;
 
-    /// Push-forward to the spatial configuration; kernel dispatches on VoigtType
+    /// Push-forward to the spatial configuration; kernel dispatches on Tensor2Type
     /// (stress: \f$\mathbf{F}\mathbf{X}\mathbf{F}^T\f$, strain: \f$\mathbf{F}^{-T}\mathbf{X}\mathbf{F}^{-1}\f$).
     /// metric=true (default) includes the \f$J=\det\mathbf{F}\f$ Piola factor; metric=false = pure transport.
     tensor2 push_forward(const arma::mat::fixed<3,3> &F, bool metric = true) const;
@@ -305,7 +310,7 @@ double trace(const tensor2 &t);
  *
  * @param sigma stress tensor
  * @param alpha pressure-sensitivity (friction) coefficient; 0 → von Mises
- * @return \f$\partial\Phi/\partial\sigma\f$, VoigtType::strain
+ * @return \f$\partial\Phi/\partial\sigma\f$, Tensor2Type::strain
  * @see flow() for the plastic-potential normal (non-associative flow)
  */
 tensor2 flow_normal(const tensor2 &sigma, double alpha = 0.0);
@@ -325,7 +330,7 @@ tensor2 flow_normal(const tensor2 &sigma, double alpha = 0.0);
  *
  * @param sigma stress tensor
  * @param beta  dilatancy coefficient (\f$\le\alpha\f$ for the 2nd law)
- * @return \f$\partial H/\partial\sigma\f$, VoigtType::strain
+ * @return \f$\partial H/\partial\sigma\f$, Tensor2Type::strain
  * @see flow_normal() for the yield-surface normal
  */
 tensor2 flow(const tensor2 &sigma, double beta = 0.0);
@@ -439,7 +444,7 @@ public:
      * @brief Contract with a tensor2 (double contraction), e.g. sigma = L : eps.
      *        Internally a plain Mandel matrix-vector product.
      *
-     * Output VoigtType is inferred from Tensor4Type:
+     * Output Tensor2Type is inferred from Tensor4Type:
      * - stiffness (sigma = L : epsilon) -> stress
      * - compliance (epsilon = M : sigma) -> strain
      * - strain_concentration (epsilon = A : epsilon) -> strain
@@ -555,28 +560,28 @@ tensor4 auto_sym_dyadic(const tensor2 &a);
 // rot/F with n_slices==1 are broadcast to all N points.
 
 /// Batch rotate N tensor2 objects. voigt:(6,N), rot:(3,3,N_r).
-arma::mat batch_rotate(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_rotate(const arma::mat &voigt, Tensor2Type vtype,
                        const arma::cube &rot_matrices, bool active = true);
 
 /// Batch push-forward N tensor2. voigt:(6,N), F:(3,3,N_f).
-arma::mat batch_push_forward(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_push_forward(const arma::mat &voigt, Tensor2Type vtype,
                              const arma::cube &F, bool metric = true);
 
 /// Batch pull-back N tensor2. voigt:(6,N), F:(3,3,N_f).
-arma::mat batch_pull_back(const arma::mat &voigt, VoigtType vtype,
+arma::mat batch_pull_back(const arma::mat &voigt, Tensor2Type vtype,
                           const arma::cube &F, bool metric = true);
 
 /// Batch von Mises for N tensor2. voigt:(6,N) → (N).
-arma::vec batch_mises(const arma::mat &voigt, VoigtType vtype);
+arma::vec batch_mises(const arma::mat &voigt, Tensor2Type vtype);
 
 /// Batch trace for N tensor2. voigt:(6,N) → (N).
-arma::vec batch_trace(const arma::mat &voigt, VoigtType vtype);
+arma::vec batch_trace(const arma::mat &voigt, Tensor2Type vtype);
 
-/// Infers the output VoigtType of a tensor4 @ tensor2 contraction from the tensor4 type.
-VoigtType infer_contraction_vtype(Tensor4Type t4type);
+/// Infers the output Tensor2Type of a tensor4 @ tensor2 contraction from the tensor4 type.
+Tensor2Type infer_contraction_vtype(Tensor4Type t4type);
 /// Batch contract tensor4 @ tensor2. t4:(6,6,N4), t2:(6,N2) → (6,N); pair with infer_contraction_vtype for the output type.
 arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
-                         const arma::mat &t2, VoigtType t2_vtype);
+                         const arma::mat &t2, Tensor2Type t2_vtype);
 
 /// Batch rotate N tensor4 (overload of the tensor2 version). t4:(6,6,N), rot:(3,3,N_r).
 arma::cube batch_rotate(const arma::cube &t4, Tensor4Type t4type,
