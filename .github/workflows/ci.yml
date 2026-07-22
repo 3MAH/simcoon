@@ -50,6 +50,21 @@ jobs:
           environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
 
+      - name: MSVC developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: sccache (Windows)
+        if: runner.os == 'Windows'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Enable sccache + Ninja for all Windows builds
+        if: runner.os == 'Windows'
+        run: |
+          pip install ninja
+          "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File $env:GITHUB_ENV -Append
+
       - name: Prepare conda environment (Unix)
         if: runner.os != 'Windows'
         run: |
@@ -71,11 +86,13 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
-          cmake -S . -B build `
+          cmake -S . -B build -G Ninja `
               -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache `
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
-          cmake --build build --config Release
+          cmake --build build
 
       - name: Tests (Unix)
         if: runner.os != 'Windows'

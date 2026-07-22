@@ -51,13 +51,30 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
 
+      - name: MSVC developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: sccache (Windows)
+        if: runner.os == 'Windows'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Enable sccache + Ninja for the editable build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # scikit-build-core honors CMAKE_ARGS; the compiler-launcher property
+          # only works with the Ninja generator (ignored by Visual Studio), so
+          # the MSVC dev env + ninja (installed below) are required for sccache.
+          "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File $env:GITHUB_ENV -Append
+
       - name: Editable install
         run: |
           uv venv
           # --no-build-isolation so the backend in the venv is the one that
           # actually builds the editable wheel (and so later direct cmake
           # rebuilds share its build tree).
-          uv pip install scikit-build-core pybind11 numpy
+          uv pip install scikit-build-core pybind11 numpy ninja
           uv pip install -e .[dev] --no-build-isolation
 
       - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
