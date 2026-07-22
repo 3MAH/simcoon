@@ -199,7 +199,35 @@ def from_file(path_data: str = "data", pathfile: str = "path.txt") -> Tuple[List
         parse_step = _parse_meca_step if btype == 1 else _parse_thermomeca_step
         steps = [parse_step(tk, control_type, path_data) for _ in range(nstep)]
         blocks.append(Block(steps=steps, control_type=control_type, ncycle=ncycle))
+    _reanchor_tabular_times(blocks)
     return blocks, T_init
+
+
+def _reanchor_tabular_times(blocks) -> None:
+    """Shift restarting mode-3 time axes so from_file matches the C++ file path.
+
+    The legacy FILE convention lets each mode-3 table restart its time axis at
+    0 (first row = anchor at the current state); the C++ file reader shifts
+    such an axis to continue from the running simulation time. In-memory
+    ``tabular`` arrays are bound to the strict absolute-time contract instead,
+    so a parsed legacy table must be re-anchored here — otherwise a file set
+    that runs fine through the file-driven solver is rejected by solve().
+    Tables whose time column already continues absolutely are left untouched
+    (shift only when the first row is EARLIER than the running time, the same
+    guard as the C++ reader).
+    """
+    t_run = 0.0
+    for b in blocks:
+        for _ in range(b.ncycle):
+            for s in b.steps:
+                if s.mode in ("tabular", 3) and s.tabular is not None:
+                    t0 = float(s.tabular[0, 0])
+                    if t0 < t_run - 1e-12:
+                        s.tabular = s.tabular.copy()
+                        s.tabular[:, 0] += t_run - t0
+                    t_run = float(s.tabular[-1, 0])
+                else:
+                    t_run += float(s.time)
 
 
 def material_from_file(path_data: str = "data", materialfile: str = "material.dat") -> dict:

@@ -10,9 +10,12 @@ names — **the calling convention is identical for all of them** (same
 - **modular (native)**: the composable ``MODUL`` engine, configured from a
   props stream (see :mod:`simcoon.modular` for the Python builder).
 - **modular (adapter)**: a legacy name whose dedicated kernel was removed
-  after its equivalence with a ``MODUL`` configuration was proven
-  (bit-identical results, dedicated tests in ``test_modular.py``); a
-  translator maps the legacy props to the modular configuration at each call.
+  after its equivalence with a ``MODUL`` configuration was proven against the
+  retained reference kernels — bit-identical for the elastic, power-law and
+  Hill families; within 2e-3 relative for the Voce/Chaboche families, whose
+  legacy incremental ``Hp`` update differs from the modular closed form
+  (tests in ``test_modular.py`` and ``Treference_umats``); a translator maps
+  the legacy props to the modular configuration at each call.
 - **legacy (kept)**: a dedicated, self-contained implementation kept either
   for pedagogy (readable single-file reference of the CCP return mapping) or
   because no modular equivalent exists.

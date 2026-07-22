@@ -72,14 +72,14 @@ void umat_tutorial_J2(const std::string & /*umat_name*/, const vec &Etot,
     if (start) {
         T_init = T;
         p = 0.;
-        EP = tensor2::zeros(VoigtType::strain);
+        EP = tensor2::zeros(Tensor2Type::strain);
         sigma = zeros(6);
         Wm = 0.; Wm_r = 0.; Wm_ir = 0.; Wm_d = 0.;
     }
 
     // Objectivity: the stored plastic strain co-rotates with the material
     // frame. The typed rotate() picks the strain rotation kernel (factor-2
-    // shear convention) from the tensor's own VoigtType.
+    // shear convention) from the tensor's own Tensor2Type.
     EP = EP.rotate(Rotation::from_matrix(DR));
 
     const vec sigma_start = sigma;
@@ -100,7 +100,7 @@ void umat_tutorial_J2(const std::string & /*umat_name*/, const vec &Etot,
     const double f_trial = Mises(sig_trial) - (sigma_Y + H * p);
 
     double Dp = 0.;
-    tensor2 Lam = tensor2::zeros(VoigtType::strain);
+    tensor2 Lam = tensor2::zeros(Tensor2Type::strain);
 
     if (f_trial > 0.) {
         // -------------------------------------------------------------- 6.

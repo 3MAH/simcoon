@@ -151,7 +151,10 @@ int step::mode3_ninc() const
     ifstream pathinc(file, ios::in);
     if(!pathinc)
     {
-        cout << "Error: cannot open the file " << file << "\n Please check if the file is correct and if you have added the extension\n";
+        // Throw instead of falling through: getline on a never-opened stream
+        // fails without ever setting eofbit, so the counting loop below would
+        // spin forever.
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): cannot open the increment file '" + file + "' — check the file name (including extension) and the data path");
     }
     while (!pathinc.eof())
     {

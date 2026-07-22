@@ -634,8 +634,16 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     Bhat(1,1) = sum(dPhiRdsigma%kappa_j[1]) - K(1,1);
 
     const std::vector<vec> dPhidsigma_l = { dPhiFdsigma, dPhiRdsigma };
+    // tangent_algorithmic is clamped to continuum for the SMA kernels: the
+    // finite-difference transformation-flow Hessian makes the local system
+    // near-singular on the transformation plateau (rcond ~ 1e-17; whether the
+    // backend flags it is LAPACK-dependent — see the thermomechanical twin,
+    // which crashed CI through this path). Re-enable together with the exact
+    // CPP Hessian rework.
+    const int tangent_mode_eff = (tangent_mode == tangent_algorithmic)
+        ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
-        tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes algorithmic tangent (closest-point). The forward transformation strain-flow
             // Lambda_eps^F = Hcur(sigma)*dDrucker(sigma) + DM*sigma + Dalpha_T couples to stress through

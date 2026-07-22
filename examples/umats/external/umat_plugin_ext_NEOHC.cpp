@@ -114,8 +114,8 @@ public:
         mat invC_mat = inv(C_mat);
 
         // ---- PKII stress using Tensor2 (enum tags: no string parsing in the UMAT hot path) ----
-        tensor2 invC_t = tensor2::from_voigt(t2v_stress(invC_mat), VoigtType::stress);
-        tensor2 I_t    = tensor2::identity(VoigtType::stress);
+        tensor2 invC_t = tensor2::from_voigt(t2v_stress(invC_mat), Tensor2Type::stress);
+        tensor2 I_t    = tensor2::identity(Tensor2Type::stress);
         tensor2 S = mu * (I_t - invC_t) + lambda * lnJ * invC_t;
 
         // ---- Cauchy stress via push-forward ----

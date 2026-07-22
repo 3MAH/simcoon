@@ -67,6 +67,13 @@ protected:
     
     using step::generate;
     virtual void generate(const double&, const arma::vec&, const arma::vec&, const double&);
+    /**
+     * @brief Generate the increment tables for a fully kinematic thermomechanical step
+     * (control types 5/6); same geodesic-F conventions as step_meca::generate_kin.
+     * @param[in] mTime current (absolute) time at the start of the step
+     * @param[in] mF current 3x3 deformation gradient \f$ \mathbf{F} \f$ (the step anchor)
+     * @param[in] mT current temperature
+     */
     virtual void generate_kin(const double&, const arma::mat&m, const double &);    
     virtual void assess_inc(const double &, double &, const double &, phase_characteristics &, double &, const double &, const arma::mat &, const int &);
     

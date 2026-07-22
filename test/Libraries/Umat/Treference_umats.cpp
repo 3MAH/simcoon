@@ -59,9 +59,13 @@ using UmatFn = std::function<void(
 
 // Drive one kernel through a cyclic confined-uniaxial strain path
 // (E11: 0 -> +amp -> -amp -> 0, other components held at zero) and return the
-// sigma11 history. tangent_continuum on both sides for determinism.
+// sigma11 history. Continuum tangent on both sides — NOTE the reference
+// kernels are verbatim PRE-2.0 copies, so their continuum mode is the OLD
+// literal 0, not tangent_continuum (=1, which they would read as algorithmic).
+// The mode only selects the Lt output in these kernels (stress is unaffected),
+// but the intent is a continuum-vs-continuum comparison.
 vec drive(const UmatFn& umat, const std::string& name, const vec& props,
-          int nstatev, double amp, int n_quarter) {
+          int nstatev, double amp, int n_quarter, int tangent_mode) {
     vec Etot = zeros(6);
     vec sigma = zeros(6);
     vec statev = zeros(nstatev);
@@ -85,7 +89,7 @@ vec drive(const UmatFn& umat, const std::string& name, const vec& props,
         umat(name, Etot, DEtot, sigma, Lt, L, DR,
              static_cast<int>(props.n_elem), props, nstatev, statev,
              T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d,
-             3, 3, start, tnew_dt, tangent_continuum);
+             3, 3, start, tnew_dt, tangent_mode);
         Etot += DEtot;
         Time += DTime;
         start = false;
@@ -97,8 +101,10 @@ vec drive(const UmatFn& umat, const std::string& name, const vec& props,
 void expect_equiv(const UmatFn& reference, const std::string& name,
                   const vec& props, int nstatev, double rel_tol,
                   double amp = 0.02, int n_quarter = 25) {
-    const vec ref = drive(reference, name, props, nstatev, amp, n_quarter);
-    const vec mod = drive(umat_legacy_modular, name, props, nstatev, amp, n_quarter);
+    const vec ref = drive(reference, name, props, nstatev, amp, n_quarter,
+                          /*pre-2.0 continuum literal*/ 0);
+    const vec mod = drive(umat_legacy_modular, name, props, nstatev, amp,
+                          n_quarter, tangent_continuum);
     const double peak = std::max(std::abs(ref.max()), std::abs(ref.min()));
     ASSERT_GT(peak, 0.);
     const double dev = abs(ref - mod).max() / peak;
