@@ -62,8 +62,17 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           pip install ninja
+          # Absolute launcher path (forward slashes for CMake): the sccache
+          # action exports SCCACHE_PATH but does NOT put sccache on PATH, and
+          # msvc-dev-cmd rewrites PATH anyway. Idle timeout 0 keeps the server
+          # (and its stats) alive across the whole job.
+          $sc = $env:SCCACHE_PATH -replace '\\','/'
           "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
-          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File $env:GITHUB_ENV -Append
+          "SCCACHE_IDLE_TIMEOUT=0" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=$sc -DCMAKE_CXX_COMPILER_LAUNCHER=$sc" | Out-File $env:GITHUB_ENV -Append
+          # scikit-build-core only picks Ninja over Visual Studio when ninja is
+          # importable/visible to the python actually running the build
+          "CMAKE_GENERATOR=Ninja" | Out-File $env:GITHUB_ENV -Append
 
       - name: Prepare conda environment (Unix)
         if: runner.os != 'Windows'
@@ -88,11 +97,12 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja `
               -DCMAKE_BUILD_TYPE=Release `
-              -DCMAKE_C_COMPILER_LAUNCHER=sccache `
-              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
+              -DCMAKE_C_COMPILER_LAUNCHER="$env:SCCACHE_PATH" `
+              -DCMAKE_CXX_COMPILER_LAUNCHER="$env:SCCACHE_PATH" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
           cmake --build build
+          & $env:SCCACHE_PATH --show-stats
 
       - name: Tests (Unix)
         if: runner.os != 'Windows'
@@ -119,8 +129,9 @@ jobs:
       - name: Install simcoon Python bindings (Windows)
         if: runner.os == 'Windows'
         run: |
-          pip install scikit-build-core pybind11 numpy
+          pip install scikit-build-core pybind11 numpy ninja
           pip install . --no-build-isolation
+          & $env:SCCACHE_PATH --show-stats
 
       - name: Smoke test simcoon Python (Windows)
         if: runner.os == 'Windows'
