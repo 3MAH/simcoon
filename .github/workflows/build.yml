@@ -65,8 +65,11 @@ jobs:
           # scikit-build-core honors CMAKE_ARGS; the compiler-launcher property
           # only works with the Ninja generator (ignored by Visual Studio), so
           # the MSVC dev env + ninja (installed below) are required for sccache.
+          $sc = $env:SCCACHE_PATH -replace '\\','/'
           "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
-          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File $env:GITHUB_ENV -Append
+          "SCCACHE_IDLE_TIMEOUT=0" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=$sc -DCMAKE_CXX_COMPILER_LAUNCHER=$sc" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_GENERATOR=Ninja" | Out-File $env:GITHUB_ENV -Append
 
       - name: Editable install
         run: |
