@@ -1,0 +1,16 @@
+Material
+Name	MIMTN
+Number_of_material_parameters	5
+Number_of_internal_variables	10000
+
+#Orientation
+psi	0
+theta	0
+phi	0
+
+#Mechancial
+P1 2
+P2 0
+P3 20
+P4 20
+P5 0
