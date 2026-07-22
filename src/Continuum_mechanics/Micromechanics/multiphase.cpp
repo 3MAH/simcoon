@@ -86,8 +86,15 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
     
 	//Initialization
 	if (start) {
-        
+
         for (int i=0; i<nphases; i++) {
+            // The localization schemes (Hill interaction tensors, concentration
+            // A, Lt_eff assembly) are built on the CONTINUUM phase tangents —
+            // the incremental Mori-Tanaka / self-consistent / periodic-layer
+            // formulations. Pin the sub-phase mode so the caller's tangent_mode
+            // (algorithmic by default since 2.0) never leaks into the
+            // localization. Persistent member: set once at start.
+            phase.sub_phases[i].sptr_sv_global->tangent_mode = simcoon::tangent_continuum;
             //Run the appropriate constitutive model
             select_umat_M(phase.sub_phases[i], DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
         }

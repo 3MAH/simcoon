@@ -214,6 +214,7 @@ state_variables::~state_variables()
 state_variables& state_variables::operator = (const state_variables& sv)
 //----------------------------------------------------------------------
 {
+	tangent_mode = sv.tangent_mode;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
@@ -527,6 +528,11 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 state_variables& state_variables::rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi)
 //----------------------------------------------------------------------
 {
+	// Configuration travels with the g->l transfer: the solver sets
+	// tangent_mode on the GLOBAL sv, the kernels read the LOCAL one — without
+	// this copy the solver's tangent_mode parameter is dead (kernels always
+	// run the compile-time default).
+	tangent_mode = sv.tangent_mode;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;

@@ -54,6 +54,7 @@ set(TEST_SRCS
   test/Umats/HYPER/THYPER.cpp
   test/Umats/LOG_int/TLOG_int.cpp
   test/Umats/MIMTN/TMIMTN.cpp
+  test/Umats/MIMTP/TMIMTP.cpp
   test/Umats/MIPLN/TMIPLN.cpp
   test/Umats/UMEXT/TUMEXT.cpp
 )
