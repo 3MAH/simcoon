@@ -206,6 +206,27 @@ public:
         const arma::vec& Ds_total,
         int offset) override;
 
+    /// Flow-rule residual of the committed state (tensorial strain norms,
+    /// flow direction at the end stress shifted by the backstress); see
+    /// StrainMechanism::state_drift.
+    [[nodiscard]] double state_drift(const arma::vec& sigma) const override;
+
+    /// Base default when the criterion's flow direction is stable within an
+    /// increment, infinity (opt-out) otherwise — the classification lives on
+    /// YieldCriterion::has_stable_flow_direction.
+    [[nodiscard]] double drift_tolerance() const override;
+
+    /// 1.0 = 100% plastic strain in a single increment: the accumulated
+    /// plastic multiplier is strain-scale, and the first FB runaway
+    /// excursion (traced: 0.83 -> 433 -> 4e13) must be caught before it
+    /// saturates the hardening state, whose garbage tangent would reseed
+    /// the divergence on every solver retry.
+    [[nodiscard]] double multiplier_cap() const override;
+
+    /// Committed Dp = p - p_start from the internal variable (projected by
+    /// update(); see StrainMechanism::committed_multiplier).
+    [[nodiscard]] double committed_multiplier() const override;
+
     arma::vec inelastic_strain() const override;
 
     void update(

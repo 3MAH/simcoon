@@ -187,6 +187,21 @@ public:
     [[nodiscard]] bool has_flow_hessian() const noexcept;
 
     /**
+     * @brief Whether the flow direction stays nearly constant over one
+     * return-mapping increment.
+     *
+     * True for the quadratic deviatoric family (von Mises, Hill, generic
+     * anisotropic): the flow rotation within a return is bounded by the
+     * increment size. False for pressure-sensitive surfaces (Drucker, DFA —
+     * the volumetric flow component varies strongly along the return) and
+     * vertex criteria (Tresca — the flow jumps between facets), whose flow
+     * legitimately rotates O(1) within a single large increment. Consumed
+     * by PlasticityMechanism::drift_tolerance to decide whether the
+     * commit-time flow-rule drift measure is discriminating.
+     */
+    [[nodiscard]] bool has_stable_flow_direction() const noexcept;
+
+    /**
      * @brief Analytic flow Hessian $ \mathrm{d}oldsymbol{\Lambda}/
      * \mathrm{d}oldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
      * oldsymbol{\sigma}^2 $ (6x6, compliance-like Voigt).

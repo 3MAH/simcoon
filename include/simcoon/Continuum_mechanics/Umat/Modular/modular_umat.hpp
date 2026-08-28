@@ -96,6 +96,14 @@ private:
     int maxiter_;           ///< Maximum iterations for return mapping
     double precision_;      ///< Convergence tolerance
 
+    /// Composition invariant cached by initialize(): the flow-rule drift
+    /// guard of run() is armed only when at least TWO guarded constraint
+    /// ROWS are present (across one or several mechanisms) — the
+    /// multi-surface configuration where the FB tug-of-war pathology lives.
+    /// A single guarded row keeps the unguarded legacy-CCP commit semantics
+    /// and commits identically to its reference kernel.
+    bool drift_guard_armed_{false};
+
 public:
     /**
      * @brief Default constructor
@@ -316,8 +324,23 @@ private:
      * 1. Computes elastic prediction (trial stress)
      * 2. Evaluates constraint functions (Phi) from all mechanisms
      * 3. Solves for multiplier increments via Fischer-Burmeister
-     * 4. Updates internal variables and recomputes stress
+     * 4. Updates internal variables (incremental CCP update) and recomputes
+     *    the stress
      * 5. Repeats until convergence (error < precision_)
+     *
+     * The per-iteration incremental update (step 4) is kept deliberately
+     * over a total-multiplier backward-Euler refresh inside the loop: the
+     * refresh at a lagged stress is non-contractive for curved criteria at
+     * large increments (\f$ \Delta s\,\mathbf{n}:\mathbf{L}:\mathbf{n} /
+     * \sigma_Y > 1 \f$ — traced as a period-2 limit cycle on DFA and
+     * divergence on Hill power-law where CCP converges); making it robust
+     * means solving state and stress simultaneously, i.e. the closest-point
+     * return map (reserved tangent_closest_point mode, future release).
+     *
+     * By the reference CCP convention a finite unconverged-at-maxiter state
+     * is still committed (the damage row in particular is integrated
+     * explicitly and never drives the FB error to precision_); run() rejects
+     * only unusable states with a step cut (see its reject block).
      *
      * @param Etot Total strain at start of increment
      * @param DEtot Strain increment

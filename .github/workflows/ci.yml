@@ -129,7 +129,7 @@ jobs:
       - name: Install simcoon Python bindings (Windows)
         if: runner.os == 'Windows'
         run: |
-          pip install scikit-build-core pybind11 numpy ninja
+          pip install scikit-build-core pybind11 numpy
           pip install . --no-build-isolation
           & $env:SCCACHE_PATH --show-stats
 

@@ -109,9 +109,8 @@ Used inside :class:`Plasticity`; the criterion defines the equivalent stress
      - Deshpande–Fleck–Ashby (pressure-sensitive)
    * - :class:`AnisotropicYield`
      - ``P11, P22, P33, P12, P13, P23, P44, P55, P66``
-     - Full quadratic form. **P must be an admissible (convex) form**:
-       symmetric with zero row sums on the normal block — an indefinite P
-       produces ``sqrt(<0) = NaN``.
+     - Full quadratic form; P admissibility requirements: see the ``EPANI``
+       row of the :doc:`catalog <umat_catalog>`.
 
 Isotropic hardening
 -------------------
@@ -195,8 +194,9 @@ Mechanisms
    * - :class:`Damage`
      - ``Y_0, Y_c, damage_type, A, n``
      - Scalar stiffness-degradation damage; ``damage_type`` selects the
-       evolution law: ``LINEAR``, ``EXPONENTIAL``, ``POWER_LAW`` (uses
-       ``A, n``) or ``WEIBULL``
+       evolution law and its extra parameters: ``LINEAR`` (none),
+       ``EXPONENTIAL`` (``A``), ``POWER_LAW`` (``n``) or ``WEIBULL``
+       (``A, n``)
 
 Multiple mechanisms compose additively on the inelastic strain; the
 registration order defines the statev layout (see the
@@ -208,7 +208,9 @@ Tangent operator and finite strain
 ``MODUL`` honors the solver's ``tangent_mode`` (continuum or algorithmic,
 algorithmic being the 2.0 default — :doc:`solver`). Under the finite-strain
 control types the composition acts as a Hencky hyperelastic law on the
-logarithmic strain and requires ``corate_type = 3`` (log_R).
+logarithmic strain and requires ``corate_type = 3`` (log_R): pass
+``corate="logarithmic_R"`` to :func:`simcoon.solver.solve` — the default
+``corate="logarithmic"`` is the XBM rate (code 2).
 
 See also
 --------

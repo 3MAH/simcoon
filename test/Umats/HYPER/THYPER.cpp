@@ -22,7 +22,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <fstream>
-#include <filesystem>
 #include <string>
 #include <assert.h>
 #include <math.h>
@@ -87,19 +86,17 @@ TEST(THYPER, HYPER_solver )
         
         cout << "run " << materialfile << endl;
 
-        try {
-            std::filesystem::copy(output_file, comparison_file, std::filesystem::copy_options::overwrite_existing);
-            std::cout << "File copied successfully to " << comparison_file << std::endl;
-        } catch (std::filesystem::filesystem_error& e) {
-            std::cerr << "Error: " << e.what() << std::endl;
-        }
-
+        // Fresh output vs the TRACKED reference — never overwrite the
+        // reference from the run (that made the comparison self-passing and
+        // churned the committed .dat files on every local test run).
         mat C;
-        C.load(comparison_file);
+        ASSERT_TRUE(C.load(comparison_file)) << "missing reference " << comparison_file;
 
         mat R;
-        R.load(output_file);
-            
+        ASSERT_TRUE(R.load(output_file)) << "missing output " << output_file;
+
+        ASSERT_EQ(C.n_rows, R.n_rows) << materialfile;
+        ASSERT_EQ(C.n_cols, R.n_cols) << materialfile;
         for (unsigned int i=0; i<C.n_rows; i++) {
             for (unsigned int j=0; j<C.n_cols; j++) {
                     EXPECT_LT(fabs(C(i,j) - R(i,j)),1.E-6);

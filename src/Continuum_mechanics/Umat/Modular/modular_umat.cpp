@@ -36,12 +36,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
-namespace {
-// Per-increment plastic-multiplier runaway cap for the committed-state guard
-// in ModularUMAT::run (see the reject block there for the rationale).
-constexpr double Ds_cap_plastic = 1.0;
-}  // namespace
-
 // ========== Constructor ==========
 
 ModularUMAT::ModularUMAT()
@@ -194,16 +188,23 @@ void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
         mech->unpack(statev);
     }
 
-    // Cache per-mechanism constraint-row offsets (constant for the rest of
-    // the object's lifetime).
+    // Cache the composition invariants (constant for the rest of the
+    // object's lifetime): per-mechanism constraint-row offsets and the
+    // drift-guard arming decision (see the member doc).
     mech_offset_.assign(mechanisms_.size(), 0);
-    {
-        int acc = 0;
-        for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            mech_offset_[m] = acc;
-            acc += mechanisms_[m]->num_constraints();
+    int acc = 0;
+    int n_guarded_rows = 0;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        mech_offset_[m] = acc;
+        acc += mechanisms_[m]->num_constraints();
+        if (mechanisms_[m]->guarded_constraints()) {
+            // Count ROWS, not mechanisms: a single future mechanism carrying
+            // several coupled surfaces (SMA forward/reverse transformation)
+            // is already the multi-surface configuration the guard watches.
+            n_guarded_rows += mechanisms_[m]->num_constraints();
         }
     }
+    drift_guard_armed_ = (n_guarded_rows >= 2);
 
     initialized_ = true;
 }
@@ -318,40 +319,41 @@ void ModularUMAT::run(
         n_total += mech->num_constraints();
     }
 
-    // Perform return mapping. return_mapping reports FB convergence, but by the
-    // reference CCP convention a finite unconverged-at-maxiter state is still
-    // committed (the damage row in particular is integrated explicitly and
-    // never drives the FB error to precision_). Only a NON-FINITE result
-    // (true divergence -> NaN/Inf) is unusable and triggers a step cut.
+    // Perform return mapping (unconverged-at-maxiter commit semantics: see
+    // the return_mapping doc).
     arma::vec Ds_total = arma::zeros(n_total);
     return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total);
 
-    // Reject unusable committed states with a step cut: (a) non-finite stress
-    // (true divergence); (b) a pathological PLASTIC multiplier beyond
-    // Ds_cap_plastic — the first FB runaway excursion (traced: 0.83 -> 433 ->
-    // 4e13) must be caught before it saturates the hardening state, whose
-    // garbage tangent would reseed the divergence on every solver retry.
+    // Reject unusable committed states with a step cut: non-finite stress
+    // (true divergence), a runaway COMMITTED multiplier (multiplier_cap —
+    // checked on the state, not the raw FB row, which can be smaller after
+    // clipped excursions), or a state that drifted from the flow rule
+    // (state_drift) — a spurious CONVERGED root of an oscillating FB Newton,
+    // invisible to every residual check (arming policy: see
+    // drift_guard_armed_). Thresholds are per-mechanism, infinity = opt out.
     // (Negative multipliers are handled at the source: PlasticityMechanism
-    // projects the FB update onto p >= p_start, and PowerLawHardening is
+    // projects the state update onto p >= p_start, and PowerLawHardening is
     // C1-regularized at onset, so no negative-Ds check is needed here.)
-    // Plasticity rows only: damage rows are energy-release-typed
-    // (Phi = Y - Y_max, MPa scale) and legitimately exceed this bound.
     bool reject = !sigma.is_finite();
     for (size_t m = 0; !reject && m < mechanisms_.size(); ++m) {
-        if (mechanisms_[m]->type() != MechanismType::PLASTICITY) continue;
-        const int n = mechanisms_[m]->num_constraints();
-        if (n == 0) continue;
-        const auto Ds_m = Ds_total.subvec(mech_offset_[m],
-                                          mech_offset_[m] + n - 1);
-        reject = (Ds_m.max() > Ds_cap_plastic);
+        const double drift_tol = mechanisms_[m]->drift_tolerance();
+        reject = (mechanisms_[m]->committed_multiplier() >
+                      mechanisms_[m]->multiplier_cap())
+              || (drift_guard_armed_ && std::isfinite(drift_tol) &&
+                  mechanisms_[m]->state_drift(sigma) > drift_tol);
     }
     if (reject) {
         // Ask the global solver to halve the increment and retry. statev is
         // left at its incoming values (pack_all is skipped) so the retry
-        // restarts from the correct state; Lt is set elastic to keep the
-        // rejected-step output well-defined.
+        // restarts from the correct state; sigma is reset to its incoming
+        // value and Lt to elastic so the rejected-step output stays a
+        // self-consistent triple — the solver's inforce-at-Dn_mini branch
+        // commits this output WITHOUT re-running the UMAT, and a rejected
+        // stress paired with the un-updated statev would silently corrupt
+        // the rest of the history.
+        sigma = sigma_start_;
         tnew_dt = 0.5;
-        Lt = elasticity_.L();
+        Lt = stiffness_reduction() * elasticity_.L();
         return;
     }
 
@@ -454,6 +456,8 @@ void ModularUMAT::return_mapping(
         // Solve using Fischer-Burmeister
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
 
+        // Incremental CCP update (see the header for why this is not a
+        // total-multiplier refresh)
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             mechanisms_[m]->update(ds, mech_offset_[m]);
         }

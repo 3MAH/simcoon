@@ -43,6 +43,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <string>
 #include <vector>
 #include <map>
+#include <limits>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
@@ -315,6 +316,92 @@ public:
         (void)Ds_total;
         (void)offset;
         return false;
+    }
+
+    /**
+     * @brief Whether this mechanism carries constraint rows that can enter
+     * the multi-surface tug-of-war the orchestrator's drift guard watches
+     * for (arming rule: see ModularUMAT::drift_guard_armed_).
+     *
+     * Default true, so any future yield-like mechanism (threshold
+     * viscoplasticity, martensitic transformation) participates without
+     * touching the orchestrator; opting-out overrides carry their own
+     * rationale.
+     */
+    [[nodiscard]] virtual bool guarded_constraints() const {
+        return true;
+    }
+
+    /**
+     * @brief Per-increment cap on this mechanism's multiplier rows at
+     * commit; a committed multiplier above it is rejected with a step cut.
+     *
+     * Default infinity (no cap): only the mechanism knows its multiplier's
+     * scale and what a runaway magnitude means for it — mechanisms with
+     * strain-scale multipliers override (see PlasticityMechanism).
+     */
+    [[nodiscard]] virtual double multiplier_cap() const {
+        return std::numeric_limits<double>::infinity();
+    }
+
+    /**
+     * @brief Largest COMMITTED multiplier increment across this mechanism's
+     * rows, compared against multiplier_cap() by the orchestrator.
+     *
+     * Read from the internal-variable state, NOT from the raw
+     * Fischer-Burmeister row: the per-iteration state update may project
+     * (clamp) its steps without writing back into the row, so after a
+     * clipped excursion the committed increment can exceed the raw row —
+     * exactly the oscillating regime the cap targets. Default 0 (mechanisms
+     * without a capped multiplier never trip).
+     */
+    [[nodiscard]] virtual double committed_multiplier() const {
+        return 0.0;
+    }
+
+    /**
+     * @brief Largest state_drift() value the orchestrator accepts at commit
+     * for this mechanism's rows; above it the increment is rejected with a
+     * step cut.
+     *
+     * Default 0.5, calibrated on the quadratic deviatoric criteria: healthy
+     * CCP returns measure ~1e-2 (in-increment flow rotation) while the
+     * pathological oscillating-FB commits measured 1.5-7.6 (two von Mises
+     * mechanisms, large reload, stress committed hundreds of MPa wrong).
+     * A mechanism whose flow legitimately rotates O(1) within an increment
+     * (strongly curved or non-smooth criteria) returns infinity — the drift
+     * measure is not discriminating there and the row keeps the legacy-CCP
+     * commit semantics.
+     */
+    [[nodiscard]] virtual double drift_tolerance() const {
+        return 0.5;
+    }
+
+    /**
+     * @brief Relative inconsistency of the committed state with respect to
+     * its converged multipliers, checked by the orchestrator before commit.
+     *
+     * The CCP loop accumulates the state along the Fischer-Burmeister
+     * iteration path (\f$ \Delta\mathbf{V} = \sum_k ds_k\,\boldsymbol{\Lambda}_k \f$).
+     * For a healthy return this telescopes to the flow rule
+     * \f$ \Delta\mathbf{V} \approx \Delta s\,\boldsymbol{\Lambda}(\sigma_{end}) \f$;
+     * when the FB Newton oscillates, the accumulated state drifts away from
+     * it while still satisfying \f$ \Phi = 0 \f$ — a spurious root the
+     * orchestrator rejects with a step cut (arming policy: see
+     * ModularUMAT::run). The measure must vanish with the increment size so
+     * that solver step cuts terminate.
+     *
+     * @return the relative drift measure (0 = perfectly consistent).
+     * Default 0. Guarded mechanisms should override with their flow-rule
+     * residual,
+     * \f$ \|\Delta\mathbf{V} - \Delta s\,\boldsymbol{\Lambda}_{end}\| /
+     * (\Delta s\,\|\boldsymbol{\Lambda}_{end}\|) \f$
+     * with a REGULARIZED (floored) denominator so the measure stays finite
+     * and vanishing as \f$ \Delta s \to 0 \f$ — see PlasticityMechanism.
+     */
+    [[nodiscard]] virtual double state_drift(const arma::vec& sigma) const {
+        (void)sigma;
+        return 0.0;
     }
 
     /**
