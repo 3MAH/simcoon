@@ -248,13 +248,17 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
     
 }
 
-void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
+void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
     std::map<string, int> list_umat;
     
     list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200}};
+    // The caller provides DR in global coordinates; rotate it with the other
+    // state variables so that the local UMAT receives a consistent increment.
+    rve.sptr_sv_global->DR = DR_global;
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
+    const mat &DR = umat_M->DR;
     
     switch (list_umat[rve.sptr_matprops->umat_name]) {
 

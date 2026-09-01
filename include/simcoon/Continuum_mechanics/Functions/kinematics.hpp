@@ -374,12 +374,15 @@ arma::mat finite_W(const arma::mat &F0, const arma::mat &F1, const double &DTime
 // Note : here R is the is the rigid body rotation in the RU or VR polar decomposition of the deformation gradient F (F0,F1,DTime)
 
 /**
- * @brief Provides the approximation of the Eulerian rigid-body rotation spin tensor from the transformation gradient at time \f$t_0\f$, the transformation gradient at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
+ * @brief Provides the midpoint Eulerian rigid-body rotation spin tensor from the transformation gradient at time \f$t_0\f$, the transformation gradient at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
  *
  * The Eulerian rigid-body rotation spin tensor \f$\mathbf{\Omega}\f$ is related to the transformation gradient \f$\mathbf{F}_0\f$ at time \f$t_0\f$, the transformation gradient \f$\mathbf{F}_1\f$ at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$ by the following equation:
  * 
  * \f[
- *      \mathbf{\Omega} = \frac{1}{\Delta t} \left( \mathbf{R}_1 - \mathbf{R}_0 \right) \cdot \mathbf{R}_1^{T}
+ *      \Delta\mathbf{R} = \mathbf{R}_1\mathbf{R}_0^T, \qquad
+ *      \mathbf{\Omega} = \frac{2}{\Delta t}
+ *      \left(\Delta\mathbf{R}-\mathbf{I}\right)
+ *      \left(\Delta\mathbf{R}+\mathbf{I}\right)^{-1}
  * \f]
  * 
  * where \f$\mathbf{R}_0\f$ and \f$\mathbf{R}_1\f$ are the rotation matrices obtained from RU decompositions of the transformation gradients \f$\mathbf{F}_0\f$ and \f$\mathbf{F}_1\f$, respectively. This corresponds to the Green-Naghdi corotationnal rate.
@@ -387,7 +390,10 @@ arma::mat finite_W(const arma::mat &F0, const arma::mat &F1, const double &DTime
  * @param F0 3x3 matrix representing the transformation gradient \f$\mathbf{F_0}\f$ at time \f$t_0\f$
  * @param F1 3x3 matrix representing the transformation gradient \f$\mathbf{F_1}\f$ at time \f$t_1\f$
  * @param DTime time difference \f$\Delta t = t_1 - t_0\f$
- * @return 3x3 matrix representing the approximation of the Eulerian rigid-body rotation spin tensor (Green-Naghdi corotational rate).
+ * This inverse Cayley map is skew-symmetric and its Hughes-Winget update
+ * recovers the exact relative polar rotation \f$\Delta\mathbf{R}\f$.
+ *
+ * @return 3x3 matrix representing the midpoint Eulerian rigid-body rotation spin tensor (Green-Naghdi corotational rate).
  * 
  * @details Example:
  * @code

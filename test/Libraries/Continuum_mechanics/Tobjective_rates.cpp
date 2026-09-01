@@ -238,6 +238,37 @@ TEST(Tobjective_rates, logarithmic_R_rate)
     EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-3);
 }
 
+TEST(Tobjective_rates, polar_rates_exact_finite_rigid_rotation)
+{
+    const double angle = datum::pi/4.;
+    const double DTime = 1.;
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = cos(angle);
+    F1(0,1) = -sin(angle);
+    F1(1,0) = sin(angle);
+    F1(1,1) = cos(angle);
+
+    mat DR = zeros(3,3);
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    Green_Naghdi(DR, D, Omega, DTime, F0, F1);
+
+    EXPECT_LT(norm(D, 2), 1.E-12);
+    EXPECT_LT(norm(Omega + Omega.t(), 2), 1.E-12);
+    EXPECT_LT(norm(DR.t()*DR - eye(3,3), 2), 1.E-12);
+    EXPECT_LT(norm(DR - F1*F0.t(), 2), 1.E-12);
+
+    mat N_1 = zeros(3,3);
+    mat N_2 = zeros(3,3);
+    logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1);
+
+    EXPECT_LT(norm(D, 2), 1.E-12);
+    EXPECT_LT(norm(Omega + Omega.t(), 2), 1.E-12);
+    EXPECT_LT(norm(DR.t()*DR - eye(3,3), 2), 1.E-12);
+    EXPECT_LT(norm(DR - F1*F0.t(), 2), 1.E-12);
+}
+
 TEST(Tobjective_rates, logarithmic_F_rate)
 {
     mat F0 = eye(3,3);

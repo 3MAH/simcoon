@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
@@ -219,15 +220,27 @@ mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 //This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
 // Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
 mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
-    
-    //Definition of Omega = dot(R)*R^-1 (or R.t() since R is a rotation matrix)
+    if (DTime <= simcoon::iota) {
+        return zeros(3,3);
+    }
+
+    // Build the exact relative polar rotation, then obtain the midpoint spin
+    // whose Hughes-Winget (Cayley) update recovers that rotation.
     mat R0 = zeros(3,3);
     mat U0 = zeros(3,3);
     mat R1 = zeros(3,3);
     mat U1 = zeros(3,3);
     RU_decomposition(R0, U0, F0);
     RU_decomposition(R1, U1, F1);
-    return (1./DTime)*(R1-R0)*R1.t();
+    mat DR = R1*R0.t();
+
+    try {
+        mat Omega = (2./DTime)*(DR-eye(3,3))*inv(DR+eye(3,3));
+        return 0.5*(Omega-Omega.t());
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_Omega.");
+    }
 }
 
 //This function computes the increment of finite rotation

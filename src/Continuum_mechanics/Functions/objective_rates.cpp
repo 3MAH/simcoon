@@ -160,20 +160,11 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     
 void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
     //Green-Naghdi
-    mat I = eye(3,3);
-    mat U0;
-    mat R0;
-    mat U1;
-    mat R1;
-    RU_decomposition(R0,U0,F0);
-    RU_decomposition(R1,U1,F1);
-    
-    mat L;
+    mat L = zeros(3,3);
     if(DTime > simcoon::iota) {    
         try {
             // Same 2nd-order centered velocity gradient as the other rate functions (see Jaumann),
-            // so that D=sym(L) matches across all rates. Green-Naghdi's spin Omega comes from the
-            // polar rotation rate (R1-R0)R1^T below, independently of L.
+            // so that D=sym(L) matches across all rates.
             L = (2./DTime)*(F1-F0)*inv(F0+F1);
         } catch (const std::runtime_error &e) {
             cerr << "Error in inv: " << e.what() << endl;
@@ -183,27 +174,12 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    Omega = (1./DTime)*(R1-R0)*R1.t();
-
-
-    try {
-        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Green_Naghdi (DR).");
-    }         
+    Omega = finite_Omega(F0, F1, DTime);
+    DR = Hughes_Winget(Omega, DTime);
 }
 
 void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
-    mat I = eye(3,3);
-    mat U0;
-    mat R0;
-    mat U1;
-    mat R1;
-    RU_decomposition(R0,U0,F0);
-    RU_decomposition(R1,U1,F1);
-    
-    mat L;
+    mat L = zeros(3,3);
     if(DTime > simcoon::iota) {    
         try {
             // 2nd-order centered velocity gradient (see Jaumann); D=sym(L) is shared by all rates.
@@ -216,14 +192,8 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    Omega = (1./DTime)*(R1-R0)*R1.t();
-
-    try {
-        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside logarithmic_R (DR).");
-    }
+    Omega = finite_Omega(F0, F1, DTime);
+    DR = Hughes_Winget(Omega, DTime);
     
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
