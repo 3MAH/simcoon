@@ -23,9 +23,20 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/parameter.hpp>
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace simcoon {
+
+namespace {
+// Absolute strain floor of the state_drift denominator (see state_drift).
+// 1e-4: at near-zero committed Dp, rejection then requires a flow-rule
+// error above tolerance * floor = 5e-5 strain (~10 MPa) — two orders below
+// the measured pathology (~1e-2) and comfortably above the EP residue a
+// benign overshoot/walk-back leaves behind (~1e-5).
+constexpr double drift_scale_floor = 1.0e-4;
+}  // namespace
 
 // ========== Constructor ==========
 
@@ -202,7 +213,13 @@ bool PlasticityMechanism::refresh_state(
     const arma::vec& sigma,
     const arma::vec& Ds_total,
     int offset) {
-    const double dp = Ds_total(offset);
+    // dp >= 0: one-shot projection of the TOTAL row (the CPP contract
+    // re-derives the state from Ds_total). NOTE this is not identical to
+    // update()'s incremental clamping — after a clipped mid-iteration
+    // excursion the two commit different p from the same row history; the
+    // future closest-point integrator owns Ds_total and must keep it
+    // feasible itself.
+    const double dp = std::max(Ds_total(offset), 0.0);
 
     auto& p_var = ivc_.get("p");
     p_var.scalar() = p_var.scalar_start() + dp;
@@ -225,6 +242,40 @@ bool PlasticityMechanism::refresh_state(
     auto& EP_var = ivc_.get("EP");
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
     return true;
+}
+
+double PlasticityMechanism::state_drift(const arma::vec& sigma) const {
+    // Committed Dp from the (projected) internal variable, not the raw FB
+    // row — update() enforces p >= p_start, the state is the truth.
+    const double dp = ivc_.get("p").delta_scalar();
+    const arma::vec dEP = ivc_.get("EP").delta_vec();
+    if (dp < simcoon::iota && norm_strain(dEP) < simcoon::iota) {
+        // inert increment: avoid evaluating the flow direction at a
+        // possibly-zero stress
+        return 0.0;
+    }
+    // norm_strain (tensorial norm of an engineering-Voigt strain): arma::norm
+    // would weight the shear entries sqrt(2) too heavy against the cap.
+    // The absolute denominator floor keeps the relative measure from
+    // amplifying a numerically negligible EP residue at near-zero Dp (see
+    // the constant above for its calibration).
+    const arma::vec n = flow_direction(sigma);
+    return norm_strain(dEP - dp * n)
+         / std::max(dp * norm_strain(n), drift_scale_floor);
+}
+
+double PlasticityMechanism::drift_tolerance() const {
+    return yield_->has_stable_flow_direction()
+        ? StrainMechanism::drift_tolerance()
+        : std::numeric_limits<double>::infinity();
+}
+
+double PlasticityMechanism::multiplier_cap() const {
+    return 1.0;
+}
+
+double PlasticityMechanism::committed_multiplier() const {
+    return ivc_.get("p").delta_scalar();
 }
 
 void PlasticityMechanism::compute_jacobian_contribution(

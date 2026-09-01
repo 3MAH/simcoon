@@ -86,6 +86,12 @@ public:
     [[nodiscard]] int num_constraints() const override { return N_prony_; }
     [[nodiscard]] MechanismType type() const override { return MechanismType::VISCOELASTICITY; }
 
+    /// Strain-form rate rows, stress-decoupled — excluded from the
+    /// drift-guard ARMING count (see StrainMechanism::guarded_constraints);
+    /// the commit checks themselves are no-ops here through the default
+    /// multiplier_cap()/state_drift().
+    [[nodiscard]] bool guarded_constraints() const override { return false; }
+
     void compute_constraints(
         const arma::vec& sigma,
         const arma::vec& E_total,
