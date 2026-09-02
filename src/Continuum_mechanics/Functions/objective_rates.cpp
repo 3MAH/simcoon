@@ -130,9 +130,9 @@ static inline Fastor::Tensor<double,3,3,3,3> apply_jaumann_correction(
 
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    
-    mat L;
-    if(DTime > simcoon::iota) {    
+
+    mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (see Green_Naghdi)
+    if(DTime > simcoon::iota) {
         try {
             // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
             // the MID configuration (F0+F1)/2 -> L = (2/dt)(F1-F0)(F0+F1)^-1 (the end-config form
@@ -174,8 +174,10 @@ void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    Omega = finite_Omega(F0, F1, DTime);
-    DR = Hughes_Winget(Omega, DTime);
+    // Exact relative polar rotation DR = R1 R0^T and its inverse-Cayley
+    // midpoint spin in one polar pass (Hughes_Winget(Omega) == DR exactly,
+    // so no reconstruction round trip is needed).
+    finite_rotation(F0, F1, DTime, DR, Omega);
 }
 
 void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -192,9 +194,10 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     
     //decomposition of L
     D = 0.5*(L+L.t());
-    Omega = finite_Omega(F0, F1, DTime);
-    DR = Hughes_Winget(Omega, DTime);
-    
+    // Exact relative polar rotation + inverse-Cayley spin (see Green_Naghdi):
+    // the exact DR is what makes the log_R tangent transport equivariant.
+    finite_rotation(F0, F1, DTime, DR, Omega);
+
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
     
@@ -248,6 +251,7 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
 void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
 
+    L = zeros(3,3);   // DTime <= iota: D = 0, DF = I (L is an output; never leave it stale)
     if(DTime > simcoon::iota) {
         try {
             // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
@@ -320,7 +324,8 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
 
 void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
     mat I = eye(3,3);
-    if(DTime > simcoon::iota) {    
+    L = zeros(3,3);   // DTime <= iota: D = 0, DF = I (L is an output; never leave it stale)
+    if(DTime > simcoon::iota) {
         try {
             // 2nd-order centered velocity gradient (see Jaumann): D=sym(L) is shared by all rates,
             // and exp(L*dt) approximates F1 F0^-1 used below for the transport DF.
@@ -530,8 +535,8 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
         DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
     } catch (const std::runtime_error &e) {
         cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside logarithmic (DR).");
-    }           
+        throw simcoon::exception_inv("Error in inv function inside Delta_log_strain (DR).");
+    }
     return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
