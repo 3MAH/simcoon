@@ -39,7 +39,9 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
     mat N_1 = zeros(3,3);
     mat N_2 = zeros(3,3);    
     mat Omega = zeros(3,3);
-    simcoon::logarithmic_R(DR, D, N_1, N_2, Omega, DTime, F0_cpp, F1_cpp);
+    // C++ signature order is (DR, N_1, N_2, D, Omega) — a positional swap
+    // here silently mislabels the returned tensors (all args are mat&).
+    simcoon::logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
     return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
 }
 

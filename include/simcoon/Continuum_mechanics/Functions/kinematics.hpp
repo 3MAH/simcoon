@@ -374,30 +374,57 @@ arma::mat finite_W(const arma::mat &F0, const arma::mat &F1, const double &DTime
 // Note : here R is the is the rigid body rotation in the RU or VR polar decomposition of the deformation gradient F (F0,F1,DTime)
 
 /**
- * @brief Provides the approximation of the Eulerian rigid-body rotation spin tensor from the transformation gradient at time \f$t_0\f$, the transformation gradient at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
+ * @brief Provides the midpoint Eulerian rigid-body rotation spin tensor from the transformation gradient at time \f$t_0\f$, the transformation gradient at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
  *
  * The Eulerian rigid-body rotation spin tensor \f$\mathbf{\Omega}\f$ is related to the transformation gradient \f$\mathbf{F}_0\f$ at time \f$t_0\f$, the transformation gradient \f$\mathbf{F}_1\f$ at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$ by the following equation:
  * 
  * \f[
- *      \mathbf{\Omega} = \frac{1}{\Delta t} \left( \mathbf{R}_1 - \mathbf{R}_0 \right) \cdot \mathbf{R}_1^{T}
+ *      \Delta\mathbf{R} = \mathbf{R}_1\mathbf{R}_0^T, \qquad
+ *      \mathbf{\Omega} = \frac{2}{\Delta t}
+ *      \left(\Delta\mathbf{R}-\mathbf{I}\right)
+ *      \left(\Delta\mathbf{R}+\mathbf{I}\right)^{-1}
  * \f]
  * 
  * where \f$\mathbf{R}_0\f$ and \f$\mathbf{R}_1\f$ are the rotation matrices obtained from RU decompositions of the transformation gradients \f$\mathbf{F}_0\f$ and \f$\mathbf{F}_1\f$, respectively. This corresponds to the Green-Naghdi corotationnal rate.
- * 
+ * This inverse Cayley map is exactly skew-symmetric and its Hughes-Winget (Cayley)
+ * update recovers the exact relative polar rotation \f$\Delta\mathbf{R}\f$.
+ * Returns zero when \f$\Delta t \le \iota\f$ (a spin is a rate). Throws
+ * simcoon::exception_inv for a 180° rotation increment (Cayley chart limit) or an
+ * improper input (\f$\det \mathbf{F} < 0\f$) — inputs must be genuine transformation
+ * gradients.
+ *
  * @param F0 3x3 matrix representing the transformation gradient \f$\mathbf{F_0}\f$ at time \f$t_0\f$
  * @param F1 3x3 matrix representing the transformation gradient \f$\mathbf{F_1}\f$ at time \f$t_1\f$
  * @param DTime time difference \f$\Delta t = t_1 - t_0\f$
- * @return 3x3 matrix representing the approximation of the Eulerian rigid-body rotation spin tensor (Green-Naghdi corotational rate).
- * 
+ * @return 3x3 matrix representing the midpoint Eulerian rigid-body rotation spin tensor (Green-Naghdi corotational rate).
+ *
  * @details Example:
  * @code
- *      mat F0 = randu(3,3);
- *      mat F1 = randu(3,3);
- *      mat DTime = 0.1;
+ *      mat F0 = eye(3,3);
+ *      mat F1 = {{cos(0.3), -sin(0.3), 0.}, {sin(0.3), cos(0.3), 0.}, {0., 0., 1.}};
+ *      double DTime = 0.1;
  *      mat Omega = finite_Omega(F0, F1, DTime);
  * @endcode
 */
 arma::mat finite_Omega(const arma::mat &F0, const arma::mat &F1, const double &DTime);
+
+/**
+ * @brief Provides both the exact relative polar rotation \f$\Delta\mathbf{R} = \mathbf{R}_1\mathbf{R}_0^T\f$ and its midpoint spin (see finite_Omega) in a single polar-decomposition pass.
+ *
+ * \f$\Delta\mathbf{R}\f$ is exact and independent of \f$\Delta t\f$ (it is kept even
+ * when \f$\Delta t \le \iota\f$, where the spin \f$\mathbf{\Omega}\f$ is returned as
+ * zero); \f$\mathbf{\Omega}\f$ is the inverse Cayley transform of
+ * \f$\Delta\mathbf{R}\f$, so that Hughes_Winget(\f$\mathbf{\Omega}\f$, \f$\Delta t\f$)
+ * \f$= \Delta\mathbf{R}\f$ exactly. Used by the Green-Naghdi and logarithmic_R
+ * objective rates, whose frame transport must be the exact polar increment.
+ *
+ * @param[in] F0 3x3 matrix representing the transformation gradient \f$\mathbf{F_0}\f$ at time \f$t_0\f$
+ * @param[in] F1 3x3 matrix representing the transformation gradient \f$\mathbf{F_1}\f$ at time \f$t_1\f$
+ * @param[in] DTime time difference \f$\Delta t = t_1 - t_0\f$
+ * @param[out] DR exact relative polar rotation \f$\mathbf{R}_1\mathbf{R}_0^T\f$
+ * @param[out] Omega midpoint spin (inverse Cayley of \f$\Delta\mathbf{R}\f$; zero when \f$\Delta t \le \iota\f$)
+*/
+void finite_rotation(const arma::mat &F0, const arma::mat &F1, const double &DTime, arma::mat &DR, arma::mat &Omega);
     
 /**
  * @brief Provides the Hughes-Winget approximation of a increment of rotation or transformation from the spin/velocity at time \f$t_0\f$, the spin/velocity at time \f$t_1\f$ and the time difference \f$\Delta t = t_1 - t_0\f$.
