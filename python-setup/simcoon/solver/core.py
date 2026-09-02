@@ -19,7 +19,7 @@ def solve(
     props: Sequence[float],
     nstatev: int,
     T_init: float = 293.15,
-    corate: Union[str, int] = "logarithmic",
+    corate: Union[str, int, None] = None,
     tangent_mode: Union[str, int] = tangent_default,
     solver_type: int = 0,
     orientation: Sequence[float] = (0.0, 0.0, 0.0),
@@ -41,8 +41,13 @@ def solve(
         Number of internal state variables.
     T_init : float
         Initial temperature.
-    corate : str or int
+    corate : str, int or None
         Objective rate for the finite-strain control types (see CORATE_TYPES).
+        Default (None): 'logarithmic_R' — the exact polar rotation, whose
+        frame increment DR = R1 R0^T makes the tangent transport exact even
+        with rotated internal-variable history (the XBM 'logarithmic' rate
+        keeps a small tangent residual there). MODUL additionally requires
+        log_R under NLGEOM (the modular Hencky composition).
     tangent_mode : str or int
         Tangent operator mode: 'none', 'continuum', 'algorithmic' (default)
         or 'closest_point' (reserved).
@@ -70,6 +75,8 @@ def solve(
         blocks = [blocks]
     blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
 
+    if corate is None:
+        corate = "logarithmic_R"
     corate_code = as_code(corate, CORATE_TYPES, "corate")
     run_params = dict(params)
     run_params["tangent_mode"] = as_code(tangent_mode, TANGENT_MODES, "tangent mode")
