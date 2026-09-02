@@ -378,13 +378,30 @@ void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma
  * 
  * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
  * 
- * @param[in] DtauDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$
- * @param[in] BBBB (6x6 arma::mat) logarithmic antisymmetric tensor-valued function  \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$
+ * EXACT map (2.0): differentiates the composition
+ * \f$ \mathbf{S}(\mathbf{E}) = \mathbf{U}^{-1}\,\mathbf{R}^{T}\boldsymbol{\tau}(\ln\mathbf{V})\mathbf{R}\,\mathbf{U}^{-1} \f$
+ * with Daleckii--Krein spectral derivatives on
+ * \f$ \mathbf{h} = \tfrac{1}{2}\ln\mathbf{C} = \ln\mathbf{U} \f$
+ * (coincident-eigenvalue limits included).
+ * NB the kernel box tangent lives in the SPATIAL frame — its argument is
+ * \f$ \ln\mathbf{V} = \mathbf{R}(\ln\mathbf{U})\mathbf{R}^{T} \f$ — so it is
+ * applied as \f$ \mathbf{R}^{T}(L^t : \mathbf{R}\,d\mathbf{h}\,\mathbf{R}^{T})\mathbf{R} \f$
+ * (polar rotation \f$ \mathbf{R} = \mathbf{F}\mathbf{U}^{-1} \f$, held fixed:
+ * \f$ \mathbf{S}(\mathbf{E}) \f$ is realization-independent for a
+ * frame-indifferent response). This conjugation is what carries the rotation
+ * sensitivity of a plastified (anisotropic) box tangent — without it the map
+ * is exact only for isotropic \f$ L^t \f$ or \f$ \mathbf{R} = \mathbf{I} \f$,
+ * and Newton degrades with accumulated rotation. The XBM spin function
+ * (formerly a BBBB argument) still drops out of the composition; no spin
+ * tensor is needed. Exact algebraic inverse of DSDE_2_DtauDe:
+ * the hyperelastic bake--transport round trip cancels identically.
+ *
+ * @param[in] DtauDe (6x6 arma::mat) box tangent \f$ \partial\hat{\boldsymbol{\tau}}/\partial\mathbf{h} \f$ (Kirchhoff measure, no \f$ 1/J \f$)
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param[in] tau (3x3 arma::mat) Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
  * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
 */
-arma::mat DtauDe_2_DSDE(const arma::mat &DtauDe, const arma::mat &BBBB, const arma::mat &F, const arma::mat &tau);
+arma::mat DtauDe_2_DSDE(const arma::mat &DtauDe, const arma::mat &F, const arma::mat &tau);
 
 /**
  * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the natural covariant vector basis
@@ -416,34 +433,14 @@ arma::mat Dtau_LieDD_2_DSDE(const arma::mat &DtauDe, const arma::mat &F);
 arma::mat DtauDe_JaumannDD_2_DSDE(const arma::mat &DtauDe, const arma::mat &F, const arma::mat &tau);
 
 /**
- * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
+ * @brief Cauchy-scaled entry to the EXACT logarithmic box transport: \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$ from a box tangent expressed on the Cauchy measure.
  *
- * This function takes in the tangent modulus \f$ L^t \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$, 
- * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
- * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
- * 
- * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
- * 
- * @param[in] DsigmaDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$
- * @param[in] BBBB (6x6 arma::mat) logarithmic antisymmetric tensor-valued function  \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$
+ * Rescales the input to the Kirchhoff measure (\f$ L^t \to J L^t \f$, \f$ \boldsymbol{\sigma} \to \boldsymbol{\tau} = J\boldsymbol{\sigma} \f$) and delegates to DtauDe_2_DSDE (see there for the exact composition).
+ *
+ * @param[in] DsigmaDe (6x6 arma::mat) box tangent on the Cauchy measure (\f$ \partial\hat{\boldsymbol{\tau}}/\partial\mathbf{h} \, / J \f$)
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param[in] sigma (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
- * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
-*/
-arma::mat DsigmaDe_2_DSDE(const arma::mat &DsigmaDe, const arma::mat &BBBB, const arma::mat &F, const arma::mat &sigma);
-
-/**
- * @brief Computes the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ from the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
- *
- * This function takes in the tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$, 
- * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
- * 
- * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
- * 
- * @param[in] DsigmaDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Zaremba-Jaumann-Noll spin
- * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
- * @param[in] sigma (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
- * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ * @return (6x6 arma::mat) the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange strain \f$ \mathbf{E} \f$
 */
 arma::mat DsigmaDe_2_DSDE(const arma::mat &DsigmaDe, const arma::mat &F, const arma::mat &sigma);
 
@@ -483,6 +480,15 @@ arma::mat DsigmaDe_JaumannDD_2_DSDE(const arma::mat &DsigmaDe, const arma::mat &
  * the transformation gradient \f$ \mathbf{F} \f$ and the Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
  *
  * It returns the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
+ *
+ * NB: stays the RATE-IDENTITY conversion (GN spin correction, then
+ * pull-back), exact inverse of DSDE_2_Dtau_GreenNaghdiDD — the PLAIN
+ * Green-Naghdi corotational strain (corate 1) is a path integral, not a
+ * state function of \f$ \mathbf{C} \f$, so the exact spectral map of
+ * DtauDe_2_DSDE does not apply to it. log_R (corate 3) is NOT in this
+ * family: \f$ \mathbf{A}^{R}\!:\!\mathbf{D} \f$ accumulates exactly
+ * \f$ \ln\mathbf{U} \f$, and the corate dispatchers route it to the
+ * exact map.
  *
  * @param[in] DtauDe (6x6 arma::mat) tangent modulus \f$ L^t \f$ that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and the approximation to logarithmic strain \f$ \mathbf{e} \f$ integrated using the Green-Naghdi spin
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
@@ -545,42 +551,40 @@ arma::mat DsigmaDe_2_DtauDe(const arma::mat &DsigmaDe, const double &J);
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin from the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ 
  *
- * This function takes in the tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$, 
- * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
- * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
- * 
- * It returns the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
- * 
- * @param[in] DSDE (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
- * @param[in] BBBB (6x6 arma::mat) logarithmic antisymmetric tensor-valued function  \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$
+ * EXACT map (2.0): inverts every step of the composition differentiated by
+ * DtauDe_2_DSDE — the Daleckii--Krein map is diagonal in the eigenprojector
+ * basis, so its inverse is the entrywise reciprocal of the coefficient
+ * matrix, and the spatial-frame conjugation of the box (see DtauDe_2_DSDE)
+ * is inverted by the transposed rotation sandwich. Used to BAKE the box
+ * tangent of the finite hyperelastic kernels from their exact material
+ * tangent: bake and transport cancel identically.
+ *
+ * @param[in] DSDE (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange strain \f$ \mathbf{E} \f$
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param[in] tau (3x3 arma::mat) Kirchoff stress tensor \f$ \mathbf{\tau} \f$.
- * @return (6x6 arma::mat) the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
+ * @return (6x6 arma::mat) the box tangent \f$ \partial\hat{\boldsymbol{\tau}}/\partial\mathbf{h} \f$ (Kirchhoff measure, no \f$ 1/J \f$)
 */
-arma::mat DSDE_2_DtauDe(const arma::mat &DSDE, const arma::mat &BBBB, const arma::mat &F, const arma::mat &tau);
+arma::mat DSDE_2_DtauDe(const arma::mat &DSDE, const arma::mat &F, const arma::mat &tau);
 
 /**
  * @brief Computes the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin from the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ 
  *
  * This function takes in the tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$, 
- * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
  * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
  * 
  * It returns the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
  * 
  * @param[in] DSDE (6x6 arma::mat) tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$
- * @param[in] BBBB (6x6 arma::mat) logarithmic antisymmetric tensor-valued function  \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$
  * @param[in] F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
  * @param[in] sigma (3x3 arma::mat) Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
  * @return (6x6 arma::mat) the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and logarithmic strain \f$ \mathbf{e} \f$ integrated using the logarithmic spin
 */
-arma::mat DSDE_2_DsigmaDe(const arma::mat &DSDE, const arma::mat &BBBB, const arma::mat &F, const arma::mat &sigma);
+arma::mat DSDE_2_DsigmaDe(const arma::mat &DSDE, const arma::mat &F, const arma::mat &sigma);
 
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the natural covariant vector basis from the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ 
  *
  * This function takes in the tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$, 
- * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
  * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
  * 
  * It returns the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the natural covariant vector basis
@@ -595,7 +599,6 @@ arma::mat DSDE_2_Dtau_LieDD(const arma::mat &DSDE, const arma::mat &F);
  * @brief Computes the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the natural covariant vector basis from the tangent modulus that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$ 
  *
  * This function takes in the tangent modulus \f$ \frac{\partial \mathbf{S}}{\partial \mathbf{E}} \f$ that links the Piola-Kirchoff II stress \f$ \mathbf{S} \f$ to the Green-Lagrange stress \f$ \mathbf{E} \f$, 
- * the logarithmic antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{log}} \f$, 
  * the transformation gradient \f$ \mathbf{F} \f$ and the Cauchy stress tensor \f$ \mathbf{\sigma} \f$.
  * 
  * It returns the tangent modulus that links the Cauchy stress tensor \f$ \mathbf{\sigma} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the natural covariant vector basis
@@ -696,8 +699,13 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
  * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$, the Kirchhoff corotational
  * tangent IN the solver's @p corate_type rate. Each picks the matching transport so the round-trip
  * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\leftrightarrow\mathbf{L}_t \f$ is exact per corate:
- * 0 Jaumann (spin W) | 1 Green-Naghdi | 2 logarithmic/XBM | 3 log_R (R = GN orthogonal frame) |
- * 5 log_F (convected/Oldroyd-Lie, pure F pull-back, B = I). @c DSDE_2_DtauDe_corate maps
+ * 0 Jaumann (spin W, rate identity) | 1 Green-Naghdi (rate identity: the plain GN corotational
+ * strain is a path integral) | 2 logarithmic/XBM and 3 log_R: EXACT spectral map — both
+ * accumulate a state function of \f$ \mathbf{C} \f$ (XBM: \f$ \ln\mathbf{V} \f$ spatially; log_R:
+ * \f$ \mathbf{A}^{R}\!:\!\mathbf{D} \f$ = the Hoger/Miehe \f$ \mathrm{d}(\ln\mathbf{U})/\mathrm{d}\mathbf{C} \f$
+ * in rate form, accumulating exactly \f$ \ln\mathbf{U} \f$ in the R frame, with no residual
+ * rotation since R is also the polar rotation of \f$ \mathbf{F} \f$) |
+ * 5 log_F (convected/Oldroyd-Lie, pure F pull-back). @c DSDE_2_DtauDe_corate maps
  * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\to\mathbf{L}_t \f$; @c DtauDe_corate_2_DSDE is its inverse.
 */
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);

@@ -218,12 +218,12 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
     D = 0.5*(L+L.t());
     Omega = (1./DTime)*(R1-R0)*R1.t();
 
-    try {
-        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside logarithmic_R (DR).");
-    }
+    // Frame increment: the EXACT polar rotation increment R1 R0^T (log_R
+    // transports by R). The former Cayley midpoint of Omega approximated it
+    // to O(Dtheta^3); the exact form makes DR equivariant (DR(Q F1) = Q DR),
+    // which is what closes the rotated-history sensitivity in the exact
+    // tangent transport (DtauDe_2_DSDE) when internal variables are carried.
+    DR = R1*R0.t();
     
     //Logarithmic
     mat B = L_Cauchy_Green(F1);
@@ -615,25 +615,109 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
     return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN / Truesdell
 }
 
-mat DtauDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &tau){
-    
-    mat invF;
-    try {
-        invF = inv(F);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside DtauDe_2_DSDE.");
-    }   
-    auto invF_ = to_fastor2(invF, false);
-    auto tau_ = to_fastor2(tau);
-    auto Dtau_logDD = to_fastor4(Lt);
-    auto B_ = to_fastor4(B);
+// ---------------------------------------------------------------------------
+// EXACT log-box <-> material tangent maps (contract and derivation: see the
+// DtauDe_2_DSDE / DSDE_2_DtauDe Doxygen in objective_rates.hpp). Both
+// directions differentiate S(E) = U^-1 R^T tau(ln V) R U^-1 with
+// Daleckii-Krein spectral derivatives and are mutual algebraic inverses by
+// construction — which keeps the hyperelastic bake-transport round trip
+// exact with no coordinated re-derivation.
+// The kernel box Lt lives in the SPATIAL frame (argument ln V = R ln U R^T),
+// while the spectral machinery differentiates the material-frame ln U: the
+// box must therefore be applied as R^T (Lt : R dh R^T) R. Skipping that
+// conjugation is exact only for isotropic Lt or R = I — with a plastified
+// (anisotropic) box tangent under accumulated rotation it leaves an
+// O(||Lt_dev|| * theta_R) tangent error that grows with rotation and
+// degrades Newton (the "history transport" finding: ~5e-3 at gamma = 0.3
+// simple shear on EPICP, conjugated map ~1e-9).
+// ---------------------------------------------------------------------------
 
-    // Dtau_LieDD = Dtau_logDD + B-correction
-    auto Dtau_LieDD = apply_B_correction(Dtau_logDD, B_, tau_, true);
-    // DSDE = pull-back of Dtau_LieDD
-    auto DSDE = pullback_4(Dtau_LieDD, invF_);
-    return fastor4_to_voigt(DSDE);
+namespace {
+
+// Spectral machinery on C = F^T F shared by the two exact maps above. The
+// Daleckii-Krein derivative is applied in congruence form,
+// dY = N (G % N^T dX N) N^T (N = eigenvector matrix), which is the same map
+// as the sum over eigenprojector sandwiches at a fraction of the products.
+struct dk_spectral {
+    arma::vec lam;      // eigenvalues of C (SPD)
+    arma::mat N;        // eigenvectors of C (columns)
+    arma::mat G_h;      // DK coefficients of h(C) = 1/2 ln C
+    arma::mat G_iU;     // DK coefficients of C^{-1/2}
+    arma::mat U;        // C^{1/2}
+    arma::mat invU;     // C^{-1/2}
+    arma::mat R;        // polar rotation F U^{-1}
+    arma::mat tau_hat;  // corotational Kirchhoff stress R^T tau R
+
+    void build(const arma::mat &F, const arma::mat &tau) {
+        const bool success_eig_sym = arma::eig_sym(lam, N, R_Cauchy_Green(F));
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym(
+                "Error in eig_sym function inside the exact DtauDe<->DSDE map.");
+        }
+        // Near-singular F: lam(min) -> 0 would push log/1/sqrt to NaN/Inf
+        // tangents with NO exception. Throw the exception the solver's
+        // step-cut catch ladder already handles (exception_inv: F is not
+        // usably invertible), preserving the recoverable failure mode of
+        // the previous inv(F)-based implementation.
+        if (!lam.is_finite() || lam.min() <= simcoon::iota) {
+            throw simcoon::exception_inv(
+                "Near-singular F inside the exact DtauDe<->DSDE map (eigenvalue of C <= iota).");
+        }
+        G_h  = gmat([](double l) { return 0.5 * std::log(l); },
+                    [](double l) { return 0.5 / l; });
+        G_iU = gmat([](double l) { return 1.0 / std::sqrt(l); },
+                    [](double l) { return -0.5 * std::pow(l, -1.5); });
+        U    = N * diagmat(sqrt(lam)) * N.t();
+        invU = N * diagmat(1.0 / sqrt(lam)) * N.t();
+        R = F * invU;
+        tau_hat = R.t() * tau * R;
+    }
+
+    // Divided-difference coefficient matrix for f, symmetric; f' at the
+    // midpoint on the coincidence guard (2nd-order limit; same conservative
+    // 1e-4 relative threshold as get_BBBB / A_R in this file).
+    template <typename Ff, typename Fdf>
+    arma::mat gmat(Ff f, Fdf df) const {
+        const arma::vec fl = {f(lam(0)), f(lam(1)), f(lam(2))};
+        arma::mat G(3, 3);
+        for (int a = 0; a < 3; ++a) {
+            G(a, a) = df(lam(a));
+            for (int b = a + 1; b < 3; ++b) {
+                G(a, b) = (std::abs(lam(a) / lam(b) - 1.0) > 1.0e-4)
+                    ? (fl(a) - fl(b)) / (lam(a) - lam(b))
+                    : df(0.5 * (lam(a) + lam(b)));
+                G(b, a) = G(a, b);
+            }
+        }
+        return G;
+    }
+
+};
+
+}  // namespace
+
+mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
+
+    dk_spectral sp;
+    sp.build(F, tau);
+
+    mat DSDE(6, 6);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        const mat dC = 2. * v2t_strain(ej);            // engineering Voigt basis
+        const mat dCp = sp.N.t() * dC * sp.N;          // shared eigenbasis transform
+        const mat dh = sp.N * (sp.G_h % dCp) * sp.N.t();      // d(1/2 ln C) = d(ln U)
+        // The box acts in the spatial frame (d ln V = R d(ln U) R^T at fixed R):
+        // conjugate in, apply Lt, conjugate back to the corotational frame.
+        const mat dtau_sp = v2t_stress(Lt * t2v_strain(sp.R * dh * sp.R.t()));
+        const mat dtau_hat = sp.R.t() * dtau_sp * sp.R;
+        const mat dinvU = sp.N * (sp.G_iU % dCp) * sp.N.t();  // d(C^{-1/2})
+        const mat dS = sp.invU * dtau_hat * sp.invU
+                     + dinvU * sp.tau_hat * sp.invU + sp.invU * sp.tau_hat * dinvU;
+        DSDE.col(j) = t2v_stress(dS);
+    }
+    return DSDE;
 }
 
 mat Dtau_LieDD_2_DSDE(const mat &Lt, const mat &F){
@@ -672,18 +756,6 @@ mat DtauDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
     return fastor4_to_voigt(DSDE);
 }
 
-mat DsigmaDe_2_DSDE(const mat &Lt, const mat &B, const mat &F, const mat &sigma){
-    
-    double J;
-    try {
-        J = det(F);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
-    }     
-    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
-}
-
 mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
     double J;
@@ -693,8 +765,7 @@ mat DsigmaDe_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DsigmaDe_2_DSDE.");
     }
-    mat B = get_BBBB(F);
-    return DtauDe_2_DSDE(J*Lt, B, F, Cauchy2Kirchoff(sigma, F, J));
+    return DtauDe_2_DSDE(J*Lt, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat Dsigma_LieDD_2_DSDE(const mat &Lt, const mat &F){
@@ -723,8 +794,27 @@ mat DsigmaDe_JaumannDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
 
 mat DtauDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
-    mat B = get_BBBB_GN(F);
-    return DtauDe_2_DSDE(Lt, B, F, tau);
+    // The PLAIN Green-Naghdi corotational strain (corate 1, integral of
+    // R^T D R) is a PATH integral — not a state function of C — so the exact
+    // spectral map above does not apply: this conversion stays the rate
+    // identity (GN box -> Lie via the GN spin correction, then pull-back),
+    // the exact inverse of DSDE_2_Dtau_GreenNaghdiDD. NB log_R (corate 3) is
+    // NOT in this family: A^R:D accumulates exactly ln U, so the corate
+    // dispatchers route it to the exact map.
+    mat invF;
+    try {
+        invF = inv(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside DtauDe_GreenNaghdiDD_2_DSDE.");
+    }
+    auto invF_ = to_fastor2(invF, false);
+    auto tau_ = to_fastor2(tau);
+    auto Dtau_GN = to_fastor4(Lt);
+    auto B_ = to_fastor4(get_BBBB_GN(F));
+    auto Dtau_LieDD = apply_B_correction(Dtau_GN, B_, tau_, true);
+    auto DSDE = pullback_4(Dtau_LieDD, invF_);
+    return fastor4_to_voigt(DSDE);
 }
 
 mat DsigmaDe_GreenNaghdiDD_2_DSDE(const mat &Lt, const mat &F, const mat &sigma){
@@ -751,20 +841,39 @@ mat DsigmaDe_2_DtauDe(const mat &Lt, const double &J) {
     return Lt*J;
 }
 
-mat DSDE_2_DtauDe(const mat &DSDE, const mat &B, const mat &F, const mat &tau) {
-    
-    auto F_ = to_fastor2(F, false);
-    auto tau_ = to_fastor2(tau);
-    auto DSDE_ = to_fastor4(DSDE);
-    auto B_ = to_fastor4(B);
+mat DSDE_2_DtauDe(const mat &DSDE, const mat &F, const mat &tau) {
 
-    // Push-forward DSDE to get Dtau_LieDD, then subtract B-correction
-    auto Dtau_LieDD = pushforward_4(DSDE_, F_);
-    auto C = apply_B_correction(Dtau_LieDD, B_, tau_, false);
-    return fastor4_to_voigt(C);
+    // Exact algebraic inverse of DtauDe_2_DSDE (see the block comment there):
+    // every step of the composition is inverted — the Daleckii-Krein map is
+    // diagonal in the eigenprojector basis, so its inverse is the entrywise
+    // reciprocal of the coefficient matrix.
+    dk_spectral sp;
+    sp.build(F, tau);
+    const mat G_h_inv = 1.0 / sp.G_h;      // elementwise; G_h > 0 (1/2 ln strictly increasing)
+    const mat G_comp = sp.G_iU % G_h_inv;  // composed d(C^{-1/2}) o [d(1/2 ln C)]^{-1}
+
+    mat Lt(6, 6);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        // The box argument is the SPATIAL log strain: pull the basis
+        // perturbation d(ln V) back to the material frame (d ln U at fixed R)
+        // before inverting the spectral steps, and push the corotational
+        // stress response forward again — the exact inverse of the forward
+        // map's R conjugation.
+        const mat dh = sp.R.t() * v2t_strain(ej) * sp.R;
+        const mat dhp = sp.N.t() * dh * sp.N;               // eigenframe
+        const mat dC = sp.N * (G_h_inv % dhp) * sp.N.t();   // inverse of d(1/2 ln C)
+        const mat dS = v2t_stress(0.5 * (DSDE * t2v_strain(dC)));
+        const mat dinvU = sp.N * (G_comp % dhp) * sp.N.t();
+        const mat dtau_hat =
+            sp.U * (dS - dinvU * sp.tau_hat * sp.invU - sp.invU * sp.tau_hat * dinvU) * sp.U;
+        Lt.col(j) = t2v_stress(sp.R * dtau_hat * sp.R.t());
+    }
+    return Lt;
 }
 
-mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigma) {
+mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &F, const mat &sigma) {
 
     double J;
     try {
@@ -772,8 +881,8 @@ mat DSDE_2_DsigmaDe(const mat &DSDE, const mat &B, const mat &F, const mat &sigm
     } catch (const std::runtime_error &e) {
         cerr << "Error in det: " << e.what() << endl;
         throw simcoon::exception_det("Error in det function inside DSDE_2_DsigmaDe.");
-    }   
-    return (1./J)*DSDE_2_DtauDe(DSDE, B, F, Cauchy2Kirchoff(sigma, F, J));
+    }
+    return (1./J)*DSDE_2_DtauDe(DSDE, F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat DSDE_2_Dtau_LieDD(const mat &DSDE, const mat &F) {
@@ -841,8 +950,9 @@ mat DSDE_2_Dsigma_GreenNaghdiDD(const mat &DSDE, const mat &F, const mat &sigma)
 // Standard logarithmic reverse convenience functions
 mat DSDE_2_Dtau_logarithmicDD(const mat &DSDE, const mat &F, const mat &tau) {
 
-    mat Dtau_LieDD = DSDE_2_Dtau_LieDD(DSDE, F);
-    return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
+    // XBM log rate: the in-rate tangent is the box tangent — exact core
+    // directly (the Lie round trip would cancel anyway).
+    return DSDE_2_DtauDe(DSDE, F, tau);
 }
 
 mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma) {
@@ -862,29 +972,33 @@ mat DSDE_2_Dsigma_logarithmicDD(const mat &DSDE, const mat &F, const mat &sigma)
 mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
-        case 1:                                                     // GN, and...
-        case 3:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // log_R: R (= GN) transport
+        case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // plain GN: path-integral strain -> rate identity
         case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // log_F: F-transport, "spin" L -> convected/Lie
-        case 2:
-        default: return DSDE_2_DtauDe(DSDE, get_BBBB(F), F, tau);   // XBM (logarithmic)
+        case 2:                                                     // XBM (logarithmic)
+        case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
+                                                                    // R frame (Hoger/Miehe d(ln U)/dC in rate form),
+                                                                    // a state function of C -> exact map applies; the
+                                                                    // R transport even cancels without the isotropy
+                                                                    // argument XBM needs (no residual rotation).
+        default: return DSDE_2_DtauDe(DSDE, F, tau);
     }
 }
 
 mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, const mat &tau) {
     switch (corate_type) {
         case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
-        case 1:                                                     // GN, and...
-        case 3:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // log_R: R (= GN) transport
+        case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // plain GN: rate identity (see forward map)
         case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                   // log_F: F-transport, "spin" L -> convected/Lie
-        case 2:
-        default: return DtauDe_2_DSDE(Lt, get_BBBB(F), F, tau);     // XBM (logarithmic)
+        case 2:                                                     // XBM and...
+        case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
+        default: return DtauDe_2_DSDE(Lt, F, tau);
     }
 }
 
 // Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).
 // From the material tangent dS/dE:
 mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
-    return DSDE_2_DtauDe(dSdE, get_BBBB(F), F, det(F)*v2t_stress(sigma));
+    return DSDE_2_DtauDe(dSdE, F, det(F)*v2t_stress(sigma));
 }
 // From the Cauchy (Oldroyd/Lie) spatial elasticity tensor dsigma/dD:
 mat box_DtauDe_from_spatial(const mat &Lt_spatial, const mat &F, const vec &sigma) {
@@ -918,8 +1032,12 @@ mat Dtau_LieDD_Dtau_GreenNaghdiDD(const mat &Dtau_LieDD, const mat &F, const mat
 
 mat Dtau_LieDD_Dtau_logarithmicDD(const mat &Dtau_LieDD, const mat &F, const mat &tau) {
 
-    mat B = get_BBBB(F);
-    return Dtau_LieDD_Dtau_objectiveDD(Dtau_LieDD, B, tau);
+    // For the XBM logarithmic rate the tangent in-rate IS the box tangent
+    // d(tau_hat)/dDe: route through the exact spectral pair so the whole
+    // corate-2 family shares one core and composes as mutual inverses
+    // (the former frozen-spin correction left this leg first-order while
+    // the box<->DSDE legs were exact).
+    return DSDE_2_DtauDe(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);
 }
 
 mat Dsigma_LieDD_Dsigma_JaumannDD(const mat &Dsigma_LieDD, const mat &sigma) {
@@ -949,8 +1067,16 @@ mat Dsigma_LieDD_Dsigma_GreenNaghdiDD(const mat &Dsigma_LieDD, const mat &F, con
 
 mat Dsigma_LieDD_Dsigma_logarithmicDD(const mat &Dsigma_LieDD, const mat &F, const mat &sigma) {
 
-    mat B = get_BBBB(F);
-    return Dsigma_LieDD_Dsigma_objectiveDD(Dsigma_LieDD, B, sigma);
+    // Same exact corate-2 core as Dtau_LieDD_Dtau_logarithmicDD, on the
+    // Cauchy (1/J) menu.
+    double J;
+    try {
+        J = det(F);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in det: " << e.what() << endl;
+        throw simcoon::exception_det("Error in det function inside Dsigma_LieDD_Dsigma_logarithmicDD.");
+    }
+    return (1./J)*DSDE_2_DtauDe(Dtau_LieDD_2_DSDE(J*Dsigma_LieDD, F), F, Cauchy2Kirchoff(sigma, F, J));
 }
 
 mat DSDE_DBiotStressDU(const mat &DSDE, const mat &U, const mat &S) {
