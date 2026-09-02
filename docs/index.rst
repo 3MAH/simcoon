@@ -15,7 +15,7 @@ Simcoon is a free, open-source C++ library for simulating multiphysics systems. 
 
 Simcoon aims to be a high-quality scientific library for analysing complex, nonlinear system behaviour. It emphasizes performance and ease of use and exposes a Python interface to simplify workflows. The principal focus is to provide a C++ API to generate user-material subroutines for finite-element packages. Simcoon also includes tools to analyse material-point behaviour under loading, such as a thermomechanical solver and a tool to predict effective properties of composites. Parameter identification can be performed using Python with scipy.optimize (e.g. differential_evolution) and the simcoon Parameter/Constant key system.
 
-Simcoon supports geometric nonlinearity using Lagrangian and Eulerian measures, and cumulative strains with several objective rates (Jaumann, Green--Naghdi, and Xi--Meyers--Brühns logarithmic). The logarithmic cumulative-strain measure is the default used by the library's constitutive laws.
+Simcoon supports geometric nonlinearity using Lagrangian and Eulerian measures, and cumulative strains with several objective rates (Jaumann, Green--Naghdi, Xi--Meyers--Brühns logarithmic, and the polar-rotation logarithmic log_R). The logarithmic cumulative-strain measure transported by the exact polar rotation (log_R) is the default used by the library's constitutive laws.
 
 Simcoon makes use of the Fastor library (https://github.com/romeric/Fastor) for high-performance tensor computations; Fastor is distributed under the MIT License and is fetched as a header-only dependency at build time.
 

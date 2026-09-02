@@ -144,7 +144,8 @@ Unchanged dedicated implementations (out of the modular scope):
   SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
-  (invariant-based hyperelasticity).
+  (invariant-based hyperelasticity); OGDEN (isochoric principal
+  stretches, props = ``N, kappa, mu_1, alpha_1, ...``).
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 
