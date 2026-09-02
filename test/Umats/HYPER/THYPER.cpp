@@ -69,8 +69,8 @@ TEST(THYPER, HYPER_solver )
     double precision_solver = 0.;
     double lambda_solver = 0.;
     
-    std::vector<std::string> materialfiles = {"material_NH.dat", "material_MR.dat", "material_IS.dat", "material_GT.dat"};
-    std::vector<std::string> comparison_files = {"results_NH.dat", "results_MR.dat", "results_IS.dat", "results_GT.dat"};
+    std::vector<std::string> materialfiles = {"material_NH.dat", "material_MR.dat", "material_IS.dat", "material_GT.dat", "material_OG.dat"};
+    std::vector<std::string> comparison_files = {"results_NH.dat", "results_MR.dat", "results_IS.dat", "results_GT.dat", "results_OG.dat"};
 
     for (size_t i = 0; i < materialfiles.size(); ++i) {
 

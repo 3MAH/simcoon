@@ -44,6 +44,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_comp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/saint_venant.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.hpp>
 
@@ -183,6 +184,20 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
     
 }
 
+bool stress_output_is_kirchhoff(const std::string &umat_name)
+{
+    // Log-strain "box" kernels integrate the KIRCHHOFF stress directly
+    // (sigma = L : (ln V - hp), no 1/J): their raw in/out "sigma" is tau,
+    // not Cauchy. Genuine finite kernels (NEOHC, MOORI, ...) work in Cauchy.
+    // Used by select_umat_M_finite (internal Kirchhoff route) and by the
+    // python umat wrapper (Cauchy contract normalization at the boundary).
+    static const std::set<std::string> kirchhoff_box = {
+        "EPICP", "MODUL",
+        "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
+        "EPANI", "EPDFA", "EPCHG", "EPHIN"};
+    return kirchhoff_box.count(umat_name) > 0;
+}
+
 void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
@@ -192,7 +207,8 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
     rve.global2local();
     auto umat_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_local);
     
-    switch (list_umat[rve.sptr_matprops->umat_name]) {
+    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
+    switch (it_umat != list_umat.end() ? it_umat->second : -1) {
         case 0: {
 //            umat_external_T(umat_T->Etot, umat_T->DEtot, umat_T->sigma, umat_T->r, umat_T->dSdE, umat_T->dSdT, umat_T->drdE, umat_T->drdT, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_T->nstatev, umat_T->statev, umat_T->T, umat_T->DT, Time, DTime, umat_T->Wm(0), umat_T->Wm(1), umat_T->Wm(2), umat_T->Wm(3), umat_T->Wt(0), umat_T->Wt(1), umat_T->Wt(2), ndi, nshr, start, tnew_dt);
             break;
@@ -234,8 +250,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
             break;
         }
         default: {
-            cout << "Error: The choice of Thermomechanical Umat could not be found in the umat library :" << rve.sptr_matprops->umat_name << "\n";
-                exit(0);
+            throw std::invalid_argument("Unknown umat name in the thermomechanical dispatch: " + rve.sptr_matprops->umat_name);
         }
     }
     // Thermomechanical route is small strain (F = I, J = 1): the UMATs return Cauchy sigma;
@@ -250,13 +265,17 @@ void select_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
-    std::map<string, int> list_umat;
-    
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200}};
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22}};
+
+    // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
+    // unknown name and silently return zero stress; -1 falls to the default case
+    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
+    const int id_umat = (it_umat != list_umat.end()) ? it_umat->second : -1;
+
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
-    
-    switch (list_umat[rve.sptr_matprops->umat_name]) {
+
+    switch (id_umat) {
 
             case 0: {
 /*                umat_external_M(umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, umat_M->sigma_in, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, solver_type, tnew_dt);
@@ -307,6 +326,10 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
                 umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
+            case 22: {
+                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                break;
+            }
             // Anisotropic-plasticity UMATs: corotational return-mapping models that
             // transport their internal state by DR, so they integrate correctly under
             // finite strain on the logarithmic strain (umat_M->etot/Detot), exactly as
@@ -314,35 +337,31 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR,const double
             // missing-key lookup returned 0 and they silently fell through to case 0
             // (no-op) -> zero stress under NLGEOM. Registered here to fix that.
             default: {
-                cout << "Error: The choice of Umat could not be found in the umat library :" << rve.sptr_matprops->umat_name << "\n";
-                exit(0);
+                throw std::invalid_argument("Unknown umat name in the finite-strain dispatch: " + rve.sptr_matprops->umat_name);
             }
         }
     
         // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Small-strain/
         // log-strain boxes already return Kirchhoff (sigma = L:(ln V - hp), no 1/J); genuine finite boxes
         // return Cauchy, mapped to tau here. Cauchy is a derived OUTPUT (tau/J), never on the route.
-        // Keyed on umat NAMES, not dispatch ids: the ids are renumbered when
-        // kernels move (the legacy->201 remap orphaned the previous id-keyed
-        // set, silently giving every 201 adapter a spurious Cauchy->Kirchhoff
-        // x J conversion under NLGEOM). HYPOO kept in the Cauchy group for now.
-        static const std::set<std::string> kirchhoff_box = {
-            "EPICP", "MODUL",
-            "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
-            "EPANI", "EPDFA", "EPCHG", "EPHIN"};  // log-strain boxes: sigma out IS Kirchhoff
-        if (kirchhoff_box.count(rve.sptr_matprops->umat_name) > 0)
+        // Keyed on umat NAMES, not dispatch ids (see stress_output_is_kirchhoff:
+        // the ids are renumbered when kernels move; the legacy->201 remap once
+        // orphaned an id-keyed set. HYPOO kept in the Cauchy group for now).
+        if (stress_output_is_kirchhoff(rve.sptr_matprops->umat_name))
             umat_M->tau = umat_M->sigma;                                                      // box output is already the Kirchhoff stress
         else
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // Corate-exact tangent: the finite hyperelastic boxes bake Lt in the XBM rate (get_BBBB)
-        // regardless of corate; re-express it in the actual corate (no-op for corate 2 = XBM) so the
-        // consumer sees a matched tangent. Small-strain/hypoelastic boxes already emit it in-rate.
-        static const std::set<int> xbm_baked_box = {8,9,10,11,12,13,14,15};
-        if (corate_type != 2 && xbm_baked_box.count(list_umat[rve.sptr_matprops->umat_name]) > 0) {
+        // Corate-exact tangent: the finite hyperelastic boxes bake Lt in the XBM rate regardless
+        // of corate; re-express it in the actual corate (no-op for corate 2 = XBM) so the consumer
+        // sees a matched tangent. Small-strain/hypoelastic boxes already emit it in-rate.
+        // Keyed on NAMES like the kirchhoff set above — ids are renumbered when kernels move.
+        static const std::set<std::string> xbm_baked_box = {
+            "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN"};
+        if (corate_type != 2 && xbm_baked_box.count(rve.sptr_matprops->umat_name) > 0) {
             mat tau_t = v2t_stress(umat_M->tau);
-            mat dSdE = DtauDe_2_DSDE(umat_M->Lt, get_BBBB(umat_M->F1), umat_M->F1, tau_t);  // un-bake XBM -> dS/dE
+            mat dSdE = DtauDe_2_DSDE(umat_M->Lt, umat_M->F1, tau_t);  // un-bake XBM -> dS/dE
             umat_M->Lt = DSDE_2_DtauDe_corate(dSdE, corate_type, umat_M->F1, tau_t);        // re-bake in the corate rate
         }
         rve.local2global();
@@ -358,7 +377,8 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
     rve.global2local();
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
 
-    switch (list_umat[rve.sptr_matprops->umat_name]) {
+    auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
+    switch (it_umat != list_umat.end() ? it_umat->second : -1) {
 
         case 0: {
             //umat_external(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
@@ -459,8 +479,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR,const double &Time,
             break;
         }
         default: {
-            cout << "Error: The choice of Umat could not be found in the umat library :" << rve.sptr_matprops->umat_name << "\n";
-            exit(0);
+            throw std::invalid_argument("Unknown umat name in the small-strain dispatch: " + rve.sptr_matprops->umat_name);
         }
     }
     // Small-strain control (control_type 1): F = I, J = 1, so the box stress is

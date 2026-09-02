@@ -777,13 +777,19 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
         case CoRate::green_naghdi:
             result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
             break;
-        case CoRate::logarithmic:    // XBM logarithmic spin -> get_BBBB kernel (solver corate 2)
-            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB(F), tau_mat);
+        case CoRate::logarithmic:    // XBM logarithmic rate (solver corate 2) -> exact spectral core
+            // Routed through the same exact box<->DSDE pair as the solver's
+            // corate-2 dispatch (the former frozen-spin get_BBBB correction
+            // was first-order and would break the parity stated above).
+            result_v = Dtau_LieDD_Dtau_logarithmicDD(Lt_v, F, tau_mat);
             break;
-        case CoRate::logarithmic_R:  // R-transport == Green-Naghdi frame -> get_BBBB_GN kernel
-            // Matches solver corate 3 (DtauDe_GreenNaghdiDD_2_DSDE): log_R transports by R,
-            // so it shares the Green-Naghdi spin kernel, NOT the XBM one.
-            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
+        case CoRate::logarithmic_R:  // log_R (solver corate 3) -> exact spectral core
+            // A^R:D accumulates exactly ln U in the R frame (Hoger/Miehe
+            // d(ln U)/dC in rate form): a state function of C, so log_R gets
+            // the exact map like corate 2 — and with R as the transport the
+            // composition closes with NO residual rotation (exact even for
+            // anisotropic responses). Matches the solver's corate-3 dispatch.
+            result_v = Dtau_LieDD_Dtau_logarithmicDD(Lt_v, F, tau_mat);
             break;
         case CoRate::logarithmic_F:  // F-transport == convected/Oldroyd (B = I) -> pure Lie
             // Matches solver corate 5 (Dtau_LieDD_2_DSDE): the Lie-rate tangent already computed

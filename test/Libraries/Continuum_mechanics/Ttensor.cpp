@@ -728,10 +728,12 @@ TEST(Ttensor4, PushForwardCommutesWithInverse)
     EXPECT_LT(norm(mat(comp_then_push.mat()) - mat(push_then_comp.mat()), "fro"), 1e-8);
 }
 
-// The corate-aware push_forward B^(4) kernels MUST match the solver's per-corate dispatch
-// (objective_rates.cpp DSDE_2_DtauDe_corate): XBM logarithmic -> get_BBBB; log_R is R-transport
-// so it shares the Green-Naghdi kernel get_BBBB_GN; log_F is the convected/Oldroyd (pure Lie,
-// B = I) rate with no spin correction.
+// The corate-aware push_forward kernels MUST match the solver's per-corate dispatch
+// (objective_rates.cpp DSDE_2_DtauDe_corate): XBM logarithmic AND log_R both route through
+// the EXACT spectral map (both strain measures are state functions of C — log_R accumulates
+// exactly ln U via A^R, the Hoger/Miehe d(ln U)/dC in rate form); plain Green-Naghdi keeps
+// its rate-identity kernel (path-integral strain); log_F is the convected/Oldroyd (pure Lie)
+// rate with no spin correction.
 TEST(Ttensor4, CoRateLogarithmicVariantsMatchSolverKernels)
 {
     mat::fixed<6,6> L = L_iso(70000., 0.3, "Enu");
@@ -749,12 +751,14 @@ TEST(Ttensor4, CoRateLogarithmicVariantsMatchSolverKernels)
     tensor4 t_gn    = stiff.push_forward(F, CoRate::green_naghdi,  tau);
     tensor4 t_lie   = stiff.push_forward(F, CoRate::lie,           tau);
 
-    // log_R uses the Green-Naghdi kernel (R-transport)
-    EXPECT_LT(norm(mat(t_log_R.mat()) - mat(t_gn.mat()), "fro"), 1e-10);
+    // log_R shares the EXACT spectral map with XBM (both accumulate a state
+    // function of C: ln V spatially / ln U in the R frame)
+    EXPECT_LT(norm(mat(t_log_R.mat()) - mat(t_log.mat()), "fro"), 1e-10);
+    // ...and therefore differs from the plain GN rate-identity kernel
+    EXPECT_GT(norm(mat(t_log_R.mat()) - mat(t_gn.mat()), "fro"), 1e-3);
     // log_F is the pure Lie/convected rate (no spin correction)
     EXPECT_LT(norm(mat(t_log_F.mat()) - mat(t_lie.mat()), "fro"), 1e-10);
-    // XBM logarithmic differs from both log_R/GN and the plain Lie push-forward
-    EXPECT_GT(norm(mat(t_log.mat()) - mat(t_log_R.mat()), "fro"), 1e-3);
+    // the exact map differs from the plain Lie push-forward
     EXPECT_GT(norm(mat(t_log.mat()) - mat(t_lie.mat()),   "fro"), 1e-3);
 }
 

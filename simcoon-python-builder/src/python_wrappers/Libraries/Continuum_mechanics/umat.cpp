@@ -11,6 +11,7 @@
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
+#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
@@ -23,6 +24,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/saint_venant.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 
@@ -69,9 +71,14 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		std::map<string, int> list_umat;
-		list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0
-		int id_umat = list_umat[umat_name_py];
+		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0
+		// guarded lookup (serial context): operator[] would default-insert
+		// 0 = UMEXT, silently routing typos to the external-plugin path
+		const auto it_umat = list_umat.find(umat_name_py);
+		if (it_umat == list_umat.end()) {
+			throw std::invalid_argument("Unknown umat name: " + umat_name_py);
+		}
+		const int id_umat = it_umat->second;
 		int arguments_type; //depends on the argument used in the umat
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
@@ -231,7 +238,7 @@ namespace simpy {
 				arguments_type = 1;
 				break;
 			}
-			case 21: case 22: case 23: case 24: case 26: {
+			case 21: case 22: case 23: case 24: case 25: case 26: {
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
@@ -257,9 +264,39 @@ namespace simpy {
 				arguments_type = 2;
 				break;
 			}
+			case 31: { // OGDEN (isochoric principal stretches, finite)
+				F0 = carma::arr_to_cube_view(F0_py);
+				F1 = carma::arr_to_cube_view(F1_py);
+				umat_function_finite = &simcoon::umat_generic_hyper_pstretch;
+				arguments_type = 2;
+				break;
+			}
 			default: {
 				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
 			}
+		}
+
+		// Kirchhoff-convention normalization at the python boundary
+		// (stress_output_is_kirchhoff = the shared name set). The python
+		// contract is: sigma in/out = Cauchy, Lt = the KIRCHHOFF box
+		// d(tau_hat)/dDe with no J — the measure the genuine finite kernels
+		// already emit and the one Lt_convert's exact box->DSDE map consumes
+		// (rescaling Lt by 1/J here would break that consumer by exactly J).
+		// So with deformation gradients provided: stress converted on the
+		// way in (x J0) and out (/ J1), Lt passed through untouched.
+		bool kirchhoff_normalize = false;
+		if (simcoon::stress_output_is_kirchhoff(umat_name_py)
+				&& F0_py.size() > 0 && F1_py.size() > 0) {
+			F0 = carma::arr_to_cube_view(F0_py);
+			F1 = carma::arr_to_cube_view(F1_py);
+			// loud on a shape mismatch: silently skipping would return
+			// Kirchhoff under the documented Cauchy contract
+			if (F0.n_slices != (arma::uword)nb_points
+					|| F1.n_slices != (arma::uword)nb_points) {
+				throw std::invalid_argument(
+					"umat: F0/F1 must carry one 3x3 slice per material point when provided");
+			}
+			kirchhoff_normalize = true;
 		}
 
 		simcoon_parallel_for(nb_points, [&](int pt) {
@@ -281,6 +318,16 @@ namespace simpy {
 				T = vec_T(pt);
 			}
 
+			if (kirchhoff_normalize) {
+				// python contract stress (Cauchy) -> kernel internal
+				// (Kirchhoff). Degenerate F (e.g. legacy zero-filled
+				// placeholders for the positional F arguments) means no
+				// meaningful finite-strain state: pass through unscaled
+				// (previous behavior) instead of producing 0/NaN — no throw
+				// here, this runs inside the parallel region.
+				const double J0 = arma::det(F0.slice(pt));
+				if (J0 > simcoon::iota) sigma *= J0;
+			}
 			switch (arguments_type) {
 				case 1: {
 					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
@@ -290,6 +337,13 @@ namespace simpy {
 					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
 					break;
 				}
+			}
+			if (kirchhoff_normalize) {
+				// kernel internal (Kirchhoff) -> python contract (Cauchy);
+				// Lt is deliberately NOT rescaled (see the block above).
+				// Same degenerate-F passthrough as the input side.
+				const double J1 = arma::det(F1.slice(pt));
+				if (J1 > simcoon::iota) sigma /= J1;
 			}
 		});
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
