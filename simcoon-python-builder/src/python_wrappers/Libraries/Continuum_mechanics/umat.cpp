@@ -299,7 +299,7 @@ namespace simpy {
 			kirchhoff_normalize = true;
 		}
 
-		simcoon_parallel_for(nb_points, [&](int pt) {
+		simcoon_parallel_for_safe(nb_points, [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
 			// PyDataMem_NEW (which needs the GIL) -> no GIL deadlock, no GIL handling.
@@ -486,7 +486,7 @@ namespace simpy {
 			}
 		}
 
-		simcoon_parallel_for(nb_points, [&](int pt) {
+		simcoon_parallel_for_safe(nb_points, [&](int pt) {
 			// props aliased without copying: no NumPy-backed allocation in the
 			// parallel region (same GIL-safety pattern as launch_umat)
 			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
