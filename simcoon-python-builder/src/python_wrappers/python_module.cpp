@@ -251,7 +251,7 @@ PYBIND11_MODULE(_core, m)
     m.def("read_matprops", &read_matprops);
     m.def("read_path", &read_path);
     m.def("solver", &solver, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a, "theta_rve"_a, "phi_rve"_a, "solver_type"_a, "corate_type"_a, "path_data"_a, "path_results"_a, "pathfile"_a, "outputfile"_a, "tangent_mode"_a = simcoon::tangent_default);
-    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 2, "params"_a = pybind11::dict(), "record_tangent"_a = true);
+    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true);  // corate default = log_R (exact polar rotation + exact tangent transport)
 
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);

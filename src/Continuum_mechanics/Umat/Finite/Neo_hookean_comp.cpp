@@ -114,7 +114,7 @@ void umat_neo_hookean_comp(const string &umat_name, const vec &Etot, const vec &
       
     // dinvSdSsym returns the exact (negative) dCinv/dC, so this term carries a minus sign
     L = lambda*auto_dyadic(invC)-2.0*(mu-lambda*log(J))*dinvSdSsym(C);
-    Lt = DSDE_2_DsigmaDe(L, get_BBBB(F1), F1, v2t_stress(sigma));
+    Lt = DSDE_2_DsigmaDe(L, F1, v2t_stress(sigma));
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

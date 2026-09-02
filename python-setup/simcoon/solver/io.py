@@ -6,7 +6,7 @@ Schema (after the feature/python_solver PR #63 design)::
                     "orientation": {"psi": 0, "theta": 0, "phi": 0}}
 
     path.json: {"initial_temperature": 293.15,
-                "corate": "logarithmic",
+                "corate": "logarithmic_R",
                 "blocks": [{"type": "mechanical", "control_type": "small_strain",
                             "ncycle": 1,
                             "steps": [{"mode": "linear", "control": [...],
@@ -85,7 +85,7 @@ def _step_from_json(d: dict) -> StepMeca:
 
 
 def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
-                   corate="logarithmic") -> None:
+                   corate="logarithmic_R") -> None:
     """Write a loading path (list of Blocks) to JSON."""
     if isinstance(blocks, Block):
         blocks = [blocks]
@@ -117,7 +117,7 @@ def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
         )
         for bd in payload["blocks"]
     ]
-    return blocks, float(payload.get("initial_temperature", 293.15)), payload.get("corate", "logarithmic")
+    return blocks, float(payload.get("initial_temperature", 293.15)), payload.get("corate", "logarithmic_R")
 
 
 def load_simulation_json(material_file: str, path_file: str) -> dict:

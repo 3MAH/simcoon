@@ -33,7 +33,7 @@ Next we shall define the material constitutive law to be utilized and the associ
 
     # Solver parameters
     solver_type = 0  # Solver strategy (0 for Newton-Raphson)
-    corate_type = 2  # Corotational spin rate type (0: Jaumann, 1: Green-Naghdi, 2: logarithmic)
+    corate_type = 3  # Corotational spin rate type (0: Jaumann, 1: Green-Naghdi, 2: logarithmic/XBM, 3: logarithmic_R — recommended default)
 
     props = np.array([E, nu, alpha])
 
@@ -217,7 +217,19 @@ The ``corate_type`` parameter controls the corotational formulation used in fini
      - Uses the spin from the polar decomposition :math:`\dot{\mathbf{R}}\mathbf{R}^T`
    * - 2
      - Logarithmic
-     - Uses the logarithmic spin rate (recommended for large deformations)
+     - Uses the logarithmic (Xi--Meyers--Brühns) spin rate
+   * - 3
+     - Logarithmic_R (log_R)
+     - Logarithmic strain transported by the exact polar rotation increment
+       :math:`\Delta\mathbf{R} = \mathbf{R}_1\mathbf{R}_0^T` (recommended
+       default: exact tangent transport, including with rotated
+       internal-variable history)
+   * - 4
+     - Truesdell
+     - Convected (Truesdell) rate, frame increment :math:`\Delta\mathbf{F}`
+   * - 5
+     - Logarithmic_F (log_F)
+     - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
 
 Define the loading path
 -----------------------

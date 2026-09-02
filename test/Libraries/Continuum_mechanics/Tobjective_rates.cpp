@@ -357,7 +357,7 @@ TEST(Tobjective_rates, tangent_conversions_DtauDe_DSDE)
     F(2,2) = 1.02;
     double J = det(F);
 
-    mat B = get_BBBB(F);
+
     mat sigma = zeros(3,3);
     sigma(0,0) = 100.;
     sigma(1,1) = 50.;
@@ -365,7 +365,7 @@ TEST(Tobjective_rates, tangent_conversions_DtauDe_DSDE)
     mat tau = Cauchy2Kirchoff(sigma, F, J);
 
     // DtauDe -> DSDE should be 6x6
-    mat DSDE = DtauDe_2_DSDE(Lt, B, F, tau);
+    mat DSDE = DtauDe_2_DSDE(Lt, F, tau);
     EXPECT_EQ(DSDE.n_rows, (arma::uword)6);
     EXPECT_EQ(DSDE.n_cols, (arma::uword)6);
 }

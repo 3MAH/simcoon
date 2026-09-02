@@ -319,7 +319,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         switch (select) {
             // inverse: box d(tau_hat)/d(De) (Kirchhoff, no-J) -> material dS/dE
             case 0:  return simcoon::Dtau_LieDD_2_DSDE(Lt_pt, F_pt);
-            case 1:  return simcoon::DtauDe_2_DSDE(Lt_pt, simcoon::get_BBBB(F_pt), F_pt, tau);
+            case 1:  return simcoon::DtauDe_2_DSDE(Lt_pt, F_pt, tau);
             case 2:  return simcoon::DtauDe_JaumannDD_2_DSDE(Lt_pt, F_pt, tau);
             case 6:  return simcoon::DtauDe_GreenNaghdiDD_2_DSDE(Lt_pt, F_pt, tau);
             // Cauchy spatial-tangent menu (dsigma/dD, 1/J) -- fedoo's material Jacobian

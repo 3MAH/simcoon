@@ -49,8 +49,12 @@ Loading control
   ``'logarithmic'`` (Kirchhoff control), ``'biot'``, or the fully kinematic
   ``'F'`` / ``'gradU'`` (9 components of the deformation gradient).
 * ``solve(corate=...)`` selects the objective rate for the finite-strain
-  control types: ``'jaumann'``, ``'green_naghdi'``, ``'logarithmic'`` (default),
-  ``'logarithmic_R'``, ``'truesdell'``, ``'logarithmic_F'``.
+  control types: ``'jaumann'``, ``'green_naghdi'``, ``'logarithmic'``,
+  ``'logarithmic_R'`` (default), ``'truesdell'``, ``'logarithmic_F'``.
+  ``'logarithmic_R'`` transports by the exact polar rotation increment
+  :math:`\Delta\mathbf{R} = \mathbf{R}_1\mathbf{R}_0^T`, for which the
+  tangent transport is exact — including with rotated internal-variable
+  history (plasticity at finite rotation).
 * ``mode='sinusoidal'`` interpolates the step sinusoidally instead of
   linearly; ``mode='tabular'`` follows a user table passed in memory:
 
