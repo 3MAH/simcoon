@@ -441,7 +441,7 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
  * @endcode
 */
-void select_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
+void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 /**
  * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF
@@ -493,7 +493,7 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
     select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, pnewdt);
  * @endcode
 */
-void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
+void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering small strain assumption
@@ -538,7 +538,7 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const 
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
  * @endcode
 */    
-void select_umat_M(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
+void select_umat_M(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt);

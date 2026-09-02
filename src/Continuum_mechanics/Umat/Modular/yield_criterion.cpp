@@ -188,6 +188,22 @@ bool YieldCriterion::has_flow_hessian() const noexcept {
     }
 }
 
+bool YieldCriterion::has_stable_flow_direction() const noexcept {
+    // Exhaustive on purpose (no default): a criterion added to YieldType
+    // must make this choice explicitly — the compiler flags the omission.
+    switch (type_) {
+        case YieldType::VON_MISES:
+        case YieldType::HILL:
+        case YieldType::ANISOTROPIC:
+            return true;
+        case YieldType::TRESCA:   // vertex flow
+        case YieldType::DRUCKER:  // pressure-sensitive
+        case YieldType::DFA:      // pressure-sensitive
+            return false;
+    }
+    return false;  // unreachable for a valid YieldType
+}
+
 arma::mat YieldCriterion::flow_hessian(const arma::vec& sigma) const {
     if (!configured_) {
         throw std::runtime_error("YieldCriterion: not configured");

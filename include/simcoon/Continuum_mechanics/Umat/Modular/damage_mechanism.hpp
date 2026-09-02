@@ -134,6 +134,12 @@ public:
     /// tangent_contribution.
     [[nodiscard]] double stiffness_reduction() const override;
 
+    /// Explicitly integrated, energy-release-typed row — excluded from the
+    /// drift-guard ARMING count (see StrainMechanism::guarded_constraints);
+    /// the commit checks themselves are no-ops here through the default
+    /// multiplier_cap()/state_drift().
+    [[nodiscard]] bool guarded_constraints() const override { return false; }
+
     /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
     /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
     /// orchestrator's engineering-Voigt dot therefore mixes conventions for

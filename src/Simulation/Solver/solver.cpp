@@ -192,10 +192,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 sv_M->Lt = zeros(6,6);
                 
                 //At start, the rotation increment is null
+                DR = eye(3,3);   // blocks 2+: don't leak the previous block's last rotation into set_start
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
                 sv_M->DT = 0.;
-                
+
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
                 run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
                 
