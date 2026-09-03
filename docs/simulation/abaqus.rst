@@ -331,11 +331,11 @@ The following constitutive models are available through ``select_umat_M()``:
      - N Hill yield surfaces
      - E, ν, α, N, per surface: σ_Y, k, m, F, G, H, L, M, N
      - 1 + 7N
-   * - SMAUT
+   * - SMADI
      - SMA unified model
      - See SMA documentation
      - 24
-   * - SMANI
+   * - SMAAI
      - SMA anisotropic model
      - See SMA documentation
      - 24

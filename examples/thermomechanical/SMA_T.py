@@ -50,7 +50,7 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # 30. :math:`n_{\lambda}` -- penalty function power law exponent
 # 31. :math:`\alpha_{\lambda}` -- penalty function power law parameter
 
-umat_name = "SMAUT"  # 5 character code for the SMA subroutine
+umat_name = "SMADI"  # 5 character code for the SMA subroutine
 nstatev = 17  # Number of internal variables
 
 # Material parameters
@@ -104,8 +104,8 @@ path_data = "../data"
 path_results = "results"
 
 # Run the simulation
-pathfile = "THERM_SMAUT_path.txt"
-outputfile = "results_THERM_SMAUT.txt"
+pathfile = "THERM_SMADI_path.txt"
+outputfile = "results_THERM_SMADI.txt"
 
 sim._core.solver(
     umat_name,
@@ -130,7 +130,7 @@ sim._core.solver(
 # terms and the thermal work terms for the SMA thermomechanical response.
 
 fig = plt.figure()
-outputfile_macro = os.path.join(path_results, "results_THERM_SMAUT_global-0.txt")
+outputfile_macro = os.path.join(path_results, "results_THERM_SMADI_global-0.txt")
 
 # Get the data
 e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
@@ -196,8 +196,8 @@ increments = [10, 100, 1000]
 outputfile_globals = {}
 
 for inc in increments:
-    pathfile = f"THERM_SMAUT_path_{inc}.txt"
-    outputfile = f"results_THERM_SMAUT_{inc}.txt"
+    pathfile = f"THERM_SMADI_path_{inc}.txt"
+    outputfile = f"results_THERM_SMADI_{inc}.txt"
     sim._core.solver(
         umat_name,
         props,
@@ -212,7 +212,7 @@ for inc in increments:
         pathfile,
         outputfile,
     )
-    outputfile_globals[inc] = f"results_THERM_SMAUT_{inc}_global-0.txt"
+    outputfile_globals[inc] = f"results_THERM_SMADI_{inc}_global-0.txt"
 
 # Load data for each increment
 data = []

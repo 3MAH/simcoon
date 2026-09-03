@@ -174,6 +174,9 @@ mat Log_strain(const mat &F) {
 
 //This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
+    if (DTime <= simcoon::iota) {
+        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
+    }
     
     //Definition of L = dot(F)*F^-1
     try {
@@ -186,6 +189,9 @@ mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
 
 //This function computes the deformation rate D
 mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
+    if (DTime <= simcoon::iota) {
+        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
+    }
     
     //Definition of L = dot(F)*F^-1
     mat L;
@@ -202,6 +208,9 @@ mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
 
 //This function computes the spin tensor W (correspond to Jaumann rate)
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
+    if (DTime <= simcoon::iota) {
+        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
+    }
 
     //Definition of L = dot(F)*F^-1
     mat L;

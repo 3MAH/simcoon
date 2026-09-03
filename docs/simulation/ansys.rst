@@ -139,7 +139,7 @@ Model Codes
      - Von Mises + Voce + 2× Armstrong-Frederick
      - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
    * - 8
-     - SMAUT
+     - SMADI
      - SMA unified model
      - See SMA documentation
    * - 10

@@ -71,7 +71,7 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMAUT",13},{"SMANI",13},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0
+		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPTRI",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 		// guarded lookup (serial context): operator[] would default-insert
 		// 0 = UMEXT, silently routing typos to the external-plugin path
 		const auto it_umat = list_umat.find(umat_name_py);
@@ -360,7 +360,7 @@ namespace simpy {
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
 		std::map<string, int> list_umat;
-		list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMAUT",9},{"SMANI",9},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9} }; // TODO_2.0 SMAUT and SMANI compatibility to be removed in release 2.0
+		list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9} };
 		if (list_umat.count(umat_name_py) == 0) {
 			throw std::invalid_argument("The choice of thermomechanical Umat could not be found in the umat library: " + umat_name_py);
 		}

@@ -41,7 +41,6 @@
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_plugin_api.hpp>
 
-#include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_comp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.hpp>
@@ -202,7 +201,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
 {
     UNUSED(solver_type);
     std::map<string, int> list_umat;
-    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMAUT",9},{"SMANI",9},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
+    list_umat = {{"UMEXT",0},{"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9}};
 
     // Same frame handling as select_umat_M_finite: the caller's DR is global;
     // rotate it with the other state variables so the local UMAT receives the
@@ -381,7 +380,7 @@ void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double
 
     std::map<string, int> list_umat;
 
-    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMAUT",8},{"SMANI",8},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200}}; //TODO_2.0 remove SMAUT, SMANI, after 2.0 release
+    list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200}};
 
     // Same frame handling as select_umat_M_finite: the caller's DR is global;
     // rotate it with the other state variables so the local UMAT receives the
