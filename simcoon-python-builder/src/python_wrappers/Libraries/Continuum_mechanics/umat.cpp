@@ -26,6 +26,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_pstretch.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/saint_venant.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/neo_hookean_incomp.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
@@ -71,7 +72,7 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",2},{"ELIST",3},{"ELORT",4},{"EPICP",5},{"EPKCP",6},{"EPCHA",7},{"EPHIL",8},{"EPTRI",8},{"EPHAC",9},{"EPANI",10},{"EPDFA",11},{"EPHIN",12},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",27},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
+		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
 		// guarded lookup (serial context): operator[] would default-insert
 		// 0 = UMEXT, silently routing typos to the external-plugin path
 		const auto it_umat = list_umat.find(umat_name_py);
@@ -143,18 +144,10 @@ namespace simpy {
 		int nstatev = list_statev.n_rows;
 
 		switch (id_umat) {
-			case 2: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 3: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 4: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
+			case 201: { // legacy names served by the modular adapter
+				// one shared id (mirrors umat_smart): the adapter dispatches on
+				// umat_name, so every legacy-modular name takes this case
+				umat_function = &simcoon::umat_legacy_modular;
 				arguments_type = 1;
 				break;
 			}
@@ -163,38 +156,8 @@ namespace simpy {
 				arguments_type = 1;
 				break;
 			}
-			case 6: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
 			case 7: {
 				umat_function = &simcoon::umat_plasticity_chaboche_CCP;
-				arguments_type = 1;
-				break;
-			}
-			case 8: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 9: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 10: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 11: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
-				break;
-			}
-			case 12: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
 				arguments_type = 1;
 				break;
 			}
@@ -245,9 +208,13 @@ namespace simpy {
 				arguments_type = 2;
 				break;
 			}
-			case 27: {
-				umat_function = &simcoon::umat_legacy_modular; // legacy name -> modular adapter
-				arguments_type = 1;
+			case 32: { // HYPOO (hypoelastic orthotropic, finite): rate-form
+				// corotational CAUCHY update (no J anywhere) -> no Kirchhoff
+				// boundary conversion applies (stress_output_is_kirchhoff false)
+				F0 = carma::arr_to_cube_view(F0_py);
+				F1 = carma::arr_to_cube_view(F1_py);
+				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;
+				arguments_type = 2;
 				break;
 			}
 			case 29: { // SNTVE (Saint-Venant-Kirchhoff, finite)
@@ -359,12 +326,12 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		std::map<string, int> list_umat;
-		list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9} };
-		if (list_umat.count(umat_name_py) == 0) {
+		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9} };
+		auto it_umat = list_umat.find(umat_name_py);
+		if (it_umat == list_umat.end()) {
 			throw std::invalid_argument("The choice of thermomechanical Umat could not be found in the umat library: " + umat_name_py);
 		}
-		int id_umat = list_umat[umat_name_py];
+		int id_umat = it_umat->second;
 		int arguments_type; //depends on the argument used in the umat
 
 		// Unified thermomechanical function pointer: (Etot, DEtot, sigma, r, dSdE, dSdT, drdE, drdT, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir, ndi, nshr, start, tnew_dt, tangent_mode)

@@ -29,6 +29,7 @@
 ///@brief Implemented in 1D-2D-3D
 
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <assert.h>
 #include <string>
@@ -80,9 +81,8 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         aniso_criteria = true;
     }
     else {
-        cout << "Error: Unknown umat_name in umat_sma_unified_T: " << umat_name << "\n";
-        cout << "Valid options: SMADI, SMADC, SMAAI, SMAAC\n";
-        exit(0);
+        throw std::invalid_argument("Unknown umat_name in umat_sma_unified_T: " + umat_name
+                                    + " (valid: SMADI, SMADC, SMAAI, SMAAC)");
     }
 
     ///@brief Property offset depends on elastic symmetry type

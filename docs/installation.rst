@@ -46,7 +46,7 @@ while BLAS handles internal threading.
    * - macOS
      - Apple Accelerate
      - ON (libomp, bundled in wheel)
-     - None
+     - Duplicate libomp when mixed with conda packages (see below)
    * - Linux
      - System OpenBLAS
      - ON (libgomp)
@@ -55,6 +55,40 @@ while BLAS handles internal threading.
      - vcpkg OpenBLAS (pip) / netlib+MKL (conda)
      - OFF
      - None
+
+Duplicate OpenMP runtimes on macOS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Only **one** OpenMP runtime may be active per process. Two common setups load
+a second one next to simcoon's:
+
+- the **PyPI wheel** bundles its own ``libomp`` (via delocate); if numpy/scipy
+  come from **conda**, they load the conda environment's ``libomp`` as well;
+- a **source build** that picks the Homebrew Armadillo pulls Homebrew's
+  ``libomp`` through its OpenBLAS, while conda numpy loads the environment's.
+
+Symptoms range from the explicit Intel abort message ("multiple copies of the
+OpenMP runtime have been linked") to silent crashes (``SIGSEGV`` inside
+``libomp`` worker threads under threaded runs). Remedies, in order of
+preference:
+
+1. **Stay on one channel**: install simcoon *and* numpy/scipy from
+   conda-forge (everything links the same ``llvm-openmp``), or everything
+   from PyPI wheels.
+2. **Source builds in a conda environment**: point CMake at the environment's
+   Armadillo so simcoon shares the environment's OpenMP runtime:
+
+   .. code-block:: bash
+
+       conda install -c conda-forge armadillo
+       CMAKE_ARGS="-DArmadillo_ROOT=$CONDA_PREFIX" pip install -e . --no-build-isolation
+
+   (a plain build on a machine with Homebrew Armadillo links Homebrew's
+   ``libomp`` instead — remove the stale ``build/`` cache when switching).
+3. **Last resort**: ``export KMP_DUPLICATE_LIB_OK=TRUE`` silences the guard
+   but does **not** make the process safe — crashes or silently wrong results
+   remain possible (this is Intel's own warning). If you must use it, also
+   set ``OMP_NUM_THREADS=1`` to keep the second runtime quiescent.
 
 **Using MKL with conda on Linux**
 
@@ -112,6 +146,12 @@ Prerequisites (system packages)
   .. code-block:: bash
 
       brew install armadillo ninja cmake
+
+  .. note::
+     If you develop inside a conda environment, prefer the conda-forge
+     Armadillo with ``CMAKE_ARGS="-DArmadillo_ROOT=$CONDA_PREFIX"`` — the
+     Homebrew one drags in a second OpenMP runtime next to the environment's
+     (see *Duplicate OpenMP runtimes on macOS* above).
 
 - **Windows (vcpkg):**
 
@@ -173,5 +213,7 @@ for finite-element simulations. Both packages can be installed together:
     # pip
     pip install simcoon fedoo
 
-No special configuration is needed -- the BLAS/OpenMP setup described above
-ensures that both libraries coexist without runtime conflicts.
+Keep both packages (and numpy/scipy) on the **same channel** — all-conda or
+all-PyPI — and the BLAS/OpenMP setup described above ensures they coexist
+without runtime conflicts (on macOS, mixing channels can load a second
+OpenMP runtime; see *Duplicate OpenMP runtimes on macOS*).

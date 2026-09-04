@@ -140,8 +140,8 @@ Shape memory alloys, finite strain, multiscale, plugins
 
 Unchanged dedicated implementations (out of the modular scope):
 
-- **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified), SMRDI/SMRDC/SMRAI/
-  SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
+- **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
+  SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
   (invariant-based hyperelasticity); OGDEN (isochoric principal

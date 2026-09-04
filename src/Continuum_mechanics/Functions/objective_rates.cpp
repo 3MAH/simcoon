@@ -129,7 +129,7 @@ static inline Fastor::Tensor<double,3,3,3,3> apply_jaumann_correction(
 }
 
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
-    mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (see Green_Naghdi)
+    mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (rate undefined, see finite_rotation)
     if(DTime > simcoon::iota) {
         try {
             // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
@@ -147,7 +147,6 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     D = 0.5*(L+L.t());
     W = 0.5*(L-L.t());
     
-    //Jaumann
     DR = Hughes_Winget(W, DTime);
 }
     
@@ -305,7 +304,7 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
         }
     }
     
-    DF = Hughes_Winget(L, DTime);  // same Cayley form; L non-skew -> DF non-orthogonal
+    DF = Hughes_Winget(L, DTime);
 }
 
 void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
@@ -324,8 +323,7 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
     
-    //Truesdell
-    DF = Hughes_Winget(L, DTime);  // same Cayley form; L non-skew -> DF non-orthogonal
+    DF = Hughes_Winget(L, DTime);
 }
 
 mat Hughes_Winget(const mat &Omega, const double &DTime) {
@@ -508,9 +506,9 @@ mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
     // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
-    // increment is the non-orthogonal DF = (I-1/2 dt L)^-1 (I+1/2 dt L), so the rotated
-    // term is the push-forward DF*D*inv(DF) -- inverse, NOT transpose (F is not orthogonal).
-    const mat DF = Hughes_Winget(L, DTime);  // same Cayley form; L non-skew -> DF non-orthogonal
+    // increment DF = Hughes_Winget(L, dt) is non-orthogonal, so the rotated term is
+    // the push-forward DF*D*inv(DF) -- inverse, NOT transpose.
+    const mat DF = Hughes_Winget(L, DTime);
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
 

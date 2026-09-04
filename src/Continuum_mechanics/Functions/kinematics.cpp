@@ -175,7 +175,7 @@ mat Log_strain(const mat &F) {
 //This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
     if (DTime <= simcoon::iota) {
-        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
+        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_rotation)
     }
     
     //Definition of L = dot(F)*F^-1
@@ -189,39 +189,14 @@ mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
 
 //This function computes the deformation rate D
 mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
-    if (DTime <= simcoon::iota) {
-        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
-    }
-    
-    //Definition of L = dot(F)*F^-1
-    mat L;
-    try {
-        L = (1./DTime)*(F1-F0)*inv(F1);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside finite_D.");
-    }   
-    //Definition of the deformation rate D
+    const mat L = finite_L(F0, F1, DTime);
     return 0.5*(L+L.t());
-    
 }
 
 //This function computes the spin tensor W (correspond to Jaumann rate)
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
-    if (DTime <= simcoon::iota) {
-        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_Omega)
-    }
 
-    //Definition of L = dot(F)*F^-1
-    mat L;
-    try {
-        L = (1./DTime)*(F1-F0)*inv(F1);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside finite_W.");
-    }   
-    
-    //Definition of the rotation matrix Q
+    const mat L = finite_L(F0, F1, DTime);
     return 0.5*(L-L.t());
 
 }
@@ -260,6 +235,8 @@ mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
 }
 
 //This function computes the increment of finite rotation
+// (generalized two-spin midpoint; with Omega0 == Omega1 the two Cayley factors
+// commute and finite_DQ(W, W, dt) == Hughes_Winget(W, dt) exactly)
 mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
     
     try {
