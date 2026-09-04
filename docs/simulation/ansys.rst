@@ -139,8 +139,12 @@ Model Codes
      - Von Mises + Voce + 2× Armstrong-Frederick
      - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
    * - 8
-     - SMAUT
+     - SMADI
      - SMA unified model
+     - See SMA documentation
+   * - 9
+     - SMAAI
+     - SMA unified model, anisotropic criterion
      - See SMA documentation
    * - 10
      - LLDM0
@@ -158,6 +162,18 @@ Model Codes
      - PRONK
      - Prony series viscoelastic (generalized Maxwell)
      - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+   * - 14
+     - EPTRI
+     - Tresca-family plasticity (Hill layout)
+     - E, ν, α, σ_Y, k, m, F, G, H, L, M, N
+   * - 15
+     - SMADC
+     - SMA unified model, cubic elasticity
+     - See SMA documentation
+   * - 16
+     - SMAAC
+     - SMA unified model, cubic + anisotropic criterion
+     - See SMA documentation
    * - 17
      - EPHIL
      - Hill yield + power-law isotropic hardening
@@ -166,6 +182,14 @@ Model Codes
      - EPHAC
      - Cubic elasticity + Hill + Voce + 2× AF
      - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N
+   * - 25--28
+     - SMRDI / SMRDC / SMRAI / SMRAC
+     - SMA unified transformation + reorientation (iso/cubic × iso/aniso)
+     - See SMA documentation
+   * - 200
+     - MODUL
+     - Modular composition (props encode the mechanisms)
+     - See the modular UMAT documentation
 
 How It Works
 ------------

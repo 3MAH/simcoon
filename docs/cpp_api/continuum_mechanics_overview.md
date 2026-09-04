@@ -88,7 +88,6 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 
 #### **Finite Strain Models**
 
-- `neo_hookean_comp` - Compressible Neo-Hookean hyperelasticity
 - `neo_hookean_incomp` - Incompressible Neo-Hookean hyperelasticity
 - `mooney_rivlin` - Mooney-Rivlin hyperelasticity
 - `saint_venant` - Saint-Venant Kirchhoff model

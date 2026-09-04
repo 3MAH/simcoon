@@ -51,7 +51,7 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # method (Simo and Hughes, 1998). The superelastic response exhibits a stress-induced
 # phase transformation loop.
 
-umat_name = "SMAUT"  # 5 character code for the SMA transformation model
+umat_name = "SMADI"  # 5 character code for the SMA transformation model
 nstatev = 50  # Number of internal state variables
 
 # Material parameters
@@ -101,8 +101,8 @@ props = np.array([
 
 path_data = "../data"
 path_results = "results"
-pathfile = "SMAUT_path.txt"
-outputfile = "results_SMAUT.txt"
+pathfile = "SMADI_path.txt"
+outputfile = "results_SMADI.txt"
 
 sim._core.solver(
     umat_name,
@@ -126,7 +126,7 @@ sim._core.solver(
 # We plot the superelastic stress-strain loop which shows the stress-induced
 # austenite-martensite phase transformation and its reverse upon unloading.
 
-outputfile_macro = os.path.join(path_results, "results_SMAUT_global-0.txt")
+outputfile_macro = os.path.join(path_results, "results_SMADI_global-0.txt")
 
 fig = plt.figure()
 
