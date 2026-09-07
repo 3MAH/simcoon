@@ -184,7 +184,7 @@ namespace simcoon{
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
- * @note Legacy aliases SMAUT and SMANI map to SMADI and SMAAI respectively
+ * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
  *
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)

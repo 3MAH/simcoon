@@ -29,6 +29,7 @@
 ///@brief Implemented in 1D-2D-3D
 
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <assert.h>
 #include <string>
@@ -62,7 +63,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     bool cubic_elasticity = false;
     bool aniso_criteria = false;
 
-    if ((umat_name == "SMADI") || (umat_name == "SMAUT")) { //TODO_2.0: remove SMAUT after 2.0 release
+    if (umat_name == "SMADI") {
         cubic_elasticity = false;
         aniso_criteria = false;
     }
@@ -70,7 +71,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         cubic_elasticity = true;
         aniso_criteria = false;
     }
-    else if (umat_name == "SMAAI" || umat_name == "SMANI") { //TODO_2.0: remove SMANI after 2.0 release
+    else if (umat_name == "SMAAI") {
         cubic_elasticity = false;
         aniso_criteria = true;
     }
@@ -79,9 +80,8 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         aniso_criteria = true;
     }
     else {
-        cout << "Error: Unknown umat_name in umat_sma_unified_T_T: " << umat_name << "\n";
-        cout << "Valid options: SMADI, SMADC, SMAAI, SMAAC\n";
-        exit(0);
+        throw std::invalid_argument("Unknown umat_name in umat_sma_unified_T_T: " + umat_name
+                                    + " (valid: SMADI, SMADC, SMAAI, SMAAC)");
     }
 
     ///@brief Property offset depends on elastic symmetry type

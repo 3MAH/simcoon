@@ -129,9 +129,7 @@ static inline Fastor::Tensor<double,3,3,3,3> apply_jaumann_correction(
 }
 
 void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const mat &F1) {
-    mat I = eye(3,3);
-
-    mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (see Green_Naghdi)
+    mat L = zeros(3,3);   // DTime <= iota: D = W = 0, DR = I (rate undefined, see finite_rotation)
     if(DTime > simcoon::iota) {
         try {
             // 2nd-order centered velocity gradient: L = Fdot F^-1 with Fdot=(F1-F0)/dt and F at
@@ -149,13 +147,7 @@ void Jaumann(mat &DR, mat &D, mat &W, const double &DTime, const mat &F0, const 
     D = 0.5*(L+L.t());
     W = 0.5*(L-L.t());
     
-    //Jaumann
-    try {
-        DR = (inv(I-0.5*DTime*W))*(I+0.5*DTime*W);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Jaumann (DR).");
-    }     
+    DR = Hughes_Winget(W, DTime);
 }
     
 void Green_Naghdi(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
@@ -249,8 +241,6 @@ void logarithmic_R(mat &DR, mat &N_1, mat &N_2, mat &D, mat &Omega, const double
 }
 
 void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
-    mat I = eye(3,3);
-
     L = zeros(3,3);   // DTime <= iota: D = 0, DF = I (L is an output; never leave it stale)
     if(DTime > simcoon::iota) {
         try {
@@ -314,16 +304,10 @@ void logarithmic_F(mat &DF, mat &N_1, mat &N_2, mat &D, mat &L, const double &DT
         }
     }
     
-    try {
-        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside logarithmic_F (DF).");
-    }         
+    DF = Hughes_Winget(L, DTime);
 }
 
 void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, const mat &F1) {
-    mat I = eye(3,3);
     L = zeros(3,3);   // DTime <= iota: D = 0, DF = I (L is an output; never leave it stale)
     if(DTime > simcoon::iota) {
         try {
@@ -339,13 +323,7 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
     //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
     
-    //Truesdell
-    try {
-        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Truesdell (DF).");
-    }
+    DF = Hughes_Winget(L, DTime);
 }
 
 mat Hughes_Winget(const mat &Omega, const double &DTime) {
@@ -471,7 +449,6 @@ mat A_F(const mat &F) {
 }
 
 void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0, const mat &F1) {
-    mat I = eye(3,3);
     mat L = zeros(3,3);
 
     if(DTime > simcoon::iota) {    
@@ -519,39 +496,19 @@ void logarithmic(mat &DR, mat &D, mat &Omega, const double &DTime, const mat &F0
         }
     }
     Omega = W + N;
-
-    try {
-        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside logarithmic (DR).");
-    }       
+    DR = Hughes_Winget(Omega, DTime);
 }
 
 mat Delta_log_strain(const mat &D, const mat &Omega, const double &DTime) {
-    mat I = eye(3,3);
-    mat DR;
-    try {
-        DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Delta_log_strain (DR).");
-    }
+    const mat DR = Hughes_Winget(Omega, DTime);
     return 0.5*(D+(DR*D*DR.t()))*DTime;
 }
 
 mat Delta_log_strain_F(const mat &D, const mat &L, const double &DTime) {
     // Naive log_F midpoint increment: same form as Delta_log_strain, but the frame
-    // increment is the non-orthogonal DF = (I-1/2 dt L)^-1 (I+1/2 dt L), so the rotated
-    // term is the push-forward DF*D*inv(DF) -- inverse, NOT transpose (F is not orthogonal).
-    mat I = eye(3,3);
-    mat DF;
-    try {
-        DF = (inv(I-0.5*DTime*L))*(I+0.5*DTime*L);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside Delta_log_strain_F (DF).");
-    }
+    // increment DF = Hughes_Winget(L, dt) is non-orthogonal, so the rotated term is
+    // the push-forward DF*D*inv(DF) -- inverse, NOT transpose.
+    const mat DF = Hughes_Winget(L, DTime);
     return 0.5*(D+(DF*D*inv(DF)))*DTime;
 }
 

@@ -31,11 +31,11 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief The elastic UMAT requires 9 constants:
-///@brief props[0-2] : 3 Young modulus
-///@brief props[3-5] : 3 Poisson ratio
-///@brief props[6-8] : 3 Shear ratio ??
-///@brief props[9] : CTE
+///@brief The hypoelastic orthotropic UMAT requires 12 constants:
+///@brief props[0-2] : 3 Young moduli (Ex, Ey, Ez)
+///@brief props[3-5] : 3 Poisson ratios (nu_xy, nu_xz, nu_yz)
+///@brief props[6-8] : 3 shear moduli (Gxy, Gxz, Gyz)
+///@brief props[9-11] : 3 CTEs (alpha_x, alpha_y, alpha_z)
 
 ///@brief No statev is required for thermoelastic constitutive law
 

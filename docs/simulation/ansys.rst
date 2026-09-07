@@ -117,55 +117,79 @@ Model Codes
    * - 2
      - ELISO
      - Isotropic elasticity
-     - E, ν, α
+     - :math:`E, \nu, \alpha`
    * - 3
      - ELIST
      - Transversely isotropic elasticity
-     - axis, EL, ET, νTL, νTT, GLT, αL, αT
+     - axis, :math:`E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT}, \alpha_L, \alpha_T`
    * - 4
      - ELORT
      - Orthotropic elasticity
-     - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
+     - :math:`E_1, E_2, E_3, \nu_{12}, \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \alpha_1, \alpha_2, \alpha_3`
    * - 5
      - EPICP
      - Von Mises plasticity, power-law isotropic hardening
-     - E, ν, α, σ_Y, k, m
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m`
    * - 6
      - EPKCP
      - Von Mises, power-law isotropic + Prager kinematic
-     - E, ν, α, σ_Y, k, m, kX
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, k_X`
    * - 7
      - EPCHA
      - Von Mises + Voce + 2× Armstrong-Frederick
-     - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
+     - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
    * - 8
-     - SMAUT
+     - SMADI
      - SMA unified model
+     - See SMA documentation
+   * - 9
+     - SMAAI
+     - SMA unified model, anisotropic criterion
      - See SMA documentation
    * - 10
      - LLDM0
      - Lemaitre-Chaboche damage
-     - E, ν, α, σ_y, H, S, s, D_c
+     - :math:`E, \nu, \alpha, \sigma_y, H, S, s, D_c`
    * - 11
      - ZENER
      - Kelvin viscoelastic (single branch)
-     - E₀, ν₀, α, E₁, ν₁, ηB₁, ηS₁
+     - :math:`E_0, \nu_0, \alpha, E_1, \nu_1, \eta_{B1}, \eta_{S1}`
    * - 12
      - ZENNK
      - Kelvin viscoelastic (N branches)
-     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
    * - 13
      - PRONK
      - Prony series viscoelastic (generalized Maxwell)
-     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
+   * - 14
+     - EPTRI
+     - Tresca-family plasticity (Hill layout)
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
+   * - 15
+     - SMADC
+     - SMA unified model, cubic elasticity
+     - See SMA documentation
+   * - 16
+     - SMAAC
+     - SMA unified model, cubic + anisotropic criterion
+     - See SMA documentation
    * - 17
      - EPHIL
      - Hill yield + power-law isotropic hardening
-     - E, ν, α, σ_Y, k, m, F, G, H, L, M, N
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
    * - 18
      - EPHAC
      - Cubic elasticity + Hill + Voce + 2× AF
-     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N`
+   * - 25--28
+     - SMRDI / SMRDC / SMRAI / SMRAC
+     - SMA unified transformation + reorientation (iso/cubic × iso/aniso)
+     - See SMA documentation
+   * - 200
+     - MODUL
+     - Modular composition (props encode the mechanisms)
+     - See the modular UMAT documentation
 
 How It Works
 ------------
@@ -229,28 +253,28 @@ simcoon and Abaqus use the same Voigt notation, but Ansys differs in the shear c
      - Ansys
    * - 0
      - Normal 11
-     - σ₁₁, ε₁₁
-     - σ₁₁, ε₁₁
+     - :math:`\sigma_{11}, \varepsilon_{11}`
+     - :math:`\sigma_{11}, \varepsilon_{11}`
    * - 1
      - Normal 22
-     - σ₂₂, ε₂₂
-     - σ₂₂, ε₂₂
+     - :math:`\sigma_{22}, \varepsilon_{22}`
+     - :math:`\sigma_{22}, \varepsilon_{22}`
    * - 2
      - Normal 33
-     - σ₃₃, ε₃₃
-     - σ₃₃, ε₃₃
+     - :math:`\sigma_{33}, \varepsilon_{33}`
+     - :math:`\sigma_{33}, \varepsilon_{33}`
    * - 3
      - Shear 12
-     - σ₁₂, γ₁₂
-     - σ₁₂, γ₁₂
+     - :math:`\sigma_{12}, \gamma_{12}`
+     - :math:`\sigma_{12}, \gamma_{12}`
    * - 4
      - Shear 13/23
-     - σ₁₃, γ₁₃
-     - σ₂₃, γ₂₃
+     - :math:`\sigma_{13}, \gamma_{13}`
+     - :math:`\sigma_{23}, \gamma_{23}`
    * - 5
      - Shear 23/13
-     - σ₂₃, γ₂₃
-     - σ₁₃, γ₁₃
+     - :math:`\sigma_{23}, \gamma_{23}`
+     - :math:`\sigma_{13}, \gamma_{13}`
 
 The ``usermat_singleM.cpp`` bridge automatically swaps indices 4 and 5 during conversion.
 

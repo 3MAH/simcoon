@@ -44,6 +44,16 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
+/**
+ * @brief Hypoelastic orthotropic finite-strain UMAT (rate form).
+ *
+ * @note Stress measure: the kernel updates the COROTATIONAL CAUCHY stress
+ * additively (\f$ \boldsymbol{\sigma}_{n+1} = \boldsymbol{\sigma}_n +
+ * \mathbf{L}:\Delta\boldsymbol{\varepsilon}^{el} \f$, no Jacobian anywhere)
+ * — the classic Abaqus-style hypoelastic convention. It is therefore NOT in
+ * the Kirchhoff-box set: the solver and the python wrapper treat its sigma
+ * as Cauchy, with no J conversion at any boundary.
+*/
 void umat_hypoelasticity_ortho(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
                               
 

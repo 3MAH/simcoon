@@ -133,10 +133,10 @@ For coupled thermo-mechanical analysis with heat generation:
 
 The thermo-mechanical version provides:
 
-- Mechanical tangent ``ddsdde`` (∂σ/∂ε)
-- Thermal stress tangent ``ddsddt`` (∂σ/∂T)
-- Heat flux derivative ``drplde`` (∂r/∂ε)
-- Heat capacity ``drpldt`` (∂r/∂T)
+- Mechanical tangent ``ddsdde`` (:math:`\partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}`)
+- Thermal stress tangent ``ddsddt`` (:math:`\partial \boldsymbol{\sigma} / \partial T`)
+- Heat flux derivative ``drplde`` (:math:`\partial r / \partial \boldsymbol{\varepsilon}`)
+- Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
 
 Using umat_singleM_multi (Multiscale)
@@ -285,57 +285,57 @@ The following constitutive models are available through ``select_umat_M()``:
      - State Variables
    * - ELISO
      - Isotropic elasticity
-     - E, ν, α
+     - :math:`E, \nu, \alpha`
      - 1
    * - ELIST
      - Transversely isotropic elasticity
-     - axis, EL, ET, νTL, νTT, GLT, αL, αT
+     - axis, :math:`E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT}, \alpha_L, \alpha_T`
      - 1
    * - ELORT
      - Orthotropic elasticity
-     - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
+     - :math:`E_1, E_2, E_3, \nu_{12}, \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \alpha_1, \alpha_2, \alpha_3`
      - 1
    * - EPICP
      - Von Mises plasticity, power-law isotropic hardening
-     - E, ν, α, σ_Y, k, m
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m`
      - 8 (T_init, p, EP)
    * - EPKCP
      - Von Mises, power-law isotropic + Prager kinematic
-     - E, ν, α, σ_Y, k, m, kX
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, k_X`
      - 14 (T_init, p, EP, a)
    * - EPCHA
      - Von Mises + Voce + 2× Armstrong-Frederick
-     - E, ν, α, σ_Y, Q, b, C₁, D₁, C₂, D₂
+     - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
      - 33
    * - EPHIL / EPTRI
      - Hill yield + power-law isotropic hardening
-     - E, ν, α, σ_Y, k, m, F, G, H, L, M, N
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
      - 8 (T_init, p, EP)
    * - EPHAC
      - Cubic elasticity + Hill + Voce + 2× AF
-     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N`
      - 33
    * - EPANI
      - Cubic elasticity + anisotropic yield + Voce + 2× AF
-     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, P₁₁..P₆₆ (9)
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, P_{11}..P_{66}` (9)
      - 33
    * - EPDFA
      - Cubic elasticity + DFA yield + Voce + 2× AF
-     - E, ν, G, α, σ_Y, Q, b, C₁, D₁, C₂, D₂, F, G, H, L, M, N, K
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N, K`
      - 33
    * - EPCHG
      - Generic Chaboche (selectable yield, N iso/kin terms)
-     - E, ν, G, α, σ_Y, N_iso, N_kin, criteria, (Q,b)×N, (C,D)×N, crit. params
+     - :math:`E, \nu, G, \alpha, \sigma_Y, N_{iso}, N_{kin}`, criteria, :math:`(Q,b) \times N`, :math:`(C,D) \times N`, crit. params
      - 33
    * - EPHIN
      - N Hill yield surfaces
-     - E, ν, α, N, per surface: σ_Y, k, m, F, G, H, L, M, N
+     - :math:`E, \nu, \alpha, N`, per surface: :math:`\sigma_Y, k, m, F, G, H, L, M, N`
      - 1 + 7N
-   * - SMAUT
+   * - SMADI
      - SMA unified model
      - See SMA documentation
      - 24
-   * - SMANI
+   * - SMAAI
      - SMA anisotropic model
      - See SMA documentation
      - 24
@@ -345,15 +345,15 @@ The following constitutive models are available through ``select_umat_M()``:
      - 9
    * - ZENER
      - Kelvin viscoelastic (single branch)
-     - E₀, ν₀, α, E₁, ν₁, ηB₁, ηS₁
+     - :math:`E_0, \nu_0, \alpha, E_1, \nu_1, \eta_{B1}, \eta_{S1}`
      - 14
    * - ZENNK
      - Kelvin viscoelastic (N branches)
-     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
      - 7 + 7N
    * - PRONK
      - Prony series viscoelastic (generalized Maxwell)
-     - E₀, ν₀, α, N, per branch: Eᵢ, νᵢ, ηBᵢ, ηSᵢ
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
      - 7 + 7N
    * - MODUL
      - Composable modular UMAT

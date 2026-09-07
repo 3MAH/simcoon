@@ -86,7 +86,7 @@ EPDFA (DFA-Chaboche), EPCHG (generic Chaboche), EPHIN (N Hill surfaces)
 ZENER (Kelvin, single branch), ZENNK (Kelvin, N branches), PRONK (Prony series)
 
 **Shape Memory Alloys:**
-SMAUT (unified), SMANI (anisotropic)
+SMADI (unified), SMAAI (anisotropic criterion)
 
 **Damage:**
 LLDM0 (Lemaitre-Ladeveze-Dufailly)

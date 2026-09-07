@@ -68,14 +68,14 @@ unloading = solver.StepThermomeca(
 
 res_sma = solver.solve(
     solver.Block(steps=[loading, unloading]),
-    "SMAUT", props_sma, nstatev=17, T_init=323.15,
+    "SMADI", props_sma, nstatev=17, T_init=323.15,
 )
 
 e11 = 100 * res_sma["Strain"][0]
 line = ax2.scatter(e11, res_sma["Stress"][0], c=res_sma["Temp"], s=4, cmap="coolwarm")
 ax2.set_xlabel("strain $E_{11}$ (%)")
 ax2.set_ylabel("stress $\\sigma_{11}$ (MPa)")
-ax2.set_title("SMAUT, adiabatic superelastic cycle")
+ax2.set_title("SMADI, adiabatic superelastic cycle")
 fig.colorbar(line, ax=ax2, label="temperature (K)")
 
 fig.tight_layout()
