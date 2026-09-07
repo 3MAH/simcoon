@@ -417,5 +417,5 @@ To run the external UMAT tests:
     cd ../../../testBin/Umats/UMABA
     ./TUMABA
 
-Both tests apply a uniaxial tensile loading to 2% strain on a thermoelastic material (E=70000 MPa, ν=0.3) 
+Both tests apply a uniaxial tensile loading to 2% strain on a thermoelastic material (:math:`E = 70000` MPa, :math:`\nu = 0.3`)
 and verify that the computed stress-strain response matches the reference solution.
