@@ -12,6 +12,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_callback.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
@@ -72,7 +73,7 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104} };
+		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): operator[] would default-insert
 		// 0 = UMEXT, silently routing typos to the external-plugin path
 		const auto it_umat = list_umat.find(umat_name_py);
@@ -81,6 +82,9 @@ namespace simpy {
 		}
 		const int id_umat = it_umat->second;
 		int arguments_type; //depends on the argument used in the umat
+		// PYEXT (Python callback law) re-enters the interpreter: it must run on the calling
+		// thread, never inside the GCD/OpenMP region (parallel.hpp contract).
+		const bool serial = (id_umat == 300);
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
@@ -104,7 +108,11 @@ namespace simpy {
 			start = false;
 		}
 
-		double tnew_dt = 0;//usefull ?		
+		// Step-cut request of the kernels. Each point writes its OWN local (the kernels take
+		// `double &`), so the parallel branch has no shared write; only the serial PYEXT branch
+		// publishes it here, and only that branch inspects it. The documented contract for the
+		// built-in kernels is that a direct caller subdivides the increment itself.
+		double tnew_dt = 1.;
 		//bool use_temp;
 		//if (T.n_elem == 0.) use_temp = false; 
 		//else use_temp = true;
@@ -126,15 +134,28 @@ namespace simpy {
 		cube DR = carma::arr_to_cube_view(DR_py); 
 		cube F0, F1;
 
+		// props: (nprops, 1) or a 1-D (nprops,) vector = shared by all points; (nprops, n) = per point.
+		// (a 1-D array has no shape[1]: reading it was undefined behaviour and fed garbage props
+		// to every point after the first)
 		vec props;
-		mat list_props = carma::arr_to_mat_view(props_py);
-		auto shape = props_py.shape();
-
+		mat list_props;
 		bool unique_props = false;
-		if (shape[1] == 1) {
-			props = list_props.col(0);
+		if (props_py.ndim() == 1) {
+			props = carma::arr_to_col(props_py);
+			list_props = mat(props.memptr(), props.n_elem, 1, false, true);
 			unique_props = true;
-		}		
+		} else {
+			if (props_py.ndim() != 2) {
+				throw std::invalid_argument("umat: props must be a (nprops,) vector or a (nprops, 1 | n_points) array");
+			}
+			list_props = carma::arr_to_mat_view(props_py);
+			if (props_py.shape(1) == 1) {
+				props = list_props.col(0);
+				unique_props = true;
+			} else if (props_py.shape(1) != nb_points) {
+				throw std::invalid_argument("umat: props must have one column, or one column per material point");
+			}
+		}
 
 		mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
 		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
@@ -238,6 +259,13 @@ namespace simpy {
 				arguments_type = 2;
 				break;
 			}
+			case 300: {
+				// PYEXT: process-wide callback UMAT (umat_callback.hpp), i.e. a Python law.
+				// It re-enters the interpreter, so it runs serially on the calling thread.
+				umat_function = &simcoon::umat_callback_M;
+				arguments_type = 1;
+				break;
+			}
 			default: {
 				throw std::invalid_argument( "The choice of Umat could not be found in the umat library." );
 			}
@@ -266,7 +294,7 @@ namespace simpy {
 			kirchhoff_normalize = true;
 		}
 
-		simcoon_parallel_for_safe(nb_points, [&](int pt) {
+		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
 			// PyDataMem_NEW (which needs the GIL) -> no GIL deadlock, no GIL handling.
@@ -284,6 +312,7 @@ namespace simpy {
 			if (use_temp && pt < vec_T.n_elem) {
 				T = vec_T(pt);
 			}
+			double tnew_dt_pt = 1.;   // per-point: no shared write inside the parallel region
 
 			if (kirchhoff_normalize) {
 				// python contract stress (Cauchy) -> kernel internal
@@ -297,14 +326,15 @@ namespace simpy {
 			}
 			switch (arguments_type) {
 				case 1: {
-					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
+					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
 					break;
 				}
 				case 2: {
-					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt, tangent_mode);
+					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
 					break;
 				}
 			}
+			if (serial) tnew_dt = tnew_dt_pt;   // single thread: safe to publish
 			if (kirchhoff_normalize) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).
@@ -312,7 +342,27 @@ namespace simpy {
 				const double J1 = arma::det(F1.slice(pt));
 				if (J1 > simcoon::iota) sigma /= J1;
 			}
-		});
+		};
+		if (serial) {
+			// PYEXT calls back into Python: it must stay on the calling thread (which holds the
+			// GIL, so the gil_scoped_acquire in the bridge is a no-op). A plain loop, not
+			// simcoon_parallel_for_safe with a large cutoff: the OpenMP build of the helper
+			// captures the exception of a failing point and keeps calling the law for all the
+			// remaining ones, which the GCD build does not — here the first error must stop
+			// the batch on every platform.
+			for (int pt = 0; pt < nb_points; pt++) {
+				point_kernel(pt);
+				if (tnew_dt < 1.) {
+					throw std::runtime_error(
+						"umat: the law requested a step cut (simcoon.StepCut) at material point "
+						+ std::to_string(pt) + ", but the batch entry point cannot subdivide the "
+						"increment: catch it in the caller and re-run that point with a smaller "
+						"increment (the material-point solver handles it automatically).");
+				}
+			}
+		} else {
+			simcoon_parallel_for_safe(nb_points, point_kernel);
+		}
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}

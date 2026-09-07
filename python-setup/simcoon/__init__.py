@@ -15,6 +15,8 @@ from simcoon import modular
 # `import` (not `from ... import`) is required: the latter would return the
 # existing function attribute without importing the subpackage.
 import simcoon.solver
+# Constitutive laws written in Python, served to the C++ solver under 'PYEXT'
+from simcoon.pyumat import PythonUMAT, StepCut, registered
 from simcoon.__version__ import __version__
 from simcoon.rotation import Rotation  # override _CppRotation from star-import
 from simcoon.tensor import Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes

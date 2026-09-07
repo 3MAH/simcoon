@@ -59,36 +59,47 @@ while BLAS handles internal threading.
 Duplicate OpenMP runtimes on macOS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Only **one** OpenMP runtime may be active per process. Two common setups load
-a second one next to simcoon's:
+**The rule: one environment = one OpenMP runtime.** In a conda environment that
+runtime is conda-forge's ``llvm-openmp`` (``libomp.dylib``), and every native
+package must share it. Two setups break the rule:
 
-- the **PyPI wheel** bundles its own ``libomp`` (via delocate); if numpy/scipy
-  come from **conda**, they load the conda environment's ``libomp`` as well;
-- a **source build** that picks the Homebrew Armadillo pulls Homebrew's
-  ``libomp`` through its OpenBLAS, while conda numpy loads the environment's.
+- a **PyPI wheel** that bundles its own ``libomp`` (PyTorch wheels do; the
+  simcoon wheel does, via delocate) next to conda numpy/scipy/simcoon;
+- a **source build** of simcoon linked against an Armadillo that does not come
+  from the environment (a system or Homebrew copy): its OpenBLAS drags a second
+  ``libomp`` into the process.
 
-Symptoms range from the explicit Intel abort message ("multiple copies of the
-OpenMP runtime have been linked") to silent crashes (``SIGSEGV`` inside
-``libomp`` worker threads under threaded runs). Remedies, in order of
-preference:
+Symptoms range from the explicit abort message (``OMP: Error #15: Initializing
+libomp.dylib, but found libomp.dylib already initialized``) to silent crashes
+(``SIGSEGV`` inside ``libomp`` worker threads under threaded runs).
 
-1. **Stay on one channel**: install simcoon *and* numpy/scipy from
-   conda-forge (everything links the same ``llvm-openmp``), or everything
-   from PyPI wheels.
-2. **Source builds in a conda environment**: point CMake at the environment's
-   Armadillo so simcoon shares the environment's OpenMP runtime:
+What to do:
+
+1. **conda-forge for everything native**: simcoon, numpy, scipy, armadillo and
+   PyTorch (``conda install -c conda-forge pytorch``, not ``pip install torch``).
+   Do not mix in Homebrew or system libraries.
+2. **Source builds in a conda environment** pick the environment's Armadillo
+   automatically (CMake detects ``CONDA_PREFIX``) and warn when they do not.
+   Install it first and purge any stale build cache when switching:
 
    .. code-block:: bash
 
        conda install -c conda-forge armadillo
-       CMAKE_ARGS="-DArmadillo_ROOT=$CONDA_PREFIX" pip install -e . --no-build-isolation
+       rm -rf build/           # a cached non-conda Armadillo path would be kept otherwise
+       pip install -e . --no-build-isolation
 
-   (a plain build on a machine with Homebrew Armadillo links Homebrew's
-   ``libomp`` instead — remove the stale ``build/`` cache when switching).
-3. **Last resort**: ``export KMP_DUPLICATE_LIB_OK=TRUE`` silences the guard
-   but does **not** make the process safe — crashes or silently wrong results
-   remain possible (this is Intel's own warning). If you must use it, also
-   set ``OMP_NUM_THREADS=1`` to keep the second runtime quiescent.
+3. **Check** which runtimes a process really loads:
+
+   .. code-block:: bash
+
+       python -m simcoon.doctor
+
+   It imports numpy, scipy, simcoon and torch (if present), lists the OpenMP
+   runtimes each one brings and exits with 1 when there are several.
+
+``KMP_DUPLICATE_LIB_OK=TRUE`` is **not** a remedy: it silences the guard and
+leaves two runtimes fighting (crashes or silently wrong results remain
+possible, this is Intel's own warning).
 
 **Using MKL with conda on Linux**
 
@@ -141,17 +152,11 @@ Prerequisites (system packages)
       sudo apt-get install libarmadillo-dev libopenblas-dev liblapack-dev \
           libgtest-dev ninja-build cmake
 
-- **macOS (Homebrew):**
-
-  .. code-block:: bash
-
-      brew install armadillo ninja cmake
-
-  .. note::
-     If you develop inside a conda environment, prefer the conda-forge
-     Armadillo with ``CMAKE_ARGS="-DArmadillo_ROOT=$CONDA_PREFIX"`` — the
-     Homebrew one drags in a second OpenMP runtime next to the environment's
-     (see *Duplicate OpenMP runtimes on macOS* above).
+- **macOS:** use the conda environment (``environment_arm64.yml`` above:
+  conda-forge Armadillo, Accelerate BLAS, cmake, ninja). Do not install the
+  dependencies with Homebrew: a Homebrew Armadillo links Homebrew's OpenBLAS
+  and ``libomp``, i.e. a second OpenMP runtime next to the environment's (see
+  *Duplicate OpenMP runtimes on macOS* above).
 
 - **Windows (vcpkg):**
 

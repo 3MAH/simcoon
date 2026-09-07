@@ -58,6 +58,9 @@ Three contract points that every UMAT must honor:
 3. **cumulative work**: ``Wm += increment`` — the solver reports path
    integrals, never overwrite them.
 
+The same contract applies to a law written in Python and served by the C++
+solver under the ``PYEXT`` name (:doc:`python_umat`): only the language changes.
+
 Step 2 — trial state, typed
 ===========================
 
