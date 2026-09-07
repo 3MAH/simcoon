@@ -227,7 +227,11 @@ set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 # Upstream fixed only the first one (martin-olivier/dylib 0a8573a9, unreleased), so force
 # the headers here rather than moving the pin off a tagged release.
 if(APPLE)
-  target_compile_options(dylib PRIVATE -include cstdlib -include cerrno -include arpa/inet.h)
+  # SHELL: is required: CMake de-duplicates repeated identical options, which would
+  # collapse the three flags into "-include cstdlib cerrno arpa/inet.h" and make clang
+  # treat the last two as input files ("no such file or directory: 'cerrno'").
+  target_compile_options(dylib PRIVATE
+    "SHELL:-include cstdlib" "SHELL:-include cerrno" "SHELL:-include arpa/inet.h")
 endif()
 
 # Fastor is header-only — just populate, no build step needed
