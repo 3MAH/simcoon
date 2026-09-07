@@ -156,7 +156,47 @@ if(WIN32 AND MSVC AND BLAS_FOUND AND LAPACK_FOUND)
   endif()
 endif()
 
+# Armadillo. Inside a conda environment, use the environment's own Armadillo (hence its
+# BLAS/LAPACK and its single OpenMP runtime, conda-forge's llvm-openmp). Linking a
+# system/Homebrew Armadillo into a conda Python process loads a second OpenMP runtime
+# next to the one numpy/openblas/pytorch already carry: "OMP: Error #15" at import or
+# random crashes in threaded kernels (KMP_DUPLICATE_LIB_OK only hides the guard).
+# Install it with `conda install -c conda-forge armadillo`; -DArmadillo_ROOT=... still wins.
+# Conda prefix: conda-build exposes the host prefix as PREFIX, an activated environment as
+# CONDA_PREFIX (same precedence as the carma lookup below). `conda-meta/` is what makes a
+# directory a conda prefix — PREFIX alone is a common Makefile variable (/usr/local ...).
+set(SIMCOON_CONDA_PREFIX "")
+if(DEFINED ENV{PREFIX} AND EXISTS "$ENV{PREFIX}/conda-meta")
+  set(SIMCOON_CONDA_PREFIX "$ENV{PREFIX}")
+elseif(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/conda-meta")
+  set(SIMCOON_CONDA_PREFIX "$ENV{CONDA_PREFIX}")
+endif()
+set(_simcoon_armadillo_auto OFF)
+if(SIMCOON_CONDA_PREFIX AND NOT DEFINED Armadillo_ROOT AND NOT DEFINED ENV{Armadillo_ROOT})
+  if(EXISTS "${SIMCOON_CONDA_PREFIX}/include/armadillo")
+    set(Armadillo_ROOT "${SIMCOON_CONDA_PREFIX}")
+    set(_simcoon_armadillo_auto ON)
+    message(STATUS "Conda environment detected: Armadillo_ROOT = ${Armadillo_ROOT}")
+  else()
+    message(WARNING "Conda environment detected (${SIMCOON_CONDA_PREFIX}) but it has no Armadillo: "
+                    "run `conda install -c conda-forge armadillo` so that simcoon shares the "
+                    "environment's BLAS and OpenMP runtime (a non-conda Armadillo brings a second "
+                    "OpenMP runtime into the Python process).")
+  endif()
+endif()
 find_package(Armadillo 12.6 REQUIRED)
+message(STATUS "Armadillo library: ${ARMADILLO_LIBRARIES}")
+message(STATUS "Armadillo include: ${ARMADILLO_INCLUDE_DIRS}")
+# literal search, not MATCHES: a prefix may contain regex metacharacters (py3.11, env(new))
+string(FIND "${ARMADILLO_LIBRARIES};${ARMADILLO_INCLUDE_DIRS}" "${SIMCOON_CONDA_PREFIX}" _simcoon_arma_in_prefix)
+if(_simcoon_armadillo_auto AND _simcoon_arma_in_prefix EQUAL -1)
+  # a cached ARMADILLO_INCLUDE_DIR/ARMADILLO_LIBRARY from an earlier configure wins over the hint
+  message(WARNING "Armadillo is NOT the one of the active conda environment (${SIMCOON_CONDA_PREFIX}): "
+                  "${ARMADILLO_LIBRARIES}. Its BLAS will load a second OpenMP runtime next to the "
+                  "environment's llvm-openmp (OMP Error #15 / crashes). Delete the stale build "
+                  "cache (build/ or build/cp*) and configure again, or pass -DArmadillo_ROOT "
+                  "explicitly if this is intended.")
+endif()
 
 # GTest is only needed when building tests
 if(SIMCOON_BUILD_TESTS)
@@ -180,6 +220,19 @@ FetchContent_Declare(
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
+
+# dylib v3.0.1 relies on transitive includes that the libc++ shipped with the macOS 26.6
+# SDK no longer pulls in: free() in demangle.cpp, errno in dylib.cpp, ntohl() in symbols.cpp.
+# The runner image moved from Xcode 26.5 to 26.6 and the conda macOS build broke on it.
+# Upstream fixed only the first one (martin-olivier/dylib 0a8573a9, unreleased), so force
+# the headers here rather than moving the pin off a tagged release.
+if(APPLE)
+  # SHELL: is required: CMake de-duplicates repeated identical options, which would
+  # collapse the three flags into "-include cstdlib cerrno arpa/inet.h" and make clang
+  # treat the last two as input files ("no such file or directory: 'cerrno'").
+  target_compile_options(dylib PRIVATE
+    "SHELL:-include cstdlib" "SHELL:-include cerrno" "SHELL:-include arpa/inet.h")
+endif()
 
 # Fastor is header-only — just populate, no build step needed
 FetchContent_Populate(Fastor)
