@@ -226,6 +226,32 @@ def test_ct5_F_control():
     assert abs(res["Stress"][3, -1]) > 1.0  # shear stress developed
 
 
+# ct5 is the only fully kinematic path (nK == 0) and the only caller of
+# step_meca::generate_kin, whose incremental F is built from arma::logmat /
+# arma::expmat -- code no other control type touches. Cover more than one
+# target shape and corate through it: a diagonal target makes log(F_target)
+# symmetric, which takes a different branch of expmat than the shear one.
+@pytest.mark.parametrize("corate", ["jaumann", "logarithmic"])
+@pytest.mark.parametrize("shape", ["shear", "stretch"])
+def test_ct5_F_variants(shape, corate):
+    if shape == "shear":
+        F_target = np.eye(3)
+        F_target[0, 1] = 0.2
+    else:
+        F_target = np.diag([1.05, 1.0, 1.0])
+
+    step = StepMeca(control="F", value=F_target.ravel(), ninc=10)
+    res = solve(Block(steps=[step], control_type="F"), "ELISO", ELISO_PROPS, 1,
+                T_init=290.0, corate=corate)
+
+    assert res.status == 0
+    # the prescribed gradient is reached exactly at the end of the step
+    np.testing.assert_allclose(res["F"][:, :, -1], F_target, atol=1e-10)
+    stress = res["Stress"][:, -1]
+    assert np.isfinite(stress).all()
+    assert np.abs(stress).max() > 1.0
+
+
 # ---------------------------------------------------------------------------
 # loading modes
 # ---------------------------------------------------------------------------
