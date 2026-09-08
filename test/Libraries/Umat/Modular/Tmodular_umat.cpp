@@ -383,6 +383,65 @@ protected:
     void SetUp() override {}
 };
 
+// evaluate() is the seam a state-dependent elastic block will replace: assert
+// the contract it must keep, not just today's implementation.
+TEST_F(ElasticityModuleTest, EvaluateMatchesElasticPredictorAndTangent) {
+    ElasticityModule em;
+    vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha
+    int offset = 0;
+    em.configure(ElasticityType::ISOTROPIC, props, offset);
+
+    const vec eps = {1.0e-3, -3.0e-4, -3.0e-4, 5.0e-4, -2.0e-4, 1.0e-4};
+    vec sigma;
+    mat Lt;
+    em.evaluate(eps, 3, sigma, Lt);
+
+    // stress and tangent come from ONE call and must be consistent: sigma is
+    // the elastic predictor and Lt its exact derivative.
+    EXPECT_LT(norm(sigma - el_pred(em.L0(), eps, 3), 2), 1e-12);
+    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);
+    EXPECT_LT(norm(sigma - Lt * eps, 2) / norm(sigma, 2), 1e-12);
+
+    // finite-difference check of Lt = d(sigma)/d(eps), column by column
+    const double h = 1.0e-8;
+    for (arma::uword j = 0; j < 6; ++j) {
+        vec ep = eps, em_ = eps;
+        ep(j) += h;
+        em_(j) -= h;
+        vec sp, sm;
+        mat dummy;
+        em.evaluate(ep, 3, sp, dummy);
+        em.evaluate(em_, 3, sm, dummy);
+        EXPECT_LT(norm((sp - sm) / (2.0 * h) - Lt.col(j), 2), 1e-4 * norm(Lt.col(j), 2));
+    }
+}
+
+TEST_F(ElasticityModuleTest, EvaluateThrowsWhenNotConfigured) {
+    ElasticityModule em;
+    vec sigma;
+    mat Lt;
+    EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, sigma, Lt), std::runtime_error);
+}
+
+// ndi < 3 condenses the STRESS only; the tangent stays the full 6x6. That
+// asymmetry is the pre-existing contract (the mechanisms have always received
+// an uncondensed stiffness) — pin it so it cannot change silently.
+TEST_F(ElasticityModuleTest, EvaluateCondensesStressOnlyForPlaneStress) {
+    ElasticityModule em;
+    vec props = {0.0, 210000.0, 0.3, 1.2e-5};
+    int offset = 0;
+    em.configure(ElasticityType::ISOTROPIC, props, offset);
+
+    const vec eps = {1.0e-3, -3.0e-4, 0.0, 5.0e-4, 0.0, 0.0};
+    vec sigma;
+    mat Lt;
+    em.evaluate(eps, 2, sigma, Lt);
+
+    EXPECT_LT(norm(sigma - el_pred(em.L0(), eps, 2), 2), 1e-12);
+    EXPECT_NEAR(sigma(2), 0.0, 1e-12);   // out-of-plane stress condensed away
+    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);  // tangent NOT condensed
+}
+
 TEST_F(ElasticityModuleTest, IsotropicConfiguration) {
     ElasticityModule em;
 

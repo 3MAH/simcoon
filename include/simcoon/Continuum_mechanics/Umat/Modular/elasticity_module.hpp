@@ -262,12 +262,12 @@ public:
      * mechanisms take as their reference — ViscoelasticMechanism inverts it
      * once into the long-term compliance M_0, which must NOT follow the state.
      *
-     * @return Const reference to L
+     * @return Const reference to the ground-state stiffness
      */
     [[nodiscard]] const arma::mat& L0() const noexcept { return L_; }
 
     /**
-     * @brief Get the 6x6 compliance tensor
+     * @brief Get the 6x6 ground-state compliance tensor, inv(L0).
      * @return Const reference to M
      */
     [[nodiscard]] const arma::mat& M() const noexcept { return M_; }
@@ -281,7 +281,9 @@ public:
     // ========== Tensor-typed accessors (Tensor2/Tensor4 API) ==========
 
     /**
-     * @brief Stiffness as a typed Tensor4 (cached — built once per configure).
+     * @brief Ground-state stiffness as a typed Tensor4 (cached — built once
+     * per configure), the L0() counterpart. Like M(), it mirrors the
+     * undeformed state, not the current tangent of evaluate().
      *
      * Use `.contract(strain_tensor)` to obtain the elastic stress tensor2 with
      * the correct Tensor2Type automatically inferred. Returned by const-ref so

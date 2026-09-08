@@ -54,6 +54,7 @@ ModularUMAT::ModularUMAT()
 
 void ModularUMAT::set_elasticity(ElasticityType type, const arma::vec& props, int& offset) {
     elasticity_.configure(type, props, offset);
+    L_cur_ = elasticity_.L0();
 }
 
 PlasticityMechanism& ModularUMAT::add_plasticity(
@@ -362,8 +363,7 @@ void ModularUMAT::run(
         return;
     }
 
-    // Compute consistent tangent
-    Lt = L;  // Start with elastic stiffness
+    // Compute consistent tangent (it seeds Lt itself)
     compute_tangent(sigma, Ds_total, Lt, tangent_mode);
 
     // Work quantities — CUMULATIVE in/out, the legacy UMAT contract
@@ -401,7 +401,7 @@ void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
     for (const auto& mech : mechanisms_) {
         E_inel += mech->inelastic_strain();
     }
-    const arma::vec Eel = Etot_end - elasticity_.alpha() * DT_init - E_inel;
+    const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
     elasticity_.evaluate(Eel, ndi, sigma, L_cur_);
     sigma *= stiffness_reduction();
 }
@@ -423,16 +423,13 @@ void ModularUMAT::return_mapping(
         n_total += mech->num_constraints();
     }
 
-    // Pure elastic: no constraints means no inelastic strain and no damage,
-    // so refresh_stress() collapses to the elastic response — it is only the
-    // constraint machinery below that is skipped.
+    // Elastic prediction. With no constraints there is no inelastic strain and
+    // no damage, so this same call IS the whole elastic response — only the
+    // constraint machinery below is skipped.
+    refresh_stress(Etot + DEtot, T - T_init, ndi, sigma);
     if (n_total == 0) {
-        refresh_stress(Etot + DEtot, T - T_init, ndi, sigma);
         return;
     }
-
-    // Elastic prediction
-    refresh_stress(Etot + DEtot, T - T_init, ndi, sigma);
 
     // Allocate constraint arrays
     arma::vec Phi = arma::zeros(n_total);

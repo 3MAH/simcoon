@@ -210,6 +210,16 @@ public:
      * (1-D)·L_0 damage model since the undamaged L_0 is fixed after
      * ElasticityModule::configure.
      *
+     * @warning ModularUMAT now passes the CURRENT elastic tangent, not L_0
+     * (see ModularUMAT::refresh_stress). That is still a constant for every
+     * elasticity type available today, so the latch holds — but a
+     * state-dependent elastic block (a hyperelastic potential) breaks it: the
+     * compliance would freeze at the first Newton iterate's tangent for the
+     * whole increment, giving a wrong driving force Y, wrong dPhi/dsigma rows
+     * and wrong damage evolution. Such a block MUST either call this at every
+     * refresh or the lazy latch must be replaced by a keyed cache. Note that
+     * this function currently has no caller anywhere in the tree.
+     *
      * Call this if any external actor mutates the elasticity reference
      * between UMAT calls (e.g., a stiffness-evolving mechanism composed
      * above damage). Then the next compute_constraints rebuilds M_cached_
