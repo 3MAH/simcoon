@@ -396,7 +396,7 @@ TEST_F(ElasticityModuleTest, IsotropicConfiguration) {
     EXPECT_EQ(offset, 4);
 
     // Check stiffness properties
-    mat L = em.L();
+    mat L = em.L0();
     EXPECT_EQ(L.n_rows, 6u);
     EXPECT_EQ(L.n_cols, 6u);
 
@@ -424,7 +424,7 @@ TEST_F(ElasticityModuleTest, CubicConfiguration) {
     EXPECT_TRUE(em.is_configured());
     EXPECT_EQ(offset, 5);
 
-    mat L = em.L();
+    mat L = em.L0();
     EXPECT_EQ(L.n_rows, 6u);
     EXPECT_EQ(L.n_cols, 6u);
 
@@ -468,7 +468,7 @@ TEST_F(ElasticityModuleTest, CubicCiiConfiguration) {
 
     EXPECT_TRUE(em.is_configured());
 
-    mat L = em.L();
+    mat L = em.L0();
 
     // Direct check of Cii values
     EXPECT_NEAR(L(0, 0), 185000.0, 1e-6);
@@ -490,8 +490,8 @@ TEST_F(ElasticityModuleTest, ConventionEquivalence) {
     em_kmu.configure_isotropic(K, mu, 0.0, IsoConv::Kmu);
     em_lam.configure_isotropic(lambda, mu, 0.0, IsoConv::lambdamu);
 
-    EXPECT_LT(norm(em_kmu.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
-    EXPECT_LT(norm(em_lam.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
+    EXPECT_LT(norm(em_kmu.L0() - em_ref.L0(), "fro") / norm(em_ref.L0(), "fro"), 1e-12);
+    EXPECT_LT(norm(em_lam.L0() - em_ref.L0(), "fro") / norm(em_ref.L0(), "fro"), 1e-12);
 
     // Props-driven path: the leading conv slot selects the interpretation.
     ElasticityModule em_props;
@@ -499,16 +499,16 @@ TEST_F(ElasticityModuleTest, ConventionEquivalence) {
     int offset = 0;
     em_props.configure(ElasticityType::ISOTROPIC, props, offset);
     EXPECT_EQ(offset, 4);
-    EXPECT_LT(norm(em_props.L() - em_ref.L(), "fro") / norm(em_ref.L(), "fro"), 1e-12);
+    EXPECT_LT(norm(em_props.L0() - em_ref.L0(), "fro") / norm(em_ref.L0(), "fro"), 1e-12);
 
     // Cubic through props with the Cii convention.
     ElasticityModule em_cii;
     vec props_cii = {1.0, 185000.0, 158000.0, 39700.0, 0.0};  // conv=1 (Cii)
     offset = 0;
     em_cii.configure(ElasticityType::CUBIC, props_cii, offset);
-    EXPECT_NEAR(em_cii.L()(0, 0), 185000.0, 1e-6);
-    EXPECT_NEAR(em_cii.L()(0, 1), 158000.0, 1e-6);
-    EXPECT_NEAR(em_cii.L()(3, 3), 39700.0, 1e-6);
+    EXPECT_NEAR(em_cii.L0()(0, 0), 185000.0, 1e-6);
+    EXPECT_NEAR(em_cii.L0()(0, 1), 158000.0, 1e-6);
+    EXPECT_NEAR(em_cii.L0()(3, 3), 39700.0, 1e-6);
 
     // An unknown convention code must be rejected, not silently misread.
     ElasticityModule em_bad;
@@ -548,7 +548,7 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
     // which is exact only to ~1 ulp of the entries (~1e-11 abs for a 210 GPa L).
     tensor4 L_t = em.L_tensor();
     EXPECT_EQ(L_t.type(), Tensor4Type::stiffness);
-    EXPECT_LT(norm(mat(L_t.mat()) - em.L(), "fro"), 1e-9);
+    EXPECT_LT(norm(mat(L_t.mat()) - em.L0(), "fro"), 1e-9);
 
     tensor4 M_t = em.M_tensor();
     EXPECT_EQ(M_t.type(), Tensor4Type::compliance);
@@ -559,7 +559,7 @@ TEST_F(ElasticityModuleTest, TensorAccessors) {
     tensor2 eps_t = tensor2::from_voigt(eps_voigt, Tensor2Type::strain);
     tensor2 sig_t = L_t.contract(eps_t);
     EXPECT_EQ(sig_t.vtype(), Tensor2Type::stress);
-    EXPECT_LT(norm(vec(sig_t.voigt()) - em.L() * eps_voigt, 2), 1e-8);
+    EXPECT_LT(norm(vec(sig_t.voigt()) - em.L0() * eps_voigt, 2), 1e-8);
 
     // alpha_tensor: Tensor2Type::strain (factor-2 on shear is irrelevant here, all shear=0)
     tensor2 alpha_t = em.alpha_tensor();
@@ -585,11 +585,11 @@ TEST_F(ElasticityModuleTest, OrthotropicConfiguration) {
 
     const mat L_ref = L_ortho(70000., 30000., 15000., 0.3, 0.3, 0.3,
                               8000., 6000., 5000., "EnuG");
-    EXPECT_LT(norm(em.L() - L_ref, "fro") / norm(L_ref, "fro"), 1e-12);
+    EXPECT_LT(norm(em.L0() - L_ref, "fro") / norm(L_ref, "fro"), 1e-12);
     EXPECT_LT(norm(em.M() - mat(inv(L_ref)), "fro") / norm(mat(inv(L_ref)), "fro"), 1e-10);
 
     // Physically admissible: strictly positive definite.
-    vec eig = eig_sym(em.L());
+    vec eig = eig_sym(em.L0());
     EXPECT_GT(eig.min(), 0.0) << "orthotropic stiffness is not positive definite";
 
     EXPECT_DOUBLE_EQ(em.alpha()(0), 1e-5);
@@ -906,7 +906,7 @@ TEST_F(ModularUMATTest, ElasticConfiguration) {
 
     mumat.set_elasticity(ElasticityType::ISOTROPIC, props, offset);
 
-    const mat& L = mumat.elasticity().L();
+    const mat& L = mumat.elasticity().L0();
     EXPECT_GT(L(0, 0), 0.0);
 }
 
@@ -1287,7 +1287,7 @@ TEST(ModularUMATIntegration, DamageElasticUniaxial) {
     vec statev = zeros(nstatev);
     mumat.initialize(nstatev, statev);
 
-    const mat L0 = mumat.elasticity().L();
+    const mat L0 = mumat.elasticity().L0();
 
     vec Etot = zeros(6);
     vec sigma = zeros(6);
@@ -1422,7 +1422,7 @@ vec run_one_increment_epvoce(const vec& statev_in, const vec& Etot,
     vec sigma = zeros(6);
     // Recover the converged stress of the previous increment from the elastic
     // relation (state variables carry EP): sigma = L (Etot - EP).
-    sigma = m.elasticity().L() *
+    sigma = m.elasticity().L0() *
             (Etot - m.mechanism(0).variables().get("EP").raw_voigt());
 
     Lt.set_size(6, 6);

@@ -90,6 +90,12 @@ private:
     // State
     double T_init_;         ///< Initial temperature
     arma::vec sigma_start_; ///< Stress at start of increment
+    /// Elastic block's tangent at the elastic strain of the LAST
+    /// refresh_stress() call — valid only from there on. Carries no damage
+    /// factor, so it is not d(sigma)/d(eps) of the model. The multiplier
+    /// Jacobian and the consistent tangent must see the tangent of the state
+    /// the stress was evaluated at, or Newton loses its quadratic rate.
+    arma::mat L_cur_;
     bool initialized_;      ///< Whether initialize() has been called
 
     // Return-mapping controls (local internal-equilibrium Newton loop)
@@ -268,7 +274,7 @@ public:
      * @param DEtot Strain increment
      * @param sigma Output: stress at end of increment
      * @param Lt Output: consistent tangent modulus
-     * @param L Output: elastic stiffness
+     * @param L Output: ground-state elastic stiffness (ElasticityModule::L0)
      * @param DR Rotation increment matrix
      * @param nprops Number of properties
      * @param props Material properties
@@ -391,6 +397,22 @@ private:
      *        (Lt = elastic L), 1 = continuum, 2 = algorithmic (Simo–Hughes),
      *        3 = closest-point (reserved, throws)
      */
+    /**
+     * @brief Recompute @p sigma and L_cur_ from the mechanisms' current state.
+     *
+     * The elastic strain is the total minus the thermal and the inelastic
+     * parts; stiffness_reduction() is the multiplicative CDM (1-D) factor —
+     * without it the stress ignores damage entirely while the tangent is
+     * softened (inconsistent Newton, unsoftened response).
+     *
+     * @param Etot_end total strain at the end of the increment
+     * @param DT_init temperature rise since the reference, T - T_init
+     * @param ndi number of direct stress components
+     * @param sigma Output: stress
+     */
+    void refresh_stress(const arma::vec& Etot_end, double DT_init, int ndi,
+                        arma::vec& sigma);
+
     void compute_tangent(
         const arma::vec& sigma,
         const arma::vec& Ds_total,

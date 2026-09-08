@@ -248,6 +248,16 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
 
 // ========== Derived Quantities ==========
 
+void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
+                                arma::vec& sigma, arma::mat& Lt) const {
+    if (!configured_) {
+        throw std::runtime_error("ElasticityModule: not configured");
+    }
+    // el_pred rather than a bare L_ * eps_el: it carries the ndi condensation.
+    sigma = el_pred(L_, eps_el, ndi);
+    Lt = L_;
+}
+
 arma::vec ElasticityModule::thermal_strain(double DT) const {
     if (!configured_) {
         throw std::runtime_error("ElasticityModule: not configured");

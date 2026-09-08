@@ -254,10 +254,17 @@ public:
     [[nodiscard]] bool is_configured() const noexcept { return configured_; }
 
     /**
-     * @brief Get the 6x6 stiffness tensor
+     * @brief Ground-state (zero elastic strain) 6x6 stiffness.
+     *
+     * Named L0, not L, because it is the stiffness of the undeformed state and
+     * not necessarily the current tangent: a state-dependent elastic block has
+     * a tangent that moves with the strain (see evaluate()). It is what the
+     * mechanisms take as their reference — ViscoelasticMechanism inverts it
+     * once into the long-term compliance M_0, which must NOT follow the state.
+     *
      * @return Const reference to L
      */
-    [[nodiscard]] const arma::mat& L() const noexcept { return L_; }
+    [[nodiscard]] const arma::mat& L0() const noexcept { return L_; }
 
     /**
      * @brief Get the 6x6 compliance tensor
@@ -287,6 +294,40 @@ public:
     [[nodiscard]] tensor2 alpha_tensor() const {
         return strain(alpha_);
     }
+
+    // ========== Constitutive response ==========
+
+    /**
+     * @brief Elastic response at @p eps_el: stress and its tangent, in one pass.
+     *
+     * One entry point rather than a stress() and a tangent(), for two reasons:
+     * the return mapping always wants the pair, and a state-dependent block
+     * shares the expensive part between them — a hyperelastic potential builds
+     * \f$ \mathbf{b} \f$, \f$ J \f$ and the invariant derivatives once and
+     * produces both from those, exactly as the Finite/ kernels already do.
+     * Splitting them would either double that work per Newton iteration or
+     * force a mutable cache behind a const method.
+     *
+     * For the linear symmetries the response is the elastic predictor
+     * \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$ and the tangent is
+     * \f$ \mathbf{L} \f$ itself. Under NLGEOM the caller feeds the elastic
+     * LOGARITHMIC strain and the stress is Kirchhoff.
+     *
+     * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
+     * @param[in]  ndi number of direct stress components. ndi < 3 statically
+     *             condenses the STRESS only — the tangent is always the full
+     *             6x6, which is the pre-existing contract (the mechanisms have
+     *             always received an uncondensed stiffness). The condensation
+     *             is a property of a linear operator: a nonlinear block cannot
+     *             honour it, plane stress there being the constraint
+     *             \f$ \sigma_{33} = 0 \f$ solved by iterating on
+     *             \f$ \varepsilon_{33} \f$ one level up.
+     * @param[out] sigma stress (6-Voigt)
+     * @param[out] Lt tangent \f$ \partial \boldsymbol{\sigma} / \partial
+     *             \boldsymbol{\varepsilon}^{el} \f$ (6x6, never condensed)
+     */
+    void evaluate(const arma::vec& eps_el, int ndi,
+                  arma::vec& sigma, arma::mat& Lt) const;
 
     // ========== Derived Quantities ==========
 
