@@ -214,18 +214,6 @@ def test_ct3_spin_vs_file(tmp_path):
     assert np.abs(R_end - np.eye(3)).max() > 1e-3
 
 
-def test_ct5_F_control():
-    # simple shear driven by the full deformation gradient
-    F_target = np.eye(3)
-    F_target[0, 1] = 0.2
-    step = StepMeca(control="F", value=F_target.ravel(), ninc=50)
-    res = solve(Block(steps=[step], control_type="F"), "SNTVE", SNTVE_PROPS, 1,
-                T_init=290.0, corate="logarithmic")
-    assert res.status == 0
-    np.testing.assert_allclose(res["F"][0, 1, -1], 0.2, atol=1e-10)
-    assert abs(res["Stress"][3, -1]) > 1.0  # shear stress developed
-
-
 # ct5 is the only fully kinematic path (nK == 0) and the only caller of
 # step_meca::generate_kin, whose incremental F is built from arma::logmat /
 # arma::expmat -- code no other control type touches. Cover more than one
@@ -250,6 +238,18 @@ def test_ct5_F_variants(shape, corate):
     stress = res["Stress"][:, -1]
     assert np.isfinite(stress).all()
     assert np.abs(stress).max() > 1.0
+
+
+def test_ct5_F_control():
+    # simple shear driven by the full deformation gradient
+    F_target = np.eye(3)
+    F_target[0, 1] = 0.2
+    step = StepMeca(control="F", value=F_target.ravel(), ninc=50)
+    res = solve(Block(steps=[step], control_type="F"), "SNTVE", SNTVE_PROPS, 1,
+                T_init=290.0, corate="logarithmic")
+    assert res.status == 0
+    np.testing.assert_allclose(res["F"][0, 1, -1], 0.2, atol=1e-10)
+    assert abs(res["Stress"][3, -1]) > 1.0  # shear stress developed
 
 
 # ---------------------------------------------------------------------------
