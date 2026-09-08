@@ -128,7 +128,14 @@ def _assert_same(res_py, res_ref, rtol=1e-10, atol=1e-9, fields=("Stress", "Stra
     assert res_py.status == 0 and res_ref.status == 0
     assert len(res_py) == len(res_ref)
     for f in fields:
-        np.testing.assert_allclose(res_py[f], res_ref[f], rtol=rtol, atol=atol, err_msg=f)
+        ref = np.asarray(res_ref[f], dtype=float)
+        # The absolute tolerance has to follow the magnitude of the field. A stress component
+        # that is numerically zero sits next to components of 1e7 in the same array, and the
+        # two kernels reach it through a different order of floating-point operations (and,
+        # across platforms, a different BLAS): its residue is a few 1e-9, which is 1e-16 of
+        # the field and meaningless, but it defeats a fixed atol.
+        np.testing.assert_allclose(res_py[f], ref, rtol=rtol,
+                                   atol=atol + rtol * float(np.abs(ref).max()), err_msg=f)
 
 
 # ---------------------------------------------------------------------------
