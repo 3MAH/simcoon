@@ -50,7 +50,8 @@ enum class ElasticityType {
     ISOTROPIC = 0,              ///< Isotropic: conv, C1, C2, alpha
     CUBIC = 1,                  ///< Cubic: conv, C1, C2, C3, alpha (3 independent elastic constants)
     TRANSVERSE_ISOTROPIC = 2,   ///< Transverse isotropic: conv, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis
-    ORTHOTROPIC = 3             ///< Orthotropic: conv, C1..C9, alpha1, alpha2, alpha3
+    ORTHOTROPIC = 3,            ///< Orthotropic: conv, C1..C9, alpha1, alpha2, alpha3
+    HYPER_INVARIANTS = 4        ///< Hyperelastic potential in isochoric invariants: potential, n_params, params..., alpha
 };
 
 /**
@@ -127,6 +128,8 @@ private:
     arma::mat L_;           ///< 6x6 stiffness tensor
     arma::mat M_;           ///< 6x6 compliance tensor
     arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
+    int hyper_potential_;   ///< HYPER_INVARIANTS: ordinal in the shared potential table
+    arma::vec hyper_props_; ///< HYPER_INVARIANTS: that potential's own parameters
     tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
@@ -220,6 +223,29 @@ public:
      * @param alpha3 CTE in direction 3
      * @param conv Parameterization of the nine constants
      */
+    /**
+     * @brief Configure as a hyperelastic potential in isochoric invariants.
+     *
+     * The block stops being a constant stiffness: evaluate() then integrates
+     * the potential at the elastic strain it is handed. Under NLGEOM that
+     * strain is the elastic LOGARITHMIC strain, so the composition is the
+     * logarithmic-strain-space form of multiplicative finite strain (exact for
+     * isotropy), and the potential is bridged to it by
+     * \f$ \mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el}) \f$.
+     *
+     * L0() is the tangent of the potential at zero strain, obtained from the
+     * very same code path rather than from a per-potential closed form, so it
+     * cannot drift from evaluate(). It is still validated as positive definite
+     * by refresh_tensors(), which is a genuine admissibility check on the
+     * parameters.
+     *
+     * @param potential ordinal in the shared table (see hyper_potential_derivatives)
+     * @param params the potential's parameters
+     * @param alpha_scalar isotropic CTE
+     */
+    void configure_hyper_invariants(int potential, const arma::vec& params,
+                                    double alpha_scalar);
+
     void configure_orthotropic(double C1, double C2, double C3,
                                double C4, double C5, double C6,
                                double C7, double C8, double C9,
@@ -355,8 +381,17 @@ public:
             case ElasticityType::CUBIC:                return 5;   // conv, C1..C3, alpha
             case ElasticityType::TRANSVERSE_ISOTROPIC: return 9;   // conv, EL..GLT, alpha_L, alpha_T, axis
             case ElasticityType::ORTHOTROPIC:          return 13;  // conv, C1..C9, alpha1..3
+            case ElasticityType::HYPER_INVARIANTS:     return -1;  // variable: see the n_params slot
         }
         return 0;
+    }
+
+    /**
+     * @brief Props consumed by a HYPER_INVARIANTS block with @p n_params
+     *        potential parameters: potential, n_params, params..., alpha.
+     */
+    [[nodiscard]] static constexpr int hyper_props_count(int n_params) {
+        return 3 + n_params;
     }
 };
 

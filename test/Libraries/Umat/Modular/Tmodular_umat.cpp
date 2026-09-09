@@ -34,6 +34,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/parameter.hpp>
 
@@ -385,6 +387,112 @@ protected:
 
 // evaluate() is the seam a state-dependent elastic block will replace: assert
 // the contract it must keep, not just today's implementation.
+
+// ============================================================================
+// Hyperelastic elasticity block
+// ============================================================================
+// The whole point of the block: MODUL composed with a Yeoh potential and no
+// mechanism must BE the standalone YEOHH kernel. The bridge is
+// b_el = exp(2 eps_el), so the reference kernel is driven with F = exp(eps_el).
+
+namespace {
+
+// props for a mechanism-free MODUL: el_type=HYPER_INVARIANTS, potential,
+// n_params, params..., alpha, n_mechanisms=0
+vec modul_hyper_props(int potential, const vec& p, double alpha) {
+    vec v(5 + p.n_elem, fill::zeros);
+    v(0) = static_cast<double>(ElasticityType::HYPER_INVARIANTS);
+    v(1) = potential;
+    v(2) = static_cast<double>(p.n_elem);
+    v.subvec(3, 2 + p.n_elem) = p;
+    v(3 + p.n_elem) = alpha;
+    v(4 + p.n_elem) = 0.0;  // no mechanism
+    return v;
+}
+
+void run_modul(const vec& props, const vec& etot, vec& sigma, mat& Lt) {
+    mat L(6, 6, fill::zeros);
+    Lt.zeros(6, 6);
+    sigma.zeros(6);
+    vec statev(1, fill::zeros), de(6, fill::zeros);
+    double Wm = 0., Wr = 0., Wi = 0., Wd = 0., tnew_dt = 1.;
+    mat DR = eye(3, 3);
+    umat_modular("MODUL", etot, de, sigma, Lt, L, DR, static_cast<int>(props.n_elem),
+                 props, 1, statev, 293., 0., 0., 1., Wm, Wr, Wi, Wd, 3, 3, false,
+                 tnew_dt, tangent_algorithmic);
+}
+
+void run_yeohh(const vec& props, const mat& F1, vec& tau, mat& Lt) {
+    mat L(6, 6, fill::zeros);
+    Lt.zeros(6, 6);
+    vec sigma(6, fill::zeros), statev(1, fill::zeros);
+    vec e(6, fill::zeros), de(6, fill::zeros);
+    double Wm = 0., Wr = 0., Wi = 0., Wd = 0., tnew_dt = 1.;
+    mat DR = eye(3, 3), F0 = eye(3, 3);
+    umat_generic_hyper_invariants("YEOHH", e, de, F0, F1, sigma, Lt, L, DR,
+                                  static_cast<int>(props.n_elem), props, 1, statev,
+                                  293., 0., 0., 1., Wm, Wr, Wi, Wd, 3, 3, false,
+                                  tnew_dt, tangent_algorithmic);
+    tau = det(F1) * sigma;   // the finite kernels output Cauchy; MODUL outputs Kirchhoff
+}
+
+}  // namespace
+
+TEST(ModularHyperelastic, YeohMatchesStandaloneKernel) {
+    const vec p = {0.30, -0.010, 0.0005, 1000.0};   // C10, C20, C30, kappa
+    const vec pm = modul_hyper_props(2, p, 0.0);    // potential 2 = YEOHH
+
+    const std::vector<vec> cases = {
+        vec({0.28, -0.11, -0.09, 0.06, -0.03, 0.04}),  // generic, with shear
+        vec({0.15, -0.07, -0.07, 0.00, 0.00, 0.00}),   // two equal eigenvalues
+        vec({0.10, 0.10, 0.10, 0.00, 0.00, 0.00}),     // pure dilatation
+        vec({0.00, 0.00, 0.00, 0.00, 0.00, 0.00}),     // ground state
+    };
+    for (size_t k = 0; k < cases.size(); ++k) {
+        vec sigma_mod;
+        mat Lt_mod;
+        run_modul(pm, cases[k], sigma_mod, Lt_mod);
+
+        vec tau_ref;
+        mat Lt_ref;
+        run_yeohh(p, expmat_sym(v2t_strain(cases[k])), tau_ref, Lt_ref);
+
+        EXPECT_LT(norm(sigma_mod - tau_ref, 2), 1e-10 * std::max(1.0, norm(tau_ref, 2)))
+            << "stress, case " << k;
+        EXPECT_LT(norm(Lt_mod - Lt_ref, "fro"), 1e-9 * norm(Lt_ref, "fro"))
+            << "tangent, case " << k;
+    }
+}
+
+// L0 is built from the same path evaluate() uses, so it must equal both the
+// tangent at zero strain and the closed-form ground state L_iso(kappa, 2*C10).
+TEST(ModularHyperelastic, YeohGroundStateStiffness) {
+    ElasticityModule em;
+    const vec props = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
+    int offset = 0;
+    em.configure(ElasticityType::HYPER_INVARIANTS, props, offset);
+    EXPECT_EQ(offset, 7);
+
+    vec sigma;
+    mat Lt;
+    em.evaluate(zeros<vec>(6), 3, sigma, Lt);
+    EXPECT_LT(norm(sigma, 2), 1e-12);                       // natural state
+    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);
+
+    const mat L_ref = L_iso(1000.0, 2.0 * 0.30, "Kmu");     // kappa, mu = 2*C10
+    EXPECT_LT(norm(em.L0() - L_ref, "fro") / norm(L_ref, "fro"), 1e-9);
+}
+
+TEST(ModularHyperelastic, EvaluateRejectsReducedDimension) {
+    ElasticityModule em;
+    const vec props = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
+    int offset = 0;
+    em.configure(ElasticityType::HYPER_INVARIANTS, props, offset);
+    vec sigma;
+    mat Lt;
+    EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, sigma, Lt), std::runtime_error);
+}
+
 TEST_F(ElasticityModuleTest, EvaluateMatchesElasticPredictorAndTangent) {
     ElasticityModule em;
     vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha

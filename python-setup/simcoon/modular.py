@@ -29,7 +29,7 @@ Example
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import IntEnum
 from typing import List, Sequence, Tuple, Union
 
@@ -73,11 +73,12 @@ __all__ = [
 # ============================================================================
 
 class ElasticityType(IntEnum):
-    """Type of linear elasticity."""
+    """Type of elasticity block (the first four are linear)."""
     ISOTROPIC = 0
     CUBIC = 1
     TRANSVERSE_ISOTROPIC = 2
     ORTHOTROPIC = 3
+    HYPER_INVARIANTS = 4
 
 
 class IsoConvention(IntEnum):
@@ -429,6 +430,190 @@ Elasticity = Union[IsotropicElasticity, CubicElasticity,
 # ============================================================================
 # Yield criteria
 # ============================================================================
+
+# ---------------------------------------------------------------------------
+# Hyperelastic elasticity blocks (isochoric invariants)
+# ---------------------------------------------------------------------------
+# Unlike the four linear symmetries, these are not a constant stiffness: the
+# C++ block integrates the potential at the elastic strain it is handed. Under
+# finite strain (NLGEOM) that is the elastic LOGARITHMIC strain, bridged to the
+# potential by b_el = exp(2 eps_el) — so the composition is the
+# logarithmic-strain-space form of multiplicative finite strain, exact for an
+# isotropic material, and the mechanisms keep riding additively on ln V.
+#
+# Every potential shares the volumetric term U(J) = kappa (J ln J - J + 1), so
+# ``kappa`` is the bulk compressibility throughout. The ground-state stiffness
+# (what the mechanisms take as their reference) is computed by the C++ block
+# from the potential itself, not declared here.
+
+
+@dataclass(frozen=True)
+class _HyperInvariantsElasticity:
+    """Common serialization of an isochoric-invariant potential.
+
+    Props layout: ``[potential, n_params, params..., alpha]``. The potential
+    ordinal and the parameter list come from the concrete subclass, which is
+    what gives each model its own named arguments.
+    """
+    alpha: float = 0.0
+
+    @property
+    def elasticity_type(self) -> ElasticityType:
+        return ElasticityType.HYPER_INVARIANTS
+
+    @property
+    def potential(self) -> int:
+        raise NotImplementedError
+
+    def potential_params(self) -> List[float]:
+        raise NotImplementedError
+
+    def to_props(self) -> List[float]:
+        """Return the props values for this elasticity."""
+        params = self.potential_params()
+        return [float(self.potential), float(len(params))] + list(params) + [self.alpha]
+
+    @property
+    def nprops(self) -> int:
+        return 3 + len(self.potential_params())
+
+
+@dataclass(frozen=True)
+class NeoHookeanElasticity(_HyperInvariantsElasticity):
+    r"""Compressible neo-Hookean potential (the ``NEOHC`` UMAT's).
+
+    :math:`W = \frac{\mu}{2}(\bar{I}_1 - 3) + \kappa (J \ln J - J + 1)`
+
+    Parameters
+    ----------
+    mu : float
+        Ground-state shear modulus.
+    kappa : float
+        Bulk compressibility.
+    alpha : float
+        Coefficient of thermal expansion.
+    """
+    mu: float = 0.0
+    kappa: float = 0.0
+
+    @property
+    def potential(self) -> int:
+        return 0
+
+    def potential_params(self) -> List[float]:
+        return [self.mu, self.kappa]
+
+
+@dataclass(frozen=True)
+class MooneyRivlinElasticity(_HyperInvariantsElasticity):
+    r"""Mooney-Rivlin potential (the ``MOORI`` UMAT's).
+
+    :math:`W = C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3) + \kappa (J \ln J - J + 1)`
+    """
+    C10: float = 0.0
+    C01: float = 0.0
+    kappa: float = 0.0
+
+    @property
+    def potential(self) -> int:
+        return 1
+
+    def potential_params(self) -> List[float]:
+        return [self.C10, self.C01, self.kappa]
+
+
+@dataclass(frozen=True)
+class YeohElasticity(_HyperInvariantsElasticity):
+    r"""Yeoh potential (the ``YEOHH`` UMAT's).
+
+    :math:`W = C_{10}(\bar{I}_1 - 3) + C_{20}(\bar{I}_1 - 3)^2
+    + C_{30}(\bar{I}_1 - 3)^3 + \kappa (J \ln J - J + 1)`
+
+    The ground-state shear modulus is :math:`\mu = 2 C_{10}`; the higher-order
+    terms carry the upturn at large stretch that a neo-Hookean cannot fit.
+
+    Examples
+    --------
+    >>> YeohElasticity(C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.)
+    """
+    C10: float = 0.0
+    C20: float = 0.0
+    C30: float = 0.0
+    kappa: float = 0.0
+
+    @property
+    def potential(self) -> int:
+        return 2
+
+    def potential_params(self) -> List[float]:
+        return [self.C10, self.C20, self.C30, self.kappa]
+
+
+@dataclass(frozen=True)
+class IsiharaElasticity(_HyperInvariantsElasticity):
+    """Isihara potential (the ``ISHAH`` UMAT's)."""
+    C10: float = 0.0
+    C20: float = 0.0
+    C01: float = 0.0
+    kappa: float = 0.0
+
+    @property
+    def potential(self) -> int:
+        return 3
+
+    def potential_params(self) -> List[float]:
+        return [self.C10, self.C20, self.C01, self.kappa]
+
+
+@dataclass(frozen=True)
+class GentThomasElasticity(_HyperInvariantsElasticity):
+    r"""Gent-Thomas potential (the ``GETHH`` UMAT's).
+
+    :math:`W = c_1(\bar{I}_1 - 3) + c_2 \ln(\bar{I}_2 / 3) + \kappa (J \ln J - J + 1)`
+    """
+    c1: float = 0.0
+    c2: float = 0.0
+    kappa: float = 0.0
+
+    @property
+    def potential(self) -> int:
+        return 4
+
+    def potential_params(self) -> List[float]:
+        return [self.c1, self.c2, self.kappa]
+
+
+@dataclass(frozen=True)
+class SwansonElasticity(_HyperInvariantsElasticity):
+    """Swanson potential (the ``SWANH`` UMAT's), N terms.
+
+    Parameters
+    ----------
+    terms : sequence of (A, B, alpha, beta) tuples
+        One tuple per term; all four values are required.
+    kappa : float
+        Bulk compressibility.
+    """
+    terms: Tuple[Tuple[float, float, float, float], ...] = ()
+    kappa: float = 0.0
+
+    def __post_init__(self):
+        for i, term in enumerate(self.terms):
+            if len(term) != 4:
+                raise TypeError(
+                    f"SwansonElasticity.terms[{i}] must be (A, B, alpha, beta); "
+                    f"got {len(term)} values.")
+
+    @property
+    def potential(self) -> int:
+        return 5
+
+    def potential_params(self) -> List[float]:
+        params: List[float] = [float(len(self.terms)), self.kappa]
+        for A, B, a, b in self.terms:
+            params.extend([A, B, a, b])
+        return params
+
 
 @dataclass(frozen=True)
 class VonMisesYield:
@@ -1196,6 +1381,16 @@ class ModularMaterial:
             lines.append(f"    C4={el.C4}, C5={el.C5}, C6={el.C6}")
             lines.append(f"    C7={el.C7}, C8={el.C8}, C9={el.C9} [{el.convention.name}]")
             lines.append(f"    alpha1={el.alpha1}, alpha2={el.alpha2}, alpha3={el.alpha3}")
+        elif isinstance(el, SwansonElasticity):
+            lines.append(f"    {len(el.terms)} Swanson terms (A, B, alpha, beta), "
+                         f"kappa={el.kappa}, alpha={el.alpha}")
+            for k, term in enumerate(el.terms):
+                A, B, a, b = term
+                lines.append(f"      [{k}] A={A}, B={B}, alpha={a}, beta={b}")
+        elif isinstance(el, _HyperInvariantsElasticity):
+            named = [f.name for f in fields(el) if f.name != "alpha"]
+            params = ", ".join(f"{n}={getattr(el, n)}" for n in named)
+            lines.append(f"    {params}, alpha={el.alpha}")
 
         if not self._mechanisms:
             lines.append("  Mechanisms: (none - pure elastic)")
