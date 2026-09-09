@@ -18,6 +18,7 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/pyumat.hpp>
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/tensor.hpp>
@@ -69,6 +70,9 @@ PYBIND11_MODULE(_core, m)
     py::register_exception<simcoon::exception_expmat_sym>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_powmat>(m, "CppExceptionPowMat", SimcoonError.ptr());
     py::register_exception<simcoon::exception_solver>(m, "CppExceptionSolver", SimcoonError.ptr());
+
+    // Python-callback UMAT ('PYEXT'): StepCut, register/unregister/has_python_umat
+    init_pyumat(m);
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a = true, simcoon_docs::Ireal);

@@ -81,12 +81,6 @@ pip install scikit-build-core pybind11 numpy  # build dependencies
 pip install simcoon --no-binary simcoon --no-build-isolation
 ```
 
-Using Homebrew (macOS):
-```bash
-brew install armadillo
-pip install simcoon --no-binary simcoon
-```
-
 Using apt (Debian/Ubuntu):
 ```bash
 sudo apt-get install libarmadillo-dev
@@ -138,11 +132,7 @@ cd simcoon
 sudo apt-get install libarmadillo-dev libgtest-dev ninja-build
 ```
 
-- On macOS with Homebrew:
-
-```bash
-brew install armadillo googletest
-```
+- On macOS: use the conda environment (`environment_arm64.yml`, conda-forge armadillo and gtest). Do not use Homebrew packages inside a conda environment: they bring a second OpenMP runtime (see the installation docs, "Duplicate OpenMP runtimes on macOS"; check with `python -m simcoon.doctor`).
 
 - On Windows with vcpkg:
 

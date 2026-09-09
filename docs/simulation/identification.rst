@@ -222,6 +222,9 @@ Built-in metrics (numpy only, no extra dependency):
   identification.
 - ``"rmse"`` — Root Mean Squared Error
 - ``"mae"`` — Mean Absolute Error
+- ``"mape"`` — Mean Absolute Percentage Error (scikit-learn definition)
+- ``"wmape"`` — weighted MAPE, ``sum(w |y_exp - y_num|) / sum(w |y_exp|)``
+  (robust to responses crossing zero)
 
 With ``scikit-learn`` installed (``pip install simcoon[identify]``):
 

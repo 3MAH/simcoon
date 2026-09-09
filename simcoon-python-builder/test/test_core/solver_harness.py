@@ -97,3 +97,12 @@ def run_path(base_dir, umat_name, props, nstatev, corate, path_text):
         0.0, 0.0, 0.0, 0, corate, dd, rd, "path.txt", "res.txt",
     )
     return np.loadtxt(os.path.join(rd, "res_global-0.txt"), ndmin=2)
+
+
+def call_pyumat_batch(etot, Detot, sigma, DR, Wm, nstatev=0, time=0.5, dtime=1.0, **kw):
+    """``sim.umat("PYEXT", ...)`` on Fortran-ordered ``(., n)`` batches with empty F0/F1 and
+    props (the registered Python law holds its own parameters)."""
+    n = etot.shape[1]
+    return sim.umat("PYEXT", etot, Detot, np.array([]), np.array([]), sigma, DR,
+                    np.zeros((0, 1), order="F"), np.zeros((nstatev, n), order="F"),
+                    time, dtime, Wm, **kw)

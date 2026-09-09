@@ -199,6 +199,15 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
                 run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                if (tnew_dt < 1.) {
+                    // Nothing to subdivide here (the increment is zero): the law refused the
+                    // priming call and Lt is still the zeros set a few lines above, which would
+                    // surface later as a singular Jacobian. Report the real cause.
+                    throw simcoon::exception_solver(
+                        "block " + std::to_string(i + 1) + ": the constitutive law requested a step "
+                        "cut on the zero-increment call that primes the tangent operator; no "
+                        "tangent could be obtained to start the block.");
+                }
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
@@ -272,7 +281,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                             while (tinc<1.) {
                                 
                                 try {
-                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
+                                if (!sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver)) {
+                                    return 1; // increment below Dn_mini with inforce off
+                                }
                                                              
                                 if(nK == 0){
                                     
@@ -840,7 +851,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                             while (tinc<1.) {
 
                                 try {
-                                sptr_thermomeca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
+                                if (!sptr_thermomeca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver)) {
+                                    return 1; // increment below Dn_mini with inforce off
+                                }
                                 
                                 if(nK + sptr_thermomeca->cBC_T == 0){
                                     

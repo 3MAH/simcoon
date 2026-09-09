@@ -36,6 +36,7 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Continuum_mechanics/tensor.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/transfer.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/umat.cpp
+  src/python_wrappers/Libraries/Continuum_mechanics/pyumat.cpp
 
   # Homogenization
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp

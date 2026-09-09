@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence, Union
+import contextlib
+from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
 import simcoon._core as _core
+from simcoon.pyumat import UMAT_NAME, registered
 
-from .blocks import Block, StepMeca
+from .blocks import Block, StepMeca, StepThermomeca
 from .maps import CORATE_TYPES, TANGENT_MODES, as_code, tangent_default
 from .results import SolverResults
 
 
 def solve(
     blocks: Union[Block, StepMeca, Sequence[Union[Block, StepMeca]]],
-    umat_name: str,
-    props: Sequence[float],
-    nstatev: int,
+    umat_name: Union[str, Any, Callable],
+    props: Optional[Sequence[float]] = None,
+    nstatev: Optional[int] = None,
     T_init: float = 293.15,
     corate: Union[str, int, None] = None,
     tangent_mode: Union[str, int] = tangent_default,
@@ -33,12 +35,19 @@ def solve(
     ----------
     blocks : Block, StepMeca or sequence of them
         The loading path. Bare steps are wrapped in a small-strain Block.
-    umat_name : str
-        Constitutive model name (5 characters, e.g. 'ELISO', 'EPICP', 'MODUL').
-    props : array-like
-        Material properties.
-    nstatev : int
-        Number of internal state variables.
+    umat_name : str, PythonUMAT or callable
+        Constitutive model: either the name of a built-in model (5 characters,
+        e.g. 'ELISO', 'EPICP', 'MODUL') or a constitutive law written in Python
+        (a :class:`simcoon.PythonUMAT` instance, or any callable with its
+        ``integrate`` keyword signature). A Python law is registered under the
+        ``PYEXT`` name for the duration of the call and integrated by the C++
+        solver exactly like a built-in kernel.
+    props : array-like, optional
+        Material properties. Required for a built-in model; defaults to the
+        ``props`` attribute of a Python law.
+    nstatev : int, optional
+        Number of internal state variables. Required for a built-in model;
+        defaults to the ``nstatev`` attribute of a Python law.
     T_init : float
         Initial temperature.
     corate : str, int or None
@@ -60,7 +69,9 @@ def solve(
         thermomechanical tangents).
     raise_on_abort : bool
         Raise a RuntimeError when the solver aborts early (status != 0)
-        instead of returning the partial history.
+        instead of returning the partial history. The solver aborts when the
+        Newton loop does not converge at the minimal increment, or when the
+        increment falls below ``Dn_mini`` with ``inforce=0``.
     **params
         Numeric solver controls forwarded to the C++ loop: div_tnew_dt,
         mul_tnew_dt, miniter, maxiter, inforce, precision, lambda_solver
@@ -75,6 +86,30 @@ def solve(
         blocks = [blocks]
     blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
 
+    if isinstance(umat_name, str):
+        if props is None or nstatev is None:
+            raise TypeError(
+                "props and nstatev are required when umat_name is a built-in model name"
+            )
+        law_ctx = contextlib.nullcontext()
+    else:
+        # Python law: served under PYEXT for the duration of the solve. The thermomechanical
+        # dispatch (select_umat_T) has no PYEXT entry, so reject those blocks here with a clear
+        # message instead of a C++ "Unknown umat name" from deep inside the solve.
+        for b in blocks:
+            if any(isinstance(st, StepThermomeca) for st in b.steps):
+                raise TypeError(
+                    "a constitutive law written in Python (PYEXT) cannot serve a thermomechanical "
+                    "block: only the mechanical dispatch supports it. Use a built-in "
+                    "thermomechanical UMAT name, or drive the coupling from Python."
+                )
+        if props is None:
+            props = getattr(umat_name, "props", np.zeros(0))
+        if nstatev is None:
+            nstatev = getattr(umat_name, "nstatev", 0)
+        law_ctx = registered(umat_name)
+        umat_name = UMAT_NAME
+
     if corate is None:
         corate = "logarithmic_R"
     corate_code = as_code(corate, CORATE_TYPES, "corate")
@@ -88,18 +123,19 @@ def solve(
         T_run = b.T_end(T_run)
 
     psi, theta, phi = (float(x) for x in orientation)
-    raw = _core.solver_run(
-        blocks_py,
-        float(T_init),
-        umat_name,
-        np.asarray(props, dtype=float).ravel(),
-        int(nstatev),
-        psi, theta, phi,
-        int(solver_type),
-        corate_code,
-        run_params,
-        bool(record_tangent),
-    )
+    with law_ctx:
+        raw = _core.solver_run(
+            blocks_py,
+            float(T_init),
+            umat_name,
+            np.asarray(props, dtype=float).ravel(),
+            int(nstatev),
+            psi, theta, phi,
+            int(solver_type),
+            corate_code,
+            run_params,
+            bool(record_tangent),
+        )
     res = SolverResults(raw)
     if raise_on_abort and res.status != 0:
         raise RuntimeError(

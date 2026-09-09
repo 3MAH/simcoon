@@ -138,7 +138,9 @@ protected:
      * @param Dn Increment fraction (output)
      * @param control Increment control flag
      */
-    virtual void compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
+    /// @return false when the increment fell below Dn_mini and inforce is off: the solver
+    ///         then aborts with status 1 (same protocol as a non-converged Newton loop).
+    virtual bool compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
     
     /**
      * @brief Assignment operator.
