@@ -654,34 +654,14 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     }
                                     
                                 }
-/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
-//                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }
-                                
-                                if((error > 1000.*precision_solver)&&(Dtinc_cur == sptr_meca->Dn_mini)) {
-//                                    cout << "The error has exceeded 100 times the precision, the simulation has stopped at " << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }*/
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
                                         if(inforce_solver == 1) {
                                             
-                                            // The inforce path is a *correction*: it closes an increment
-                                            // that did not quite converge and carries the residual into
-                                            // the next one, which absorbs it. That only works if the
-                                            // prescribed state is reachable. When it is not - a stress
-                                            // target above the plateau of a perfectly plastic law, or
-                                            // above the saturation of a surrogate model - the residual is
-                                            // never absorbed, the path closes every remaining increment,
-                                            // and the run used to end with status 0 on a state it never
-                                            // reached. Delta = -invK*residual is the strain the Newton
-                                            // loop would need to close the gap; it diverges as the
-                                            // tangent collapses, which is what makes the target
-                                            // unreachable rather than merely hard.
+                                            // Give up when the carried residual is not being absorbed:
+                                            // the prescribed state is out of reach, not merely hard.
+                                            // Status protocol, never a throw (see solver_sink.hpp).
                                             if (n_inforced == 0) {
                                                 error_inforced = error;
                                             }
@@ -750,13 +730,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
-                                // DTime is otherwise only assigned inside the branch that assembles
-                                // and calls the UMAT. On the inforce path that branch is skipped while
-                                // Dtinc has shrunk to Dn_mini, so assess_inc used to add a stale
-                                // full-increment DTime once per forced sub-iteration, inflating Time by
-                                // 1/Dn_mini. Recompute it from the fraction actually being accepted;
-                                // every branch above uses this same expression, so this is a no-op
-                                // whenever one of them ran.
+                                // Every branch above assigns this same expression, but only when it
+                                // runs: the inforce path skips them while Dtinc has shrunk to Dn_mini,
+                                // and assess_inc would then add a stale full-increment DTime once per
+                                // forced sub-iteration. Recompute from the fraction actually accepted.
                                 DTime = Dtinc*sptr_meca->times(inc);
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
