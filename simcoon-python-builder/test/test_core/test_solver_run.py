@@ -219,12 +219,21 @@ def test_ct3_spin_vs_file(tmp_path):
 # arma::expmat -- code no other control type touches. Cover more than one
 # target shape and corate through it: a diagonal target makes log(F_target)
 # symmetric, which takes a different branch of expmat than the shear one.
+# Ordered least-exotic first on purpose: a native crash ends the whole pytest
+# process, so the cases that exercise the plainest code path must run before the
+# ones that add a branch, otherwise a failure downstream hides everything.
+# "stretch" keeps log(F_target) symmetric and its norm under the inverse
+# scaling-and-squaring cutoff; "big_stretch" is still symmetric but crosses the
+# cutoff, so the Denman-Beavers square-root loop runs; "shear" is the
+# non-symmetric case.
 @pytest.mark.parametrize("corate", ["jaumann", "logarithmic"])
-@pytest.mark.parametrize("shape", ["shear", "stretch"])
+@pytest.mark.parametrize("shape", ["stretch", "big_stretch", "shear"])
 def test_ct5_F_variants(shape, corate):
     if shape == "shear":
         F_target = np.eye(3)
         F_target[0, 1] = 0.2
+    elif shape == "big_stretch":
+        F_target = np.diag([1.6, 1.0, 1.0])
     else:
         F_target = np.diag([1.05, 1.0, 1.0])
 

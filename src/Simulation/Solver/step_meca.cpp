@@ -257,6 +257,14 @@ void step_meca::generate(const double &mTime, const vec &mEtot, const vec &msigm
     
 }
 
+// TEMPORARY DEBUG INSTRUMENTATION -- do not merge.
+// Unbuffered stderr markers around every LAPACK-backed arma call reachable from
+// generate_kin. A hard SEGV cannot unwind, so the LAST marker printed names the
+// call that did not return.
+#include <cstdio>
+static inline int gk_(const char* m) { std::fputs(m, stderr); std::fputc('\n', stderr); std::fflush(stderr); return 0; }
+#define GK(msg) gk_("GK> " msg)   /* expression form: usable inside a comma operator */
+
 namespace {
 
 // Real 3x3 matrix logarithm via inverse scaling-and-squaring with
@@ -272,16 +280,25 @@ bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
     arma::mat A = A_in;
     int k = 0;
     // Square-root until A is close to I (log converges fast there).
-    while (arma::norm(A - I, 2) > 0.25) {
+    // Frobenius, not the spectral norm: norm(X,2) is a full SVD (LAPACK
+    // dgesdd) used here only as a proximity test, and ||.||_2 <= ||.||_F
+    // always, so the 0.25 cutoff stays at least as conservative.
+    GK("logmat: enter");
+    while (GK("logmat: norm(A-I) before"), arma::norm(A - I, "fro") > 0.25) {
+        GK("logmat: norm(A-I) after -> sqrt loop");
         if (++k > 40) return false;
         arma::mat Y = A, Z = I;   // Denman-Beavers: Y -> sqrt(A)
         bool converged = false;
         for (int it = 0; it < 60; ++it) {
             arma::mat Zi, Yi;
+            GK("logmat: inv(Z)/inv(Y) before");
             if (!arma::inv(Zi, Z) || !arma::inv(Yi, Y)) return false;
+            GK("logmat: inv(Z)/inv(Y) after");
             const arma::mat Yn = 0.5 * (Y + Zi);
             const arma::mat Zn = 0.5 * (Z + Yi);
-            converged = arma::norm(Yn - Y, 2) <= 1e-14 * arma::norm(Yn, 2);
+            GK("logmat: norm(Yn-Y) before");
+            converged = arma::norm(Yn - Y, "fro") <= 1e-14 * arma::norm(Yn, "fro");
+            GK("logmat: norm(Yn-Y) after");
             Y = Yn; Z = Zn;
             if (converged) break;
         }
@@ -290,7 +307,9 @@ bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
     }
     // Gregory (atanh) series: log A = 2 * sum z^(2m+1)/(2m+1), z = (A-I)(A+I)^-1.
     arma::mat ApIi;
+    GK("logmat: inv(A+I) before");
     if (!arma::inv(ApIi, A + I)) return false;
+    GK("logmat: inv(A+I) after");
     const arma::mat z = (A - I) * ApIi;
     const arma::mat z2 = z * z;
     arma::mat S = arma::zeros(3, 3);
@@ -350,7 +369,9 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
 
         // Relative deformation over the step
         arma::mat F_prev_inv;
+        GK("generate_kin: inv(F_prev) before");
         bool inv_success = arma::inv(F_prev_inv, F_prev);
+        GK("generate_kin: inv(F_prev) after");
         if (!inv_success) {
             throw simcoon::exception_solver("Singular deformation gradient F_prev in step_meca::generate_kin.");
         }
@@ -360,8 +381,11 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         // (portable — see real_logmat_3x3), arma::logmat (complex Schur) only
         // as a fallback for pathological steps.
         arma::mat logF;
+        GK("generate_kin: real_logmat_3x3 before");
         if (!real_logmat_3x3(F_tilde, logF)) {
+            GK("generate_kin: real_logmat_3x3 FAILED -> arma::logmat fallback");
             logF = arma::real(arma::logmat(F_tilde));
+            GK("generate_kin: arma::logmat after");
         }
 
         // Normalization of incremental weights
@@ -373,6 +397,7 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
         }
 
         // Initialize deformation at start of step
+        GK("generate_kin: log done, entering increment loop");
         arma::mat F_i = F_prev;
 
         for (unsigned int inc = 0; inc < ninc; ++inc) {
@@ -384,7 +409,9 @@ void step_meca::generate_kin(const double &mTime, const mat &mF, const double &m
             arma::mat delta_L = (inc_coef(inc) / wsum) * logF;
 
             // Exponential map (real Pade scaling-and-squaring — no LAPACK Schur)
+            if (inc < 3) GK("generate_kin: expmat before");
             arma::mat D_i = arma::expmat(delta_L);
+            if (inc < 3) GK("generate_kin: expmat after");
 
             // Multiplicative update
             F_i = D_i * F_i;
