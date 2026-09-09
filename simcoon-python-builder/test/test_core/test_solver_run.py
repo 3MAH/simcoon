@@ -214,6 +214,41 @@ def test_ct3_spin_vs_file(tmp_path):
     assert np.abs(R_end - np.eye(3)).max() > 1e-3
 
 
+# ct5 is the only fully kinematic path (nK == 0) and the only caller of
+# step_meca::generate_kin, whose incremental F is built from arma::logmat /
+# arma::expmat -- code no other control type touches. Cover more than one
+# target shape and corate through it: a diagonal target makes log(F_target)
+# symmetric, which takes a different branch of expmat than the shear one.
+# Ordered least-exotic first on purpose: a native crash ends the whole pytest
+# process, so the cases that exercise the plainest code path must run before the
+# ones that add a branch, otherwise a failure downstream hides everything.
+# "stretch" keeps log(F_target) symmetric and its norm under the inverse
+# scaling-and-squaring cutoff; "big_stretch" is still symmetric but crosses the
+# cutoff, so the Denman-Beavers square-root loop runs; "shear" is the
+# non-symmetric case.
+@pytest.mark.parametrize("corate", ["jaumann", "logarithmic"])
+@pytest.mark.parametrize("shape", ["stretch", "big_stretch", "shear"])
+def test_ct5_F_variants(shape, corate):
+    if shape == "shear":
+        F_target = np.eye(3)
+        F_target[0, 1] = 0.2
+    elif shape == "big_stretch":
+        F_target = np.diag([1.6, 1.0, 1.0])
+    else:
+        F_target = np.diag([1.05, 1.0, 1.0])
+
+    step = StepMeca(control="F", value=F_target.ravel(), ninc=10)
+    res = solve(Block(steps=[step], control_type="F"), "ELISO", ELISO_PROPS, 1,
+                T_init=290.0, corate=corate)
+
+    assert res.status == 0
+    # the prescribed gradient is reached exactly at the end of the step
+    np.testing.assert_allclose(res["F"][:, :, -1], F_target, atol=1e-10)
+    stress = res["Stress"][:, -1]
+    assert np.isfinite(stress).all()
+    assert np.abs(stress).max() > 1.0
+
+
 def test_ct5_F_control():
     # simple shear driven by the full deformation gradient
     F_target = np.eye(3)
