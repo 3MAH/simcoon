@@ -264,11 +264,13 @@ public:
     // ========== State Management ==========
 
     /**
-     * @brief Copy current value to start value
+     * @brief Store the current value as the start-of-increment value.
      *
-     * Call at the beginning of an increment to save the state.
+     * Call at the beginning of an increment to save the state. Named after
+     * state_variables::set_start, which performs the same start <- current copy;
+     * to_start means the opposite (rollback) everywhere else in simcoon.
      */
-    void to_start();
+    void set_start();
 
     /**
      * @brief Apply rotation for objectivity

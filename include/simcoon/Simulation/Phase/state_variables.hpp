@@ -178,13 +178,22 @@ class state_variables
 		virtual int dimstatev () const {return nstatev;}
         
         /**
-         * @brief Copy current values to start-of-increment values.
+         * @brief Reset the current values to the start-of-increment values.
+         *
+         * Rollback: sets sigma = sigma_start, statev = statev_start, ... Called before
+         * every trial evaluation of the constitutive routine and when an increment is
+         * rejected (step cut), so that a trial never moves the state of the material.
          */
         virtual void to_start();
         
         /**
-         * @brief Set current values from start-of-increment values.
-         * @param control Control flag for selective update
+         * @brief Store the current values as the start-of-increment values.
+         *
+         * Acceptance of the increment: sets sigma_start = sigma, statev_start = statev,
+         * accumulates the total strain and temperature and advances the configuration
+         * (F0 = F1). Called once the increment has converged.
+         * @param control Corotational rate type, which selects how the accepted
+         * quantities are transported (see the implementation).
          */
         virtual void set_start(const int &control);
     

@@ -307,7 +307,7 @@ void ModularUMAT::run(
     // Save start values
     sigma_start_ = sigma;
     for (auto& mech : mechanisms_) {
-        mech->to_start();
+        mech->set_start();
     }
 
     // Set elastic stiffness

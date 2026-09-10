@@ -205,7 +205,7 @@ arma::vec InternalVariable::delta_vec() const {
 
 // ========== State Management ==========
 
-void InternalVariable::to_start() {
+void InternalVariable::set_start() {
     switch (type_) {
         case IVarType::SCALAR:
             scalar_start_ = scalar_value_;
