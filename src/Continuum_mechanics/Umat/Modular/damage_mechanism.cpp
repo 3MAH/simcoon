@@ -160,8 +160,12 @@ void DamageMechanism::compute_constraints(
     D_current_ = ivc_.get("D").scalar();
     double Y_max = ivc_.get("Y_max").scalar();
 
-    // Compute and cache compliance (raw + typed) on first use.
-    if (!M_cached_valid_) {
+    // Cache the compliance (raw + typed), keyed on the stiffness it inverts: L
+    // is the tangent of the current elastic state, which a state-dependent
+    // (hyperelastic) block moves at every refresh, while a linear block keeps
+    // it fixed and pays a single inversion.
+    if (!M_cached_valid_ || !arma::approx_equal(L, L_cached_, "absdiff", 0.0)) {
+        L_cached_ = L;
         M_cached_ = arma::inv(L);
         M_cached_t_ = tensor4(M_cached_, Tensor4Type::compliance);
         M_cached_valid_ = true;

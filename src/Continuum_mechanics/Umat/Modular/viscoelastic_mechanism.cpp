@@ -91,6 +91,7 @@ void ViscoelasticMechanism::register_variables() {
 }
 
 void ViscoelasticMechanism::set_reference_stiffness(const arma::mat& L_0) {
+    L_0_ = L_0;
     M_0_ = arma::inv(L_0);
     // Pre-multiply (M_0 · L_i) once — both factors are frozen for the step.
     for (int i = 0; i < N_prony_; ++i) {
@@ -101,7 +102,7 @@ void ViscoelasticMechanism::set_reference_stiffness(const arma::mat& L_0) {
 void ViscoelasticMechanism::compute_constraints(
     const arma::vec& /*sigma*/,
     const arma::vec& E_total,
-    const arma::mat& /*L*/,
+    const arma::mat& L,
     double DTime,
     arma::vec& Phi,
     arma::vec& Y_crit
@@ -109,13 +110,22 @@ void ViscoelasticMechanism::compute_constraints(
     Phi.set_size(N_prony_);
     Y_crit.set_size(N_prony_);
 
+    // The stress sees EV_i through the inelastic strain M_0 L_i EV_i, so
+    // d(sigma)/d(v_i) = -L M_0 L_i Lambda_i with L the current elastic tangent.
+    // At the reference (every linear block) that is -L_i Lambda_i: keep the
+    // exact short product there, the full one for a state-dependent block.
+    const bool at_reference = L_0_.is_empty() || arma::approx_equal(L, L_0_, "absdiff", 0.0);
+
     for (int i = 0; i < N_prony_; ++i) {
         const arma::vec& EV_i = ivc_.get(ev_key_[i]).raw_voigt();
 
         // Branch flow rate: driving stress through branch viscosity.
         flow_i_[i] = invH_i_[i] * (L_i_[i] * (E_total - EV_i));
         Lambda_i_[i] = eta_norm_strain(flow_i_[i]);
-        kappa_i_[i] = L_i_[i] * Lambda_i_[i];
+        // The branch's own rate sensitivity goes through its spring L_i, never
+        // through the elastic block.
+        const arma::vec L_Lambda_i = L_i_[i] * Lambda_i_[i];
+        kappa_i_[i] = at_reference ? L_Lambda_i : arma::vec(L * (M0_L_i_[i] * Lambda_i_[i]));
         // dPhi_i/dv_i stress-type term (Prony_Nfast line 188)
         dPhi_i_dv_[i] = invH_i_[i] * (Lambda_i_[i] % Ir05());
 
@@ -124,10 +134,10 @@ void ViscoelasticMechanism::compute_constraints(
 
         if (DTime > simcoon::iota) {
             Phi(i) = flow_mag - Delta_v_i / DTime;
-            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], kappa_i_[i]) - 1.0 / DTime;
+            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i) - 1.0 / DTime;
         } else {
             Phi(i) = flow_mag;
-            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], kappa_i_[i]);
+            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i);
         }
 
         Y_crit(i) = std::max(flow_mag, simcoon::precision_umat);
@@ -150,7 +160,7 @@ void ViscoelasticMechanism::compute_jacobian_contribution(
 
 const std::vector<tensor2>& ViscoelasticMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
-    // Typed mirror of the cached [L_i · Lambda_i] per branch.
+    // Typed mirror of the cached d(sigma)/d(v_i) per branch.
     for (int i = 0; i < N_prony_; ++i) {
         kappa_t_[i] = stress(kappa_i_[i]);
     }

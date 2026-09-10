@@ -23,16 +23,13 @@
 #include <fstream>
 #include <map>
 #include <armadillo>
-#include <math.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
-#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
-#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 
@@ -73,10 +70,10 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     }     
     vec I_bar = isochoric_invariants(b, J);
 
-    // The 5-letter UMAT name selects a potential from the shared table in
-    // hyperelastic.hpp; the potentials themselves live there so that the
-    // modular composition uses the same ones.
-    static const std::map<string, int> list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2},{"ISHAH",3},{"GETHH",4},{"SWANH",5}};
+    static const std::map<string, HyperPotential> list_potentials = {
+        {"NEOHC", HyperPotential::NEOHC}, {"MOORI", HyperPotential::MOORI},
+        {"YEOHH", HyperPotential::YEOHH}, {"ISHAH", HyperPotential::ISHAH},
+        {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH}};
 
     auto it_potential = list_potentials.find(umat_name);
     if (it_potential == list_potentials.end()) {
@@ -102,12 +99,6 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         L = Lt;
     }
 
-/*    cout << "L = " << L << endl;
-    cout << "Lt = " << Lt << endl;
-    cout << "Lt_iso = " << Lt_iso << endl;    
-    cout << "Lt_vol = " << Lt_vol << endl;        
-    cout << "eig(Lt)" << eig_sym(Lt);
-*/    
     //Computation of the mechanical and thermal work quantities.
     // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
     double J0 = det(F0);

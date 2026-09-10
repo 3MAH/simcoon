@@ -27,7 +27,6 @@
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <map>
 #include <stdexcept>
 
 using namespace std;
@@ -544,8 +543,13 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
 
     mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
 
-    mat gamma_1 = (4./3.)*(I_bar(0)*Idev() - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
-    mat gamma_2 = (8./3.)*(I_bar(1)*(Ireal() - 2.*Ivol()) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+    // Constant identities built once, not at every Newton iterate
+    static const mat I_real = Ireal();
+    static const mat I_vol = Ivol();
+    static const mat I_dev = Idev();
+
+    mat gamma_1 = (4./3.)*(I_bar(0)*I_dev - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
+    mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
                     + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
     mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
     mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
@@ -564,107 +568,114 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
             throw simcoon::exception_det("Error in det function inside L_vol_hyper.");
         } 
     }
-    return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();
+    static const mat I_real = Ireal();
+    static const mat I_vol = Ivol();
+    return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
 }
 
 
-hyper_invariants_dW hyper_potential_derivatives(const int &potential, const vec &props, const vec &I_bar, const double &J) {
+namespace {
+
+// props(i) is unchecked in release builds: a short props vector would be read
+// out of bounds silently.
+void require_props(const vec &props, const uword n, const char *name) {
+    if (props.n_elem < n) {
+        throw std::invalid_argument(std::string("hyper_potential_derivatives: ") + name + " needs "
+                                    + std::to_string(n) + " parameters, got "
+                                    + std::to_string(props.n_elem));
+    }
+}
+
+}  // namespace
+
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J) {
 
     hyper_invariants_dW dW;
+    double kappa = 0.;  // every potential shares U(J) = kappa (J ln J - J + 1)
 
     switch (potential) {
-        case 0: {
-            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$ 
+        case HyperPotential::NEOHC: {
+            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$
+            require_props(props, 2, "NEOHC");
             double mu = props(0);
-            double kappa = props(1);            
+            kappa = props(1);
             dW.dWdI_1_bar = 0.5*mu;
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
             break;
         }
-        case 1: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$ 
+        case HyperPotential::MOORI: {
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            require_props(props, 3, "MOORI");
             double C_10 = props(0);
-            double C_01 = props(1);            
-            double kappa = props(2);                        
+            double C_01 = props(1);
+            kappa = props(2);
             dW.dWdI_1_bar = C_10;
-            dW.dWdI_2_bar = C_01;            
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
+            dW.dWdI_2_bar = C_01;
             break;
         }
-        case 2: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+        case HyperPotential::YEOHH: {
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            require_props(props, 4, "YEOHH");
             double C_10 = props(0);
-            double C_20 = props(1);            
-            double C_30 = props(2);            
-            double kappa = props(3);     
+            double C_20 = props(1);
+            double C_30 = props(2);
+            kappa = props(3);
             dW.dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.) + 3.*C_30*pow((I_bar(0)-3.),2.);
-            dW.dW2dI_11_bar = 2.*C_20 + 6.*C_30*(I_bar(0)-3.);    
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
+            dW.dW2dI_11_bar = 2.*C_20 + 6.*C_30*(I_bar(0)-3.);
             break;
         }
-        case 3: {
-            // Ishara model (1951)
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+        case HyperPotential::ISHAH: {
+            // Isihara model (1951)
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            require_props(props, 4, "ISHAH");
             double C_10 = props(0);
-            double C_20 = props(1);            
-            double C_01 = props(2);            
-            double kappa = props(3);     
-            dW.dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.)*C_01*(I_bar(1)-3.);
-            dW.dW2dI_11_bar = 2.*C_20*C_01*(I_bar(1)-3.);  
-            dW.dW2dI_12_bar =  2.*C_20*C_01*(I_bar(0)-3.);
-            dW.dWdI_2_bar = C_20*C_01*pow((I_bar(0)-3.),2.);
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
+            double C_20 = props(1);
+            double C_01 = props(2);
+            kappa = props(3);
+            dW.dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.);
+            dW.dW2dI_11_bar = 2.*C_20;
+            dW.dWdI_2_bar = C_01;
             break;
         }
-        case 4: {
+        case HyperPotential::GETHH: {
             // Gent-Thomas model (1958)
-            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
+            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            require_props(props, 3, "GETHH");
             double c_1 = props(0);
-            double c_2 = props(1);            
-            double kappa = props(2);     
+            double c_2 = props(1);
+            kappa = props(2);
             dW.dWdI_1_bar = c_1;
             if(fabs(I_bar(1)) > simcoon::iota) {
                 dW.dWdI_2_bar = c_2/I_bar(1);
                 dW.dW2dI_22_bar = -1.*c_2/pow(I_bar(1),2.);
             }
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
-            break;
-        }   
-        case 5: {        
-            // Swanson model (1985)
-            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
-            int N_Swanson = int(props(0));
-            double kappa = props(1);     
-
-            vec A = zeros(N_Swanson);
-            vec B = zeros(N_Swanson);
-            vec alpha = zeros(N_Swanson);
-            vec beta = zeros(N_Swanson);
-            
-            for (int i=0; i<N_Swanson; i++) {
-                A(i) = props(2+i*4);
-                B(i) = props(2+i*4+1);
-                alpha(i) = props(2+i*4+2);
-                beta(i) = props(2+i*4+3);
-            }
-
-            for (int i=0; i<N_Swanson; i++) {
-                dW.dWdI_1_bar += 1./2.*A(i)*pow((I_bar(0)/3.),alpha(i));
-                dW.dW2dI_11_bar += 1./2.*(A(i)/alpha(i))*pow((I_bar(0)/3.),alpha(i)-1.);
-                dW.dWdI_2_bar += 1./2.*B(i)*pow((I_bar(1)/3.),beta(i));
-                dW.dW2dI_22_bar += 1./2.*(B(i)/beta(i))*pow((I_bar(1)/3.),beta(i)-1.);
-            }
-            dW.dUdJ = kappa*log(J);
-            dW.dU2dJ2 = kappa/J;
             break;
         }
+        case HyperPotential::SWANH: {
+            // Swanson model (1985)
+            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            require_props(props, 2, "SWANH");
+            int N_Swanson = int(props(0));
+            require_props(props, 2 + 4*std::max(N_Swanson, 0), "SWANH");
+            kappa = props(1);
+            for (int i=0; i<N_Swanson; i++) {
+                const double A = props(2+i*4);
+                const double B = props(2+i*4+1);
+                const double alpha = props(2+i*4+2);
+                const double beta = props(2+i*4+3);
+                dW.dWdI_1_bar += 1./2.*A*pow((I_bar(0)/3.),alpha);
+                dW.dW2dI_11_bar += A*alpha/6.*pow((I_bar(0)/3.),alpha-1.);
+                dW.dWdI_2_bar += 1./2.*B*pow((I_bar(1)/3.),beta);
+                dW.dW2dI_22_bar += B*beta/6.*pow((I_bar(1)/3.),beta-1.);
+            }
+            break;
+        }
+        default:
+            throw std::invalid_argument("hyper_potential_derivatives: unknown potential "
+                                        + std::to_string(static_cast<int>(potential)));
     }
 
+    dW.dUdJ = kappa*log(J);
+    dW.dU2dJ2 = kappa/J;
     return dW;
 }
 

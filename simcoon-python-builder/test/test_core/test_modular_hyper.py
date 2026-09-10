@@ -44,12 +44,6 @@ STATES = {
 }
 
 
-def _v2m(e):
-    return np.array([[e[0], e[3] / 2.0, e[4] / 2.0],
-                     [e[3] / 2.0, e[1], e[5] / 2.0],
-                     [e[4] / 2.0, e[5] / 2.0, e[2]]])
-
-
 def _umat(name, props, etot, F1, nstatev):
     n = 1
     z6 = lambda: np.zeros((6, n), order="F")
@@ -78,7 +72,7 @@ def test_modular_hyper_matches_standalone_kernel(block, umat_name, umat_props, s
 
     # the standalone kernels output Cauchy; MODUL is a kirchhoff_box model
     sigma_ref, Lt_ref = _umat(umat_name, umat_props, np.zeros(6),
-                              expm(_v2m(eps)), 1)
+                              expm(sim.v2t_strain(eps)), 1)
     tau_ref = np.exp(eps[:3].sum()) * sigma_ref
 
     scale = max(1.0, np.abs(tau_ref).max())
@@ -108,3 +102,22 @@ def test_props_roundtrip_layout():
 def test_swanson_rejects_malformed_terms():
     with pytest.raises(TypeError):
         SwansonElasticity(terms=((0.5, 0.1, 0.9),), kappa=1.0)
+
+
+def test_potential_parameters_are_required_and_alpha_keyword_only():
+    """Positional arguments fill the potential's parameters, never alpha."""
+    block = NeoHookeanElasticity(0.5673, 1000.0)
+    assert (block.mu, block.kappa, block.alpha) == (0.5673, 1000.0, 0.0)
+    with pytest.raises(TypeError):
+        NeoHookeanElasticity(0.5673, 1000.0, 1.2e-5)
+    with pytest.raises(TypeError):
+        YeohElasticity(C10=0.30)
+
+
+def test_hyper_blocks_are_exported():
+    import simcoon.modular as md
+
+    for name in ("HyperPotential", "NeoHookeanElasticity", "MooneyRivlinElasticity",
+                 "YeohElasticity", "IsiharaElasticity", "GentThomasElasticity",
+                 "SwansonElasticity"):
+        assert name in md.__all__

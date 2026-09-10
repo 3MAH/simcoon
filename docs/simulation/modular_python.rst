@@ -74,9 +74,23 @@ argument (enum, int, or string aliases):
    * - :class:`OrthotropicElasticity`
      - ``C1..C9, alpha1..alpha3``
      - ``"EnuG"`` (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23; default), ``"Cii"``
+   * - :class:`NeoHookeanElasticity`, :class:`MooneyRivlinElasticity`,
+       :class:`YeohElasticity`, :class:`IsiharaElasticity`,
+       :class:`GentThomasElasticity`, :class:`SwansonElasticity`
+     - the potential's parameters (e.g. ``C10, C20, C30, kappa`` for Yeoh),
+       ``alpha`` keyword-only
+     - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
+       ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
 
 ``alpha`` are the thermal-expansion coefficients (per direction where
 applicable).
+
+The hyperelastic blocks are not a constant stiffness: the potential is
+evaluated at the elastic strain it is handed, bridged by
+:math:`\mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el})`. Under finite
+strain that strain is the elastic logarithmic strain, and the mechanisms act
+additively on it. Every potential shares the volumetric term
+:math:`U(J) = \kappa (J \ln J - J + 1)`.
 
 Yield criteria
 --------------

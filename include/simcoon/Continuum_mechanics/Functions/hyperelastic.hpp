@@ -739,27 +739,31 @@ struct hyper_invariants_dW {
 };
 
 /**
- * @brief Isochoric-invariant potentials, keyed by ordinal.
+ * @brief Isochoric-invariant potentials of hyper_potential_derivatives.
  *
- * The single table of hyperelastic potentials in simcoon, shared by the
- * standalone UMAT (umat_generic_hyper_invariants, which maps its 5-letter
- * names onto these ordinals) and by the modular composition. Adding a
- * potential here serves both.
+ * Shared by the standalone UMAT (umat_generic_hyper_invariants, which maps its
+ * 5-letter names onto these values) and by the modular composition, which
+ * stores the value in its props: adding a potential here serves both.
+ */
+enum class HyperPotential {
+    NEOHC = 0,  ///< compressible neo-Hookean, props [mu, kappa]
+    MOORI = 1,  ///< Mooney-Rivlin, props [C10, C01, kappa]
+    YEOHH = 2,  ///< Yeoh, props [C10, C20, C30, kappa]
+    ISHAH = 3,  ///< Isihara, props [C10, C20, C01, kappa]
+    GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
+    SWANH = 5   ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+};
+
+/**
+ * @brief Derivatives of an isochoric-invariant potential.
  *
- * - 0 NEOHC compressible neo-Hookean, props [mu, kappa]
- * - 1 MOORI Mooney-Rivlin, props [C10, C01, kappa]
- * - 2 YEOHH Yeoh, props [C10, C20, C30, kappa]
- * - 3 ISHAH Isihara, props [C10, C20, C01, kappa]
- * - 4 GETHH Gent-Thomas, props [c1, c2, kappa]
- * - 5 SWANH Swanson, props [N, kappa, (A, B, alpha, beta) x N]
- *
- * @param potential ordinal from the list above
+ * @param potential the potential (see HyperPotential for its props)
  * @param props the potential's own parameters, starting at index 0
  * @param I_bar isochoric invariants \f$ (\bar{I}_1, \bar{I}_2) \f$
  * @param J determinant of the deformation gradient
  * @return the seven derivatives
  */
-hyper_invariants_dW hyper_potential_derivatives(const int &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
 
 /**
  * @brief Cauchy stress and canonical box tangent of an invariant potential.

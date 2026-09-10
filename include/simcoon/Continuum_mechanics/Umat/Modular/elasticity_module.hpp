@@ -20,17 +20,19 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * @brief Elasticity module for modular UMAT.
  *
  * This module wraps existing elasticity functions (L_iso, L_cubic, L_ortho,
- * L_isotrans) to provide a configurable elasticity component.
+ * L_isotrans) and the isochoric-invariant hyperelastic potentials
+ * (hyperelastic.hpp) to provide a configurable elasticity component.
  *
  * Elastic constants are passed as ordinal slots (C1, C2, ...) whose meaning
  * is selected by a per-symmetry convention enum (IsoConv, CubicConv, ...).
  * The convention codes are stable integers so they can travel in the flat
- * props stream: every elasticity block starts with one convention slot,
- * followed by the constants and the CTE values. A convention changes the
- * INTERPRETATION of the slots, never their count — the props layout is
- * invariant per ElasticityType. All parameterization conversions live in
- * the classical builders (constitutive.cpp); this module only maps the
- * enum to the builders' convention strings.
+ * props stream: every linear elasticity block starts with one convention
+ * slot, followed by the constants and the CTE values. A convention changes
+ * the INTERPRETATION of the slots, never their count — the props layout is
+ * invariant per linear ElasticityType. All parameterization conversions live
+ * in the classical builders (constitutive.cpp); this module only maps the
+ * enum to the builders' convention strings. A HYPER_INVARIANTS block instead
+ * carries its potential and parameter count (see props_count()).
  *
  * @version 1.0
  */
@@ -39,12 +41,13 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <armadillo>
 #include <stdexcept>
+#include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
 namespace simcoon {
 
 /**
- * @brief Types of linear elasticity
+ * @brief Types of elasticity block
  */
 enum class ElasticityType {
     ISOTROPIC = 0,              ///< Isotropic: conv, C1, C2, alpha
@@ -128,7 +131,7 @@ private:
     arma::mat L_;           ///< 6x6 stiffness tensor
     arma::mat M_;           ///< 6x6 compliance tensor
     arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
-    int hyper_potential_;   ///< HYPER_INVARIANTS: ordinal in the shared potential table
+    HyperPotential hyper_potential_;  ///< HYPER_INVARIANTS: the potential
     arma::vec hyper_props_; ///< HYPER_INVARIANTS: that potential's own parameters
     tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
@@ -223,6 +226,12 @@ public:
      * @param alpha3 CTE in direction 3
      * @param conv Parameterization of the nine constants
      */
+    void configure_orthotropic(double C1, double C2, double C3,
+                               double C4, double C5, double C6,
+                               double C7, double C8, double C9,
+                               double alpha1, double alpha2, double alpha3,
+                               OrthoConv conv = OrthoConv::EnuG);
+
     /**
      * @brief Configure as a hyperelastic potential in isochoric invariants.
      *
@@ -233,24 +242,19 @@ public:
      * isotropy), and the potential is bridged to it by
      * \f$ \mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el}) \f$.
      *
-     * L0() is the tangent of the potential at zero strain, obtained from the
-     * very same code path rather than from a per-potential closed form, so it
-     * cannot drift from evaluate(). It is still validated as positive definite
-     * by refresh_tensors(), which is a genuine admissibility check on the
-     * parameters.
+     * L0() is the tangent of the potential at zero strain: the isotropic
+     * stiffness \f$ K = U''(1) \f$, \f$ \mu = 2 (\partial W / \partial \bar{I}_1
+     * + \partial W / \partial \bar{I}_2) \f$ built from the potential's own
+     * derivatives, which is what evaluate() returns at zero strain. It is
+     * validated as positive definite by refresh_tensors(), a genuine
+     * admissibility check on the parameters.
      *
-     * @param potential ordinal in the shared table (see hyper_potential_derivatives)
+     * @param potential the potential (see HyperPotential for its parameters)
      * @param params the potential's parameters
      * @param alpha_scalar isotropic CTE
      */
-    void configure_hyper_invariants(int potential, const arma::vec& params,
+    void configure_hyper_invariants(HyperPotential potential, const arma::vec& params,
                                     double alpha_scalar);
-
-    void configure_orthotropic(double C1, double C2, double C3,
-                               double C4, double C5, double C6,
-                               double C7, double C8, double C9,
-                               double alpha1, double alpha2, double alpha3,
-                               OrthoConv conv = OrthoConv::EnuG);
 
     /**
      * @brief Configure from props array
@@ -258,10 +262,11 @@ public:
      * @param props Material properties vector
      * @param offset Current offset in props (will be updated)
      *
-     * Block layout (uniform across types): [conv, constants..., alphas...]
-     * (+ axis for TRANSVERSE_ISOTROPIC). The conv slot is validated against
-     * the type's convention enum and selects the interpretation of the
-     * constant slots; see props_count() for per-type totals.
+     * Linear block layout: [conv, constants..., alphas...] (+ axis for
+     * TRANSVERSE_ISOTROPIC). The conv slot is validated against the type's
+     * convention enum and selects the interpretation of the constant slots.
+     * HYPER_INVARIANTS layout: [potential, n_params, params..., alpha]. See
+     * props_count() for per-type totals.
      */
     void configure(ElasticityType type, const arma::vec& props, int& offset);
 
@@ -373,25 +378,19 @@ public:
     /**
      * @brief Get number of props consumed by this elasticity type
      * @param type The elasticity type
-     * @return Number of properties required (including the convention slot)
+     * @param n_params HYPER_INVARIANTS only: number of potential parameters
+     * @return Number of properties required (including the leading convention
+     *         or potential slot)
      */
-    [[nodiscard]] static constexpr int props_count(ElasticityType type) {
+    [[nodiscard]] static constexpr int props_count(ElasticityType type, int n_params = 0) {
         switch (type) {
             case ElasticityType::ISOTROPIC:            return 4;   // conv, C1, C2, alpha
             case ElasticityType::CUBIC:                return 5;   // conv, C1..C3, alpha
             case ElasticityType::TRANSVERSE_ISOTROPIC: return 9;   // conv, EL..GLT, alpha_L, alpha_T, axis
             case ElasticityType::ORTHOTROPIC:          return 13;  // conv, C1..C9, alpha1..3
-            case ElasticityType::HYPER_INVARIANTS:     return -1;  // variable: see the n_params slot
+            case ElasticityType::HYPER_INVARIANTS:     return 3 + n_params;  // potential, n_params, params..., alpha
         }
         return 0;
-    }
-
-    /**
-     * @brief Props consumed by a HYPER_INVARIANTS block with @p n_params
-     *        potential parameters: potential, n_params, params..., alpha.
-     */
-    [[nodiscard]] static constexpr int hyper_props_count(int n_params) {
-        return 3 + n_params;
     }
 };
 

@@ -54,7 +54,6 @@ ModularUMAT::ModularUMAT()
 
 void ModularUMAT::set_elasticity(ElasticityType type, const arma::vec& props, int& offset) {
     elasticity_.configure(type, props, offset);
-    L_cur_ = elasticity_.L0();
 }
 
 PlasticityMechanism& ModularUMAT::add_plasticity(
@@ -355,11 +354,17 @@ void ModularUMAT::run(
         // the rest of the history.
         sigma = sigma_start_;
         tnew_dt = 0.5;
-        // Ground state stands in for the start-state tangent: they coincide for
-        // every (linear) symmetry available today. A state-dependent block will
-        // have to capture the start-state tangent instead — the committed triple
-        // is the START state, so its tangent is what belongs here.
-        Lt = stiffness_reduction() * elasticity_.L0();
+        // Lt is the START state's elastic tangent too: restore the mechanisms
+        // from the untouched statev (with the same rotation as above) and
+        // evaluate the elastic block there, so neither the rejected iterate's
+        // damage nor its elastic strain leaks into the committed tangent.
+        for (auto& mech : mechanisms_) {
+            mech->unpack(statev);
+            mech->rotate(DR);
+        }
+        arma::vec sigma_at_start;
+        refresh_stress(Etot, T - T_init_, ndi, sigma_at_start);
+        Lt = stiffness_reduction() * L_cur_;
         return;
     }
 
@@ -426,7 +431,8 @@ void ModularUMAT::return_mapping(
     // Elastic prediction. With no constraints there is no inelastic strain and
     // no damage, so this same call IS the whole elastic response — only the
     // constraint machinery below is skipped.
-    refresh_stress(Etot + DEtot, T - T_init, ndi, sigma);
+    const arma::vec Etot_end = Etot + DEtot;
+    refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
     if (n_total == 0) {
         return;
     }
@@ -452,7 +458,7 @@ void ModularUMAT::return_mapping(
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
-                sigma, Etot + DEtot, L_cur_, DTime, Phi_m, Y_crit_m);
+                sigma, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
@@ -471,7 +477,7 @@ void ModularUMAT::return_mapping(
 
         // Recompute stress (D may have evolved in update, so the reduction
         // factor is re-evaluated too)
-        refresh_stress(Etot + DEtot, T - T_init, ndi, sigma);
+        refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
 
         ++iter;
     }

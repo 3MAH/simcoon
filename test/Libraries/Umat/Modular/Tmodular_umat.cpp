@@ -385,9 +385,6 @@ protected:
     void SetUp() override {}
 };
 
-// evaluate() is the seam a state-dependent elastic block will replace: assert
-// the contract it must keep, not just today's implementation.
-
 // ============================================================================
 // Hyperelastic elasticity block
 // ============================================================================
@@ -399,10 +396,10 @@ namespace {
 
 // props for a mechanism-free MODUL: el_type=HYPER_INVARIANTS, potential,
 // n_params, params..., alpha, n_mechanisms=0
-vec modul_hyper_props(int potential, const vec& p, double alpha) {
+vec modul_hyper_props(HyperPotential potential, const vec& p, double alpha) {
     vec v(5 + p.n_elem, fill::zeros);
     v(0) = static_cast<double>(ElasticityType::HYPER_INVARIANTS);
-    v(1) = potential;
+    v(1) = static_cast<double>(potential);
     v(2) = static_cast<double>(p.n_elem);
     v.subvec(3, 2 + p.n_elem) = p;
     v(3 + p.n_elem) = alpha;
@@ -440,7 +437,7 @@ void run_yeohh(const vec& props, const mat& F1, vec& tau, mat& Lt) {
 
 TEST(ModularHyperelastic, YeohMatchesStandaloneKernel) {
     const vec p = {0.30, -0.010, 0.0005, 1000.0};   // C10, C20, C30, kappa
-    const vec pm = modul_hyper_props(2, p, 0.0);    // potential 2 = YEOHH
+    const vec pm = modul_hyper_props(HyperPotential::YEOHH, p, 0.0);
 
     const std::vector<vec> cases = {
         vec({0.28, -0.11, -0.09, 0.06, -0.03, 0.04}),  // generic, with shear
@@ -464,35 +461,103 @@ TEST(ModularHyperelastic, YeohMatchesStandaloneKernel) {
     }
 }
 
-// L0 is built from the same path evaluate() uses, so it must equal both the
-// tangent at zero strain and the closed-form ground state L_iso(kappa, 2*C10).
-TEST(ModularHyperelastic, YeohGroundStateStiffness) {
+// Yeoh ELASTICITY block alone: potential, n_params, C10, C20, C30, kappa, alpha
+const vec yeoh_block = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
+
+// One parameter set per potential of the shared table
+const std::vector<std::pair<HyperPotential, vec>> hyper_potentials = {
+    {HyperPotential::NEOHC, {0.5673, 1000.0}},
+    {HyperPotential::MOORI, {0.2588, -0.0449, 10000.0}},
+    {HyperPotential::YEOHH, {0.30, -0.010, 0.0005, 1000.0}},
+    {HyperPotential::ISHAH, {0.1161, 0.0136, 0.0114, 4000.0}},
+    {HyperPotential::GETHH, {0.2837, 0.05, 4000.0}},
+    {HyperPotential::SWANH, {2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.2, 0.05, 1.1, 0.8}},
+};
+
+// L0 is the closed-form ground state of the potential's own derivatives: it
+// must be the tangent evaluate() returns at zero strain, for every potential.
+TEST(ModularHyperelastic, GroundStateStiffnessMatchesEvaluate) {
+    for (const auto& [potential, p] : hyper_potentials) {
+        ElasticityModule em;
+        em.configure_hyper_invariants(potential, p, 0.0);
+
+        vec sigma;
+        mat Lt;
+        em.evaluate(zeros<vec>(6), 3, sigma, Lt);
+        const int id = static_cast<int>(potential);
+        EXPECT_LT(norm(sigma, 2), 1e-12) << "natural state, potential " << id;
+        EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12 * norm(Lt, "fro")) << "potential " << id;
+    }
+
+    // Through props: the consumed count and the Yeoh closed form L_iso(kappa, 2*C10)
     ElasticityModule em;
-    const vec props = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
     int offset = 0;
-    em.configure(ElasticityType::HYPER_INVARIANTS, props, offset);
+    em.configure(ElasticityType::HYPER_INVARIANTS, yeoh_block, offset);
     EXPECT_EQ(offset, 7);
-
-    vec sigma;
-    mat Lt;
-    em.evaluate(zeros<vec>(6), 3, sigma, Lt);
-    EXPECT_LT(norm(sigma, 2), 1e-12);                       // natural state
-    EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12);
-
-    const mat L_ref = L_iso(1000.0, 2.0 * 0.30, "Kmu");     // kappa, mu = 2*C10
+    const mat L_ref = L_iso(1000.0, 2.0 * 0.30, "Kmu");
     EXPECT_LT(norm(em.L0() - L_ref, "fro") / norm(L_ref, "fro"), 1e-9);
 }
 
 TEST(ModularHyperelastic, EvaluateRejectsReducedDimension) {
     ElasticityModule em;
-    const vec props = {2.0, 4.0, 0.30, -0.010, 0.0005, 1000.0, 0.0};
     int offset = 0;
-    em.configure(ElasticityType::HYPER_INVARIANTS, props, offset);
+    em.configure(ElasticityType::HYPER_INVARIANTS, yeoh_block, offset);
     vec sigma;
     mat Lt;
     EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, sigma, Lt), std::runtime_error);
 }
 
+// evaluate()'s tangent must be d(tau)/d(eps_el) of the potential itself:
+// central differences on the stress, for every potential. This pins the
+// second derivatives, which the MODUL/standalone parity cannot see (both sides
+// share the table).
+TEST(ModularHyperelastic, TangentMatchesFiniteDifference) {
+    const vec eps = {0.28, -0.11, -0.09, 0.06, -0.03, 0.04};
+    const double h = 1.0e-6;
+    for (const auto& [potential, p] : hyper_potentials) {
+        ElasticityModule em;
+        em.configure_hyper_invariants(potential, p, 0.0);
+        vec sigma, s_p, s_m;
+        mat Lt, unused;
+        em.evaluate(eps, 3, sigma, Lt);
+        mat L_fd(6, 6);
+        for (uword j = 0; j < 6; ++j) {
+            vec e_p = eps, e_m = eps;
+            e_p(j) += h;
+            e_m(j) -= h;
+            em.evaluate(e_p, 3, s_p, unused);
+            em.evaluate(e_m, 3, s_m, unused);
+            L_fd.col(j) = (s_p - s_m) / (2.0 * h);
+        }
+        EXPECT_LT(norm(Lt - L_fd, "fro") / norm(Lt, "fro"), 1e-7)
+            << "potential " << static_cast<int>(potential);
+    }
+}
+
+// Isihara is a sum, W = C10 (I1-3) + C20 (I1-3)^2 + C01 (I2-3): its ground
+// shear modulus is 2 (C10 + C01), the C01 term included.
+TEST(ModularHyperelastic, IsiharaGroundShearModulus) {
+    ElasticityModule em;
+    em.configure_hyper_invariants(HyperPotential::ISHAH, {0.1161, 0.0136, 0.0114, 4000.0}, 0.0);
+    EXPECT_NEAR(em.L0()(3, 3), 2.0 * (0.1161 + 0.0114), 1e-12);  // Voigt shear entry = mu
+}
+
+TEST(ModularHyperelastic, RejectsUnknownPotentialAndMissingParameters) {
+    const std::vector<vec> bad = {
+        {7.0, 2.0, 0.5, 1000.0, 0.0},                       // no potential 7
+        {2.0, 2.0, 0.30, -0.010, 0.0},                      // Yeoh needs 4 parameters
+        {5.0, 6.0, 2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.0},   // Swanson: 2 terms announced, 1 given
+    };
+    for (size_t k = 0; k < bad.size(); ++k) {
+        ElasticityModule em;
+        int offset = 0;
+        EXPECT_THROW(em.configure(ElasticityType::HYPER_INVARIANTS, bad[k], offset),
+                     std::invalid_argument) << "case " << k;
+    }
+}
+
+// evaluate() is the seam a state-dependent elastic block replaces: assert the
+// contract it must keep, not just the linear implementation.
 TEST_F(ElasticityModuleTest, EvaluateMatchesElasticPredictorAndTangent) {
     ElasticityModule em;
     vec props = {0.0, 210000.0, 0.3, 1.2e-5};  // conv=Enu, E, nu, alpha
@@ -1438,6 +1503,32 @@ TEST(ModularUMATIntegration, UniaxialTension) {
 // threshold, then unload. Damage must grow monotonically during loading,
 // stay within [0, D_c], soften the stress against the undamaged elastic
 // reference, and stay frozen on unloading (Y < Y_max history).
+// The thermal strain at the END of the increment is alpha (T + DT - T_init), the
+// legacy-kernel convention (T is the start temperature): free expansion must
+// stay stress-free, on the start increment and on a later one.
+TEST(ModularUMATIntegration, FreeThermalExpansionIsStressFree) {
+    const double alpha = 2.0e-5;
+    const vec props = {static_cast<double>(ElasticityType::ISOTROPIC), 0.0, 70000.0, 0.3, alpha, 0.0};
+    vec statev(1, fill::zeros), sigma(6, fill::zeros);
+    mat Lt(6, 6, fill::zeros), L(6, 6, fill::zeros);
+    const mat DR = eye(3, 3);
+    double Wm = 0., Wr = 0., Wi = 0., Wd = 0., tnew_dt = 1.;
+
+    vec Etot = zeros(6);
+    vec DEtot = alpha * 50.0 * Ith();   // T_init = T = 293, heated by 50
+    umat_modular("MODUL", Etot, DEtot, sigma, Lt, L, DR, static_cast<int>(props.n_elem), props,
+                 1, statev, 293., 50., 0., 1., Wm, Wr, Wi, Wd, 3, 3, true, tnew_dt,
+                 tangent_algorithmic);
+    EXPECT_LT(norm(sigma, 2), 1e-8) << "start increment";
+
+    Etot += DEtot;
+    DEtot = alpha * 20.0 * Ith();       // from T = 343, heated by 20 more
+    umat_modular("MODUL", Etot, DEtot, sigma, Lt, L, DR, static_cast<int>(props.n_elem), props,
+                 1, statev, 343., 20., 1., 1., Wm, Wr, Wi, Wd, 3, 3, false, tnew_dt,
+                 tangent_algorithmic);
+    EXPECT_LT(norm(sigma, 2), 1e-8) << "later increment";
+}
+
 TEST(ModularUMATIntegration, DamageElasticUniaxial) {
     ModularUMAT mumat;
 

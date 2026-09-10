@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 from enum import IntEnum
-from typing import List, Sequence, Tuple, Union
+from typing import ClassVar, List, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -39,7 +39,7 @@ from numpy.typing import NDArray
 
 __all__ = [
     # Enums
-    "ElasticityType", "YieldType", "IsoHardType", "KinHardType",
+    "ElasticityType", "HyperPotential", "YieldType", "IsoHardType", "KinHardType",
     "DamageType", "MechanismType",
     # Elastic-constant conventions
     "IsoConvention", "CubicConvention",
@@ -47,6 +47,8 @@ __all__ = [
     # Elasticity
     "IsotropicElasticity", "CubicElasticity",
     "TransverseIsotropicElasticity", "OrthotropicElasticity",
+    "NeoHookeanElasticity", "MooneyRivlinElasticity", "YeohElasticity",
+    "IsiharaElasticity", "GentThomasElasticity", "SwansonElasticity",
     # Yield criteria
     "VonMisesYield", "TrescaYield", "DruckerYield",
     "HillYield", "DFAYield", "AnisotropicYield",
@@ -424,13 +426,6 @@ class OrthotropicElasticity:
         return 13
 
 
-Elasticity = Union[IsotropicElasticity, CubicElasticity,
-                   TransverseIsotropicElasticity, OrthotropicElasticity]
-
-# ============================================================================
-# Yield criteria
-# ============================================================================
-
 # ---------------------------------------------------------------------------
 # Hyperelastic elasticity blocks (isochoric invariants)
 # ---------------------------------------------------------------------------
@@ -447,26 +442,35 @@ Elasticity = Union[IsotropicElasticity, CubicElasticity,
 # from the potential itself, not declared here.
 
 
+class HyperPotential(IntEnum):
+    """Isochoric-invariant potential (mirrors C++ ``HyperPotential``, hyperelastic.hpp)."""
+    NEOHC = 0
+    MOORI = 1
+    YEOHH = 2
+    ISHAH = 3
+    GETHH = 4
+    SWANH = 5
+
+
 @dataclass(frozen=True)
 class _HyperInvariantsElasticity:
     """Common serialization of an isochoric-invariant potential.
 
     Props layout: ``[potential, n_params, params..., alpha]``. The potential
-    ordinal and the parameter list come from the concrete subclass, which is
-    what gives each model its own named arguments.
+    comes from the concrete subclass and the parameters are its fields in
+    declaration order, which is what gives each model its own named arguments.
+    They have no default, and ``alpha`` is keyword-only, so positional
+    arguments always fill the potential's parameters.
     """
-    alpha: float = 0.0
+    potential: ClassVar[HyperPotential]
+    alpha: float = field(default=0.0, kw_only=True)
 
     @property
     def elasticity_type(self) -> ElasticityType:
         return ElasticityType.HYPER_INVARIANTS
 
-    @property
-    def potential(self) -> int:
-        raise NotImplementedError
-
     def potential_params(self) -> List[float]:
-        raise NotImplementedError
+        return [getattr(self, f.name) for f in fields(self) if f.name != "alpha"]
 
     def to_props(self) -> List[float]:
         """Return the props values for this elasticity."""
@@ -475,7 +479,7 @@ class _HyperInvariantsElasticity:
 
     @property
     def nprops(self) -> int:
-        return 3 + len(self.potential_params())
+        return len(self.to_props())
 
 
 @dataclass(frozen=True)
@@ -493,15 +497,9 @@ class NeoHookeanElasticity(_HyperInvariantsElasticity):
     alpha : float
         Coefficient of thermal expansion.
     """
-    mu: float = 0.0
-    kappa: float = 0.0
-
-    @property
-    def potential(self) -> int:
-        return 0
-
-    def potential_params(self) -> List[float]:
-        return [self.mu, self.kappa]
+    potential = HyperPotential.NEOHC
+    mu: float
+    kappa: float
 
 
 @dataclass(frozen=True)
@@ -510,16 +508,10 @@ class MooneyRivlinElasticity(_HyperInvariantsElasticity):
 
     :math:`W = C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3) + \kappa (J \ln J - J + 1)`
     """
-    C10: float = 0.0
-    C01: float = 0.0
-    kappa: float = 0.0
-
-    @property
-    def potential(self) -> int:
-        return 1
-
-    def potential_params(self) -> List[float]:
-        return [self.C10, self.C01, self.kappa]
+    potential = HyperPotential.MOORI
+    C10: float
+    C01: float
+    kappa: float
 
 
 @dataclass(frozen=True)
@@ -536,33 +528,25 @@ class YeohElasticity(_HyperInvariantsElasticity):
     --------
     >>> YeohElasticity(C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.)
     """
-    C10: float = 0.0
-    C20: float = 0.0
-    C30: float = 0.0
-    kappa: float = 0.0
-
-    @property
-    def potential(self) -> int:
-        return 2
-
-    def potential_params(self) -> List[float]:
-        return [self.C10, self.C20, self.C30, self.kappa]
+    potential = HyperPotential.YEOHH
+    C10: float
+    C20: float
+    C30: float
+    kappa: float
 
 
 @dataclass(frozen=True)
 class IsiharaElasticity(_HyperInvariantsElasticity):
-    """Isihara potential (the ``ISHAH`` UMAT's)."""
-    C10: float = 0.0
-    C20: float = 0.0
-    C01: float = 0.0
-    kappa: float = 0.0
+    r"""Isihara potential (the ``ISHAH`` UMAT's).
 
-    @property
-    def potential(self) -> int:
-        return 3
-
-    def potential_params(self) -> List[float]:
-        return [self.C10, self.C20, self.C01, self.kappa]
+    :math:`W = C_{10}(\bar{I}_1 - 3) + C_{20}(\bar{I}_1 - 3)^2 + C_{01}(\bar{I}_2 - 3)
+    + \kappa (J \ln J - J + 1)`
+    """
+    potential = HyperPotential.ISHAH
+    C10: float
+    C20: float
+    C01: float
+    kappa: float
 
 
 @dataclass(frozen=True)
@@ -571,16 +555,10 @@ class GentThomasElasticity(_HyperInvariantsElasticity):
 
     :math:`W = c_1(\bar{I}_1 - 3) + c_2 \ln(\bar{I}_2 / 3) + \kappa (J \ln J - J + 1)`
     """
-    c1: float = 0.0
-    c2: float = 0.0
-    kappa: float = 0.0
-
-    @property
-    def potential(self) -> int:
-        return 4
-
-    def potential_params(self) -> List[float]:
-        return [self.c1, self.c2, self.kappa]
+    potential = HyperPotential.GETHH
+    c1: float
+    c2: float
+    kappa: float
 
 
 @dataclass(frozen=True)
@@ -594,8 +572,9 @@ class SwansonElasticity(_HyperInvariantsElasticity):
     kappa : float
         Bulk compressibility.
     """
-    terms: Tuple[Tuple[float, float, float, float], ...] = ()
-    kappa: float = 0.0
+    potential = HyperPotential.SWANH
+    terms: Tuple[Tuple[float, float, float, float], ...]
+    kappa: float
 
     def __post_init__(self):
         for i, term in enumerate(self.terms):
@@ -604,16 +583,21 @@ class SwansonElasticity(_HyperInvariantsElasticity):
                     f"SwansonElasticity.terms[{i}] must be (A, B, alpha, beta); "
                     f"got {len(term)} values.")
 
-    @property
-    def potential(self) -> int:
-        return 5
-
     def potential_params(self) -> List[float]:
         params: List[float] = [float(len(self.terms)), self.kappa]
         for A, B, a, b in self.terms:
             params.extend([A, B, a, b])
         return params
 
+
+Elasticity = Union[IsotropicElasticity, CubicElasticity,
+                   TransverseIsotropicElasticity, OrthotropicElasticity,
+                   NeoHookeanElasticity, MooneyRivlinElasticity, YeohElasticity,
+                   IsiharaElasticity, GentThomasElasticity, SwansonElasticity]
+
+# ============================================================================
+# Yield criteria
+# ============================================================================
 
 @dataclass(frozen=True)
 class VonMisesYield:
@@ -1312,9 +1296,10 @@ class ModularMaterial:
         The props format follows the ``configure_from_props()`` convention:
 
         - ``props[0]``: elasticity type
-        - ``props[1]``: elastic-constant convention code (see
-          :class:`IsoConvention` and friends)
-        - ``props[2..N_el]``: elasticity parameters
+        - ``props[1..N_el]``: elasticity block — for the linear types the
+          elastic-constant convention code (see :class:`IsoConvention` and
+          friends) then the constants; for the hyperelastic blocks
+          ``[potential, n_params, params..., alpha]``
         - ``props[N_el+1]``: number of mechanisms
         - For each mechanism: type code + mechanism-specific parameters
         """
