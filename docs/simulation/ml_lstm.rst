@@ -4,15 +4,19 @@ Recurrent neural network constitutive models
 
 :mod:`simcoon.ml` implements recurrent constitutive cells: networks that map a
 strain history to the stress, whose internal state plays the role of the internal
-variables. Two cells share one interface, one UMAT wrapper and one fedoo law:
+variables. Three cells share one interface, one UMAT wrapper and one fedoo law:
 
 * :class:`simcoon.ml.StressLSTM`, the stress LSTM of Danoun, Prulière and
   Chemisky [Danoun2022]_, [Danoun2024]_ (reference PyTorch implementation:
-  *StressLSTM*): a gated network, the most expressive of the two;
+  *StressLSTM*): a gated network, the most expressive of the three;
 * :class:`simcoon.ml.LMSC`, the linearized minimal state cell of Bonatti and
   Mohr [BonattiMohr2022]_: stationary, self-consistent and rate-independent by
   construction, with a closed-form algorithmic tangent and a state two orders of
-  magnitude smaller.
+  magnitude smaller;
+* :class:`simcoon.ml.ArcSSM`, the LMSC update stacked in layers whose coefficients
+  are selected by the input and the layer below — a structured state-space model in
+  arc length, in the spirit of [Barreira2026]_: the same guarantees, and a training
+  that is parallel over the sequence.
 
 A cell is trained in PyTorch and then used as a constitutive law by the simcoon
 solver, by ``sim.umat`` and by finite-element codes.
@@ -96,6 +100,46 @@ output map is linear and unbiased so that :math:`\boldsymbol{\chi} = \mathbf{0}`
 exactly the stress-free state. The authors report that a minimal state is only reachable
 when training on long sequences of small increments; short sequences of large increments
 need excess state variables.
+
+ArcSSM (arc-length state-space cell)
+------------------------------------
+
+In the vocabulary of state-space models the LMSC update is a diagonal *selective*
+recurrence discretised in arc length: :math:`\boldsymbol{\chi}' = \boldsymbol{\chi} +
+\mathrm{expm1}(-\nu\boldsymbol{\alpha}) \odot (\boldsymbol{\chi} - \boldsymbol{\beta})` is
+the zero-order-hold solution of :math:`\mathrm{d}\boldsymbol{\chi}/\mathrm{d}s =
+-\boldsymbol{\alpha} \odot (\boldsymbol{\chi} - \boldsymbol{\beta})` over an arc-length
+increment :math:`\nu`, the rate and the target being selected by the input. What makes
+the LMSC sequential at training time is that :math:`\boldsymbol{\alpha}` and
+:math:`\boldsymbol{\beta}` also read :math:`\boldsymbol{\chi}` itself.
+:class:`simcoon.ml.ArcSSM` keeps the update and moves the state feedback from within a
+layer to across layers, the way structured state-space models (S4/S5, Mamba) and the
+constitutive state-space model of Barreira et al. [Barreira2026]_ do:
+
+.. math::
+
+   \mathbf{z}_1 &= \mathbf{n}, \qquad
+   \mathbf{z}_l = [\mathbf{h}'_{l-1} ; \mathbf{n}] \quad (l > 1), \qquad
+   (\boldsymbol{\alpha}_l, \boldsymbol{\beta}_l) = \mathrm{coef}_l(\mathbf{z}_l) \\
+   \mathbf{h}'_l &= \mathbf{h}_l + \mathrm{expm1}(-\nu\boldsymbol{\alpha}_l) \odot
+                    (\mathbf{h}_l - \boldsymbol{\beta}_l), \qquad
+   \boldsymbol{\sigma} = \mathbf{W}_\sigma [\mathbf{h}'_1 ; \dots ; \mathbf{h}'_L]
+
+where :math:`\mathrm{coef}_l` are the quadratic layers of Eq. (22) with the
+:math:`\exp` and :math:`\tanh` heads of Eqs. (23)-(24). Within a layer the coefficients
+do not depend on that layer's own state, so the recurrence is linear with time-varying
+coefficients and a whole training sequence is integrated by a parallel prefix scan
+(:math:`\log_2 T` element-wise rounds) instead of a Python loop with the coefficient
+network inside it — measured three times faster per epoch than the LMSC on the same
+data and the same CPU. Kept by construction, exactly as for the LMSC: stationarity, rate independence,
+the stress-free zero state, self-consistency at frozen coefficients — and, for the first
+layer, *exact* self-consistency along any straight strain segment, since its coefficients
+read the direction only. The state is ``n_layers * n_state`` scalars. What is given up
+is the intra-layer feedback of the LMSC (a layer's coefficients reacting to its own
+state): the layers above see the layers below, which is where the non-linearity in the
+state now lives. ``top_lmsc=True`` restores that feedback on the last layer, which is
+then integrated step by step while the others stay parallel. The tangent is the autograd
+Jacobian of the step.
 
 Workflow
 ========
@@ -232,8 +276,8 @@ cell's tangent is measured.
 * The cell's flat state lives in ``statev`` (``nstatev = state_size + n_components``,
   the last block being the committed strain): the solver's rollback rewinds the network
   correctly on Newton retrials and step cuts. ``state_size`` is
-  ``2 * num_layers * hidden_size`` for the LSTM (256 by default) and ``n_state`` for the
-  LMSC (6 to 20).
+  ``2 * num_layers * hidden_size`` for the LSTM (256 by default), ``n_state`` for the
+  LMSC (6 to 20) and ``n_layers * n_state`` for the ArcSSM (32 by default).
 * The tangent is the cell's closed form when it has one (the LMSC), and the autograd
   Jacobian of the step at frozen state otherwise — in both cases the algorithmic tangent
   of the model, which drives the Newton loop under mixed stress/strain control.
@@ -247,15 +291,20 @@ cell's tangent is measured.
   the state is advanced once, with the converged strain.
 * Energies: ``Wm`` is accumulated by the trapezoidal rule; ``Wm_r``, ``Wm_ir``,
   ``Wm_d`` are zero (no free energy in the base model).
+* A trial increment larger than ``max_increment`` (100 % strain by default) is answered
+  by a :class:`simcoon.StepCut`: a diverging Newton iterate of the solver is outside the
+  domain of a small-strain law, and cutting the step there is what keeps the energy and
+  the tangent finite.
 
 5. Finite-element coupling (fedoo)
 ----------------------------------
 
 :meth:`simcoon.ml.LSTMLaw.step_batch` evaluates all Gauss points at once
-(``strain (6, N)``, ``h``/``c (state_size, N)`` → ``stress (6, N)``,
-``Lt (6, 6, N)``, new state) on CPU or GPU. fedoo ships the corresponding law,
-``fedoo.constitutivelaw.LSTMLaw(law)`` (a ``Mechanical3D``): it keeps ``h``/``c`` in
-``assembly.sv`` (``'LSTM_h'``, ``'LSTM_c'``, read from ``sv_start`` and written as new
+(``strain (6, N)``, ``state (state_size, N)`` → ``stress (6, N)``,
+``Lt (6, 6, N)``, new state, committed strain) on CPU or GPU. fedoo ships the
+corresponding law, ``fedoo.constitutivelaw.LSTMLaw(law)`` (a ``Mechanical3D``), which
+is cell-agnostic: it keeps the flat state in ``assembly.sv`` (``'ML_state'`` and
+``'ML_strain_prev'``, read from ``sv_start`` and written as new
 arrays, so the assembly rollback rewinds the network), calls ``step_batch`` in
 ``update``, passes ``ndi = 2`` for ``2Dstress`` and declares the corotational box
 tangent like the ``Simcoon`` law:
@@ -355,6 +404,10 @@ Limits and options
 .. [GuevaraGarban2026] M. R. Guevara Garban, E. Prulière, Y. Chemisky, *Non-linear
    mechanical field reconstruction coupling recurrent neural networks with
    physics-informed graph neural networks* (LSTM-GNN, revised manuscript).
+.. [Barreira2026] L. Barreira, A. Soydan, F. Scipione, M. A. Bessa, D. Mohr,
+   *Constitutive state-space modeling of path-dependent plasticity: a
+   resolution-consistent and parallelizable computational framework*, arXiv:2609.07294
+   (2026).
 
 Example
 =======
@@ -372,6 +425,9 @@ API reference
    :members:
 
 .. autoclass:: simcoon.ml.LMSC
+   :members:
+
+.. autoclass:: simcoon.ml.ArcSSM
    :members:
 
 .. autoclass:: simcoon.ml.RecurrentLaw

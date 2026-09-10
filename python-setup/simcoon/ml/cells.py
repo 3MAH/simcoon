@@ -12,8 +12,9 @@ them:
   :math:`\\partial\\sigma/\\partial\\varepsilon` when the cell has one, and ``None``
   when the wrapper should differentiate the step with autograd instead.
 
-Implementations: :class:`simcoon.ml.StressLSTM` (gated, Danoun et al.) and
-:class:`simcoon.ml.LMSC` (linearized minimal state cell, Bonatti and Mohr).
+Implementations: :class:`simcoon.ml.StressLSTM` (gated, Danoun et al.),
+:class:`simcoon.ml.LMSC` (linearized minimal state cell, Bonatti and Mohr) and
+:class:`simcoon.ml.ArcSSM` (stacked arc-length state-space layers).
 """
 
 from __future__ import annotations
@@ -214,7 +215,8 @@ class StateModel(nn.Module):
         raise NotImplementedError
 
     def forward(self, x: Tensor, s: Optional[Tensor] = None):
-        """Run a whole sequence: ``x (B, T, n_in)`` -> ``y (B, T, n_out)``, ``s (B, state_size)``."""
+        """Run a whole sequence: ``x (B, T, n_in)`` -> ``y (B, T, n_out)``, ``s (B, state_size)``,
+        ``psi`` (``(B, T)`` free-energy track of a cell that has one, ``None`` otherwise)."""
         raise NotImplementedError
 
     def analytic_tangent(self, x: Tensor, s: Tensor) -> Optional[Tensor]:

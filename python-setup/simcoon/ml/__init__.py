@@ -1,6 +1,6 @@
 """Machine-learning constitutive models (PyTorch).
 
-Two recurrent constitutive cells share one interface
+Three recurrent constitutive cells share one interface
 (:class:`~simcoon.ml.cells.StateModel`) and one UMAT wrapper:
 
 * :class:`StressLSTM`, the stress LSTM of Danoun, Prulière and Chemisky
@@ -8,7 +8,10 @@ Two recurrent constitutive cells share one interface
   a gated network whose hidden state plays the role of the internal variables;
 * :class:`LMSC`, the linearized minimal state cell of Bonatti and Mohr
   (JMPS 2022), whose update is stationary and self-consistent by construction
-  and which carries a closed-form algorithmic tangent.
+  and which carries a closed-form algorithmic tangent;
+* :class:`ArcSSM`, the same arc-length update stacked in layers whose coefficients
+  are selected by the input and the layer below (a structured state-space model),
+  which keeps the LMSC guarantees and trains in parallel over the sequence.
 
 The subpackage also provides
 * :mod:`~simcoon.ml.data` — random non-proportional strain paths, dataset generation
@@ -37,6 +40,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without torch
 from .cells import VOIGT, StateModel
 from .lstm import StressLSTM
 from .lmsc import LMSC
+from .ssm import ArcSSM
 from .data import (
     SequenceDataset,
     generate_dataset,
@@ -52,7 +56,7 @@ from .evaluate import evaluate
 from .law import LSTMLaw, RecurrentLaw
 
 __all__ = [
-    "VOIGT", "StateModel", "StressLSTM", "LMSC",
+    "VOIGT", "StateModel", "StressLSTM", "LMSC", "ArcSSM",
     "SequenceDataset", "generate_dataset", "load_csv", "mode_components",
     "random_strain_paths", "split_dataset",
     "torch_cost", "sequence_tangent",

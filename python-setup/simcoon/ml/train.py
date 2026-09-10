@@ -104,7 +104,7 @@ def train(
     if fit_scalers:
         model.fit_scalers(train_ds.x, train_ds.y, train_ds.mask)
     wr = None if w_response is None else torch.as_tensor(w_response, dtype=train_ds.x.dtype)
-    if dissipation_weight > 0.0 and model.psi_head is None:
+    if dissipation_weight > 0.0 and getattr(model, "psi_head", None) is None:
         raise ValueError("dissipation_weight > 0 requires a model built with psi_head=True")
     optimizer = optimizer or torch.optim.Adam(model.parameters(), lr=lr)
 

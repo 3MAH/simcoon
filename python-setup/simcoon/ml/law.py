@@ -65,6 +65,14 @@ class RecurrentLaw(PythonUMAT):
         Default: ``model.default_commit_tol`` times the median training increment recorded
         by ``fit_scalers`` — zero for a self-consistent cell such as the LMSC, which needs
         no such rule.
+    max_increment : float
+        Norm of the trial strain increment beyond which :meth:`integrate` raises a
+        :class:`simcoon.StepCut` instead of evaluating the cell. A diverging Newton iterate
+        of the solver (``|dE| ~ 1e154`` has been observed under stress control) is outside
+        the domain of any small-strain law; answering it with a step cut lets the solver
+        restart the increment smaller, where evaluating it overflows the energy or the
+        tangent into ``inf``/``nan``. The default (a 100 % strain increment) never triggers
+        on a sane trial.
 
     Notes
     -----
@@ -84,6 +92,7 @@ class RecurrentLaw(PythonUMAT):
         newton_tol: float = 1e-8,
         newton_maxiter: int = 25,
         commit_tol: Optional[float] = None,
+        max_increment: float = 1.0,
     ):
         self.device = torch.device(device)
         self.dtype = dtype
@@ -106,6 +115,7 @@ class RecurrentLaw(PythonUMAT):
             commit_tol = (model.default_commit_tol
                           * float(getattr(model, "median_increment", torch.zeros(()))))
         self.commit_tol = float(commit_tol)
+        self.max_increment = float(max_increment)
         # components the model does not know (row or column): fallback diagonal stiffness
         self._fill_idx = [i for i in range(6) if i not in self.idx_out or i not in self.idx_in]
         # stress-free directions to condense, by ndi (positions in the model's components)
@@ -318,6 +328,12 @@ class RecurrentLaw(PythonUMAT):
         # coupler that keeps Time == 0 across increments must not lose the history
         statev = np.asarray(statev, dtype=float)
         DEtot = np.asarray(DEtot, dtype=float)
+        # a diverging Newton iterate is outside any small-strain law's domain: ask for a
+        # smaller increment before the energy or the tangent overflow
+        norm_d = float(np.linalg.norm(DEtot))
+        if not norm_d <= self.max_increment:
+            raise StepCut(msg=f"trial strain increment |dE| = {norm_d:.2e} beyond "
+                              f"max_increment = {self.max_increment:g}")
         eps6 = (np.asarray(Etot, dtype=float) + DEtot)[:, None]
         stress, Lt, s1, used = self.step_batch(
             eps6, statev[self._sl_s][:, None],

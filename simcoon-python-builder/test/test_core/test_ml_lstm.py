@@ -476,7 +476,7 @@ def test_sequence_tangent_matches_the_law_tangent():
                                        rtol=1e-6, atol=1e-6 * np.abs(D).max())
 
 
-@pytest.mark.parametrize("cell", ["lstm_dstrain", "lmsc"])
+@pytest.mark.parametrize("cell", ["lstm_dstrain", "lmsc", "arcssm"])
 def test_sequence_tangent_sums_every_strain_block(cell):
     """Perturbing the end-of-increment strain moves the 'strain' and 'dstrain' features
     together: the diagnostic must add both contributions, or it reports the wrong operator
@@ -486,8 +486,9 @@ def test_sequence_tangent_sums_every_strain_block(cell):
     targets, ninc = ml.random_strain_paths(3, n_segments=2, n_sub=5, amplitude=0.01, seed=2)
     ds = ml.generate_dataset("ELISO", ELISO_PROPS, 1, targets=targets, ninc=ninc,
                              features=("strain", "dstrain"))
-    model = (ml.StressLSTM(features=("strain", "dstrain"), hidden_size=8, num_layers=2)
-             if cell == "lstm_dstrain" else ml.LMSC(n_state=8, depth=2, width=16))
+    model = {"lstm_dstrain": lambda: ml.StressLSTM(features=("strain", "dstrain"), hidden_size=8, num_layers=2),
+             "lmsc": lambda: ml.LMSC(n_state=8, depth=2, width=16),
+             "arcssm": lambda: ml.ArcSSM(n_state=8, n_layers=2, depth=2, width=16)}[cell]()
     model.fit_scalers(ds.x, ds.y, ds.mask)
     D = ml.sequence_tangent(model, ds.x).detach().numpy()
     assert D.shape == (3, 10, 6, 6) and np.abs(D).max() > 0.0
@@ -671,3 +672,235 @@ def test_lmsc_batch_and_persistence(tmp_path):
     assert isinstance(m2, ml.LMSC) and m2.hparams == m.hparams
     x = torch.randn(2, 4, m.n_in, dtype=torch.float64)
     torch.testing.assert_close(m2.double()(x)[0], m(x)[0])
+
+
+# ---------------------------------------------------------------------------
+# ArcSSM: the LMSC update stacked with input-selected coefficients (parallel scan)
+# ---------------------------------------------------------------------------
+
+def _arcssm(**kw):
+    torch.manual_seed(0)
+    m = ml.ArcSSM(n_state=kw.pop("n_state", 8), n_layers=kw.pop("n_layers", 2),
+                  depth=kw.pop("depth", 2), width=kw.pop("width", 16), **kw).double()
+    m.y_std.fill_(300.0)                    # a realistic stress scale
+    return m
+
+
+def test_linear_scan_matches_the_loop():
+    from simcoon.ml.ssm import linear_scan
+    torch.manual_seed(1)
+    a = torch.rand(2, 37, 5, dtype=torch.float64)          # |a| <= 1: the stable regime
+    b = torch.randn(2, 37, 5, dtype=torch.float64)
+    h0 = torch.randn(2, 5, dtype=torch.float64)
+    h, out = h0, []
+    for t in range(37):
+        h = a[:, t] * h + b[:, t]
+        out.append(h)
+    torch.testing.assert_close(linear_scan(a, b, h0), torch.stack(out, 1), rtol=1e-13, atol=1e-13)
+
+
+@pytest.mark.parametrize("top_lmsc", [False, True])
+def test_arcssm_forward_is_the_step_rollout(top_lmsc):
+    """The parallel scan of ``forward`` integrates exactly the recurrence ``step`` runs one
+    increment at a time - the property that makes parallel training legitimate - from a
+    non-zero state and from the zero state ``train()`` starts at."""
+    m = _arcssm(top_lmsc=top_lmsc)
+    x = torch.randn(3, 12, m.n_in, dtype=torch.float64) * 1e-3
+    for s0 in (torch.randn(3, m.state_size, dtype=torch.float64) * 0.3, None):
+        with torch.no_grad():
+            y, sT, psi = m(x, s0)
+            s, ys = (m.zero_state(3, dtype=torch.float64) if s0 is None else s0), []
+            for t in range(x.shape[1]):
+                yt, s = m.step(x[:, t], s)
+                ys.append(yt)
+        assert psi is None
+        torch.testing.assert_close(y, torch.stack(ys, 1), rtol=1e-12, atol=1e-12 * float(y.abs().max()))
+        torch.testing.assert_close(sT, s, rtol=1e-12, atol=1e-14)
+
+
+def test_arcssm_stationarity_is_exact():
+    """A zero increment leaves every layer's state and the stress strictly unchanged."""
+    m = _arcssm(top_lmsc=True)              # the sequential top layer included
+    s = torch.randn(4, m.state_size, dtype=torch.float64) * 0.3
+    with torch.no_grad():
+        for _ in range(100):
+            s2 = m.update(torch.zeros(4, 6, dtype=torch.float64), s)
+            assert float((s2 - s).abs().max()) == 0.0
+            assert float((m.stress(s2) - m.stress(s)).abs().max()) == 0.0
+            s = s2
+
+
+def test_arcssm_first_layer_is_exactly_self_consistent():
+    """A layer whose coefficients read the direction only integrates a straight segment
+    exactly whatever the number of sub-increments: the LMSC's frozen-coefficient
+    property holds without freezing anything."""
+    m = _arcssm(n_layers=1)
+    s = torch.randn(3, m.state_size, dtype=torch.float64) * 0.3
+    d = torch.randn(3, 6, dtype=torch.float64) * 1e-3
+    with torch.no_grad():
+        one, four = m.update(d, s), s
+        for _ in range(4):
+            four = m.update(d / 4, four)
+    assert float((one - four).abs().max()) < 1e-14
+
+
+def test_arcssm_is_rate_independent_and_self_consistent():
+    m = _arcssm()
+    law = ml.LSTMLaw(m)
+    assert law.commit_tol == 0.0            # no committed-state rule needed
+    d = torch.randn(3, 6, dtype=torch.float64) * 1e-3
+    common = dict(Etot=np.zeros(6), sigma=np.zeros(6), statev=np.zeros(law.nstatev),
+                  Wm=np.zeros(4), T=293.15, DT=0.0, ndi=3, start=True, tangent_mode=2)
+    a = law.integrate(DEtot=d[0].numpy(), DTime=1.0, **common)
+    b = law.integrate(DEtot=d[0].numpy(), DTime=10.0, **common)
+    for x, y in zip(a[:3], b[:3]):
+        np.testing.assert_array_equal(x, y)
+    # the second layer reads the first along the segment: first-order refinement error,
+    # decreasing monotonically
+    s = torch.randn(3, m.state_size, dtype=torch.float64) * 0.3
+    with torch.no_grad():
+        def rollout(total, k):
+            c = s.clone()
+            for _ in range(k):
+                c = m.update(total / k, c)
+            return m.stress(c)
+        ref = rollout(d * 20, 2048)
+        errs = [float((rollout(d * 20, k) - ref).abs().max()) for k in (1, 2, 4, 8, 16, 32)]
+    assert all(b < a for a, b in zip(errs, errs[1:]))
+    assert errs[-1] < errs[0] / 20
+
+
+def test_arcssm_zero_state_is_stress_free():
+    m = _arcssm()
+    with torch.no_grad():
+        assert float(m.stress(torch.zeros(2, m.state_size, dtype=torch.float64)).abs().max()) == 0.0
+    x = torch.randn(4, 5, m.n_in, dtype=torch.float64)
+    m.fit_scalers(x, torch.randn(4, 5, 6, dtype=torch.float64) * 100 + 50)
+    assert float(m.y_mean.abs().max()) == 0.0          # a mean would break the property
+    assert float(m.y_std.min()) > 0.0
+
+
+def test_arcssm_autograd_tangent_matches_finite_differences():
+    """No closed form: the law differentiates the step by autograd, and falls back to the
+    elastic predictor where the increment - hence the direction - vanishes."""
+    m = _arcssm()
+    s = torch.randn(3, m.state_size, dtype=torch.float64) * 0.3
+    d = torch.randn(3, 6, dtype=torch.float64) * 1e-3
+    assert m.analytic_tangent(m.build_inputs(torch.zeros(3, 6, dtype=torch.float64), d), s) is None
+    law = ml.LSTMLaw(m)
+    st, Lt, s1, used = law.step_batch(d.numpy().T, s.numpy().T)
+    h = 1e-7
+    fd = np.zeros_like(Lt)
+    with torch.no_grad():
+        for j in range(6):
+            e = torch.zeros(3, 6, dtype=torch.float64)
+            e[:, j] = h
+            fd[:, j, :] = ((m.stress(m.update(d + e, s)) - m.stress(m.update(d - e, s))) / (2 * h)).numpy().T
+    np.testing.assert_allclose(Lt, fd, rtol=1e-6, atol=1e-6 * np.abs(fd).max())
+    st, Lt, s1, used = law.step_batch(np.zeros((6, 1)), s[:1].numpy().T)
+    np.testing.assert_allclose(Lt[:, :, 0], law.elastic_L, rtol=1e-12)
+
+
+def test_arcssm_in_the_solver_state_and_rollback():
+    m = _arcssm()
+    law = ml.LSTMLaw(m)
+    assert law.nstatev == m.state_size + 6              # no committed strain to carry beyond
+    step = StepMeca(control=["strain"] * 6, value=[2e-3, -1e-3, 0.0, 1e-3, 0.0, 0.0], ninc=20)
+    r = solve(step, law)
+    assert r.status == 0 and len(r) == 20
+    # replaying the recorded strain path reproduces the run exactly: all the history the
+    # solver rewinds lives in statev
+    s = np.zeros((law.state_size, 1))
+    prev = np.zeros((law.n_comp, 1))
+    for k in range(len(r)):
+        eps = r["Strain"][:, k].reshape(6, 1)
+        sig, _, s, prev = law.step_batch(eps, s, strain_prev=prev)
+    np.testing.assert_allclose(sig[:, 0], r["Stress"][:, -1], rtol=1e-10, atol=1e-9)
+
+
+@pytest.fixture(scope="module")
+def eliso_arcssm():
+    """Small ArcSSM trained a few seconds on ELISO paths (3D)."""
+    torch.manual_seed(0)
+    targets, ninc = ml.random_strain_paths(96, n_segments=4, n_sub=10, amplitude=0.01, seed=1)
+    ds = ml.generate_dataset("ELISO", ELISO_PROPS, 1, targets=targets, ninc=ninc,
+                             features=("strain", "dstrain"))
+    tr, te = ml.split_dataset(ds, 0.25, seed=0)
+    model = ml.ArcSSM(n_state=16, n_layers=2, depth=2, width=32)
+    trl, _ = ml.train(model, tr, te, epochs=300, batch_size=16, lr=5e-3, verbose=False, seed=0)
+    assert trl[-1] < trl[0] * 1e-2
+    return model, te
+
+
+def test_arcssm_learns_drives_mixed_control_and_condenses(eliso_arcssm):
+    """A trained ArcSSM drives the solver under strain and mixed control (the autograd
+    tangent in the Newton loop) and condenses the stress-free directions."""
+    model, te = eliso_arcssm
+    law = ml.LSTMLaw(model)
+    st = StepMeca(control=["strain"] * 6, value=[4e-3, -1e-3, 0, 2e-3, 0, 0], ninc=20)
+    r, ref = solve(st, law), solve(st, "ELISO", ELISO_PROPS, 1)
+    assert r.status == 0
+    assert np.abs(r["Stress"] - ref["Stress"]).max() / np.abs(ref["Stress"]).max() < 0.1
+    r2 = solve(StepMeca(control=UNIAXIAL, value=[2e-3, 0, 0, 0, 0, 0], ninc=20), law)
+    assert r2.status == 0
+    np.testing.assert_allclose(r2["Stress"][1:, -1], 0.0, atol=1e-5)
+    assert abs(r2["Stress"][0, -1] - ELISO_PROPS[0] * 2e-3) < 20.0
+    eps = np.array([[4e-3], [1e-3], [0.0], [2e-3], [0.0], [0.0]])
+    s0 = np.zeros((law.state_size, 1))
+    for ndi, free in ((2, [2]), (1, [1, 2])):
+        stv, Lt, _, used = law.step_batch(eps, s0, ndi=ndi)
+        np.testing.assert_allclose(stv[free, 0], 0.0, atol=1e-6)
+        assert np.isfinite(Lt).all() and abs(Lt[0, 0, 0]) > 0.0
+
+
+def test_arcssm_batch_and_persistence(tmp_path):
+    m = _arcssm(top_lmsc=True)
+    law = ml.LSTMLaw(m)
+    rng = np.random.default_rng(0)
+    N = 4
+    eps = rng.normal(scale=1e-3, size=(6, N))
+    s0 = rng.normal(scale=0.2, size=(law.state_size, N))
+    st, Lt, s1, used = law.step_batch(eps, s0)
+    for i in range(N):                                  # batch == N single calls
+        one = law.step_batch(eps[:, [i]], s0[:, [i]])
+        np.testing.assert_allclose(one[0][:, 0], st[:, i], rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(one[1][:, :, 0], Lt[:, :, i], rtol=1e-8, atol=1e-8)
+    # save / load through the generic cell registry
+    p = tmp_path / "arcssm.pt"
+    m.save(p)
+    m2 = ml.StateModel.load(p)
+    assert isinstance(m2, ml.ArcSSM) and m2.hparams == m.hparams and m2.top_lmsc
+    x = torch.randn(2, 4, m.n_in, dtype=torch.float64)
+    torch.testing.assert_close(m2.double()(x)[0], m(x)[0])
+
+
+def test_arcssm_stays_finite_on_a_diverging_newton_iterate():
+    """A solver Newton iterate can be absurd (|d_eps| ~ 1e154 before the step is cut): the
+    stress, state and autograd tangent must stay finite there, as the LMSC's closed form
+    does, so that the solver cuts the step instead of the law raising on a NaN."""
+    m = _arcssm(top_lmsc=True)
+    law = ml.LSTMLaw(m)
+    s0 = np.random.default_rng(0).normal(scale=0.2, size=(law.state_size, 2))
+    d = np.array([[1.0e154, -0.5e154, 0.3e154, 0.0, 1.0e153, 0.0], [1e-3, 0, 0, 0, 0, 0]]).T
+    st, Lt, s1, used = law.step_batch(d, s0)
+    assert np.isfinite(st).all() and np.isfinite(Lt).all() and np.isfinite(s1).all()
+    np.testing.assert_allclose(Lt[:, :, 0], 0.0, atol=1e-6 * np.abs(Lt[:, :, 1]).max())
+    with torch.no_grad():                   # the exact norm was lost to overflow, the scaled one is not
+        nu, n = m._split(torch.as_tensor(d.T[:1]))
+    assert np.isfinite(float(nu)) and abs(float(n.norm()) - 1.0) < 1e-12
+
+
+def test_recurrent_law_cuts_the_step_on_an_absurd_trial_increment():
+    """A diverging Newton iterate (|dE| >> 1) is answered by a StepCut, whatever the cell,
+    before the energy or the tangent can overflow."""
+    law = ml.LSTMLaw(_arcssm())
+    common = dict(Etot=np.zeros(6), sigma=np.zeros(6), Wm=np.zeros(4), DTime=1.0, T=293.15,
+                  DT=0.0, ndi=3, start=True, tangent_mode=2)
+    for huge in (1e154, 2.0, np.inf):
+        with pytest.raises(sim.StepCut):
+            law.integrate(DEtot=np.array([huge, 0, 0, 0, 0, 0]), statev=np.zeros(law.nstatev), **common)
+    sig, Lt, new, Wm, L = law.integrate(DEtot=np.array([0.5, 0, 0, 0, 0, 0]),
+                                        statev=np.zeros(law.nstatev), **common)
+    assert np.isfinite(sig).all() and np.isfinite(Lt).all() and np.isfinite(Wm).all()
+    law2 = ml.LSTMLaw(_arcssm(), max_increment=10.0)
+    law2.integrate(DEtot=np.array([2.0, 0, 0, 0, 0, 0]), statev=np.zeros(law2.nstatev), **common)
