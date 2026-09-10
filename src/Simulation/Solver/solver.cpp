@@ -57,6 +57,13 @@ namespace {
 // Single definition of the step-cut decision: bisect the increment unless it
 // is already at its minimal fraction. Returns whether the cut was applied —
 // call sites decide what a refusal means (throw a typed error, rethrow, ...).
+// How many increments in a row the inforce path may close before the prescribed state is
+// declared unreachable. A legitimate correction is isolated - one increment that did not quite
+// converge, whose residual the next one absorbs. A response saturated below the target stalls on
+// every increment instead. Deliberately generous, and it only bites when the error is *not*
+// decreasing, so a hard but converging problem is never interrupted.
+constexpr int inforce_stall_max = 5;
+
 inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
                          const double &div_tnew_dt, double &tnew_dt) {
     if (fabs(Dtinc_cur - Dn_mini) > simcoon::iota) {
@@ -265,6 +272,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                         }
                     
                         nK = sum(sptr_meca->cBC_meca);
+                        
+                        // Bookkeeping of the "inforce" path over the step: how many increments in
+                        // a row it has closed, and the error it started from.
+                        int n_inforced = 0;
+                        double error_inforced = 0.;
                         
                         inc = 0;
                         while(inc < sptr_meca->ninc) {
@@ -642,21 +654,22 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     }
                                     
                                 }
-/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
-//                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }
-                                
-                                if((error > 1000.*precision_solver)&&(Dtinc_cur == sptr_meca->Dn_mini)) {
-//                                    cout << "The error has exceeded 100 times the precision, the simulation has stopped at " << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }*/
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
                                         if(inforce_solver == 1) {
+                                            
+                                            // Give up when the carried residual is not being absorbed:
+                                            // the prescribed state is out of reach, not merely hard.
+                                            // Status protocol, never a throw (see solver_sink.hpp).
+                                            if (n_inforced == 0) {
+                                                error_inforced = error;
+                                            }
+                                            n_inforced++;
+                                            if ((n_inforced > inforce_stall_max) && (error > 0.9 * error_inforced)) {
+                                                cout << "The prescribed state cannot be reached at step:" << sptr_meca->number << " inc: " << inc << ": inforced over " << n_inforced << " consecutive increments without absorbing the residual (error " << error << ", strain increment the tangent asks for: " << norm(Delta, 2.) << "). The material response is likely saturated below the target.\n";
+                                                return 1;
+                                            }
                                             
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
 //                                            cout << "The next increment has integrated the error to avoid propagation\n";
@@ -691,6 +704,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         tnew_dt = div_tnew_dt_solver;
                                     }
                                 }
+                                else {
+                                    n_inforced = 0;   // converged: the inforce path is not stalling
+                                }
 
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
@@ -714,6 +730,11 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
+                                // Every branch above assigns this same expression, but only when it
+                                // runs: the inforce path skips them while Dtinc has shrunk to Dn_mini,
+                                // and assess_inc would then add a stale full-increment DTime once per
+                                // forced sub-iteration. Recompute from the fraction actually accepted.
+                                DTime = Dtinc*sptr_meca->times(inc);
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
