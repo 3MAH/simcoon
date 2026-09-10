@@ -15,8 +15,9 @@
  */
 
 ///@file umat_smart.cpp
-///@brief Selection of constitutive laws and transfer to between Abaqus and simcoon formats
-///@brief Implemented in 1D-2D-3D
+///@file umat_smart.cpp
+///@brief Selection of constitutive laws and transfer between Abaqus and simcoon formats,
+///       implemented in 1D-2D-3D
 ///@version 1.0
 
 #include <iostream>
@@ -309,8 +310,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 201: {
-                // Legacy names served by the modular engine on the log-strain
-                // measures (etot/Detot), exactly like EPICP above.
+                // Legacy names served by the modular engine on the log-strain measures
+                // (etot/Detot), exactly like EPICP above. The anisotropic-plasticity ones are
+                // corotational return-mapping models that transport their internal state by DR,
+                // so they integrate correctly under finite strain. They were absent from this
+                // finite dispatcher, so a missing-key lookup returned 0 and they silently fell
+                // through to case 0 (no-op) -> zero stress under NLGEOM.
                 umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
@@ -344,16 +349,9 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
-            // Anisotropic-plasticity UMATs: corotational return-mapping models that
-            // transport their internal state by DR, so they integrate correctly under
-            // finite strain on the logarithmic strain (umat_M->etot/Detot), exactly as
-            // EPICP (case 6) above. These were absent from this finite dispatcher, so a
-            // missing-key lookup returned 0 and they silently fell through to case 0
-            // (no-op) -> zero stress under NLGEOM. Registered here to fix that.
             case 300: {
                 // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
                 // bindings). Small-strain convention on the log-strain / Kirchhoff box, as EPICP.
-                // NB the multi-name comment further up documents case 201, not this case.
                 umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }

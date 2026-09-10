@@ -15,9 +15,6 @@
  
  */
 
-///@file solver.hpp
-///@brief To solver an homogeneous thermomechanical problem
-///@version 1.0
 
 #pragma once
 #include <armadillo>

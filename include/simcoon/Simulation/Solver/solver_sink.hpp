@@ -143,8 +143,19 @@ public:
  * @param corate_type Objective rate choice (see corate_kinematics, objective_rates.hpp)
  * @param ctrl Numeric solver controls
  * @param sink Results observer
- * @return 0 on completion, 1 on early abort (invalid solver type / unrecognized
- *         thermal BC / non-convergence with inforce == 0)
+ * @return 0 on completion, 1 on early abort. A run aborts on an invalid solver type, an
+ *         unrecognized thermal BC, a Newton loop that does not converge at the minimal
+ *         increment with @p inforce == 0, or a prescribed state the material cannot reach.
+ *
+ * The last case is the counterpart of the @p inforce contract. With @p inforce == 1 an
+ * increment that did not quite converge is closed anyway and its residual carried into the
+ * next one, which absorbs it. That is a correction, and it presumes the prescribed state is
+ * reachable: a stress target above the plateau of a perfectly plastic law, or above the
+ * saturation of a surrogate model, is not. The solver therefore watches whether the carried
+ * residual is actually being absorbed over consecutive increments, and aborts rather than
+ * closing the whole step on a state it never reached. The diagnostic reports the strain
+ * increment the tangent asks for, \f$ -\mathbf{K}^{-1}\mathbf{r} \f$, which diverges as the
+ * tangent collapses.
  */
 int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so,
                const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev,
