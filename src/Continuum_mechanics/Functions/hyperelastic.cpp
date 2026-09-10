@@ -543,10 +543,14 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
 
     mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
 
-    // Constant identities built once, not at every Newton iterate
-    static const mat I_real = Ireal();
-    static const mat I_vol = Ivol();
-    static const mat I_dev = Idev();
+    // Plain locals on purpose: a function-local static of an armadillo type registers a
+    // destructor that runs at DLL unload, and on Windows the unload order of the extension
+    // module, the BLAS/LAPACK DLLs and the CRT is not defined — freeing the matrix after its
+    // allocator is gone aborts the process once the tests are over. These are 6x6 identities,
+    // negligible next to the six dyadic products this function already builds per call.
+    mat I_real = Ireal();
+    mat I_vol = Ivol();
+    mat I_dev = Idev();
 
     mat gamma_1 = (4./3.)*(I_bar(0)*I_dev - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
     mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
@@ -568,8 +572,8 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
             throw simcoon::exception_det("Error in det function inside L_vol_hyper.");
         } 
     }
-    static const mat I_real = Ireal();
-    static const mat I_vol = Ivol();
+    mat I_real = Ireal();                                // never static: see L_iso_hyper above
+    mat I_vol = Ivol();
     return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
 }
 
