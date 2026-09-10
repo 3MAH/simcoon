@@ -1,4 +1,9 @@
 
+// carma first, as in every other _core translation unit: it replaces Armadillo's
+// allocator with numpy's, and all TUs of the module must agree — Armadillo
+// buffers are stolen into numpy arrays, and mixed allocators crash on Windows
+// (carma issue #91).
+#include <carma>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <pybind11/pybind11.h>
