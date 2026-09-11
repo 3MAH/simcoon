@@ -146,7 +146,8 @@ Constitutive laws written in Python
 ``umat_name`` also accepts a law object implementing :class:`simcoon.PythonUMAT`
 (numpy, PyTorch, ...): it is registered under the ``PYEXT`` name for the duration
 of the call and integrated by the C++ solver like a built-in kernel; ``props`` and
-``nstatev`` default to the object's attributes. See :doc:`python_umat`.
+``nstatev`` default to the object's attributes. See :doc:`python_umat` and, for a
+recurrent neural network model, :doc:`ml_lstm`.
 
 API reference
 -------------

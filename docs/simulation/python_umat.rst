@@ -10,7 +10,7 @@ is served under the UMAT name ``PYEXT`` and reaches the C++ code through a
 process-wide callback registered by the bindings.
 
 Typical uses: a research model prototyped in numpy, a machine-learning model
-(PyTorch, JAX), or any law for which a C++ port is not worth
+(PyTorch, JAX — see :doc:`ml_lstm`), or any law for which a C++ port is not worth
 the effort yet.
 
 Quick start
@@ -125,7 +125,7 @@ loop), builds small numpy copies of the inputs and copies the outputs back —
 about 5–10 µs, negligible against any non-trivial law. A numpy J2 law costs a few
 tens of µs per call, a small LSTM step with its autograd tangent about a
 millisecond. For finite-element scale, batch the evaluation on the Python side
-(a batched step of its own) rather than calling ``sim.umat``
+(see :meth:`simcoon.ml.LSTMLaw.step_batch`) rather than calling ``sim.umat``
 point by point.
 
 Examples
@@ -133,6 +133,7 @@ Examples
 
 * :ref:`sphx_glr_examples_ml_pyumat_numpy_j2.py` — J2 plasticity in numpy
   compared with ``EPICP``.
+* :doc:`ml_lstm` — a trained LSTM as a constitutive law.
 
 API reference
 =============

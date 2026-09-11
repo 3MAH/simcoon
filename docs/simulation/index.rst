@@ -10,6 +10,7 @@ Simulation
    umat_catalog.rst
    modular_python.rst
    python_umat.rst
+   ml_lstm.rst
    umat_tutorial.rst
    identification.rst
    output.rst
