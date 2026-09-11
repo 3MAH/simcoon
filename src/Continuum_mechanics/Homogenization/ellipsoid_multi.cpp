@@ -39,10 +39,11 @@ namespace simcoon{
 //Definition of the static variables
 int ellipsoid_multi::mp;
 int ellipsoid_multi::np;
-vec ellipsoid_multi::x;
-vec ellipsoid_multi::wx;
-vec ellipsoid_multi::y;
-vec ellipsoid_multi::wy;
+// Never destroyed on purpose (see the header): the OS reclaims them at exit.
+vec& ellipsoid_multi::x = *new vec();
+vec& ellipsoid_multi::wx = *new vec();
+vec& ellipsoid_multi::y = *new vec();
+vec& ellipsoid_multi::wy = *new vec();
     
     
 //=====Private methods for ellipsoid_multi===================================

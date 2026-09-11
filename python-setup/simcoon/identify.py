@@ -118,6 +118,11 @@ def calc_cost(
           (e.g., force in N vs displacement in mm).
         - ``"rmse"`` — Root Mean Squared Error
         - ``"mae"`` — Mean Absolute Error
+        - ``"mape"`` — Mean Absolute Percentage Error (same definition as
+          ``sklearn.metrics.mean_absolute_percentage_error``: ``|y_exp|`` is
+          floored at machine epsilon, so responses crossing zero blow it up —
+          prefer ``"wmape"`` for stress/strain histories)
+        - ``"wmape"`` — weighted MAPE, ``sum(w |y_exp - y_num|) / sum(w |y_exp|)``
 
         With scikit-learn installed (``pip install simcoon[identify]``):
         ``"r2"`` and any ``sklearn.metrics`` function that accepts
@@ -257,6 +262,10 @@ def _nmse_per_response(
     return float(np.mean(nmse_values))
 
 
+#: Metrics computed with numpy only (also the differentiable set of :func:`simcoon.ml.torch_cost`)
+BUILTIN_METRICS = ("mse", "nmse", "nmse_per_response", "rmse", "mae", "mape", "wmape")
+
+
 def _compute_metric(
     y_exp: np.ndarray,
     y_num: np.ndarray,
@@ -280,6 +289,15 @@ def _compute_metric(
 
     if metric == "mae":
         return float(np.average(np.abs(residuals), weights=w))
+
+    if metric == "mape":
+        denom = np.maximum(np.abs(y_exp), np.finfo(np.float64).eps)
+        return float(np.average(np.abs(residuals) / denom, weights=w))
+
+    if metric == "wmape":
+        num = float(np.sum(w * np.abs(residuals)))
+        den = float(np.sum(w * np.abs(y_exp)))
+        return num / den if den > 1e-30 else num
 
     # sklearn metrics
     try:
@@ -306,6 +324,6 @@ def _compute_metric(
         return float(fn(y_exp, y_num, sample_weight=w))
 
     raise ValueError(
-        f"Unknown metric '{metric}'. Built-in: mse, nmse, rmse, mae. "
+        f"Unknown metric '{metric}'. Built-in: {', '.join(BUILTIN_METRICS)}. "
         f"With scikit-learn: r2, mean_squared_error, mean_absolute_error, etc."
     )

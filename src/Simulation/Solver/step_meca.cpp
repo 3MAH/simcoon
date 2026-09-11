@@ -272,7 +272,10 @@ bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
     arma::mat A = A_in;
     int k = 0;
     // Square-root until A is close to I (log converges fast there).
-    while (arma::norm(A - I, 2) > 0.25) {
+    // Frobenius, not the spectral norm: norm(X,2) is a full SVD (LAPACK
+    // dgesdd) used here only as a proximity test, and ||.||_2 <= ||.||_F
+    // always, so the 0.25 cutoff stays at least as conservative.
+    while (arma::norm(A - I, "fro") > 0.25) {
         if (++k > 40) return false;
         arma::mat Y = A, Z = I;   // Denman-Beavers: Y -> sqrt(A)
         bool converged = false;
@@ -281,7 +284,7 @@ bool real_logmat_3x3(const arma::mat &A_in, arma::mat &logA) {
             if (!arma::inv(Zi, Z) || !arma::inv(Yi, Y)) return false;
             const arma::mat Yn = 0.5 * (Y + Zi);
             const arma::mat Zn = 0.5 * (Z + Yi);
-            converged = arma::norm(Yn - Y, 2) <= 1e-14 * arma::norm(Yn, 2);
+            converged = arma::norm(Yn - Y, "fro") <= 1e-14 * arma::norm(Yn, "fro");
             Y = Yn; Z = Zn;
             if (converged) break;
         }

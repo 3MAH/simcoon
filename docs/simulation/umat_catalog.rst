@@ -3,7 +3,7 @@ Constitutive model (UMAT) catalog
 ====================================
 
 Every constitutive law is selected by its 5-character ``umat_name``. Since the
-modular UMAT framework, three kinds of implementation coexist behind those
+modular UMAT framework, four kinds of implementation coexist behind those
 names — **the calling convention is identical for all of them** (same
 ``umat_name``, same props, same solver/FEA usage):
 
@@ -19,6 +19,8 @@ names — **the calling convention is identical for all of them** (same
 - **legacy (kept)**: a dedicated, self-contained implementation kept either
   for pedagogy (readable single-file reference of the CCP return mapping) or
   because no modular equivalent exists.
+- **Python (external)**: the ``PYEXT`` name serves a law written in Python
+  (:class:`simcoon.PythonUMAT`) through a registered callback; see :doc:`python_umat`.
 
 Small-strain mechanical models
 ==============================
@@ -148,6 +150,7 @@ Unchanged dedicated implementations (out of the modular scope):
   stretches, props = ``N, kappa, mu_1, alpha_1, ...``).
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
+- **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 
 State variable (statev) layout for adapter-served names
 ========================================================

@@ -15,8 +15,9 @@
  */
 
 ///@file umat_smart.cpp
-///@brief Selection of constitutive laws and transfer to between Abaqus and simcoon formats
-///@brief Implemented in 1D-2D-3D
+///@file umat_smart.cpp
+///@brief Selection of constitutive laws and transfer between Abaqus and simcoon formats,
+///       implemented in 1D-2D-3D
 ///@version 1.0
 
 #include <iostream>
@@ -59,6 +60,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
+#include <simcoon/Continuum_mechanics/Umat/umat_callback.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
@@ -193,7 +195,8 @@ bool stress_output_is_kirchhoff(const std::string &umat_name)
     static const std::set<std::string> kirchhoff_box = {
         "EPICP", "EPCHA", "MODUL",
         "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
-        "EPANI", "EPDFA", "EPCHG", "EPHIN"};
+        "EPANI", "EPDFA", "EPCHG", "EPHIN",
+        "PYEXT"};  // Python callback law: fed the log strain, returns tau (see umat_callback.hpp)
     return kirchhoff_box.count(umat_name) > 0;
 }
 
@@ -268,7 +271,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22}};
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
 
     // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
     // unknown name and silently return zero stress; -1 falls to the default case
@@ -307,8 +310,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 201: {
-                // Legacy names served by the modular engine on the log-strain
-                // measures (etot/Detot), exactly like EPICP above.
+                // Legacy names served by the modular engine on the log-strain measures
+                // (etot/Detot), exactly like EPICP above. The anisotropic-plasticity ones are
+                // corotational return-mapping models that transport their internal state by DR,
+                // so they integrate correctly under finite strain. They were absent from this
+                // finite dispatcher, so a missing-key lookup returned 0 and they silently fell
+                // through to case 0 (no-op) -> zero stress under NLGEOM.
                 umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
@@ -342,12 +349,12 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
-            // Anisotropic-plasticity UMATs: corotational return-mapping models that
-            // transport their internal state by DR, so they integrate correctly under
-            // finite strain on the logarithmic strain (umat_M->etot/Detot), exactly as
-            // EPICP (case 6) above. These were absent from this finite dispatcher, so a
-            // missing-key lookup returned 0 and they silently fell through to case 0
-            // (no-op) -> zero stress under NLGEOM. Registered here to fix that.
+            case 300: {
+                // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
+                // bindings). Small-strain convention on the log-strain / Kirchhoff box, as EPICP.
+                umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                break;
+            }
             default: {
                 throw std::invalid_argument("Unknown umat name in the finite-strain dispatch: " + rve.sptr_matprops->umat_name);
             }
@@ -382,7 +389,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200}};
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"SMADI",8},{"SMADC",8},{"SMAAI",8},{"SMAAC",8},{"SMRDI",9},{"SMRDC",9},{"SMRAI",9},{"SMRAC",9},{"LLDM0",10},{"ZENER",11},{"ZENNK",12},{"PRONK",13},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"SMAMO",23},{"SMAMC",24},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"MODUL",200},{"PYEXT",300}};
 
     // Same frame handling as select_umat_M_finite: the caller's DR is global;
     // rotate it with the other state variables so the local UMAT receives the
@@ -491,6 +498,12 @@ void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double
         }
         case 100: case 101: case 103: case 104: {
             umat_multi(rve, DR, Time, DTime, ndi, nshr, start, solver_type, tnew_dt, it_umat->second);
+            break;
+        }
+        case 300: {
+            // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
+            // bindings). Small-strain convention on the small-strain box, as EPICP.
+            umat_callback_M(rve.sptr_matprops->umat_name, umat_M->Etot, umat_M->DEtot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
             break;
         }
         default: {

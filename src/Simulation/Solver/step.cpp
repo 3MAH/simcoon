@@ -189,7 +189,7 @@ mat step::mode3_rows(const unsigned int &size_BC) const
 }
 
 //----------------------------------------------------------------------
-void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dtinc_cur, const int &inforce_solver) {
+bool step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dtinc_cur, const int &inforce_solver) {
 //----------------------------------------------------------------------
     
     if((inc == 0)&&(Dtinc == 0.)){
@@ -206,8 +206,10 @@ void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
             Dtinc_cur = Dn_mini;
         }
         else {
-//            cout << "\nThe increment size is less than the minimum specified\n";
-            exit(0);
+            // inforce_solver == 0: the caller asked NOT to force the minimal increment.
+            // Report it (not exit(0), which used to kill the host process silently): the
+            // solver aborts with status 1, like a non-converged Newton loop.
+            return false;
         }
         
     }
@@ -221,7 +223,7 @@ void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
     if(tinc + Dtinc > 1.) {
         Dtinc = 1.-tinc;
     }
-    
+    return true;
 }
     
 /*!

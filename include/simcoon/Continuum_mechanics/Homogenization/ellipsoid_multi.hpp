@@ -135,17 +135,24 @@ protected:
     /** @brief Number of integration points in azimuthal direction */
     static int np;
 
-    /** @brief Gauss points for polar integration */
-    static arma::vec x;
+    /**
+     * @brief Gauss points for polar integration
+     *
+     * The four Gauss vectors are computed once (costly) and shared by every
+     * ellipsoid. They are references to heap vectors that are never destroyed:
+     * a static armadillo object's destructor would run at DLL unload, which is
+     * unsafe on Windows.
+     */
+    static arma::vec& x;
 
     /** @brief Gauss weights for polar integration */
-    static arma::vec wx;
+    static arma::vec& wx;
 
     /** @brief Gauss points for azimuthal integration */
-    static arma::vec y;
+    static arma::vec& y;
 
     /** @brief Gauss weights for azimuthal integration */
-    static arma::vec wy;
+    static arma::vec& wy;
 
     /** @brief Default constructor */
     ellipsoid_multi();
