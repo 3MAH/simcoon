@@ -222,9 +222,10 @@ Tangent operator and finite strain
 ``MODUL`` honors the solver's ``tangent_mode`` (continuum or algorithmic,
 algorithmic being the 2.0 default — :doc:`solver`). Under the finite-strain
 control types the composition acts as a Hencky hyperelastic law on the
-logarithmic strain and requires ``corate_type = 3`` (log_R): pass
-``corate="logarithmic_R"`` to :func:`simcoon.solver.solve` — the default
-``corate="logarithmic"`` is the XBM rate (code 2).
+logarithmic strain and requires ``corate_type = 3`` (log_R) — which is the
+:func:`simcoon.solver.solve` default, so nothing needs to be passed. Any
+other corate (e.g. ``corate="logarithmic"``, the XBM rate, code 2) is
+rejected under NLGEOM.
 
 See also
 --------
