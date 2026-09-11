@@ -721,6 +721,77 @@ arma::mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_
 */
 arma::mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const arma::mat &b, const double &mJ = 0.);
 
+/**
+ * @brief Derivatives of an isochoric-invariant hyperelastic potential.
+ *
+ * The seven scalars every potential of the form
+ * \f$ W(\bar{I}_1, \bar{I}_2) + U(J) \f$ hands to the stress and tangent
+ * builders. Zero-initialised, so a potential only writes the terms it has.
+ */
+struct hyper_invariants_dW {
+    double dWdI_1_bar = 0.;    ///< \f$ \partial W / \partial \bar{I}_1 \f$
+    double dWdI_2_bar = 0.;    ///< \f$ \partial W / \partial \bar{I}_2 \f$
+    double dW2dI_11_bar = 0.;  ///< \f$ \partial^2 W / \partial \bar{I}_1^2 \f$
+    double dW2dI_12_bar = 0.;  ///< \f$ \partial^2 W / \partial \bar{I}_1 \partial \bar{I}_2 \f$
+    double dW2dI_22_bar = 0.;  ///< \f$ \partial^2 W / \partial \bar{I}_2^2 \f$
+    double dUdJ = 0.;          ///< \f$ \partial U / \partial J \f$
+    double dU2dJ2 = 0.;        ///< \f$ \partial^2 U / \partial J^2 \f$
+};
+
+/**
+ * @brief Isochoric-invariant potentials of hyper_potential_derivatives.
+ *
+ * Shared by the standalone UMAT (umat_generic_hyper_invariants, which maps its
+ * 5-letter names onto these values) and by the modular composition, which
+ * stores the value in its props: adding a potential here serves both.
+ */
+enum class HyperPotential {
+    NEOHC = 0,  ///< compressible neo-Hookean, props [mu, kappa]
+    MOORI = 1,  ///< Mooney-Rivlin, props [C10, C01, kappa]
+    YEOHH = 2,  ///< Yeoh, props [C10, C20, C30, kappa]
+    ISHAH = 3,  ///< Isihara, props [C10, C20, C01, kappa]
+    GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
+    SWANH = 5   ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+};
+
+/**
+ * @brief Derivatives of an isochoric-invariant potential.
+ *
+ * @param potential the potential (see HyperPotential for its props)
+ * @param props the potential's own parameters, starting at index 0
+ * @param I_bar isochoric invariants \f$ (\bar{I}_1, \bar{I}_2) \f$
+ * @param J determinant of the deformation gradient
+ * @return the seven derivatives
+ */
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
+
+/**
+ * @brief Cauchy stress and canonical box tangent of an invariant potential.
+ *
+ * Assembles \f$ \boldsymbol{\sigma} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
+ * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, XBM rate — the same object the
+ * small-strain boxes return) from the potential derivatives and the left
+ * Cauchy-Green tensor.
+ *
+ * @p F is only used to move the tangent into the box convention. The standalone
+ * UMAT passes the deformation gradient; a caller that has an ELASTIC state
+ * rather than a total one passes \f$ \mathbf{V}^{el} = \exp(\boldsymbol{
+ * \varepsilon}^{el}) \f$, whose square is @p b — the tangent is then
+ * \f$ \partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el} \f$.
+ *
+ * @param[in] dW potential derivatives at (@p b, @p J)
+ * @param[in] b left Cauchy-Green tensor \f$ \mathbf{b} = \mathbf{F}\mathbf{F}^T \f$
+ * @param[in] J \f$ \det \mathbf{F} \f$
+ * @param[in] F deformation gradient (or V for an elastic state, see above)
+ * @param[out] sigma Cauchy stress, 6-Voigt. Cauchy and not Kirchhoff because
+ *             that is what the builders produce: a caller wanting
+ *             \f$ \boldsymbol{\tau} \f$ multiplies by @p J once, rather than
+ *             this function multiplying and the caller dividing back (which
+ *             is not exact in floating point).
+ * @param[out] Lt_box canonical box tangent, 6x6
+ */
+void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &sigma, arma::mat &Lt_box);
+
 /** @} */ // end of hyperelastic group
 
 } //namespace simcoon

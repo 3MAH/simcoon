@@ -97,6 +97,7 @@ private:
                                         ///< compute_driving_force, dPhi_dsigma,
                                         ///< kappa, tangent_contribution.
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
+    mutable arma::mat L_cached_;        ///< Stiffness the cached compliance was inverted from
     mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(Tensor2Type::strain)};
     mutable std::vector<tensor2> kappa_cache_{tensor2(Tensor2Type::strain)};
 
@@ -204,16 +205,11 @@ public:
     /**
      * @brief Invalidate the cached compliance M_cached_.
      *
-     * M_cached_ is lazily built on first use as inv(L) where L is the
-     * reference stiffness passed into compute_constraints. It is correct as
-     * long as that reference never changes — which is true for the current
-     * (1-D)·L_0 damage model since the undamaged L_0 is fixed after
-     * ElasticityModule::configure.
-     *
-     * Call this if any external actor mutates the elasticity reference
-     * between UMAT calls (e.g., a stiffness-evolving mechanism composed
-     * above damage). Then the next compute_constraints rebuilds M_cached_
-     * from the new L.
+     * M_cached_ = inv(L) is keyed on the stiffness L passed into
+     * compute_constraints — the tangent of the current elastic state — and is
+     * rebuilt whenever L changes, including at every refresh of a
+     * state-dependent (hyperelastic) block. This call is therefore never
+     * required; it only forces the next compute_constraints to rebuild.
      */
     void invalidate_compliance_cache() noexcept { M_cached_valid_ = false; }
 

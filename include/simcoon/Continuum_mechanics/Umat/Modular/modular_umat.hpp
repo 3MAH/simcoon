@@ -90,6 +90,12 @@ private:
     // State
     double T_init_;         ///< Initial temperature
     arma::vec sigma_start_; ///< Stress at start of increment
+    /// Elastic block's tangent at the elastic strain of the LAST
+    /// refresh_stress() call (return_mapping() starts with one). Carries no
+    /// damage factor, so it is not d(sigma)/d(eps) of the model. The multiplier
+    /// Jacobian and the consistent tangent must see the tangent of the state
+    /// the stress was evaluated at, or Newton loses its quadratic rate.
+    arma::mat L_cur_;
     bool initialized_;      ///< Whether initialize() has been called
 
     // Return-mapping controls (local internal-equilibrium Newton loop)
@@ -179,11 +185,12 @@ public:
      * @brief Configure from props array
      *
      * Props format:
-     * - props[0]: elasticity_type (0=iso, 1=cubic, 2=trans_iso, 3=ortho)
-     * - props[1]: elastic-constant convention code (IsoConv/CubicConv/...,
-     *   selects the interpretation of the constant slots — see
-     *   ElasticityModule::configure)
-     * - props[2..N_el]: elasticity parameters
+     * - props[0]: elasticity_type (0=iso, 1=cubic, 2=trans_iso, 3=ortho,
+     *   4=hyper_invariants)
+     * - props[1..N_el]: elasticity block. Linear types: convention code
+     *   (IsoConv/CubicConv/..., selects the interpretation of the constant
+     *   slots) then the constants; HYPER_INVARIANTS: potential, n_params,
+     *   parameters, alpha — see ElasticityModule::configure
      * - props[N_el+1]: num_mechanisms
      * - For each mechanism:
      *   - props[i]: mechanism_type (0=plasticity, 1=viscoelasticity, 2=damage)
@@ -268,13 +275,13 @@ public:
      * @param DEtot Strain increment
      * @param sigma Output: stress at end of increment
      * @param Lt Output: consistent tangent modulus
-     * @param L Output: elastic stiffness
+     * @param L Output: ground-state elastic stiffness (ElasticityModule::L0)
      * @param DR Rotation increment matrix
      * @param nprops Number of properties
      * @param props Material properties
      * @param nstatev Number of state variables
      * @param statev State variables
-     * @param T Temperature at end of increment
+     * @param T Temperature at the start of the increment
      * @param DT Temperature increment
      * @param Time Current time
      * @param DTime Time increment
@@ -346,7 +353,7 @@ private:
      * @param DEtot Strain increment
      * @param sigma Output: stress at end of increment
      * @param T_init Reference temperature
-     * @param T Current temperature
+     * @param T Temperature at the start of the increment
      * @param DT Temperature increment
      * @param DTime Time increment
      * @param ndi Number of direct stress components
@@ -365,6 +372,24 @@ private:
         int ndi,
         arma::vec& Ds_total
     );
+
+    /**
+     * @brief Recompute @p sigma and L_cur_ from the mechanisms' current state.
+     *
+     * The elastic strain is the total minus the thermal and the inelastic
+     * parts; stiffness_reduction() is the multiplicative CDM (1-D) factor —
+     * without it the stress ignores damage entirely while the tangent is
+     * softened (inconsistent Newton, unsoftened response).
+     *
+     * @param Etot_end total strain at the end of the increment
+     * @param DT_init temperature rise since the reference at the evaluated
+     *        state: T + DT - T_init at the end of the increment (T is the
+     *        start-of-increment temperature, as in the legacy kernels)
+     * @param ndi number of direct stress components
+     * @param sigma Output: stress
+     */
+    void refresh_stress(const arma::vec& Etot_end, double DT_init, int ndi,
+                        arma::vec& sigma);
 
     /**
      * @brief Compute the tangent modulus.

@@ -153,7 +153,10 @@ public:
      * @brief Compute constraint functions (yield/evolution equations)
      * @param sigma Current stress tensor (6 Voigt)
      * @param E_total Total mechanical strain at current iterate (Etot + DEtot, 6 Voigt)
-     * @param L Elastic stiffness tensor (6x6)
+     * @param L Elastic stiffness tensor (6x6). NOT guaranteed constant over
+     *          the increment: the orchestrator passes the tangent of the state
+     *          the stress was evaluated at, which moves once the elastic block
+     *          is state-dependent. Do NOT latch anything derived from it.
      * @param DTime Time increment
      * @param Phi Output: constraint function values
      * @param Y_crit Output: critical values for convergence
@@ -174,7 +177,10 @@ public:
     /**
      * @brief Compute contribution to Jacobian matrix B
      * @param sigma Current stress tensor (6 Voigt)
-     * @param L Elastic stiffness tensor (6x6)
+     * @param L Elastic stiffness tensor (6x6). NOT guaranteed constant over
+     *          the increment: the orchestrator passes the tangent of the state
+     *          the stress was evaluated at, which moves once the elastic block
+     *          is state-dependent. Do NOT latch anything derived from it.
      * @param B Jacobian matrix to update
      * @param row_offset Starting row for this mechanism's contributions
      *

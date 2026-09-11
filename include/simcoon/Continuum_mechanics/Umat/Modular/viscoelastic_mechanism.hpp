@@ -62,6 +62,7 @@ private:
     std::vector<arma::mat> invH_i_;     ///< Cached inv(H_i)
     std::vector<arma::mat> M0_L_i_;     ///< Cached M_0 · L_i (for inelastic_strain)
 
+    arma::mat L_0_;                     ///< Reference stiffness, set by orchestrator
     arma::mat M_0_;                     ///< Reference compliance = inv(L_0), set by orchestrator
 
     // IVC keys, cached at register_variables (avoids string concatenation
@@ -72,7 +73,7 @@ private:
     // Per-iteration caches (CCP: frozen flow direction from previous iteration)
     mutable std::vector<arma::vec> flow_i_;       ///< Strain-rate vector per branch
     mutable std::vector<arma::vec> Lambda_i_;     ///< eta_norm_strain(flow_i)
-    mutable std::vector<arma::vec> kappa_i_;      ///< L_i . Lambda_i (used in tangent)
+    mutable std::vector<arma::vec> kappa_i_;      ///< d(sigma)/d(v_i) = L M_0 L_i . Lambda_i (L_i . Lambda_i at L_0)
     mutable std::vector<tensor2> kappa_t_;        ///< Typed mirror of kappa_i_ (stress) for the kappa() interface
     mutable std::vector<arma::vec> dPhi_i_dv_;    ///< invH_i . (eta_norm_strain(flow_i) % Ir05())
     mutable arma::vec K_diag_;                    ///< Cached diagonal K(i,i) = -dPhi_i_dv . kappa_i - 1/Δt

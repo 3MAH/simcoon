@@ -23,16 +23,13 @@
 #include <fstream>
 #include <map>
 #include <armadillo>
-#include <math.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
-#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/derivatives.hpp>
-#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/generic_hyper_invariants.hpp>
 
@@ -64,16 +61,6 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     //definition of the Right Cauchy-Green tensor
     mat b = L_Cauchy_Green(F1);
 
-    double dWdI_1_bar = 0.;
-    double dWdI_2_bar = 0.;    
-
-    double dW2dI_11_bar = 0.;    
-    double dW2dI_12_bar = 0.;    
-    double dW2dI_22_bar = 0.;    
-
-    double dUdJ = 0.;
-    double dU2dJ2 = 0.;
-
     double J;
     try {
         J = det(F1);
@@ -83,104 +70,16 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     }     
     vec I_bar = isochoric_invariants(b, J);
 
-    static const std::map<string, int> list_potentials = {{"NEOHC",0},{"MOORI",1},{"YEOHH",2},{"ISHAH",3},{"GETHH",4},{"SWANH",5}};
+    static const std::map<string, HyperPotential> list_potentials = {
+        {"NEOHC", HyperPotential::NEOHC}, {"MOORI", HyperPotential::MOORI},
+        {"YEOHH", HyperPotential::YEOHH}, {"ISHAH", HyperPotential::ISHAH},
+        {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH}};
 
     auto it_potential = list_potentials.find(umat_name);
     if (it_potential == list_potentials.end()) {
         throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }
-    switch (it_potential->second) {
-        case 0: {
-            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$ 
-            double mu = props(0);
-            double kappa = props(1);            
-            dWdI_1_bar = 0.5*mu;
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-        case 1: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$ 
-            double C_10 = props(0);
-            double C_01 = props(1);            
-            double kappa = props(2);                        
-            dWdI_1_bar = C_10;
-            dWdI_2_bar = C_01;            
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-        case 2: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
-            double C_10 = props(0);
-            double C_20 = props(1);            
-            double C_30 = props(2);            
-            double kappa = props(3);     
-            dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.) + 3.*C_30*pow((I_bar(0)-3.),2.);
-            dW2dI_11_bar = 2.*C_20 + 6.*C_30*(I_bar(0)-3.);    
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-        case 3: {
-            // Ishara model (1951)
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
-            double C_10 = props(0);
-            double C_20 = props(1);            
-            double C_01 = props(2);            
-            double kappa = props(3);     
-            dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.)*C_01*(I_bar(1)-3.);
-            dW2dI_11_bar = 2.*C_20*C_01*(I_bar(1)-3.);  
-            dW2dI_12_bar =  2.*C_20*C_01*(I_bar(0)-3.);
-            dWdI_2_bar = C_20*C_01*pow((I_bar(0)-3.),2.);
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-        case 4: {
-            // Gent-Thomas model (1958)
-            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
-            double c_1 = props(0);
-            double c_2 = props(1);            
-            double kappa = props(2);     
-            dWdI_1_bar = c_1;
-            if(fabs(I_bar(1)) > simcoon::iota) {
-                dWdI_2_bar = c_2/I_bar(1);
-                dW2dI_22_bar = -1.*c_2/pow(I_bar(1),2.);
-            }
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }   
-        case 5: {        
-            // Swanson model (1985)
-            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + \kappa \left( J textrm{ln} J - J +1 \right) \f$             
-            int N_Swanson = int(props(0));
-            double kappa = props(1);     
-
-            vec A = zeros(N_Swanson);
-            vec B = zeros(N_Swanson);
-            vec alpha = zeros(N_Swanson);
-            vec beta = zeros(N_Swanson);
-            
-            for (int i=0; i<N_Swanson; i++) {
-                A(i) = props(2+i*4);
-                B(i) = props(2+i*4+1);
-                alpha(i) = props(2+i*4+2);
-                beta(i) = props(2+i*4+3);
-            }
-
-            for (int i=0; i<N_Swanson; i++) {
-                dWdI_1_bar += 1./2.*A(i)*pow((I_bar(0)/3.),alpha(i));
-                dW2dI_11_bar += 1./2.*(A(i)/alpha(i))*pow((I_bar(0)/3.),alpha(i)-1.);
-                dWdI_2_bar += 1./2.*B(i)*pow((I_bar(1)/3.),beta(i));
-                dW2dI_22_bar += 1./2.*(B(i)/beta(i))*pow((I_bar(1)/3.),beta(i)-1.);
-            }
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-    }
+    const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J);
     
     ///@brief Initialization
     if(start)
@@ -194,29 +93,12 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         Wm_d = 0.;
     }
 
-    mat m_sigma_iso = sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b, J);
-    mat m_sigma_vol = sigma_vol_hyper(dUdJ, b, J);    
-    mat m_sigma = m_sigma_iso + m_sigma_vol;
-    sigma = t2v_stress(m_sigma);  
-
-    mat Lt_iso = L_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, dW2dI_11_bar, dW2dI_12_bar, dW2dI_22_bar, b, J);
-    mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
-
-    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
-    // XBM rate) -- identical object to the small-strain boxes and saint_venant.
-    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
+    hyper_invariants_response(dW, b, J, F1, sigma, Lt);
 
     if(start) {
         L = Lt;
     }
 
-/*    cout << "L = " << L << endl;
-    cout << "Lt = " << Lt << endl;
-    cout << "Lt_iso = " << Lt_iso << endl;    
-    cout << "Lt_vol = " << Lt_vol << endl;        
-    cout << "eig(Lt)" << eig_sym(Lt);
-*/    
     //Computation of the mechanical and thermal work quantities.
     // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
     double J0 = det(F0);

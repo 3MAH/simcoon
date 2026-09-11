@@ -22,6 +22,9 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+#include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <stdexcept>
 
 namespace simcoon {
@@ -66,6 +69,7 @@ ElasticityModule::ElasticityModule()
     , L_(arma::zeros(6, 6))
     , M_(arma::zeros(6, 6))
     , alpha_(arma::zeros(6))
+    , hyper_potential_(HyperPotential::NEOHC)
     , configured_(false)
 {
 }
@@ -81,11 +85,7 @@ void ElasticityModule::configure_isotropic(double C1, double C2, double alpha_sc
 
     M_ = M_iso(C1, C2, str);
 
-    alpha_ = arma::zeros(6);
-    alpha_(0) = alpha_scalar;
-    alpha_(1) = alpha_scalar;
-    alpha_(2) = alpha_scalar;
-    // Shear components are zero for thermal expansion
+    alpha_ = alpha_scalar * Ith();
 
     refresh_tensors();
     configured_ = true;
@@ -100,10 +100,7 @@ void ElasticityModule::configure_cubic(double C1, double C2, double C3, double a
 
     M_ = M_cubic(C1, C2, C3, str);
 
-    alpha_ = arma::zeros(6);
-    alpha_(0) = alpha_scalar;
-    alpha_(1) = alpha_scalar;
-    alpha_(2) = alpha_scalar;
+    alpha_ = alpha_scalar * Ith();
 
     refresh_tensors();
     configured_ = true;
@@ -181,9 +178,35 @@ void ElasticityModule::configure_orthotropic(double C1, double C2, double C3,
     configured_ = true;
 }
 
+void ElasticityModule::configure_hyper_invariants(HyperPotential potential, const arma::vec& params,
+                                                  double alpha_scalar) {
+    type_ = ElasticityType::HYPER_INVARIANTS;
+    hyper_potential_ = potential;
+    hyper_props_ = params;
+
+    alpha_ = alpha_scalar * Ith();
+
+    // At the stress-free ground state (b = I, J = 1, U'(1) = 0) the invariant
+    // builders reduce to the isotropic K = U''(1), mu = 2 (W_1 + W_2). Closed
+    // form rather than a full evaluate(): the module is rebuilt on every UMAT
+    // call. refresh_tensors() rejects a ground state that is not positive
+    // definite, a genuine admissibility check on the parameters.
+    const arma::mat I3 = arma::eye(3, 3);
+    const hyper_invariants_dW dW0 =
+        hyper_potential_derivatives(potential, params, isochoric_invariants(I3, 1.0), 1.0);
+    const double K0 = dW0.dU2dJ2;
+    const double mu0 = 2. * (dW0.dWdI_1_bar + dW0.dWdI_2_bar);
+    L_ = L_iso(K0, mu0, "Kmu");
+    M_ = M_iso(K0, mu0, "Kmu");
+
+    refresh_tensors();
+    configured_ = true;
+}
+
 void ElasticityModule::configure(ElasticityType type, const arma::vec& props, int& offset) {
-    // Every block starts with the convention slot; the conv_string helpers
-    // (and the isotrans guard) validate the code inside the configure_* call.
+    // Every linear block starts with the convention slot; the conv_string
+    // helpers (and the isotrans guard) validate the code inside the
+    // configure_* call.
     switch (type) {
         case ElasticityType::ISOTROPIC: {
             // props: conv, C1, C2, alpha
@@ -241,12 +264,63 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
             offset += 13;
             break;
         }
+        case ElasticityType::HYPER_INVARIANTS: {
+            // props: potential, n_params, params..., alpha
+            const auto potential = static_cast<HyperPotential>(static_cast<int>(props(offset)));
+            const int n_params = static_cast<int>(props(offset + 1));
+            if (n_params < 1) {
+                throw std::runtime_error(
+                    "ElasticityModule: HYPER_INVARIANTS needs at least one potential parameter");
+            }
+            const arma::vec params = props.subvec(offset + 2, offset + 1 + n_params);
+            const double alpha = props(offset + 2 + n_params);
+            configure_hyper_invariants(potential, params, alpha);
+            offset += props_count(type, n_params);
+            break;
+        }
         default:
             throw std::runtime_error("ElasticityModule: unknown elasticity type");
     }
 }
 
 // ========== Derived Quantities ==========
+
+void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
+                                arma::vec& sigma, arma::mat& Lt) const {
+    if (!configured_) {
+        throw std::runtime_error("ElasticityModule: not configured");
+    }
+    if (type_ != ElasticityType::HYPER_INVARIANTS) {
+        // el_pred rather than a bare L_ * eps_el: it carries the ndi condensation.
+        sigma = el_pred(L_, eps_el, ndi);
+        Lt = L_;
+        return;
+    }
+    if (ndi != 3) {
+        // el_pred's condensation is the linearisation of plane stress; the
+        // nonlinear statement is sigma_33 = 0 solved by iterating on eps_33,
+        // which belongs one level up. Refuse rather than silently condense a
+        // tangent that is not the derivative of the returned stress.
+        throw std::runtime_error(
+            "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
+            + std::to_string(ndi) + ")");
+    }
+    // eps_el -> V_el = exp(eps_el) -> b_el = exp(2 eps_el). Passing V_el where
+    // the response expects F is what makes the returned box tangent
+    // d(tau)/d(eps_el): the frame is corotational here, so R = I.
+    const arma::mat eps_t = v2t_strain(eps_el);
+    const arma::mat V_el = eR_to_F(eps_t, arma::eye(3, 3));
+    const arma::mat b_el = V_el * V_el;
+    const double J_el = std::exp(arma::trace(eps_t));
+
+    const hyper_invariants_dW dW =
+        hyper_potential_derivatives(hyper_potential_, hyper_props_,
+                                    isochoric_invariants(b_el, J_el), J_el);
+    arma::vec sigma_cauchy;
+    hyper_invariants_response(dW, b_el, J_el, V_el, sigma_cauchy, Lt);
+    // MODUL is a kirchhoff_box model (umat_smart.cpp): its stress output IS tau.
+    sigma = J_el * sigma_cauchy;
+}
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {
     if (!configured_) {

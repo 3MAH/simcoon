@@ -43,6 +43,7 @@ ModularUMAT::ModularUMAT()
     , mechanisms_()
     , T_init_(0.0)
     , sigma_start_(arma::zeros(6))
+    , L_cur_(arma::zeros(6, 6))
     , initialized_(false)
     , maxiter_(100)
     , precision_(1e-9)
@@ -77,7 +78,7 @@ ViscoelasticMechanism& ModularUMAT::add_viscoelasticity(
 ) {
     auto mech = std::make_unique<ViscoelasticMechanism>(N_prony);
     mech->configure(props, offset);
-    mech->set_reference_stiffness(elasticity_.L());
+    mech->set_reference_stiffness(elasticity_.L0());
     mechanisms_.push_back(std::move(mech));
     return static_cast<ViscoelasticMechanism&>(*mechanisms_.back());
 }
@@ -311,7 +312,7 @@ void ModularUMAT::run(
     }
 
     // Set elastic stiffness
-    L = elasticity_.L();
+    L = elasticity_.L0();
 
     // Total number of constraints
     int n_total = 0;
@@ -353,12 +354,21 @@ void ModularUMAT::run(
         // the rest of the history.
         sigma = sigma_start_;
         tnew_dt = 0.5;
-        Lt = stiffness_reduction() * elasticity_.L();
+        // Lt is the START state's elastic tangent too: restore the mechanisms
+        // from the untouched statev (with the same rotation as above) and
+        // evaluate the elastic block there, so neither the rejected iterate's
+        // damage nor its elastic strain leaks into the committed tangent.
+        for (auto& mech : mechanisms_) {
+            mech->unpack(statev);
+            mech->rotate(DR);
+        }
+        arma::vec sigma_at_start;
+        refresh_stress(Etot, T - T_init_, ndi, sigma_at_start);
+        Lt = stiffness_reduction() * L_cur_;
         return;
     }
 
-    // Compute consistent tangent
-    Lt = L;  // Start with elastic stiffness
+    // Compute consistent tangent (it seeds Lt itself)
     compute_tangent(sigma, Ds_total, Lt, tangent_mode);
 
     // Work quantities — CUMULATIVE in/out, the legacy UMAT contract
@@ -390,6 +400,17 @@ void ModularUMAT::run(
     }
 }
 
+void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
+                                 int ndi, arma::vec& sigma) {
+    arma::vec E_inel = arma::zeros(6);
+    for (const auto& mech : mechanisms_) {
+        E_inel += mech->inelastic_strain();
+    }
+    const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
+    elasticity_.evaluate(Eel, ndi, sigma, L_cur_);
+    sigma *= stiffness_reduction();
+}
+
 void ModularUMAT::return_mapping(
     const arma::vec& Etot,
     const arma::vec& DEtot,
@@ -407,22 +428,14 @@ void ModularUMAT::return_mapping(
         n_total += mech->num_constraints();
     }
 
+    // Elastic prediction. With no constraints there is no inelastic strain and
+    // no damage, so this same call IS the whole elastic response — only the
+    // constraint machinery below is skipped.
+    const arma::vec Etot_end = Etot + DEtot;
+    refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
     if (n_total == 0) {
-        // Pure elastic: just compute stress
-        arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init);
-        sigma = el_pred(elasticity_.L(), Eel, ndi);
         return;
     }
-
-    // Elastic prediction. stiffness_reduction() is the multiplicative CDM
-    // (1-D) factor — without it the stress ignores damage entirely while the
-    // tangent is softened (inconsistent Newton, unsoftened response).
-    arma::vec E_inel = arma::zeros(6);
-    for (const auto& mech : mechanisms_) {
-        E_inel += mech->inelastic_strain();
-    }
-    arma::vec Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
-    sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
 
     // Allocate constraint arrays
     arma::vec Phi = arma::zeros(n_total);
@@ -445,7 +458,7 @@ void ModularUMAT::return_mapping(
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
-                sigma, Etot + DEtot, elasticity_.L(), DTime, Phi_m, Y_crit_m);
+                sigma, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
@@ -462,14 +475,9 @@ void ModularUMAT::return_mapping(
             mechanisms_[m]->update(ds, mech_offset_[m]);
         }
 
-        // Recompute stress (D may have evolved in update, so re-evaluate the
-        // reduction factor)
-        E_inel.zeros();
-        for (const auto& mech : mechanisms_) {
-            E_inel += mech->inelastic_strain();
-        }
-        Eel = Etot + DEtot - elasticity_.alpha() * (T - T_init) - E_inel;
-        sigma = stiffness_reduction() * el_pred(elasticity_.L(), Eel, ndi);
+        // Recompute stress (D may have evolved in update, so the reduction
+        // factor is re-evaluated too)
+        refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
 
         ++iter;
     }
@@ -494,7 +502,7 @@ void ModularUMAT::assemble_jacobian(
     // for the whole phase (no compute_constraints call in between).
     std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
     for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, elasticity_.L());
+        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, L_cur_);
     }
     for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
         const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma);
@@ -520,7 +528,7 @@ void ModularUMAT::assemble_jacobian(
     // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         mechanisms_[m]->compute_jacobian_contribution(
-            sigma, elasticity_.L(), B, mech_offset_[m]);
+            sigma, L_cur_, B, mech_offset_[m]);
     }
 }
 
@@ -538,8 +546,7 @@ void ModularUMAT::compute_tangent(
     arma::mat& Lt,
     int tangent_mode
 ) {
-    const arma::mat& L = elasticity_.L();
-    Lt = L;
+    Lt = L_cur_;
 
     if (tangent_mode == tangent_none) {
         // Explicit integration: elastic operator, no assembly.
@@ -588,7 +595,7 @@ void ModularUMAT::compute_tangent(
         std::vector<arma::mat> dLambda_l;
         for (size_t m : algo) {
             const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma);
-            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L);
+            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L_cur_);
             const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma);
             for (size_t c = 0; c < dPhi_all.size(); ++c) {
                 rows.push_back(mech_offset_[m] + static_cast<int>(c));
@@ -607,7 +614,7 @@ void ModularUMAT::compute_tangent(
             }
         }
         const ContinuumTangent ct =
-            assemble_algorithmic_tangent(Bhat, kappa_j, dPhi_l, Ds_sub, L, dLambda_l);
+            assemble_algorithmic_tangent(Bhat, kappa_j, dPhi_l, Ds_sub, L_cur_, dLambda_l);
         Lt = ct.Lt;
     }
 
@@ -616,7 +623,7 @@ void ModularUMAT::compute_tangent(
             continue;
         }
         mechanisms_[m]->tangent_contribution(
-            sigma, L, Ds_total, mech_offset_[m], Lt);
+            sigma, L_cur_, Ds_total, mech_offset_[m], Lt);
     }
 }
 
