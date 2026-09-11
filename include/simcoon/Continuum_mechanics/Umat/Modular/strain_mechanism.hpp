@@ -110,7 +110,7 @@ public:
     void rotate(const arma::mat& DR) { ivc_.rotate_all(DR); }
 
     /// Copy current values to start values for all owned variables.
-    void to_start() { ivc_.to_start_all(); }
+    void set_start() { ivc_.set_start_all(); }
 
     // ========== Configuration ==========
 

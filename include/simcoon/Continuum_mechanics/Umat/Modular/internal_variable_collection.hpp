@@ -171,7 +171,7 @@ public:
     /**
      * @brief Copy current values to start values for all variables
      */
-    void to_start_all();
+    void set_start_all();
 };
 
 } // namespace simcoon

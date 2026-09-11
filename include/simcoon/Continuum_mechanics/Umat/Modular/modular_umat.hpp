@@ -74,7 +74,7 @@ enum class DamageType;
  * orchestrator serializes the composed state as
  *   statev = [T_init | mechanism 0 | mechanism 1 | ...]
  * in composition order, by assigning each mechanism a base offset at
- * initialize() and delegating pack/unpack/rotate/to_start per mechanism.
+ * initialize() and delegating pack/unpack/rotate/set_start per mechanism.
  */
 class ModularUMAT {
 private:

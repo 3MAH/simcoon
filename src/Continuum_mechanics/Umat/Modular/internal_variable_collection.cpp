@@ -136,9 +136,9 @@ void InternalVariableCollection::rotate_all(const arma::mat& DR) {
     }
 }
 
-void InternalVariableCollection::to_start_all() {
+void InternalVariableCollection::set_start_all() {
     for (auto& var : variables_) {
-        var.to_start();
+        var.set_start();
     }
 }
 

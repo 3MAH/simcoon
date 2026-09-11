@@ -124,7 +124,7 @@ TEST_F(InternalVariableTest, VectorPackUnpack) {
 
 TEST_F(InternalVariableTest, DeltaComputation) {
     InternalVariable iv("test", 1.0);
-    iv.to_start();  // Save current as start
+    iv.set_start();  // Save current as start
 
     iv.scalar() = 3.0;  // Modify
     EXPECT_DOUBLE_EQ(iv.delta_scalar(), 2.0);
@@ -153,10 +153,10 @@ TEST_F(InternalVariableTest, TensorViews) {
     EXPECT_EQ(L_t.type(), Tensor4Type::stiffness);
     EXPECT_LT(arma::norm(arma::mat(L_t.mat()) - L_init, "fro"), 1e-10);
 
-    // Typed START views: after to_start + a further mutation, as_tensor2()
+    // Typed START views: after set_start + a further mutation, as_tensor2()
     // sees the current value while as_tensor2_start() reconstructs the
     // start-of-increment state with the variable's own vtype.
-    EP.to_start();
+    EP.set_start();
     arma::vec newer_EP = {0.03, -0.015, -0.015, 0.006, 0.0, 0.0};
     EP.set_tensor2(tensor2::from_voigt(newer_EP, Tensor2Type::strain));
     EXPECT_EQ(EP.as_tensor2_start().vtype(), Tensor2Type::strain);
@@ -1522,7 +1522,7 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     // Non-trivial start state.
     ivc.get("p").scalar() = 0.01;
     ivc.get("a").raw_voigt() = vec{0.002, -0.001, -0.001, 0.0005, 0.0, 0.0};
-    ivc.to_start_all();
+    ivc.set_start_all();
 
     const vec sigma = {400.0, 50.0, -30.0, 60.0, 10.0, 0.0};
     const double dp = 5.0e-3;
