@@ -281,7 +281,7 @@ if(BUILD_PYTHON_BINDINGS)
         add_library(carma::carma INTERFACE IMPORTED)
         set_target_properties(carma::carma PROPERTIES
           INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-          INTERFACE_LINK_LIBRARIES Python3::NumPy
+          INTERFACE_LINK_LIBRARIES "Python3::NumPy;pybind11::headers"
         )
       endif()
       set(carma_FOUND TRUE)
@@ -303,12 +303,14 @@ if(BUILD_PYTHON_BINDINGS)
       FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
       set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
 
-      # Ensure carma::carma target exists with proper include directories
+      # Ensure carma::carma target exists with proper include directories. carma headers
+      # include pybind11 and numpy, and on Windows libsimcoon (which has no pybind11 of its
+      # own) force-includes cnalloc.h, so both have to come with the target.
       if(NOT TARGET carma::carma)
         add_library(carma::carma INTERFACE IMPORTED)
         set_target_properties(carma::carma PROPERTIES
           INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-          INTERFACE_LINK_LIBRARIES Python3::NumPy
+          INTERFACE_LINK_LIBRARIES "Python3::NumPy;pybind11::headers"
         )
       endif()
     endif()
