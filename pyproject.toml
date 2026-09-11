@@ -96,6 +96,10 @@ install.components = ["python"]
 
 [tool.scikit-build.cmake.define]
 SIMCOON_BUILD_TESTS = "OFF"
+# Always build against the pinned carma release fetched by CMake: carma is not on PyPI
+# (the "carma" package there is unrelated), and a carma found elsewhere on the machine
+# may differ. The conda recipe calls CMake directly and keeps its own carma dependency.
+SIMCOON_FETCH_CARMA = "ON"
 
 # =============================================================================
 # pytest configuration

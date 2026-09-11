@@ -243,8 +243,15 @@ if(BUILD_PYTHON_BINDINGS)
   find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
   find_package(pybind11 REQUIRED)
 
+  # pip/uv builds set SIMCOON_FETCH_CARMA (pyproject.toml) so every wheel and editable
+  # install uses the pinned release fetched below, never a carma that happens to be on
+  # the machine (e.g. another conda environment's). The conda recipe keeps its own.
+  option(SIMCOON_FETCH_CARMA "Always fetch the pinned carma release instead of searching for one" OFF)
+
   # Try to find carma from conda/system first
-  find_package(carma CONFIG QUIET)
+  if(NOT SIMCOON_FETCH_CARMA)
+    find_package(carma CONFIG QUIET)
+  endif()
 
   if(carma_FOUND)
     message(STATUS "Found carma package (CONFIG mode)")
@@ -265,7 +272,7 @@ if(BUILD_PYTHON_BINDINGS)
       set(CONDA_PREFIX $ENV{CONDA_PREFIX})
     endif()
 
-    if(CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
+    if(NOT SIMCOON_FETCH_CARMA AND CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
       message(STATUS "Found carma headers in conda environment")
       set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
 
@@ -274,16 +281,21 @@ if(BUILD_PYTHON_BINDINGS)
         add_library(carma::carma INTERFACE IMPORTED)
         set_target_properties(carma::carma PROPERTIES
           INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+          INTERFACE_LINK_LIBRARIES Python3::NumPy
         )
       endif()
       set(carma_FOUND TRUE)
     else()
       # Fall back to fetching from GitHub
-      message(STATUS "carma not found, fetching from GitHub")
+      message(STATUS "carma: fetching the pinned release v0.8.0 from GitHub")
       FetchContent_Declare(
         carma
         GIT_REPOSITORY https://github.com/RUrlus/carma.git
         GIT_TAG        v0.8.0
+        # Headers only (no CMakeLists.txt there): carma's own project fetches a second
+        # Armadillo (12.8.x) and puts it ahead of the one simcoon is built with, so _core
+        # and libsimcoon would exchange arma objects across two Armadillo versions.
+        SOURCE_SUBDIR  include
       )
       FetchContent_MakeAvailable(carma)
 
@@ -296,6 +308,7 @@ if(BUILD_PYTHON_BINDINGS)
         add_library(carma::carma INTERFACE IMPORTED)
         set_target_properties(carma::carma PROPERTIES
           INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
+          INTERFACE_LINK_LIBRARIES Python3::NumPy
         )
       endif()
     endif()
