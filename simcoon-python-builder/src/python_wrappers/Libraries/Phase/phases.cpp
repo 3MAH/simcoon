@@ -4,6 +4,11 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+// Before <armadillo>, as in every other _core translation unit: carma defines the
+// ARMA_ALIEN_MEM macros so armadillo allocates through numpy. A TU that omits it
+// instantiates the same header-only armadillo memory symbols WITHOUT them, and the
+// linker keeps a single definition module-wide (ODR) — mixing allocators.
+#include <carma>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
