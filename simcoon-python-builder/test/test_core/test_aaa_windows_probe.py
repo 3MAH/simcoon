@@ -1,28 +1,30 @@
-"""TEMPORARY Windows narrowing probe — delete once the access violation is pinned.
+"""TEMPORARY Windows narrowing probe (v2) — delete once the access violation is pinned.
 
-``windows-latest`` dies with an access violation on the FIRST MODUL run through
-``solver_run`` (``test_modular::test_elastic_convention_equivalence``), three times
-identically, while Linux and macOS pass the whole suite and the C++ gtests pass on
-Windows through the file driver. Everything that can be checked without Windows has
-been eliminated: the executed C++ is identical to master for this case, ``so`` is
-sized and filled correctly by the binding, ``ncycle > 1`` is already exercised
-elsewhere, and the carma/allocator invariant is now satisfied by all 21 TUs.
+v1 result: probe 1 already died — ELISO, blocks built in Python, 5 increments. So the
+crash is NOT MODUL-specific: the first ``solver_run`` call dies, whatever it is. The
+earlier crashes landed on test_modular only because it was the first caller collected.
 
-The one discriminator left standing is **MODUL driven through solver_run**: on master
-every MODUL run went through the file route, and the solver_run tests that pass on
-Windows use ELISO/EPICP/SNTVE/NEOHC.
+v1 had a design flaw: all five cases passed ``corate=1``, so it could not separate the
+corate from the route. That matters, because master's Windows job runs ``solver_run``
+happily 62+ times — and its corate parametrization is ``[0, 2, 5]`` while every other
+solver_run test omits ``corate`` (default ``logarithmic_R`` = 3). Green-Naghdi (1) is
+never routed through ``solver_run`` on master, yet every crashing call on this branch
+uses it (test_modular's ``_run_case`` and all of v1).
 
-Method (the one that pinned the two earlier Windows crashes in this repo): a native
-crash ends the pytest process, so each case is its OWN test and they are ordered
-plainest-first. The last ``PASSED`` line in the CI log names the culprit. The module
-is named ``test_aaa_*`` so it is collected before ``test_modular.py``, i.e. before the
-process dies.
+Known objection, which this probe also tests: master DID run corate 1 with control
+type 1 through the FILE binding (test_modular::_run_solver), reaching the same engine
+and the same ``set_start(1)``, and it passed on Windows. So corate 1 alone cannot be
+the whole story. Probes 2-5 vary ONLY the corate, on an otherwise master-identical call.
 
-Expected reading:
-  all four PASS ......... the crash needs something else in test_modular's fixture
-  dies at probe 3 ....... MODUL itself, through solver_run
-  dies at probe 4 ....... MODUL only with blocks parsed from the legacy path file
-  dies at probe 2 ....... the parsed blocks, independently of MODUL
+The numbering starts at 2: a probe for ``sim.umat`` alone was dropped as redundant,
+because ``run_test.py::test_umat_ogden_*`` already PASSED at 1-2 % in the very run that
+crashed — the module loads and the constitutive call works on Windows.
+
+Reading (a native crash ends the process, so the last PASSED line names the culprit):
+  all pass ................ neither the route nor the corate; look at the fixture
+  dies at 2 ............... the memory route itself, on the exact call master passes
+  2-4 pass, dies at 5 ..... corate 1 (Green-Naghdi) through solver_run
+  5 passes, dies at 6 ..... the blocks parsed from the legacy path file
 """
 
 from pathlib import Path
@@ -31,59 +33,45 @@ import numpy as np
 
 import simcoon as sim
 from simcoon.solver import Block, StepMeca
-from simcoon.modular import ModularMaterial, IsotropicElasticity
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "examples" / "data"
 
 ELISO_PROPS = np.array([210000.0, 0.3, 1.2e-5])
 UNIAXIAL = ["strain"] + ["stress"] * 5
 
-# The same isotropic material as test_elastic_convention_equivalence, elasticity only.
-_MAT = ModularMaterial(elasticity=IsotropicElasticity(C1=210000.0, C2=0.3))
 
-
-def _in_memory_block():
+def _block():
     """One short small-strain uniaxial step, built in Python (no file)."""
     return [Block(steps=[StepMeca(control=UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0],
                                   ninc=5, time=1.0)], ncycle=1)]
 
 
-def _parsed_blocks():
-    """The very blocks test_modular uses, parsed from the legacy path file."""
-    return sim.solver.from_file(str(DATA_DIR), "MODUL_path.txt")
-
-
-def test_probe_1_eliso_blocks_in_memory():
-    """Baseline: a legacy kernel through solver_run. Master does this and passes."""
-    res = sim.solver.solve(_in_memory_block(), "ELISO", ELISO_PROPS, 1, corate=1)
+def test_probe_2_solve_default_corate():
+    """Master-identical call: solve() with no corate argument (default = 3)."""
+    res = sim.solver.solve(_block(), "ELISO", ELISO_PROPS, 1, T_init=290.0)
     assert len(res) > 0
 
 
-def test_probe_2_eliso_blocks_from_file():
-    """Same kernel, but the blocks now come from MODUL_path.txt: isolates parsing."""
-    blocks, T_init = _parsed_blocks()
+def test_probe_3_solve_corate_0_jaumann():
+    """corate 0 — exercised by master's parametrization [0, 2, 5]."""
+    res = sim.solver.solve(_block(), "ELISO", ELISO_PROPS, 1, T_init=290.0, corate=0)
+    assert len(res) > 0
+
+
+def test_probe_4_solve_corate_2_logarithmic():
+    """corate 2 — also exercised by master."""
+    res = sim.solver.solve(_block(), "ELISO", ELISO_PROPS, 1, T_init=290.0, corate=2)
+    assert len(res) > 0
+
+
+def test_probe_5_solve_corate_1_green_naghdi():
+    """corate 1 — NEVER routed through solver_run on master. The suspect."""
+    res = sim.solver.solve(_block(), "ELISO", ELISO_PROPS, 1, T_init=290.0, corate=1)
+    assert len(res) > 0
+
+
+def test_probe_6_solve_corate_1_blocks_from_file():
+    """Same corate, blocks parsed from the legacy path file: isolates the parsing."""
+    blocks, T_init = sim.solver.from_file(str(DATA_DIR), "MODUL_path.txt")
     res = sim.solver.solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init, corate=1)
-    assert len(res) > 0
-
-
-def test_probe_3_modul_blocks_in_memory():
-    """MODUL through solver_run, simplest possible path: isolates the kernel."""
-    res = sim.solver.solve(_in_memory_block(), "MODUL", _MAT.props, _MAT.nstatev,
-                           corate=1)
-    assert len(res) > 0
-
-
-def test_probe_4_modul_blocks_from_file():
-    """The exact combination test_modular crashes on."""
-    blocks, T_init = _parsed_blocks()
-    res = sim.solver.solve(blocks, "MODUL", _MAT.props, _MAT.nstatev,
-                           T_init=T_init, corate=1)
-    assert len(res) > 0
-
-
-def test_probe_5_modul_from_file_without_tangent():
-    """Same as 4 with the tangent left unrecorded: isolates the tangent history."""
-    blocks, T_init = _parsed_blocks()
-    res = sim.solver.solve(blocks, "MODUL", _MAT.props, _MAT.nstatev,
-                           T_init=T_init, corate=1, record_tangent=False)
     assert len(res) > 0
