@@ -83,11 +83,6 @@ PARAMS = [
 ]
 PARAM_NAMES = ["sigmaY", "Q", "b", "C_1", "D_1", "C_2", "D_2"]
 
-# σ11 lives at column 14 of the simcoon ``_global-0.txt`` output
-# (cols 8–13 = strain Voigt, 14–19 = stress Voigt).
-SIGMA11_COL = 14
-
-
 def build_props(x):
     """Assemble the EPCHA props vector from the optimizer's parameter array."""
     return np.array([E_FIXED, NU_FIXED, ALPHA_FIXED, *x])
@@ -98,16 +93,23 @@ def run_one_test(props, pathfile, path_data):
 
     The path file is parsed in Python and the case runs in memory: an identification
     evaluates this thousands of times, and none of them now touches the disk.
+
+    Only the **last** block is returned. The first two blocks are the virtual
+    pre-cycle and the initial-state alignment; the experiment corresponds to the
+    third one, the mode-3 replay of ``tab_file_N.txt``. The legacy result file
+    carried exactly that window, so returning the whole history (501 increments
+    against 201 experimental points) would break the cost function.
     """
     blocks, T_init = sim.solver.from_file(path_data, pathfile)
     res = sim.solver.solve(
         blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
         solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
     )
-    return res["Stress"][0]
+    block = np.asarray(res["Block"])
+    return np.asarray(res["Stress"][0])[block == block.max()]
 
 
-def cost(x, exp_stresses, path_data, path_results):
+def cost(x, exp_stresses, path_data):
     """NMSE-per-response cost across the three tests."""
     props = build_props(x)
     y_num = []
@@ -129,9 +131,7 @@ def main():
     os.chdir(script_dir)
 
     path_data = "data"
-    path_results = "results"
     path_exp = "exp_data"
-    os.makedirs(path_results, exist_ok=True)
 
     # Experimental σ11 — exp file columns: incr, time, strain, stress
     exp_stresses = []
@@ -150,7 +150,7 @@ def main():
     # Gallery budget (~1-2 min). Bump popsize/maxiter for tighter fits.
     result = identification(
         cost, PARAMS,
-        args=(exp_stresses, path_data, path_results),
+        args=(exp_stresses, path_data),
         seed=42,
         popsize=15, maxiter=80, tol=1e-6,
         disp=False,
@@ -170,10 +170,7 @@ def main():
     colors = ["tab:blue", "tab:orange", "tab:green"]
     for (name, pathfile, _tab, expfile), color in zip(TESTS, colors):
         exp = np.loadtxt(os.path.join(path_exp, expfile))
-        sigma_num = run_one_test(
-            final_props, pathfile, f"sim_{name}_final.txt",
-            path_data, path_results,
-        )
+        sigma_num = run_one_test(final_props, pathfile, path_data)
         ax.plot(exp[:, 2], exp[:, 3], color=color, linestyle="--",
                 linewidth=1.5, label=f"{name} — experiment")
         ax.plot(exp[:, 2], sigma_num, color=color, linestyle="-",

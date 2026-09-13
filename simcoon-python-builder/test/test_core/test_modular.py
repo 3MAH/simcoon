@@ -614,6 +614,64 @@ def test_ephin_matches_modul(work_in_examples):
     _assert_equiv(ref, hist, 1e-5, "EPHIN")
 
 
+def test_viscoelastic_survives_a_block_boundary():
+    """The same ramp must give the same stress however it is cut into blocks.
+
+    The solver primes its tangent at the start of every block with a zero time
+    increment (solver.cpp: ``DTime = 0.`` then ``run_umat_M``). The viscoelastic
+    kernels answered that probe with the stationary condition ``||flow|| = 0``,
+    whose root is ``EV_i = eps`` — a fully relaxed branch — and the solver
+    committed it. A loading described as two blocks therefore relaxed once per
+    boundary, for free and for any viscosity: the ramp below ended at 22.41 MPa
+    in two blocks against 29.64 in one (PRONK), and the response depended on how
+    the path happened to be written rather than on the material.
+
+    Covers both solvers of the same constraint: the legacy Newton-Raphson
+    kernels (PRONK) and the modular Fischer-Burmeister mechanism (MODUL).
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3000.0, 0.35
+    terms = ((1500.0, 0.35, 3000.0, 1200.0),)
+
+    half = sim.solver.StepMeca(control=uni, value=[0.005, 0, 0, 0, 0, 0],
+                               ninc=20, time=0.05)
+    full = sim.solver.StepMeca(control=uni, value=[0.01, 0, 0, 0, 0, 0],
+                               ninc=20, time=0.05)
+    one_shot = [sim.solver.StepMeca(control=uni, value=[0.01, 0, 0, 0, 0, 0],
+                                    ninc=40, time=0.1)]
+    two_blocks = [half, full]                                  # two blocks
+    one_block = [sim.solver.Block(steps=[half, full], ncycle=1)]  # one, two steps
+
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E0, C2=nu0),
+                          mechanisms=[Viscoelasticity(terms=terms)])
+    branch = [x for t in terms for x in t]
+    cases = {
+        # generalized Maxwell (Prony): the elasticity block is the instantaneous stiffness
+        "PRONK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
+        mat.umat_name: (mat.props, mat.nstatev),
+        # generalized Kelvin (Zener): a different rheology, same zero-time defect
+        "ZENER": (np.array([E0, nu0, 0.0] + branch), 8),
+        "ZENNK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
+    }
+
+    for name, (props, nstatev) in cases.items():
+        end = [float(np.asarray(sim.solver.solve(b, name, props, nstatev)["Stress"])[0][-1])
+               for b in (one_shot, two_blocks, one_block)]
+        # the ramp is fast against the branch relaxation time, so the answer stays
+        # near the instantaneous response E0 * eps (how near depends on the
+        # rheology); what this test is about is that the three descriptions of
+        # the same loading agree. Measured defect: 22.41 and 19.64 against 29.64
+        # and 28.62, i.e. 24 % and 31 %, for a purely notational change.
+        assert end[0] == pytest.approx(E0 * 0.01, rel=0.1), f"{name}: {end[0]}"
+        # 1e-6 is the noise of the viscous integration across a block boundary
+        # (measured: 9e-8); the defect this guards against is 24 % on the same run
+        for got, how in zip(end[1:], ("two blocks", "one block of two steps")):
+            assert got == pytest.approx(end[0], rel=1e-6), (
+                f"{name}: {how} gives {got:.4f} against {end[0]:.4f} in one step "
+                "- a block boundary relaxed the Prony branch"
+            )
+
+
 def test_zennk_has_no_modular_twin():
     """ZENNK (Zener_Nfast) is a generalized KELVIN chain (branch driving
     force sigma - L_i EV_i, branches in series), NOT a generalized Maxwell:

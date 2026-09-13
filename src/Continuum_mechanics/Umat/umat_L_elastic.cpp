@@ -138,7 +138,11 @@ void get_L_elastic(phase_characteristics &rve)
                     umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                     umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
                 }
-                error = norm(umat_M->Lt - Lt_n,2.);
+                // Frobenius, not the spectral norm: norm(X,2) on a matrix is a full SVD
+                // (LAPACK dgesdd), which reads out of bounds on the Windows CLAPACK build —
+                // the 2.0.1 crash, fixed the same way in recovery_props.cpp and step_meca.cpp.
+                // This is only a convergence test, and ||.||_2 <= ||.||_F keeps it conservative.
+                error = norm(umat_M->Lt - Lt_n, "fro");
                 nbiter++;
              }
             break;

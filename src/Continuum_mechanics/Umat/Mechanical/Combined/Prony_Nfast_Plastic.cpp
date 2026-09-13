@@ -262,8 +262,12 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
             else {
-                Phi(i+1) = norm_strain(flow_visco[i]);
-                dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]));
+                // No time, no flow. Writing the stationary condition Phi = ||flow|| here
+                // makes its root EV = eps, a fully relaxed branch, and the solver commits
+                // it on the zero-time tangent probe it runs at the start of every block:
+                // the same ramp then ends at 22.41 MPa in two blocks against 29.64 in one.
+                Phi(i+1) = 0.;
+                dPhidv[i] = -1.;
             }
             kappa_j[i+1] += L_i[i]*Lambdav[i];
             K(i+1,i+1) += dPhidv[i];
