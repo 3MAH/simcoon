@@ -8,7 +8,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Functions/criteria.cpp
   Continuum_mechanics/Functions/damage.cpp
   Continuum_mechanics/Functions/derivatives.cpp
-  Continuum_mechanics/Functions/func_N.cpp
   Continuum_mechanics/Functions/hyperelastic.cpp
   Continuum_mechanics/Functions/kinematics.cpp
   Continuum_mechanics/Functions/natural_basis.cpp
@@ -134,7 +133,7 @@ target_sources(simcoon PRIVATE
   # Simulation - Solver
   Simulation/Solver/block.cpp
   Simulation/Solver/output.cpp
-  Simulation/Solver/read.cpp
+  Simulation/Solver/solver_assembly.cpp
   Simulation/Solver/solver.cpp
   Simulation/Solver/solver_sink.cpp
   Simulation/Solver/step.cpp

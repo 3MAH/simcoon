@@ -33,12 +33,12 @@
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include "file_readers.hpp"
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
-#include <simcoon/Simulation/Solver/solver.hpp>
+#include "file_driver.hpp"
 
 using namespace std;
 using namespace arma;

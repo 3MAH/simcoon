@@ -43,9 +43,9 @@ Quick start
     res = solver.solve(step, "MODUL", mat.props, mat.nstatev)
 
 ``mat.props`` and ``mat.nstatev`` are all any caller needs — they work
-identically with ``material.dat`` files, :func:`simcoon.umat` point
-evaluation, micromechanics phase files (``Nellipsoids``/``Nlayers``) and FEA
-couplings such as fedoo.
+identically with :func:`simcoon.umat` point evaluation, mean-field
+micromechanics (whose phases are passed in memory through the ``phases``
+argument of :func:`~simcoon.solver.solve`) and FEA couplings such as fedoo.
 
 Elasticity
 ----------

@@ -32,8 +32,6 @@
 #include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
-#include <simcoon/python_wrappers/Libraries/Solver/solver.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
 // #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
 // #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
@@ -166,7 +164,7 @@ PYBIND11_MODULE(_core, m)
     m.def("M_aniso_props", &M_aniso_props, "input"_a, simcoon_docs::M_aniso_props);
 
     // Register the L_eff for composites
-    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "Return the elastic stiffness tensor of a composite material");
+    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "phases"_a = pybind11::none(), "Return the elastic stiffness tensor of a composite material. `phases` gives the sub-phases in memory (a sequence of dicts, see simcoon.solver.micromechanics); the mean-field models no longer read Nellipsoids/Nlayers files");
 
     // Register the from-python converters for kinematics
     m.def("ER_to_F", &ER_to_F, "E"_a, "R"_a, "copy"_a = true, simcoon_docs::ER_to_F);
@@ -257,10 +255,9 @@ PYBIND11_MODULE(_core, m)
     m.attr("tangent_closest_point") = simcoon::tangent_closest_point;
     m.attr("tangent_default") = simcoon::tangent_default;
 
-    m.def("read_matprops", &read_matprops);
-    m.def("read_path", &read_path);
-    m.def("solver", &solver, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a, "theta_rve"_a, "phi_rve"_a, "solver_type"_a, "corate_type"_a, "path_data"_a, "path_results"_a, "pathfile"_a, "outputfile"_a, "tangent_mode"_a = simcoon::tangent_default);
-    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true);  // corate default = log_R (exact polar rotation + exact tangent transport)
+    //The file-driven entry points (solver, read_matprops, read_path) are gone: the loading
+    //programme is built in Python and handed over in memory. See simcoon.solver.solve.
+    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true, "phases"_a = pybind11::none());  // corate default = log_R (exact polar rotation + exact tangent transport); `phases` gives the sub-phases of a mean-field model in memory
 
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF);

@@ -67,23 +67,23 @@ props = np.array([E_0, nu_0, alpha, n_prony])
 for i in range(n_prony):
     props = np.append(props, [E_i[i], nu_i[i], etaB_i[i], etaS_i[i]])
 
-path_results = "results"
 pathfile = "PRONK_path.txt"
-outputfile = "results_PRONK.txt"
 
-sim._core.solver(
+###################################################################################
+# The loading path is read in Python and the simulation runs in memory: no result
+# file is written, and the histories come back as component-first arrays.
+
+blocks, T_init = sim.solver.from_file(path_data, pathfile)
+
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 ###################################################################################
@@ -93,19 +93,12 @@ sim._core.solver(
 # We plot the stress-strain response which shows the viscoelastic behavior
 # (rate-dependent stiffness and hysteresis from viscous dissipation).
 
-outputfile_macro = os.path.join(path_results, "results_PRONK_global-0.txt")
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
+time, T = res["Time"], res["Temp"]
+Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
 
 fig = plt.figure()
-
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q_out, r = np.loadtxt(outputfile_macro, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(
-    outputfile_macro, usecols=(20, 21, 22, 23), unpack=True
-)
 
 # First subplot: Stress vs Strain
 ax1 = fig.add_subplot(1, 2, 1)

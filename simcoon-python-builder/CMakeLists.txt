@@ -48,9 +48,10 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Maths/lagrange.cpp
   src/python_wrappers/Libraries/Maths/rotation.cpp
 
-  # Solver
-  src/python_wrappers/Libraries/Solver/read.cpp
-  src/python_wrappers/Libraries/Solver/solver.cpp
+  # Phase
+  src/python_wrappers/Libraries/Phase/phases.cpp
+
+  # Solver (the file-driven bindings left with the JSON-only migration: solver_run only)
   src/python_wrappers/Libraries/Solver/solver_run.cpp
 )
 

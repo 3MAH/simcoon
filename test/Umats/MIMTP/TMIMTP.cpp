@@ -35,12 +35,12 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include "file_readers.hpp"
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
-#include <simcoon/Simulation/Solver/solver.hpp>
+#include "file_driver.hpp"
 
 using namespace std;
 using namespace arma;

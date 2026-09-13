@@ -44,8 +44,12 @@ from .io import (
     save_material_json,
     save_path_json,
 )
+# Phase/geometry dataclasses and their JSON I/O for micromechanics. Pure Python (no
+# _core), so a composite can be described, saved and reloaded without the extension.
+from . import micromechanics
 
 __all__ = [
+    "micromechanics",
     "Block", "StepMeca", "StepThermomeca", "SolverResults", "solve",
     "from_file", "material_from_file",
     "BLOCK_TYPES", "CONTROL_TYPES", "CORATE_TYPES", "STEP_MODES",

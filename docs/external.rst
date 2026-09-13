@@ -357,6 +357,13 @@ Simcoon includes unit tests to validate external UMAT plugins:
 
 Located in ``test/Umats/UMEXT/``, this test validates the UMEXT plugin format:
 
+.. note::
+
+   The file helpers used below (``solver_essentials``, ``solver_control``,
+   ``read_matprops`` and the file-driven ``solver``) are test-support code
+   since 2.0: they live in ``test/support/`` and are compiled into the test
+   executables, not into ``libsimcoon``.
+
 .. code-block:: cpp
 
     // Read configuration files

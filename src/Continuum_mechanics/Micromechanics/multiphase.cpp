@@ -30,7 +30,6 @@
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
@@ -52,9 +51,17 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
 {
 
     int nphases = phase.sptr_matprops->props(0); // Number of phases
-    string path_data = "data";
-    string inputfile; //file # that stores the microstructure properties
-    
+
+    //The sub-phases used to be read here, at the first increment, from Nellipsoids<N>.dat or
+    //Nlayers<N>.dat in a "data" directory. They are now built by the caller and handed to the
+    //solver, so a missing set is a caller error rather than a missing file.
+    if (phase.sub_phases.size() != static_cast<size_t>(nphases)) {
+        throw std::invalid_argument("umat_multi: " + phase.sptr_matprops->umat_name + " needs its "
+                                    + std::to_string(nphases) + " sub-phases, "
+                                    + std::to_string(phase.sub_phases.size()) + " given. They are no longer "
+                                    "read from Nellipsoids/Nlayers files: pass them to the solver.");
+    }
+
     shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local); //shared_ptr on state variables of the rve
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
@@ -72,13 +79,6 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
                 ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
                 points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
                 
-                inputfile = "Nellipsoids" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_ellipsoid(phase, path_data, inputfile);
-                break;
-            }
-            case 104: {
-                inputfile = "Nlayers" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_layer(phase, path_data, inputfile);
                 break;
             }
         }

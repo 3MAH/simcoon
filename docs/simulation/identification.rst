@@ -118,13 +118,18 @@ identified values are written back to each ``Parameter.value``.
 
    params = [
        Parameter(0, bounds=(10000, 200000), key="@Ef",
-                 sim_input_files=["Nellipsoids0.dat"]),
+                 sim_input_files=["job.inp"]),
        Parameter(1, bounds=(0.01, 0.45), key="@nuf",
-                 sim_input_files=["Nellipsoids0.dat"]),
+                 sim_input_files=["job.inp"]),
    ]
 
    result = identification(my_cost_function, params, seed=42, disp=True)
    print(f"E_f = {params[0].value:.0f}, nu_f = {params[1].value:.3f}")
+
+``sim_input_files`` is the bridge to **external**, file-driven solvers: the
+keys are substituted into their input decks before each evaluation. Simcoon's
+own models no longer need it — pass ``props``, and for mean-field models the
+``phases``, straight to :func:`~simcoon.solver.solve`.
 
 **Arguments:**
 

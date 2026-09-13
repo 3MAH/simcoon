@@ -1,15 +1,17 @@
-"""Benchmark: in-memory solver (sim.solver.solve) vs legacy file solver.
+"""Benchmark: blocks built in Python (sim.solver.solve) vs the path-file route.
 
 Times the SAME loading cases through the two shipped entry points:
 
-- memory : ``sim.solver.solve(...)`` — the 2.0 API; blocks in, numpy arrays
-  out, no filesystem involved (``_core.solver_run`` + memory sink).
-- file   : ``sim._core.solver(...)`` — the legacy path-file driver; writes
-  path.txt, reads back results_*.txt (includes all disk I/O).
+- memory : ``sim.solver.solve(...)`` — blocks in, numpy arrays out, no file
+  anywhere (``_core.solver_run`` + memory sink).
+- file   : ``sim.solver.from_file(...)`` then ``solve`` — path.txt is written
+  and parsed back into those same blocks (includes the write + the parse).
 
-Both wrap the same C++ Newton engine (``solver_run``), so the measured gap is
-the file round-trip + parsing overhead, and the response cross-check between
-the two routes doubles as a file-vs-memory equivalence test.
+Since 2.0 the C++ engine reads nothing: both routes end up in the same Newton
+engine with the same blocks, so the measured gap is the path-file write plus
+its Python parse, and the two responses must agree — in the same measures,
+which is why the cross-check below covers every case rather than only the
+small-strain ones.
 
 Usage::
 
@@ -99,11 +101,9 @@ def run_memory(name, cfg):
 
 
 def run_file(name, cfg, workdir):
-    """Legacy file route: write path.txt, run _core.solver, parse results."""
+    """Path-file route: write path.txt, parse it in Python, then solve."""
     data = Path(workdir) / "data"
-    results = Path(workdir) / "results"
     data.mkdir(exist_ok=True)
-    results.mkdir(exist_ok=True)
     ct = CONTROL_TYPE_CODES[cfg["control_type"]]
     # control types 2-4 additionally require a spin block in the path file
     spin = "#spin\n0. 0. 0.\n0. 0. 0.\n0. 0. 0.\n" if 2 <= ct <= 4 else ""
@@ -138,13 +138,14 @@ S 0 S 0 S 0
 T {T_INIT}
 """)
     start = time.perf_counter()
-    sim._core.solver(name, np.asarray(cfg["props"], dtype=float),
-                     cfg["nstatev"], 0.0, 0.0, 0.0, 0, CORATE,
-                     str(data), str(results), "path.txt", "res.txt")
-    hist = np.loadtxt(results / "res_global-0.txt", ndmin=2)
+    blocks, T_init = sim.solver.from_file(str(data), "path.txt")
+    res = sim.solver.solve(blocks, name, np.asarray(cfg["props"], dtype=float),
+                           cfg["nstatev"], T_init=T_init, corate=CORATE,
+                           record_tangent=False)
     elapsed = time.perf_counter() - start
-    # default output layout: cols 8..13 strain, 14..19 stress
-    return elapsed, hist[:, 8], hist[:, 14]
+    strain = np.asarray(res["Strain"])[0]   # components-first (6, N)
+    stress = np.asarray(res["Stress"])[0]
+    return elapsed, strain, stress
 
 
 def bench_case(name, cfg, n_repeats):
@@ -157,13 +158,11 @@ def bench_case(name, cfg, n_repeats):
             elapsed, strain_f, stress_f = run_file(name, cfg, wd)
         t_file.append(elapsed)
 
-    # Equivalence of the two routes at the final state (same engine underneath;
-    # the file route reports different default measures for finite strain, so
-    # cross-check only where the measures coincide).
-    if cfg["control_type"] == "small_strain":
-        scale = max(1.0, float(np.abs(stress_f).max()))
-        out["max_rel_stress_diff"] = float(
-            np.abs(stress_m[-1] - stress_f[-1]) / scale)
+    # Equivalence of the two routes at the final state. Both return the same
+    # canonical measures from the same engine, so this holds for every case.
+    scale = max(1.0, float(np.abs(stress_f).max()))
+    out["max_rel_stress_diff"] = float(
+        np.abs(stress_m[-1] - stress_f[-1]) / scale)
 
     out["memory_ms"] = {"mean": float(np.mean(t_mem) * 1e3),
                         "std": float(np.std(t_mem) * 1e3)}

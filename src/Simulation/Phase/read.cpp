@@ -32,53 +32,12 @@
 #include <simcoon/Simulation/Phase/material_characteristics.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/read.hpp>
-#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
-#include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-void get_phase_charateristics(phase_characteristics &rve, const string &path_data) {
-
-    string inputfile; //file # that stores the microstructure properties
-    
-    std::map<string, int> list_umat;
-    list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
-    
-    int method = list_umat[rve.sptr_matprops->umat_name];
-    
-    //first we read the behavior of the phases & we construct the tensors if necessary
-    switch (method) {
-            
-        case 100: case 101: case 103: {
-            
-            //Definition of the static vectors x,wx,y,wy
-            ellipsoid_multi::mp = rve.sptr_matprops->props(2);
-            ellipsoid_multi::np = rve.sptr_matprops->props(3);
-            ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-            ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-            ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-            ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-            points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-            
-            inputfile = "Nellipsoids" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_ellipsoid(rve, path_data, inputfile);
-            break;
-        }
-        case 104: {
-            inputfile = "Nlayers" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_layer(rve, path_data, inputfile);
-            break;
-        }
-    }
-    
-    for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
-        get_phase_charateristics(rve.sub_phases[i], path_data);
-    }
-}
 
 void read_phase(phase_characteristics &rve, const string &path_data, const string &inputfile) {
     

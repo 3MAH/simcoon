@@ -22,7 +22,6 @@ from solver_harness import (
     S_STRAIN,
     S_STRESS,
     S_WM,
-    path_file,
     run_path,
 )
 
@@ -30,7 +29,7 @@ from solver_harness import (
 def _run_finite(base_dir, umat_name, props, nstatev, corate, targets,
                 control_type=3):
     return run_path(base_dir, umat_name, props, nstatev, corate,
-                    path_file(targets, control_type))
+                    targets, control_type)
 
 
 def _elastic_modul():

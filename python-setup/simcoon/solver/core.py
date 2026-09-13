@@ -25,6 +25,7 @@ def solve(
     tangent_mode: Union[str, int] = tangent_default,
     solver_type: int = 0,
     orientation: Sequence[float] = (0.0, 0.0, 0.0),
+    phases: Optional[Sequence[Any]] = None,
     record_tangent: bool = True,
     raise_on_abort: bool = True,
     **params,
@@ -64,6 +65,12 @@ def solve(
         0 = classic Newton-Raphson (default), 1 = RNL (control_type 1 only).
     orientation : sequence of 3 floats
         Euler angles (psi, theta, phi) of the material orientation (rad).
+    phases : sequence, optional
+        Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): the
+        Ellipsoid / Layer objects of :mod:`simcoon.solver.micromechanics`, or the
+        dicts they convert to. They used to be read from ``data/Nellipsoids0.dat``
+        at the first increment; nothing is read from disk any more. Leave it None
+        for every single-phase model.
     record_tangent : bool
         Capture the tangent operator history ('TangentMatrix' or the coupled
         thermomechanical tangents).
@@ -123,6 +130,14 @@ def solve(
         T_run = b.T_end(T_run)
 
     psi, theta, phi = (float(x) for x in orientation)
+    # Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): dataclasses are accepted
+    # as readily as the dicts the binding reads. They used to be read from Nellipsoids<N>.dat.
+    phases_py = None
+    if phases is not None:
+        from .micromechanics import to_phase_dict
+
+        phases_py = [p if isinstance(p, dict) else to_phase_dict(p) for p in phases]
+
     with law_ctx:
         raw = _core.solver_run(
             blocks_py,
@@ -135,6 +150,7 @@ def solve(
             corate_code,
             run_params,
             bool(record_tangent),
+            phases_py,
         )
     res = SolverResults(raw)
     if raise_on_abort and res.status != 0:

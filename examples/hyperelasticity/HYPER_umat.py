@@ -16,9 +16,49 @@ import numpy as np
 import pandas as pd
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 from typing import NamedTuple, List, Tuple
 from dataclasses import dataclass
+
+
+def run_case(
+    umat_name,
+    params,
+    nstatev,
+    path_data,
+    pathfile,
+    solver_type=0,
+    corate_type=2,
+    orientation=(0.0, 0.0, 0.0),
+):
+    r"""Run one load path and return its :math:`(\lambda, P_{11})` trajectory.
+
+    The path file is parsed in Python and the simulation runs in memory. The two
+    plotted quantities are rebuilt from the returned histories: :math:`\lambda` is
+    the largest isochoric principal stretch, and the axial nominal stress comes
+    from :math:`\mathbf{P} = J\,\boldsymbol{\sigma}\,\mathbf{F}^{-T}`.
+    """
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    res = sim.solver.solve(
+        blocks,
+        umat_name,
+        np.asarray(params, dtype=float),
+        nstatev,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=orientation,
+    )
+
+    F_hist, sigma_hist = res["F"], res["Stress"]
+    lam = np.empty(len(res))
+    PK1_11 = np.empty(len(res))
+    for k in range(len(res)):
+        F = np.ascontiguousarray(F_hist[:, :, k])
+        V, _ = sim.VR_decomposition(F)
+        lam[k] = np.asarray(sim.isochoric_pstretch(np.ascontiguousarray(V))).ravel()[-1]
+        sigma = sim.v2t_stress(np.ascontiguousarray(sigma_hist[:, k]))
+        PK1_11[k] = (np.linalg.det(F) * sigma @ np.linalg.inv(F).T)[0, 0]
+    return lam, PK1_11
 
 ###################################################################################
 # Several hyperelastic isotropic materials are tested.
@@ -304,8 +344,8 @@ model_colors = {
 # The constitutive response is computed by calling the solver interface,
 # which evaluates the Cauchy stress as a function of the applied stretch.
 #
-# The solver output (i.e, stretch and Nominal stress) is read from the generated
-# result files and the axial Cauchy stress component is extracted.
+# The stretch and the nominal stress are rebuilt from the deformation gradient
+# and Cauchy stress histories returned by the solver.
 #
 # The numerical prediction is plotted together with the corresponding
 # experimental data from Treloar for direct visual comparison.
@@ -330,31 +370,21 @@ for i, umat in enumerate(list_umats):
     corate_type = 2
     nstatev = 1
 
-    # File paths
+    # Load path
     path_data = "data"
-    path_results = "results"
     pathfile = "path_UT.txt"
-    outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim._core.solver(
+    lam, PK1_11 = run_case(
         umat.name,
         params,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
         path_data,
-        path_results,
         pathfile,
-        outputfile,
+        solver_type=solver_type,
+        corate_type=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-
-    # Load solver output
-    outputfile_macro = os.path.join(path_results, f"results_{umat.name}_global-0.txt")
-    lam, PK1_11 = np.loadtxt(outputfile_macro, usecols=(10, 11), unpack=True)
 
     # Plot model prediction
     axes[i].plot(
@@ -404,8 +434,7 @@ plt.show()
 # 1) retrieve the model-specific material parameters from the ``umat`` object,
 # 2) prescribe a pure shear loading path using the history in ``path_PS.txt``,
 # 3) compute the constitutive response using the solver interface,
-# 4) read the solver output (stretch and nominal stress) and extract the axial
-#    Cauchy stress component,
+# 4) rebuild the stretch and the nominal stress from the returned histories,
 # 5) plot the numerical prediction together with the corresponding Treloar
 #    experimental data.
 #
@@ -446,31 +475,21 @@ for i, umat in enumerate(list_umats):
     corate_type = 2
     nstatev = 1
 
-    # File paths
+    # Load path
     path_data = "data"
-    path_results = "results"
     pathfile = "path_PS.txt"
-    outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim._core.solver(
+    lam, PK1_11 = run_case(
         umat.name,
         params,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
         path_data,
-        path_results,
         pathfile,
-        outputfile,
+        solver_type=solver_type,
+        corate_type=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-
-    # Load solver output
-    outputfile_macro = os.path.join(path_results, f"results_{umat.name}_global-0.txt")
-    lam, PK1_11 = np.loadtxt(outputfile_macro, usecols=(10, 11), unpack=True)
 
     # Plot model prediction
     axes[i].plot(
@@ -515,15 +534,12 @@ plt.show()
 # evaluated under equibiaxial tension and compared against Treloar’s experimental
 # data.
 #
-# For each constitutive model contained in ``list_umats``, the following steps
-# are performed:
-#
 # For each constitutive model contained in ``list_umats``, we retrieve the
 # model-specific material parameters from the ``umat`` object, prescribe an
 # equibiaxial tension loading path using the history in ``path_ET.txt``, run the
-# solver, then post-process the stretch/nominal-stress output to extract the
-# axial Cauchy stress component. Finally, we plot the numerical prediction
-# together with the corresponding Treloar experimental data for comparison.
+# solver, then rebuild the stretch and the nominal stress from the returned
+# histories. Finally, we plot the numerical prediction together with the
+# corresponding Treloar experimental data for comparison.
 #
 # Each subplot corresponds to a single material model. The resulting figure
 # provides a qualitative assessment of the ability of each model to reproduce
@@ -562,31 +578,21 @@ for i, umat in enumerate(list_umats):
     corate_type = 2
     nstatev = 1
 
-    # File paths
+    # Load path
     path_data = "data"
-    path_results = "results"
     pathfile = "path_ET.txt"
-    outputfile = f"results_{umat.name}.txt"
 
     # Run simulation
-    sim._core.solver(
+    lam, PK1_11 = run_case(
         umat.name,
         params,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
         path_data,
-        path_results,
         pathfile,
-        outputfile,
+        solver_type=solver_type,
+        corate_type=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-
-    # Load solver output
-    outputfile_macro = os.path.join(path_results, f"results_{umat.name}_global-0.txt")
-    lam, PK1_11 = np.loadtxt(outputfile_macro, usecols=(10, 11), unpack=True)
 
     # Plot model prediction
     axes[i].plot(

@@ -93,18 +93,18 @@ def build_props(x):
     return np.array([E_FIXED, NU_FIXED, ALPHA_FIXED, *x])
 
 
-def run_one_test(props, pathfile, outputfile, path_data, path_results):
-    """Run one solver call and return the predicted σ11 trajectory."""
-    sim._core.solver(
-        UMAT_NAME, props, NSTATEV,
-        0.0, 0.0, 0.0,                  # psi, theta, phi
-        SOLVER_TYPE, CORATE_TYPE,
-        path_data, path_results,
-        pathfile, outputfile,
+def run_one_test(props, pathfile, path_data):
+    """Run one case and return the predicted σ11 trajectory.
+
+    The path file is parsed in Python and the case runs in memory: an identification
+    evaluates this thousands of times, and none of them now touches the disk.
+    """
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    res = sim.solver.solve(
+        blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
+        solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
     )
-    base = outputfile[:-4] if outputfile.endswith(".txt") else outputfile
-    out = np.loadtxt(os.path.join(path_results, f"{base}_global-0.txt"))
-    return out[:, SIGMA11_COL]
+    return res["Stress"][0]
 
 
 def cost(x, exp_stresses, path_data, path_results):
@@ -113,9 +113,7 @@ def cost(x, exp_stresses, path_data, path_results):
     y_num = []
     for name, pathfile, _tab, _exp in TESTS:
         try:
-            sigma11 = run_one_test(
-                props, pathfile, f"sim_{name}.txt", path_data, path_results
-            )
+            sigma11 = run_one_test(props, pathfile, path_data)
         except Exception:
             return 1e12
         y_num.append(sigma11.reshape(-1, 1))

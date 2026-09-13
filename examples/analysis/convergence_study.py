@@ -11,10 +11,8 @@ representative case.
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
-dir = os.path.dirname(os.path.realpath("__file__"))
 
 plt.rc("text", usetex=True)
 plt.rc("font", family="serif")
@@ -42,7 +40,6 @@ corate_type = 3
 
 props = np.array([E, nu, alpha, sigma_Y, H, beta])
 path_data = "../data"
-path_results = "results"
 
 # ###################################################################################
 # Running the solver with different increment sizes
@@ -55,30 +52,23 @@ increments = [1, 10, 100, 1000]
 data = []
 
 for inc in increments:
+    # Each path file is parsed in Python and its case runs in memory: nothing is
+    # written to — or read back from — disk.
     pathfile = f"EPICP_path_{inc}.txt"
-    outputfile = f"results_conv_{inc}.txt"
-    sim._core.solver(
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    res = sim.solver.solve(
+        blocks,
         umat_name,
         props,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-    result_file = os.path.join(dir, "results", f"results_conv_{inc}_global-0.txt")
-    e11, s11 = np.loadtxt(result_file, usecols=(8, 14), unpack=True)
-    time = np.loadtxt(result_file, usecols=(4,), unpack=True)
-    Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(
-        result_file, usecols=(20, 21, 22, 23), unpack=True
-    )
+    Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
     data.append(
-        {"e11": e11, "s11": s11, "time": time,
+        {"e11": res["Strain"][0], "s11": res["Stress"][0], "time": res["Time"],
          "Wm": Wm, "Wm_r": Wm_r, "Wm_ir": Wm_ir, "Wm_d": Wm_d}
     )
 

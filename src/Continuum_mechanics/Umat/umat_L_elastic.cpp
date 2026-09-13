@@ -29,7 +29,6 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
@@ -41,9 +40,6 @@ namespace simcoon{
     
 void get_L_elastic(phase_characteristics &rve)
 {
-    
-    string path_data = "data";
-    string inputfile; //file # that stores the microstructure properties
     
     std::map<string, int> list_umat;
     list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
@@ -63,13 +59,6 @@ void get_L_elastic(phase_characteristics &rve)
             ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
             points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
             
-            inputfile = "Nellipsoids" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_ellipsoid(rve, path_data, inputfile);
-            break;
-        }
-        case 104: {
-            inputfile = "Nlayers" + to_string(int(rve.sptr_matprops->props(1))) + ".dat";
-            read_layer(rve, path_data, inputfile);
             break;
         }
     }

@@ -1,7 +1,7 @@
 Use the solver
 ================================
 
-The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the legacy file-driven workflow (``path.txt`` / ``material.dat`` in, result text files out) through the low-level binding ``sim._core.solver``. Since simcoon 2.0 the recommended interface is the in-memory API (see :doc:`python_solver`); legacy files parse into loading objects with ``sim.solver.from_file``.
+The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the ``path.txt`` loading-path format and how to drive the solver with it. Since simcoon 2.0 the C++ engine reads no file at all: ``sim.solver.from_file`` parses a path file in Python into loading objects, and ``sim.solver.solve`` runs them and returns the whole history as numpy arrays. See :doc:`python_solver` to build the same loading objects directly, without any file.
 
 Elastic tensile test
 --------------------
@@ -37,14 +37,12 @@ Next we shall define the material constitutive law to be utilized and the associ
 
     props = np.array([E, nu, alpha])
 
-We shall then define the location of the data input files and the results output file:
+We shall then define the location of the loading path file:
 
 .. code-block:: python
 
     path_data = 'data'
-    path_results = 'results'
     pathfile = 'path.txt'
-    outputfile = 'results_ELISO.txt'
 
 The last part is to define the loading path. Create a folder ``data`` and a text file named ``path.txt`` with the following content:
 
@@ -82,31 +80,39 @@ The last part is to define the loading path. Create a folder ``data`` and a text
 
 This corresponds to a pure strain-controlled tension test in direction 1 up to 1% strain, at 293.5K.
 
-Finally, call the solver function:
+Finally, parse the path file and run the solver:
 
 .. code-block:: python
 
-    sim._core.solver(
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+
+    res = sim.solver.solve(
+        blocks,
         umat_name,
         props,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
 
-The result file ``results_ELISO.txt`` will be created in the ``results`` folder.
+No result file is written: ``res`` holds the whole history in memory, as numpy
+arrays of shape ``(6, N)`` for the tensor quantities:
+
+.. code-block:: python
+
+    e11, e22, e33, e12, e13, e23 = res["Strain"]   # total strain
+    s11, s22, s33, s12, s13, s23 = res["Stress"]   # Cauchy stress
+    time, T = res["Time"], res["Temp"]
+    Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
+
+See :doc:`python_solver` for the full list of available keys.
 
 Solver parameters
 -----------------
 
-The solver function takes the following parameters:
+``sim.solver.solve`` takes the following parameters:
 
 .. list-table::
    :header-rows: 1
@@ -115,45 +121,39 @@ The solver function takes the following parameters:
    * - Parameter
      - Type
      - Description
+   * - blocks
+     - Block, StepMeca, or a sequence of them
+     - The loading path, as returned by ``sim.solver.from_file`` or built directly (see :doc:`python_solver`)
    * - umat_name
-     - string
-     - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP')
+     - string or callable
+     - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP'), or a constitutive law written in Python
    * - props
      - numpy array
      - Material properties array
    * - nstatev
      - int
      - Number of internal state variables
-   * - psi_rve
+   * - T_init
      - float
-     - First Euler angle (in degrees) for material orientation
-   * - theta_rve
-     - float
-     - Second Euler angle (in degrees) for material orientation
-   * - phi_rve
-     - float
-     - Third Euler angle (in degrees) for material orientation
+     - Initial temperature in Kelvin (default 293.15); ``from_file`` returns the value read from the path file
+   * - corate
+     - int or string
+     - Corotational spin rate type (see below)
+   * - tangent_mode
+     - int
+     - Tangent-operator mode (default 2): see below
    * - solver_type
      - int
      - Solver strategy (0: Newton-Raphson)
-   * - corate_type
-     - int
-     - Corotational spin rate type (see below)
-   * - path_data
-     - string
-     - Path to the folder containing input files
-   * - path_results
-     - string
-     - Path to the folder for output files
-   * - pathfile
-     - string
-     - Name of the loading path file (default: 'path.txt')
-   * - outputfile
-     - string
-     - Name of the output result file
-   * - tangent_mode
-     - int
-     - Tangent-operator mode (optional keyword, default 2): see below
+   * - orientation
+     - tuple of 3 floats
+     - The three Euler angles ``(psi, theta, phi)``, in degrees, giving the material orientation with respect to the reference basis
+   * - phases
+     - sequence, optional
+     - Sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN), passed in memory
+   * - record_tangent
+     - bool
+     - Whether to record the tangent operator in the results (default True)
 
 Tangent-operator modes
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -200,7 +200,7 @@ constitutive models (also exposed as named constants:
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``corate_type`` parameter controls the corotational formulation used in finite deformation problems:
+The ``corate`` parameter controls the corotational formulation used in finite deformation problems:
 
 .. list-table::
    :header-rows: 1

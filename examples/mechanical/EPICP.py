@@ -7,10 +7,8 @@ import pylab
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)  # configure the figure output size
-dir = os.path.dirname(os.path.realpath("__file__"))
 
 plt.rc("text", usetex=True)
 plt.rc("font", family="serif")
@@ -69,24 +67,20 @@ corate_type = 3
 # Define the properties
 props = np.array([E, nu, alpha, sigma_Y, H, beta])
 path_data = "../data"
-path_results = "results"
 
-# Run the simulation
+# Run the simulation: the loading path is read in Python and the case runs in
+# memory, so no result file is written.
 pathfile = "EPICP_path.txt"
-outputfile = "results_EPICP.txt"
-sim._core.solver(
+blocks, T_init = sim.solver.from_file(path_data, pathfile)
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 # ###################################################################################
@@ -102,16 +96,12 @@ sim._core.solver(
 
 # prepare the load
 fig = plt.figure()
-outputfile_global = "results_EPICP_global-0.txt"
-path = dir + "/results/"
-P_global = path + outputfile_global
 
 # Get the data
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    P_global, usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19), unpack=True
-)
-time, T, Q, r = np.loadtxt(P_global, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(P_global, usecols=(20, 21, 22, 23), unpack=True)
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
+time, T = res["Time"], res["Temp"]
+Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
 
 # Plot the results
 ax = fig.add_subplot(1, 2, 1)
@@ -140,52 +130,35 @@ plt.show()
 # ----------------------------------------------------------
 # ###################################################################################
 
-# Define increments and corresponding filenames
+# Define the increment counts to compare
 increments = [1, 10, 100, 1000]
-outputfile_globals = {}
 
+# Run each case and collect its history: every path file is parsed in Python and
+# the case runs in memory, so nothing is written to — or read back from — disk.
+data = []
 for inc in increments:
     pathfile = f"EPICP_path_{inc}.txt"
-    outputfile = f"results_EPICP_{inc}.txt"
-    sim._core.solver(
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    res_inc = sim.solver.solve(
+        blocks,
         umat_name,
         props,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-    outputfile_globals[inc] = f"results_EPICP_{inc}_global-0.txt"
-
-# Prepare output file names and paths for each increment
-outputfile_globals = {inc: outputfile_globals[inc] for inc in increments}
-paths = [os.path.join(dir, "results", outputfile_globals[inc]) for inc in increments]
-
-# Load data for each increment into a list of dicts
-data = []
-for path in paths:
-    # Strain and stress components
-    e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-        path, usecols=range(8, 20), unpack=True
-    )
-    # Time and other variables
-    time, T, Q, r = np.loadtxt(path, usecols=range(4, 8), unpack=True)
-    Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(path, usecols=range(20, 24), unpack=True)
+    Wm_i, Wm_r_i, Wm_ir_i, Wm_d_i = res_inc["Wm"]
     data.append(
         {
-            "e11": e11,
-            "s11": s11,
-            "time": time,
-            "Wm": Wm,
-            "Wm_r": Wm_r,
-            "Wm_ir": Wm_ir,
-            "Wm_d": Wm_d,
+            "e11": res_inc["Strain"][0],
+            "s11": res_inc["Stress"][0],
+            "time": res_inc["Time"],
+            "Wm": Wm_i,
+            "Wm_r": Wm_r_i,
+            "Wm_ir": Wm_ir_i,
+            "Wm_d": Wm_d_i,
         }
     )
 

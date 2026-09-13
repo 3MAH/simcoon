@@ -10,6 +10,10 @@ estimator is the MINIMUM over repetitions (least-noise wall time; naive medians
 proved 5x sensitive to background load). A max-deviation column doubles as an
 equivalence smoke check.
 
+The load path is parsed once per arm OUTSIDE the timed region, so what is timed
+is the constitutive kernel alone rather than the path-file parse the two arms
+share.
+
 Usage:
     python bench/bench_legacy_vs_modular.py [--families ELISO,EPCHA,...]
                                             [--repeats 8]
@@ -18,9 +22,6 @@ Run from anywhere; paths resolve relative to the repo. Requires the simcoon
 python package (editable install). Results land in a temp dir and are removed.
 """
 import argparse
-import os
-import statistics
-import tempfile
 import time
 from pathlib import Path
 
@@ -36,7 +37,7 @@ from simcoon.modular import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-EXAMPLES = REPO / "examples" / "mechanical"
+DATA = REPO / "examples" / "data"
 
 VE_TERMS = [(1500., 0.35, 3000., 1200.),
             (800., 0.35, 30000., 12000.),
@@ -150,25 +151,26 @@ FAMILIES = {
 }
 
 
-def bench_family(key, results_dir, repeats):
+def bench_family(key, repeats):
     name, props, nstatev, path_file, mat = FAMILIES[key]
     props = np.asarray(props, dtype=float)
     t_leg, t_mod = [], []
-    out_l, out_m = f"b_{key}_l.txt", f"b_{key}_m.txt"
     for _ in range(repeats):
+        # re-parse per arm so neither one inherits blocks the other consumed
+        blocks, T_init = sim.solver.from_file(str(DATA), path_file)
         t0 = time.perf_counter()
-        sim._core.solver(name, props, nstatev, 0., 0., 0., 0, 1,
-                   "../data", results_dir, path_file, out_l)
+        res_l = sim.solver.solve(blocks, name, props, nstatev,
+                                 T_init=T_init, corate=1)
         t_leg.append(time.perf_counter() - t0)
+        blocks, T_init = sim.solver.from_file(str(DATA), path_file)
         t0 = time.perf_counter()
-        sim._core.solver("MODUL", mat.props, mat.nstatev, 0., 0., 0., 0, 1,
-                   "../data", results_dir, path_file, out_m)
+        res_m = sim.solver.solve(blocks, "MODUL", mat.props, mat.nstatev,
+                                 T_init=T_init, corate=1)
         t_mod.append(time.perf_counter() - t0)
     # discard the first (warmup) pair; min = least-noise estimator
     tl, tm = min(t_leg[1:]), min(t_mod[1:])
-    res = Path(EXAMPLES) / results_dir
-    a = np.loadtxt(res / out_l.replace(".txt", "_global-0.txt"))[:, 14]
-    b = np.loadtxt(res / out_m.replace(".txt", "_global-0.txt"))[:, 14]
+    a = np.asarray(res_l["Stress"])[0]
+    b = np.asarray(res_m["Stress"])[0]
     dev = np.max(np.abs(a - b)) / max(np.max(np.abs(a)), 1e-12)
     return tl * 1e3, tm * 1e3, dev
 
@@ -180,22 +182,15 @@ def main():
     ap.add_argument("--repeats", type=int, default=8)
     args = ap.parse_args()
 
-    os.chdir(EXAMPLES)
-    with tempfile.TemporaryDirectory() as tmp:
-        link = EXAMPLES / f"_bench_{os.getpid()}"
-        link.symlink_to(tmp, target_is_directory=True)
-        try:
-            print(f"| family | legacy [ms] | MODUL [ms] | ratio | max dev |")
-            print(f"|---|---|---|---|---|")
-            for key in args.families.split(","):
-                key = key.strip()
-                if key not in FAMILIES:
-                    print(f"| {key} | (unknown family) | | | |")
-                    continue
-                tl, tm, dev = bench_family(key, link.name, args.repeats)
-                print(f"| {key} | {tl:.1f} | {tm:.1f} | {tm/tl:.2f} | {dev:.2e} |")
-        finally:
-            link.unlink()
+    print(f"| family | legacy [ms] | MODUL [ms] | ratio | max dev |")
+    print(f"|---|---|---|---|---|")
+    for key in args.families.split(","):
+        key = key.strip()
+        if key not in FAMILIES:
+            print(f"| {key} | (unknown family) | | | |")
+            continue
+        tl, tm, dev = bench_family(key, args.repeats)
+        print(f"| {key} | {tl:.1f} | {tm:.1f} | {tm/tl:.2f} | {dev:.2e} |")
 
 
 if __name__ == "__main__":

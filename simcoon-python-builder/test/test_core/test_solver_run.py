@@ -1,9 +1,14 @@
 """Tests for the in-memory solver API (simcoon.solver / _core.solver_run).
 
-The reference is the file-driven solver `sim._core.solver` (same C++ engine
-through solver_file_sink): for every control type / corate / loading mode
-exercised here, the in-memory run must reproduce the file run to numerical
-identity.
+These used to compare every run against the file-driven solver `sim._core.solver`,
+which ran the same C++ engine through solver_file_sink. That binding left with the
+2.0 JSON-only migration, and an equivalence gate between two implementations is
+vacuous once only one remains. The cases were kept — control types 2/3/4 crossed
+with corates, spin, sinusoidal and tabular modes, thermomechanical blocks, legacy
+path parsing — and their assertions rewritten as invariants that hold on their own:
+the prescribed state is reached, the response is finite and non-trivial, and what
+the physics imposes (free thermal expansion, cycle bookkeeping, plastic flow,
+the rotation history) is checked directly.
 """
 
 import numpy as np
@@ -13,17 +18,27 @@ import simcoon as sim
 from simcoon.solver import Block, StepMeca, StepThermomeca, from_file, solve
 
 # ---------------------------------------------------------------------------
-# helpers: file-driven reference runs
+# helpers
 # ---------------------------------------------------------------------------
+
+def assert_ran_and_responded(res, n_expected=None):
+    """The run completed and produced a finite, non-trivial mechanical response."""
+    assert res.status == 0
+    if n_expected is not None:
+        assert len(res) == n_expected
+    assert np.isfinite(res["Stress"]).all()
+    assert np.isfinite(res["Strain"]).all()
+    # the PEAK of the history, not its last increment: several cases unload back to
+    # zero stress by construction.
+    assert np.abs(res["Stress"]).max() > 1.0
+
+
+# The legacy path-file grammar. Nothing in simcoon reads it any more — but
+# simcoon.solver.from_file parses it in Python, and the tests of that parser need
+# a file to parse, so the writers stay here as fixtures.
 
 #: path-file component order (11, 12, 22, 13, 23, 33) -> Voigt index
 _FILE_ORDER = [0, 3, 1, 4, 5, 2]
-
-# default file output columns (no output.dat):
-# 0 block | 1 cycle | 2 step | 3 inc | 4 time | 5 T | 6 Q | 7 r |
-# 8:14 strain (Green-Lagrange) | 14:20 stress (Cauchy) | 20:24 Wm
-_C_TIME, _C_T = 4, 5
-_S_STRAIN, _S_STRESS, _S_WM = slice(8, 14), slice(14, 20), slice(20, 24)
 
 
 def _meca_state_lines(flags, values):
@@ -54,6 +69,21 @@ def _step_text(flags, values, time=1.0, ninc=100, mode=1, T=290.0, BC_w=None):
     return txt
 
 
+def _thermo_step_text(flags, values, thermal_token, time=1.0, ninc=50):
+    return f"""#Mode
+1
+#Dn_init 1.
+#Dn_mini 1.
+#Dn_inc {1.0/ninc}
+#time
+{time}
+#prescribed_mechanical_state
+{_meca_state_lines(flags, values)}
+#prescribed_thermal_state
+{thermal_token}
+"""
+
+
 def _path_text(steps_text, control_type=1, loading_type=1, ncycle=1, T_init=290.0):
     return f"""#Initial_temperature
 {T_init}
@@ -74,35 +104,14 @@ def _path_text(steps_text, control_type=1, loading_type=1, ncycle=1, T_init=290.
 """ + "\n".join(steps_text)
 
 
-def run_file_solver(tmp_path, path_text, umat, props, nstatev, corate=2,
-                    solver_type=0, extra_files=None):
+def write_path_file(tmp_path, path_text, extra_files=None):
+    """Drop a legacy path.txt (and its tabular files) in tmp_path/data."""
     data = tmp_path / "data"
     data.mkdir(exist_ok=True)
-    results = tmp_path / "results"
-    results.mkdir(exist_ok=True)
     (data / "path.txt").write_text(path_text)
     for name, content in (extra_files or {}).items():
         (data / name).write_text(content)
-    sim._core.solver(umat, np.asarray(props, dtype=float), nstatev, 0.0, 0.0, 0.0,
-               solver_type, corate, str(data), str(results), "path.txt", "res.txt")
-    return np.loadtxt(results / "res_global-0.txt")
-
-
-def _close_to_text(mem, txt):
-    """Compare in-memory values against the same values parsed from the result
-    text file, whose writer prints ~6 significant digits."""
-    scale = max(np.abs(txt).max(), 1e-30)
-    np.testing.assert_allclose(mem, txt, rtol=2e-5, atol=2e-6 * scale)
-
-
-def assert_matches_file(res, out):
-    """Compare an in-memory SolverResults against a file-solver output table."""
-    assert len(res) == out.shape[0]
-    _close_to_text(res["Time"], out[:, _C_TIME])
-    _close_to_text(res["Temp"], out[:, _C_T])
-    _close_to_text(res["Strain"].T, out[:, _S_STRAIN])
-    _close_to_text(res["Stress"].T, out[:, _S_STRESS])
-    _close_to_text(res["Wm"].T, out[:, _S_WM])
+    return str(data)
 
 
 ELISO_PROPS = [70000.0, 0.3, 1.0e-5]
@@ -130,35 +139,31 @@ def test_eliso_uniaxial_analytic():
     np.testing.assert_allclose(res["TangentMatrix"][:, :, -1], L, rtol=1e-8)
 
 
-def test_eliso_load_unload_vs_file(tmp_path):
-    flags = ["E"] + ["S"] * 5
-    steps = [_step_text(flags, [0.02, 0, 0, 0, 0, 0], ninc=100),
-             _step_text(flags, [0.0, 0, 0, 0, 0, 0], ninc=100)]
-    out = run_file_solver(tmp_path, _path_text(steps), "ELISO", ELISO_PROPS, 1)
-
+def test_eliso_load_unload():
+    E = ELISO_PROPS[0]
     s1 = StepMeca(control=_UNIAXIAL, value=[0.02, 0, 0, 0, 0, 0], ninc=100)
     s2 = StepMeca(control=_UNIAXIAL, value=[0.0, 0, 0, 0, 0, 0], ninc=100)
     res = solve(Block(steps=[s1, s2]), "ELISO", ELISO_PROPS, 1, T_init=290.0)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=200)
+    # elastic load then unload: the peak follows Hooke and nothing is left behind
+    np.testing.assert_allclose(res["Stress"][0].max(), E * 0.02, rtol=1e-8)
+    np.testing.assert_allclose(res["Strain"][0, -1], 0.0, atol=1e-12)
+    np.testing.assert_allclose(res["Stress"][0, -1], 0.0, atol=1e-6)
 
 
-def test_epicp_mixed_cyclic_vs_file(tmp_path):
+def test_epicp_mixed_cyclic():
     # stress-controlled uniaxial cycling into the plastic range
-    flags = ["S"] * 6
-    steps = [_step_text(flags, [400.0, 0, 0, 0, 0, 0], ninc=100),
-             _step_text(flags, [0.0, 0, 0, 0, 0, 0], ninc=100)]
-    out = run_file_solver(tmp_path, _path_text(steps, ncycle=2), "EPICP",
-                          EPICP_PROPS, EPICP_NSTATEV)
-
     s1 = StepMeca(control="stress", value=[400.0, 0, 0, 0, 0, 0], ninc=100)
     s2 = StepMeca(control="stress", value=[0.0, 0, 0, 0, 0, 0], ninc=100)
     res = solve(Block(steps=[s1, s2], ncycle=2), "EPICP", EPICP_PROPS,
                 EPICP_NSTATEV, T_init=290.0)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=2 * 2 * 100)
     # cycle index bookkeeping
     assert res["Cycle"].max() == 1
-    assert len(res) == 2 * 2 * 100
-    # plasticity happened
+    # the prescribed stress is reached at each peak, and plasticity happened
+    np.testing.assert_allclose(res["Stress"][0].max(), 400.0, atol=1e-4)
     assert res["Statev"][0].max() > 1.0e-4
 
 
@@ -173,45 +178,61 @@ def test_epicp_mixed_cyclic_vs_file(tmp_path):
 ])
 @pytest.mark.parametrize("control_type", [2, 3, 4])
 @pytest.mark.parametrize("corate", [0, 2, 5])
-def test_finite_strain_vs_file(tmp_path, umat, props, nstatev, control_type, corate):
+def test_finite_strain_controls(umat, props, nstatev, control_type, corate):
     if umat == "EPICP" and control_type == 4 and corate == 5:
         # pre-existing engine limitation (identical for the file solver): plasticity
         # under strain-controlled Biot loading with the log_F rate fails in
         # logarithmic_F (singular DF inversion)
         pytest.skip("EPICP + Biot control + logarithmic_F: known engine limitation")
-    if umat == "SNTVE" and control_type == 4:
-        target = 0.05  # keep the Biot-controlled hyperelastic case well-conditioned
+    # Biot control drives the STRETCH U11 itself, not a strain: asking for 0.08 there
+    # would prescribe a 92 % compression (and the engine would deliver it).
+    if control_type == 4:
+        target = 1.05 if umat == "SNTVE" else 1.08
+    elif umat == "SNTVE":
+        target = 0.05  # keep the hyperelastic case well-conditioned
     else:
         target = 0.08
-    flags = ["E"] + ["S"] * 5
-    steps = [_step_text(flags, [target, 0, 0, 0, 0, 0], ninc=50,
-                        BC_w=np.zeros((3, 3)))]
-    out = run_file_solver(tmp_path, _path_text(steps, control_type=control_type),
-                          umat, props, nstatev, corate=corate)
-
     step = StepMeca(control=_UNIAXIAL, value=[target, 0, 0, 0, 0, 0], ninc=50,
                     BC_w=np.zeros((3, 3)))
     ct = {2: "green_lagrange", 3: "logarithmic", 4: "biot"}[control_type]
     res = solve(Block(steps=[step], control_type=ct), umat, props, nstatev,
                 T_init=290.0, corate=corate)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=50)
+    # The target is prescribed in the measure of THIS control type — Green-Lagrange,
+    # logarithmic or Biot — which is not the canonical strain the results carry, so the
+    # invariant is put on the stretch itself: the bar elongates, monotonically.
+    F11 = res["F"][0, 0]
+    assert F11[-1] > 1.0
+    assert np.all(np.diff(F11) > -1e-12)
+    # lateral faces stay stress-free
+    assert np.abs(res["Stress"][1:, -1]).max() < 1e-3 * max(abs(res["Stress"][0, -1]), 1.0)
 
 
-def test_ct3_spin_vs_file(tmp_path):
+def test_ct3_spin():
     # logarithmic control with a superimposed rotation rate (BC_w)
     BC_w = np.array([[0.0, 0.2, 0.0], [-0.2, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    flags = ["E"] + ["S"] * 5
-    steps = [_step_text(flags, [0.05, 0, 0, 0, 0, 0], ninc=50, BC_w=BC_w)]
-    out = run_file_solver(tmp_path, _path_text(steps, control_type=3), "ELISO",
-                          ELISO_PROPS, 1, corate=2)
-
     step = StepMeca(control=_UNIAXIAL, value=[0.05, 0, 0, 0, 0, 0], ninc=50, BC_w=BC_w)
     res = solve(Block(steps=[step], control_type="logarithmic"), "ELISO",
                 ELISO_PROPS, 1, T_init=290.0, corate="logarithmic")
-    assert_matches_file(res, out)
-    # the rotation history is captured
+
+    assert_ran_and_responded(res, n_expected=50)
+    # The target is a LOG strain, and it is prescribed in the COROTATIONAL frame: with a
+    # superimposed spin its 11 component in the lab frame drifts (0.0491 here, 1.8 % off,
+    # of order theta^2/2). The invariant is the principal strain, which no rotation moves.
+    # ascontiguousarray: a column of a (6, N) history is not contiguous, and carma
+    # refuses to borrow such an array.
+    e_end = sim.v2t_strain(np.ascontiguousarray(res["LogStrain"][:, -1]))
+    # Under the spin the state is not exactly uniaxial in the lab frame — the two
+    # lateral principal strains differ (-0.015001 vs -0.014784) — so no simple
+    # quantity equals the target exactly: the principal strain measures 0.049786.
+    # The invariant is that the driven magnitude is delivered to ~0.5 %; a broken
+    # rotation path moves it by far more.
+    np.testing.assert_allclose(np.linalg.eigvalsh(e_end).max(), 0.05, rtol=5e-3)
+    # the rotation history is captured, and R stays a rotation
     R_end = res["R"][:, :, -1]
     assert np.abs(R_end - np.eye(3)).max() > 1e-3
+    np.testing.assert_allclose(R_end @ R_end.T, np.eye(3), atol=1e-10)
 
 
 # ct5 is the only fully kinematic path (nK == 0) and the only caller of
@@ -265,49 +286,30 @@ def test_ct5_F_control():
 # loading modes
 # ---------------------------------------------------------------------------
 
-def test_sinusoidal_vs_file(tmp_path):
-    flags = ["E"] + ["S"] * 5
-    steps = [_step_text(flags, [0.01, 0, 0, 0, 0, 0], ninc=100, mode=2)]
-    out = run_file_solver(tmp_path, _path_text(steps), "ELISO", ELISO_PROPS, 1)
-
+def test_sinusoidal_mode():
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=100,
                     mode="sinusoidal")
     res = solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=100)
+    np.testing.assert_allclose(res["Strain"][0, -1], 0.01, rtol=1e-8)
     # sinusoidal profile: increments are not uniform
     de = np.diff(res["Strain"][0])
     assert de.max() / de.min() > 1.5
 
 
-def test_tabular_memory_vs_file(tmp_path):
-    # same table driven from disk (mode-3 file) and from memory (tab_data)
+def test_tabular_memory():
     t = np.linspace(0.02, 1.0, 50)
     e11 = 0.015 * np.sin(np.pi * t)
     table = np.column_stack([t, e11])
-    tab_lines = "\n".join(
-        f"{i+1} {t[i]:.16g} {e11[i]:.16g}" for i in range(len(t))
-    )
-    # mode-3 file step: flags only (no values), thermal token '0' = constant T
-    step3 = """#Mode
-3
-#File
-tab.txt
-#Dn_init 1.
-#Dn_mini 1.
-#prescribed_mechanical_state
-E
-0 0
-0 0 0
-#T_is_set
-0
-"""
-    out = run_file_solver(tmp_path, _path_text([step3]), "ELISO", ELISO_PROPS, 1,
-                          extra_files={"tab.txt": tab_lines})
 
     step = StepMeca(control=["strain"] + ["zero"] * 5, mode="tabular", tabular=table)
     res = solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=len(t))
+    # the table is followed exactly, in its own absolute time
     np.testing.assert_allclose(res["Time"], t, atol=1e-12)
+    np.testing.assert_allclose(res["Strain"][0], e11, atol=1e-10)
 
 
 # ---------------------------------------------------------------------------
@@ -317,32 +319,16 @@ E
 ELISO_T_PROPS = [1.0e-9, 1.0, 70000.0, 0.3, 1.0e-5]  # rho c_p E nu alpha
 
 
-def _thermo_step_text(flags, values, thermal_token, time=1.0, ninc=50):
-    return f"""#Mode
-1
-#Dn_init 1.
-#Dn_mini 1.
-#Dn_inc {1.0/ninc}
-#time
-{time}
-#prescribed_mechanical_state
-{_meca_state_lines(flags, values)}
-#prescribed_thermal_state
-{thermal_token}
-"""
-
-
-def test_thermomeca_temperature_ramp_vs_file(tmp_path):
-    flags = ["S"] * 6
-    steps = [_thermo_step_text(flags, [0.0] * 6, "T 340")]
-    out = run_file_solver(tmp_path, _path_text(steps, loading_type=2), "ELISO",
-                          ELISO_T_PROPS, 1)
-
+def test_thermomeca_temperature_ramp():
     step = StepThermomeca(control="stress", value=[0.0] * 6, ninc=50, T_final=340.0)
     res = solve(step, "ELISO", ELISO_T_PROPS, 1, T_init=290.0)
-    assert_matches_file(res, out)
-    # free thermal expansion
+
+    assert res.status == 0
+    assert len(res) == 50
+    # free thermal expansion, and the ramp lands on its target
+    np.testing.assert_allclose(res["Temp"][-1], 340.0, rtol=1e-10)
     np.testing.assert_allclose(res["Strain"][0, -1], 1.0e-5 * 50.0, rtol=1e-8)
+    np.testing.assert_allclose(res["Stress"][:, -1], 0.0, atol=1e-6)
     assert "Q" in res and "Wt" in res and "dSdE" in res
 
 
@@ -361,17 +347,14 @@ def test_thermomeca_heat_flux_and_convection():
     assert res.status == 0
 
 
-def test_thermomeca_epicp_vs_file(tmp_path):
+def test_thermomeca_epicp():
     props = [1.0e-9, 1.0] + EPICP_PROPS  # rho c_p then mechanical props
-    flags = ["E"] + ["S"] * 5
-    steps = [_thermo_step_text(flags, [0.01, 0, 0, 0, 0, 0], "T 290")]
-    out = run_file_solver(tmp_path, _path_text(steps, loading_type=2), "EPICP",
-                          props, EPICP_NSTATEV)
-
     step = StepThermomeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=50,
                           T_final=290.0)
     res = solve(step, "EPICP", props, EPICP_NSTATEV, T_init=290.0)
-    assert_matches_file(res, out)
+
+    assert_ran_and_responded(res, n_expected=50)
+    np.testing.assert_allclose(res["Strain"][0, -1], 0.01, rtol=1e-8)
     # guards the thermomechanical stress output fix (sigma, not the unset tau route)
     assert res["Stress"][0, -1] > 300.0
 
@@ -532,37 +515,43 @@ def test_lambda_solver_param():
 # legacy file parsing (from_file / material_from_file)
 # ---------------------------------------------------------------------------
 
-def test_from_file_mechanical_vs_file(tmp_path):
-    # parse a legacy path.txt into Blocks and solve in memory: must reproduce
-    # the file-driven run of the very same file
+def test_from_file_mechanical(tmp_path):
+    # parse a legacy path.txt into Blocks and run the programme it describes
     flags = ["E"] + ["S"] * 5
     steps = [_step_text(flags, [0.02, 0, 0, 0, 0, 0], ninc=50),
              _step_text(flags, [0.0, 0, 0, 0, 0, 0], ninc=50)]
-    path_text = _path_text(steps, ncycle=2)
-    out = run_file_solver(tmp_path, path_text, "ELISO", ELISO_PROPS, 1)
+    data = write_path_file(tmp_path, _path_text(steps, ncycle=2))
 
-    blocks, T_init = from_file(str(tmp_path / "data"), "path.txt")
+    blocks, T_init = from_file(data, "path.txt")
     assert T_init == 290.0
     assert len(blocks) == 1 and blocks[0].ncycle == 2 and len(blocks[0].steps) == 2
+
     res = solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init)
-    assert_matches_file(res, out)
+    assert_ran_and_responded(res, n_expected=2 * 2 * 50)
+    # the parsed programme loads to 0.02 and unloads to 0, twice
+    np.testing.assert_allclose(res["Strain"][0].max(), 0.02, rtol=1e-8)
+    np.testing.assert_allclose(res["Strain"][0, -1], 0.0, atol=1e-12)
 
 
-def test_from_file_thermomechanical_vs_file(tmp_path):
+def test_from_file_thermomechanical(tmp_path):
     flags = ["S"] * 6
     steps = [_thermo_step_text(flags, [0.0] * 6, "T 340")]
-    path_text = _path_text(steps, loading_type=2)
-    out = run_file_solver(tmp_path, path_text, "ELISO", ELISO_T_PROPS, 1)
+    data = write_path_file(tmp_path, _path_text(steps, loading_type=2))
 
-    blocks, T_init = from_file(str(tmp_path / "data"), "path.txt")
+    blocks, T_init = from_file(data, "path.txt")
     s = blocks[0].steps[0]
     assert isinstance(s, StepThermomeca) and s.thermal_control == "temperature"
     assert s.T_final == 340.0
+
     res = solve(blocks, "ELISO", ELISO_T_PROPS, 1, T_init=T_init)
-    assert_matches_file(res, out)
+    assert res.status == 0
+    # the parsed ramp lands on its target, stress-free, with free thermal expansion
+    np.testing.assert_allclose(res["Temp"][-1], 340.0, rtol=1e-10)
+    np.testing.assert_allclose(res["Strain"][0, -1], 1.0e-5 * 50.0, rtol=1e-8)
+    np.testing.assert_allclose(res["Stress"][:, -1], 0.0, atol=1e-6)
 
 
-def test_from_file_tabular_vs_file(tmp_path):
+def test_from_file_tabular(tmp_path):
     t = np.linspace(0.02, 1.0, 50)
     e11 = 0.015 * np.sin(np.pi * t)
     tab_lines = "\n".join(f"{i+1} {t[i]:.16g} {e11[i]:.16g}" for i in range(len(t)))
@@ -579,17 +568,20 @@ E
 #T_is_set
 0
 """
-    path_text = _path_text([step3])
-    out = run_file_solver(tmp_path, path_text, "ELISO", ELISO_PROPS, 1,
-                          extra_files={"tab.txt": tab_lines})
+    data = write_path_file(tmp_path, _path_text([step3]),
+                           extra_files={"tab.txt": tab_lines})
 
-    blocks, T_init = from_file(str(tmp_path / "data"), "path.txt")
+    blocks, T_init = from_file(data, "path.txt")
     s = blocks[0].steps[0]
     assert s.mode == 3 and not s.tabular_T
     assert s.control[0] == "strain" and s.control[1:] == ["zero"] * 5
     np.testing.assert_allclose(s.tabular[:, 0], t, atol=1e-14)
+
     res = solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init)
-    assert_matches_file(res, out)
+    assert_ran_and_responded(res, n_expected=len(t))
+    # the table read from disk drives the run, in its own absolute time
+    np.testing.assert_allclose(res["Time"], t, atol=1e-12)
+    np.testing.assert_allclose(res["Strain"][0], e11, atol=1e-10)
 
 
 def test_material_from_file(tmp_path):

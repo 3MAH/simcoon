@@ -1,8 +1,10 @@
 """Regression tests for the modular UMAT Python API.
 
-These tests exercise the end-to-end `ModularMaterial → sim._core.solver("MODUL", ...)`
+These tests exercise the end-to-end `ModularMaterial → sim.solver.solve("MODUL", ...)`
 path for the cases that would silently break if the modular C++ orchestrator
-or Python props-serialization regressed.
+or Python props-serialization regressed. The loading paths are still the legacy
+path files of examples/data, parsed in Python (sim.solver.from_file) since the
+file-driven binding left with the 2.0 JSON-only migration.
 """
 
 import os
@@ -43,17 +45,35 @@ def work_in_examples(tmp_path, monkeypatch):
     link.unlink(missing_ok=True)
 
 
+def _run_case(name, props, nstatev, path_file, cols=(8, 14), tangent_mode=None):
+    """Run one case from a legacy path file; return the requested columns.
+
+    The path file is parsed in Python (sim.solver.from_file) and the case runs in
+    memory — the file-driven binding left with the 2.0 JSON-only migration. The
+    result files these tests used to read carried the default output, Green-Lagrange
+    strain in columns 8:14 and Cauchy stress in 14:20, so a column index still names
+    a component of "Strain" or "Stress".
+    """
+    blocks, T_init = sim.solver.from_file("../data", path_file)
+    kwargs = {} if tangent_mode is None else {"tangent_mode": tangent_mode}
+    res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
+                           T_init=T_init, corate=1, **kwargs)
+    columns = []
+    for c in cols:
+        if 8 <= c < 14:
+            columns.append(res["Strain"][c - 8])
+        elif 14 <= c < 20:
+            columns.append(res["Stress"][c - 14])
+        else:
+            raise ValueError(f"column {c} is neither strain (8:14) nor stress (14:20)")
+    return np.column_stack(columns)
+
+
 def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndarray:
     """Run the MODUL solver through the standard path file; return the
-    (n_steps, 2) array of (eps_11, sigma_11)."""
-    sim._core.solver(
-        mat.umat_name, mat.props, mat.nstatev,
-        0.0, 0.0, 0.0,        # psi_rve, theta_rve, phi_rve
-        0, 1,                 # solver_type, corate_type
-        "../data", results_dir, "MODUL_path.txt", outfile,
-    )
-    out = Path(EXAMPLES_DIR) / results_dir / outfile.replace(".txt", "_global-0.txt")
-    return np.loadtxt(out, usecols=(8, 14))
+    (n_steps, 2) array of (eps_11, sigma_11). `results_dir` and `outfile` are kept
+    in the signature, and ignored: nothing is written to disk any more."""
+    return _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
 
 
 def test_af_with_list_args_rejected():
@@ -172,21 +192,13 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
 
     pronk_props = np.array([E0, nu0, 0.0, len(terms)]
                            + [x for t in terms for x in t])
-    sim._core.solver("PRONK", pronk_props, 7 + 7 * len(terms),
-               0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "PRONK_path.txt", "res_pronk.txt")
-    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                     / "res_pronk_global-0.txt", usecols=(8, 14))
+    ref = _run_case("PRONK", pronk_props, 7 + 7 * len(terms), "PRONK_path.txt")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=E0, C2=nu0),
         mechanisms=[Viscoelasticity(terms=terms)],
     )
-    sim._core.solver(mat.umat_name, mat.props, mat.nstatev,
-               0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "PRONK_path.txt", "res_veq.txt")
-    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                      / "res_veq_global-0.txt", usecols=(8, 14))
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "PRONK_path.txt")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -241,17 +253,12 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
 
     outs = {}
     for mode in (1, 2):
-        out = f"res_tg{mode}.txt"
-        sim._core.solver(mat.umat_name, mat.props, mat.nstatev,
-                   0.0, 0.0, 0.0, 0, 1,
-                   "../data", work_in_examples, "MODUL_path.txt", out,
-                   mode)
-        outs[mode] = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                                / out.replace(".txt", "_global-0.txt"))
+        outs[mode] = _run_case(mat.umat_name, mat.props, mat.nstatev,
+                               "MODUL_path.txt", cols=(14,), tangent_mode=mode)
 
     assert outs[1].shape == outs[2].shape
-    peak = np.max(np.abs(outs[1][:, 14]))
-    diff = np.max(np.abs(outs[1][:, 14] - outs[2][:, 14]))
+    peak = np.max(np.abs(outs[1][:, 0]))
+    diff = np.max(np.abs(outs[1][:, 0] - outs[2][:, 0]))
     assert peak > 100.0
     assert diff / peak < 1e-5, (
         f"algorithmic-mode response deviates from continuum mode by {diff/peak:.2e} "
@@ -272,10 +279,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
     epcha_props = np.array([210000.0, 0.3, 0.0,
                             300.0, 200.0, 20.0,
                             30000.0, 172.0, 19500.0, 301.0])
-    sim._core.solver("EPCHA", epcha_props, 33, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "MODUL_path.txt", "res_epcha.txt")
-    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                     / "res_epcha_global-0.txt", usecols=(8, 14))
+    ref = _run_case("EPCHA", epcha_props, 33, "MODUL_path.txt")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
@@ -286,10 +290,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
                 terms=((30000.0, 172.0), (19500.0, 301.0))),
         )],
     )
-    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "MODUL_path.txt", "res_mchab.txt")
-    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                      / "res_mchab_global-0.txt", usecols=(8, 14))
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -316,10 +317,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
 
     ephil_props = np.array([210000., 0.3, 0., 300., 5000., 1.0,
                             0.5, 0.4, 0.6, 1.5, 1.5, 1.5])
-    sim._core.solver("EPHIL", ephil_props, 33, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "MODUL_path.txt", "res_ephil.txt")
-    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                     / "res_ephil_global-0.txt", usecols=(8, 14))
+    ref = _run_case("EPHIL", ephil_props, 33, "MODUL_path.txt")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
@@ -329,10 +327,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
             isotropic_hardening=PowerLawHardening(k=5000., m=1.0),
         )],
     )
-    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "MODUL_path.txt", "res_mhill.txt")
-    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                      / "res_mhill_global-0.txt", usecols=(8, 14))
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -356,10 +351,8 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
     from simcoon.modular import ChabocheHardening
     # SHEAR_path.txt drives E12 with all other components stress-free.
     ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
-    sim._core.solver("EPCHA", ep, 33, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "SHEAR_path.txt", "sh_epcha.txt")
-    ref = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                     / "sh_epcha_global-0.txt", usecols=(11, 17))  # eps12, sig12
+    # eps12, sig12
+    ref = _run_case("EPCHA", ep, 33, "SHEAR_path.txt", cols=(11, 17))
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
@@ -369,10 +362,8 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
                 terms=((30000., 300.), (19500., 172.))),
         )],
     )
-    sim._core.solver(mat.umat_name, mat.props, mat.nstatev, 0.0, 0.0, 0.0, 0, 1,
-               "../data", work_in_examples, "SHEAR_path.txt", "sh_modul.txt")
-    hist = np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                      / "sh_modul_global-0.txt", usecols=(11, 17))
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "SHEAR_path.txt",
+                     cols=(11, 17))
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -397,10 +388,8 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
             elasticity=IsotropicElasticity(C1=210000., C2=0.3),
             mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
         )
-        sim._core.solver(m.umat_name, m.props, m.nstatev, 0.0, 0.0, 0.0, 0, 1,
-                   "../data", work_in_examples, "SHEAR_path.txt", out)
-        return np.loadtxt(Path(EXAMPLES_DIR) / work_in_examples
-                          / out.replace(".txt", "_global-0.txt"), usecols=(11, 17))
+        return _run_case(m.umat_name, m.props, m.nstatev, "SHEAR_path.txt",
+                         cols=(11, 17))
 
     af = run(ArmstrongFrederickHardening(C=30000., D=300.), "af_af.txt")
     ch = run(ChabocheHardening(terms=((30000., 300.),)), "af_ch.txt")
@@ -419,11 +408,21 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
 # ============================================================================
 
 def _run_named(name, props, nstatev, results_dir, path_file, out, cols=(8, 14)):
-    sim._core.solver(name, np.asarray(props, dtype=float), nstatev,
-               0.0, 0.0, 0.0, 0, 1,
-               "../data", results_dir, path_file, out)
-    return np.loadtxt(Path(EXAMPLES_DIR) / results_dir
-                      / out.replace(".txt", "_global-0.txt"), usecols=cols)
+    """Run one named UMAT on a legacy path file and return (strain_11, stress_11).
+
+    The path file is parsed in Python now — the file-driven binding left with the
+    2.0 JSON-only migration — and the case runs in memory. Columns 8 and 14 of the
+    old results file were the first strain and the first stress component; that is
+    what the caller's default `cols` asks for, so the pair is returned directly.
+    `results_dir` and `out` are kept in the signature, and ignored: nothing is
+    written to disk.
+    """
+    blocks, T_init = sim.solver.from_file("../data", path_file)
+    res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
+                           T_init=T_init, corate=1)
+    if cols != (8, 14):
+        raise ValueError(f"_run_named only returns (strain_11, stress_11); asked for {cols}")
+    return np.column_stack([res["Strain"][0], res["Stress"][0]])
 
 
 def _assert_equiv(ref, hist, rel_tol, label):

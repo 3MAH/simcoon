@@ -34,13 +34,13 @@ import numpy as np
 import pytest
 
 from simcoon.solver import Block, StepMeca, solve
-from solver_harness import C_TIME, S_STRESS, S_WM, path_file, run_path
+from solver_harness import C_TIME, S_STRESS, S_WM, run_path
 
 
 def _run_stress_cycle(base_dir, umat_name, props, nstatev, targets):
     """Small-strain (ct1), fully stress-controlled uniaxial cycle."""
     return run_path(base_dir, umat_name, props, nstatev, 1,
-                    path_file([("S", t) for t in targets], 1))
+                    [("S", t) for t in targets], 1)
 
 
 def test_modul_voce_stress_unload_cycle(tmp_path):

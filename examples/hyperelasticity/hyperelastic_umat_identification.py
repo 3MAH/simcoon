@@ -73,12 +73,6 @@ CASES = [
     ("ET", "path_ET_id.txt", "lambda_3", "P3_MPa"),   # equibiaxial tension
 ]
 
-# Columns of the solver ``*_global-0.txt`` output produced by
-# ``data/output.dat`` (strain_type 4 = stretch U, stress_type 1 = PK1):
-# the loading stretch lambda_1 and the nominal stress P_11.
-LAMBDA_COL = 10
-PK1_COL = 11
-
 # Reference parameters (Steinmann et al., 2012) for the final comparison.
 LIT = {"UT": (0.2588, -0.0449), "PS": (0.2348, -0.0650), "ET": (0.1713, 0.0047)}
 
@@ -110,23 +104,36 @@ def build_props(x):
 # experimental stretches exactly; interpolation keeps the load paths simple.
 
 
-def run_case(props, pathfile, outputfile, path_data, path_results):
-    """Run one solver call and return its ``(lambda, P_11)`` trajectory."""
-    sim._core.solver(
-        UMAT_NAME, props, NSTATEV,
-        0.0, 0.0, 0.0,                 # psi, theta, phi (no RVE rotation)
-        SOLVER_TYPE, CORATE_TYPE,
-        path_data, path_results,
-        pathfile, outputfile,
+def run_case(props, pathfile, path_data):
+    """Run one case and return its ``(lambda, P_11)`` trajectory.
+
+    The path file is parsed in Python and the case runs in memory — an identification
+    evaluates this thousands of times, and none of them touches the disk. The two
+    quantities the old result file carried are rebuilt from the histories: the largest
+    isochoric principal stretch, and the 11 component of the nominal stress
+    :math:`P = J\\,\\sigma\\,F^{-T}`.
+    """
+    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    res = sim.solver.solve(
+        blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
+        solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
     )
-    base = outputfile[:-4] if outputfile.endswith(".txt") else outputfile
-    out = np.loadtxt(os.path.join(path_results, f"{base}_global-0.txt"))
-    return out[:, LAMBDA_COL], out[:, PK1_COL]
+
+    F_hist, sigma_hist = res["F"], res["Stress"]
+    lam = np.empty(len(res))
+    pk1_11 = np.empty(len(res))
+    for k in range(len(res)):
+        F = np.ascontiguousarray(F_hist[:, :, k])
+        V, _ = sim.VR_decomposition(F)
+        lam[k] = np.asarray(sim.isochoric_pstretch(np.ascontiguousarray(V))).ravel()[-1]
+        sigma = sim.v2t_stress(np.ascontiguousarray(sigma_hist[:, k]))
+        pk1_11[k] = (np.linalg.det(F) * sigma @ np.linalg.inv(F).T)[0, 0]
+    return lam, pk1_11
 
 
-def model_pk1(lambda_exp, props, pathfile, outputfile, path_data, path_results):
+def model_pk1(lambda_exp, props, pathfile, path_data):
     """Model ``P_11`` sampled at the experimental stretches."""
-    lam, pk1 = run_case(props, pathfile, outputfile, path_data, path_results)
+    lam, pk1 = run_case(props, pathfile, path_data)
     # Anchor the unstressed reference state so lambda = 1 maps to P_11 = 0.
     lam = np.concatenate(([1.0], lam))
     pk1 = np.concatenate(([0.0], pk1))
@@ -152,19 +159,16 @@ def model_pk1(lambda_exp, props, pathfile, outputfile, path_data, path_results):
 # test; with a single stress response per test the arrays are ``(n_points, 1)``.
 
 
-def cost(x, jobs, path_data, path_results):
+def cost(x, jobs, path_data):
     """NMSE-per-response cost over the loading cases in *jobs*.
 
     *jobs* is a list of ``(name, pathfile, lambda_exp, P_exp)`` tuples.
     """
     props = build_props(x)
     y_exp, y_num = [], []
-    for name, pathfile, lam_exp, P_exp in jobs:
+    for _name, pathfile, lam_exp, P_exp in jobs:
         try:
-            P_model = model_pk1(
-                lam_exp, props, pathfile, f"id_{name}.txt",
-                path_data, path_results,
-            )
+            P_model = model_pk1(lam_exp, props, pathfile, path_data)
         except Exception:
             return 1e12
         y_exp.append(P_exp.reshape(-1, 1))
@@ -172,13 +176,13 @@ def cost(x, jobs, path_data, path_results):
     return calc_cost(y_exp, y_num, metric="nmse_per_response")
 
 
-def identify(jobs, path_data, path_results, popsize=15, maxiter=25, seed=42):
+def identify(jobs, path_data, popsize=15, maxiter=25, seed=42):
     """Run ``sim.identification`` over the given *jobs*; return ``([C10, C01],
     final_cost)``."""
     params = make_params()
     result = identification(
         cost, params,
-        args=(jobs, path_data, path_results),
+        args=(jobs, path_data),
         seed=seed, popsize=popsize, maxiter=maxiter, tol=1e-6, disp=False,
     )
     return [p.value for p in params], result.fun
@@ -202,8 +206,6 @@ def main():
     os.chdir(script_dir)
 
     path_data = "data"
-    path_results = "results"
-    os.makedirs(path_results, exist_ok=True)
 
     df = pd.read_csv(
         os.path.join("comparison", "Treloar.txt"),
@@ -234,9 +236,7 @@ def main():
     individual = {}
     for name, pathfile, _lc, _pc in CASES:
         lam_exp, P_exp = exp[name]
-        (c10, c01), _fun = identify(
-            [(name, pathfile, lam_exp, P_exp)], path_data, path_results
-        )
+        (c10, c01), _fun = identify([(name, pathfile, lam_exp, P_exp)], path_data)
         individual[name] = (c10, c01)
         l10, l01 = LIT[name]
         print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}")
@@ -246,7 +246,7 @@ def main():
     print(" COMBINED FIT (single parameter set for UT + PS + ET)")
     print("-" * 66)
     jobs = [(n, pf, *exp[n]) for n, pf, _lc, _pc in CASES]
-    (c10_c, c01_c), cost_c = identify(jobs, path_data, path_results)
+    (c10_c, c01_c), cost_c = identify(jobs, path_data)
     print(f"  C10 = {c10_c:.4f} MPa, C01 = {c01_c:.4f} MPa  "
           f"(NMSE/response = {cost_c:.4e})")
 
@@ -259,10 +259,7 @@ def main():
             (c10_c, c01_c, "combined"),
         ]):
             ax = axes[row, col]
-            lam_m, pk1_m = run_case(
-                build_props([c10, c01]), pathfile,
-                f"plot_{name}_{tag}.txt", path_data, path_results,
-            )
+            lam_m, pk1_m = run_case(build_props([c10, c01]), pathfile, path_data)
             ax.plot(lam_exp, P_exp, "o", ms=6, mfc="red", mec="black",
                     label="Treloar")
             ax.plot(lam_m, pk1_m, "-", lw=2, color="tab:blue",
