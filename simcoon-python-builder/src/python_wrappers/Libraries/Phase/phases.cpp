@@ -49,6 +49,13 @@ void dict_angles(const py::dict &d, const char *key, double &psi, double &theta,
     phi = simcoon::deg2rad(dict_double(angles, "phi", 0.));
 }
 
+std::string dict_string(const py::dict &d, const char *key, const int &number) {
+    if (!d.contains(key) || d[key].is_none()) {
+        throw std::invalid_argument("phase " + to_string(number) + ": no '" + key + "' entry");
+    }
+    return d[key].cast<std::string>();
+}
+
 vec dict_props(const py::dict &d, const int &number) {
     if (!d.contains("props")) {
         throw std::invalid_argument("phase " + to_string(number) + ": no 'props' entry");
@@ -56,6 +63,11 @@ vec dict_props(const py::dict &d, const int &number) {
     auto arr = py::array_t<double, py::array::c_style | py::array::forcecast>::ensure(d["props"]);
     if (!arr) {
         throw std::invalid_argument("phase " + to_string(number) + ": 'props' is not a sequence of numbers");
+    }
+    if (arr.size() == 0) {
+        //update() only asserts on this, and asserts are compiled out of the release
+        //wheels: the empty vector would surface later as an out-of-bounds props(0).
+        throw std::invalid_argument("phase " + to_string(number) + ": 'props' is empty");
     }
     //Copying constructor: the buffer belongs to Python and must not be aliased into arma.
     return vec(static_cast<const double *>(arr.data()), arr.size());
@@ -114,6 +126,24 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         simcoon::phase_characteristics &sub = holder.sub_phases[i];
 
         const int number = dict_int(p, "number", i);
+        //The schemes select the matrix by `number == n_matrix` and then index
+        //`sub_phases[n_matrix]`: the two only agree when the number IS the position.
+        //Left unchecked, two phases sharing a number (the dataclass default is 0 for
+        //all of them) make every concentration tensor the identity, and L_eff quietly
+        //returns the Voigt average instead of the mean-field estimate.
+        if (number != i) {
+            throw std::invalid_argument("phase at position " + to_string(i) + " carries number "
+                                        + to_string(number) + ": the phases must be numbered by "
+                                        "their position in the list (0, 1, ... n-1)");
+        }
+        const std::string umat_i = dict_string(p, "umat_name", number);
+        if (shape_type_of(umat_i) != 0) {
+            //make_sub_phases builds ONE level, so such a phase would reach the scheme with
+            //an empty sub_phases vector and be indexed out of bounds.
+            throw std::invalid_argument("phase " + to_string(number) + " is itself a mean-field "
+                                        "model (" + umat_i + "): nested composites are not "
+                                        "supported through `phases`");
+        }
         const vec props_i = dict_props(p, number);
         const int nstatev_i = dict_int(p, "nstatev", 1);
 
@@ -121,7 +151,7 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         dict_angles(p, "material_orientation", psi_mat, theta_mat, phi_mat);
 
         sub.sptr_matprops->resize(props_i.n_elem);
-        sub.sptr_matprops->update(number, p["umat_name"].cast<std::string>(), dict_int(p, "save", 1),
+        sub.sptr_matprops->update(number, umat_i, dict_int(p, "save", 1),
                                   psi_mat, theta_mat, phi_mat, props_i.n_elem, props_i);
 
         simcoon::natural_basis nb;
@@ -135,7 +165,13 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
 
         if (shape_type == 2) {
             auto sptr_ellipsoid = std::dynamic_pointer_cast<simcoon::ellipsoid>(sub.sptr_shape);
-            sptr_ellipsoid->coatingof = dict_int(p, "coatingof", 0);
+            const int coatingof = dict_int(p, "coatingof", 0);
+            if (coatingof < 0 || coatingof >= nphases) {
+                throw std::invalid_argument("phase " + to_string(number) + ": 'coatingof' is "
+                                            + to_string(coatingof) + ", outside the "
+                                            + to_string(nphases) + " phases given");
+            }
+            sptr_ellipsoid->coatingof = coatingof;
             py::dict axes = (p.contains("semi_axes") && !p["semi_axes"].is_none())
                           ? p["semi_axes"].cast<py::dict>() : p;
             sptr_ellipsoid->a1 = dict_double(axes, "a1", 1.);

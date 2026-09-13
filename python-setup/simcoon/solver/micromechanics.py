@@ -1044,7 +1044,8 @@ def convert_dat_to_json(filepath: Union[str, Path],
 # Handing phases to the C++ side, in memory
 # =============================================================================
 
-def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder]) -> Dict:
+def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
+                  number: Optional[int] = None) -> Dict:
     """The in-memory form of one phase, as the C++ side expects it (see ``sim.L_eff``).
 
     The keys are those of the JSON files, with one deliberate difference: ``props`` stays
@@ -1054,7 +1055,7 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder]) -> Dict:
     Angles are left in degrees, as in the files; the binding converts them to radians.
     """
     out = {
-        'number': phase.number,
+        'number': phase.number if number is None else number,
         'umat_name': phase.umat_name,
         'save': phase.save,
         'concentration': phase.concentration,
@@ -1085,8 +1086,15 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder]) -> Dict:
 
 
 def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder]]) -> List[Dict]:
-    """The whole sub-phase list, ready to be passed as ``phases=`` to ``sim.L_eff``."""
-    return [to_phase_dict(p) for p in phases]
+    """The whole sub-phase list, ready to be passed as ``phases=`` to ``sim.L_eff``.
+
+    The phases are numbered by their **position** in the list, whatever each object
+    carries. The mean-field schemes select the matrix with ``number == n_matrix`` and
+    then index ``sub_phases[n_matrix]``, so the number has to be the position; the
+    dataclass default is 0 for every phase, which would otherwise make every
+    concentration tensor the identity and turn L_eff into a Voigt average.
+    """
+    return [to_phase_dict(p, number=i) for i, p in enumerate(phases)]
 
 
 # =============================================================================

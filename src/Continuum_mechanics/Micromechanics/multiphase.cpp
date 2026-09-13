@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <armadillo>
 #include <memory>
+#include <stdexcept>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
