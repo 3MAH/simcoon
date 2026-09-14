@@ -1,28 +1,35 @@
 """TEMPORARY Windows narrowing probe — delete once the access violation is pinned.
 
-On this branch the first ``_core.solver_run`` call dies on windows-latest (conda netlib),
-while master runs it 62+ times green on the same job and Linux/macOS stay green throughout.
+On this branch ``_core.solver_run`` dies on windows-latest (conda netlib) while master runs it
+62+ times green on the same job, and Linux/macOS stay green throughout.
 
-Ruled out so far, each by a probe that PASSED on Windows: MODUL (v1), the corate (v2), and
-the whole binding prologue (v3 — argument marshalling, block parsing, ``solver_output`` and
-``check_path_output`` all run, since ``make_sub_phases``'s throw sits after them and was
-reached cleanly). v3's probe 4 also used ``record_tangent=False``, so the tangent history is
-out. What remains is ``simcoon::solver_run`` itself, under ``gil_scoped_release``, or the
-result assembly after it.
+Ruled out so far, each by a probe that PASSED on Windows: MODUL (v1), the corate (v2), the
+whole binding prologue (v3), and — from the v4 ladder — the engine entry and the first UMAT
+call inside the increment loop. v4 localised the fault: ``nstatev=0``, which on macOS raises
+``RuntimeError: 'ELISO' (modular adapter): ModularUMAT: nstatev (0) < required (1)`` from
+``legacy_adapters.cpp:224``, CRASHES on Windows instead of raising.
 
-This one walks a ladder of throws that sit deeper and deeper inside the engine. Each must
-raise a CLEAN Python exception; the one that kills the process instead marks how far the
-engine got. All three were measured locally first — a probe is only an instrument if its
-expected behaviour is known.
+``umat_legacy_modular`` builds a ``ModularUMAT`` on every call. ELISO is routed to it
+(``select_umat_M`` maps ELISO -> 201, verified in umat_smart.cpp:274), while EPICP is a
+dedicated kernel (-> 6) that never touches the adapter. This probe opposes the two on the
+same call, with markers measured locally first:
 
-  1 tangent_mode=99 → throws in solver_run's first lines ......... engine entered
-  2 umat_name unknown → throws at the first UMAT call ............ inside the increment loop
-  3 nstatev=0 → throws building the constitutive kernel .......... deeper still
-  4 the minimal valid run ....................................... completes and assembles
+    EPICP nstatev=0 -> IndexError      EPICP valid run -> dict, status 0
+    ELISO nstatev=0 -> RuntimeError    ELISO valid run -> dict, status 0
 
-Reading: the last PASSED line names how far it got. If 1-3 pass and only 4 dies, the engine
-runs as far as the kernel and the fault is in the rest of the increment loop or in the result
-assembly (rows_to_arr / scalars_to_arr), which no probe can isolate directly.
+Both EPICP cases come FIRST: a native crash ends the process, and the case already known to
+kill Windows must not take the informative ones with it.
+
+Reading:
+  EPICP cases pass, ELISO cases die .... the modular adapter path (ModularUMAT construction)
+  EPICP dies too ....................... the increment loop itself, whatever the kernel
+  everything passes .................... the fault needs the fuller call solve() makes
+
+Caveat worth keeping in view: the branch changed almost nothing in this subtree
+(umat_smart.cpp and tangent_assembly.cpp are identical to master, only
+viscoelastic_mechanism.cpp moved by 6 lines), and ELISO -> adapter -> ModularUMAT exists
+unchanged on master, where it passes on Windows. So "the adapter is broken" cannot be the
+whole story; a layout-sensitive latent fault would fit the evidence better.
 """
 
 import numpy as np
@@ -33,6 +40,7 @@ from simcoon.solver import Block, StepMeca
 
 #the constants master's passing tests use
 ELISO_PROPS = np.array([70000.0, 0.3, 1.0e-5])
+EPICP_PROPS = np.array([70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 0.3])
 UNIAXIAL = ["strain"] + ["stress"] * 5
 T_INIT = 290.0
 
@@ -43,29 +51,29 @@ def _blocks_py(ninc=1):
     return [Block(steps=[step], ncycle=1).to_dict(T_INIT)]
 
 
-def test_probe_1_engine_entered():
-    """solver_run validates tangent_mode in its first lines."""
+def test_probe_1_dedicated_kernel_rejects_nstatev():
+    """EPICP is a dedicated kernel: its nstatev guard must raise, not crash."""
     with pytest.raises(Exception):
-        sim._core.solver_run(_blocks_py(), T_INIT, "ELISO", ELISO_PROPS, 1,
-                             params={"tangent_mode": 99})
-
-
-def test_probe_2_first_umat_call_reached():
-    """An unknown law throws from the small-strain dispatch, inside the increment loop."""
-    with pytest.raises(Exception):
-        sim._core.solver_run(_blocks_py(), T_INIT, "XXXXX", ELISO_PROPS, 1,
+        sim._core.solver_run(_blocks_py(), T_INIT, "EPICP", EPICP_PROPS, 0,
                              record_tangent=False)
 
 
-def test_probe_3_kernel_construction_reached():
-    """nstatev = 0 throws while the constitutive kernel is being built."""
+def test_probe_2_dedicated_kernel_runs():
+    """A full increment through a dedicated kernel, no adapter involved."""
+    res = sim._core.solver_run(_blocks_py(ninc=1), T_INIT, "EPICP", EPICP_PROPS, 8,
+                               record_tangent=False)
+    assert res["status"] == 0
+
+
+def test_probe_3_adapter_rejects_nstatev():
+    """ELISO goes through umat_legacy_modular: this is the call that dies on Windows."""
     with pytest.raises(Exception):
         sim._core.solver_run(_blocks_py(), T_INIT, "ELISO", ELISO_PROPS, 0,
                              record_tangent=False)
 
 
-def test_probe_4_minimal_valid_run():
-    """The case that dies on Windows: one increment, no tangent history."""
+def test_probe_4_adapter_runs():
+    """A full increment through the adapter: the original crash."""
     res = sim._core.solver_run(_blocks_py(ninc=1), T_INIT, "ELISO", ELISO_PROPS, 1,
                                record_tangent=False)
     assert res["status"] == 0
