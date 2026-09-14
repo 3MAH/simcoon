@@ -1,8 +1,8 @@
 
-// carma first, as in every other _core translation unit: it replaces Armadillo's
-// allocator with numpy's, and all TUs of the module must agree — Armadillo
-// buffers are stolen into numpy arrays, and mixed allocators crash on Windows
-// (carma issue #91).
+// carma first, as in every other _core translation unit. Armadillo's allocator is
+// numpy's in all TUs of the module (numpy_alloc.hpp, force-included by CMake ahead
+// of this file): Armadillo buffers are stolen into numpy arrays, and mixed
+// allocators crash on Windows (carma issue #91).
 #include <carma>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
@@ -54,8 +54,22 @@ using namespace simpy;
 
 using namespace pybind11::literals;
 
+#ifdef _WIN32
+// libsimcoon's own numpy C-API table (numpy_alloc.cpp, exported from the DLL)
+extern "C" void simcoon_numpy_alloc_import(void);
+#endif
+
 PYBIND11_MODULE(_core, m)
 {
+    // numpy's C-API table, once per module and with the GIL held, before anything
+    // allocates: Armadillo memory goes through numpy's allocator in _core and, on
+    // Windows, in libsimcoon as well (numpy_alloc.hpp). The solver later runs with
+    // the GIL released and must never be the one importing it.
+    simcoon::numpy_alloc::import_api();
+#ifdef _WIN32
+    simcoon_numpy_alloc_import();
+#endif
+
     m.doc() = "pybind11 example plugin"; // optional module docstring
 
     // Create a Python-visible base exception for all simcoon errors.

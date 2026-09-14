@@ -11,6 +11,10 @@ the physics imposes (free thermal expansion, cycle bookkeeping, plastic flow,
 the rotation history) is checked directly.
 """
 
+import subprocess
+import sys
+import textwrap
+
 import numpy as np
 import pytest
 
@@ -387,6 +391,33 @@ def test_modul_and_adapter_match():
     res_el_mod = solve(step_el, mat_el.umat_name, mat_el.props, mat_el.nstatev, T_init=290.0)
     res_el_leg = solve(step_el, "ELISO", ELISO_PROPS, 1, T_init=290.0)
     np.testing.assert_allclose(res_el_mod["Stress"], res_el_leg["Stress"], atol=1e-9)
+
+
+def test_solver_is_safe_as_the_first_call_of_a_process():
+    """The engine runs with the GIL released, and Armadillo allocates through numpy's
+    allocator (in _core everywhere, in libsimcoon too on Windows). numpy's C-API table
+    used to be imported lazily by the first allocation of each translation unit, a
+    Python call made without the GIL: an access violation on Windows whenever the solver
+    was the first binding of the process to touch a law (Sep 2026, feature/micro CI). It
+    is now imported once at `import simcoon`. A fresh interpreter makes the solver the
+    first caller, on every platform, for the modular engine (MODUL, and ELISO through
+    its adapter) and a dedicated kernel (EPICP)."""
+    code = textwrap.dedent("""
+        import numpy as np
+        from simcoon.solver import StepMeca, solve
+        step = StepMeca(control=["strain"] + ["stress"] * 5,
+                        value=[0.002, 0, 0, 0, 0, 0], ninc=2)
+        for name, props, nstatev in (("MODUL", [0.0, 0.0, 70000.0, 0.3, 1.0e-5, 0.0], 1),
+                                     ("ELISO", [70000.0, 0.3, 1.0e-5], 1),
+                                     ("EPICP", [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 0.3], 8)):
+            res = solve(step, name, np.asarray(props), nstatev, T_init=290.0)
+            assert res.status == 0, name
+        print("ok")
+    """)
+    proc = subprocess.run([sys.executable, "-X", "faulthandler", "-c", code],
+                          capture_output=True, text=True, timeout=600)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "ok" in proc.stdout
 
 
 @pytest.mark.parametrize("mode", ["none", "continuum", "algorithmic"])

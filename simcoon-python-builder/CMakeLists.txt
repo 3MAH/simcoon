@@ -104,6 +104,18 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
 
+# Armadillo memory through numpy's allocator in every translation unit of the module
+# (buffers are stolen into numpy arrays): numpy_alloc.hpp is force-included ahead of
+# every source, and python_module.cpp owns the module's single numpy C-API table, which
+# PYBIND11_MODULE imports with the GIL held. See the header.
+set(SIMCOON_NUMPY_ALLOC_HPP "${CMAKE_CURRENT_SOURCE_DIR}/include/simcoon/python_wrappers/numpy_alloc.hpp")
+if(MSVC)
+  target_compile_options(_core PRIVATE "/FI${SIMCOON_NUMPY_ALLOC_HPP}")
+else()
+  target_compile_options(_core PRIVATE "SHELL:-include ${SIMCOON_NUMPY_ALLOC_HPP}")
+endif()
+set_source_files_properties(src/python_wrappers/python_module.cpp PROPERTIES COMPILE_DEFINITIONS SIMCOON_NUMPY_API_OWNER)
+
 # Threading: GCD on macOS (native, zero deps), OpenMP on Linux (libgomp),
 # serial on Windows (avoids runtime conflicts).
 if(APPLE)
