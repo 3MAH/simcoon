@@ -88,11 +88,12 @@ def build_props(x):
     return np.array([E_FIXED, NU_FIXED, ALPHA_FIXED, *x])
 
 
-def run_one_test(props, pathfile, path_data):
+def run_one_test(props, programme):
     """Run one case and return the predicted σ11 trajectory.
 
-    The path file is parsed in Python and the case runs in memory: an identification
-    evaluates this thousands of times, and none of them now touches the disk.
+    ``programme`` is the ``(blocks, T_init)`` pair ``from_file`` parsed once in main():
+    an identification evaluates this thousands of times, and none of them touches the
+    disk or re-parses the path.
 
     Only the **last** block is returned. The first two blocks are the virtual
     pre-cycle and the initial-state alignment; the experiment corresponds to the
@@ -100,7 +101,7 @@ def run_one_test(props, pathfile, path_data):
     carried exactly that window, so returning the whole history (501 increments
     against 201 experimental points) would break the cost function.
     """
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    blocks, T_init = programme
     res = sim.solver.solve(
         blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
         solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
@@ -109,13 +110,13 @@ def run_one_test(props, pathfile, path_data):
     return np.asarray(res["Stress"][0])[block == block.max()]
 
 
-def cost(x, exp_stresses, path_data):
+def cost(x, exp_stresses, programmes):
     """NMSE-per-response cost across the three tests."""
     props = build_props(x)
     y_num = []
-    for name, pathfile, _tab, _exp in TESTS:
+    for programme in programmes:
         try:
-            sigma11 = run_one_test(props, pathfile, path_data)
+            sigma11 = run_one_test(props, programme)
         except Exception:
             return 1e12
         y_num.append(sigma11.reshape(-1, 1))
@@ -147,10 +148,13 @@ def main():
         print(f"  {name}: {pathfile} + {tab} vs {expfile}  "
               f"({len(exp_stresses[i])} pts)")
 
+    # The loading programmes, parsed once for the whole identification
+    programmes = [sim.solver.from_file(path_data, pathfile) for _, pathfile, _, _ in TESTS]
+
     # Gallery budget (~1-2 min). Bump popsize/maxiter for tighter fits.
     result = identification(
         cost, PARAMS,
-        args=(exp_stresses, path_data),
+        args=(exp_stresses, programmes),
         seed=42,
         popsize=15, maxiter=80, tol=1e-6,
         disp=False,
@@ -168,9 +172,9 @@ def main():
     fig, ax = plt.subplots(figsize=(9, 7))
     final_props = build_props(np.array([p.value for p in PARAMS]))
     colors = ["tab:blue", "tab:orange", "tab:green"]
-    for (name, pathfile, _tab, expfile), color in zip(TESTS, colors):
+    for (name, _pf, _tab, expfile), programme, color in zip(TESTS, programmes, colors):
         exp = np.loadtxt(os.path.join(path_exp, expfile))
-        sigma_num = run_one_test(final_props, pathfile, path_data)
+        sigma_num = run_one_test(final_props, programme)
         ax.plot(exp[:, 2], exp[:, 3], color=color, linestyle="--",
                 linewidth=1.5, label=f"{name} — experiment")
         ax.plot(exp[:, 2], sigma_num, color=color, linestyle="-",

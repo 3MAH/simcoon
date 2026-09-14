@@ -426,23 +426,29 @@ if(NOT WIN32)
   endif()
 endif()
 
-# On Windows with Python bindings, libsimcoon allocates Armadillo memory through NumPy's
-# allocator, like _core: Armadillo objects cross the libsimcoon/_core boundary and are
-# stolen into numpy arrays, and mixed allocators corrupt the heap there.
-# See: https://github.com/RUrlus/carma/issues/89
-#
-# numpy_alloc.hpp (not carma's cnalloc.h) is force-included BEFORE any Armadillo header:
-# one numpy C-API table per DLL, defined by numpy_alloc.cpp and imported by _core with the
-# GIL held, so no allocation ever imports it lazily from a GIL-released solver run.
+# Armadillo memory through numpy's allocator (simcoon-python-builder/include/.../numpy_alloc.hpp,
+# force-included ahead of every source of the target; OWNER_SRC defines the target's single
+# numpy C-API table). Applied to _core everywhere and, below, to libsimcoon on Windows, where
+# Armadillo objects cross the libsimcoon/_core boundary and mixed allocators corrupt the heap
+# (https://github.com/RUrlus/carma/issues/89).
+set(SIMCOON_NUMPY_ALLOC_HPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/include/simcoon/python_wrappers/numpy_alloc.hpp")
+function(simcoon_use_numpy_allocator target owner_src)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE "/FI${SIMCOON_NUMPY_ALLOC_HPP}")
+  else()
+    target_compile_options(${target} PRIVATE "SHELL:-include ${SIMCOON_NUMPY_ALLOC_HPP}")
+  endif()
+  # directory-scoped property: call this from the CMakeLists.txt that defines the target
+  set_source_files_properties("${owner_src}" PROPERTIES COMPILE_DEFINITIONS SIMCOON_NUMPY_API_OWNER)
+endfunction()
+
 if(WIN32 AND BUILD_PYTHON_BINDINGS)
   target_link_libraries(simcoon PRIVATE carma::carma)   # pybind11 + numpy headers
-
-  set(SIMCOON_NUMPY_ALLOC_HPP "${CMAKE_SOURCE_DIR}/simcoon-python-builder/include/simcoon/python_wrappers/numpy_alloc.hpp")
-  set(SIMCOON_NUMPY_ALLOC_CPP "${CMAKE_SOURCE_DIR}/simcoon-python-builder/src/numpy_alloc.cpp")
-  message(STATUS "Force-including the numpy allocator into libsimcoon: ${SIMCOON_NUMPY_ALLOC_HPP}")
-  target_compile_options(simcoon PRIVATE "/FI${SIMCOON_NUMPY_ALLOC_HPP}")
+  set(SIMCOON_NUMPY_ALLOC_CPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/src/numpy_alloc.cpp")
   target_sources(simcoon PRIVATE "${SIMCOON_NUMPY_ALLOC_CPP}")
-  set_source_files_properties("${SIMCOON_NUMPY_ALLOC_CPP}" PROPERTIES COMPILE_DEFINITIONS SIMCOON_NUMPY_API_OWNER)
+  simcoon_use_numpy_allocator(simcoon "${SIMCOON_NUMPY_ALLOC_CPP}")
+  # _core imports libsimcoon's table at its own import (python_module.cpp)
+  set(SIMCOON_NUMPY_ALLOC_IN_LIB TRUE)
 endif()
 
 ##Testing

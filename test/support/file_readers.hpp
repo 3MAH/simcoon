@@ -59,9 +59,6 @@ void read_matprops(std::string &, unsigned int &, arma::vec &, unsigned int &, d
 /// Function that reads the output parameters
 void read_output(solver_output &, const int &, const int &, const std::string & = "data", const std::string & = "output.dat");
 
-/// Function that checks the coherency between the path and the step increments provided
-void check_path_output(const std::vector<block> &, const solver_output &);
-    
 /// Function that reads the loading path
 void read_path(std::vector<block> &, double &, const std::string & = "data", const std::string & = "path.txt");
 

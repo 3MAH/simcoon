@@ -32,6 +32,7 @@
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
+#include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 
 using namespace std;
 using namespace arma;
@@ -46,21 +47,20 @@ void get_L_elastic(phase_characteristics &rve)
     
     int method = list_umat[rve.sptr_matprops->umat_name];
     
-    //first we read the behavior of the phases & we construct the tensors if necessary
-    switch (method) {
-            
-        case 100: case 101: case 103: {
-            //Definition of the static vectors x,wx,y,wy
-            ellipsoid_multi::mp = rve.sptr_matprops->props(2);
-            ellipsoid_multi::np = rve.sptr_matprops->props(3);
-            ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-            ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-            ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-            ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-            points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-            
-            break;
-        }
+    //Mean-field models: the caller gave the sub-phases; the ellipsoidal schemes need the
+    //quadrature points of the Eshelby integrals
+    const int shape = sub_phase_shape(rve.sptr_matprops->umat_name);
+    if (shape > 0) {
+        check_sub_phases(rve);
+    }
+    if (shape == 2) {
+        ellipsoid_multi::mp = rve.sptr_matprops->props(2);
+        ellipsoid_multi::np = rve.sptr_matprops->props(3);
+        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
+        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
+        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
     }
     
     rve.global2local();
@@ -138,8 +138,7 @@ void get_L_elastic(phase_characteristics &rve)
                     umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
                     umat_M->Lt += r.sptr_shape->concentration*(umat_sub_phases_M->Lt*r.sptr_multi->A);
                 }
-                //Frobenius, not norm(X,2): the matrix 2-norm is an SVD (dgesdd) that reads out
-                //of bounds on the Windows CLAPACK build. ||.||_2 <= ||.||_F stays conservative.
+                //Frobenius norm: no SVD, and ||.||_2 <= ||.||_F keeps the criterion conservative
                 error = norm(umat_M->Lt - Lt_n, "fro");
                 nbiter++;
              }

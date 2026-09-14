@@ -16,32 +16,6 @@ from simcoon.solver.micromechanics import (
     to_phase_dicts,
 )
 
-# inspect.signature() raises on a pybind11 builtin; the signature lives in the docstring.
-def _accepts_phases(fn) -> bool:
-    """Does the built _core take the in-memory `phases` argument?
-
-    Probed by calling it, not by searching the docstring for the word: a docstring
-    reword or an argument rename would otherwise turn this whole module into a silent
-    skip that CI reports as green. A binding that predates the argument raises
-    TypeError on the keyword; one that has it fails later, on the arguments we
-    deliberately leave invalid.
-    """
-    try:
-        fn(phases=None)
-    except TypeError as exc:
-        #pybind prints the signatures it accepts, so the keyword appears in the message
-        #exactly when the built binding has it
-        return "phases" in str(exc)
-    except Exception:
-        return True
-    return True
-
-
-pytestmark = pytest.mark.skipif(
-    not _accepts_phases(sim._core.L_eff),
-    reason="the built _core predates the in-memory phases argument",
-)
-
 # props of the RVE: [nphases, file number (ignored now), mp, np, index of the matrix phase]
 MIMTN_PROPS = np.array([2.0, 1.0, 20.0, 20.0, 0.0])
 NSTATEV = 10000
@@ -92,7 +66,7 @@ class TestLeffInMemoryPhases:
             sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV)
 
     def test_phase_count_must_match_props(self):
-        with pytest.raises(Exception, match="announces"):
+        with pytest.raises(Exception, match="sub-phases props\\[0\\] announces"):
             sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,
                             phases=to_phase_dicts(two_phase_composite()[:1]))
 

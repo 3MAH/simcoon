@@ -48,39 +48,44 @@ namespace simcoon{
 
 ///@brief The table Nphases.dat will store the necessary informations about the geometry of the phases and the material properties
 
+int sub_phase_shape(const std::string &umat_name) {
+    if (umat_name == "MIHEN" || umat_name == "MIMTN" || umat_name == "MISCN") {
+        return 2;
+    }
+    if (umat_name == "MIPLN") {
+        return 1;
+    }
+    return 0;
+}
+
+void check_sub_phases(const phase_characteristics &phase) {
+    const int nphases = static_cast<int>(phase.sptr_matprops->props(0));
+    if (phase.sub_phases.size() != static_cast<size_t>(nphases)) {
+        throw std::invalid_argument(phase.sptr_matprops->umat_name + " needs the "
+                                    + std::to_string(nphases) + " sub-phases props[0] announces, "
+                                    + std::to_string(phase.sub_phases.size()) + " given. They are no "
+                                    "longer read from Nellipsoids/Nlayers files: pass them to the solver.");
+    }
+}
+
 void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const unsigned int &solver_type, double &tnew_dt, const int &method)
 {
 
     int nphases = phase.sptr_matprops->props(0); // Number of phases
-
-    //The caller builds the sub-phases now: a missing set is a caller error, not a missing file.
-    if (phase.sub_phases.size() != static_cast<size_t>(nphases)) {
-        throw std::invalid_argument("umat_multi: " + phase.sptr_matprops->umat_name + " needs its "
-                                    + std::to_string(nphases) + " sub-phases, "
-                                    + std::to_string(phase.sub_phases.size()) + " given. They are no longer "
-                                    "read from Nellipsoids/Nlayers files: pass them to the solver.");
-    }
+    check_sub_phases(phase);
 
     shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local); //shared_ptr on state variables of the rve
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
-    //1 - We need to figure out the type of geometry and read the phase
-    if(start) {
-        switch (method) {
-                
-            case 100: case 101: case 102: case 103: {
-                //Definition of the static vectors x,wx,y,wy
-                ellipsoid_multi::mp = phase.sptr_matprops->props(2);
-                ellipsoid_multi::np = phase.sptr_matprops->props(3);
-                ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-                ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-                ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-                ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-                points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-                
-                break;
-            }
-        }
+    //1 - Quadrature points of the Eshelby integrals (ellipsoidal schemes only)
+    if (start && (sub_phase_shape(phase.sptr_matprops->umat_name) == 2)) {
+        ellipsoid_multi::mp = phase.sptr_matprops->props(2);
+        ellipsoid_multi::np = phase.sptr_matprops->props(3);
+        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
+        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
+        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
     }
     
 	//Initialization

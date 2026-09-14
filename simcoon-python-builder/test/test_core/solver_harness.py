@@ -28,16 +28,15 @@ _N_COLUMNS = 42
 _T_HOLD = 290.0
 
 # The one-letter codes of the old path grammar.
-_CONTROL = {"E": "strain", "S": "stress", "Z": "zero"}
+_CONTROL = {"E": "strain", "S": "stress"}
 
 
-def run_path(base_dir, umat_name, props, nstatev, corate, targets, control_type=1):
+def run_path(umat_name, props, nstatev, corate, targets, control_type=1):
     """Run a uniaxial case and return its history, laid out like res_global-0.txt.
 
     ``targets`` is a sequence of (control, value) pairs, one step each: ("S", v)
     drives the 11 stress to v, ("E", v) the 11 strain to v; the lateral components
-    stay stress-free. ``base_dir`` is accepted and ignored — nothing is written to
-    disk any more — so the callers keep passing their pytest tmp_path.
+    stay stress-free.
     """
     steps = [
         StepMeca(

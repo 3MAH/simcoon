@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 import simcoon as sim
+from simcoon.modular import elastic_model
 from simcoon.solver import Block, StepMeca, StepThermomeca, from_file, solve
 
 # ---------------------------------------------------------------------------
@@ -121,6 +122,8 @@ def write_path_file(tmp_path, path_text, extra_files=None):
 ELISO_PROPS = [70000.0, 0.3, 1.0e-5]
 EPICP_PROPS = [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 0.3]  # E nu alpha sigmaY k m
 EPICP_NSTATEV = 8
+#: a purely elastic MODUL: what translate_ELISO makes of ELISO_PROPS
+MODUL_ELASTIC_PROPS = elastic_model(*ELISO_PROPS).props.tolist()
 SNTVE_PROPS = [70000.0, 0.3, 1.0e-5]
 
 _UNIAXIAL = ["strain"] + ["stress"] * 5
@@ -402,14 +405,14 @@ def test_solver_is_safe_as_the_first_call_of_a_process():
     is now imported once at `import simcoon`. A fresh interpreter makes the solver the
     first caller, on every platform, for the modular engine (MODUL, and ELISO through
     its adapter) and a dedicated kernel (EPICP)."""
-    code = textwrap.dedent("""
+    cases = [("MODUL", MODUL_ELASTIC_PROPS, 1), ("ELISO", ELISO_PROPS, 1),
+             ("EPICP", EPICP_PROPS, EPICP_NSTATEV)]
+    code = textwrap.dedent(f"""
         import numpy as np
         from simcoon.solver import StepMeca, solve
         step = StepMeca(control=["strain"] + ["stress"] * 5,
                         value=[0.002, 0, 0, 0, 0, 0], ninc=2)
-        for name, props, nstatev in (("MODUL", [0.0, 0.0, 70000.0, 0.3, 1.0e-5, 0.0], 1),
-                                     ("ELISO", [70000.0, 0.3, 1.0e-5], 1),
-                                     ("EPICP", [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 0.3], 8)):
+        for name, props, nstatev in {cases!r}:
             res = solve(step, name, np.asarray(props), nstatev, T_init=290.0)
             assert res.status == 0, name
         print("ok")
@@ -418,6 +421,23 @@ def test_solver_is_safe_as_the_first_call_of_a_process():
                           capture_output=True, text=True, timeout=600)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "ok" in proc.stdout
+
+
+@pytest.mark.parametrize("name, props", [("MODUL", MODUL_ELASTIC_PROPS), ("ELISO", ELISO_PROPS)])
+def test_modular_rejects_too_few_statev(name, props):
+    """ModularUMAT::initialize counts the state variables its mechanisms register and
+    refuses a shorter statev, on the direct route and through the legacy adapter."""
+    step = StepMeca(control=_UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0], ninc=1)
+    with pytest.raises(Exception, match="nstatev"):
+        solve(step, name, np.asarray(props), 0, T_init=290.0)
+
+
+def test_record_tangent_false_omits_tangent_history():
+    step = StepMeca(control=_UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0], ninc=2)
+    res = solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0, record_tangent=False)
+    assert res.status == 0
+    assert "TangentMatrix" not in res
+    assert "TangentMatrix" in solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0)
 
 
 @pytest.mark.parametrize("mode", ["none", "continuum", "algorithmic"])

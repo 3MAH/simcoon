@@ -19,6 +19,7 @@
 #include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/python_wrappers/dict_get.hpp>
 #include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
 
@@ -29,11 +30,6 @@ namespace py = pybind11;
 namespace simpy {
 
 namespace {
-
-template <typename T>
-T dget(const py::dict &d, const char *key, const T &dflt) {
-    return d.contains(key) ? d[key].cast<T>() : dflt;
-}
 
 //Fill the fields shared by step_meca and step_thermomeca (identical member names)
 template <typename StepPtr>
@@ -231,12 +227,9 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
 
     //Sub-phases of a mean-field model, built HERE, while the GIL is still held: they are read
     //from Python objects. umat_multi used to read them from Nellipsoids<N>.dat / Nlayers<N>.dat
-    //at the first increment. props[0] announces their number, but only for those models: for a
-    //single-phase law props[0] is a material constant, so the count is not checked there.
-    const bool mean_field = shape_type_of(umat_name) > 0;
-    const int announced = (mean_field && props.n_elem > 0) ? static_cast<int>(props(0)) : -1;
+    //at the first increment; it checks their count against props[0] itself.
     const std::vector<simcoon::phase_characteristics> sub_phases =
-        make_sub_phases(phases, umat_name, announced, T_init);
+        make_sub_phases(phases, umat_name, T_init);
 
     int status = 0;
     {

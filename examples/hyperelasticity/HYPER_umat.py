@@ -57,7 +57,7 @@ def run_case(
         V, _ = sim.VR_decomposition(F)
         lam[k] = np.asarray(sim.isochoric_pstretch(np.ascontiguousarray(V))).ravel()[-1]
         sigma = sim.v2t_stress(np.ascontiguousarray(sigma_hist[:, k]))
-        PK1_11[k] = (np.linalg.det(F) * sigma @ np.linalg.inv(F).T)[0, 0]
+        PK1_11[k] = np.asarray(sim.stress_convert(sigma, F, "Cauchy2PKI"))[0, 0]
     return lam, PK1_11
 
 ###################################################################################

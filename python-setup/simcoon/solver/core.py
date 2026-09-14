@@ -12,6 +12,7 @@ from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
 from .maps import CORATE_TYPES, TANGENT_MODES, as_code, tangent_default
+from .micromechanics import to_phase_dicts
 from .results import SolverResults
 
 
@@ -132,11 +133,7 @@ def solve(
     psi, theta, phi = (float(x) for x in orientation)
     # Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): dataclasses are accepted
     # as readily as the dicts the binding reads. They used to be read from Nellipsoids<N>.dat.
-    phases_py = None
-    if phases is not None:
-        from .micromechanics import to_phase_dict
-
-        phases_py = [p if isinstance(p, dict) else to_phase_dict(p) for p in phases]
+    phases_py = None if phases is None else to_phase_dicts(phases)
 
     with law_ctx:
         raw = _core.solver_run(

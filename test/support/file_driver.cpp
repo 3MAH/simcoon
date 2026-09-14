@@ -35,6 +35,7 @@
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 
 #include "file_readers.hpp"
 #include "file_driver.hpp"
@@ -43,6 +44,29 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
+
+namespace {
+
+//Recursive, a sub-phase may itself be a mean-field model (the deleted get_phase_charateristics).
+void read_phase_tree(phase_characteristics &phase, const std::string &path_data) {
+    const int shape = sub_phase_shape(phase.sptr_matprops->umat_name);
+    if (shape == 0) {
+        return;
+    }
+    const std::string nfile = (shape == 2 ? "Nellipsoids" : "Nlayers")
+                            + std::to_string(int(phase.sptr_matprops->props(1))) + ".dat";
+    if (shape == 2) {
+        read_ellipsoid(phase, path_data, nfile);
+    }
+    else {
+        read_layer(phase, path_data, nfile);
+    }
+    for (auto &sub : phase.sub_phases) {
+        read_phase_tree(sub, path_data);
+    }
+}
+
+} //namespace
 
 void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
     if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
@@ -91,35 +115,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     ctrl.tangent_mode = tangent_mode;
 
     //The phase tree is read here, with the rest of the file semantics: solver_run takes its
-    //sub-phases in memory. Recursive — a sub-phase may itself be a mean-field model.
-    auto read_phase_tree = [&path_data](auto &&self, phase_characteristics &phase) -> void {
-        const std::string &name = phase.sptr_matprops->umat_name;
-        const bool is_ellipsoidal = (name == "MIHEN") || (name == "MIMTN") || (name == "MISCN");
-        const bool is_layered = (name == "MIPLN");
-        if (!is_ellipsoidal && !is_layered) {
-            return;
-        }
-        const std::string nfile = (is_ellipsoidal ? "Nellipsoids" : "Nlayers")
-                                + std::to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-        if (is_ellipsoidal) {
-            read_ellipsoid(phase, path_data, nfile);
-        }
-        else {
-            read_layer(phase, path_data, nfile);
-        }
-        for (auto &sub : phase.sub_phases) {
-            self(self, sub);
-        }
-    };
-
+    //sub-phases in memory.
     std::vector<phase_characteristics> sub_phases;
     {
         phase_characteristics rve_phases;
         rve_phases.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
         rve_phases.construct(0, 1);
         rve_phases.sptr_sv_global->T = T_init;   //the sub-phases start at the path's initial temperature
-        read_phase_tree(read_phase_tree, rve_phases);
-        sub_phases = rve_phases.sub_phases;
+        read_phase_tree(rve_phases, path_data);
+        sub_phases = std::move(rve_phases.sub_phases);
     }
 
     solver_file_sink sink(path_results, outputfile_global, outputfile_local);

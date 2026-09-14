@@ -104,16 +104,16 @@ def build_props(x):
 # experimental stretches exactly; interpolation keeps the load paths simple.
 
 
-def run_case(props, pathfile, path_data):
+def run_case(props, programme):
     """Run one case and return its ``(lambda, P_11)`` trajectory.
 
-    The path file is parsed in Python and the case runs in memory — an identification
-    evaluates this thousands of times, and none of them touches the disk. The two
-    quantities the old result file carried are rebuilt from the histories: the largest
-    isochoric principal stretch, and the 11 component of the nominal stress
-    :math:`P = J\\,\\sigma\\,F^{-T}`.
+    ``programme`` is the ``(blocks, T_init)`` pair ``from_file`` parsed once per case —
+    an identification evaluates this thousands of times, and none of them touches the
+    disk. The two quantities the old result file carried are rebuilt from the
+    histories: the largest isochoric principal stretch, and the 11 component of the
+    nominal stress :math:`P = J\\,\\sigma\\,F^{-T}`.
     """
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    blocks, T_init = programme
     res = sim.solver.solve(
         blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
         solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
@@ -127,13 +127,13 @@ def run_case(props, pathfile, path_data):
         V, _ = sim.VR_decomposition(F)
         lam[k] = np.asarray(sim.isochoric_pstretch(np.ascontiguousarray(V))).ravel()[-1]
         sigma = sim.v2t_stress(np.ascontiguousarray(sigma_hist[:, k]))
-        pk1_11[k] = (np.linalg.det(F) * sigma @ np.linalg.inv(F).T)[0, 0]
+        pk1_11[k] = np.asarray(sim.stress_convert(sigma, F, "Cauchy2PKI"))[0, 0]
     return lam, pk1_11
 
 
-def model_pk1(lambda_exp, props, pathfile, path_data):
+def model_pk1(lambda_exp, props, programme):
     """Model ``P_11`` sampled at the experimental stretches."""
-    lam, pk1 = run_case(props, pathfile, path_data)
+    lam, pk1 = run_case(props, programme)
     # Anchor the unstressed reference state so lambda = 1 maps to P_11 = 0.
     lam = np.concatenate(([1.0], lam))
     pk1 = np.concatenate(([0.0], pk1))
@@ -159,16 +159,17 @@ def model_pk1(lambda_exp, props, pathfile, path_data):
 # test; with a single stress response per test the arrays are ``(n_points, 1)``.
 
 
-def cost(x, jobs, path_data):
+def cost(x, jobs):
     """NMSE-per-response cost over the loading cases in *jobs*.
 
-    *jobs* is a list of ``(name, pathfile, lambda_exp, P_exp)`` tuples.
+    *jobs* is a list of ``(name, programme, lambda_exp, P_exp)`` tuples, ``programme``
+    the parsed ``(blocks, T_init)`` of the case.
     """
     props = build_props(x)
     y_exp, y_num = [], []
-    for _name, pathfile, lam_exp, P_exp in jobs:
+    for _name, programme, lam_exp, P_exp in jobs:
         try:
-            P_model = model_pk1(lam_exp, props, pathfile, path_data)
+            P_model = model_pk1(lam_exp, props, programme)
         except Exception:
             return 1e12
         y_exp.append(P_exp.reshape(-1, 1))
@@ -176,13 +177,13 @@ def cost(x, jobs, path_data):
     return calc_cost(y_exp, y_num, metric="nmse_per_response")
 
 
-def identify(jobs, path_data, popsize=15, maxiter=25, seed=42):
+def identify(jobs, popsize=15, maxiter=25, seed=42):
     """Run ``sim.identification`` over the given *jobs*; return ``([C10, C01],
     final_cost)``."""
     params = make_params()
     result = identification(
         cost, params,
-        args=(jobs, path_data),
+        args=(jobs,),
         seed=seed, popsize=popsize, maxiter=maxiter, tol=1e-6, disp=False,
     )
     return [p.value for p in params], result.fun
@@ -214,11 +215,13 @@ def main():
         header=0,
     )
 
-    # Per-case experimental (lambda, P_11), NaNs dropped.
-    exp = {}
-    for name, _pf, lc, pc in CASES:
+    # Per-case experimental (lambda, P_11), NaNs dropped, and the loading programme of
+    # each case parsed once for every evaluation to come.
+    exp, programmes = {}, {}
+    for name, pathfile, lc, pc in CASES:
         mask = ~df[lc].isna() & ~df[pc].isna()
         exp[name] = (df.loc[mask, lc].values, df.loc[mask, pc].values)
+        programmes[name] = sim.solver.from_file(path_data, pathfile)
 
     print("=" * 66)
     print(" MOONEY-RIVLIN IDENTIFICATION via the MOORI UMAT + simcoon API")
@@ -234,9 +237,9 @@ def main():
     print("-" * 66)
     print(f"{'Case':<6}{'C10':>10}{'C01':>10}{'C10 lit.':>12}{'C01 lit.':>12}")
     individual = {}
-    for name, pathfile, _lc, _pc in CASES:
+    for name, _pf, _lc, _pc in CASES:
         lam_exp, P_exp = exp[name]
-        (c10, c01), _fun = identify([(name, pathfile, lam_exp, P_exp)], path_data)
+        (c10, c01), _fun = identify([(name, programmes[name], lam_exp, P_exp)])
         individual[name] = (c10, c01)
         l10, l01 = LIT[name]
         print(f"{name:<6}{c10:>10.4f}{c01:>10.4f}{l10:>12.4f}{l01:>12.4f}")
@@ -245,21 +248,21 @@ def main():
     print("\n" + "-" * 66)
     print(" COMBINED FIT (single parameter set for UT + PS + ET)")
     print("-" * 66)
-    jobs = [(n, pf, *exp[n]) for n, pf, _lc, _pc in CASES]
-    (c10_c, c01_c), cost_c = identify(jobs, path_data)
+    jobs = [(n, programmes[n], *exp[n]) for n, _pf, _lc, _pc in CASES]
+    (c10_c, c01_c), cost_c = identify(jobs)
     print(f"  C10 = {c10_c:.4f} MPa, C01 = {c01_c:.4f} MPa  "
           f"(NMSE/response = {cost_c:.4e})")
 
     # ----- Plot: individual (top) and combined (bottom) vs Treloar -------- #
     fig, axes = plt.subplots(2, 3, figsize=(15, 9))
-    for col, (name, pathfile, _lc, _pc) in enumerate(CASES):
+    for col, (name, _pf, _lc, _pc) in enumerate(CASES):
         lam_exp, P_exp = exp[name]
         for row, (c10, c01, tag) in enumerate([
             (*individual[name], "individual"),
             (c10_c, c01_c, "combined"),
         ]):
             ax = axes[row, col]
-            lam_m, pk1_m = run_case(build_props([c10, c01]), pathfile, path_data)
+            lam_m, pk1_m = run_case(build_props([c10, c01]), programmes[name])
             ax.plot(lam_exp, P_exp, "o", ms=6, mfc="red", mec="black",
                     label="Treloar")
             ax.plot(lam_m, pk1_m, "-", lw=2, color="tab:blue",

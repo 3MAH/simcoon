@@ -672,6 +672,58 @@ def test_viscoelastic_survives_a_block_boundary():
             )
 
 
+def test_thermomechanical_viscoelastic_matches_its_mechanical_twin():
+    """At constant temperature the thermomechanical kernels must answer like the
+    mechanical ones, and stay invariant to how the path is cut into blocks.
+
+    Both were unusable before: their `A_v_start` vectors are locals rebuilt at every
+    call, and `A_v_start[i] += ...` ran on a default-constructed (size 0) arma::vec —
+    the thermomechanical PRONK initialised them nowhere and died on the first call,
+    ZENNK only under `if(start)` and died on the second increment. Nothing covered
+    them, and examples/thermomechanical/ZENER.py drives ZENER, the one of the three
+    that was correct.
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3000.0, 0.35
+    E1, nu1, etaB, etaS = 1500.0, 0.35, 3000.0, 1200.0
+    rho, c_p, alpha = 4.4, 0.656, 0.0            # no dilation: same run as the mechanical
+    T = 293.15
+
+    meca = {
+        "ZENER": (np.array([E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "PRONK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+        "ZENNK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+    }
+    thermo = {
+        "ZENER": (np.array([rho, c_p, E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "PRONK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+        "ZENNK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+    }
+
+    def meca_steps(ninc, halves):
+        mk = lambda v, t: sim.solver.StepMeca(control=uni, value=[v, 0, 0, 0, 0, 0],
+                                              ninc=ninc, time=t)
+        return [mk(0.005, 0.05), mk(0.01, 0.05)] if halves else [mk(0.01, 0.1)]
+
+    def thermo_steps(ninc, halves):
+        mk = lambda v, t: sim.solver.StepThermomeca(control=uni, value=[v, 0, 0, 0, 0, 0],
+                                                    ninc=ninc, time=t, T_final=T)
+        return [mk(0.005, 0.05), mk(0.01, 0.05)] if halves else [mk(0.01, 0.1)]
+
+    for name in ("ZENER", "PRONK", "ZENNK"):
+        p_m, n_m = meca[name]
+        p_t, n_t = thermo[name]
+        ref = float(np.asarray(sim.solver.solve(meca_steps(40, False), name, p_m, n_m,
+                                                T_init=T)["Stress"])[0][-1])
+        for halves, how in ((False, "one block"), (True, "two blocks")):
+            got = float(np.asarray(sim.solver.solve(thermo_steps(20 if halves else 40, halves),
+                                                    name, p_t, n_t, T_init=T)["Stress"])[0][-1])
+            assert got == pytest.approx(ref, rel=1e-6), (
+                f"thermomechanical {name} in {how}: {got:.4f} against {ref:.4f} "
+                "for the mechanical twin on the same loading"
+            )
+
+
 def test_zennk_has_no_modular_twin():
     """ZENNK (Zener_Nfast) is a generalized KELVIN chain (branch driving
     force sigma - L_i EV_i, branches in series), NOT a generalized Maxwell:

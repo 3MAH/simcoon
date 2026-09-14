@@ -36,9 +36,8 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     auto sv_M = std::dynamic_pointer_cast<simcoon::state_variables_M>(rve.sptr_sv_global);
 
     //The sub-phases of a mean-field model come in as Python objects; nothing is read from disk.
-    //props[0] announces how many there should be (see multiphase.hpp).
-    const int announced = props_cpp.n_elem > 0 ? static_cast<int>(props_cpp(0)) : -1;
-    rve.sub_phases = make_sub_phases(phases, umat_name, announced, T_init);
+    //get_L_elastic checks their count against props[0].
+    rve.sub_phases = make_sub_phases(phases, umat_name, T_init);
 
     //Second we call a recursive method that find all the elastic moduli iof the phases
     simcoon::get_L_elastic(rve);

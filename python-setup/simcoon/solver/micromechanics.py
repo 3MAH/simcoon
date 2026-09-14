@@ -64,20 +64,31 @@ import numpy as np
 # Data Classes
 # =============================================================================
 
+_ANGLES = ('psi', 'theta', 'phi')
+
+
 @dataclass
-class MaterialOrientation:
-    """Material orientation via Euler angles (degrees)."""
+class EulerAngles:
+    """An orientation as Euler angles, in degrees (as in the files)."""
     psi: float = 0.0    # First Euler angle (deg)
     theta: float = 0.0  # Second Euler angle (deg)
     phi: float = 0.0    # Third Euler angle (deg)
 
 
-@dataclass
-class GeometryOrientation:
-    """Geometry/phase orientation via Euler angles (degrees)."""
-    psi: float = 0.0    # First Euler angle (deg)
-    theta: float = 0.0  # Second Euler angle (deg)
-    phi: float = 0.0    # Third Euler angle (deg)
+#: The material and the geometry orientations are the same triplet; the two names stay
+#: for readability and for the files that spell them out.
+MaterialOrientation = EulerAngles
+GeometryOrientation = EulerAngles
+
+
+def _coerce_fields(obj):
+    """props given as a list, orientations given as dicts (the JSON form)."""
+    if isinstance(obj.props, list):
+        obj.props = np.array(obj.props, dtype=float)
+    for name in ('material_orientation', 'geometry_orientation'):
+        value = getattr(obj, name, None)
+        if isinstance(value, dict):
+            setattr(obj, name, EulerAngles(**value))
 
 
 @dataclass
@@ -97,7 +108,7 @@ class Phase:
         Save flag (1=save, 0=don't)
     concentration : float
         Volume fraction (0 to 1)
-    material_orientation : MaterialOrientation
+    material_orientation : EulerAngles
         Material orientation via Euler angles
     nstatev : int
         Number of state variables
@@ -108,15 +119,12 @@ class Phase:
     umat_name: str = "ELISO"
     save: int = 1
     concentration: float = 1.0
-    material_orientation: MaterialOrientation = field(default_factory=MaterialOrientation)
+    material_orientation: EulerAngles = field(default_factory=EulerAngles)
     nstatev: int = 1
     props: np.ndarray = field(default_factory=lambda: np.array([]))
 
     def __post_init__(self):
-        if isinstance(self.props, list):
-            self.props = np.array(self.props, dtype=float)
-        if isinstance(self.material_orientation, dict):
-            self.material_orientation = MaterialOrientation(**self.material_orientation)
+        _coerce_fields(self)
 
 
 @dataclass
@@ -129,21 +137,16 @@ class Layer(Phase):
 
     Additional Attributes
     ---------------------
-    geometry_orientation : GeometryOrientation
+    geometry_orientation : EulerAngles
         Geometry orientation via Euler angles
     layerup : int
         Index of layer above (-1 if none)
     layerdown : int
         Index of layer below (-1 if none)
     """
-    geometry_orientation: GeometryOrientation = field(default_factory=GeometryOrientation)
+    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
     layerup: int = 0
     layerdown: int = 0
-
-    def __post_init__(self):
-        super().__post_init__()
-        if isinstance(self.geometry_orientation, dict):
-            self.geometry_orientation = GeometryOrientation(**self.geometry_orientation)
 
 
 @dataclass
@@ -169,19 +172,14 @@ class Ellipsoid(Phase):
         Second semi-axis (relative)
     a3 : float
         Third semi-axis (relative)
-    geometry_orientation : GeometryOrientation
+    geometry_orientation : EulerAngles
         Geometry orientation via Euler angles
     """
     coatingof: int = 0
     a1: float = 1.0
     a2: float = 1.0
     a3: float = 1.0
-    geometry_orientation: GeometryOrientation = field(default_factory=GeometryOrientation)
-
-    def __post_init__(self):
-        super().__post_init__()
-        if isinstance(self.geometry_orientation, dict):
-            self.geometry_orientation = GeometryOrientation(**self.geometry_orientation)
+    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
 
     @property
     def shape_type(self) -> str:
@@ -212,18 +210,13 @@ class Cylinder(Phase):
         Length parameter
     R : float
         Radius parameter
-    geometry_orientation : GeometryOrientation
+    geometry_orientation : EulerAngles
         Geometry orientation via Euler angles
     """
     coatingof: int = 0
     L: float = 1.0
     R: float = 1.0
-    geometry_orientation: GeometryOrientation = field(default_factory=GeometryOrientation)
-
-    def __post_init__(self):
-        super().__post_init__()
-        if isinstance(self.geometry_orientation, dict):
-            self.geometry_orientation = GeometryOrientation(**self.geometry_orientation)
+    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
 
     @property
     def aspect_ratio(self) -> float:
@@ -246,7 +239,7 @@ class Section:
         Section name
     umat_name : str
         Constitutive model name
-    material_orientation : MaterialOrientation
+    material_orientation : EulerAngles
         Material orientation via Euler angles
     nstatev : int
         Number of state variables
@@ -256,19 +249,16 @@ class Section:
     number: int = 0
     name: str = "Section"
     umat_name: str = "ELISO"
-    material_orientation: MaterialOrientation = field(default_factory=MaterialOrientation)
+    material_orientation: EulerAngles = field(default_factory=EulerAngles)
     nstatev: int = 1
     props: np.ndarray = field(default_factory=lambda: np.array([]))
 
     def __post_init__(self):
-        if isinstance(self.props, list):
-            self.props = np.array(self.props, dtype=float)
-        if isinstance(self.material_orientation, dict):
-            self.material_orientation = MaterialOrientation(**self.material_orientation)
+        _coerce_fields(self)
 
 
 # =============================================================================
-# Helper Functions
+# JSON I/O
 # =============================================================================
 
 def _props_to_dict(props: np.ndarray, prop_names: List[str] = None) -> Dict[str, float]:
@@ -278,10 +268,6 @@ def _props_to_dict(props: np.ndarray, prop_names: List[str] = None) -> Dict[str,
     else:
         return {f'prop_{i}': float(val) for i, val in enumerate(props)}
 
-
-# =============================================================================
-# JSON I/O - Phases
-# =============================================================================
 
 def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np.ndarray:
     """Positional props out of a JSON entry.
@@ -306,537 +292,158 @@ def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np
         f"{context}: 'props' is a name -> value mapping and no `prop_names` was given, "
         "so the values are read in the order the file lists them. The C++ side reads "
         "them positionally: reordering the keys changes the material silently.",
-        UserWarning, stacklevel=3)
+        UserWarning, stacklevel=4)
     return np.array(list(props.values()), dtype=float)
+
+
+# The file layout of each kind: the dataclass and its entry keys, in file order. A plain
+# name is a field written as is (an orientation as its {psi, theta, phi} dict); ('key',
+# fields) is a nested object holding those fields; 'props' is the name -> value mapping
+# followed by the 'prop_names' that record its order. Defaults on reading are the
+# dataclass defaults, and a nested field is also accepted flat at the top level.
+_JSON_LAYOUTS = {
+    'phases': (Phase, ('number', 'umat_name', 'save', 'concentration',
+                       'material_orientation', 'nstatev', 'props')),
+    'layers': (Layer, ('number', 'umat_name', 'save', 'concentration',
+                       'material_orientation', 'geometry_orientation', 'nstatev', 'props',
+                       'layerup', 'layerdown')),
+    'ellipsoids': (Ellipsoid, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
+                               'material_orientation', ('semi_axes', ('a1', 'a2', 'a3')),
+                               'geometry_orientation', 'nstatev', 'props')),
+    'cylinders': (Cylinder, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
+                             'material_orientation', ('geometry', ('L', 'R')),
+                             'geometry_orientation', 'nstatev', 'props')),
+    'sections': (Section, ('number', 'name', 'umat_name', 'material_orientation',
+                           'nstatev', 'props')),
+}
+
+
+def _to_json_entry(obj, layout, prop_names: Optional[List[str]]) -> Dict:
+    entry = {}
+    for col in layout:
+        if col == 'props':
+            props_data = _props_to_dict(obj.props, prop_names)
+            entry['props'] = props_data
+            entry['prop_names'] = list(props_data)
+        elif isinstance(col, tuple):
+            key, fields = col
+            entry[key] = {f: getattr(obj, f) for f in fields}
+        elif col.endswith('_orientation'):
+            angles = getattr(obj, col)
+            entry[col] = {k: getattr(angles, k) for k in _ANGLES}
+        else:
+            entry[col] = getattr(obj, col)
+    return entry
+
+
+def _from_json_entry(entry: Dict, cls, layout, prop_names: Optional[List[str]], context: str):
+    kwargs = {}
+    for col in layout:
+        if col == 'props':
+            kwargs['props'] = _props_from_json(entry.get('props', []),
+                                               prop_names or entry.get('prop_names'), context)
+        elif isinstance(col, tuple):
+            key, fields = col
+            nested = entry.get(key, {})
+            for f in fields:
+                if f in nested:
+                    kwargs[f] = nested[f]
+                elif f in entry:
+                    kwargs[f] = entry[f]
+        elif col in entry:
+            kwargs[col] = entry[col]   # orientation dicts are coerced by __post_init__
+    return cls(**kwargs)
+
+
+def _load_json(filepath: Union[str, Path], kind: str, prop_names: Optional[List[str]]) -> List:
+    cls, layout = _JSON_LAYOUTS[kind]
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    return [_from_json_entry(entry, cls, layout, prop_names, str(filepath))
+            for entry in data.get(kind, [])]
+
+
+def _save_json(filepath: Union[str, Path], kind: str, items: List,
+               prop_names: Optional[List[str]]):
+    _, layout = _JSON_LAYOUTS[kind]
+    with open(filepath, 'w') as f:
+        json.dump({kind: [_to_json_entry(item, layout, prop_names) for item in items]},
+                  f, indent=2)
 
 
 def load_phases_json(filepath: Union[str, Path],
                      prop_names: Optional[List[str]] = None) -> List[Phase]:
+    """Load phases from a JSON file: ``{"phases": [{"number": 0, "umat_name": "ELISO",
+    "save": 1, "concentration": 0.8, "material_orientation": {"psi": 0, "theta": 0,
+    "phi": 0}, "nstatev": 1, "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}}]}``.
+
+    ``prop_names`` gives the order of a ``props`` mapping explicitly (see
+    ``_props_from_json``); a file written by ``save_phases_json`` records it itself.
     """
-    Load phases from a JSON file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the JSON phases file
-
-    Returns
-    -------
-    list of Phase
-        List of Phase objects
-
-    Example JSON format
-    -------------------
-    ```json
-    {
-      "phases": [
-        {
-          "number": 0,
-          "umat_name": "ELISO",
-          "save": 1,
-          "concentration": 0.8,
-          "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "nstatev": 1,
-          "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}
-        }
-      ]
-    }
-    ```
-    """
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    phases = []
-    for p in data.get('phases', []):
-        props = _props_from_json(p.get('props', []),
-                                 prop_names or p.get('prop_names'),
-                                 str(filepath))
-
-        phase = Phase(
-            number=p.get('number', 0),
-            umat_name=p.get('umat_name', 'ELISO'),
-            save=p.get('save', 1),
-            concentration=p.get('concentration', 1.0),
-            material_orientation=MaterialOrientation(**p.get('material_orientation', {})),
-            nstatev=p.get('nstatev', 1),
-            props=props
-        )
-        phases.append(phase)
-
-    return phases
+    return _load_json(filepath, 'phases', prop_names)
 
 
 def save_phases_json(filepath: Union[str, Path], phases: List[Phase],
                      prop_names: List[str] = None):
-    """
-    Save phases to a JSON file.
+    """Save phases to a JSON file (the layout ``load_phases_json`` reads), ``prop_names``
+    naming the properties."""
+    _save_json(filepath, 'phases', phases, prop_names)
 
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to save the JSON file
-    phases : list of Phase
-        List of Phase objects
-    prop_names : list of str, optional
-        Names for the properties array
-    """
-    phases_data = []
-    for p in phases:
-        props_data = _props_to_dict(p.props, prop_names)
-        phase_dict = {
-            'number': p.number,
-            'umat_name': p.umat_name,
-            'save': p.save,
-            'concentration': p.concentration,
-            'material_orientation': {
-                'psi': p.material_orientation.psi,
-                'theta': p.material_orientation.theta,
-                'phi': p.material_orientation.phi
-            },
-            'nstatev': p.nstatev,
-            'props': props_data,
-            'prop_names': list(props_data),
-        }
-        phases_data.append(phase_dict)
-
-    with open(filepath, 'w') as f:
-        json.dump({'phases': phases_data}, f, indent=2)
-
-
-# =============================================================================
-# JSON I/O - Layers
-# =============================================================================
 
 def load_layers_json(filepath: Union[str, Path],
                      prop_names: Optional[List[str]] = None) -> List[Layer]:
-    """
-    Load layers from a JSON file for laminate homogenization.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the JSON layers file
-
-    Returns
-    -------
-    list of Layer
-        List of Layer objects
-
-    Example JSON format
-    -------------------
-    ```json
-    {
-      "layers": [
-        {
-          "number": 0,
-          "umat_name": "ELISO",
-          "save": 1,
-          "concentration": 0.8,
-          "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "geometry_orientation": {"psi": 0, "theta": 90, "phi": -90},
-          "nstatev": 1,
-          "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}
-        }
-      ]
-    }
-    ```
-    """
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    layers = []
-    for lyr in data.get('layers', []):
-        props = _props_from_json(lyr.get('props', []),
-                                 prop_names or lyr.get('prop_names'),
-                                 str(filepath))
-
-        layer = Layer(
-            number=lyr.get('number', 0),
-            umat_name=lyr.get('umat_name', 'ELISO'),
-            save=lyr.get('save', 1),
-            concentration=lyr.get('concentration', 1.0),
-            material_orientation=MaterialOrientation(**lyr.get('material_orientation', {})),
-            geometry_orientation=GeometryOrientation(**lyr.get('geometry_orientation', {})),
-            nstatev=lyr.get('nstatev', 1),
-            props=props,
-            layerup=lyr.get('layerup', 0),
-            layerdown=lyr.get('layerdown', 0)
-        )
-        layers.append(layer)
-
-    return layers
+    """Load layers from a JSON file for laminate homogenization: the phase entry plus
+    ``"geometry_orientation": {"psi", "theta", "phi"}``, ``"layerup"`` and
+    ``"layerdown"``, under the top-level key ``"layers"``."""
+    return _load_json(filepath, 'layers', prop_names)
 
 
 def save_layers_json(filepath: Union[str, Path], layers: List[Layer],
                      prop_names: List[str] = None):
-    """
-    Save layers to a JSON file.
+    """Save layers to a JSON file (the layout ``load_layers_json`` reads)."""
+    _save_json(filepath, 'layers', layers, prop_names)
 
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to save the JSON file
-    layers : list of Layer
-        List of Layer objects
-    prop_names : list of str, optional
-        Names for the properties array
-    """
-    layers_data = []
-    for lyr in layers:
-        props_data = _props_to_dict(lyr.props, prop_names)
-        layer_dict = {
-            'number': lyr.number,
-            'umat_name': lyr.umat_name,
-            'save': lyr.save,
-            'concentration': lyr.concentration,
-            'material_orientation': {
-                'psi': lyr.material_orientation.psi,
-                'theta': lyr.material_orientation.theta,
-                'phi': lyr.material_orientation.phi
-            },
-            'geometry_orientation': {
-                'psi': lyr.geometry_orientation.psi,
-                'theta': lyr.geometry_orientation.theta,
-                'phi': lyr.geometry_orientation.phi
-            },
-            'nstatev': lyr.nstatev,
-            'props': props_data,
-            'prop_names': list(props_data),
-            'layerup': lyr.layerup,
-            'layerdown': lyr.layerdown
-        }
-        layers_data.append(layer_dict)
-
-    with open(filepath, 'w') as f:
-        json.dump({'layers': layers_data}, f, indent=2)
-
-
-# =============================================================================
-# JSON I/O - Ellipsoids
-# =============================================================================
 
 def load_ellipsoids_json(filepath: Union[str, Path],
-                     prop_names: Optional[List[str]] = None) -> List[Ellipsoid]:
-    """
-    Load ellipsoids from a JSON file for Eshelby-based homogenization.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the JSON ellipsoids file
-
-    Returns
-    -------
-    list of Ellipsoid
-        List of Ellipsoid objects
-
-    Example JSON format
-    -------------------
-    ```json
-    {
-      "ellipsoids": [
-        {
-          "number": 0,
-          "coatingof": 0,
-          "umat_name": "ELISO",
-          "save": 1,
-          "concentration": 0.2,
-          "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "semi_axes": {"a1": 50, "a2": 1, "a3": 1},
-          "geometry_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "nstatev": 1,
-          "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}
-        }
-      ]
-    }
-    ```
-    """
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    ellipsoids = []
-    for ell in data.get('ellipsoids', []):
-        props = _props_from_json(ell.get('props', []),
-                                 prop_names or ell.get('prop_names'),
-                                 str(filepath))
-
-        semi_axes = ell.get('semi_axes', {})
-
-        ellipsoid = Ellipsoid(
-            number=ell.get('number', 0),
-            coatingof=ell.get('coatingof', 0),
-            umat_name=ell.get('umat_name', 'ELISO'),
-            save=ell.get('save', 1),
-            concentration=ell.get('concentration', 1.0),
-            material_orientation=MaterialOrientation(**ell.get('material_orientation', {})),
-            a1=semi_axes.get('a1', ell.get('a1', 1.0)),
-            a2=semi_axes.get('a2', ell.get('a2', 1.0)),
-            a3=semi_axes.get('a3', ell.get('a3', 1.0)),
-            geometry_orientation=GeometryOrientation(**ell.get('geometry_orientation', {})),
-            nstatev=ell.get('nstatev', 1),
-            props=props
-        )
-        ellipsoids.append(ellipsoid)
-
-    return ellipsoids
+                         prop_names: Optional[List[str]] = None) -> List[Ellipsoid]:
+    """Load ellipsoids from a JSON file: the phase entry plus ``"coatingof"``,
+    ``"semi_axes": {"a1", "a2", "a3"}`` and ``"geometry_orientation"``, under the
+    top-level key ``"ellipsoids"``."""
+    return _load_json(filepath, 'ellipsoids', prop_names)
 
 
 def save_ellipsoids_json(filepath: Union[str, Path], ellipsoids: List[Ellipsoid],
                          prop_names: List[str] = None):
-    """
-    Save ellipsoids to a JSON file.
+    """Save ellipsoids to a JSON file (the layout ``load_ellipsoids_json`` reads)."""
+    _save_json(filepath, 'ellipsoids', ellipsoids, prop_names)
 
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to save the JSON file
-    ellipsoids : list of Ellipsoid
-        List of Ellipsoid objects
-    prop_names : list of str, optional
-        Names for the properties array
-    """
-    ellipsoids_data = []
-    for ell in ellipsoids:
-        props_data = _props_to_dict(ell.props, prop_names)
-        ell_dict = {
-            'number': ell.number,
-            'coatingof': ell.coatingof,
-            'umat_name': ell.umat_name,
-            'save': ell.save,
-            'concentration': ell.concentration,
-            'material_orientation': {
-                'psi': ell.material_orientation.psi,
-                'theta': ell.material_orientation.theta,
-                'phi': ell.material_orientation.phi
-            },
-            'semi_axes': {
-                'a1': ell.a1,
-                'a2': ell.a2,
-                'a3': ell.a3
-            },
-            'geometry_orientation': {
-                'psi': ell.geometry_orientation.psi,
-                'theta': ell.geometry_orientation.theta,
-                'phi': ell.geometry_orientation.phi
-            },
-            'nstatev': ell.nstatev,
-            'props': props_data,
-            'prop_names': list(props_data),
-        }
-        ellipsoids_data.append(ell_dict)
-
-    with open(filepath, 'w') as f:
-        json.dump({'ellipsoids': ellipsoids_data}, f, indent=2)
-
-
-# =============================================================================
-# JSON I/O - Cylinders
-# =============================================================================
 
 def load_cylinders_json(filepath: Union[str, Path],
-                     prop_names: Optional[List[str]] = None) -> List[Cylinder]:
-    """
-    Load cylinders from a JSON file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the JSON cylinders file
-
-    Returns
-    -------
-    list of Cylinder
-        List of Cylinder objects
-
-    Example JSON format
-    -------------------
-    ```json
-    {
-      "cylinders": [
-        {
-          "number": 0,
-          "coatingof": 0,
-          "umat_name": "ELISO",
-          "save": 1,
-          "concentration": 0.2,
-          "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "geometry": {"L": 50, "R": 1},
-          "geometry_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "nstatev": 1,
-          "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}
-        }
-      ]
-    }
-    ```
-    """
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    cylinders = []
-    for cyl in data.get('cylinders', []):
-        props = _props_from_json(cyl.get('props', []),
-                                 prop_names or cyl.get('prop_names'),
-                                 str(filepath))
-
-        geom = cyl.get('geometry', {})
-
-        cylinder = Cylinder(
-            number=cyl.get('number', 0),
-            coatingof=cyl.get('coatingof', 0),
-            umat_name=cyl.get('umat_name', 'ELISO'),
-            save=cyl.get('save', 1),
-            concentration=cyl.get('concentration', 1.0),
-            material_orientation=MaterialOrientation(**cyl.get('material_orientation', {})),
-            L=geom.get('L', cyl.get('L', 1.0)),
-            R=geom.get('R', cyl.get('R', 1.0)),
-            geometry_orientation=GeometryOrientation(**cyl.get('geometry_orientation', {})),
-            nstatev=cyl.get('nstatev', 1),
-            props=props
-        )
-        cylinders.append(cylinder)
-
-    return cylinders
+                        prop_names: Optional[List[str]] = None) -> List[Cylinder]:
+    """Load cylinders from a JSON file: the phase entry plus ``"coatingof"``,
+    ``"geometry": {"L", "R"}`` and ``"geometry_orientation"``, under the top-level key
+    ``"cylinders"``."""
+    return _load_json(filepath, 'cylinders', prop_names)
 
 
 def save_cylinders_json(filepath: Union[str, Path], cylinders: List[Cylinder],
                         prop_names: List[str] = None):
-    """
-    Save cylinders to a JSON file.
+    """Save cylinders to a JSON file (the layout ``load_cylinders_json`` reads)."""
+    _save_json(filepath, 'cylinders', cylinders, prop_names)
 
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to save the JSON file
-    cylinders : list of Cylinder
-        List of Cylinder objects
-    prop_names : list of str, optional
-        Names for the properties array
-    """
-    cylinders_data = []
-    for cyl in cylinders:
-        props_data = _props_to_dict(cyl.props, prop_names)
-        cyl_dict = {
-            'number': cyl.number,
-            'coatingof': cyl.coatingof,
-            'umat_name': cyl.umat_name,
-            'save': cyl.save,
-            'concentration': cyl.concentration,
-            'material_orientation': {
-                'psi': cyl.material_orientation.psi,
-                'theta': cyl.material_orientation.theta,
-                'phi': cyl.material_orientation.phi
-            },
-            'geometry': {
-                'L': cyl.L,
-                'R': cyl.R
-            },
-            'geometry_orientation': {
-                'psi': cyl.geometry_orientation.psi,
-                'theta': cyl.geometry_orientation.theta,
-                'phi': cyl.geometry_orientation.phi
-            },
-            'nstatev': cyl.nstatev,
-            'props': props_data,
-            'prop_names': list(props_data),
-        }
-        cylinders_data.append(cyl_dict)
-
-    with open(filepath, 'w') as f:
-        json.dump({'cylinders': cylinders_data}, f, indent=2)
-
-
-# =============================================================================
-# JSON I/O - Sections
-# =============================================================================
 
 def load_sections_json(filepath: Union[str, Path],
-                     prop_names: Optional[List[str]] = None) -> List[Section]:
-    """
-    Load sections from a JSON file for textile composites.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the JSON sections file
-
-    Returns
-    -------
-    list of Section
-        List of Section objects
-
-    Example JSON format
-    -------------------
-    ```json
-    {
-      "sections": [
-        {
-          "number": 0,
-          "name": "Warp_yarn",
-          "umat_name": "ELISO",
-          "material_orientation": {"psi": 0, "theta": 0, "phi": 0},
-          "nstatev": 1,
-          "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}
-        }
-      ]
-    }
-    ```
-    """
-    with open(filepath, 'r') as f:
-        data = json.load(f)
-
-    sections = []
-    for sec in data.get('sections', []):
-        props = _props_from_json(sec.get('props', []),
-                                 prop_names or sec.get('prop_names'),
-                                 str(filepath))
-
-        section = Section(
-            number=sec.get('number', 0),
-            name=sec.get('name', 'Section'),
-            umat_name=sec.get('umat_name', 'ELISO'),
-            material_orientation=MaterialOrientation(**sec.get('material_orientation', {})),
-            nstatev=sec.get('nstatev', 1),
-            props=props
-        )
-        sections.append(section)
-
-    return sections
+                       prop_names: Optional[List[str]] = None) -> List[Section]:
+    """Load sections from a JSON file for textile composites: ``"number"``, ``"name"``,
+    ``"umat_name"``, ``"material_orientation"``, ``"nstatev"``, ``"props"``, under the
+    top-level key ``"sections"``."""
+    return _load_json(filepath, 'sections', prop_names)
 
 
 def save_sections_json(filepath: Union[str, Path], sections: List[Section],
                        prop_names: List[str] = None):
-    """
-    Save sections to a JSON file.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to save the JSON file
-    sections : list of Section
-        List of Section objects
-    prop_names : list of str, optional
-        Names for the properties array
-    """
-    sections_data = []
-    for sec in sections:
-        props_data = _props_to_dict(sec.props, prop_names)
-        sec_dict = {
-            'number': sec.number,
-            'name': sec.name,
-            'umat_name': sec.umat_name,
-            'material_orientation': {
-                'psi': sec.material_orientation.psi,
-                'theta': sec.material_orientation.theta,
-                'phi': sec.material_orientation.phi
-            },
-            'nstatev': sec.nstatev,
-            'props': props_data,
-            'prop_names': list(props_data),
-        }
-        sections_data.append(sec_dict)
-
-    with open(filepath, 'w') as f:
-        json.dump({'sections': sections_data}, f, indent=2)
+    """Save sections to a JSON file (the layout ``load_sections_json`` reads)."""
+    _save_json(filepath, 'sections', sections, prop_names)
 
 
 # =============================================================================
@@ -1087,19 +694,13 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
         'umat_name': phase.umat_name,
         'save': phase.save,
         'concentration': phase.concentration,
-        'material_orientation': {
-            'psi': phase.material_orientation.psi,
-            'theta': phase.material_orientation.theta,
-            'phi': phase.material_orientation.phi,
-        },
+        'material_orientation': {k: getattr(phase.material_orientation, k) for k in _ANGLES},
         'nstatev': phase.nstatev,
         'props': np.asarray(phase.props, dtype=float),
     }
     geometry = getattr(phase, 'geometry_orientation', None)
     if geometry is not None:
-        out['geometry_orientation'] = {
-            'psi': geometry.psi, 'theta': geometry.theta, 'phi': geometry.phi,
-        }
+        out['geometry_orientation'] = {k: getattr(geometry, k) for k in _ANGLES}
     if isinstance(phase, Ellipsoid):
         out['coatingof'] = phase.coatingof
         out['semi_axes'] = {'a1': phase.a1, 'a2': phase.a2, 'a3': phase.a3}
@@ -1113,16 +714,18 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
     return out
 
 
-def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder]]) -> List[Dict]:
-    """The whole sub-phase list, ready to be passed as ``phases=`` to ``sim.L_eff``.
+def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder, Dict]]) -> List[Dict]:
+    """The whole sub-phase list, ready to be passed as ``phases=`` to ``sim.L_eff`` or
+    ``sim.solver.solve``; a dict in the list is passed through as is.
 
-    The phases are numbered by their **position** in the list, whatever each object
+    The dataclasses are numbered by their **position** in the list, whatever each object
     carries. The mean-field schemes select the matrix with ``number == n_matrix`` and
     then index ``sub_phases[n_matrix]``, so the number has to be the position; the
     dataclass default is 0 for every phase, which would otherwise make every
     concentration tensor the identity and turn L_eff into a Voigt average.
     """
-    return [to_phase_dict(p, number=i) for i, p in enumerate(phases)]
+    return [p if isinstance(p, dict) else to_phase_dict(p, number=i)
+            for i, p in enumerate(phases)]
 
 
 # =============================================================================
@@ -1131,6 +734,7 @@ def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder]]) -> Li
 
 __all__ = [
     # Data classes
+    'EulerAngles',
     'MaterialOrientation',
     'GeometryOrientation',
     'Phase',
