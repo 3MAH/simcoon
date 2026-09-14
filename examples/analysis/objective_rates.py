@@ -93,7 +93,10 @@ for i, rate_name in enumerate(rate):
         orientation=(psi_rve, theta_rve, phi_rve),
     )
     time = res["Time"]
-    e11, e22, e12 = res["Strain"][0], res["Strain"][1], res["Strain"][3]
+    # LogStrain, not Strain: the deleted data/output.dat asked for `strain_type 3`,
+    # so the columns this example has always plotted were ln V. res["Strain"] is the
+    # Green-Lagrange measure, which at gamma = 5 differs by an order of magnitude.
+    e11, e22, e12 = res["LogStrain"][0], res["LogStrain"][1], res["LogStrain"][3]
     r11 = np.minimum(res["R"][0, 0], 1.0)
     values = [e11, e12, e22, np.arccos(r11)]
     for ax_idx, (row, col, _, ylabel) in enumerate(plot_info):

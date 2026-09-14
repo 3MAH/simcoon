@@ -27,28 +27,40 @@
 
 namespace simcoon{
 
-/**
- * @file solver_assembly.hpp
- * @brief The file-free part of what used to live in Solver/read.hpp.
- *
- * The text readers (path.txt, material.dat, output.dat, solver_*.inp) left the library with
- * the JSON-only migration and now live in test/support/file_readers.hpp, which only the C++
- * test suite compiles. These three functions never touched a file: two assemble the Newton
- * Jacobian under mixed strain/stress control, the third validates a loading programme against
- * its output settings.
- */
-
 /** @addtogroup solver
  *  @{
  */
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
+/**
+ * @brief Assemble the Newton Jacobian \f$ \mathbf{K} \f$ under mixed strain/stress control.
+ *
+ * A stress-controlled component keeps its tangent row; a strain-controlled one is replaced by
+ * \f$ \lambda \f$ on the diagonal, so the increment it asks for is the prescribed one.
+ *
+ * @param[in] Lt mechanical tangent operator
+ * @param[out] K the 6x6 Jacobian
+ * @param[in] cBC_meca per-component control flags, Voigt order [11,22,33,12,13,23]
+ * @param[in] lambda diagonal stiffness given to the prescribed components
+ */
 void Lt_2_K(const arma::mat &, arma::mat &, const arma::Col<int> &, const double &);
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
+/**
+ * @brief Thermomechanical counterpart of Lt_2_K: the 7x7 Jacobian with the heat equation.
+ *
+ * @param[in] dSdE, dSdT, dQdE, dQdT the four coupled tangent blocks
+ * @param[out] K the 7x7 Jacobian
+ * @param[in] cBC_meca per-component mechanical control flags
+ * @param[in] cBC_T temperature control flag
+ * @param[in] lambda diagonal stiffness given to the prescribed components
+ */
 void Lth_2_K(const arma::mat &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::Col<int> &, const int &, const double &);
 
-/// Function that checks the coherency between the path and the step increments provided
+/**
+ * @brief Check a loading programme against its output settings.
+ *
+ * @param[in] blocks the loading blocks
+ * @param[in] so the output settings
+ */
 void check_path_output(const std::vector<block> &, const solver_output &);
 
 /** @} */ // end of solver group

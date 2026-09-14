@@ -609,3 +609,120 @@ alpha 1.E-5
     res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10),
                 T_init=290.0, **kw)
     assert res.status == 0
+
+
+# The file-driven binding this module used to cross-check against (sim._core.solver)
+# is gone, so from_file can no longer be compared run-for-run against the C++ reader.
+# The grammar it reproduces is still the documented one and still implemented in C++
+# (test/support/file_readers.cpp), so pin the parse itself: every field below is a
+# place where a silent drift would produce a different loading programme that the
+# "status == 0 and the stress is finite" assertions would not notice.
+PATH_FIXTURE = """#Initial_temperature
+300.0
+#Number_of_blocks
+2
+
+#Block
+1
+#Loading_type
+1
+#Control_type(NLGEOM)
+1
+#Repeat
+3
+#Steps
+2
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 0.1
+#Dn_inc 0.02
+#time
+7.5
+#Consigne
+E 0.11
+S 0.12 E 0.22
+S 0.13 S 0.23 E 0.33
+#Consigne_T
+T 305.
+
+#Mode
+2
+#Dn_init 0.5
+#Dn_mini 0.01
+#Dn_inc 0.25
+#time
+2.
+#Consigne
+S 0. E 0. S 0. E 0. S 0. E 0.
+#Consigne_T
+T 310.
+
+#Block
+2
+#Loading_type
+2
+#Control_type(NLGEOM)
+1
+#Repeat
+1
+#Steps
+1
+
+#Mode
+1
+#Dn_init 1.
+#Dn_mini 0.05
+#Dn_inc 0.1
+#time
+4.
+#Consigne
+E 0.01
+S 0. S 0.
+S 0. S 0. S 0.
+#Consigne_T
+Q 1500.
+"""
+
+
+def test_from_file_parses_the_documented_grammar(tmp_path):
+    """Field-by-field pin of the legacy path-file grammar as from_file reads it."""
+    (tmp_path / "path.txt").write_text(PATH_FIXTURE)
+    blocks, T_init = sim.solver.from_file(str(tmp_path), "path.txt")
+
+    assert T_init == 300.0
+    assert len(blocks) == 2
+
+    mech = blocks[0]
+    assert mech.ncycle == 3 and mech.control_type == 1
+    assert len(mech.steps) == 2
+
+    first = mech.steps[0]
+    assert first.mode in (1, "linear")
+    assert first.time == 7.5
+    assert first.ninc == 50                       # round(1 / Dn_inc)
+    assert first.Dn_init == 1.0 and first.Dn_mini == 0.1
+    assert first.T_final == 305.0
+    # the file lists 11, 12, 22, 13, 23, 33 (lower triangle, row-wise); Voigt is
+    # 11, 22, 33, 12, 13, 23. Swapping the two would scramble the shear components.
+    assert list(first.control) == ["strain", "strain", "strain",
+                                   "stress", "stress", "stress"]
+    np.testing.assert_allclose(np.asarray(first.value, dtype=float),
+                               [0.11, 0.22, 0.33, 0.12, 0.13, 0.23])
+
+    second = mech.steps[1]
+    assert second.mode in (2, "sinusoidal")
+    assert second.ninc == 4 and second.time == 2.0
+    # S E S E S E read as 11, 12, 22, 13, 23, 33 lands in Voigt as
+    # 11=S, 22=S, 33=E, 12=E, 13=E, 23=S — the interleaving is the point
+    assert list(second.control) == ["stress", "stress", "strain",
+                                    "strain", "strain", "stress"]
+
+    thermo = blocks[1]
+    assert thermo.ncycle == 1
+    heat = thermo.steps[0]
+    assert heat.ninc == 10 and heat.time == 4.0
+    # a 'Q' thermal condition is a heat flux, not a temperature target
+    assert getattr(heat, "thermal_control", None) in ("heat_flux", 1)
+    assert float(getattr(heat, "Q", 0.0)) == 1500.0

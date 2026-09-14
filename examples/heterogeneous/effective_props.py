@@ -160,6 +160,11 @@ for i, ar in enumerate(aspect_ratios):
     p = sim.L_iso_props(L).flatten()
     E_eff_ar[i] = p[0]
 
+# The sweep mutates the reinforcement in place; leave it as it was found, the way the
+# old version restored the Nellipsoids0.dat line it had rewritten. Anything appended
+# below would otherwise homogenise the last aspect ratio of the sweep.
+reinforcement.a1 = reinforcement.a2 = reinforcement.a3 = 1.0
+
 # Get reference value for spherical inclusion (ar=1)
 idx_sphere = np.argmin(np.abs(aspect_ratios - 1.0))
 E_sphere_ref = E_eff_ar[idx_sphere]

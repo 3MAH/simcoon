@@ -141,10 +141,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     ///Material properties
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
 
-    ///Sub-phases of a mean-field model, built by the caller. umat_multi used to read them from
-    ///Nellipsoids<N>.dat / Nlayers<N>.dat at the first increment. Attached here, before the block
-    ///loop: construct() rebuilds the geometry and the state variables of the RVE itself, never
-    ///its sub_phases, so they survive the per-block construction below.
+    //Attached before the block loop: construct() rebuilds the RVE's own geometry and state
+    //variables, never its sub_phases, so these survive it.
     if (!sub_phases.empty()) {
         rve.sub_phases = sub_phases;
     }

@@ -35,7 +35,6 @@ using namespace arma;
 
 namespace simcoon{
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
 void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambda)
 {
 	K = zeros(6,6);
@@ -49,7 +48,6 @@ void Lt_2_K(const mat &Lt, mat &K, const Col<int> &cBC_meca, const double &lambd
     }
 }
 
-/// Function that fills the matrix Tdsde for mix strain/stress conditions
 void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col<int> &cBC_meca, const int &cBC_T, const double &lambda)
 {
 	K = zeros(7,7);
@@ -73,7 +71,6 @@ void Lth_2_K(const mat &dSdE, mat &dSdT, mat &dQdE, mat &dQdT, mat &K, const Col
 
 void check_path_output(const std::vector<block> &blocks, const solver_output &so) {
 
-    /// Reading blocks
     for(unsigned int i = 0 ; i < blocks.size() ; i++) {
 
         switch(blocks[i].type) {

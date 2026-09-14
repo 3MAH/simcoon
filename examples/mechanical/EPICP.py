@@ -3,7 +3,6 @@ Plasticity with isotropic hardening example
 =============================================
 """
 
-import pylab
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim

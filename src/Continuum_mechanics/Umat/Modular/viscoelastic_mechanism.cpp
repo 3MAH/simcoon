@@ -138,12 +138,8 @@ void ViscoelasticMechanism::compute_constraints(
             Phi(i) = flow_mag - Delta_v_i / DTime;
             K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i) - 1.0 / DTime;
         } else {
-            // No time, no flow: the branch is INACTIVE (Phi < 0), it does not
-            // relax. Writing the stationary condition Phi = flow_mag here makes
-            // the root flow = 0, i.e. EV_i = eps, so the solver's zero-time
-            // tangent probe at every step boundary committed a fully relaxed
-            // branch: the same ramp cut into two steps then ended at 0.014
-            // instead of 0.018 MPa, and no viscosity or time step changed it.
+            //No time, no flow: the branch is INACTIVE. The stationary condition Phi = flow_mag
+            //has root EV_i = eps, which the solver's zero-time probe would commit as relaxed.
             Phi(i) = -Y_crit(i);
             K_diag_(i) = -1.0;
         }

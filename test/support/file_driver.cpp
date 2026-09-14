@@ -90,12 +90,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
     ctrl.lambda = lambda_solver;
     ctrl.tangent_mode = tangent_mode;
 
-    //Sub-phases of a mean-field model. They are read HERE, with the rest of the file semantics:
-    //the engine (solver_run) never touches the filesystem, and umat_multi expects its sub-phases
-    //to be handed over. props[1] is the number of the Nellipsoids<N>.dat / Nlayers<N>.dat file.
-    //A sub-phase may itself be a mean-field model, with its own phase file: testBin/Umats/MIMTN
-    //holds an MIMTN inside an MIMTN. umat_multi used to read each level lazily, at the first
-    //increment of that level; the whole tree is read here instead, in one pass.
+    //The phase tree is read here, with the rest of the file semantics: solver_run takes its
+    //sub-phases in memory. Recursive — a sub-phase may itself be a mean-field model.
     auto read_phase_tree = [&path_data](auto &&self, phase_characteristics &phase) -> void {
         const std::string &name = phase.sptr_matprops->umat_name;
         const bool is_ellipsoidal = (name == "MIHEN") || (name == "MIMTN") || (name == "MISCN");

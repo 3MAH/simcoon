@@ -6,7 +6,6 @@ Orthotropic elasticity (thermomechanical)
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
 

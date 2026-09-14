@@ -52,6 +52,7 @@ Example
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Union, Optional
@@ -136,8 +137,8 @@ class Layer(Phase):
         Index of layer below (-1 if none)
     """
     geometry_orientation: GeometryOrientation = field(default_factory=GeometryOrientation)
-    layerup: int = -1
-    layerdown: int = -1
+    layerup: int = 0
+    layerdown: int = 0
 
     def __post_init__(self):
         super().__post_init__()
@@ -282,7 +283,35 @@ def _props_to_dict(props: np.ndarray, prop_names: List[str] = None) -> Dict[str,
 # JSON I/O - Phases
 # =============================================================================
 
-def load_phases_json(filepath: Union[str, Path]) -> List[Phase]:
+def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np.ndarray:
+    """Positional props out of a JSON entry.
+
+    ``save_*_json`` writes ``props`` as a ``name -> value`` mapping when it is given
+    ``prop_names``, but the C++ side reads properties **positionally** and the file
+    records that order nowhere but in its own key order. Read back blindly, a file whose
+    keys were reordered by hand or by a formatter silently describes another material:
+    ``{"nu": 0.3, "E": 70000}`` is read as E = 0.3, nu = 70000, and ``L_iso`` then
+    returns nonsense without an error. Pass ``prop_names`` to order explicitly.
+    """
+    if not isinstance(props, dict):
+        return np.array(props, dtype=float)
+    if prop_names:
+        #either the caller's explicit order, or the one save_*_json recorded next to
+        #the mapping it wrote — a file written by simcoon round-trips without warning
+        missing = [n for n in prop_names if n not in props]
+        if missing:
+            raise ValueError(f"{context}: 'props' has no entry for {missing}")
+        return np.array([float(props[n]) for n in prop_names])
+    warnings.warn(
+        f"{context}: 'props' is a name -> value mapping and no `prop_names` was given, "
+        "so the values are read in the order the file lists them. The C++ side reads "
+        "them positionally: reordering the keys changes the material silently.",
+        UserWarning, stacklevel=3)
+    return np.array(list(props.values()), dtype=float)
+
+
+def load_phases_json(filepath: Union[str, Path],
+                     prop_names: Optional[List[str]] = None) -> List[Phase]:
     """
     Load phases from a JSON file.
 
@@ -319,11 +348,9 @@ def load_phases_json(filepath: Union[str, Path]) -> List[Phase]:
 
     phases = []
     for p in data.get('phases', []):
-        props = p.get('props', [])
-        if isinstance(props, dict):
-            props = np.array(list(props.values()), dtype=float)
-        else:
-            props = np.array(props, dtype=float)
+        props = _props_from_json(p.get('props', []),
+                                 prop_names or p.get('prop_names'),
+                                 str(filepath))
 
         phase = Phase(
             number=p.get('number', 0),
@@ -367,7 +394,8 @@ def save_phases_json(filepath: Union[str, Path], phases: List[Phase],
                 'phi': p.material_orientation.phi
             },
             'nstatev': p.nstatev,
-            'props': props_data
+            'props': props_data,
+            'prop_names': list(props_data),
         }
         phases_data.append(phase_dict)
 
@@ -379,7 +407,8 @@ def save_phases_json(filepath: Union[str, Path], phases: List[Phase],
 # JSON I/O - Layers
 # =============================================================================
 
-def load_layers_json(filepath: Union[str, Path]) -> List[Layer]:
+def load_layers_json(filepath: Union[str, Path],
+                     prop_names: Optional[List[str]] = None) -> List[Layer]:
     """
     Load layers from a JSON file for laminate homogenization.
 
@@ -417,11 +446,9 @@ def load_layers_json(filepath: Union[str, Path]) -> List[Layer]:
 
     layers = []
     for lyr in data.get('layers', []):
-        props = lyr.get('props', [])
-        if isinstance(props, dict):
-            props = np.array(list(props.values()), dtype=float)
-        else:
-            props = np.array(props, dtype=float)
+        props = _props_from_json(lyr.get('props', []),
+                                 prop_names or lyr.get('prop_names'),
+                                 str(filepath))
 
         layer = Layer(
             number=lyr.get('number', 0),
@@ -432,8 +459,8 @@ def load_layers_json(filepath: Union[str, Path]) -> List[Layer]:
             geometry_orientation=GeometryOrientation(**lyr.get('geometry_orientation', {})),
             nstatev=lyr.get('nstatev', 1),
             props=props,
-            layerup=lyr.get('layerup', -1),
-            layerdown=lyr.get('layerdown', -1)
+            layerup=lyr.get('layerup', 0),
+            layerdown=lyr.get('layerdown', 0)
         )
         layers.append(layer)
 
@@ -474,6 +501,7 @@ def save_layers_json(filepath: Union[str, Path], layers: List[Layer],
             },
             'nstatev': lyr.nstatev,
             'props': props_data,
+            'prop_names': list(props_data),
             'layerup': lyr.layerup,
             'layerdown': lyr.layerdown
         }
@@ -487,7 +515,8 @@ def save_layers_json(filepath: Union[str, Path], layers: List[Layer],
 # JSON I/O - Ellipsoids
 # =============================================================================
 
-def load_ellipsoids_json(filepath: Union[str, Path]) -> List[Ellipsoid]:
+def load_ellipsoids_json(filepath: Union[str, Path],
+                     prop_names: Optional[List[str]] = None) -> List[Ellipsoid]:
     """
     Load ellipsoids from a JSON file for Eshelby-based homogenization.
 
@@ -527,11 +556,9 @@ def load_ellipsoids_json(filepath: Union[str, Path]) -> List[Ellipsoid]:
 
     ellipsoids = []
     for ell in data.get('ellipsoids', []):
-        props = ell.get('props', [])
-        if isinstance(props, dict):
-            props = np.array(list(props.values()), dtype=float)
-        else:
-            props = np.array(props, dtype=float)
+        props = _props_from_json(ell.get('props', []),
+                                 prop_names or ell.get('prop_names'),
+                                 str(filepath))
 
         semi_axes = ell.get('semi_axes', {})
 
@@ -593,7 +620,8 @@ def save_ellipsoids_json(filepath: Union[str, Path], ellipsoids: List[Ellipsoid]
                 'phi': ell.geometry_orientation.phi
             },
             'nstatev': ell.nstatev,
-            'props': props_data
+            'props': props_data,
+            'prop_names': list(props_data),
         }
         ellipsoids_data.append(ell_dict)
 
@@ -605,7 +633,8 @@ def save_ellipsoids_json(filepath: Union[str, Path], ellipsoids: List[Ellipsoid]
 # JSON I/O - Cylinders
 # =============================================================================
 
-def load_cylinders_json(filepath: Union[str, Path]) -> List[Cylinder]:
+def load_cylinders_json(filepath: Union[str, Path],
+                     prop_names: Optional[List[str]] = None) -> List[Cylinder]:
     """
     Load cylinders from a JSON file.
 
@@ -645,11 +674,9 @@ def load_cylinders_json(filepath: Union[str, Path]) -> List[Cylinder]:
 
     cylinders = []
     for cyl in data.get('cylinders', []):
-        props = cyl.get('props', [])
-        if isinstance(props, dict):
-            props = np.array(list(props.values()), dtype=float)
-        else:
-            props = np.array(props, dtype=float)
+        props = _props_from_json(cyl.get('props', []),
+                                 prop_names or cyl.get('prop_names'),
+                                 str(filepath))
 
         geom = cyl.get('geometry', {})
 
@@ -709,7 +736,8 @@ def save_cylinders_json(filepath: Union[str, Path], cylinders: List[Cylinder],
                 'phi': cyl.geometry_orientation.phi
             },
             'nstatev': cyl.nstatev,
-            'props': props_data
+            'props': props_data,
+            'prop_names': list(props_data),
         }
         cylinders_data.append(cyl_dict)
 
@@ -721,7 +749,8 @@ def save_cylinders_json(filepath: Union[str, Path], cylinders: List[Cylinder],
 # JSON I/O - Sections
 # =============================================================================
 
-def load_sections_json(filepath: Union[str, Path]) -> List[Section]:
+def load_sections_json(filepath: Union[str, Path],
+                     prop_names: Optional[List[str]] = None) -> List[Section]:
     """
     Load sections from a JSON file for textile composites.
 
@@ -757,11 +786,9 @@ def load_sections_json(filepath: Union[str, Path]) -> List[Section]:
 
     sections = []
     for sec in data.get('sections', []):
-        props = sec.get('props', [])
-        if isinstance(props, dict):
-            props = np.array(list(props.values()), dtype=float)
-        else:
-            props = np.array(props, dtype=float)
+        props = _props_from_json(sec.get('props', []),
+                                 prop_names or sec.get('prop_names'),
+                                 str(filepath))
 
         section = Section(
             number=sec.get('number', 0),
@@ -803,7 +830,8 @@ def save_sections_json(filepath: Union[str, Path], sections: List[Section],
                 'phi': sec.material_orientation.phi
             },
             'nstatev': sec.nstatev,
-            'props': props_data
+            'props': props_data,
+            'prop_names': list(props_data),
         }
         sections_data.append(sec_dict)
 

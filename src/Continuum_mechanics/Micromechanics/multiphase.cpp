@@ -53,9 +53,7 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
 
     int nphases = phase.sptr_matprops->props(0); // Number of phases
 
-    //The sub-phases used to be read here, at the first increment, from Nellipsoids<N>.dat or
-    //Nlayers<N>.dat in a "data" directory. They are now built by the caller and handed to the
-    //solver, so a missing set is a caller error rather than a missing file.
+    //The caller builds the sub-phases now: a missing set is a caller error, not a missing file.
     if (phase.sub_phases.size() != static_cast<size_t>(nphases)) {
         throw std::invalid_argument("umat_multi: " + phase.sptr_matprops->umat_name + " needs its "
                                     + std::to_string(nphases) + " sub-phases, "

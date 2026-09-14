@@ -6,7 +6,6 @@ Zener viscoelastic model (thermomechanical)
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
 

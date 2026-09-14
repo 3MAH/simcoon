@@ -15,8 +15,28 @@ import simcoon as sim
 from simcoon import solver as slv
 from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
 
+def _accepts_phases(fn) -> bool:
+    """Does the built _core take the in-memory `phases` argument?
+
+    Probed by calling it, not by searching the docstring for the word: a docstring
+    reword or an argument rename would otherwise turn this whole module into a silent
+    skip that CI reports as green. A binding that predates the argument raises
+    TypeError on the keyword; one that has it fails later, on the arguments we
+    deliberately leave invalid.
+    """
+    try:
+        fn(phases=None)
+    except TypeError as exc:
+        #pybind prints the signatures it accepts, so the keyword appears in the message
+        #exactly when the built binding has it
+        return "phases" in str(exc)
+    except Exception:
+        return True
+    return True
+
+
 pytestmark = pytest.mark.skipif(
-    "phases" not in (sim._core.solver_run.__doc__ or ""),
+    not _accepts_phases(sim._core.solver_run),
     reason="the built _core predates the in-memory phases argument",
 )
 

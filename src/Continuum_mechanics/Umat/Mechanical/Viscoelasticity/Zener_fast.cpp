@@ -142,10 +142,8 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
             dPhidv = -1.*sum((dPhidsigma)%(L1*Lambdav))-1./DTime;
         }
         else {
-            // No time, no flow. Writing the stationary condition Phi = ||flow|| here
-            // makes its root EV = eps, a fully relaxed branch, and the solver commits
-            // it on the zero-time tangent probe it runs at the start of every block:
-            // the same ramp then ends at 22.41 MPa in two blocks against 29.64 in one.
+            //No time, no flow: the branch is INACTIVE. The stationary condition
+            //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
             Phi(0) = 0.;
             dPhidv = -1.;
         }

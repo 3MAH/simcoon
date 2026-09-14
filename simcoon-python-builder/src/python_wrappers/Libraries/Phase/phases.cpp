@@ -4,10 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-// Before <armadillo>, as in every other _core translation unit: carma defines the
-// ARMA_ALIEN_MEM macros so armadillo allocates through numpy. A TU that omits it
-// instantiates the same header-only armadillo memory symbols WITHOUT them, and the
-// linker keeps a single definition module-wide (ODR) — mixing allocators.
+//<carma> first: ARMA_ALIEN_MEM routes armadillo through numpy's allocator, in every _core TU.
 #include <carma>
 #include <armadillo>
 
@@ -36,8 +33,6 @@ int dict_int(const py::dict &d, const char *key, const int &fallback) {
     return (d.contains(key) && !d[key].is_none()) ? d[key].cast<int>() : fallback;
 }
 
-//Euler angles arrive in degrees, as they were written in the .dat files; everything below
-//material_characteristics and the geometry classes is in radians.
 void dict_angles(const py::dict &d, const char *key, double &psi, double &theta, double &phi) {
     psi = theta = phi = 0.;
     if (!d.contains(key) || d[key].is_none()) {
@@ -65,8 +60,8 @@ vec dict_props(const py::dict &d, const int &number) {
         throw std::invalid_argument("phase " + to_string(number) + ": 'props' is not a sequence of numbers");
     }
     if (arr.size() == 0) {
-        //update() only asserts on this, and asserts are compiled out of the release
-        //wheels: the empty vector would surface later as an out-of-bounds props(0).
+        //update() only asserts, and asserts are compiled out of the release wheels: props(0)
+        //would then read out of bounds.
         throw std::invalid_argument("phase " + to_string(number) + ": 'props' is empty");
     }
     //Copying constructor: the buffer belongs to Python and must not be aliased into arma.
@@ -114,23 +109,16 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
                                     + " phases but `phases` holds " + to_string(nphases));
     }
 
-    //A local holder gives us the sub_phases vector fully constructed (geometry, multi and
-    //state variables), without needing the RVE it will later be attached to.
+    //A holder yields the sub_phases fully constructed, without the RVE they attach to.
     simcoon::phase_characteristics holder;
     holder.sub_phases_construct(nphases, shape_type, 1);
 
     for (int i = 0; i < nphases; i++) {
         py::dict p = seq[i].cast<py::dict>();
-        //By reference: read.cpp iterated its sub_phases BY VALUE and only got away with it
-        //because every member is a shared_ptr. Do not copy the phase to fill it.
+        //By reference: the phase is filled in place.
         simcoon::phase_characteristics &sub = holder.sub_phases[i];
 
         const int number = dict_int(p, "number", i);
-        //The schemes select the matrix by `number == n_matrix` and then index
-        //`sub_phases[n_matrix]`: the two only agree when the number IS the position.
-        //Left unchecked, two phases sharing a number (the dataclass default is 0 for
-        //all of them) make every concentration tensor the identity, and L_eff quietly
-        //returns the Voigt average instead of the mean-field estimate.
         if (number != i) {
             throw std::invalid_argument("phase at position " + to_string(i) + " carries number "
                                         + to_string(number) + ": the phases must be numbered by "
@@ -138,8 +126,6 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         }
         const std::string umat_i = dict_string(p, "umat_name", number);
         if (shape_type_of(umat_i) != 0) {
-            //make_sub_phases builds ONE level, so such a phase would reach the scheme with
-            //an empty sub_phases vector and be indexed out of bounds.
             throw std::invalid_argument("phase " + to_string(number) + " is itself a mean-field "
                                         "model (" + umat_i + "): nested composites are not "
                                         "supported through `phases`");
@@ -183,15 +169,16 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         }
         else if (shape_type == 1) {
             auto sptr_layer = std::dynamic_pointer_cast<simcoon::layer>(sub.sptr_shape);
-            sptr_layer->layerup = dict_int(p, "layerup", -1);
-            sptr_layer->layerdown = dict_int(p, "layerdown", -1);
+            //0/0, as layer::layer() leaves them: a -1 default would change the stacking state.
+            sptr_layer->layerup = dict_int(p, "layerup", 0);
+            sptr_layer->layerdown = dict_int(p, "layerdown", 0);
             sptr_layer->psi_geom = psi_geom;
             sptr_layer->theta_geom = theta_geom;
             sptr_layer->phi_geom = phi_geom;
         }
     }
 
-    //Fill the coatedby parameter, as read_ellipsoid did once every phase was known.
+    //coatedby is only resolvable once every phase is known.
     if (shape_type == 2) {
         for (int i = 0; i < nphases; i++) {
             auto sptr_ellipsoid = std::dynamic_pointer_cast<simcoon::ellipsoid>(holder.sub_phases[i].sptr_shape);
