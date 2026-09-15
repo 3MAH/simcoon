@@ -223,197 +223,165 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
 
-The legacy text loading path
-----------------------------
+The loading path file
+---------------------
 
-Before 2.0 the loading path was a text file (typically ``path.txt``) in the ``data`` folder. Nothing in simcoon reads it any more: ``scripts/legacy_to_json.py`` turns it into ``path.json`` once. Its structure is kept here for reference:
+``path.json`` is what ``sim.solver.save_path_json`` writes for a list of
+:class:`~simcoon.solver.Block` objects, and what ``sim.solver.load_path_json``
+reads back. Every name below is a keyword of :class:`~simcoon.solver.Block`,
+:class:`~simcoon.solver.StepMeca` or :class:`~simcoon.solver.StepThermomeca`, so
+a path built in Python and a path read from the file are the same objects (see
+:doc:`python_solver`). Enumerated entries (``control_type``, ``mode``,
+``control``, ``thermal_control``, ``corate``) accept the names given here or the
+integer codes of the C++ solver; ``save_path_json`` writes back whatever the
+objects hold.
 
 General structure
 ^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    <T_init>
-    #Number_of_blocks
-    <nblock>
+    {
+      "initial_temperature": 293.15,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "small_strain",
+          "ncycle": 1,
+          "steps": [
+            { "...": "step definitions" }
+          ]
+        }
+      ]
+    }
 
-    #Block
-    <block_number>
-    #Loading_type
-    <type>
-    #Control_type(NLGEOM)
-    <control_type>
-    #Repeat
-    <ncycle>
-    #Steps
-    <nstep>
+Path and block parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    <step definitions...>
+**initial_temperature**: initial temperature of the simulation (Kelvin); ``load_path_json`` returns it as ``T_init`` for ``solve``.
 
-Block parameters
-^^^^^^^^^^^^^^^^
+**corate**: objective rate of the finite-strain control types (``"jaumann"``, ``"green_naghdi"``, ``"logarithmic"``, ``"logarithmic_R"``, ``"truesdell"``, ``"logarithmic_F"``, see the table above); returned by ``load_path_json`` for ``solve(corate=...)``.
 
-**#Initial_temperature**: The initial temperature of the simulation (in Kelvin).
+**blocks**: the loading blocks, run in order. A block is mechanical or thermomechanical (coupled heat equation) according to its steps: all the steps of a block are :class:`~simcoon.solver.StepMeca` (``"thermomechanical": false``) or all are :class:`~simcoon.solver.StepThermomeca` (``"thermomechanical": true``).
 
-**#Number_of_blocks**: Total number of loading blocks.
-
-**#Block**: Block number (starting from 1).
-
-**#Loading_type**: Defines the physical problem to solve:
+**control_type**: kinematic framework and control variables of the block. NLGEOM (non-linear geometry) is activated from ``"green_lagrange"`` on; thermomechanical blocks only support ``"small_strain"``:
 
 .. list-table::
    :header-rows: 1
-   :widths: 10 90
+   :widths: 20 10 70
 
-   * - Value
-     - Description
-   * - 1
-     - Mechanical problem
-   * - 2
-     - Thermomechanical problem (coupled heat equation)
-
-**#Control_type(NLGEOM)**: Defines the kinematic framework and control variables. NLGEOM (non-linear geometry) is activated for Control_type ≥ 2:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 10 20 70
-
-   * - Value
+   * - Name (code)
      - NLGEOM
      - Description
-   * - 1
+   * - ``"small_strain"`` (1)
      - No
      - Infinitesimal strains/stress (small deformations)
-   * - 2
+   * - ``"green_lagrange"`` (2)
      - Yes
      - Finite deformation with Lagrangian control (Green-Lagrange strain :math:`\mathbf{E}` / 2nd Piola-Kirchhoff stress :math:`\mathbf{S}`)
-   * - 3
+   * - ``"logarithmic"`` (3)
      - Yes
      - Finite deformation with logarithmic (true) strain :math:`\boldsymbol{\varepsilon}` / Kirchhoff stress :math:`\boldsymbol{\tau}`
-   * - 4
+   * - ``"biot"`` (4)
      - Yes
      - Finite deformation with Biot strain :math:`\mathbf{U} - \mathbf{I}` / Biot stress :math:`\mathbf{T}_B = \frac{1}{2}(\mathbf{R}^T\mathbf{P} + \mathbf{P}^T\mathbf{R})`
-   * - 5
+   * - ``"F"`` (5)
      - Yes
      - Finite deformation with deformation gradient :math:`\mathbf{F}` control (Eulerian velocity L)
-   * - 6
+   * - ``"gradU"`` (6)
      - Yes
      - Finite deformation with displacement gradient :math:`\nabla\mathbf{u}` control
 
-**#Repeat**: Number of times the block is repeated (for cyclic loading).
+**ncycle**: number of times the step sequence of the block is repeated (cyclic loading). A block holding a tabular step cannot be cycled.
 
-**#Steps**: Number of steps within the block.
+**steps**: the steps of the block, in order.
 
 Step definitions
 ^^^^^^^^^^^^^^^^
 
-Each step starts with a mode definition:
+**mode**: evolution of the prescribed components over the step:
 
-**#Mode**: Step mode:
+- ``"linear"`` (1): linear ramp to the target values
+- ``"sinusoidal"`` (2): sinusoidal evolution to the target values
+- ``"tabular"`` (3): table of increments read from a CSV file
 
-- **1**: Linear evolution
-- **2**: Sinusoidal evolution
-- **3**: Tabular (from a file)
+Linear and sinusoidal steps
+"""""""""""""""""""""""""""
 
-Linear and sinusoidal steps (Mode 1 and 2)
-""""""""""""""""""""""""""""""""""""""""""
+.. code-block:: json
 
-.. code-block:: none
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 0.1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    E 0.01 
-    S 0 S 0
-    S 0 S 0 S 0
-    #temperature_state
-    T 293.5
+    {
+      "thermomechanical": false,
+      "mode": "linear",
+      "time": 30.0,
+      "ninc": 100,
+      "Dn_init": 1.0,
+      "Dn_mini": 0.1,
+      "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+      "value": [0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "T_final": 293.5
+    }
 
 Parameters:
 
-- **#Dn_init**: Initial size of the first increment (usually 1.0)
-- **#Dn_mini**: Minimal size of an increment for convergence issues
-- **#Dn_inc**: Increment size as a fraction of the step (0.01 means 100 increments)
-- **#time**: Duration of the step :math:`\Delta t`. The time increment is :math:`\delta t = \Delta t \times \delta n`
+- **time**: duration of the step :math:`\Delta t`
+- **ninc**: number of increments; the time increment is :math:`\delta t = \Delta t / n_{inc}`
+- **Dn_init**: initial size of the first sub-increment, as a fraction of one increment (usually 1.0)
+- **Dn_mini**: minimal sub-increment fraction the adaptive stepping may cut down to before giving up
+- **control**, **value**: the prescribed mechanical state (below)
+- **T_final**: temperature at the end of the step, ``null`` to hold the current one (mechanical steps: imposed temperature, thermal expansion without the heat equation)
 
 Mechanical state specification
 """"""""""""""""""""""""""""""
 
-For **Control_type = 1** (infinitesimal strains), components are organized in symmetric lower triangular form:
+``control`` names the prescribed quantity of each component and ``value`` its target at the end of the step, in Voigt order:
 
 .. code-block:: none
 
-    11
-    12 22
-    13 23 33
+    11  22  33  12  13  23
 
-The letter **'S'** indicates stress control, **'E'** indicates strain control:
+``"strain"`` (or ``"E"``) prescribes the kinematic quantity of the control type (strain component), ``"stress"`` (or ``"S"``) the static one (stress component); a single string applies to all six components. For example ``"control": ["strain", "stress", "stress", "stress", "stress", "stress"]`` with ``"value": [0.01, 0, 0, 0, 0, 0]`` is a uniaxial tension test to 1 % strain in direction 1, the other components being stress-free. Targets are absolute values, reached at the end of the step whatever the state at its start.
 
-.. code-block:: none
-
-    E 0.01      # E_11 = 0.01 (strain controlled)
-    S 0 S 0     # S_12 = 0, S_22 = 0 (stress controlled)
-    S 0 S 0 S 0 # S_13 = 0, S_23 = 0, S_33 = 0 (stress controlled)
-
-For **Control_type = 2, 3, 4** (finite deformation with Lagrangian or logarithmic control), the same symmetric format is used for strain/stress components, with an additional **#spin** block for control types 2, 3, and 4:
+For ``"F"`` and ``"gradU"`` control types the state is the full tensor, 9 components row-major:
 
 .. code-block:: none
 
-    #mechanical_state
-    S 3.
-    S 0 S 0
-    S 0 S 0 S 0
-    #spin
-    0. 0. 0.
-    0. 0. 0.
-    0. 0. 0.
+    11  12  13  21  22  23  31  32  33
 
-The spin tensor :math:`\mathbf{W}` is specified as a full 3×3 matrix.
+``control`` is then ``"strain"`` for all of them and ``value`` holds the target :math:`\mathbf{F}` (or :math:`\nabla\mathbf{u}`).
 
-For **Control_type = 5** (deformation gradient control), the deformation gradient :math:`\mathbf{F}` is specified as a full 3×3 matrix:
+For the mixed finite-strain control types (``"green_lagrange"``, ``"logarithmic"``, ``"biot"``) a rotation rate can be superimposed with **BC_w**, a 3x3 spin matrix applied during the step:
 
-.. code-block:: none
+.. code-block:: json
 
-    #prescribed_mechanical_state
-    5. 0. 0.
-    0. 0.4472135955 0.
-    0. 0. 0.4472135955
+    "BC_w": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
-.. note::
+Thermal state specification
+"""""""""""""""""""""""""""
 
-   The keywords used as labels (e.g., ``#prescribed_mechanical_state``, ``#prescribed_temperature_state``, ``#mechanical_state``) are placeholders. The solver reads past them and parses the values that follow, so any label can be used.
+Mechanical steps only carry **T_final** (above). Thermomechanical steps (``"thermomechanical": true``) solve the heat equation and take **thermal_control**:
 
-Temperature state specification
-"""""""""""""""""""""""""""""""
+- ``"temperature"`` (T): imposed temperature, ramped to **T_final**
+- ``"heat_flux"`` (Q): imposed heat flux **Q** on the RVE (``0.0`` for adiabatic conditions)
+- ``"convection"`` (C): 0D convection :math:`Q = -q_{conv}\,(T - T_{init})` with coefficient **q_conv**
 
-For **Loading_type = 1** (mechanical):
+.. code-block:: json
 
-.. code-block:: none
+    {
+      "thermomechanical": true,
+      "mode": "linear",
+      "time": 1.0,
+      "ninc": 100,
+      "Dn_init": 1.0,
+      "Dn_mini": 1.0,
+      "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+      "value": [0.02, 0.0, 0.0, 0.0, 0.0, 0.0],
+      "thermal_control": "heat_flux",
+      "Q": 0.0
+    }
 
-    #temperature_state
-    T 293.5
-
-The letter **'T'** indicates the temperature at the end of the step.
-
-For **Loading_type = 2** (thermomechanical), additional options are available:
-
-- **T**: Temperature control (imposed temperature)
-- **Q**: Heat flux control (imposed heat flux to the RVE)
-- **C**: Convection boundary condition
-
-.. code-block:: none
-
-    #prescribed_temperature_state
-    Q 0       # Adiabatic conditions (no heat flux)
-
-Tabular steps (Mode 3)
-""""""""""""""""""""""
+Tabular steps
+"""""""""""""
 
 A tabular step follows a table of increments instead of a linear ramp. The
 table is the one input that is not JSON: it lives in its own CSV file next to
@@ -465,177 +433,158 @@ Examples
 Cyclic loading (plasticity)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+Stress-controlled tension/compression cycle, 1000 increments per step:
 
-    #Initial_temperature
-    293.15
-    #Number_of_blocks
-    1
+.. code-block:: json
 
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    1
-    #Repeat
-    1
-    #Steps
-    5
+    {
+      "initial_temperature": 293.15,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "small_strain",
+          "ncycle": 1,
+          "steps": [
+            {
+              "thermomechanical": false,
+              "mode": "linear",
+              "time": 300.0,
+              "ninc": 1000,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": "stress",
+              "value": [1000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "T_final": 293.15
+            },
+            {
+              "thermomechanical": false,
+              "mode": "linear",
+              "time": 300.0,
+              "ninc": 1000,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": "stress",
+              "value": [-1100.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "T_final": 293.15
+            }
+          ]
+        }
+      ]
+    }
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.001
-    #time
-    300
-    #prescribed_mechanical_state
-    S 1000
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    T 293.15
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.001
-    #time
-    300
-    #prescribed_mechanical_state
-    S -1100
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    T 293.15
-
-    ... (additional steps for cyclic loading)
+(additional steps, or ``"ncycle": 10`` on the block, for cyclic loading)
 
 Hyperelasticity with deformation gradient control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    293.5
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    5
-    #Repeat
-    1
-    #Steps
-    1
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.1
-    #time
-    5.
-    #prescribed_mechanical_state
-    5. 0. 0.
-    0. 0.4472135955 0.
-    0. 0. 0.4472135955
-    #prescribed_temperature_state
-    T 290
+    {
+      "initial_temperature": 293.5,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "F",
+          "ncycle": 1,
+          "steps": [
+            {
+              "thermomechanical": false,
+              "mode": "linear",
+              "time": 5.0,
+              "ninc": 10,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": "strain",
+              "value": [5.0, 0.0, 0.0,
+                        0.0, 0.4472135955, 0.0,
+                        0.0, 0.0, 0.4472135955],
+              "T_final": 290.0
+            }
+          ]
+        }
+      ]
+    }
 
 This applies a uniaxial stretch with :math:`\lambda_1 = 5` and :math:`\lambda_2 = \lambda_3 = 1/\sqrt{5}` (incompressible).
 
 Finite deformation with spin (logarithmic strain)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    290
-    #Number_of_blocks
-    1
-
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    3
-    #Repeat
-    1
-    #Steps
-    1
-
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    S 3.
-    S 0 S 0
-    S 0 S 0 S 0
-    #spin
-    0. 0. 0.
-    0. 0. 0.
-    0. 0. 0.
-    #temperature_state
-    T 293.5
+    {
+      "initial_temperature": 290.0,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "logarithmic",
+          "ncycle": 1,
+          "steps": [
+            {
+              "thermomechanical": false,
+              "mode": "linear",
+              "time": 30.0,
+              "ninc": 100,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": "stress",
+              "value": [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "BC_w": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+              "T_final": 293.5
+            }
+          ]
+        }
+      ]
+    }
 
 Thermomechanical loading
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: none
+Adiabatic strain-controlled loading/unloading (heat equation on, no heat flux):
 
-    #Initial_temperature
-    290
-    #Number_of_blocks
-    1
+.. code-block:: json
 
-    #Block
-    1
-    #Loading_type
-    2
-    #Control_type(NLGEOM)
-    1
-    #Repeat
-    1
-    #Steps
-    2
+    {
+      "initial_temperature": 290.0,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "small_strain",
+          "ncycle": 1,
+          "steps": [
+            {
+              "thermomechanical": true,
+              "mode": "linear",
+              "time": 1.0,
+              "ninc": 100,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+              "value": [0.02, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "thermal_control": "heat_flux",
+              "Q": 0.0
+            },
+            {
+              "thermomechanical": true,
+              "mode": "linear",
+              "time": 1.0,
+              "ninc": 100,
+              "Dn_init": 1.0,
+              "Dn_mini": 1.0,
+              "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+              "value": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "thermal_control": "heat_flux",
+              "Q": 0.0
+            }
+          ]
+        }
+      ]
+    }
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.01
-    #time
-    1
-    #prescribed_mechanical_state
-    E 0.02
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    Q 0
+Pre-2.0 text inputs
+^^^^^^^^^^^^^^^^^^^
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1
-    #Dn_inc 0.01
-    #time
-    1
-    #prescribed_mechanical_state
-    E 0.
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    Q 0
-
-This simulates a strain-controlled loading followed by unloading under adiabatic conditions (Q = 0).
+Before 2.0 the loading path was a text file (``path.txt``, with ``#Mode`` /
+``#prescribed_mechanical_state`` blocks and ``#File`` increment tables). Nothing
+in simcoon reads that format any more: ``scripts/legacy_to_json.py`` converts a
+``data`` directory once into the files described here (see :doc:`python_solver`).
