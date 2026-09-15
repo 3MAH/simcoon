@@ -3,14 +3,14 @@
 Times identical loading cases through the two shipped solver entry points and
 cross-checks that they produce the same response:
 
-- **memory** — `sim.solver.solve(...)`: the 2.0 API (`_core.solver_run` +
-  memory sink), no filesystem involved.
-- **file** — `sim._core.solver(...)`: the legacy path-file driver, including
-  its path.txt write and results-file parse.
+- **memory** — `sim.solver.solve(...)`: blocks built in Python
+  (`_core.solver_run` + memory sink), no filesystem involved.
+- **file** — `sim.solver.save_path_json` / `load_path_json` then `solve`: the
+  path-file route, including the path.json write and read.
 
-Both wrap the same C++ Newton engine (`solver_run`), so the timing gap
-isolates the file round-trip overhead, and the equivalence column is a
-file-vs-memory regression check.
+Since 2.0 the C++ engine reads nothing, so both routes reach the same Newton
+engine with the same blocks: the timing gap isolates the path.json write and
+its read, and the equivalence column checks the JSON round-trip.
 
 ```bash
 python benchmark/benchmark_solver.py           # all cases, 5 repeats

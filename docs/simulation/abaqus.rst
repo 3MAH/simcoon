@@ -10,7 +10,6 @@ Simcoon provides ready-to-use UMAT bridge files in the ``software/`` directory t
 
 - ``software/umat_singleM.cpp`` - Single mechanical model (selected by material name)
 - ``software/umat_singleT.cpp`` - Single thermo-mechanical model
-- ``software/umat_singleM_multi.cpp`` - Multiscale mechanical model (reads from ``material.dat``)
 - ``software/umat_externalM.cpp`` - Template for adding custom external UMAT in C++
 - ``software/umat_externalT.cpp`` - Template for custom external thermo-mechanical UMAT
 
@@ -138,20 +137,6 @@ The thermo-mechanical version provides:
 - Heat flux derivative ``drplde`` (:math:`\partial r / \partial \boldsymbol{\varepsilon}`)
 - Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
-
-Using umat_singleM_multi (Multiscale)
--------------------------------------
-
-For multiscale homogenization models, the material definition is read from a ``data/material.dat`` file in the working directory:
-
-.. code-block:: bash
-
-    g++ -shared -fPIC -std=c++17 -O2 -o libumat_simcoon_multi.so umat_singleM_multi.cpp \
-        -I$SIMCOON_DIR/include \
-        -L$SIMCOON_DIR/lib -lsimcoon \
-        -larmadillo -llapack -lblas
-
-Create ``data/material.dat`` in your Abaqus working directory with the material definition. See the homogenization documentation for file format details.
 
 Using umat_externalM (Custom Model)
 -----------------------------------
@@ -384,7 +369,7 @@ props-translating adapters — identical usage and results; see
      - Periodic layered
      - Layered composite homogenization
 
-For micromechanics models, use ``umat_singleM_multi.cpp`` with a ``data/material.dat`` file.
+Mean-field micromechanics models (MIHEN, MIMTN, MISCN, MIPLN) are **not** reachable through the Abaqus wrappers. Since 2.0 their sub-phases are passed in memory rather than read from ``Nellipsoids``/``Nlayers`` files, which the Abaqus entry point cannot supply; drive them from Python instead (see :doc:`python_solver`).
 
 Troubleshooting
 ---------------

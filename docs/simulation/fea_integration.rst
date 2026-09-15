@@ -11,13 +11,12 @@ This section explains how to use simcoon's built-in constitutive models within c
 Overview
 --------
 
-Simcoon provides ready-to-use bridge files in the ``software/`` directory that allow you to use **all simcoon constitutive models** directly in commercial FEA software:
+Simcoon provides ready-to-use bridge files in the ``software/`` directory that allow you to use simcoon's **point-level constitutive models** directly in commercial FEA software. Mean-field micromechanics models are the exception: since 2.0 their sub-phases are passed in memory, so they are driven from Python (see :doc:`python_solver`) rather than through these bridges.
 
 **For Abaqus:**
 
 - ``software/umat_singleM.cpp`` - Single mechanical model (selected by material name)
 - ``software/umat_singleT.cpp`` - Single thermo-mechanical model
-- ``software/umat_singleM_multi.cpp`` - Multiscale mechanical model
 - ``software/umat_externalM.cpp`` - Template for custom external UMAT
 
 **For Ansys:**

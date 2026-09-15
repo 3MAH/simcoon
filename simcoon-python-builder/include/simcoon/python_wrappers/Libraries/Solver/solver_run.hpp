@@ -26,6 +26,10 @@ namespace simpy {
  * @param[in] params_py numeric controls (div/mul_tnew_dt, miniter, maxiter, inforce,
  *            precision, lambda_solver, tangent_mode)
  * @param[in] record_tangent whether to record the per-increment tangent history
+ * @param[in] phases sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN): a sequence
+ *            of dicts, one per phase, as simcoon.solver.micromechanics produces. They used to
+ *            be read from Nellipsoids<N>.dat / Nlayers<N>.dat in a "data" directory; nothing is
+ *            read from disk any more. None for every single-phase model.
  * @return dict of numpy arrays keyed "Strain", "Stress", "F", "R", "Statev", "Wm", "Temp",
  *         "Time", ... plus "status" (0 = completed) — consumed by simcoon.solver.SolverResults
  */
@@ -33,6 +37,7 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
                     const std::string &umat_name, const py::array_t<double> &props_py,
                     const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve,
                     const int &solver_type, const int &corate_type,
-                    const py::dict &params_py, const bool &record_tangent);
+                    const py::dict &params_py, const bool &record_tangent,
+                    const py::object &phases = py::object());
 
 } //namespace simpy

@@ -132,15 +132,17 @@ void ViscoelasticMechanism::compute_constraints(
         const double flow_mag = norm_strain(flow_i_[i]);
         const double Delta_v_i = ivc_.get(v_key_[i]).delta_scalar();
 
+        Y_crit(i) = std::max(flow_mag, simcoon::precision_umat);
+
         if (DTime > simcoon::iota) {
             Phi(i) = flow_mag - Delta_v_i / DTime;
             K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i) - 1.0 / DTime;
         } else {
-            Phi(i) = flow_mag;
-            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i);
+            //No time, no flow: the branch is INACTIVE. The stationary condition Phi = flow_mag
+            //has root EV_i = eps, which the solver's zero-time probe would commit as relaxed.
+            Phi(i) = -Y_crit(i);
+            K_diag_(i) = -1.0;
         }
-
-        Y_crit(i) = std::max(flow_mag, simcoon::precision_umat);
     }
 }
 void ViscoelasticMechanism::compute_jacobian_contribution(

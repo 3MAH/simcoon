@@ -99,6 +99,12 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         EV_i[i] = rotate_strain(EV_i[i], DR);
     }
     
+    vec sigma_start = sigma;
+    std::vector<vec> DEV_i(N_kelvin);
+    std::vector<vec> A_v(N_kelvin);
+    std::vector<mat> dA_dEv(N_kelvin);
+    std::vector<vec> A_v_start(N_kelvin);
+
     std::vector<mat> L_i(N_kelvin);
     std::vector<mat> H_i(N_kelvin);
     std::vector<mat> invH_i(N_kelvin);
@@ -107,22 +113,21 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
         invH_i[i] = inv(H_i[i]);
+
+        //Unconditionally, not only on the start increment: these are locals rebuilt
+        //at every call, so a second increment found them at size 0 and the
+        //`A_v_start[i] +=` below threw "0x1 and 6x1".
+        DEV_i[i] = zeros(6);
+        A_v[i] = zeros(6);
+        A_v_start[i] = zeros(6);
     }
     
-    vec sigma_start = sigma;
-    std::vector<vec> DEV_i(N_kelvin);
-    std::vector<vec> A_v(N_kelvin);
-    std::vector<mat> dA_dEv(N_kelvin);
-    std::vector<vec> A_v_start(N_kelvin);
     
     if(start) { //Initialization
         T_init = T;
         EV = zeros(6);
         for (int i=0; i<N_kelvin; i++) {
             EV_i[i] = zeros(6);
-            DEV_i[i] = zeros(6);
-            A_v[i] = zeros(6);
-            A_v_start[i] = zeros(6);
         }
         sigma = zeros(6);
         sigma_start = zeros(6);
@@ -212,8 +217,10 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
                 dPhidv[i] = -1.*sum((dPhi_idsigma[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
             else {
-                Phi(i) = norm_strain(flow_visco[i]);
-                dPhidv[i] = -1.*sum((dPhi_idsigma[i])%(L_i[i]*Lambdav[i]));
+                //No time, no flow: the branch is INACTIVE. The stationary condition
+                //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+                Phi(i) = 0.;
+                dPhidv[i] = -1.;
             }
             kappa_j[i] = L0*Lambdav[i];
             K(i,i) = dPhidv[i];

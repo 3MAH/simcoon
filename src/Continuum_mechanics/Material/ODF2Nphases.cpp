@@ -35,14 +35,13 @@
 #include <simcoon/Simulation/Maths/stats.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF2Nphases.hpp>
-#include <simcoon/Continuum_mechanics/Material/read.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
     
-vec get_densities_ODF(const vec &x, const string &path_data, const string &input_peaks, const bool &radian) {
+vec get_densities_ODF(const vec &x, const std::vector<peak> &peaks, const bool &radian) {
     
     vec y = zeros(x.n_elem);
     vec x_rad;
@@ -69,7 +68,14 @@ vec get_densities_ODF(const vec &x, const string &path_data, const string &input
     }
     
     ODF odf_rve(0, radian, x.min(), x.max());
-    read_peak(odf_rve, path_data, input_peaks);
+    odf_rve.peaks = peaks;
+    if (!radian) {
+        for (auto &p : odf_rve.peaks) {
+            p.mean = simcoon::deg2rad(p.mean);
+            p.s_dev = simcoon::deg2rad(p.s_dev);
+            p.width = simcoon::deg2rad(p.width);
+        }
+    }
     
     for(unsigned int i=0; i<x.n_elem; i++) {
         if (radian)

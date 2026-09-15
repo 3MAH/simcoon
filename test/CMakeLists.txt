@@ -28,9 +28,6 @@ set(TEST_SRCS
   test/Libraries/Maths/Trotation_class.cpp
   test/Libraries/Maths/Tstats.cpp
 
-  # Libraries - Phase
-  test/Libraries/Phase/Tphase_characteristics.cpp
-
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
   test/Libraries/Umat/Ttangent_assembly.cpp
@@ -43,19 +40,6 @@ set(TEST_SRCS
   test/Libraries/Umat/Ttutorial_umat.cpp
 
   # UMATs
-  test/Umats/ELISO/TELISO.cpp
-  test/Umats/ELIST/TELIST.cpp
-  test/Umats/ELORT/TELORT.cpp
-  test/Umats/EPCHA/TEPCHA.cpp
-  test/Umats/EPCHG/TEPCHG.cpp
-  test/Umats/EPHAC/TEPHAC.cpp
-  test/Umats/EPICP/TEPICP.cpp
-  test/Umats/EPKCP/TEPKCP.cpp
-  test/Umats/HYPER/THYPER.cpp
-  test/Umats/LOG_int/TLOG_int.cpp
-  test/Umats/MIMTN/TMIMTN.cpp
-  test/Umats/MIMTP/TMIMTP.cpp
-  test/Umats/MIPLN/TMIPLN.cpp
   test/Umats/UMEXT/TUMEXT.cpp
 )
 

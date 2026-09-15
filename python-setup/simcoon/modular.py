@@ -1112,8 +1112,28 @@ class Viscoelasticity:
 
         eps^{in,visco} = sum_i (M_0 . L_i) . EV_i
 
-    where M_0 is the compliance at the reference (undamaged, long-term)
-    stiffness.
+    where M_0 is the compliance at the reference stiffness, i.e. the stiffness of
+    the elasticity block of the material.
+
+    That block is the **instantaneous** (glassy) stiffness, not the long-term one:
+    at t = 0 every EV_i is zero and the response is L_0, while at t -> infinity each
+    EV_i saturates at the total strain and the response relaxes to
+
+        L_infinity = L_0 - sum_i L_i
+
+    which is the usual Prony series E(t) = E_inf + sum_i E_i exp(-t/tau_i) written
+    with E(0) = E_inf + sum_i E_i. Two consequences:
+
+    * the branch moduli must satisfy ``sum_i E_i < E_0``, otherwise the long-term
+      stiffness is negative and the stress crosses zero during a hold (measured:
+      E_0 = 1, branches 1.0 and 0.5, a hold at 1 % strain relaxes from 0.01 to
+      -0.005 MPa). Nothing validates this today;
+    * over a **hyperelastic** elasticity block, the potential plays the
+      instantaneous role and the relaxed part is subtracted through the
+      ground-state compliance M_0, which is linear. The long-term response is then
+      not itself a hyperelastic potential, so the classical rubber model (an
+      equilibrium hyperelastic spring carrying Maxwell branches) is out of reach
+      of this mechanism.
 
     Parameters
     ----------
@@ -1480,9 +1500,11 @@ def viscoelastic_model(
     Parameters
     ----------
     E : float
-        Reference (long-term) Young's modulus.
+        **Instantaneous** (glassy) Young's modulus, i.e. E(0) of the Prony series:
+        the long-term modulus is ``E - sum_i E_i`` and must stay positive. Pass
+        ``E_inf + sum_i E_i`` when calibration gives the long-term modulus.
     nu : float
-        Reference Poisson's ratio.
+        Poisson's ratio of that same reference stiffness.
     prony_terms : sequence of (E_i, nu_i, etaB_i, etaS_i) tuples
         Per-branch parameters: branch modulus, branch Poisson ratio, bulk
         viscosity, shear viscosity.

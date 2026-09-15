@@ -39,8 +39,13 @@ namespace simcoon{
  */
 
 
-//Fill the ODF from a vector of angles, providing a file with the peak informations
-arma::vec get_densities_ODF(const arma::vec &, const std::string &, const std::string &, const bool &);
+/**
+ * @brief Densities of an ODF, summed over its peaks, at the angles x.
+ * @param x the angles, in [0, pi] (radians) or [0, 180] (degrees, radian = false)
+ * @param peaks the peaks; with radian = false their mean, s_dev and width are degrees
+ * @param radian whether x and the peak angles are radians
+ */
+arma::vec get_densities_ODF(const arma::vec &x, const std::vector<peak> &peaks, const bool &radian);
     
 //Fill the angles of the geom and material (if indicated 1 in angles_mat)
 void fill_angles(const double &, phase_characteristics &, const ODF &, const int & = 1);

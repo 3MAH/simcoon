@@ -3,10 +3,10 @@ Orthotropic Elasticity Example
 ==============================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 ###################################################################################
 # In orthotropic elastic materials, there are three mutually perpendicular planes of symmetry.
@@ -77,23 +77,23 @@ props = np.array(
 )
 
 path_data = "../data"
-path_results = "results"
-pathfile = "ELORT_path.txt"
-outputfile = "results_ELORT.txt"
+pathfile = "ELORT_path.json"
 
-sim._core.solver(
+###################################################################################
+# The loading path is read in Python and the simulation runs in memory: no result
+# file is written, and the histories come back as component-first ``(6, N)`` arrays.
+
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 ###################################################################################
@@ -102,15 +102,10 @@ sim._core.solver(
 #
 # We plot the stress-strain curve in the loading direction (direction 1).
 
-outputfile_macro = os.path.join(path_results, "results_ELORT_global-0.txt")
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
 
 fig = plt.figure()
-
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
 
 plt.grid(True)
 plt.xlabel(r"Strain $\varepsilon_{11}$")

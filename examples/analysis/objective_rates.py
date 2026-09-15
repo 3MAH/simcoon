@@ -13,7 +13,6 @@ import simcoon as sim
 import os
 
 plt.rcParams["figure.figsize"] = (18, 10)  # configure the figure output size
-dir = os.path.dirname(os.path.realpath("__file__"))
 
 plt.rc("text", usetex=True)
 plt.rc("font", family="serif")
@@ -40,8 +39,7 @@ solver_type = 0
 props = np.array([E, nu, alpha])
 
 path_data = "data"
-path_results = "results"
-pathfile = "path.txt"
+pathfile = "path.json"
 
 colors = ["blue", "red", "green", "black"]
 
@@ -81,28 +79,25 @@ plot_info = [
 
 for i, rate_name in enumerate(rate):
     corate_type = i
-    outputfile = f"results_ELISO_{i}.txt"
-    sim._core.solver(
+    # The path file is parsed in Python and the case runs in memory: the rotation
+    # history comes back as a (3, 3, N) array, no result file is written.
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+    res = sim.solver.solve(
+        blocks,
         umat_name,
         props,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-    outputfile_macro = os.path.join(
-        dir, path_results, f"results_ELISO_{i}_global-0.txt"
-    )
-    data = np.loadtxt(outputfile_macro, unpack=True)
-    time = data[4]
-    e11, e22, e12 = data[8], data[9], data[11]
-    r11 = np.minimum(data[20], 1.0)
+    time = res["Time"]
+    # LogStrain, not Strain: the deleted data/output.dat asked for `strain_type 3`,
+    # so the columns this example has always plotted were ln V. res["Strain"] is the
+    # Green-Lagrange measure, which at gamma = 5 differs by an order of magnitude.
+    e11, e22, e12 = res["LogStrain"][0], res["LogStrain"][1], res["LogStrain"][3]
+    r11 = np.minimum(res["R"][0, 0], 1.0)
     values = [e11, e12, e22, np.arccos(r11)]
     for ax_idx, (row, col, _, ylabel) in enumerate(plot_info):
         axes[row, col].plot(time, values[ax_idx], c=colors[i], label=rate_name)

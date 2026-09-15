@@ -1,0 +1,13 @@
+{
+  "name": "MIPLN",
+  "props": [
+    2.0,
+    0.0
+  ],
+  "nstatev": 0,
+  "orientation": {
+    "psi": 0.0,
+    "theta": 0.0,
+    "phi": 0.0
+  }
+}

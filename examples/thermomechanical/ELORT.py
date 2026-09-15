@@ -3,10 +3,10 @@ Orthotropic elasticity (thermomechanical)
 =========================================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
 
@@ -83,79 +83,60 @@ props = np.array(
 )
 
 path_data = "../data"
-path_results = "results"
 
 ###################################################################################
 # Loading in direction 1
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_1.txt"
-outputfile_1 = "results_THERM_ELORT_1.txt"
+pathfile = "THERM_ELISO_path_1.json"
 
-sim._core.solver(
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+res_1 = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile_1,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
-
-outputfile_macro_1 = os.path.join(path_results, "results_THERM_ELORT_1_global-0.txt")
 
 ###################################################################################
 # Loading in direction 2
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_2.txt"
-outputfile_2 = "results_THERM_ELORT_2.txt"
+pathfile = "THERM_ELISO_path_2.json"
 
-sim._core.solver(
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+res_2 = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile_2,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
-
-outputfile_macro_2 = os.path.join(path_results, "results_THERM_ELORT_2_global-0.txt")
 
 ###################################################################################
 # Loading in direction 3
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_3.txt"
-outputfile_3 = "results_THERM_ELORT_3.txt"
+pathfile = "THERM_ELISO_path_3.json"
 
-sim._core.solver(
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+res_3 = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile_3,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
-
-outputfile_macro_3 = os.path.join(path_results, "results_THERM_ELORT_3_global-0.txt")
 
 ###################################################################################
 # Plotting the results -- Loading direction 1
@@ -163,15 +144,11 @@ outputfile_macro_3 = os.path.join(path_results, "results_THERM_ELORT_3_global-0.
 
 fig = plt.figure()
 
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro_1,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q, r = np.loadtxt(outputfile_macro_1, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-    outputfile_macro_1, usecols=(20, 21, 22, 23, 24, 25, 26), unpack=True
-)
+e11, e22, e33, e12, e13, e23 = res_1["Strain"]
+s11, s22, s33, s12, s13, s23 = res_1["Stress"]
+time, T, Q, r = res_1["Time"], res_1["Temp"], res_1["Q"], res_1["r"]
+Wm, Wm_r, Wm_ir, Wm_d = res_1["Wm"]
+Wt, Wt_r, Wt_ir = res_1["Wt"]
 
 ax = fig.add_subplot(2, 2, 1)
 plt.grid(True)
@@ -218,15 +195,11 @@ plt.show()
 
 fig = plt.figure()
 
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro_2,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q, r = np.loadtxt(outputfile_macro_2, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-    outputfile_macro_2, usecols=(20, 21, 22, 23, 24, 25, 26), unpack=True
-)
+e11, e22, e33, e12, e13, e23 = res_2["Strain"]
+s11, s22, s33, s12, s13, s23 = res_2["Stress"]
+time, T, Q, r = res_2["Time"], res_2["Temp"], res_2["Q"], res_2["r"]
+Wm, Wm_r, Wm_ir, Wm_d = res_2["Wm"]
+Wt, Wt_r, Wt_ir = res_2["Wt"]
 
 ax = fig.add_subplot(2, 2, 1)
 plt.grid(True)
@@ -273,15 +246,11 @@ plt.show()
 
 fig = plt.figure()
 
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro_3,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q, r = np.loadtxt(outputfile_macro_3, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-    outputfile_macro_3, usecols=(20, 21, 22, 23, 24, 25, 26), unpack=True
-)
+e11, e22, e33, e12, e13, e23 = res_3["Strain"]
+s11, s22, s33, s12, s13, s23 = res_3["Stress"]
+time, T, Q, r = res_3["Time"], res_3["Temp"], res_3["Q"], res_3["r"]
+Wm, Wm_r, Wm_ir, Wm_d = res_3["Wm"]
+Wt, Wt_r, Wt_ir = res_3["Wt"]
 
 ax = fig.add_subplot(2, 2, 1)
 plt.grid(True)

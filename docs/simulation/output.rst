@@ -3,6 +3,14 @@ Configure the output
 
 The output options for the solver are configured through an ``output.dat`` file located in the ``data/`` directory. This file allows you to customize what quantities are written to the result file, including the type of strain and stress measures, rotation information, tangent modulus, temperature, and internal state variables.
 
+.. note::
+
+   **Since simcoon 2.0 the library does not read this file.** The solver keeps
+   its whole history in memory and hands it back as numpy arrays, so Python
+   selects the measures it wants (see :doc:`python_solver`). ``output.dat`` is
+   still read by the file-driven driver in ``test/support/``, which the C++
+   test suite uses, and the format documented below is that driver's.
+
 File structure
 --------------
 

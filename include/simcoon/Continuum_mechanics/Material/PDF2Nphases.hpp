@@ -39,8 +39,10 @@ namespace simcoon{
  */
 
 
-//Fill the PDF from a vector of parameter, providing a file with the peak informations
-arma::vec get_densities_PDF(const arma::vec &, const std::string &, const std::string &);
+/**
+ * @brief Densities of a PDF, summed over its peaks, at the parameter values x.
+ */
+arma::vec get_densities_PDF(const arma::vec &x, const std::vector<peak> &peaks);
     
 //Fill the parameters of the geom and material
 void fill_parameters(const double &, phase_characteristics &, const PDF &);

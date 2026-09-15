@@ -160,8 +160,10 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
             dPhidv = -1.*sum((dPhidsigma%Ir2())%(L1*Lambdav))-1./DTime;
         }
         else {
-            Phi(0) = norm_stress(sigma_tildeV1);
-            dPhidv = -1.*sum((dPhidsigma%Ir2())%(L1*Lambdav));
+            //No time, no flow: the branch is INACTIVE. The stationary condition
+            //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+            Phi(0) = 0.;
+            dPhidv = -1.;
         }
         kappa_j[0] = L0*Lambdav;
         

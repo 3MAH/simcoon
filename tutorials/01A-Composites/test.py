@@ -1,24 +1,26 @@
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import simcoon as sim
-import os
-import itertools
-
-dir = os.path.dirname(os.path.realpath("__file__"))
+from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
 
 nstatev = 0
 
 nphases = 2  # The number of phases
-num_file = 0  # The num of the file that contains the subphases
 int1 = 50
 int2 = 50
 n_matrix = 0
 
-props = np.array([nphases, num_file, int1, int2, n_matrix], dtype="float")
+# props[1] used to be the number of the Nellipsoids<N>.dat file to read. The phases are
+# now handed to L_eff directly, so that slot is kept only for the layout of the vector.
+props = np.array([nphases, 0, int1, int2, n_matrix], dtype="float")
 
-NPhases_file = dir + "/keys/Nellipsoids0.dat"
-NPhases = pd.read_csv(NPhases_file, delimiter=r"\s+", index_col=False, engine="python")
+matrix = Ellipsoid(
+    number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
+    props=np.array([2250.0, 0.19, 8.8e-5]),
+)
+reinforcement = Ellipsoid(
+    number=1, umat_name="ELISO", save=1, concentration=0.2, nstatev=1,
+    props=np.array([73000.0, 0.19, 0.5e-6]),
+)
 
 psi_rve = 0.0
 theta_rve = 0.0
@@ -26,6 +28,9 @@ phi_rve = 0.0
 
 umat_name = "MIMTN"
 
-L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+L = sim.L_eff(
+    umat_name, props, nstatev, psi_rve, theta_rve, phi_rve,
+    to_phase_dicts([matrix, reinforcement]),
+)
 p = sim.L_iso_props(L)
 print(p)
