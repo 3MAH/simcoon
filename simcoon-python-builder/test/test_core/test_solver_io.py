@@ -55,6 +55,27 @@ def test_path_roundtrip_thermomechanical(tmp_path):
     assert s.Q == 2.5
 
 
+def test_path_json_holds_names(tmp_path):
+    """Integer codes and aliases in the objects are written as the documented names."""
+    f = tmp_path / "path.json"
+    step = StepMeca(control=["E", "S", "S", "S", "S", "S"], value=[0.01, 0, 0, 0, 0, 0],
+                    mode=1, ninc=10)
+    save_path_json(str(f), [Block(steps=[step], control_type=3)], T_init=290.0, corate=1)
+    with open(f) as fh:
+        payload = json.load(fh)
+    assert payload["corate"] == "green_naghdi"
+    block = payload["blocks"][0]
+    assert block["control_type"] == "logarithmic"
+    s = block["steps"][0]
+    assert list(s) == ["thermomechanical", "mode", "time", "ninc", "Dn_init", "Dn_mini",
+                       "control", "value", "T_final"]
+    assert s["mode"] == "linear" and s["control"] == ["strain"] + ["stress"] * 5
+    blocks, _, corate = load_path_json(str(f))
+    assert corate == "green_naghdi"
+    as_text = lambda b: json.dumps(b.to_dict(290.0), default=lambda o: np.asarray(o).tolist())
+    assert as_text(blocks[0]) == as_text(Block(steps=[step], control_type=3))
+
+
 def test_path_roundtrip_tabular(tmp_path):
     """The table is a CSV sidecar named by the JSON, not a nested list in it."""
     f = tmp_path / "path.json"

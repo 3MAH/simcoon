@@ -57,13 +57,15 @@ The last part is to define the loading path. Create a folder ``data`` and a file
           "ncycle": 1,
           "steps": [
             {
+              "thermomechanical": false,
               "mode": "linear",
-              "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
-              "value": [0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
               "time": 30.0,
               "ninc": 100,
               "Dn_init": 1.0,
-              "Dn_mini": 0.1
+              "Dn_mini": 0.1,
+              "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+              "value": [0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "T_final": 293.5
             }
           ]
         }
@@ -391,11 +393,12 @@ path from 1), and the step references it by name:
 .. code-block:: json
 
     {
+      "thermomechanical": false,
       "mode": "tabular",
       "tabular": "path_tab1.csv",
-      "control": ["strain", "zero", "zero", "zero", "zero", "zero"],
       "Dn_init": 1.0,
       "Dn_mini": 0.01,
+      "control": ["strain", "zero", "zero", "zero", "zero", "zero"],
       "tabular_T": false
     }
 
@@ -452,7 +455,7 @@ Stress-controlled tension/compression cycle, 1000 increments per step:
               "ninc": 1000,
               "Dn_init": 1.0,
               "Dn_mini": 1.0,
-              "control": "stress",
+              "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
               "value": [1000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
               "T_final": 293.15
             },
@@ -463,7 +466,7 @@ Stress-controlled tension/compression cycle, 1000 increments per step:
               "ninc": 1000,
               "Dn_init": 1.0,
               "Dn_mini": 1.0,
-              "control": "stress",
+              "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
               "value": [-1100.0, 0.0, 0.0, 0.0, 0.0, 0.0],
               "T_final": 293.15
             }
@@ -472,7 +475,8 @@ Stress-controlled tension/compression cycle, 1000 increments per step:
       ]
     }
 
-(additional steps, or ``"ncycle": 10`` on the block, for cyclic loading)
+(additional steps, or ``"ncycle": 10`` on the block, for cyclic loading; the
+files are written exactly like this by ``sim.solver.save_path_json``)
 
 Hyperelasticity with deformation gradient control
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -494,7 +498,9 @@ Hyperelasticity with deformation gradient control
               "ninc": 10,
               "Dn_init": 1.0,
               "Dn_mini": 1.0,
-              "control": "strain",
+              "control": ["strain", "strain", "strain",
+                          "strain", "strain", "strain",
+                          "strain", "strain", "strain"],
               "value": [5.0, 0.0, 0.0,
                         0.0, 0.4472135955, 0.0,
                         0.0, 0.0, 0.4472135955],
@@ -527,7 +533,7 @@ Finite deformation with spin (logarithmic strain)
               "ninc": 100,
               "Dn_init": 1.0,
               "Dn_mini": 1.0,
-              "control": "stress",
+              "control": ["stress", "stress", "stress", "stress", "stress", "stress"],
               "value": [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
               "BC_w": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
               "T_final": 293.5

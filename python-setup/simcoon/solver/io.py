@@ -29,9 +29,19 @@ from typing import List, Tuple
 import numpy as np
 
 from .blocks import Block, StepMeca, StepThermomeca
+from .maps import CONTROL_TYPES, CORATE_TYPES, STEP_MODES, THERMAL_CONTROL, as_code
 
 _STEP_SCALARS = ("time", "ninc", "mode", "Dn_init", "Dn_mini", "T_final",
                  "thermal_control", "Q", "q_conv", "tabular_T")
+_CONTROL_NAMES = {0: "strain", 1: "stress", 2: "zero",
+                  "E": "strain", "e": "strain", "S": "stress", "s": "stress", "0": "zero",
+                  "F": "strain", "L": "strain"}
+
+
+def _name_of(value, mapping: dict, what: str) -> str:
+    """The documented name of an enumerated entry given as a name, alias or code."""
+    code = as_code(value, mapping, what)
+    return next(name for name, c in mapping.items() if c == code)
 
 
 def save_material_json(filename: str, umat_name: str, props, nstatev: int,
@@ -113,17 +123,39 @@ def read_table(filename: str) -> np.ndarray:
 
 
 def _step_to_json(step: StepMeca, table_name=None) -> dict:
-    d = {"thermomechanical": step._thermomechanical}
-    for k in _STEP_SCALARS:
-        if hasattr(step, k):
-            d[k] = getattr(step, k)
-    d["control"] = list(step.control) if not isinstance(step.control, str) else step.control
-    if step.value is not None:
+    """The step as the documented JSON object: names, docs key order, only the
+    keys that apply to its mode and thermal control."""
+    mode = _name_of(step.mode, STEP_MODES, "step mode")
+    d = {"thermomechanical": step._thermomechanical, "mode": mode}
+    if mode == "tabular":
+        d["tabular"] = table_name
+    else:
+        d["time"] = float(step.time)
+        d["ninc"] = int(step.ninc)
+    d["Dn_init"] = float(step.Dn_init)
+    d["Dn_mini"] = float(step.Dn_mini)
+    control = step.control
+    if isinstance(control, str):
+        d["control"] = _CONTROL_NAMES.get(control, control)
+    else:
+        d["control"] = [_CONTROL_NAMES.get(c, c) for c in control]
+    if step.value is not None and mode != "tabular":
         d["value"] = np.asarray(step.value, dtype=float).ravel().tolist()
     if step.BC_w is not None:
         d["BC_w"] = np.asarray(step.BC_w, dtype=float).reshape(3, 3).tolist()
-    if step.tabular is not None:
-        d["tabular"] = table_name
+    if step._thermomechanical:
+        thermal = _name_of(step.thermal_control, THERMAL_CONTROL, "thermal control")
+        d["thermal_control"] = thermal
+        if thermal == "temperature":
+            d["T_final"] = step.T_final
+        elif thermal == "heat_flux":
+            d["Q"] = float(step.Q)
+        else:
+            d["q_conv"] = float(step.q_conv)
+    elif mode != "tabular":
+        d["T_final"] = step.T_final
+    if mode == "tabular":
+        d["tabular_T"] = bool(step.tabular_T)
     return d
 
 
@@ -147,7 +179,9 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
                    corate="logarithmic_R") -> None:
     """Write a loading path (list of Blocks) to JSON.
 
-    The table of every tabular step goes to its own CSV next to the JSON,
+    Enumerated entries are written by name (``"small_strain"``, ``"linear"``,
+    ``"strain"``...) whatever form the objects hold, keys in the documented order,
+    and only the keys that apply to a step. The table of every tabular step goes to its own CSV next to the JSON,
     ``<stem>_tab<k>.csv`` (k counting the tabular steps of the path from 1), and
     the JSON references it by that name.
     """
@@ -157,7 +191,8 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
     base_dir = os.path.dirname(filename)
     stem = os.path.splitext(os.path.basename(filename))[0]
     ntab = 0
-    payload = {"initial_temperature": float(T_init), "corate": corate, "blocks": []}
+    payload = {"initial_temperature": float(T_init),
+               "corate": _name_of(corate, CORATE_TYPES, "corate"), "blocks": []}
     for b in blocks:
         steps = []
         for s in b.steps:
@@ -167,7 +202,7 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
                 table_name = f"{stem}_tab{ntab}.csv"
                 write_table(os.path.join(base_dir, table_name), s)
             steps.append(_step_to_json(s, table_name))
-        payload["blocks"].append({"control_type": b.control_type,
+        payload["blocks"].append({"control_type": _name_of(b.control_type, CONTROL_TYPES, "control type"),
                                   "ncycle": int(b.ncycle), "steps": steps})
     with open(filename, "w") as f:
         json.dump(payload, f, indent=2)

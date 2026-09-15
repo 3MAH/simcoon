@@ -3,21 +3,16 @@
   "corate": "logarithmic_R",
   "blocks": [
     {
-      "control_type": 1,
+      "control_type": "small_strain",
       "ncycle": 1,
       "steps": [
         {
           "thermomechanical": true,
+          "mode": "linear",
           "time": 300.0,
           "ninc": 10,
-          "mode": 1,
           "Dn_init": 1.0,
           "Dn_mini": 1.0,
-          "T_final": null,
-          "thermal_control": "heat_flux",
-          "Q": 0.0,
-          "q_conv": 0.0,
-          "tabular_T": false,
           "control": [
             "stress",
             "stress",
@@ -33,7 +28,9 @@
             0.0,
             0.0,
             0.0
-          ]
+          ],
+          "thermal_control": "heat_flux",
+          "Q": 0.0
         }
       ]
     }

@@ -3,18 +3,16 @@
   "corate": "logarithmic_R",
   "blocks": [
     {
-      "control_type": 4,
+      "control_type": "biot",
       "ncycle": 1,
       "steps": [
         {
           "thermomechanical": false,
+          "mode": "linear",
           "time": 5.0,
           "ninc": 1000,
-          "mode": 1,
           "Dn_init": 1.0,
           "Dn_mini": 1.0,
-          "T_final": 290.0,
-          "tabular_T": false,
           "control": [
             "strain",
             "stress",
@@ -47,7 +45,8 @@
               0.0,
               0.0
             ]
-          ]
+          ],
+          "T_final": 290.0
         }
       ]
     }
