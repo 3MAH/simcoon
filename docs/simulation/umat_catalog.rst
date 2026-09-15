@@ -20,7 +20,8 @@ names — **the calling convention is identical for all of them** (same
   for pedagogy (readable single-file reference of the CCP return mapping) or
   because no modular equivalent exists.
 - **Python (external)**: the ``PYEXT`` name serves a law written in Python
-  (:class:`simcoon.PythonUMAT`) through a registered callback; see :doc:`python_umat`.
+  (:class:`simcoon.PythonUMAT`, e.g. the LSTM model of :mod:`simcoon.ml`) through a
+  registered callback; see :doc:`python_umat`.
 
 Small-strain mechanical models
 ==============================
@@ -150,7 +151,8 @@ Unchanged dedicated implementations (out of the modular scope):
   stretches, props = ``N, kappa, mu_1, alpha_1, ...``).
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
-- **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
+- **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object,
+  e.g. ``simcoon.ml.RecurrentLaw`` serving a trained ``StressLSTM`` or ``LMSC`` cell).
 
 State variable (statev) layout for adapter-served names
 ========================================================

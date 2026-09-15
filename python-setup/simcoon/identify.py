@@ -262,7 +262,8 @@ def _nmse_per_response(
     return float(np.mean(nmse_values))
 
 
-#: Metrics computed with numpy only (also the differentiable set of :func:`simcoon.ml.torch_cost`)
+#: Metrics computed with numpy only (also the differentiable set of ``simcoon.ml.torch_cost``,
+#: when that optional subpackage is installed)
 BUILTIN_METRICS = ("mse", "nmse", "nmse_per_response", "rmse", "mae", "mape", "wmape")
 
 
