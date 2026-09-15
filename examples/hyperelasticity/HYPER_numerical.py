@@ -175,7 +175,7 @@ df_exp = pd.read_csv(
 Uniaxial_tension = loading_case(
     name="UT",
     lambda_max=7.65,
-    pathfile="path_UT.txt",
+    pathfile="path_UT.json",
     comparison=[
         (df_exp["lambda_1"], df_exp["P1_MPa"]),
     ],
@@ -183,7 +183,7 @@ Uniaxial_tension = loading_case(
 Pure_shear = loading_case(
     name="PS",
     lambda_max=5.0,
-    pathfile="path_PS.txt",
+    pathfile="path_PS.json",
     comparison=[
         (df_exp["lambda_2"], df_exp["P2_MPa"]),
     ],
@@ -191,7 +191,7 @@ Pure_shear = loading_case(
 Equi_biaxial_tension = loading_case(
     name="ET",
     lambda_max=4.5,
-    pathfile="path_ET.txt",
+    pathfile="path_ET.json",
     comparison=[
         (df_exp["lambda_3"], df_exp["P3_MPa"]),
     ],

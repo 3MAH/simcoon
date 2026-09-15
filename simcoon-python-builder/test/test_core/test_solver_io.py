@@ -1,5 +1,7 @@
 """Tests for the solver JSON configuration and results persistence."""
 
+import json
+
 import numpy as np
 import pytest
 
@@ -54,12 +56,32 @@ def test_path_roundtrip_thermomechanical(tmp_path):
 
 
 def test_path_roundtrip_tabular(tmp_path):
+    """The table is a CSV sidecar named by the JSON, not a nested list in it."""
     f = tmp_path / "path.json"
     table = np.column_stack([np.linspace(0.1, 1.0, 10), np.linspace(0, 0.01, 10)])
     step = StepMeca(control=["strain"] + ["zero"] * 5, mode="tabular", tabular=table)
     save_path_json(str(f), [Block(steps=[step])], T_init=290.0)
+    with open(f) as fh:
+        payload = json.load(fh)
+    assert payload["blocks"][0]["steps"][0]["tabular"] == "path_tab1.csv"
+    lines = (tmp_path / "path_tab1.csv").read_text().splitlines()
+    assert lines[0] == "# time, E11" and len(lines) == 1 + len(table)
     blocks, _, _ = load_path_json(str(f))
-    np.testing.assert_allclose(blocks[0].steps[0].tabular, table)
+    np.testing.assert_array_equal(blocks[0].steps[0].tabular, table)
+
+
+def test_path_tabular_from_text_or_list(tmp_path):
+    """A whitespace .txt table referenced by name, or a nested list, load alike."""
+    table = np.column_stack([np.linspace(0.1, 1.0, 10), np.linspace(0, 0.01, 10)])
+    step = {"mode": "tabular", "control": ["strain"] + ["zero"] * 5}
+    (tmp_path / "tab.txt").write_text(
+        "\n".join(f"{float(t)!r} {float(e)!r}" for t, e in table) + "\n")
+    for tab in ("tab.txt", table.tolist()):
+        f = tmp_path / "path.json"
+        with open(f, "w") as fh:
+            json.dump({"blocks": [{"steps": [dict(step, tabular=tab)]}]}, fh)
+        blocks, _, _ = load_path_json(str(f))
+        np.testing.assert_array_equal(blocks[0].steps[0].tabular, table)
 
 
 def test_simulation_json_solve_equivalence(tmp_path):

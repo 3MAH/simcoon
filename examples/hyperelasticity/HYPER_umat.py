@@ -12,6 +12,7 @@ We present one section per model.
 
 # sphinx_gallery_thumbnail_number = 1
 
+import os
 import numpy as np
 import pandas as pd
 import simcoon as sim
@@ -37,7 +38,7 @@ def run_case(
     the largest isochoric principal stretch, and the axial nominal stress comes
     from :math:`\mathbf{P} = J\,\boldsymbol{\sigma}\,\mathbf{F}^{-T}`.
     """
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
     res = sim.solver.solve(
         blocks,
         umat_name,
@@ -285,21 +286,21 @@ list_umats = [
 
 Uniaxial_tension = loading_case(
     name="UT",
-    pathfile="path_UT.txt",
+    pathfile="path_UT.json",
     comparison=[
         (df_exp["lambda_1"], df_exp["P1_MPa"]),
     ],
 )
 Pure_shear = loading_case(
     name="PS",
-    pathfile="path_PS.txt",
+    pathfile="path_PS.json",
     comparison=[
         (df_exp["lambda_2"], df_exp["P2_MPa"]),
     ],
 )
 Equi_biaxial_tension = loading_case(
     name="ET",
-    pathfile="path_ET.txt",
+    pathfile="path_ET.json",
     comparison=[
         (df_exp["lambda_3"], df_exp["P3_MPa"]),
     ],
@@ -372,7 +373,7 @@ for i, umat in enumerate(list_umats):
 
     # Load path
     path_data = "data"
-    pathfile = "path_UT.txt"
+    pathfile = "path_UT.json"
 
     # Run simulation
     lam, PK1_11 = run_case(
@@ -477,7 +478,7 @@ for i, umat in enumerate(list_umats):
 
     # Load path
     path_data = "data"
-    pathfile = "path_PS.txt"
+    pathfile = "path_PS.json"
 
     # Run simulation
     lam, PK1_11 = run_case(
@@ -580,7 +581,7 @@ for i, umat in enumerate(list_umats):
 
     # Load path
     path_data = "data"
-    pathfile = "path_ET.txt"
+    pathfile = "path_ET.json"
 
     # Run simulation
     lam, PK1_11 = run_case(

@@ -66,9 +66,12 @@ class TestLeffInMemoryPhases:
             sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV)
 
     def test_phase_count_must_match_props(self):
+        #one phase at 100 %: the concentration check passes, the count check must not
+        single = two_phase_composite()[:1]
+        single[0].concentration = 1.0
         with pytest.raises(Exception, match="sub-phases props\\[0\\] announces"):
             sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,
-                            phases=to_phase_dicts(two_phase_composite()[:1]))
+                            phases=to_phase_dicts(single))
 
     def test_homogeneous_model_needs_no_phases(self):
         L = np.asarray(sim._core.L_eff("ELISO", np.array([70000.0, 0.3, 1.0e-5]), 1))

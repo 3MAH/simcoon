@@ -3,6 +3,7 @@ Plasticity with isotropic hardening example
 =============================================
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
@@ -69,8 +70,8 @@ path_data = "../data"
 
 # Run the simulation: the loading path is read in Python and the case runs in
 # memory, so no result file is written.
-pathfile = "EPICP_path.txt"
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+pathfile = "EPICP_path.json"
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res = sim.solver.solve(
     blocks,
     umat_name,
@@ -136,8 +137,8 @@ increments = [1, 10, 100, 1000]
 # the case runs in memory, so nothing is written to — or read back from — disk.
 data = []
 for inc in increments:
-    pathfile = f"EPICP_path_{inc}.txt"
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    pathfile = f"EPICP_path_{inc}.json"
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
     res_inc = sim.solver.solve(
         blocks,
         umat_name,

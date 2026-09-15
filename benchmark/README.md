@@ -5,12 +5,12 @@ cross-checks that they produce the same response:
 
 - **memory** — `sim.solver.solve(...)`: blocks built in Python
   (`_core.solver_run` + memory sink), no filesystem involved.
-- **file** — `sim.solver.from_file(...)` then `solve`: the path-file route,
-  including its path.txt write and Python parse.
+- **file** — `sim.solver.save_path_json` / `load_path_json` then `solve`: the
+  path-file route, including the path.json write and read.
 
 Since 2.0 the C++ engine reads nothing, so both routes reach the same Newton
-engine with the same blocks: the timing gap isolates the path-file write and
-its parse, and the equivalence column checks the parse round-trip.
+engine with the same blocks: the timing gap isolates the path.json write and
+its read, and the equivalence column checks the JSON round-trip.
 
 ```bash
 python benchmark/benchmark_solver.py           # all cases, 5 repeats

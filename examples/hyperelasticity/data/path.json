@@ -1,0 +1,44 @@
+{
+  "initial_temperature": 293.5,
+  "corate": "logarithmic_R",
+  "blocks": [
+    {
+      "control_type": 5,
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "time": 5.0,
+          "ninc": 10,
+          "mode": 1,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "T_final": 290.0,
+          "tabular_T": false,
+          "control": [
+            "strain",
+            "strain",
+            "strain",
+            "strain",
+            "strain",
+            "strain",
+            "strain",
+            "strain",
+            "strain"
+          ],
+          "value": [
+            5.0,
+            0.0,
+            0.0,
+            0.0,
+            0.4472135955,
+            0.0,
+            0.0,
+            0.0,
+            0.4472135955
+          ]
+        }
+      ]
+    }
+  ]
+}

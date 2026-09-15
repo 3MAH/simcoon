@@ -3,6 +3,7 @@ Plasticity with Chaboche Hardening Example
 =============================================
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
@@ -64,13 +65,13 @@ corate_type = 1
 props = np.array([E, nu, alpha, sigma_Y, Q, b, C_1, D_1, C_2, D_2])
 
 path_data = "../data"
-pathfile = "EPCHA_path.txt"
+pathfile = "EPCHA_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

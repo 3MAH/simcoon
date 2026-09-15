@@ -8,6 +8,7 @@ terms. The elastic-plastic model with isotropic hardening (EPICP) is used as a
 representative case.
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
@@ -54,8 +55,8 @@ data = []
 for inc in increments:
     # Each path file is parsed in Python and its case runs in memory: nothing is
     # written to — or read back from — disk.
-    pathfile = f"EPICP_path_{inc}.txt"
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    pathfile = f"EPICP_path_{inc}.json"
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
     res = sim.solver.solve(
         blocks,
         umat_name,

@@ -3,6 +3,7 @@ Orthotropic elasticity (thermomechanical)
 =========================================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
@@ -87,9 +88,9 @@ path_data = "../data"
 # Loading in direction 1
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_1.txt"
+pathfile = "THERM_ELISO_path_1.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res_1 = sim.solver.solve(
     blocks,
     umat_name,
@@ -105,9 +106,9 @@ res_1 = sim.solver.solve(
 # Loading in direction 2
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_2.txt"
+pathfile = "THERM_ELISO_path_2.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res_2 = sim.solver.solve(
     blocks,
     umat_name,
@@ -123,9 +124,9 @@ res_2 = sim.solver.solve(
 # Loading in direction 3
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 
-pathfile = "THERM_ELISO_path_3.txt"
+pathfile = "THERM_ELISO_path_3.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res_3 = sim.solver.solve(
     blocks,
     umat_name,

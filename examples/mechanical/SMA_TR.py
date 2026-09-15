@@ -3,6 +3,7 @@ Shape Memory Alloy - Superelastic Model
 =========================================
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
@@ -99,13 +100,13 @@ props = np.array([
 ])
 
 path_data = "../data"
-pathfile = "SMADI_path.txt"
+pathfile = "SMADI_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

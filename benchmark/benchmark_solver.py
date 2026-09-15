@@ -4,12 +4,12 @@ Times the SAME loading cases through the two shipped entry points:
 
 - memory : ``sim.solver.solve(...)`` — blocks in, numpy arrays out, no file
   anywhere (``_core.solver_run`` + memory sink).
-- file   : ``sim.solver.from_file(...)`` then ``solve`` — path.txt is written
-  and parsed back into those same blocks (includes the write + the parse).
+- file   : ``sim.solver.save_path_json`` then ``load_path_json`` then ``solve`` —
+  path.json is written and read back into those same blocks (includes both).
 
 Since 2.0 the C++ engine reads nothing: both routes end up in the same Newton
-engine with the same blocks, so the measured gap is the path-file write plus
-its Python parse, and the two responses must agree — in the same measures,
+engine with the same blocks, so the measured gap is the path.json write plus
+its read, and the two responses must agree — in the same measures,
 which is why the cross-check below covers every case rather than only the
 small-strain ones.
 
@@ -101,44 +101,19 @@ def run_memory(name, cfg):
 
 
 def run_file(name, cfg, workdir):
-    """Path-file route: write path.txt, parse it in Python, then solve."""
+    """Path-file route: save the loading path as path.json, read it back, then solve."""
     data = Path(workdir) / "data"
-    data.mkdir(exist_ok=True)
+    data.mkdir(parents=True, exist_ok=True)
     ct = CONTROL_TYPE_CODES[cfg["control_type"]]
-    # control types 2-4 additionally require a spin block in the path file
-    spin = "#spin\n0. 0. 0.\n0. 0. 0.\n0. 0. 0.\n" if 2 <= ct <= 4 else ""
-    (data / "path.txt").write_text(f"""#Initial_temperature
-{T_INIT}
-#Number_of_blocks
-1
-
-#Block
-1
-#Loading_type
-1
-#Control_type(NLGEOM)
-{ct}
-#Repeat
-1
-#Steps
-1
-
-#Mode
-1
-#Dn_init 1.
-#Dn_mini 0.001
-#Dn_inc {1.0 / cfg['ninc']}
-#time
-1.
-#mechanical_state
-E {cfg['strain_max']}
-S 0 S 0
-S 0 S 0 S 0
-{spin}#temperature_state
-T {T_INIT}
-""")
+    # control types 2-4 additionally carry a (here zero) spin
+    step = sim.solver.StepMeca(control=["strain"] + ["stress"] * 5,
+                               value=[cfg["strain_max"], 0, 0, 0, 0, 0],
+                               time=1.0, ninc=cfg["ninc"], Dn_init=1.0, Dn_mini=0.001,
+                               BC_w=np.zeros((3, 3)) if 2 <= ct <= 4 else None)
+    block = sim.solver.Block(steps=[step], control_type=cfg["control_type"])
+    sim.solver.save_path_json(data / "path.json", [block], T_INIT, CORATE)
     start = time.perf_counter()
-    blocks, T_init = sim.solver.from_file(str(data), "path.txt")
+    blocks, T_init, _ = sim.solver.load_path_json(data / "path.json")
     res = sim.solver.solve(blocks, name, np.asarray(cfg["props"], dtype=float),
                            cfg["nstatev"], T_init=T_init, corate=CORATE,
                            record_tangent=False)

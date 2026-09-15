@@ -1,0 +1,38 @@
+{
+  "initial_temperature": 290.0,
+  "corate": "logarithmic",
+  "blocks": [
+    {
+      "control_type": 1,
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "time": 0.001,
+          "ninc": 100,
+          "mode": 1,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "T_final": 290.0,
+          "tabular_T": false,
+          "control": [
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            40.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ]
+}

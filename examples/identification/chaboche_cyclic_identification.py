@@ -23,17 +23,18 @@ amplitudes (~1%, ~1.5%, ~2%). Each one needs a **pre-cycling** stage so the
 numerical model arrives at the comparison window with realistic accumulated
 backstress, then an **initial-state alignment** so it starts at the same
 residual strain as the experiment, then a **replay** of the experimental
-loading path. This is encoded in three blocks of the structured
-``path_id_N.txt`` config file:
+loading path. This is encoded in three blocks of the ``path_id_N.json`` file:
 
 1. Block 1 (mode 1, linear) — virtual pre-cycle (±1%, ±1.5%, ±2%)
 2. Block 2 (mode 1, linear) — set initial residual strain (first row of exp)
-3. Block 3 (mode 3, tab file) — replay ``tab_file_N.txt``
+3. Block 3 (mode 3, tabular) — replay of the experimental table, read from the
+   ``path_id_N_tab1.csv`` file the JSON references
 
-The ``path_id_N.txt`` and ``tab_file_N.txt`` files are provided in
-``data/`` because they are tricky to construct manually. When
-``feature/python_solver`` lands, this scaffolding will be replaced by Python
-helpers that build steps and tab files programmatically from the experimental
+The ``path_id_N.json`` / ``path_id_N_tab1.csv`` pairs are provided in ``data/``
+because they are tricky to construct manually (they were converted from the legacy
+``path_id_N.txt`` + ``tab_file_N.txt`` pairs with ``scripts/legacy_to_json.py``).
+A later step will
+replace this scaffolding by Python helpers that build the steps from the experimental
 data.
 
 Forward model: :func:`simcoon.solver` (UMAT material-point integrator).
@@ -55,10 +56,10 @@ from simcoon.identify import identification, calc_cost
 # layout (numbering is intentional: 1, 1.5, 2 strain amplitudes).
 # ---------------------------------------------------------------------------
 TESTS = [
-    # name      path file         tab file           exp file
-    ("test1", "path_id_1.txt", "tab_file_1.txt",  "exp_file_1.txt"),
-    ("test2", "path_id_2.txt", "tab_file_15.txt", "exp_file_15.txt"),
-    ("test3", "path_id_3.txt", "tab_file_2.txt",  "exp_file_2.txt"),
+    # name      path file (its mode-3 table embedded)   exp file
+    ("test1", "path_id_1.json", "exp_file_1.txt"),
+    ("test2", "path_id_2.json", "exp_file_15.txt"),
+    ("test3", "path_id_3.json", "exp_file_2.txt"),
 ]
 
 UMAT_NAME = "EPCHA"
@@ -91,13 +92,13 @@ def build_props(x):
 def run_one_test(props, programme):
     """Run one case and return the predicted σ11 trajectory.
 
-    ``programme`` is the ``(blocks, T_init)`` pair ``from_file`` parsed once in main():
+    ``programme`` is the ``(blocks, T_init)`` pair ``load_path_json`` read once in main():
     an identification evaluates this thousands of times, and none of them touches the
     disk or re-parses the path.
 
     Only the **last** block is returned. The first two blocks are the virtual
     pre-cycle and the initial-state alignment; the experiment corresponds to the
-    third one, the mode-3 replay of ``tab_file_N.txt``. The legacy result file
+    third one, the mode-3 replay of the table its third block embeds. The legacy result file
     carried exactly that window, so returning the whole history (501 increments
     against 201 experimental points) would break the cost function.
     """
@@ -136,7 +137,7 @@ def main():
 
     # Experimental σ11 — exp file columns: incr, time, strain, stress
     exp_stresses = []
-    for _, _, _, expfile in TESTS:
+    for _, _, expfile in TESTS:
         exp = np.loadtxt(os.path.join(path_exp, expfile))
         exp_stresses.append(exp[:, 3].reshape(-1, 1))
 
@@ -144,12 +145,12 @@ def main():
     print(" CHABOCHE CYCLIC PLASTICITY IDENTIFICATION")
     print(" 7 params from 3 cyclic tests, NMSE-per-response cost")
     print("=" * 60)
-    for i, (name, pathfile, tab, expfile) in enumerate(TESTS):
-        print(f"  {name}: {pathfile} + {tab} vs {expfile}  "
-              f"({len(exp_stresses[i])} pts)")
+    for i, (name, pathfile, expfile) in enumerate(TESTS):
+        print(f"  {name}: {pathfile} vs {expfile}  ({len(exp_stresses[i])} pts)")
 
     # The loading programmes, parsed once for the whole identification
-    programmes = [sim.solver.from_file(path_data, pathfile) for _, pathfile, _, _ in TESTS]
+    programmes = [sim.solver.load_path_json(os.path.join(path_data, pathfile))[:2]
+                  for _, pathfile, _ in TESTS]
 
     # Gallery budget (~1-2 min). Bump popsize/maxiter for tighter fits.
     result = identification(
@@ -172,7 +173,7 @@ def main():
     fig, ax = plt.subplots(figsize=(9, 7))
     final_props = build_props(np.array([p.value for p in PARAMS]))
     colors = ["tab:blue", "tab:orange", "tab:green"]
-    for (name, _pf, _tab, expfile), programme, color in zip(TESTS, programmes, colors):
+    for (name, _pf, expfile), programme, color in zip(TESTS, programmes, colors):
         exp = np.loadtxt(os.path.join(path_exp, expfile))
         sigma_num = run_one_test(final_props, programme)
         ax.plot(exp[:, 2], exp[:, 3], color=color, linestyle="--",

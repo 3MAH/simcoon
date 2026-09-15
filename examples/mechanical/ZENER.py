@@ -3,6 +3,7 @@ Zener viscoelastic model
 =========================
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
@@ -49,13 +50,13 @@ corate_type = 1
 props = np.array([E_0, nu_0, alpha, E_1, nu_1, eta_B, eta_S])
 
 path_data = "../data"
-pathfile = "ZENER_path.txt"
+pathfile = "ZENER_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

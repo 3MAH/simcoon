@@ -29,6 +29,7 @@ from simcoon.solver.micromechanics import (
     save_cylinders_json,
     load_sections_json,
     save_sections_json,
+    to_phase_dicts,
 )
 
 
@@ -484,160 +485,41 @@ class TestMicromechanicsEdgeCases:
             load_ellipsoids_json('/nonexistent/path.json')
 
 
-# The legacy .dat readers arrived with the JSON-only migration, when the parsing
-# of those files moved out of the C++ src/Simulation/Phase/read.cpp.
-from simcoon.solver.micromechanics import (
-    convert_dat_to_json,
-    kind_from_dat_name,
-    load_cylinders_dat,
-    load_ellipsoids_dat,
-    load_layers_dat,
-    load_phases_dat,
-    load_sections_dat,
-)
+class TestNestedPhases:
+    """A sub-phase that is itself a mean-field model carries its own sub-phases."""
 
-# Verbatim copies of the testBin fixtures, ragged tabs included.
-PHASES_DAT = (
-    "Number\tumat\tsave \tc\tpsi_mat\ttheta_mat \tphi_mat\tnprops\tnstatev\tprops\n"
-    "0\tELISO\t1\t0.8\t0\t0\t\t0\t3\t1\t70000\t0.4\t0\n"
-    "1\tELISO\t1\t0.2\t0\t0\t\t0\t3\t1\t3000\t0.4\t0\n"
-    "\n\n\n"
-)
-LAYERS_DAT = (
-    "Number\tumat\tsave\tc\tpsi_mat\ttheta_mat\tphi_mat\tpsi_geom\ttheta_geom\tphi_geom"
-    "\tnprops\tnstatev\tprops\n"
-    "0\tELISO\t1\t0.8\t0\t0\t0\t0\t90\t-90\t3\t1\t3000\t0.4\t0\n"
-    "1\tELISO\t1\t0.2\t0\t0\t0\t0\t90\t-90\t3\t1\t70000\t0.3\t0\n"
-)
-ELLIPSOIDS_DAT = (
-    "Number\tCoatingof\tumat\tsave\tc\tpsi_mat\ttheta_mat\tphi_mat\ta1\ta2\ta3"
-    "\tpsi_geom\ttheta_geom\tphi_geom\tnprops\tnstatev\tprops\n"
-    "0\t0\tELISO\t1\t0.8\t0\t0\t0\t1\t1\t1\t0\t0\t0\t3\t1\t3000\t0.4\t0\n"
-    "1\t0\tELISO\t1\t0.2\t0\t0\t0\t50\t1\t1\t0\t0\t0\t3\t1\t70000\t0.3\t0\n"
-)
-CYLINDERS_DAT = (
-    "Number\tCoatingof\tumat\tsave\tc\tpsi_mat\ttheta_mat\tphi_mat\tL\tR"
-    "\tpsi_geom\ttheta_geom\tphi_geom\tnprops\tnstatev\tprops\n"
-    "0\t0\tELISO\t1\t0.8\t0\t0\t0\t1\t1\t0\t0\t0\t3\t1\t3000\t0.4\t0\n"
-    "1\t0\tELISO\t1\t0.2\t0\t0\t0\t50\t1\t0\t0\t0\t3\t1\t70000\t0.3\t0\n"
-)
-SECTIONS_DAT = (
-    "Number\tSection_name\tumat\tpsi_mat\ttheta_mat \tphi_mat\tnprops\tnstatev\tprops\n"
-    "0\tYarn0\t\tELISO\t0\t0\t\t0\t3\t1\t70000\t0.4\t0\n"
-    "1\tYarn1\t\tELISO\t0\t0\t\t0\t3\t1\t3000\t0.4\t0\n"
-)
+    def _composite(self):
+        inner = [Ellipsoid(number=0, concentration=0.8, props=[5000.0, 0.3, 0.0]),
+                 Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0],
+                           geometry_orientation=GeometryOrientation(45.0, 0.0, 0.0))]
+        outer = [Ellipsoid(number=0, umat_name="MIMTN", concentration=0.8, nstatev=1000,
+                           props=[2.0, 1.0, 20.0, 20.0, 0.0], phases=inner),
+                 Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0])]
+        return outer
 
+    def test_json_round_trip(self, tmp_path):
+        path = tmp_path / "nested.json"
+        save_ellipsoids_json(path, self._composite())
+        loaded = load_ellipsoids_json(path)
+        assert [p.umat_name for p in loaded] == ["MIMTN", "ELISO"]
+        inner = loaded[0].phases
+        assert [type(p) for p in inner] == [Ellipsoid, Ellipsoid]
+        assert inner[1].a1 == 50.0
+        assert inner[1].geometry_orientation.psi == 45.0
+        np.testing.assert_array_equal(inner[0].props, [5000.0, 0.3, 0.0])
+        assert loaded[1].phases == []
 
-def _write_dat(tmp_path, name, content):
-    path = tmp_path / name
-    path.write_text(content)
-    return path
+    def test_to_phase_dict_carries_kind_and_nesting(self):
+        dicts = to_phase_dicts(self._composite())
+        assert dicts[0]["kind"] == "ellipsoid"
+        assert [d["number"] for d in dicts[0]["phases"]] == [0, 1]
+        assert "phases" not in dicts[1]
+        assert to_phase_dicts([Layer()])[0]["kind"] == "layer"
+        assert to_phase_dicts([Phase()])[0]["kind"] == "phase"
 
-
-class TestLegacyDatReaders:
-    """The historical .dat formats, parsed in Python instead of C++."""
-
-    def test_phases(self, tmp_path):
-        phases = load_phases_dat(_write_dat(tmp_path, "Nphases0.dat", PHASES_DAT))
-        assert len(phases) == 2
-        assert phases[0].umat_name == "ELISO"
-        assert phases[0].save == 1
-        assert phases[0].concentration == 0.8
-        assert phases[0].nstatev == 1
-        np.testing.assert_allclose(phases[0].props, [70000, 0.4, 0])
-        np.testing.assert_allclose(phases[1].props, [3000, 0.4, 0])
-
-    def test_layers_carry_geometry_orientation(self, tmp_path):
-        layers = load_layers_dat(_write_dat(tmp_path, "Nlayers0.dat", LAYERS_DAT))
-        assert len(layers) == 2
-        assert layers[0].geometry_orientation.theta == 90
-        assert layers[0].geometry_orientation.phi == -90
-        assert layers[0].material_orientation.psi == 0
-
-    def test_ellipsoids_semi_axes_and_shape(self, tmp_path):
-        ells = load_ellipsoids_dat(_write_dat(tmp_path, "Nellipsoids0.dat", ELLIPSOIDS_DAT))
-        assert [e.number for e in ells] == [0, 1]
-        assert ells[0].shape_type == "sphere"
-        assert (ells[1].a1, ells[1].a2, ells[1].a3) == (50, 1, 1)
-        assert ells[1].shape_type == "prolate_spheroid"
-        assert ells[1].coatingof == 0
-
-    def test_cylinders_length_and_radius(self, tmp_path):
-        cyls = load_cylinders_dat(_write_dat(tmp_path, "Ncylinders0.dat", CYLINDERS_DAT))
-        assert (cyls[0].L, cyls[0].R) == (1, 1)
-        assert cyls[1].aspect_ratio == 50
-
-    def test_sections_keep_their_name(self, tmp_path):
-        secs = load_sections_dat(_write_dat(tmp_path, "Nsections0.dat", SECTIONS_DAT))
-        assert [s.name for s in secs] == ["Yarn0", "Yarn1"]
-        assert secs[0].umat_name == "ELISO"
-        np.testing.assert_allclose(secs[0].props, [70000, 0.4, 0])
-
-    def test_trailing_blank_lines_are_ignored(self, tmp_path):
-        # PHASES_DAT ends with three empty lines, as the shipped fixture does.
-        assert len(load_phases_dat(_write_dat(tmp_path, "Nphases0.dat", PHASES_DAT))) == 2
-
-    def test_row_contradicting_its_nprops_is_rejected(self, tmp_path):
-        truncated = PHASES_DAT.replace("\t3\t1\t70000\t0.4\t0", "\t3\t1\t70000\t0.4")
-        with pytest.raises(ValueError, match="announces"):
-            load_phases_dat(_write_dat(tmp_path, "Nphases0.dat", truncated))
-
-    def test_non_integer_nprops_is_rejected(self, tmp_path):
-        broken = PHASES_DAT.replace("\t3\t1\t70000", "\tthree\t1\t70000")
-        with pytest.raises(ValueError, match="nprops"):
-            load_phases_dat(_write_dat(tmp_path, "Nphases0.dat", broken))
-
-    def test_empty_file_is_rejected(self, tmp_path):
-        with pytest.raises(ValueError, match="header"):
-            load_phases_dat(_write_dat(tmp_path, "Nphases0.dat", ""))
-
-    def test_missing_file(self, tmp_path):
-        with pytest.raises(FileNotFoundError):
-            load_phases_dat(tmp_path / "absent.dat")
-
-    def test_abaqus_deck_is_named_for_what_it_is(self, tmp_path):
-        # testBin ships Nsections1.dat in this form; it is not tabular data.
-        deck = "** ==================\n*Material, name=ELISO-0\n*Depvar\n     5\n"
-        with pytest.raises(ValueError, match="Abaqus"):
-            load_sections_dat(_write_dat(tmp_path, "Nsections1.dat", deck))
-
-    def test_kind_inferred_from_name(self):
-        assert kind_from_dat_name("Nellipsoids0.dat") == "ellipsoids"
-        assert kind_from_dat_name("Nphases12.dat") == "phases"
-        with pytest.raises(ValueError):
-            kind_from_dat_name("whatever.dat")
-
-
-class TestDatToJsonConversion:
-    """The one-way door: a legacy file in, the JSON we now write out."""
-
-    def test_ellipsoids_round_trip_through_json(self, tmp_path):
-        dat = _write_dat(tmp_path, "Nellipsoids0.dat", ELLIPSOIDS_DAT)
-        out = convert_dat_to_json(dat)
-        assert out.name == "ellipsoids0.json"
-
-        from_dat = load_ellipsoids_dat(dat)
-        from_json = load_ellipsoids_json(out)
-        assert len(from_json) == len(from_dat)
-        for a, b in zip(from_dat, from_json):
-            assert (a.number, a.umat_name, a.coatingof) == (b.number, b.umat_name, b.coatingof)
-            assert (a.a1, a.a2, a.a3) == (b.a1, b.a2, b.a3)
-            assert a.concentration == b.concentration
-            assert a.geometry_orientation.theta == b.geometry_orientation.theta
-            np.testing.assert_allclose(a.props, b.props)
-
-    def test_layers_conversion_to_an_explicit_path(self, tmp_path):
-        dat = _write_dat(tmp_path, "Nlayers0.dat", LAYERS_DAT)
-        out = convert_dat_to_json(dat, tmp_path / "chosen.json")
-        assert out.name == "chosen.json"
-        layers = load_layers_json(out)
-        assert [lay.geometry_orientation.phi for lay in layers] == [-90, -90]
-
-    def test_unknown_kind_is_refused(self, tmp_path):
-        dat = _write_dat(tmp_path, "mystery.dat", PHASES_DAT)
-        with pytest.raises(ValueError):
-            convert_dat_to_json(dat)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    def test_dict_form_is_coerced_back(self):
+        outer = Ellipsoid(umat_name="MIMTN", props=[2, 1, 20, 20, 0],
+                          phases=[{"umat_name": "ELISO", "concentration": 0.5, "props": [1, 0.3, 0]},
+                                  {"umat_name": "ELISO", "concentration": 0.5, "props": [2, 0.3, 0]}])
+        assert all(isinstance(p, Ellipsoid) for p in outer.phases)
+        assert outer.phases[1].props[0] == 2

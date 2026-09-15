@@ -2,9 +2,9 @@
 
 These tests exercise the end-to-end `ModularMaterial → sim.solver.solve("MODUL", ...)`
 path for the cases that would silently break if the modular C++ orchestrator
-or Python props-serialization regressed. The loading paths are still the legacy
-path files of examples/data, parsed in Python (sim.solver.from_file) since the
-file-driven binding left with the 2.0 JSON-only migration.
+or Python props-serialization regressed. The loading paths are the JSON path
+files of examples/data (sim.solver.load_path_json); the file-driven binding left
+with the 2.0 JSON-only migration.
 """
 
 import os
@@ -31,7 +31,7 @@ EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "mechanical"
 @pytest.fixture
 def work_in_examples(tmp_path, monkeypatch):
     """sim.solver reads/writes relative paths — chdir to the examples folder
-    so `data/MODUL_path.txt` resolves, but point results into a pytest tmpdir."""
+    so `data/MODUL_path.json` resolves, but point results into a pytest tmpdir."""
     monkeypatch.chdir(EXAMPLES_DIR)
     results = tmp_path / "results"
     results.mkdir()
@@ -46,15 +46,15 @@ def work_in_examples(tmp_path, monkeypatch):
 
 
 def _run_case(name, props, nstatev, path_file, cols=(8, 14), tangent_mode=None):
-    """Run one case from a legacy path file; return the requested columns.
+    """Run one case from a JSON path file; return the requested columns.
 
-    The path file is parsed in Python (sim.solver.from_file) and the case runs in
+    The path file is read in Python (sim.solver.load_path_json) and the case runs in
     memory — the file-driven binding left with the 2.0 JSON-only migration. The
     result files these tests used to read carried the default output, Green-Lagrange
     strain in columns 8:14 and Cauchy stress in 14:20, so a column index still names
     a component of "Strain" or "Stress".
     """
-    blocks, T_init = sim.solver.from_file("../data", path_file)
+    blocks, T_init = sim.solver.load_path_json(os.path.join("../data", path_file))[:2]
     kwargs = {} if tangent_mode is None else {"tangent_mode": tangent_mode}
     res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
                            T_init=T_init, corate=1, **kwargs)
@@ -73,7 +73,7 @@ def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndar
     """Run the MODUL solver through the standard path file; return the
     (n_steps, 2) array of (eps_11, sigma_11). `results_dir` and `outfile` are kept
     in the signature, and ignored: nothing is written to disk any more."""
-    return _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
+    return _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
 
 
 def test_af_with_list_args_rejected():
@@ -192,13 +192,13 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
 
     pronk_props = np.array([E0, nu0, 0.0, len(terms)]
                            + [x for t in terms for x in t])
-    ref = _run_case("PRONK", pronk_props, 7 + 7 * len(terms), "PRONK_path.txt")
+    ref = _run_case("PRONK", pronk_props, 7 + 7 * len(terms), "PRONK_path.json")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=E0, C2=nu0),
         mechanisms=[Viscoelasticity(terms=terms)],
     )
-    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "PRONK_path.txt")
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "PRONK_path.json")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -254,7 +254,7 @@ def test_tangent_mode_1_same_converged_response(work_in_examples):
     outs = {}
     for mode in (1, 2):
         outs[mode] = _run_case(mat.umat_name, mat.props, mat.nstatev,
-                               "MODUL_path.txt", cols=(14,), tangent_mode=mode)
+                               "MODUL_path.json", cols=(14,), tangent_mode=mode)
 
     assert outs[1].shape == outs[2].shape
     peak = np.max(np.abs(outs[1][:, 0]))
@@ -279,7 +279,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
     epcha_props = np.array([210000.0, 0.3, 0.0,
                             300.0, 200.0, 20.0,
                             30000.0, 172.0, 19500.0, 301.0])
-    ref = _run_case("EPCHA", epcha_props, 33, "MODUL_path.txt")
+    ref = _run_case("EPCHA", epcha_props, 33, "MODUL_path.json")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
@@ -290,7 +290,7 @@ def test_chaboche_matches_epcha_reference(work_in_examples):
                 terms=((30000.0, 172.0), (19500.0, 301.0))),
         )],
     )
-    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -317,7 +317,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
 
     ephil_props = np.array([210000., 0.3, 0., 300., 5000., 1.0,
                             0.5, 0.4, 0.6, 1.5, 1.5, 1.5])
-    ref = _run_case("EPHIL", ephil_props, 33, "MODUL_path.txt")
+    ref = _run_case("EPHIL", ephil_props, 33, "MODUL_path.json")
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
@@ -327,7 +327,7 @@ def test_hill_matches_ephil_reference(work_in_examples):
             isotropic_hardening=PowerLawHardening(k=5000., m=1.0),
         )],
     )
-    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.txt")
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
 
     assert hist.shape == ref.shape
     peak = np.max(np.abs(ref[:, 1]))
@@ -349,10 +349,10 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
     shear path exposed a 24.7% stress error. Two sites: backstress_t and the
     ChabocheHardening total_backstress accumulator."""
     from simcoon.modular import ChabocheHardening
-    # SHEAR_path.txt drives E12 with all other components stress-free.
+    # SHEAR_path.json drives E12 with all other components stress-free.
     ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
     # eps12, sig12
-    ref = _run_case("EPCHA", ep, 33, "SHEAR_path.txt", cols=(11, 17))
+    ref = _run_case("EPCHA", ep, 33, "SHEAR_path.json", cols=(11, 17))
 
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
@@ -362,7 +362,7 @@ def test_chaboche_shear_matches_epcha_reference(work_in_examples):
                 terms=((30000., 300.), (19500., 172.))),
         )],
     )
-    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "SHEAR_path.txt",
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "SHEAR_path.json",
                      cols=(11, 17))
 
     assert hist.shape == ref.shape
@@ -388,7 +388,7 @@ def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
             elasticity=IsotropicElasticity(C1=210000., C2=0.3),
             mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
         )
-        return _run_case(m.umat_name, m.props, m.nstatev, "SHEAR_path.txt",
+        return _run_case(m.umat_name, m.props, m.nstatev, "SHEAR_path.json",
                          cols=(11, 17))
 
     af = run(ArmstrongFrederickHardening(C=30000., D=300.), "af_af.txt")
@@ -417,7 +417,7 @@ def _run_named(name, props, nstatev, results_dir, path_file, out, cols=(8, 14)):
     `results_dir` and `out` are kept in the signature, and ignored: nothing is
     written to disk.
     """
-    blocks, T_init = sim.solver.from_file("../data", path_file)
+    blocks, T_init = sim.solver.load_path_json(os.path.join("../data", path_file))[:2]
     res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
                            T_init=T_init, corate=1)
     if cols != (8, 14):
@@ -436,11 +436,11 @@ def _assert_equiv(ref, hist, rel_tol, label):
 
 def test_eliso_matches_modul(work_in_examples):
     ref = _run_named("ELISO", [210000., 0.3, 1.2e-5], 1,
-                     work_in_examples, "MODUL_path.txt", "eq_eliso.txt")
+                     work_in_examples, "MODUL_path.json", "eq_eliso.txt")
     mat = ModularMaterial(elasticity=IsotropicElasticity(
         C1=210000., C2=0.3, alpha=1.2e-5))
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_meliso.txt")
+                      work_in_examples, "MODUL_path.json", "eq_meliso.txt")
     _assert_equiv(ref, hist, 1e-9, "ELISO")
 
 
@@ -448,11 +448,11 @@ def test_elist_matches_modul(work_in_examples):
     from simcoon.modular import TransverseIsotropicElasticity
     # legacy props: [axis, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T]
     ref = _run_named("ELIST", [3, 230000., 15000., 0.02, 0.4, 50000., 0., 0.],
-                     1, work_in_examples, "MODUL_path.txt", "eq_elist.txt")
+                     1, work_in_examples, "MODUL_path.json", "eq_elist.txt")
     mat = ModularMaterial(elasticity=TransverseIsotropicElasticity(
         EL=230000., ET=15000., nuTL=0.02, nuTT=0.4, GLT=50000., axis=3))
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_melist.txt")
+                      work_in_examples, "MODUL_path.json", "eq_melist.txt")
     _assert_equiv(ref, hist, 1e-9, "ELIST")
 
 
@@ -460,13 +460,13 @@ def test_elort_matches_modul(work_in_examples):
     from simcoon.modular import OrthotropicElasticity
     ref = _run_named("ELORT", [70000., 30000., 15000., 0.3, 0.3, 0.3,
                                8000., 6000., 5000., 1e-5, 2e-5, 3e-5],
-                     1, work_in_examples, "MODUL_path.txt", "eq_elort.txt")
+                     1, work_in_examples, "MODUL_path.json", "eq_elort.txt")
     mat = ModularMaterial(elasticity=OrthotropicElasticity(
         C1=70000., C2=30000., C3=15000., C4=0.3, C5=0.3, C6=0.3,
         C7=8000., C8=6000., C9=5000.,
         alpha1=1e-5, alpha2=2e-5, alpha3=3e-5))
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_melort.txt")
+                      work_in_examples, "MODUL_path.json", "eq_melort.txt")
     _assert_equiv(ref, hist, 1e-9, "ELORT")
 
 
@@ -476,7 +476,7 @@ def test_epkcp_matches_modul(work_in_examples):
     p=0 tangent singularity (same rationale as the EPHIL test)."""
     from simcoon.modular import PowerLawHardening, PragerHardening
     ref = _run_named("EPKCP", [210000., 0.3, 0., 300., 1000., 1.0, 20000.],
-                     33, work_in_examples, "MODUL_path.txt", "eq_epkcp.txt")
+                     33, work_in_examples, "MODUL_path.json", "eq_epkcp.txt")
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
         mechanisms=[Plasticity(
@@ -484,7 +484,7 @@ def test_epkcp_matches_modul(work_in_examples):
             isotropic_hardening=PowerLawHardening(k=1000., m=1.0),
             kinematic_hardening=PragerHardening(C=1.5 * 20000.))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mepkcp.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mepkcp.txt")
     _assert_equiv(ref, hist, 1e-5, "EPKCP")
 
 
@@ -495,7 +495,7 @@ def test_ephac_matches_modul(work_in_examples):
              30000., 172., 19500., 301.,
              0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
     ref = _run_named("EPHAC", props, 33,
-                     work_in_examples, "MODUL_path.txt", "eq_ephac.txt")
+                     work_in_examples, "MODUL_path.json", "eq_ephac.txt")
     mat = ModularMaterial(
         elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
         mechanisms=[Plasticity(
@@ -505,7 +505,7 @@ def test_ephac_matches_modul(work_in_examples):
             kinematic_hardening=ChabocheHardening(
                 terms=((30000., 172.), (19500., 301.))))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mephac.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mephac.txt")
     _assert_equiv(ref, hist, 1e-3, "EPHAC")
 
 
@@ -519,7 +519,7 @@ def test_epani_matches_modul(work_in_examples):
              30000., 172., 19500., 301.,
              1.2, 1.1, 1.1, -0.6, -0.6, -0.5, 1.6, 1.5, 1.4]
     ref = _run_named("EPANI", props, 33,
-                     work_in_examples, "MODUL_path.txt", "eq_epani.txt")
+                     work_in_examples, "MODUL_path.json", "eq_epani.txt")
     mat = ModularMaterial(
         elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
         mechanisms=[Plasticity(
@@ -531,7 +531,7 @@ def test_epani_matches_modul(work_in_examples):
             kinematic_hardening=ChabocheHardening(
                 terms=((30000., 172.), (19500., 301.))))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mepani.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mepani.txt")
     _assert_equiv(ref, hist, 1e-3, "EPANI")
 
 
@@ -542,7 +542,7 @@ def test_epdfa_matches_modul(work_in_examples):
              30000., 172., 19500., 301.,
              0.5, 0.4, 0.6, 1.5, 1.5, 1.5, 0.1]
     ref = _run_named("EPDFA", props, 33,
-                     work_in_examples, "MODUL_path.txt", "eq_epdfa.txt")
+                     work_in_examples, "MODUL_path.json", "eq_epdfa.txt")
     mat = ModularMaterial(
         elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
         mechanisms=[Plasticity(
@@ -553,7 +553,7 @@ def test_epdfa_matches_modul(work_in_examples):
             kinematic_hardening=ChabocheHardening(
                 terms=((30000., 172.), (19500., 301.))))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mepdfa.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mepdfa.txt")
     _assert_equiv(ref, hist, 1e-3, "EPDFA")
 
 
@@ -572,7 +572,7 @@ def test_epchg_matches_modul(work_in_examples):
              150., 15., 50., 40.,
              30000., 172., 19500., 301.]
     ref = _run_named("EPCHG", props, 33,
-                     work_in_examples, "MODUL_path.txt", "eq_epchg.txt")
+                     work_in_examples, "MODUL_path.json", "eq_epchg.txt")
     b_eff = 15. + 40.
     q_eff = (15. * 150. + 40. * 50.) / b_eff
     mat = ModularMaterial(
@@ -583,7 +583,7 @@ def test_epchg_matches_modul(work_in_examples):
             kinematic_hardening=ChabocheHardening(
                 terms=((30000., 172.), (19500., 301.))))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mepchg.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mepchg.txt")
     _assert_equiv(ref, hist, 1e-3, "EPCHG")
 
 
@@ -601,7 +601,7 @@ def test_ephin_matches_modul(work_in_examples):
     props = [210000., 0.3, 0., 1,
              300., 3000., 1.0, 0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
     ref = _run_named("EPHIN", props, 33,
-                     work_in_examples, "MODUL_path.txt", "eq_ephin.txt")
+                     work_in_examples, "MODUL_path.json", "eq_ephin.txt")
     mat = ModularMaterial(
         elasticity=IsotropicElasticity(C1=210000., C2=0.3),
         mechanisms=[Plasticity(
@@ -610,7 +610,7 @@ def test_ephin_matches_modul(work_in_examples):
                                       L=1.5, M=1.5, N=1.5),
             isotropic_hardening=PowerLawHardening(k=3000., m=1.0))])
     hist = _run_named("MODUL", mat.props, mat.nstatev,
-                      work_in_examples, "MODUL_path.txt", "eq_mephin.txt")
+                      work_in_examples, "MODUL_path.json", "eq_mephin.txt")
     _assert_equiv(ref, hist, 1e-5, "EPHIN")
 
 

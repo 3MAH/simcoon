@@ -461,7 +461,6 @@ step_thermomeca& step_thermomeca::operator = (const step_thermomeca& stm)
         
     BC_Time = stm.BC_Time;
     times = stm.times;
-    file = stm.file;    
     
     cBC_meca = stm.cBC_meca;
     BC_meca = stm.BC_meca;

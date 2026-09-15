@@ -80,9 +80,9 @@ path_data = "../data"
 #
 # First we apply a uniaxial stress loading along direction 1 (the symmetry axis).
 
-pathfile = "THERM_ELISO_path_1.txt"
+pathfile = "THERM_ELISO_path_1.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res_1 = sim.solver.solve(
     blocks,
     umat_name,
@@ -100,9 +100,9 @@ res_1 = sim.solver.solve(
 #
 # Then we apply a uniaxial stress loading along direction 2 (the transverse direction).
 
-pathfile = "THERM_ELISO_path_2.txt"
+pathfile = "THERM_ELISO_path_2.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res_2 = sim.solver.solve(
     blocks,
     umat_name,

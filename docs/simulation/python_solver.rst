@@ -6,9 +6,8 @@ from Python: the loading path is defined with :class:`~simcoon.solver.Block`
 and :class:`~simcoon.solver.StepMeca` / :class:`~simcoon.solver.StepThermomeca`
 objects, and the results come back as numpy arrays — no ``path.txt``,
 ``output.dat`` or result files involved. Since simcoon 2.0 this package *is*
-``sim.solver``; legacy loading files are parsed into loading objects with
-:func:`~simcoon.solver.from_file` (the raw pre-2.0 file-to-file runner remains
-available as the low-level binding ``simcoon._core.solver``).
+``sim.solver``, JSON is the only file format it reads, and the pre-2.0 text
+inputs are converted once with ``scripts/legacy_to_json.py``.
 
 Quick start
 -----------
@@ -66,6 +65,10 @@ Loading control
                            mode='tabular',
                            tabular=np.column_stack([t, e11]))
 
+  In a saved path the table is the one input that is not JSON: ``save_path_json``
+  writes it as ``<stem>_tab<k>.csv`` next to the JSON (``#`` header naming the
+  columns, one row per increment) and the step's ``"tabular"`` entry holds that
+  filename; ``load_path_json`` reads it back, comma- or whitespace-separated.
 * Cyclic loading repeats the steps of a block: ``Block(steps=[...], ncycle=10)``.
   Tabular steps cannot be cycled (their time column is absolute); unroll the
   cycles into explicit steps instead.
@@ -101,18 +104,6 @@ For finite-element couplers, the point-wise thermomechanical UMAT batch entry
 ``sim.umat_T(...)`` complements ``sim.umat(...)``; it returns
 ``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``.
 
-Legacy file formats
--------------------
-
-Existing ``path.txt`` / ``material.dat`` inputs are parsed into loading
-objects — same solve, one entry point:
-
-.. code-block:: python
-
-    blocks, T_init = solver.from_file("data", "path.txt")
-    material = solver.material_from_file("data", "material.dat")
-    res = solver.solve(blocks, T_init=T_init, **material)
-
 JSON configuration
 ------------------
 
@@ -129,6 +120,23 @@ Materials and loading paths round-trip through JSON
 
 Results can be persisted with ``res.save("run.npz")`` /
 ``SolverResults.load("run.npz")``, or flattened with ``res.to_dataframe()``.
+
+Legacy text inputs
+------------------
+
+JSON is the only format simcoon reads or writes since 2.0: nothing in the package
+parses ``path.txt``, ``material.dat``, ``tab_file_<n>.txt`` or ``N<kind><n>.dat``.
+A pre-2.0 ``data`` directory is converted once with the migration script shipped in
+the repository (not in the package), the tables its mode-3 steps referenced being
+rewritten as ``<stem>_tab<k>.csv`` files next to the path JSON:
+
+.. code-block:: bash
+
+    python scripts/legacy_to_json.py data   # writes path.json, material.json, ellipsoids<N>.json, ...
+
+.. code-block:: python
+
+    res = solver.solve(**solver.load_simulation_json("data/material.json", "data/path.json"))
 
 Solver parameters
 -----------------
@@ -161,10 +169,6 @@ API reference
    :members:
 
 .. autofunction:: simcoon.solver.solve
-
-.. autofunction:: simcoon.solver.from_file
-
-.. autofunction:: simcoon.solver.material_from_file
 
 .. autoclass:: simcoon.solver.SolverResults
    :members:

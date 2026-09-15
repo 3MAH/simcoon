@@ -11,7 +11,7 @@ from simcoon._core import *
 from simcoon import modular
 # In-memory solver API (2.0): the subpackage replaces the pre-2.0 file-driven
 # `solver` function from the star-import above (still reachable as
-# simcoon._core.solver; parse legacy files with simcoon.solver.from_file).
+# simcoon._core.solver; legacy text inputs are converted once by scripts/legacy_to_json.py).
 # `import` (not `from ... import`) is required: the latter would return the
 # existing function attribute without importing the subpackage.
 import simcoon.solver

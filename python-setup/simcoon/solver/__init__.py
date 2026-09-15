@@ -9,15 +9,9 @@ Example
 >>> res = solver.solve(step, "ELISO", [70000., 0.3, 1.E-5], 1)
 >>> res["Stress"][0]     # sigma_11 history, fedoo-style (6, N) layout
 
-Legacy text files (path.txt / material.dat) are parsed into loading objects
-with :func:`from_file` and :func:`material_from_file`:
-
->>> blocks, T_init = solver.from_file("data", "path.txt")
->>> res = solver.solve(blocks, T_init=T_init,
-...                    **solver.material_from_file("data", "material.dat"))
-
-(The pre-2.0 file-driven runner remains available as the low-level binding
-``simcoon._core.solver`` -- it reads/writes files and returns nothing.)
+simcoon reads no legacy text format (path.txt, material.dat, N<kind>.dat) any more:
+convert such a directory once with ``scripts/legacy_to_json.py`` and load the JSON with
+:func:`load_simulation_json`.
 """
 
 from .maps import (
@@ -36,7 +30,6 @@ from .maps import (
 from .blocks import Block, StepMeca, StepThermomeca
 from .results import SolverResults
 from .core import solve
-from .files import from_file, material_from_file
 from .io import (
     load_material_json,
     load_path_json,
@@ -44,14 +37,13 @@ from .io import (
     save_material_json,
     save_path_json,
 )
-# Phase/geometry dataclasses and their JSON I/O for micromechanics. Pure Python (no
-# _core), so a composite can be described, saved and reloaded without the extension.
+# Phase/geometry dataclasses and their JSON I/O for micromechanics: a composite is
+# described, saved and reloaded here, and handed to the extension by solve() / L_eff.
 from . import micromechanics
 
 __all__ = [
     "micromechanics",
     "Block", "StepMeca", "StepThermomeca", "SolverResults", "solve",
-    "from_file", "material_from_file",
     "BLOCK_TYPES", "CONTROL_TYPES", "CORATE_TYPES", "STEP_MODES",
     "TANGENT_MODES", "THERMAL_CONTROL",
     "tangent_none", "tangent_continuum", "tangent_algorithmic",

@@ -36,8 +36,9 @@ namespace simcoon{
 /**
  * The file-driven entry point solver() left the library with the 2.0 JSON-only migration: the
  * loading programme is built in Python and handed to solver_run() (solver_sink.hpp) in memory,
- * and nothing here reads a file. The historical wrapper lives on in test/support/file_driver.hpp,
- * compiled into the C++ test executables so the reference cases keep their fixtures.
+ * and nothing here reads a file: JSON inputs are read in Python (simcoon.solver), the
+ * reference cases of testBin run through pytest, and the legacy text formats are converted
+ * once by scripts/legacy_to_json.py.
  */
 
 /** @} */ // end of solver group

@@ -1,10 +1,10 @@
 """
 Micromechanics data classes and JSON I/O for Simcoon.
 
-This module provides standalone dataclasses and I/O functions for micromechanics
-homogenization without requiring simcoon._core or solver.py. This allows users to
-work with micromechanics configurations (phases, layers, ellipsoids, etc.) without
-building the C++ extension module.
+Dataclasses and I/O functions describing the sub-phases of a mean-field model (phases,
+layers, ellipsoids, ...), and their in-memory form for ``sim.L_eff`` and
+``sim.solver.solve``. Nothing here calls the C++ extension, but the package that hosts
+the module does import it: ``simcoon`` is not importable without ``simcoon._core``.
 
 Classes
 -------
@@ -82,13 +82,19 @@ GeometryOrientation = EulerAngles
 
 
 def _coerce_fields(obj):
-    """props given as a list, orientations given as dicts (the JSON form)."""
+    """props given as a list, orientations and nested phases given as dicts (the JSON form)."""
     if isinstance(obj.props, list):
         obj.props = np.array(obj.props, dtype=float)
     for name in ('material_orientation', 'geometry_orientation'):
         value = getattr(obj, name, None)
         if isinstance(value, dict):
             setattr(obj, name, EulerAngles(**value))
+    nested = getattr(obj, 'phases', None)
+    if nested and any(isinstance(p, dict) for p in nested):
+        cls, layout = _JSON_LAYOUTS[_json_kind_of(obj.umat_name)]
+        obj.phases = [p if not isinstance(p, dict)
+                      else _from_json_entry(p, cls, layout, None, f"phases of {obj.umat_name}")
+                      for p in nested]
 
 
 @dataclass
@@ -114,6 +120,10 @@ class Phase:
         Number of state variables
     props : np.ndarray
         Material properties array
+    phases : list
+        Sub-phases of a phase that is itself a mean-field model (MIHEN, MIMTN, MISCN:
+        ellipsoids; MIPLN: layers), the way Nellipsoids<N>.dat chained through props[1].
+        Empty for a homogeneous phase.
     """
     number: int = 0
     umat_name: str = "ELISO"
@@ -122,6 +132,7 @@ class Phase:
     material_orientation: EulerAngles = field(default_factory=EulerAngles)
     nstatev: int = 1
     props: np.ndarray = field(default_factory=lambda: np.array([]))
+    phases: List["Phase"] = field(default_factory=list)
 
     def __post_init__(self):
         _coerce_fields(self)
@@ -299,23 +310,42 @@ def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np
 # The file layout of each kind: the dataclass and its entry keys, in file order. A plain
 # name is a field written as is (an orientation as its {psi, theta, phi} dict); ('key',
 # fields) is a nested object holding those fields; 'props' is the name -> value mapping
-# followed by the 'prop_names' that record its order. Defaults on reading are the
-# dataclass defaults, and a nested field is also accepted flat at the top level.
+# followed by the 'prop_names' that record its order; 'phases' the sub-phases of a phase
+# that is itself a mean-field model, written only when there are some. Defaults on
+# reading are the dataclass defaults, and a nested field is also accepted flat at the top
+# level.
 _JSON_LAYOUTS = {
     'phases': (Phase, ('number', 'umat_name', 'save', 'concentration',
-                       'material_orientation', 'nstatev', 'props')),
+                       'material_orientation', 'nstatev', 'props', 'phases')),
     'layers': (Layer, ('number', 'umat_name', 'save', 'concentration',
                        'material_orientation', 'geometry_orientation', 'nstatev', 'props',
-                       'layerup', 'layerdown')),
+                       'layerup', 'layerdown', 'phases')),
     'ellipsoids': (Ellipsoid, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
                                'material_orientation', ('semi_axes', ('a1', 'a2', 'a3')),
-                               'geometry_orientation', 'nstatev', 'props')),
+                               'geometry_orientation', 'nstatev', 'props', 'phases')),
     'cylinders': (Cylinder, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
                              'material_orientation', ('geometry', ('L', 'R')),
-                             'geometry_orientation', 'nstatev', 'props')),
+                             'geometry_orientation', 'nstatev', 'props', 'phases')),
     'sections': (Section, ('number', 'name', 'umat_name', 'material_orientation',
                            'nstatev', 'props')),
 }
+
+def _kind_of(phase) -> str:
+    """What to_phase_dict labels a phase with; the binding checks it against the geometry
+    the model builds."""
+    for cls, kind in ((Ellipsoid, 'ellipsoid'), (Cylinder, 'cylinder'), (Layer, 'layer')):
+        if isinstance(phase, cls):
+            return kind
+    return 'phase'
+
+
+def _json_kind_of(umat_name: str) -> str:
+    """The layout of the sub-phases a mean-field model builds (sub_phase_shape in C++)."""
+    if umat_name in ('MIHEN', 'MIMTN', 'MISCN'):
+        return 'ellipsoids'
+    if umat_name == 'MIPLN':
+        return 'layers'
+    raise ValueError(f"{umat_name} is not a mean-field model: it has no sub-phases")
 
 
 def _to_json_entry(obj, layout, prop_names: Optional[List[str]]) -> Dict:
@@ -325,6 +355,10 @@ def _to_json_entry(obj, layout, prop_names: Optional[List[str]]) -> Dict:
             props_data = _props_to_dict(obj.props, prop_names)
             entry['props'] = props_data
             entry['prop_names'] = list(props_data)
+        elif col == 'phases':
+            if obj.phases:
+                _, sub_layout = _JSON_LAYOUTS[_json_kind_of(obj.umat_name)]
+                entry['phases'] = [_to_json_entry(p, sub_layout, None) for p in obj.phases]
         elif isinstance(col, tuple):
             key, fields = col
             entry[key] = {f: getattr(obj, f) for f in fields}
@@ -342,6 +376,11 @@ def _from_json_entry(entry: Dict, cls, layout, prop_names: Optional[List[str]], 
         if col == 'props':
             kwargs['props'] = _props_from_json(entry.get('props', []),
                                                prop_names or entry.get('prop_names'), context)
+        elif col == 'phases':
+            if entry.get('phases'):
+                sub_cls, sub_layout = _JSON_LAYOUTS[_json_kind_of(entry.get('umat_name', 'ELISO'))]
+                kwargs['phases'] = [_from_json_entry(p, sub_cls, sub_layout, None, context)
+                                    for p in entry['phases']]
         elif isinstance(col, tuple):
             key, fields = col
             nested = entry.get(key, {})
@@ -447,232 +486,55 @@ def save_sections_json(filepath: Union[str, Path], sections: List[Section],
 
 
 # =============================================================================
-# Legacy .dat input (read-only)
+# Orientation distribution functions (ODF): the peaks, in memory
 # =============================================================================
-#
-# The historical tab-separated files (Nphases0.dat, Nlayers0.dat,
-# Nellipsoids0.dat, Ncylinders0.dat, Nsections0.dat) used to be parsed in C++ by
-# src/Simulation/Phase/read.cpp. They are read here instead, the way path.txt and
-# material.dat are read by solver/files.py, so the C++ side never touches the
-# filesystem. Reading only: JSON is the format written from now on, and
-# convert_dat_to_json() is the one-way door.
-#
-# Every row holds the fixed columns of its kind, then nprops, nstatev, then the
-# nprops property values. Parsing is token-based because the files are aligned
-# with ragged tabs, so column positions cannot be trusted.
 
-# Number of fixed columns per kind, up to and including nstatev.
-_DAT_LAYOUTS = {
-    'phases': 9,
-    'layers': 12,
-    'ellipsoids': 16,
-    'cylinders': 15,
-    'sections': 8,
-}
+@dataclass
+class Peak:
+    """One peak of an orientation (ODF) or parameter (PDF) distribution.
 
-
-def _dat_rows(filepath: Union[str, Path], kind: str) -> List[List[str]]:
-    """Tokenise a legacy .dat file, dropping its header line and blank lines.
-
-    Raises
-    ------
-    ValueError
-        If a row does not hold exactly the columns its own nprops announces.
+    ``method`` selects the profile the C++ side evaluates: 1 standard deviation kernel
+    (``params``), 2 hard cut-off, 3 Gaussian, 4 Lorentzian, 5 pseudo-Voigt (``params``),
+    6 Pearson VII (``params``), 7 uniform. Angles (``mean``, ``s_dev``, ``width``) are
+    degrees, as in the files.
     """
-    n_fixed = _DAT_LAYOUTS[kind]
-    with open(filepath) as f:
-        lines = f.readlines()
-    if not lines:
-        raise ValueError(f"{filepath}: empty file, a header line was expected")
+    number: int = 0
+    method: int = 3
+    mean: float = 0.0
+    s_dev: float = 1.0
+    width: float = 1.0
+    ampl: float = 1.0
+    params: np.ndarray = field(default_factory=lambda: np.array([]))
 
-    rows = []
-    for lineno, line in enumerate(lines[1:], start=2):
-        tokens = line.split()
-        if not tokens:
-            continue
-        if tokens[0].startswith('*'):
-            raise ValueError(
-                f"{filepath}:{lineno}: this is an Abaqus deck (*Material / *Solid Section), "
-                f"not a tabular {kind} file. The C++ side never read those either"
-            )
-        if len(tokens) < n_fixed:
-            raise ValueError(
-                f"{filepath}:{lineno}: {len(tokens)} columns in a {kind} row, "
-                f"at least {n_fixed} expected"
-            )
-        try:
-            nprops = int(tokens[n_fixed - 2])
-        except ValueError:
-            raise ValueError(
-                f"{filepath}:{lineno}: nprops column is {tokens[n_fixed - 2]!r}, not an integer"
-            ) from None
-        if len(tokens) != n_fixed + nprops:
-            raise ValueError(
-                f"{filepath}:{lineno}: nprops={nprops} announces {n_fixed + nprops} "
-                f"columns, {len(tokens)} found"
-            )
-        rows.append(tokens)
-    return rows
+    def __post_init__(self):
+        if isinstance(self.params, list):
+            self.params = np.array(self.params, dtype=float)
 
 
-def _dat_props(tokens: List[str], n_fixed: int) -> np.ndarray:
-    """The property values of a row, which follow the fixed columns."""
-    return np.array([float(t) for t in tokens[n_fixed:]], dtype=float)
+_PEAK_FIELDS = ('number', 'method', 'mean', 's_dev', 'width', 'ampl', 'params')
 
 
-def load_phases_dat(filepath: Union[str, Path]) -> List[Phase]:
-    """Load phases from a legacy ``Nphases<N>.dat`` file."""
-    n = _DAT_LAYOUTS['phases']
-    return [
-        Phase(
-            number=int(t[0]),
-            umat_name=t[1],
-            save=int(t[2]),
-            concentration=float(t[3]),
-            material_orientation=MaterialOrientation(float(t[4]), float(t[5]), float(t[6])),
-            nstatev=int(t[8]),
-            props=_dat_props(t, n),
-        )
-        for t in _dat_rows(filepath, 'phases')
-    ]
+def to_peak_dicts(peaks: List[Peak]) -> List[Dict]:
+    """The peaks as ``sim.get_densities_ODF`` / ``sim.ODF_discretization`` read them."""
+    return [{f: (np.asarray(getattr(p, f), dtype=float) if f == 'params' else getattr(p, f))
+             for f in _PEAK_FIELDS} for p in peaks]
 
 
-def load_layers_dat(filepath: Union[str, Path]) -> List[Layer]:
-    """Load layers from a legacy ``Nlayers<N>.dat`` file."""
-    n = _DAT_LAYOUTS['layers']
-    return [
-        Layer(
-            number=int(t[0]),
-            umat_name=t[1],
-            save=int(t[2]),
-            concentration=float(t[3]),
-            material_orientation=MaterialOrientation(float(t[4]), float(t[5]), float(t[6])),
-            geometry_orientation=GeometryOrientation(float(t[7]), float(t[8]), float(t[9])),
-            nstatev=int(t[11]),
-            props=_dat_props(t, n),
-        )
-        for t in _dat_rows(filepath, 'layers')
-    ]
+def load_peaks_json(filepath: Union[str, Path]) -> List[Peak]:
+    """Load the peaks of a distribution: ``{"peaks": [{"number": 0, "method": 3,
+    "mean": 90, "s_dev": 10, "width": 0, "ampl": 1, "params": []}, ...]}``."""
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    return [Peak(**{k: v for k, v in entry.items() if k in _PEAK_FIELDS})
+            for entry in data.get('peaks', [])]
 
 
-def load_ellipsoids_dat(filepath: Union[str, Path]) -> List[Ellipsoid]:
-    """Load ellipsoidal inclusions from a legacy ``Nellipsoids<N>.dat`` file."""
-    n = _DAT_LAYOUTS['ellipsoids']
-    return [
-        Ellipsoid(
-            number=int(t[0]),
-            coatingof=int(t[1]),
-            umat_name=t[2],
-            save=int(t[3]),
-            concentration=float(t[4]),
-            material_orientation=MaterialOrientation(float(t[5]), float(t[6]), float(t[7])),
-            a1=float(t[8]),
-            a2=float(t[9]),
-            a3=float(t[10]),
-            geometry_orientation=GeometryOrientation(float(t[11]), float(t[12]), float(t[13])),
-            nstatev=int(t[15]),
-            props=_dat_props(t, n),
-        )
-        for t in _dat_rows(filepath, 'ellipsoids')
-    ]
-
-
-def load_cylinders_dat(filepath: Union[str, Path]) -> List[Cylinder]:
-    """Load cylindrical inclusions from a legacy ``Ncylinders<N>.dat`` file."""
-    n = _DAT_LAYOUTS['cylinders']
-    return [
-        Cylinder(
-            number=int(t[0]),
-            coatingof=int(t[1]),
-            umat_name=t[2],
-            save=int(t[3]),
-            concentration=float(t[4]),
-            material_orientation=MaterialOrientation(float(t[5]), float(t[6]), float(t[7])),
-            L=float(t[8]),
-            R=float(t[9]),
-            geometry_orientation=GeometryOrientation(float(t[10]), float(t[11]), float(t[12])),
-            nstatev=int(t[14]),
-            props=_dat_props(t, n),
-        )
-        for t in _dat_rows(filepath, 'cylinders')
-    ]
-
-
-def load_sections_dat(filepath: Union[str, Path]) -> List[Section]:
-    """Load textile sections from a legacy ``Nsections<N>.dat`` file.
-
-    Only the tabular form is read. ``Nsections1.dat``-style Abaqus decks
-    (``*Material`` / ``*Solid Section``) were never read by the C++ side either.
-    """
-    n = _DAT_LAYOUTS['sections']
-    return [
-        Section(
-            number=int(t[0]),
-            name=t[1],
-            umat_name=t[2],
-            material_orientation=MaterialOrientation(float(t[3]), float(t[4]), float(t[5])),
-            nstatev=int(t[7]),
-            props=_dat_props(t, n),
-        )
-        for t in _dat_rows(filepath, 'sections')
-    ]
-
-
-_DAT_CONVERTERS = {
-    'phases': (load_phases_dat, save_phases_json),
-    'layers': (load_layers_dat, save_layers_json),
-    'ellipsoids': (load_ellipsoids_dat, save_ellipsoids_json),
-    'cylinders': (load_cylinders_dat, save_cylinders_json),
-    'sections': (load_sections_dat, save_sections_json),
-}
-
-
-def kind_from_dat_name(name: str) -> str:
-    """The kind ('phases', 'ellipsoids', ...) a legacy file name announces."""
-    stem = Path(name).stem.lower()
-    for kind in _DAT_LAYOUTS:
-        if stem.startswith('n' + kind):
-            return kind
-    raise ValueError(
-        f"{name!r}: cannot tell which kind this is, expected a name starting with "
-        + ", ".join('N' + k for k in _DAT_LAYOUTS)
-    )
-
-
-def convert_dat_to_json(filepath: Union[str, Path],
-                        json_path: Union[str, Path] = None,
-                        kind: str = None,
-                        prop_names: List[str] = None) -> Path:
-    """Convert one legacy .dat file to its JSON equivalent.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        The ``N<kind><N>.dat`` file to read.
-    json_path : str or Path, optional
-        Where to write. Defaults to the same directory, with the leading ``N``
-        dropped and lowercased: ``Nellipsoids0.dat`` -> ``ellipsoids0.json``.
-    kind : str, optional
-        Override the kind instead of inferring it from the file name.
-    prop_names : list of str, optional
-        Names for the property columns, stored in the JSON as a dict.
-
-    Returns
-    -------
-    Path
-        The JSON file written.
-    """
-    filepath = Path(filepath)
-    kind = kind or kind_from_dat_name(filepath.name)
-    if kind not in _DAT_CONVERTERS:
-        raise ValueError(f"unknown kind {kind!r}, expected one of {', '.join(_DAT_CONVERTERS)}")
-    if json_path is None:
-        stem = filepath.stem
-        json_path = filepath.with_name((stem[1:] if stem[:1].lower() == 'n' else stem).lower() + '.json')
-
-    load, save = _DAT_CONVERTERS[kind]
-    save(json_path, load(filepath), prop_names=prop_names)
-    return Path(json_path)
+def save_peaks_json(filepath: Union[str, Path], peaks: List[Peak]):
+    """Save the peaks of a distribution (the layout ``load_peaks_json`` reads)."""
+    entries = [{f: (np.asarray(getattr(p, f), dtype=float).tolist() if f == 'params' else getattr(p, f))
+                for f in _PEAK_FIELDS} for p in peaks]
+    with open(filepath, 'w') as f:
+        json.dump({'peaks': entries}, f, indent=2)
 
 
 # =============================================================================
@@ -685,11 +547,14 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
 
     The keys are those of the JSON files, with one deliberate difference: ``props`` stays
     a plain sequence of numbers instead of the ``name -> value`` mapping ``save_*_json``
-    writes, because the C++ side reads properties positionally.
+    writes, because the C++ side reads properties positionally. ``kind`` names the
+    geometry, which the binding checks against the one the model builds, and ``phases``
+    carries the sub-phases of a phase that is itself a mean-field model.
 
     Angles are left in degrees, as in the files; the binding converts them to radians.
     """
     out = {
+        'kind': _kind_of(phase),
         'number': phase.number if number is None else number,
         'umat_name': phase.umat_name,
         'save': phase.save,
@@ -711,6 +576,22 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
     elif isinstance(phase, Layer):
         out['layerup'] = phase.layerup
         out['layerdown'] = phase.layerdown
+    if phase.phases:
+        out['phases'] = to_phase_dicts(phase.phases)
+    return out
+
+
+_CLASS_OF_KIND = {'phase': Phase, 'layer': Layer, 'ellipsoid': Ellipsoid, 'cylinder': Cylinder}
+
+
+def phases_from_dicts(dicts: List[Dict]) -> List[Union[Phase, Layer, Ellipsoid, Cylinder]]:
+    """The dataclasses back from the dicts the C++ side produces (``sim.ODF_discretization``)
+    or ``to_phase_dicts`` made; ``kind`` picks the class, ``phases`` nests."""
+    out = []
+    for d in dicts:
+        cls = _CLASS_OF_KIND[d.get('kind', 'phase')]
+        _, layout = _JSON_LAYOUTS[d.get('kind', 'phase') + 's']
+        out.append(_from_json_entry(d, cls, layout, None, "phases"))
     return out
 
 
@@ -753,15 +634,13 @@ __all__ = [
     'save_cylinders_json',
     'load_sections_json',
     'save_sections_json',
-    # Legacy .dat input and its one-way conversion
-    'load_phases_dat',
-    'load_layers_dat',
-    'load_ellipsoids_dat',
-    'load_cylinders_dat',
-    'load_sections_dat',
-    'kind_from_dat_name',
-    'convert_dat_to_json',
-    # Handing phases to the C++ side, in memory
+    # Handing phases to the C++ side, in memory, and back
     'to_phase_dict',
     'to_phase_dicts',
+    'phases_from_dicts',
+    # Orientation distribution functions
+    'Peak',
+    'to_peak_dicts',
+    'load_peaks_json',
+    'save_peaks_json',
 ]

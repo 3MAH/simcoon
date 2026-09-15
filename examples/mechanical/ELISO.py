@@ -3,6 +3,7 @@ Isotropic elasticity examples
 =============================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
@@ -106,13 +107,13 @@ corate_type = 2
 props = np.array([E, nu, alpha])
 
 path_data = "../data"
-pathfile = "ELISO_path.txt"
+pathfile = "ELISO_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first ``(6, N)`` arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

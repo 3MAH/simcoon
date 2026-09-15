@@ -84,13 +84,7 @@ function(add_simcoon_test test_src)
   string(REGEX REPLACE "^test_extern/" "" testFolder "${testFolder}")
   string(REGEX REPLACE "^Libraries/" "" testFolder "${testFolder}")
 
-  # test/support holds the legacy plain-text readers (path.txt, material.dat, ...). They left
-  # the shipped library with the JSON-only migration and are compiled into the test
-  # executables only, so the reference cases keep driving the solver from their fixtures.
-  add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src}
-    ${CMAKE_SOURCE_DIR}/test/support/file_readers.cpp
-    ${CMAKE_SOURCE_DIR}/test/support/file_driver.cpp)
-  target_include_directories(${testName} PRIVATE ${CMAKE_SOURCE_DIR}/test/support)
+  add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
 
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})

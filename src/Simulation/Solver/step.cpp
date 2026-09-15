@@ -21,7 +21,6 @@
 
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
@@ -56,7 +55,6 @@ step::step()
     
     BC_Time = 0.;
     
-    file = "";
 }
 
 /*!
@@ -88,7 +86,6 @@ step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, c
     times = zeros(ninc);
     BC_Time = 0.;
     
-    file = "";
 }
 
 /*!
@@ -111,7 +108,6 @@ step::step(const step& st)
     times = st.times;
     BC_Time = st.BC_Time;
 
-    file = st.file;
     tab_data = st.tab_data;
 }
 
@@ -143,49 +139,23 @@ void step::generate()
 int step::mode3_ninc() const
 //-------------------------------------------------------------
 {
-    if (tab_data.n_rows > 0) {
-        return static_cast<int>(tab_data.n_rows);
+    if (tab_data.n_rows == 0) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): no tabular data (tab_data is empty)");
     }
-    int n = 0;
-    string buffer;
-    ifstream pathinc(file, ios::in);
-    if(!pathinc)
-    {
-        // Throw instead of falling through: getline on a never-opened stream
-        // fails without ever setting eofbit, so the counting loop below would
-        // spin forever.
-        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): cannot open the increment file '" + file + "' — check the file name (including extension) and the data path");
-    }
-    while (!pathinc.eof())
-    {
-        getline (pathinc,buffer);
-        if (buffer != "") {
-            n++;
-        }
-    }
-    return n;
+    return static_cast<int>(tab_data.n_rows);
 }
 
 //-------------------------------------------------------------
 mat step::mode3_rows(const unsigned int &size_BC) const
 //-------------------------------------------------------------
 {
-    if (tab_data.n_rows > 0) {
-        if (tab_data.n_cols != size_BC) {
-            throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): tab_data has " + std::to_string(tab_data.n_cols) + " columns but the control flags require " + std::to_string(size_BC));
-        }
-        return tab_data;
+    if (tab_data.n_rows == 0) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): no tabular data (tab_data is empty)");
     }
-    mat rows = zeros(ninc, size_BC);
-    string buffer;
-    ifstream pathinc(file, ios::in);
-    for (int i = 0; i < ninc; i++) {
-        pathinc >> buffer;
-        for (unsigned int j = 0; j < size_BC; j++) {
-            pathinc >> rows(i,j);
-        }
+    if (tab_data.n_cols != size_BC) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): tab_data has " + std::to_string(tab_data.n_cols) + " columns but the control flags require " + std::to_string(size_BC));
     }
-    return rows;
+    return tab_data;
 }
 
 //----------------------------------------------------------------------
@@ -248,7 +218,6 @@ step& step::operator = (const step& st)
     times = st.times;
     BC_Time = st.BC_Time;
 
-    file = st.file;
     tab_data = st.tab_data;
 
 	return *this;

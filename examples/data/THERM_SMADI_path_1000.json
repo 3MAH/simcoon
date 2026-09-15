@@ -1,0 +1,70 @@
+{
+  "initial_temperature": 323.15,
+  "corate": "logarithmic_R",
+  "blocks": [
+    {
+      "control_type": 1,
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": true,
+          "time": 300.0,
+          "ninc": 1000,
+          "mode": 1,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "T_final": null,
+          "thermal_control": "heat_flux",
+          "Q": 0.0,
+          "q_conv": 0.0,
+          "tabular_T": false,
+          "control": [
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            1000.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "thermomechanical": true,
+          "time": 300.0,
+          "ninc": 1000,
+          "mode": 1,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "T_final": null,
+          "thermal_control": "heat_flux",
+          "Q": 0.0,
+          "q_conv": 0.0,
+          "tabular_T": false,
+          "control": [
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      ]
+    }
+  ]
+}

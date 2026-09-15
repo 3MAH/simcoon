@@ -1,7 +1,7 @@
 Use the solver
 ================================
 
-The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the ``path.txt`` loading-path format and how to drive the solver with it. Since simcoon 2.0 the C++ engine reads no file at all: ``sim.solver.from_file`` parses a path file in Python into loading objects, and ``sim.solver.solve`` runs them and returns the whole history as numpy arrays. See :doc:`python_solver` to build the same loading objects directly, without any file.
+The Simcoon solver allows you to simulate the mechanical or thermomechanical response of materials under various loading conditions. This page documents the loading path, kept in a ``path.json`` file, and how to drive the solver with it. Since simcoon 2.0 the C++ engine reads no file at all: ``sim.solver.load_path_json`` reads the path in Python into loading objects, and ``sim.solver.solve`` runs them and returns the whole history as numpy arrays. See :doc:`python_solver` to build the same loading objects directly, without any file, and to convert the pre-2.0 ``path.txt`` / ``material.dat`` inputs.
 
 Elastic tensile test
 --------------------
@@ -42,49 +42,41 @@ We shall then define the location of the loading path file:
 .. code-block:: python
 
     path_data = 'data'
-    pathfile = 'path.txt'
+    pathfile = 'path.json'
 
-The last part is to define the loading path. Create a folder ``data`` and a text file named ``path.txt`` with the following content:
+The last part is to define the loading path. Create a folder ``data`` and a file named ``path.json`` with the following content:
 
-.. code-block:: none
+.. code-block:: json
 
-    #Initial_temperature
-    293.5
-    #Number_of_blocks
-    1
+    {
+      "initial_temperature": 293.5,
+      "corate": "logarithmic_R",
+      "blocks": [
+        {
+          "control_type": "small_strain",
+          "ncycle": 1,
+          "steps": [
+            {
+              "mode": "linear",
+              "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+              "value": [0.01, 0.0, 0.0, 0.0, 0.0, 0.0],
+              "time": 30.0,
+              "ninc": 100,
+              "Dn_init": 1.0,
+              "Dn_mini": 0.1
+            }
+          ]
+        }
+      ]
+    }
 
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    1    
-    #Repeat
-    1
-    #Steps
-    1
+This corresponds to a pure strain-controlled tension test in direction 1 up to 1% strain, at 293.5K, in 100 increments. The file is what ``sim.solver.save_path_json`` writes for a :class:`~simcoon.solver.Block` of one :class:`~simcoon.solver.StepMeca`; the pre-2.0 text format is converted to it once with ``scripts/legacy_to_json.py`` (see :doc:`python_solver`).
 
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 0.1
-    #Dn_inc 0.01
-    #time
-    30.
-    #mechanical_state
-    E 0.01 
-    S 0 S 0
-    S 0 S 0 S 0
-    #temperature_state
-    T 293.5
-
-This corresponds to a pure strain-controlled tension test in direction 1 up to 1% strain, at 293.5K.
-
-Finally, parse the path file and run the solver:
+Finally, read the path file and run the solver:
 
 .. code-block:: python
 
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
     res = sim.solver.solve(
         blocks,
@@ -123,7 +115,7 @@ Solver parameters
      - Description
    * - blocks
      - Block, StepMeca, or a sequence of them
-     - The loading path, as returned by ``sim.solver.from_file`` or built directly (see :doc:`python_solver`)
+     - The loading path, as returned by ``sim.solver.load_path_json`` or built directly (see :doc:`python_solver`)
    * - umat_name
      - string or callable
      - 5-character code identifying the constitutive law (e.g., 'ELISO', 'EPICP', 'EPKCP'), or a constitutive law written in Python
@@ -135,7 +127,7 @@ Solver parameters
      - Number of internal state variables
    * - T_init
      - float
-     - Initial temperature in Kelvin (default 293.15); ``from_file`` returns the value read from the path file
+     - Initial temperature in Kelvin (default 293.15); ``load_path_json`` returns the value read from the path file
    * - corate
      - int or string
      - Corotational spin rate type (see below)
@@ -150,7 +142,7 @@ Solver parameters
      - The three Euler angles ``(psi, theta, phi)``, in degrees, giving the material orientation with respect to the reference basis
    * - phases
      - sequence, optional
-     - Sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN), passed in memory
+     - Sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN), passed in memory: :class:`~simcoon.solver.micromechanics.Ellipsoid` / :class:`~simcoon.solver.micromechanics.Layer` objects (numbered by position) or the dicts :func:`~simcoon.solver.micromechanics.to_phase_dicts` makes of them. Their geometry must be the one the model builds, the concentrations must sum to 1, and a sub-phase that is itself a mean-field model carries its own sub-phases in its ``phases`` attribute
    * - record_tangent
      - bool
      - Whether to record the tangent operator in the results (default True)
@@ -231,10 +223,10 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
 
-Define the loading path
------------------------
+The legacy text loading path
+----------------------------
 
-The loading path is defined in a text file (typically ``path.txt``) located in the ``data`` folder. The file structure is as follows:
+Before 2.0 the loading path was a text file (typically ``path.txt``) in the ``data`` folder. Nothing in simcoon reads it any more: ``scripts/legacy_to_json.py`` turns it into ``path.json`` once. Its structure is kept here for reference:
 
 General structure
 ^^^^^^^^^^^^^^^^^
@@ -423,52 +415,49 @@ For **Loading_type = 2** (thermomechanical), additional options are available:
 Tabular steps (Mode 3)
 """"""""""""""""""""""
 
-For tabular loading, the evolution is read from an external file:
+A tabular step follows a table of increments instead of a linear ramp. The
+table is the one input that is not JSON: it lives in its own CSV file next to
+``path.json`` (``<stem>_tab<k>.csv``, ``k`` numbering the tabular steps of the
+path from 1), and the step references it by name:
+
+.. code-block:: json
+
+    {
+      "mode": "tabular",
+      "tabular": "path_tab1.csv",
+      "control": ["strain", "zero", "zero", "zero", "zero", "zero"],
+      "Dn_init": 1.0,
+      "Dn_mini": 0.01,
+      "tabular_T": false
+    }
+
+The ``control`` list says which components the table drives:
+
+- ``"strain"``: strain-controlled component (a column of the table)
+- ``"stress"``: stress-controlled component (a column of the table)
+- ``"zero"``: component held at zero (no column)
+
+``tabular_T``: ``false`` if the temperature is constant, ``true`` if the table
+carries a temperature column.
+
+The table, one row per increment, comma- or whitespace-separated, ``#`` lines
+ignored:
 
 .. code-block:: none
 
-    #Mode
-    3
-    #File
-    tabular_file.txt
-    #Dn_init 1.
-    #Dn_mini 0.01
-    #prescribed_mechanical_state
-    S
-    0  S
-    0  0  0
-    #T_is_set
-    0
-
-The **#prescribed_mechanical_state** block specifies which components are controlled:
-
-- **S**: Stress-controlled component (read from file)
-- **E**: Strain-controlled component (read from file)
-- **0**: Component kept constant
-
-**#T_is_set**: 0 if temperature is constant, T if temperature is read from file.
-
-The tabular file structure:
-
-.. code-block:: none
-
-    0    0.0     10   10        
-    1    0.01    20   20
-    2    0.02    30   30
-    3    0.03    30   30
+    # time, E11
+    0.01, 0.0005
+    0.02, 0.0010
+    0.03, 0.0015
     ...
 
-Columns: **ninc**, **time**, followed by the controlled components in order 11, 12, 22, 13, 23, 33.
-
-If temperature is set:
-
-.. code-block:: none
-
-    0    0.0     293.15  10   10        
-    1    0.01    294.15  20   20
-    ...
-
-Columns: **ninc**, **time**, **T**, then mechanical components.
+Columns: **time** (absolute simulation time, continuing from the previous step),
+**T** if ``tabular_T`` is set (**Q** for a heat-flux thermomechanical step),
+then the controlled components in Voigt order 11, 22, 33, 12, 13, 23.
+``sim.solver.save_path_json`` writes this file (with the header) from the
+``tabular`` array of a :class:`~simcoon.solver.StepMeca`; the pre-2.0 ``#File``
+increment tables (leading increment number, time restarting at 0) are converted
+to it by ``scripts/legacy_to_json.py``. A tabular step cannot be cycled.
 
 Examples
 --------

@@ -3,6 +3,7 @@ Transversely Isotropic Elasticity Example
 =========================================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
@@ -69,13 +70,13 @@ corate_type = 1
 props = np.array([axis, E_L, E_T, nu_TL, nu_TT, G_LT, alpha_L, alpha_T])
 
 path_data = "../data"
-pathfile = "ELIST_path.txt"
+pathfile = "ELIST_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first ``(6, N)`` arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

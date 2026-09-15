@@ -31,7 +31,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Material/PDF.cpp
   Continuum_mechanics/Material/PDF2Nphases.cpp
   Continuum_mechanics/Material/peak.cpp
-  Continuum_mechanics/Material/read.cpp
   Continuum_mechanics/Material/variant.cpp
 
   # Continuum Mechanics - Micromechanics
@@ -124,11 +123,9 @@ target_sources(simcoon PRIVATE
   Simulation/Phase/material_characteristics.cpp
   Simulation/Phase/output.cpp
   Simulation/Phase/phase_characteristics.cpp
-  Simulation/Phase/read.cpp
   Simulation/Phase/state_variables.cpp
   Simulation/Phase/state_variables_M.cpp
   Simulation/Phase/state_variables_T.cpp
-  Simulation/Phase/write.cpp
 
   # Simulation - Solver
   Simulation/Solver/block.cpp

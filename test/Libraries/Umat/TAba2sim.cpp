@@ -30,8 +30,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
-#include "file_readers.hpp"
+#include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 
 
 using namespace std;
@@ -44,9 +43,6 @@ TEST(Taba2sim, read_write)
     /* initialize random seed: */
     srand(time(NULL));
     
-    string path_data = "data";
-    string materialfile = "material.dat";    
-    string inputfile = "Nellipsoids0.dat";
     
     //double psi_rve = 0.;
     //double theta_rve = 0.;
@@ -110,7 +106,22 @@ TEST(Taba2sim, read_write)
     
     rve.sptr_matprops->update(0, umat_name, 1, 0., 0., 0., nprops, props_smart);
 
-    read_ellipsoid(rve, path_data, inputfile);
+    //The two ELISO ellipsoidal phases of the historical Nellipsoids0.dat fixture, in code
+    rve.sub_phases_construct(2, 2, 1);
+    {
+        const vec props_matrix = {3000., 0.45, 0.};
+        const vec props_fibre = {50000., 0.3, 0.};
+        rve.sub_phases[0].sptr_matprops->update(0, "ELISO", 1, 0., 0., 0., 3, props_matrix);
+        rve.sub_phases[1].sptr_matprops->update(1, "ELISO", 1, 0., 0., 0., 3, props_fibre);
+        for (auto &sub : rve.sub_phases) {
+            sub.sptr_sv_global->resize(1);
+            sub.sptr_sv_local->resize(1);
+            sub.sptr_shape->concentration = 0.2;
+        }
+        auto fibre = std::dynamic_pointer_cast<ellipsoid>(rve.sub_phases[1].sptr_shape);
+        fibre->a1 = 50.;
+        fibre->psi_geom = simcoon::deg2rad(45.);
+    }
     size_statev(rve, nstatev_multi);
 
     rve.sptr_matprops->umat_name = umat_name;

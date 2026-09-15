@@ -11,16 +11,18 @@ the physics imposes (free thermal expansion, cycle bookkeeping, plastic flow,
 the rotation history) is checked directly.
 """
 
+import json
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 import simcoon as sim
 from simcoon.modular import elastic_model
-from simcoon.solver import Block, StepMeca, StepThermomeca, from_file, solve
+from simcoon.solver import Block, StepMeca, StepThermomeca, solve
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -38,85 +40,9 @@ def assert_ran_and_responded(res, n_expected=None):
     assert np.abs(res["Stress"]).max() > 1.0
 
 
-# The legacy path-file grammar. Nothing in simcoon reads it any more — but
-# simcoon.solver.from_file parses it in Python, and the tests of that parser need
-# a file to parse, so the writers stay here as fixtures.
 
 #: path-file component order (11, 12, 22, 13, 23, 33) -> Voigt index
 _FILE_ORDER = [0, 3, 1, 4, 5, 2]
-
-
-def _meca_state_lines(flags, values):
-    """Emit the #prescribed_mechanical_state lines in path-file order."""
-    toks = []
-    for k in _FILE_ORDER:
-        toks.append(f"{flags[k]} {values[k]}")
-    return "{}\n{} {}\n{} {} {}".format(*toks)
-
-
-def _step_text(flags, values, time=1.0, ninc=100, mode=1, T=290.0, BC_w=None):
-    txt = f"""#Mode
-{mode}
-#Dn_init 1.
-#Dn_mini 1.
-#Dn_inc {1.0/ninc}
-#time
-{time}
-#prescribed_mechanical_state
-{_meca_state_lines(flags, values)}
-"""
-    if BC_w is not None:
-        BC_w = np.asarray(BC_w)
-        txt += "#Rotation\n" + "\n".join(
-            " ".join(str(BC_w[i, j]) for j in range(3)) for i in range(3)
-        ) + "\n"
-    txt += f"#prescribed_temperature_state\nT {T}\n"
-    return txt
-
-
-def _thermo_step_text(flags, values, thermal_token, time=1.0, ninc=50):
-    return f"""#Mode
-1
-#Dn_init 1.
-#Dn_mini 1.
-#Dn_inc {1.0/ninc}
-#time
-{time}
-#prescribed_mechanical_state
-{_meca_state_lines(flags, values)}
-#prescribed_thermal_state
-{thermal_token}
-"""
-
-
-def _path_text(steps_text, control_type=1, loading_type=1, ncycle=1, T_init=290.0):
-    return f"""#Initial_temperature
-{T_init}
-#Number_of_blocks
-1
-
-#Block
-1
-#Loading_type
-{loading_type}
-#Control_type(NLGEOM)
-{control_type}
-#Repeat
-{ncycle}
-#Steps
-{len(steps_text)}
-
-""" + "\n".join(steps_text)
-
-
-def write_path_file(tmp_path, path_text, extra_files=None):
-    """Drop a legacy path.txt (and its tabular files) in tmp_path/data."""
-    data = tmp_path / "data"
-    data.mkdir(exist_ok=True)
-    (data / "path.txt").write_text(path_text)
-    for name, content in (extra_files or {}).items():
-        (data / name).write_text(content)
-    return str(data)
 
 
 ELISO_PROPS = [70000.0, 0.3, 1.0e-5]
@@ -132,6 +58,7 @@ _UNIAXIAL = ["strain"] + ["stress"] * 5
 # ---------------------------------------------------------------------------
 # small strain
 # ---------------------------------------------------------------------------
+
 
 def test_eliso_uniaxial_analytic():
     E, nu, _ = ELISO_PROPS
@@ -432,6 +359,19 @@ def test_modular_rejects_too_few_statev(name, props):
         solve(step, name, np.asarray(props), 0, T_init=290.0)
 
 
+def test_orientation_is_given_in_degrees():
+    """solve() takes the RVE Euler angles in degrees, as material.dat and the docs do,
+    and converts them for the C++ side. A transversely isotropic material is invariant
+    under a 180 degree rotation about the third axis and not under 90 degrees; 180 rad
+    would be neither."""
+    elist = [1.0, 4500.0, 2300.0, 0.05, 0.3, 2700.0, 0.0, 0.0]   # axis E_L E_T nu_TL nu_TT G_LT alphas (examples/mechanical/ELIST.py)
+    step = StepMeca(control=_UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0], ninc=2)
+    run = lambda psi: solve(step, "ELIST", elist, 1, T_init=290.0,
+                            orientation=(psi, 0.0, 0.0))["Stress"][0, -1]
+    assert run(180.0) == pytest.approx(run(0.0), rel=1e-9)
+    assert abs(run(90.0) - run(0.0)) > 0.1 * abs(run(0.0))
+
+
 def test_record_tangent_false_omits_tangent_history():
     step = StepMeca(control=_UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0], ninc=2)
     res = solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0, record_tangent=False)
@@ -562,218 +502,3 @@ def test_lambda_solver_param():
     np.testing.assert_allclose(res["Stress"][0, -1], 700.0, rtol=1e-8)
 
 
-# ---------------------------------------------------------------------------
-# legacy file parsing (from_file / material_from_file)
-# ---------------------------------------------------------------------------
-
-def test_from_file_mechanical(tmp_path):
-    # parse a legacy path.txt into Blocks and run the programme it describes
-    flags = ["E"] + ["S"] * 5
-    steps = [_step_text(flags, [0.02, 0, 0, 0, 0, 0], ninc=50),
-             _step_text(flags, [0.0, 0, 0, 0, 0, 0], ninc=50)]
-    data = write_path_file(tmp_path, _path_text(steps, ncycle=2))
-
-    blocks, T_init = from_file(data, "path.txt")
-    assert T_init == 290.0
-    assert len(blocks) == 1 and blocks[0].ncycle == 2 and len(blocks[0].steps) == 2
-
-    res = solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init)
-    assert_ran_and_responded(res, n_expected=2 * 2 * 50)
-    # the parsed programme loads to 0.02 and unloads to 0, twice
-    np.testing.assert_allclose(res["Strain"][0].max(), 0.02, rtol=1e-8)
-    np.testing.assert_allclose(res["Strain"][0, -1], 0.0, atol=1e-12)
-
-
-def test_from_file_thermomechanical(tmp_path):
-    flags = ["S"] * 6
-    steps = [_thermo_step_text(flags, [0.0] * 6, "T 340")]
-    data = write_path_file(tmp_path, _path_text(steps, loading_type=2))
-
-    blocks, T_init = from_file(data, "path.txt")
-    s = blocks[0].steps[0]
-    assert isinstance(s, StepThermomeca) and s.thermal_control == "temperature"
-    assert s.T_final == 340.0
-
-    res = solve(blocks, "ELISO", ELISO_T_PROPS, 1, T_init=T_init)
-    assert res.status == 0
-    # the parsed ramp lands on its target, stress-free, with free thermal expansion
-    np.testing.assert_allclose(res["Temp"][-1], 340.0, rtol=1e-10)
-    np.testing.assert_allclose(res["Strain"][0, -1], 1.0e-5 * 50.0, rtol=1e-8)
-    np.testing.assert_allclose(res["Stress"][:, -1], 0.0, atol=1e-6)
-
-
-def test_from_file_tabular(tmp_path):
-    t = np.linspace(0.02, 1.0, 50)
-    e11 = 0.015 * np.sin(np.pi * t)
-    tab_lines = "\n".join(f"{i+1} {t[i]:.16g} {e11[i]:.16g}" for i in range(len(t)))
-    step3 = """#Mode
-3
-#File
-tab.txt
-#Dn_init 1.
-#Dn_mini 1.
-#prescribed_mechanical_state
-E
-0 0
-0 0 0
-#T_is_set
-0
-"""
-    data = write_path_file(tmp_path, _path_text([step3]),
-                           extra_files={"tab.txt": tab_lines})
-
-    blocks, T_init = from_file(data, "path.txt")
-    s = blocks[0].steps[0]
-    assert s.mode == 3 and not s.tabular_T
-    assert s.control[0] == "strain" and s.control[1:] == ["zero"] * 5
-    np.testing.assert_allclose(s.tabular[:, 0], t, atol=1e-14)
-
-    res = solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init)
-    assert_ran_and_responded(res, n_expected=len(t))
-    # the table read from disk drives the run, in its own absolute time
-    np.testing.assert_allclose(res["Time"], t, atol=1e-12)
-    np.testing.assert_allclose(res["Strain"][0], e11, atol=1e-10)
-
-
-def test_material_from_file(tmp_path):
-    from simcoon.solver import material_from_file
-    (tmp_path / "material.dat").write_text("""Material
-Name\tELISO
-Number_of_material_parameters\t3
-Number_of_internal_variables\t1
-
-#Orientation
-psi\t0.1
-theta\t0.2
-phi\t0.3
-
-#Mechanical
-E 70000.
-nu 0.3
-alpha 1.E-5
-""")
-    kw = material_from_file(str(tmp_path), "material.dat")
-    assert kw["umat_name"] == "ELISO"
-    assert kw["nstatev"] == 1
-    np.testing.assert_allclose(kw["props"], [70000.0, 0.3, 1.0e-5])
-    assert kw["orientation"] == (0.1, 0.2, 0.3)
-    res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10),
-                T_init=290.0, **kw)
-    assert res.status == 0
-
-
-# The file-driven binding this module used to cross-check against (sim._core.solver)
-# is gone, so from_file can no longer be compared run-for-run against the C++ reader.
-# The grammar it reproduces is still the documented one and still implemented in C++
-# (test/support/file_readers.cpp), so pin the parse itself: every field below is a
-# place where a silent drift would produce a different loading programme that the
-# "status == 0 and the stress is finite" assertions would not notice.
-PATH_FIXTURE = """#Initial_temperature
-300.0
-#Number_of_blocks
-2
-
-#Block
-1
-#Loading_type
-1
-#Control_type(NLGEOM)
-1
-#Repeat
-3
-#Steps
-2
-
-#Mode
-1
-#Dn_init 1.
-#Dn_mini 0.1
-#Dn_inc 0.02
-#time
-7.5
-#Consigne
-E 0.11
-S 0.12 E 0.22
-S 0.13 S 0.23 E 0.33
-#Consigne_T
-T 305.
-
-#Mode
-2
-#Dn_init 0.5
-#Dn_mini 0.01
-#Dn_inc 0.25
-#time
-2.
-#Consigne
-S 0. E 0. S 0. E 0. S 0. E 0.
-#Consigne_T
-T 310.
-
-#Block
-2
-#Loading_type
-2
-#Control_type(NLGEOM)
-1
-#Repeat
-1
-#Steps
-1
-
-#Mode
-1
-#Dn_init 1.
-#Dn_mini 0.05
-#Dn_inc 0.1
-#time
-4.
-#Consigne
-E 0.01
-S 0. S 0.
-S 0. S 0. S 0.
-#Consigne_T
-Q 1500.
-"""
-
-
-def test_from_file_parses_the_documented_grammar(tmp_path):
-    """Field-by-field pin of the legacy path-file grammar as from_file reads it."""
-    (tmp_path / "path.txt").write_text(PATH_FIXTURE)
-    blocks, T_init = sim.solver.from_file(str(tmp_path), "path.txt")
-
-    assert T_init == 300.0
-    assert len(blocks) == 2
-
-    mech = blocks[0]
-    assert mech.ncycle == 3 and mech.control_type == 1
-    assert len(mech.steps) == 2
-
-    first = mech.steps[0]
-    assert first.mode in (1, "linear")
-    assert first.time == 7.5
-    assert first.ninc == 50                       # round(1 / Dn_inc)
-    assert first.Dn_init == 1.0 and first.Dn_mini == 0.1
-    assert first.T_final == 305.0
-    # the file lists 11, 12, 22, 13, 23, 33 (lower triangle, row-wise); Voigt is
-    # 11, 22, 33, 12, 13, 23. Swapping the two would scramble the shear components.
-    assert list(first.control) == ["strain", "strain", "strain",
-                                   "stress", "stress", "stress"]
-    np.testing.assert_allclose(np.asarray(first.value, dtype=float),
-                               [0.11, 0.22, 0.33, 0.12, 0.13, 0.23])
-
-    second = mech.steps[1]
-    assert second.mode in (2, "sinusoidal")
-    assert second.ninc == 4 and second.time == 2.0
-    # S E S E S E read as 11, 12, 22, 13, 23, 33 lands in Voigt as
-    # 11=S, 22=S, 33=E, 12=E, 13=E, 23=S — the interleaving is the point
-    assert list(second.control) == ["stress", "stress", "strain",
-                                    "strain", "strain", "stress"]
-
-    thermo = blocks[1]
-    assert thermo.ncycle == 1
-    heat = thermo.steps[0]
-    assert heat.ninc == 10 and heat.time == 4.0
-    # a 'Q' thermal condition is a heat flux, not a temperature target
-    assert getattr(heat, "thermal_control", None) in ("heat_flux", 1)
-    assert float(getattr(heat, "Q", 0.0)) == 1500.0

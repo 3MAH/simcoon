@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -88,6 +89,9 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
     simcoon::phase_characteristics holder;
     holder.sub_phases_construct(nphases, shape_type, 1);
 
+    const char *expected_kind = (shape_type == 2) ? "ellipsoid" : "layer";
+    double total_concentration = 0.;
+
     for (int i = 0; i < nphases; i++) {
         py::dict p = seq[i].cast<py::dict>();
         //By reference: the phase is filled in place.
@@ -99,12 +103,16 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
                                         + to_string(number) + ": the phases must be numbered by "
                                         "their position in the list (0, 1, ... n-1)");
         }
-        const std::string umat_i = dict_string(p, "umat_name", number);
-        if (simcoon::sub_phase_shape(umat_i) != 0) {
-            throw std::invalid_argument("phase " + to_string(number) + " is itself a mean-field "
-                                        "model (" + umat_i + "): nested composites are not "
-                                        "supported through `phases`");
+        //The geometry the dict describes must be the one the model builds: an ellipsoidal
+        //scheme fed layers or cylinders would otherwise homogenise unit spheres, silently.
+        if (p.contains("kind") && !p["kind"].is_none()) {
+            const std::string kind = p["kind"].cast<std::string>();
+            if (kind != expected_kind) {
+                throw std::invalid_argument("phase " + to_string(number) + " is a " + kind + ", but "
+                                            + umat_name + " builds " + expected_kind + "s");
+            }
         }
+        const std::string umat_i = dict_string(p, "umat_name", number);
         const vec props_i = dict_props(p, number);
         const int nstatev_i = dget(p, "nstatev", 1);
 
@@ -121,7 +129,16 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
             sv->T = T_init;
         }
 
-        sub.sptr_shape->concentration = dget(p, "concentration", 0.);
+        if (!p.contains("concentration") || p["concentration"].is_none()) {
+            throw std::invalid_argument("phase " + to_string(number) + ": no 'concentration' entry");
+        }
+        sub.sptr_shape->concentration = p["concentration"].cast<double>();
+        total_concentration += sub.sptr_shape->concentration;
+
+        //A mean-field sub-phase carries its own sub-phases; a homogeneous one must not.
+        const py::object nested = p.contains("phases") ? p["phases"].cast<py::object>()
+                                                       : py::object(py::none());
+        sub.sub_phases = make_sub_phases(nested, umat_i, T_init);
 
         double psi_geom, theta_geom, phi_geom;
         dict_angles(p, "geometry_orientation", psi_geom, theta_geom, phi_geom);
@@ -155,6 +172,12 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         }
     }
 
+    if (std::abs(total_concentration - 1.) > 1.e-6) {
+        throw std::invalid_argument(umat_name + ": the concentrations of the " + to_string(nphases)
+                                    + " phases sum to " + to_string(total_concentration)
+                                    + ", not 1");
+    }
+
     //coatedby is only resolvable once every phase is known.
     if (shape_type == 2) {
         for (int i = 0; i < nphases; i++) {
@@ -167,6 +190,57 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
     }
 
     return holder.sub_phases;
+}
+
+py::list phases_to_list(const std::vector<simcoon::phase_characteristics> &phases) {
+    py::list out;
+    for (size_t i = 0; i < phases.size(); i++) {
+        const simcoon::phase_characteristics &ph = phases[i];
+        const auto &mp = *ph.sptr_matprops;
+        py::dict d;
+        d["number"] = mp.number;
+        d["umat_name"] = mp.umat_name;
+        d["save"] = mp.save;
+        d["concentration"] = ph.sptr_shape->concentration;
+        py::dict mat_angles;
+        mat_angles["psi"] = simcoon::rad2deg(mp.psi_mat);
+        mat_angles["theta"] = simcoon::rad2deg(mp.theta_mat);
+        mat_angles["phi"] = simcoon::rad2deg(mp.phi_mat);
+        d["material_orientation"] = mat_angles;
+        d["nstatev"] = ph.sptr_sv_global->nstatev;
+        vec props_copy = mp.props;   //a copy numpy owns
+        d["props"] = carma::col_to_arr(props_copy, true);
+        if (auto ell = std::dynamic_pointer_cast<simcoon::ellipsoid>(ph.sptr_shape)) {
+            d["kind"] = "ellipsoid";
+            d["coatingof"] = ell->coatingof;
+            py::dict axes;
+            axes["a1"] = ell->a1; axes["a2"] = ell->a2; axes["a3"] = ell->a3;
+            d["semi_axes"] = axes;
+            py::dict geo;
+            geo["psi"] = simcoon::rad2deg(ell->psi_geom);
+            geo["theta"] = simcoon::rad2deg(ell->theta_geom);
+            geo["phi"] = simcoon::rad2deg(ell->phi_geom);
+            d["geometry_orientation"] = geo;
+        }
+        else if (auto lay = std::dynamic_pointer_cast<simcoon::layer>(ph.sptr_shape)) {
+            d["kind"] = "layer";
+            d["layerup"] = lay->layerup;
+            d["layerdown"] = lay->layerdown;
+            py::dict geo;
+            geo["psi"] = simcoon::rad2deg(lay->psi_geom);
+            geo["theta"] = simcoon::rad2deg(lay->theta_geom);
+            geo["phi"] = simcoon::rad2deg(lay->phi_geom);
+            d["geometry_orientation"] = geo;
+        }
+        else {
+            d["kind"] = "phase";
+        }
+        if (!ph.sub_phases.empty()) {
+            d["phases"] = phases_to_list(ph.sub_phases);
+        }
+        out.append(d);
+    }
+    return out;
 }
 
 } //namespace simpy

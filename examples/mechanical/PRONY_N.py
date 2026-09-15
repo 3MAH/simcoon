@@ -67,13 +67,13 @@ props = np.array([E_0, nu_0, alpha, n_prony])
 for i in range(n_prony):
     props = np.append(props, [E_i[i], nu_i[i], etaB_i[i], etaS_i[i]])
 
-pathfile = "PRONK_path.txt"
+pathfile = "PRONK_path.json"
 
 ###################################################################################
 # The loading path is read in Python and the simulation runs in memory: no result
 # file is written, and the histories come back as component-first arrays.
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 
 res = sim.solver.solve(
     blocks,

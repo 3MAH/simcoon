@@ -61,9 +61,9 @@ path_data = "../data"
 
 # Run the simulation: the path file is parsed in Python and the case runs in
 # memory, so no result file is written.
-pathfile = "THERM_EPICP_path.txt"
+pathfile = "THERM_EPICP_path.json"
 
-blocks, T_init = sim.solver.from_file(path_data, pathfile)
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
 res = sim.solver.solve(
     blocks,
     umat_name,
@@ -148,8 +148,8 @@ increments = [1, 10, 100, 1000]
 # the case runs in memory, so nothing is written to — or read back from — disk.
 data = []
 for inc in increments:
-    pathfile = f"THERM_EPICP_path_{inc}.txt"
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    pathfile = f"THERM_EPICP_path_{inc}.json"
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
     res_inc = sim.solver.solve(
         blocks,
         umat_name,

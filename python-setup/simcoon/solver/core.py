@@ -65,7 +65,8 @@ def solve(
     solver_type : int
         0 = classic Newton-Raphson (default), 1 = RNL (control_type 1 only).
     orientation : sequence of 3 floats
-        Euler angles (psi, theta, phi) of the material orientation (rad).
+        Euler angles (psi, theta, phi) of the material orientation, in degrees (as in
+        material.dat); converted to radians for the C++ side.
     phases : sequence, optional
         Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): the
         Ellipsoid / Layer objects of :mod:`simcoon.solver.micromechanics`, or the
@@ -130,7 +131,7 @@ def solve(
         blocks_py.append(b.to_dict(T_run))
         T_run = b.T_end(T_run)
 
-    psi, theta, phi = (float(x) for x in orientation)
+    psi, theta, phi = (float(np.deg2rad(float(x))) for x in orientation)
     # Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): dataclasses are accepted
     # as readily as the dicts the binding reads. They used to be read from Nellipsoids<N>.dat.
     phases_py = None if phases is None else to_phase_dicts(phases)

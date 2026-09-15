@@ -269,7 +269,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
             }
             kappa_j[i+1] = L_i[i]*Lambdav[i];        // assign: this runs once per local
             K(i+1,i+1) = dPhidv[i];                 // Newton iteration, and both fed
-                                                    // the tangent scaled by the count
+                                                    // the tangent scaled by the count
         }
         
         B = zeros(N_mec,N_mec);

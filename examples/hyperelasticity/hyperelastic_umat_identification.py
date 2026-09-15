@@ -68,9 +68,9 @@ KAPPA = 10000.0          # fixed bulk modulus [MPa]
 # columns (stretch / first Piola-Kirchhoff stress). The ``*_id`` paths use a
 # coarser increment than HYPER_umat's, fast enough for many optimizer calls.
 CASES = [
-    ("UT", "path_UT_id.txt", "lambda_1", "P1_MPa"),   # uniaxial tension
-    ("PS", "path_PS_id.txt", "lambda_2", "P2_MPa"),   # pure shear
-    ("ET", "path_ET_id.txt", "lambda_3", "P3_MPa"),   # equibiaxial tension
+    ("UT", "path_UT_id.json", "lambda_1", "P1_MPa"),   # uniaxial tension
+    ("PS", "path_PS_id.json", "lambda_2", "P2_MPa"),   # pure shear
+    ("ET", "path_ET_id.json", "lambda_3", "P3_MPa"),   # equibiaxial tension
 ]
 
 # Reference parameters (Steinmann et al., 2012) for the final comparison.
@@ -107,7 +107,7 @@ def build_props(x):
 def run_case(props, programme):
     """Run one case and return its ``(lambda, P_11)`` trajectory.
 
-    ``programme`` is the ``(blocks, T_init)`` pair ``from_file`` parsed once per case —
+    ``programme`` is the ``(blocks, T_init)`` pair ``load_path_json`` read once per case —
     an identification evaluates this thousands of times, and none of them touches the
     disk. The two quantities the old result file carried are rebuilt from the
     histories: the largest isochoric principal stretch, and the 11 component of the
@@ -221,7 +221,7 @@ def main():
     for name, pathfile, lc, pc in CASES:
         mask = ~df[lc].isna() & ~df[pc].isna()
         exp[name] = (df.loc[mask, lc].values, df.loc[mask, pc].values)
-        programmes[name] = sim.solver.from_file(path_data, pathfile)
+        programmes[name] = sim.solver.load_path_json(os.path.join(path_data, pathfile))[:2]
 
     print("=" * 66)
     print(" MOONEY-RIVLIN IDENTIFICATION via the MOORI UMAT + simcoon API")

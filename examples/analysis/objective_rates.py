@@ -39,7 +39,7 @@ solver_type = 0
 props = np.array([E, nu, alpha])
 
 path_data = "data"
-pathfile = "path.txt"
+pathfile = "path.json"
 
 colors = ["blue", "red", "green", "black"]
 
@@ -81,7 +81,7 @@ for i, rate_name in enumerate(rate):
     corate_type = i
     # The path file is parsed in Python and the case runs in memory: the rotation
     # history comes back as a (3, 3, N) array, no result file is written.
-    blocks, T_init = sim.solver.from_file(path_data, pathfile)
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
     res = sim.solver.solve(
         blocks,
         umat_name,

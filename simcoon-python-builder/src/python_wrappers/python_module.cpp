@@ -268,7 +268,7 @@ PYBIND11_MODULE(_core, m)
     m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true, "phases"_a = pybind11::none());  // corate default = log_R (exact polar rotation + exact tangent transport); `phases` gives the sub-phases of a mean-field model in memory
 
     // Register the from-python converters for ODF functions
-    m.def("get_densities_ODF", &get_densities_ODF);
-    m.def("ODF_discretization", &ODF_discretization);
+    m.def("get_densities_ODF", &get_densities_ODF, "x"_a, "peaks"_a, "radian"_a = false, "Densities of an orientation distribution function at the angles x, summed over its peaks (a sequence of dicts {number, method, mean, s_dev, width, ampl, params}); degrees unless radian");
+    m.def("ODF_discretization", &ODF_discretization, "phases"_a, "peaks"_a, "umat_name"_a, "props"_a, "num_phase_disc"_a, "nphases_disc"_a, "angle_min"_a, "angle_max"_a, "angles_mat"_a = true, "angle"_a = 0, "Discretise sub-phase num_phase_disc of a mean-field RVE into nphases_disc phases over [angle_min, angle_max] degrees following an ODF; returns the discretised phases as dicts (see simcoon.solver.micromechanics.phases_from_dicts)");
 
 }
