@@ -140,8 +140,8 @@ Solver parameters
      - int
      - Solver strategy (0: Newton-Raphson)
    * - orientation
-     - tuple of 3 floats
-     - The three Euler angles ``(psi, theta, phi)``, in degrees, giving the material orientation with respect to the reference basis
+     - simcoon.Rotation or 3 floats
+     - Orientation of the material frame: a ``Rotation`` or its Euler angles ``(psi, theta, phi)`` in degrees (see :doc:`python_solver`, mean-field composites, for the convention)
    * - phases
      - sequence, optional
      - Sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN), passed in memory: :class:`~simcoon.solver.micromechanics.Ellipsoid` / :class:`~simcoon.solver.micromechanics.Layer` objects (numbered by position) or the dicts :func:`~simcoon.solver.micromechanics.to_phase_dicts` makes of them. Their geometry must be the one the model builds, the concentrations must sum to 1, and a sub-phase that is itself a mean-field model carries its own sub-phases in its ``phases`` attribute

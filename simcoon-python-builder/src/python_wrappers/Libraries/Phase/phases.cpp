@@ -192,55 +192,5 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
     return holder.sub_phases;
 }
 
-py::list phases_to_list(const std::vector<simcoon::phase_characteristics> &phases) {
-    py::list out;
-    for (size_t i = 0; i < phases.size(); i++) {
-        const simcoon::phase_characteristics &ph = phases[i];
-        const auto &mp = *ph.sptr_matprops;
-        py::dict d;
-        d["number"] = mp.number;
-        d["umat_name"] = mp.umat_name;
-        d["save"] = mp.save;
-        d["concentration"] = ph.sptr_shape->concentration;
-        py::dict mat_angles;
-        mat_angles["psi"] = simcoon::rad2deg(mp.psi_mat);
-        mat_angles["theta"] = simcoon::rad2deg(mp.theta_mat);
-        mat_angles["phi"] = simcoon::rad2deg(mp.phi_mat);
-        d["material_orientation"] = mat_angles;
-        d["nstatev"] = ph.sptr_sv_global->nstatev;
-        vec props_copy = mp.props;   //a copy numpy owns
-        d["props"] = carma::col_to_arr(props_copy, true);
-        if (auto ell = std::dynamic_pointer_cast<simcoon::ellipsoid>(ph.sptr_shape)) {
-            d["kind"] = "ellipsoid";
-            d["coatingof"] = ell->coatingof;
-            py::dict axes;
-            axes["a1"] = ell->a1; axes["a2"] = ell->a2; axes["a3"] = ell->a3;
-            d["semi_axes"] = axes;
-            py::dict geo;
-            geo["psi"] = simcoon::rad2deg(ell->psi_geom);
-            geo["theta"] = simcoon::rad2deg(ell->theta_geom);
-            geo["phi"] = simcoon::rad2deg(ell->phi_geom);
-            d["geometry_orientation"] = geo;
-        }
-        else if (auto lay = std::dynamic_pointer_cast<simcoon::layer>(ph.sptr_shape)) {
-            d["kind"] = "layer";
-            d["layerup"] = lay->layerup;
-            d["layerdown"] = lay->layerdown;
-            py::dict geo;
-            geo["psi"] = simcoon::rad2deg(lay->psi_geom);
-            geo["theta"] = simcoon::rad2deg(lay->theta_geom);
-            geo["phi"] = simcoon::rad2deg(lay->phi_geom);
-            d["geometry_orientation"] = geo;
-        }
-        else {
-            d["kind"] = "phase";
-        }
-        if (!ph.sub_phases.empty()) {
-            d["phases"] = phases_to_list(ph.sub_phases);
-        }
-        out.append(d);
-    }
-    return out;
-}
 
 } //namespace simpy

@@ -28,8 +28,8 @@ import numpy as np
 from simcoon.solver.blocks import Block, StepMeca, StepThermomeca
 from simcoon.solver.io import save_material_json, save_path_json
 from simcoon.solver.maps import CORATE_TYPES
-from simcoon.solver.micromechanics import (Cylinder, Ellipsoid, EulerAngles, GeometryOrientation,
-                                           Layer, MaterialOrientation, Phase, Section,
+from simcoon.solver.micromechanics import (Cylinder, Ellipsoid,
+                                           Layer, Phase, Section,
                                            save_cylinders_json, save_ellipsoids_json,
                                            save_layers_json, save_phases_json,
                                            save_sections_json)
@@ -446,7 +446,7 @@ def load_phases_dat(filepath: Union[str, Path]) -> List[Phase]:
             umat_name=t[1],
             save=int(t[2]),
             concentration=float(t[3]),
-            material_orientation=MaterialOrientation(float(t[4]), float(t[5]), float(t[6])),
+            material_orientation=(float(t[4]), float(t[5]), float(t[6])),
             nstatev=int(t[8]),
             props=_dat_props(t, n),
         )
@@ -463,8 +463,8 @@ def load_layers_dat(filepath: Union[str, Path]) -> List[Layer]:
             umat_name=t[1],
             save=int(t[2]),
             concentration=float(t[3]),
-            material_orientation=MaterialOrientation(float(t[4]), float(t[5]), float(t[6])),
-            geometry_orientation=GeometryOrientation(float(t[7]), float(t[8]), float(t[9])),
+            material_orientation=(float(t[4]), float(t[5]), float(t[6])),
+            geometry_orientation=(float(t[7]), float(t[8]), float(t[9])),
             nstatev=int(t[11]),
             props=_dat_props(t, n),
         )
@@ -482,11 +482,11 @@ def load_ellipsoids_dat(filepath: Union[str, Path]) -> List[Ellipsoid]:
             umat_name=t[2],
             save=int(t[3]),
             concentration=float(t[4]),
-            material_orientation=MaterialOrientation(float(t[5]), float(t[6]), float(t[7])),
+            material_orientation=(float(t[5]), float(t[6]), float(t[7])),
             a1=float(t[8]),
             a2=float(t[9]),
             a3=float(t[10]),
-            geometry_orientation=GeometryOrientation(float(t[11]), float(t[12]), float(t[13])),
+            geometry_orientation=(float(t[11]), float(t[12]), float(t[13])),
             nstatev=int(t[15]),
             props=_dat_props(t, n),
         )
@@ -504,10 +504,10 @@ def load_cylinders_dat(filepath: Union[str, Path]) -> List[Cylinder]:
             umat_name=t[2],
             save=int(t[3]),
             concentration=float(t[4]),
-            material_orientation=MaterialOrientation(float(t[5]), float(t[6]), float(t[7])),
+            material_orientation=(float(t[5]), float(t[6]), float(t[7])),
             L=float(t[8]),
             R=float(t[9]),
-            geometry_orientation=GeometryOrientation(float(t[10]), float(t[11]), float(t[12])),
+            geometry_orientation=(float(t[10]), float(t[11]), float(t[12])),
             nstatev=int(t[14]),
             props=_dat_props(t, n),
         )
@@ -527,7 +527,7 @@ def load_sections_dat(filepath: Union[str, Path]) -> List[Section]:
             number=int(t[0]),
             name=t[1],
             umat_name=t[2],
-            material_orientation=MaterialOrientation(float(t[3]), float(t[4]), float(t[5])),
+            material_orientation=(float(t[3]), float(t[4]), float(t[5])),
             nstatev=int(t[7]),
             props=_dat_props(t, n),
         )

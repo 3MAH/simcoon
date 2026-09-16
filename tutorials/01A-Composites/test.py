@@ -1,6 +1,6 @@
 import numpy as np
 import simcoon as sim
-from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
+from simcoon.solver.micromechanics import Ellipsoid
 
 nstatev = 0
 
@@ -29,8 +29,8 @@ phi_rve = 0.0
 umat_name = "MIMTN"
 
 L = sim.L_eff(
-    umat_name, props, nstatev, psi_rve, theta_rve, phi_rve,
-    to_phase_dicts([matrix, reinforcement]),
+    umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve),
+    phases=[matrix, reinforcement],
 )
 p = sim.L_iso_props(L)
 print(p)

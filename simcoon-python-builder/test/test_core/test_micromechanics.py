@@ -11,9 +11,14 @@ import os
 import numpy as np
 from pathlib import Path
 
+import simcoon as sim
+from simcoon.solver import Block, StepMeca, solve
 from simcoon.solver.micromechanics import (
-    MaterialOrientation,
-    GeometryOrientation,
+    EULER_SEQ,
+    Peak,
+    as_rotation,
+    discretize_odf,
+    euler_angles,
     Phase,
     Layer,
     Ellipsoid,
@@ -34,46 +39,132 @@ from simcoon.solver.micromechanics import (
 
 
 # =============================================================================
-# MaterialOrientation Tests
+# Orientation tests: simcoon.Rotation in, Euler angles of the files out
 # =============================================================================
 
-class TestMaterialOrientation:
-    """Tests for MaterialOrientation dataclass."""
+class TestOrientations:
+    """Orientations are Rotation objects; the files keep (psi, theta, phi) in degrees."""
 
-    def test_default_values(self):
-        """Test default orientation is identity (no rotation)."""
-        orient = MaterialOrientation()
-        assert orient.psi == 0.0
-        assert orient.theta == 0.0
-        assert orient.phi == 0.0
+    def test_default_is_identity(self):
+        assert as_rotation(None).is_identity()
+        assert euler_angles(None) == {"psi": 0.0, "theta": 0.0, "phi": 0.0}
 
-    def test_custom_values(self):
-        """Test custom Euler angles."""
-        orient = MaterialOrientation(psi=45.0, theta=30.0, phi=60.0)
-        assert orient.psi == 45.0
-        assert orient.theta == 30.0
-        assert orient.phi == 60.0
+    def test_accepted_forms_agree(self):
+        by_seq = as_rotation((45.0, 30.0, 60.0))
+        by_dict = as_rotation({"psi": 45.0, "theta": 30.0, "phi": 60.0})
+        by_rot = as_rotation(sim.Rotation.from_euler(EULER_SEQ, [45, 30, 60], degrees=True))
+        assert by_seq.equals(by_dict) and by_seq.equals(by_rot)
+        assert as_rotation(by_rot) is by_rot
+
+    def test_euler_round_trip(self):
+        angles = euler_angles((45.0, 30.0, 60.0))
+        assert angles == pytest.approx({"psi": 45.0, "theta": 30.0, "phi": 60.0})
+        # gimbal lock (theta = 0): the same rotation, the z angles merged into psi
+        merged = euler_angles((10.0, 0.0, 20.0))
+        assert merged["theta"] == pytest.approx(0.0)
+        assert as_rotation(merged).equals(as_rotation((10.0, 0.0, 20.0)))
+
+    def test_bad_forms_are_rejected(self):
+        with pytest.raises(ValueError):
+            as_rotation((1.0, 2.0))
+        with pytest.raises(ValueError):
+            as_rotation({"alpha": 1.0})
+
+    def test_dataclass_fields_are_rotations(self):
+        ell = Ellipsoid(number=1, geometry_orientation=(0, 90, -90),
+                        material_orientation={"psi": 45})
+        assert isinstance(ell.geometry_orientation, sim.Rotation)
+        assert isinstance(ell.material_orientation, sim.Rotation)
+        d = to_phase_dicts([ell])[0]
+        assert d["geometry_orientation"] == pytest.approx({"psi": 0.0, "theta": 90.0, "phi": -90.0})
+        assert d["material_orientation"] == pytest.approx({"psi": 45.0, "theta": 0.0, "phi": 0.0})
 
 
-# =============================================================================
-# GeometryOrientation Tests
-# =============================================================================
+class TestOrientationConvention:
+    """Pins EULER_SEQ against the C++ side: the material route of the solver and the
+    geometry route of the mean-field schemes."""
 
-class TestGeometryOrientation:
-    """Tests for GeometryOrientation dataclass."""
+    ELIST = [3, 230000., 15000., 0.02, 0.4, 50000., 0., 0.]
 
-    def test_default_values(self):
-        """Test default orientation."""
-        orient = GeometryOrientation()
-        assert orient.psi == 0.0
-        assert orient.theta == 0.0
-        assert orient.phi == 0.0
+    def test_solver_material_frame(self):
+        psi, theta, phi = 30.0, 40.0, 50.0
+        L = sim.L_isotrans(self.ELIST[1:6], 3)
+        e = np.array([0.01, 0.004, -0.002, 0.003, 0.001, 0.002])
+        for orientation in ((psi, theta, phi), as_rotation((psi, theta, phi))):
+            res = solve(StepMeca(control="strain", value=e, ninc=1), "ELIST", self.ELIST, 1,
+                        orientation=orientation)
+            R = sim.Rotation.from_euler(EULER_SEQ, [psi, theta, phi], degrees=True)
+            np.testing.assert_allclose(res["Stress"][:, -1], R.apply_stiffness(L) @ e,
+                                       rtol=1e-10, atol=1e-8)
 
-    def test_layer_orientation(self):
-        """Test typical layer orientation (horizontal)."""
-        orient = GeometryOrientation(psi=0, theta=90, phi=-90)
-        assert orient.theta == 90.0
-        assert orient.phi == -90.0
+    def test_l_eff_geometry_frame(self):
+        # rotating the fibre of an isotropic-matrix composite rotates its stiffness
+        props = np.array([2.0, 1.0, 20.0, 20.0, 0.0])
+        def composite(rot):
+            matrix = Ellipsoid(umat_name="ELISO", concentration=0.8, nstatev=1,
+                               props=[5000.0, 0.3, 0.0])
+            fibre = Ellipsoid(umat_name="ELISO", concentration=0.2, nstatev=1,
+                              props=[50000.0, 0.3, 0.0], a1=50.0, geometry_orientation=rot)
+            return to_phase_dicts([matrix, fibre])
+        R = sim.Rotation.from_euler(EULER_SEQ, [30, 40, 50], degrees=True)
+        L0 = np.asarray(sim.L_eff("MIMTN", props, 10000, phases=composite(None)))
+        L_R = np.asarray(sim.L_eff("MIMTN", props, 10000, phases=composite(R)))
+        np.testing.assert_allclose(L_R, R.apply_stiffness(L0), rtol=1e-9, atol=1e-6)
+        # the RVE frame itself, given as a Rotation or as its Euler angles
+        L_rve = sim.L_eff("MIMTN", props, 10000, orientation=R, phases=composite(None))
+        np.testing.assert_allclose(L_rve, R.apply_stiffness(L0), rtol=1e-9, atol=1e-6)
+        L_deg = sim.L_eff("MIMTN", props, 10000, orientation=(30, 40, 50), phases=composite(None))
+        np.testing.assert_allclose(L_deg, L_rve, rtol=1e-12)
+
+
+class TestDiscretizeODF:
+    """A phase split along an ODF about a direction."""
+
+    @staticmethod
+    def composite(fibre_rot=None):
+        matrix = Ellipsoid(umat_name="ELISO", concentration=0.7, nstatev=1,
+                           props=[5000.0, 0.3, 0.0])
+        fibre = Ellipsoid(umat_name="ELISO", concentration=0.3, nstatev=1,
+                          props=[50000.0, 0.3, 0.0], a1=50.0, geometry_orientation=fibre_rot)
+        return [matrix, fibre]
+
+    def test_uniform_odf_shares_the_concentration_evenly(self):
+        phases = discretize_odf(self.composite(), 1, [Peak(method=7)], 6)
+        assert len(phases) == 7 and [p.number for p in phases] == list(range(7))
+        assert phases[0].concentration == pytest.approx(0.7)
+        np.testing.assert_allclose([p.concentration for p in phases[1:]], 0.3 / 6, rtol=1e-12)
+
+    def test_orientations_sweep_about_the_axis_from_the_base(self):
+        base = sim.Rotation.from_euler(EULER_SEQ, [10, 20, 30], degrees=True)
+        n = np.array([0.0, 1.0, 0.0])
+        phases = discretize_odf(self.composite(base), 1, [Peak(method=7)], 4, axis=n,
+                                angle_range=(0.0, 180.0), rotate_material=False)
+        for k, ph in enumerate(phases[1:]):
+            expected = sim.Rotation.from_rotvec(np.deg2rad(45.0 * k) * n) * base
+            assert ph.geometry_orientation.equals(expected, tol=1e-12)
+            assert ph.material_orientation.is_identity()
+        phases = discretize_odf(self.composite(base), 1, [Peak(method=7)], 4, axis=n)
+        assert phases[3].material_orientation.equals(phases[3].geometry_orientation * base.inv(), tol=1e-12)
+
+    def test_gaussian_peak_weights_follow_the_density(self):
+        # a narrow Gaussian at 90 deg: the phases near 90 deg carry the mass, the sum is the parent
+        peaks = [Peak(method=3, mean=90.0, s_dev=10.0, ampl=1.0)]
+        phases = discretize_odf(self.composite(), 1, peaks, 18)
+        w = np.array([p.concentration for p in phases[1:]])
+        assert w.sum() == pytest.approx(0.3, rel=1e-12)
+        assert w.argmax() == 9 and w[0] < 1e-3 * w[9]
+
+    def test_uniform_sweep_about_z_is_transversely_isotropic(self):
+        # a 4th-order tensor rotated about z carries harmonics up to 4 alpha: 8 equally
+        # spaced angles over a half turn average them out exactly
+        props = np.array([9.0, 1.0, 20.0, 20.0, 0.0])
+        phases = discretize_odf(self.composite(), 1, [Peak(method=7)], 8)
+        L = np.asarray(sim.L_eff("MIMTN", props, 10000, phases=to_phase_dicts(phases)))
+        assert L[0, 0] == pytest.approx(L[1, 1], rel=1e-9)
+        assert L[0, 2] == pytest.approx(L[1, 2], rel=1e-9)
+        assert L[4, 4] == pytest.approx(L[5, 5], rel=1e-9)
+        assert L[3, 3] == pytest.approx(0.5 * (L[0, 0] - L[0, 1]), rel=1e-9)
+        assert abs(L[0, 3]) < 1e-9 * L[0, 0]
 
 
 # =============================================================================
@@ -172,16 +263,16 @@ class TestLayersJSON:
                 umat_name='ELISO',
                 concentration=0.5,
                 props=np.array([70000, 0.3]),
-                material_orientation=MaterialOrientation(0, 0, 0),
-                geometry_orientation=GeometryOrientation(0, 90, -90)
+                material_orientation=(0, 0, 0),
+                geometry_orientation=(0, 90, -90)
             ),
             Layer(
                 number=1,
                 umat_name='ELISO',
                 concentration=0.5,
                 props=np.array([150000, 0.25]),
-                material_orientation=MaterialOrientation(0, 0, 0),
-                geometry_orientation=GeometryOrientation(0, 90, -90)
+                material_orientation=(0, 0, 0),
+                geometry_orientation=(0, 90, -90)
             ),
         ]
 
@@ -287,7 +378,7 @@ class TestMicromechanicsIntegration:
             concentration=0.4,
             props=np.array([230000, 0.2]),
             a1=100, a2=1, a3=1,
-            geometry_orientation=GeometryOrientation(0, 0, 0)
+            geometry_orientation=(0, 0, 0)
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -300,10 +391,10 @@ class TestMicromechanicsIntegration:
     def test_laminate_definition(self):
         """Test defining a laminate structure."""
         layers = [
-            Layer(number=0, concentration=0.25, geometry_orientation=GeometryOrientation(0, 90, -90)),
-            Layer(number=1, concentration=0.25, geometry_orientation=GeometryOrientation(90, 90, -90)),
-            Layer(number=2, concentration=0.25, geometry_orientation=GeometryOrientation(90, 90, -90)),
-            Layer(number=3, concentration=0.25, geometry_orientation=GeometryOrientation(0, 90, -90)),
+            Layer(number=0, concentration=0.25, geometry_orientation=(0, 90, -90)),
+            Layer(number=1, concentration=0.25, geometry_orientation=(90, 90, -90)),
+            Layer(number=2, concentration=0.25, geometry_orientation=(90, 90, -90)),
+            Layer(number=3, concentration=0.25, geometry_orientation=(0, 90, -90)),
         ]
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -345,13 +436,12 @@ class TestPhase:
 
     def test_phase_with_orientation(self):
         """Test phase with material orientation."""
-        orient = MaterialOrientation(psi=45.0, theta=30.0, phi=0.0)
         phase = Phase(
             number=0,
             umat_name='ELORT',
-            material_orientation=orient
+            material_orientation=(45.0, 30.0, 0.0)
         )
-        assert phase.material_orientation.psi == 45.0
+        assert euler_angles(phase.material_orientation)["psi"] == pytest.approx(45.0)
 
 
 class TestPhasesJSON:
@@ -491,7 +581,7 @@ class TestNestedPhases:
     def _composite(self):
         inner = [Ellipsoid(number=0, concentration=0.8, props=[5000.0, 0.3, 0.0]),
                  Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0],
-                           geometry_orientation=GeometryOrientation(45.0, 0.0, 0.0))]
+                           geometry_orientation=(45.0, 0.0, 0.0))]
         outer = [Ellipsoid(number=0, umat_name="MIMTN", concentration=0.8, nstatev=1000,
                            props=[2.0, 1.0, 20.0, 20.0, 0.0], phases=inner),
                  Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0])]
@@ -505,7 +595,7 @@ class TestNestedPhases:
         inner = loaded[0].phases
         assert [type(p) for p in inner] == [Ellipsoid, Ellipsoid]
         assert inner[1].a1 == 50.0
-        assert inner[1].geometry_orientation.psi == 45.0
+        assert euler_angles(inner[1].geometry_orientation)["psi"] == pytest.approx(45.0)
         np.testing.assert_array_equal(inner[0].props, [5000.0, 0.3, 0.0])
         assert loaded[1].phases == []
 

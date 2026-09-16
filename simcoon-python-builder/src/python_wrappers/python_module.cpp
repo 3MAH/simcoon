@@ -172,7 +172,7 @@ PYBIND11_MODULE(_core, m)
     m.def("M_aniso_props", &M_aniso_props, "input"_a, simcoon_docs::M_aniso_props);
 
     // Register the L_eff for composites
-    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "phases"_a = pybind11::none(), "Return the elastic stiffness tensor of a composite material. `phases` gives the sub-phases in memory (a sequence of dicts, see simcoon.solver.micromechanics); the mean-field models no longer read Nellipsoids/Nlayers files");
+    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "orientation"_a = pybind11::none(), "phases"_a = pybind11::none(), "Elastic stiffness tensor of a (composite) material in the global frame. `orientation` is the material frame as a {psi, theta, phi} dict in degrees (None: identity), `phases` the sub-phases of a mean-field model as dicts; simcoon.L_eff wraps this for Rotation objects and phase dataclasses");
 
     // Register the from-python converters for kinematics
     m.def("ER_to_F", &ER_to_F, "E"_a, "R"_a, "copy"_a = true, simcoon_docs::ER_to_F);
@@ -269,6 +269,5 @@ PYBIND11_MODULE(_core, m)
 
     // Register the from-python converters for ODF functions
     m.def("get_densities_ODF", &get_densities_ODF, "x"_a, "peaks"_a, "radian"_a = false, "Densities of an orientation distribution function at the angles x, summed over its peaks (a sequence of dicts {number, method, mean, s_dev, width, ampl, params}); degrees unless radian");
-    m.def("ODF_discretization", &ODF_discretization, "phases"_a, "peaks"_a, "umat_name"_a, "props"_a, "num_phase_disc"_a, "nphases_disc"_a, "angle_min"_a, "angle_max"_a, "angles_mat"_a = true, "angle"_a = 0, "Discretise sub-phase num_phase_disc of a mean-field RVE into nphases_disc phases over [angle_min, angle_max] degrees following an ODF; returns the discretised phases as dicts (see simcoon.solver.micromechanics.phases_from_dicts)");
 
 }

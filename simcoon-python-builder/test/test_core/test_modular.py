@@ -50,9 +50,10 @@ def _run_case(name, props, nstatev, path_file, cols=(8, 14), tangent_mode=None):
 
     The path file is read in Python (sim.solver.load_path_json) and the case runs in
     memory — the file-driven binding left with the 2.0 JSON-only migration. The
-    result files these tests used to read carried the default output, Green-Lagrange
-    strain in columns 8:14 and Cauchy stress in 14:20, so a column index still names
-    a component of "Strain" or "Stress".
+    result files these tests used to read carried the default output, strain in
+    columns 8:14 and Cauchy stress in 14:20, so a column index still names a
+    component of "Strain" or "Stress" (small-strain paths: every strain measure
+    coincides).
     """
     blocks, T_init = sim.solver.load_path_json(os.path.join("../data", path_file))[:2]
     kwargs = {} if tangent_mode is None else {"tangent_mode": tangent_mode}

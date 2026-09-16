@@ -16,9 +16,8 @@ import simcoon as sim
 from simcoon import solver as slv
 from simcoon.solver import Block, StepMeca, StepThermomeca, solve
 from simcoon.solver.micromechanics import (Cylinder, Ellipsoid, Layer, Phase, Section,
-                                           GeometryOrientation, MaterialOrientation,
-                                           load_ellipsoids_json, load_layers_json,
-                                           to_phase_dicts)
+                                           euler_angles, load_ellipsoids_json,
+                                           load_layers_json, to_phase_dicts)
 from test_solver_run import (ELISO_PROPS, ELISO_T_PROPS, EPICP_NSTATEV, EPICP_PROPS, _FILE_ORDER,
                              _UNIAXIAL, assert_ran_and_responded)
 
@@ -401,9 +400,9 @@ class TestLegacyDatReaders:
     def test_layers_carry_geometry_orientation(self, tmp_path):
         layers = legacy.load_layers_dat(_write_dat(tmp_path, "Nlayers0.dat", LAYERS_DAT))
         assert len(layers) == 2
-        assert layers[0].geometry_orientation.theta == 90
-        assert layers[0].geometry_orientation.phi == -90
-        assert layers[0].material_orientation.psi == 0
+        assert euler_angles(layers[0].geometry_orientation)["theta"] == pytest.approx(90)
+        assert euler_angles(layers[0].geometry_orientation)["phi"] == pytest.approx(-90)
+        assert layers[0].material_orientation.is_identity()
 
     def test_ellipsoids_semi_axes_and_shape(self, tmp_path):
         ells = legacy.load_ellipsoids_dat(_write_dat(tmp_path, "Nellipsoids0.dat", ELLIPSOIDS_DAT))
@@ -474,7 +473,7 @@ class TestDatToJsonConversion:
             assert (a.number, a.umat_name, a.coatingof) == (b.number, b.umat_name, b.coatingof)
             assert (a.a1, a.a2, a.a3) == (b.a1, b.a2, b.a3)
             assert a.concentration == b.concentration
-            assert a.geometry_orientation.theta == b.geometry_orientation.theta
+            assert a.geometry_orientation.equals(b.geometry_orientation)
             np.testing.assert_allclose(a.props, b.props)
 
     def test_layers_conversion_to_an_explicit_path(self, tmp_path):
@@ -482,7 +481,7 @@ class TestDatToJsonConversion:
         out = legacy.convert_dat_to_json(dat, tmp_path / "chosen.json")
         assert out.name == "chosen.json"
         layers = load_layers_json(out)
-        assert [lay.geometry_orientation.phi for lay in layers] == [-90, -90]
+        assert [euler_angles(lay.geometry_orientation)["phi"] for lay in layers] == pytest.approx([-90, -90])
 
     def test_unknown_kind_is_refused(self, tmp_path):
         dat = _write_dat(tmp_path, "mystery.dat", PHASES_DAT)

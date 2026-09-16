@@ -11,6 +11,7 @@
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_L_elastic.hpp>
 
+#include <simcoon/python_wrappers/dict_get.hpp>
 #include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/Leff.hpp>
 
@@ -21,9 +22,19 @@ namespace py=pybind11;
 namespace simpy {
 
 //Return the elastic stiffness tensor of a composite material
-py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double> &props, const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const py::object &phases) {
+py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double> &props, const int &nstatev, const py::object &orientation, const py::object &phases) {
 
     vec props_cpp = carma::arr_to_col(props);
+
+    //The orientation of the material frame, as the phase dicts carry it: {psi, theta, phi}
+    //in degrees (simcoon.solver.micromechanics.euler_angles), None for the identity.
+    double psi_rve = 0., theta_rve = 0., phi_rve = 0.;
+    if (static_cast<bool>(orientation) && !orientation.is_none()) {
+        py::dict angles = orientation.cast<py::dict>();
+        psi_rve = simcoon::deg2rad(dget(angles, "psi", 0.));
+        theta_rve = simcoon::deg2rad(dget(angles, "theta", 0.));
+        phi_rve = simcoon::deg2rad(dget(angles, "phi", 0.));
+    }
 
     double T_init = 273.15;
 

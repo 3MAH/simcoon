@@ -6,12 +6,11 @@ layers, ellipsoids, ...), and their in-memory form for ``sim.L_eff`` and
 ``sim.solver.solve``. Nothing here calls the C++ extension, but the package that hosts
 the module does import it: ``simcoon`` is not importable without ``simcoon._core``.
 
+Orientations (material frame of a phase, geometry of an inclusion or a layer) are
+``simcoon.Rotation`` objects; ``as_rotation`` also takes the Euler angles of the files.
+
 Classes
 -------
-MaterialOrientation
-    Material orientation via Euler angles
-GeometryOrientation
-    Geometry/phase orientation via Euler angles
 Phase
     Generic phase for micromechanics homogenization
 Layer
@@ -35,6 +34,12 @@ load_cylinders_json, save_cylinders_json
     JSON I/O for cylindrical inclusions
 load_sections_json, save_sections_json
     JSON I/O for textile sections
+as_rotation, euler_angles
+    An orientation as a simcoon.Rotation, and back to the (psi, theta, phi) of the files
+discretize_odf
+    Split a phase into phases oriented along an ODF about a direction
+L_eff
+    Effective stiffness (``sim.L_eff``), orientation as a Rotation, phases as objects
 
 Example
 -------
@@ -59,6 +64,10 @@ from typing import Dict, List, Union, Optional
 
 import numpy as np
 
+from simcoon import _core
+from simcoon._core import get_densities_ODF
+from simcoon.rotation import Rotation
+
 
 # =============================================================================
 # Data Classes
@@ -66,29 +75,65 @@ import numpy as np
 
 _ANGLES = ('psi', 'theta', 'phi')
 
+#: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
+#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
+#: solver applies it actively (material frame -> global frame): a phase at
+#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
+#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
+#: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
+EULER_SEQ = 'zxz'
 
-@dataclass
-class EulerAngles:
-    """An orientation as Euler angles, in degrees (as in the files)."""
-    psi: float = 0.0    # First Euler angle (deg)
-    theta: float = 0.0  # Second Euler angle (deg)
-    phi: float = 0.0    # Third Euler angle (deg)
+Orientation = Union[Rotation, Dict[str, float], "Sequence[float]", None]
 
 
-#: The material and the geometry orientations are the same triplet; the two names stay
-#: for readability and for the files that spell them out.
-MaterialOrientation = EulerAngles
-GeometryOrientation = EulerAngles
+def as_rotation(value: Orientation) -> Rotation:
+    """An orientation as a :class:`simcoon.Rotation`.
+
+    ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
+    in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
+    files (missing angles are 0), or ``None`` for the identity. The angles are the
+    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
+    """
+    if value is None:
+        return Rotation.identity()
+    if isinstance(value, Rotation):
+        return value
+    if isinstance(value, dict):
+        unknown = set(value) - set(_ANGLES)
+        if unknown:
+            raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
+        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
+    else:
+        angles = np.asarray(value, dtype=float).ravel()
+        if angles.size != 3:
+            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
+                             f"expected, got {angles.size} values")
+    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
+
+
+def euler_angles(rotation: Orientation) -> Dict[str, float]:
+    """The ``{"psi", "theta", "phi"}`` dict (degrees, ``EULER_SEQ``) of an orientation:
+    the form of the JSON files and of the dicts the C++ binding reads.
+
+    The decomposition is not unique when ``theta`` is 0 or 180 degrees (gimbal lock):
+    scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
+    same rotation as the angles that were given, written differently.
+    """
+    rot = as_rotation(rotation)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" — see above
+        psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)
+    return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
 
 
 def _coerce_fields(obj):
-    """props given as a list, orientations and nested phases given as dicts (the JSON form)."""
+    """props given as a list, orientations in any accepted form, nested phases given as
+    dicts (the JSON form)."""
     if isinstance(obj.props, list):
         obj.props = np.array(obj.props, dtype=float)
     for name in ('material_orientation', 'geometry_orientation'):
-        value = getattr(obj, name, None)
-        if isinstance(value, dict):
-            setattr(obj, name, EulerAngles(**value))
+        if hasattr(obj, name):
+            setattr(obj, name, as_rotation(getattr(obj, name)))
     nested = getattr(obj, 'phases', None)
     if nested and any(isinstance(p, dict) for p in nested):
         cls, layout = _JSON_LAYOUTS[_json_kind_of(obj.umat_name)]
@@ -114,8 +159,8 @@ class Phase:
         Save flag (1=save, 0=don't)
     concentration : float
         Volume fraction (0 to 1)
-    material_orientation : EulerAngles
-        Material orientation via Euler angles
+    material_orientation : Rotation
+        Orientation of the material frame (any form ``as_rotation`` accepts)
     nstatev : int
         Number of state variables
     props : np.ndarray
@@ -129,7 +174,7 @@ class Phase:
     umat_name: str = "ELISO"
     save: int = 1
     concentration: float = 1.0
-    material_orientation: EulerAngles = field(default_factory=EulerAngles)
+    material_orientation: Rotation = field(default_factory=Rotation.identity)
     nstatev: int = 1
     props: np.ndarray = field(default_factory=lambda: np.array([]))
     phases: List["Phase"] = field(default_factory=list)
@@ -148,14 +193,14 @@ class Layer(Phase):
 
     Additional Attributes
     ---------------------
-    geometry_orientation : EulerAngles
-        Geometry orientation via Euler angles
+    geometry_orientation : Rotation
+        Orientation of the geometry (any form ``as_rotation`` accepts)
     layerup : int
         Index of layer above (-1 if none)
     layerdown : int
         Index of layer below (-1 if none)
     """
-    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
+    geometry_orientation: Rotation = field(default_factory=Rotation.identity)
     layerup: int = 0
     layerdown: int = 0
 
@@ -183,14 +228,14 @@ class Ellipsoid(Phase):
         Second semi-axis (relative)
     a3 : float
         Third semi-axis (relative)
-    geometry_orientation : EulerAngles
-        Geometry orientation via Euler angles
+    geometry_orientation : Rotation
+        Orientation of the geometry (any form ``as_rotation`` accepts)
     """
     coatingof: int = 0
     a1: float = 1.0
     a2: float = 1.0
     a3: float = 1.0
-    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
+    geometry_orientation: Rotation = field(default_factory=Rotation.identity)
 
     @property
     def shape_type(self) -> str:
@@ -221,13 +266,13 @@ class Cylinder(Phase):
         Length parameter
     R : float
         Radius parameter
-    geometry_orientation : EulerAngles
-        Geometry orientation via Euler angles
+    geometry_orientation : Rotation
+        Orientation of the geometry (any form ``as_rotation`` accepts)
     """
     coatingof: int = 0
     L: float = 1.0
     R: float = 1.0
-    geometry_orientation: EulerAngles = field(default_factory=EulerAngles)
+    geometry_orientation: Rotation = field(default_factory=Rotation.identity)
 
     @property
     def aspect_ratio(self) -> float:
@@ -250,8 +295,8 @@ class Section:
         Section name
     umat_name : str
         Constitutive model name
-    material_orientation : EulerAngles
-        Material orientation via Euler angles
+    material_orientation : Rotation
+        Orientation of the material frame (any form ``as_rotation`` accepts)
     nstatev : int
         Number of state variables
     props : np.ndarray
@@ -260,7 +305,7 @@ class Section:
     number: int = 0
     name: str = "Section"
     umat_name: str = "ELISO"
-    material_orientation: EulerAngles = field(default_factory=EulerAngles)
+    material_orientation: Rotation = field(default_factory=Rotation.identity)
     nstatev: int = 1
     props: np.ndarray = field(default_factory=lambda: np.array([]))
 
@@ -363,8 +408,7 @@ def _to_json_entry(obj, layout, prop_names: Optional[List[str]]) -> Dict:
             key, fields = col
             entry[key] = {f: getattr(obj, f) for f in fields}
         elif col.endswith('_orientation'):
-            angles = getattr(obj, col)
-            entry[col] = {k: getattr(angles, k) for k in _ANGLES}
+            entry[col] = euler_angles(getattr(obj, col))
         else:
             entry[col] = getattr(obj, col)
     return entry
@@ -515,7 +559,7 @@ _PEAK_FIELDS = ('number', 'method', 'mean', 's_dev', 'width', 'ampl', 'params')
 
 
 def to_peak_dicts(peaks: List[Peak]) -> List[Dict]:
-    """The peaks as ``sim.get_densities_ODF`` / ``sim.ODF_discretization`` read them."""
+    """The peaks as ``sim.get_densities_ODF`` reads them."""
     return [{f: (np.asarray(getattr(p, f), dtype=float) if f == 'params' else getattr(p, f))
              for f in _PEAK_FIELDS} for p in peaks]
 
@@ -535,6 +579,77 @@ def save_peaks_json(filepath: Union[str, Path], peaks: List[Peak]):
                 for f in _PEAK_FIELDS} for p in peaks]
     with open(filepath, 'w') as f:
         json.dump({'peaks': entries}, f, indent=2)
+
+
+def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
+                   axis=(0.0, 0.0, 1.0), angle_range=(0.0, 180.0),
+                   rotate_material: bool = True) -> List:
+    """Split one phase into ``nphases`` phases whose orientations follow an ODF.
+
+    Phase ``num_phase`` of ``phases`` is replaced by ``nphases`` copies of itself, the
+    k-th rotated by the angle ``alpha_k`` about the direction ``axis`` (a unit vector of
+    the global frame): its geometry orientation becomes
+    ``Rotation.from_rotvec(alpha_k * axis) * geometry_orientation``, and so does its
+    material orientation when ``rotate_material`` is true. The base orientations of the
+    phase are kept, so a tilted or pre-rotated inclusion is swept from where it stands.
+
+    ``alpha_k = angle_min + k * d``, ``d = (angle_max - angle_min) / nphases``, degrees.
+    Each copy takes the fraction of the parent's concentration given by the integral
+    of the ODF density (``peaks``, see :class:`Peak`) over ``[alpha_k - d/2, alpha_k
+    + d/2]`` by Simpson's rule, the fractions being normalised over the sweep. The
+    density is that of a director distribution: periodic over 180 degrees, evaluated
+    modulo 180. The default range, one half turn, is the right one when a half turn
+    about ``axis`` brings the inclusion back onto itself, i.e. when ``axis`` is along
+    or perpendicular to a principal axis of the inclusion (a fibre swept about a
+    transverse direction, a disc about its normal). About any other direction the
+    physically distinct orientations span a full turn: give ``angle_range=(0, 360)``,
+    knowing that the density then repeats over the two half turns.
+
+    The Euler-angle sweeps of the pre-2.0 files map onto this: a sweep of ``psi`` or
+    ``phi`` from an unrotated phase is ``axis=(0, 0, 1)``, a sweep of ``theta`` is
+    ``axis=(1, 0, 0)``.
+
+    Returns a new list; the phases are renumbered by position, the others untouched.
+    """
+    import copy
+    if not 0 <= num_phase < len(phases):
+        raise ValueError(f"num_phase = {num_phase} is outside the {len(phases)} phases given")
+    if nphases < 1:
+        raise ValueError("nphases must be >= 1")
+    n = np.asarray(axis, dtype=float).ravel()
+    if n.shape != (3,) or np.linalg.norm(n) < 1e-12:
+        raise ValueError("axis must be a non-zero direction vector of 3 components")
+    n /= np.linalg.norm(n)
+    a_min, a_max = (float(a) for a in angle_range)
+    if a_max <= a_min:
+        raise ValueError("angle_range must be (min, max) with max > min, in degrees")
+    peak_dicts = [pk if isinstance(pk, dict) else to_peak_dicts([pk])[0] for pk in peaks]
+
+    parent = phases[num_phase]
+    d = (a_max - a_min) / nphases
+    alphas = a_min + d * np.arange(nphases)
+    # Simpson over each bin, the density being periodic over 180 deg (director distribution)
+    x = np.concatenate([alphas - d / 2, alphas, alphas + d / 2]) % 180.0
+    rho = np.asarray(get_densities_ODF(x, peak_dicts, False)).ravel()
+    weights = d / 6.0 * (rho[:nphases] + 4.0 * rho[nphases:2 * nphases] + rho[2 * nphases:])
+    if weights.sum() <= 0.0:
+        raise ValueError("the ODF density is zero over the whole angle_range")
+    weights *= parent.concentration / weights.sum()
+
+    swept = []
+    for alpha, w in zip(alphas, weights):
+        rot = Rotation.from_rotvec(np.deg2rad(alpha) * n)
+        copy_k = copy.deepcopy(parent)
+        copy_k.concentration = float(w)
+        if hasattr(copy_k, 'geometry_orientation'):
+            copy_k.geometry_orientation = rot * copy_k.geometry_orientation
+        if rotate_material:
+            copy_k.material_orientation = rot * copy_k.material_orientation
+        swept.append(copy_k)
+    out = list(phases[:num_phase]) + swept + list(phases[num_phase + 1:])
+    for i, ph in enumerate(out):
+        ph.number = i
+    return out
 
 
 # =============================================================================
@@ -559,13 +674,13 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
         'umat_name': phase.umat_name,
         'save': phase.save,
         'concentration': phase.concentration,
-        'material_orientation': {k: getattr(phase.material_orientation, k) for k in _ANGLES},
+        'material_orientation': euler_angles(phase.material_orientation),
         'nstatev': phase.nstatev,
         'props': np.asarray(phase.props, dtype=float),
     }
     geometry = getattr(phase, 'geometry_orientation', None)
     if geometry is not None:
-        out['geometry_orientation'] = {k: getattr(geometry, k) for k in _ANGLES}
+        out['geometry_orientation'] = euler_angles(geometry)
     if isinstance(phase, Ellipsoid):
         out['coatingof'] = phase.coatingof
         out['semi_axes'] = {'a1': phase.a1, 'a2': phase.a2, 'a3': phase.a3}
@@ -585,8 +700,8 @@ _CLASS_OF_KIND = {'phase': Phase, 'layer': Layer, 'ellipsoid': Ellipsoid, 'cylin
 
 
 def phases_from_dicts(dicts: List[Dict]) -> List[Union[Phase, Layer, Ellipsoid, Cylinder]]:
-    """The dataclasses back from the dicts the C++ side produces (``sim.ODF_discretization``)
-    or ``to_phase_dicts`` made; ``kind`` picks the class, ``phases`` nests."""
+    """The dataclasses back from the dicts ``to_phase_dicts`` made (or any dict in that
+    form); ``kind`` picks the class, ``phases`` nests."""
     out = []
     for d in dicts:
         cls = _CLASS_OF_KIND[d.get('kind', 'phase')]
@@ -610,14 +725,36 @@ def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder, Dict]])
 
 
 # =============================================================================
+# Effective stiffness
+# =============================================================================
+
+def L_eff(umat_name: str, props, nstatev: int, orientation: Orientation = None,
+          phases: Optional[List] = None) -> np.ndarray:
+    """Elastic stiffness tensor (6x6, Voigt) of a material in the global frame.
+
+    ``orientation`` is the material frame, in any form :func:`as_rotation` accepts
+    (a :class:`simcoon.Rotation`, ``(psi, theta, phi)`` in degrees, the JSON dict;
+    ``None`` for the identity): the stiffness is ``R.apply_stiffness(L_local)``. For a
+    mean-field model (MIHEN, MIMTN, MISCN, MIPLN) ``phases`` gives its sub-phases, as
+    the dataclasses of this module or the dicts :func:`to_phase_dicts` makes of them.
+    This is ``sim.L_eff``; ``sim._core.L_eff`` is the extension entry it wraps.
+    """
+    angles = None if orientation is None else euler_angles(orientation)
+    dicts = None if phases is None else to_phase_dicts(phases)
+    return np.asarray(_core.L_eff(str(umat_name), np.asarray(props, dtype=float).ravel(),
+                                  int(nstatev), angles, dicts))
+
+
+# =============================================================================
 # Exports
 # =============================================================================
 
 __all__ = [
+    # Orientations
+    'EULER_SEQ',
+    'as_rotation',
+    'euler_angles',
     # Data classes
-    'EulerAngles',
-    'MaterialOrientation',
-    'GeometryOrientation',
     'Phase',
     'Layer',
     'Ellipsoid',
@@ -643,4 +780,7 @@ __all__ = [
     'to_peak_dicts',
     'load_peaks_json',
     'save_peaks_json',
+    'discretize_odf',
+    # Effective stiffness
+    'L_eff',
 ]

@@ -134,8 +134,8 @@ def test_finite_strain_controls(umat, props, nstatev, control_type, corate):
 
     assert_ran_and_responded(res, n_expected=50)
     # The target is prescribed in the measure of THIS control type — Green-Lagrange,
-    # logarithmic or Biot — which is not the canonical strain the results carry, so the
-    # invariant is put on the stretch itself: the bar elongates, monotonically.
+    # logarithmic or Biot — so the invariant is put on the stretch itself, which every
+    # measure agrees on: the bar elongates, monotonically.
     F11 = res["F"][0, 0]
     assert F11[-1] > 1.0
     assert np.all(np.diff(F11) > -1e-12)
@@ -202,6 +202,25 @@ def test_ct5_F_variants(shape, corate):
     stress = res["Stress"][:, -1]
     assert np.isfinite(stress).all()
     assert np.abs(stress).max() > 1.0
+
+
+def test_strain_keys_at_finite_strain():
+    """'Strain' is the logarithmic strain (alias 'LogStrain'); 'GreenLagrange' is E."""
+    F_target = np.diag([1.6, 1.0, 1.0])
+    step = StepMeca(control="F", value=F_target.ravel(), ninc=10)
+    res = solve(Block(steps=[step], control_type="F"), "ELISO", ELISO_PROPS, 1,
+                T_init=290.0, corate="logarithmic_R")
+    assert res.status == 0
+    assert res["Strain"] is res["LogStrain"]
+    F = res["F"][:, :, -1]
+    # the log strain is integrated increment by increment (corotational rate): the
+    # endpoint carries the integration error of 10 increments, not a measure mix-up
+    np.testing.assert_allclose(res["Strain"][0, -1], np.log(1.6), rtol=1e-3)
+    np.testing.assert_allclose(res["GreenLagrange"][0, -1], 0.5 * (1.6 ** 2 - 1.0), atol=1e-10)
+    E = 0.5 * (F.T @ F - np.eye(3))
+    np.testing.assert_allclose(res["GreenLagrange"][:3, -1], np.diag(E), atol=1e-10)
+    cols = res.to_dataframe().columns
+    assert "Strain_11" in cols and "GreenLagrange_11" in cols and "LogStrain_11" not in cols
 
 
 def test_ct5_F_control():

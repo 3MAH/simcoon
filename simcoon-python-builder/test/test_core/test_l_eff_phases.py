@@ -12,7 +12,6 @@ import pytest
 import simcoon as sim
 from simcoon.solver.micromechanics import (
     Ellipsoid,
-    GeometryOrientation,
     to_phase_dicts,
 )
 
@@ -31,7 +30,7 @@ def two_phase_composite():
                        props=np.array([5000.0, 0.3, 0.0]), a1=1.0, a2=1.0, a3=1.0)
     fibre = Ellipsoid(number=1, umat_name="ELISO", save=1, concentration=0.2, nstatev=1,
                       props=np.array([50000.0, 0.3, 0.0]), a1=50.0, a2=1.0, a3=1.0,
-                      geometry_orientation=GeometryOrientation(psi=45.0, theta=0.0, phi=0.0))
+                      geometry_orientation=(45.0, 0.0, 0.0))
     return [matrix, fibre]
 
 
@@ -54,7 +53,7 @@ class TestLeffInMemoryPhases:
         # The files stored degrees and the C++ side radians; a fibre at 45 deg must not
         # give the same stiffness as one left at 0.
         aligned = two_phase_composite()
-        aligned[1].geometry_orientation = GeometryOrientation()
+        aligned[1].geometry_orientation = None   # coerced to the identity
         L_45 = np.asarray(sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,
                                           phases=to_phase_dicts(two_phase_composite())))
         L_0 = np.asarray(sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,

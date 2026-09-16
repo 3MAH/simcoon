@@ -21,7 +21,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import differential_evolution
 import simcoon as sim
-from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
+from simcoon.solver.micromechanics import Ellipsoid
 import os
 
 ###################################################################################
@@ -98,8 +98,7 @@ def compute_E_eff(E_f, nu_f, concentrations, umat_name, props_composite):
         reinforcement.concentration = c
 
         L = sim.L_eff(
-            umat_name, props_composite, 0, 0.0, 0.0, 0.0,
-            to_phase_dicts([matrix, reinforcement]),
+            umat_name, props_composite, 0, phases=[matrix, reinforcement],
         )
         iso_props = sim.L_iso_props(L).flatten()
         E_eff[i] = iso_props[0]

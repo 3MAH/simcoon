@@ -53,7 +53,7 @@ class TestSolverWithInMemoryPhases:
         assert apparent == pytest.approx(E_EFF, rel=1e-6)
 
         direct = sim.L_iso_props(
-            sim.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, 0.0, 0.0, 0.0, to_phase_dicts(phases))
+            sim.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, phases=phases)
         ).flatten()[0]
         assert apparent == pytest.approx(direct, rel=1e-9)
 

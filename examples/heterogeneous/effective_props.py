@@ -9,7 +9,7 @@ composite material considering spherical reinforcement.
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
+from simcoon.solver.micromechanics import Ellipsoid
 import os
 
 ###################################################################################
@@ -76,7 +76,7 @@ for i, x in enumerate(concentration):
     matrix.concentration = 1.0 - x
 
     L = sim.L_eff(
-        umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, to_phase_dicts(phases)
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_MT[i] = p[0]
@@ -89,7 +89,7 @@ for i, x in enumerate(concentration):
     matrix.concentration = 1.0 - x
 
     L = sim.L_eff(
-        umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, to_phase_dicts(phases)
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_SC[i] = p[0]
@@ -155,7 +155,7 @@ for i, ar in enumerate(aspect_ratios):
     reinforcement.a3 = 1.0
 
     L = sim.L_eff(
-        umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, to_phase_dicts(phases)
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
     )
     p = sim.L_iso_props(L).flatten()
     E_eff_ar[i] = p[0]

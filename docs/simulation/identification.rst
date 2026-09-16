@@ -126,10 +126,13 @@ identified values are written back to each ``Parameter.value``.
    result = identification(my_cost_function, params, seed=42, disp=True)
    print(f"E_f = {params[0].value:.0f}, nu_f = {params[1].value:.3f}")
 
-``sim_input_files`` is the bridge to **external**, file-driven solvers: the
-keys are substituted into their input decks before each evaluation. Simcoon's
-own models no longer need it — pass ``props``, and for mean-field models the
-``phases``, straight to :func:`~simcoon.solver.solve`.
+``job.inp`` here is a placeholder: a template input deck of an **external**,
+file-driven solver, supplied by the user in the ``keys`` folder (it is not part
+of simcoon). ``sim_input_files`` is the bridge to such solvers: the keys are
+substituted into their decks before each evaluation (``copy_parameters`` +
+``apply_parameters``, called from ``my_cost_function``). Simcoon's own models
+no longer need it — pass ``props``, and for mean-field models the ``phases``,
+straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
 
 **Arguments:**
 

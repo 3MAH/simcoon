@@ -60,10 +60,9 @@ def run_path(umat_name, props, nstatev, corate, targets, control_type=1):
     )
 
     # The old output.dat asked for strain_type 3 / stress_type 3, i.e. the LOGARITHMIC
-    # strain and the KIRCHHOFF stress — not the canonical Green-Lagrange / Cauchy pair
-    # that "Strain" and "Stress" carry. Filling those columns with the canonical state
-    # would silently change the measure: at a log strain of 0.15 the Green-Lagrange
-    # strain reads 0.174929.
+    # strain and the KIRCHHOFF stress: "LogStrain" (= "Strain") and "Kirchhoff", not
+    # the Cauchy stress "Stress" carries. (At a log strain of 0.15 the Green-Lagrange
+    # measure, "GreenLagrange", would read 0.174929.)
     hist = np.zeros((len(res), _N_COLUMNS))
     hist[:, C_TIME] = res["Time"]
     hist[:, S_STRAIN] = res["LogStrain"].T

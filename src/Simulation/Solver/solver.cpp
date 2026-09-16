@@ -208,6 +208,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 DR = eye(3,3);   // blocks 2+: don't leak the previous block's last rotation into set_start
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
+                sv_M->Detot = zeros(6);   // blocks 2+: don't add the previous block's last log-strain increment again
                 sv_M->DT = 0.;
 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
@@ -741,6 +742,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 // and assess_inc would then add a stale full-increment DTime once per
                                 // forced sub-iteration. Recompute from the fraction actually accepted.
                                 DTime = Dtinc*sptr_meca->times(inc);
+                                if (blocks[i].control_type == 1) {
+                                    // small strain: the logarithmic strain is the infinitesimal one
+                                    sv_M->Detot = sv_M->DEtot;
+                                }
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
@@ -810,6 +815,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 DR = eye(3,3);
                 DTime = 0.;
                 sv_T->DEtot = zeros(6);
+                sv_T->Detot = zeros(6);
                 sv_T->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
@@ -1094,6 +1100,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
+                                // thermomechanical blocks are small strain: log strain = infinitesimal one
+                                sv_T->Detot = sv_T->DEtot;
                                 sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 

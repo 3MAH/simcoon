@@ -34,7 +34,7 @@ props = np.array([nphases, 0, int1, int2, n_matrix], dtype="float")
 # The two phases are described in memory, as objects: a matrix and a spherical
 # reinforcement, each with its own constitutive model and properties.
 
-from simcoon.solver.micromechanics import Ellipsoid, to_phase_dicts
+from simcoon.solver.micromechanics import Ellipsoid
 
 matrix = Ellipsoid(
     number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
@@ -69,7 +69,7 @@ umat_name = "MIMTN"  # Micromechanical scheme (Mori-Tanaka here)
 # result is also isotropic.
 
 L_eff = sim.L_eff(
-    umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, to_phase_dicts(phases)
+    umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
 )
 p = sim.L_iso_props(L_eff).flatten()
 np.set_printoptions(precision=3, suppress=True)
