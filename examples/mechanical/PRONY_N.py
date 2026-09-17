@@ -14,12 +14,13 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # The Prony series (generalized Maxwell) constitutive law is a rate-dependent,
 # isotropic, linear viscoelastic model that considers thermal strains.
 # It extends the Zener (standard linear solid) model to :math:`N` Maxwell branches
-# connected in parallel with a long-term elastic spring.
+# connected in parallel with an equilibrium spring, the whole assembly having the
+# instantaneous stiffness :math:`E_0` (so the long-term modulus is :math:`E_0 - \sum_i E_i`).
 #
 # The material parameters are:
 #
-# 1. The long-term (equilibrium) Young's modulus :math:`E_0`
-# 2. The long-term Poisson's ratio :math:`\nu_0`
+# 1. The instantaneous (glassy) Young's modulus :math:`E_0`
+# 2. The instantaneous Poisson's ratio :math:`\nu_0`
 # 3. The coefficient of thermal expansion :math:`\alpha`
 # 4. The number of Prony branches :math:`N`
 #
@@ -35,7 +36,7 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # .. math::
 #
 #   \boldsymbol{\sigma}(t) = \mathbf{L}_0 : \boldsymbol{\varepsilon}(t)
-#   + \sum_{i=1}^{N} \mathbf{L}_i : \boldsymbol{\varepsilon}^{v}_i(t)
+#   - \sum_{i=1}^{N} \mathbf{L}_i : \boldsymbol{\varepsilon}^{v}_i(t)
 #
 # where each viscous strain :math:`\boldsymbol{\varepsilon}^{v}_i` evolves according
 # to the Maxwell element ODE with characteristic viscosities :math:`\eta_{B,i}`
@@ -43,8 +44,8 @@ plt.rcParams["figure.figsize"] = (18, 10)
 
 umat_name = "PRONK"  # 5 character code for the generalized Maxwell (Prony) model
 
-E_0 = 9400.0  # Long-term Young's modulus (MPa)
-nu_0 = 0.4  # Long-term Poisson's ratio
+E_0 = 9400.0  # Instantaneous Young's modulus (MPa); long-term = E_0 - sum(E_i)
+nu_0 = 0.4  # Instantaneous Poisson's ratio
 alpha = 0.0  # Coefficient of thermal expansion
 n_prony = 5  # Number of Prony (Maxwell) branches
 
@@ -54,7 +55,7 @@ mat_file = os.path.join(path_data, "Prony_raw.dat")
 E_i, nu_i, etaB_i, etaS_i = np.loadtxt(mat_file, usecols=(0, 1, 2, 3), unpack=True)
 
 # nstatev depends on the number of branches
-nstatev = 8 + 7 * n_prony  # Number of internal state variables
+nstatev = 7 + 7 * n_prony  # T_init, total viscous strain (6), then (v_i, eps_v_i) per branch
 
 psi_rve = 0.0
 theta_rve = 0.0

@@ -357,6 +357,8 @@ void PlasticityMechanism::tangent_contribution(
 void PlasticityMechanism::compute_work(
     const arma::vec& sigma_start,
     const arma::vec& sigma,
+    const arma::vec& E_start,
+    const arma::vec& E_end,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d

@@ -383,7 +383,7 @@ void ModularUMAT::run(
     double Wm_ir_inc = 0.0, Wm_d_inc = 0.0;
     for (const auto& mech : mechanisms_) {
         double Wm_r_m = 0.0, Wm_ir_m = 0.0, Wm_d_m = 0.0;
-        mech->compute_work(sigma_start_, sigma, Wm_r_m, Wm_ir_m, Wm_d_m);
+        mech->compute_work(sigma_start_, sigma, Etot, Etot + DEtot, Wm_r_m, Wm_ir_m, Wm_d_m);
         Wm_ir_inc += Wm_ir_m;
         Wm_d_inc += Wm_d_m;
     }

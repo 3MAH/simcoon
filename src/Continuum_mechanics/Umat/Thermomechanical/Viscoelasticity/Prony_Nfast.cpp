@@ -14,18 +14,8 @@
 using namespace std;
 using namespace arma;
 
-///@brief The viscoelastic Prony series model requires 4+N*4 constants:
-//      -------------------
-///@brief      props(0) = E0                - Thermoelastic Young's modulus
-///@brief      props(1) = nu0               - Thermoelastic Poisson's ratio
-///@brief      props(2) = alpha_iso         - Thermoelastic CTE
-///@brief      props(3) = N_prony           - Number of Prony series
-///@brief      props(4+i*4) = E_visco(i)    - Viscoelastic Young modulus of Prony branch i
-///@brief      props(4+i*4+1) = nu_visco(i) - Viscoelastic Poisson ratio of Prony branch i
-///@brief      props(4+i*4+2) = etaB_visco  - Viscoelastic Bulk viscosity of Prony branch i
-///@brief      props(4+i*4+3) = etaS_visco  - Viscoelastic Bulk viscosity of Prony branch i
-
-///@brief Number of statev required for thermoelastic constitutive law : 7+N*7
+// Model, props and statev layout: see the Doxygen block in
+// simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Prony_Nfast.hpp
 
 namespace simcoon {
     

@@ -17,6 +17,7 @@ import simcoon as sim
 from simcoon.modular import (
     ArmstrongFrederickHardening,
     IsotropicElasticity,
+    YeohElasticity,
     LinearIsotropicHardening,
     ModularMaterial,
     Plasticity,
@@ -732,3 +733,56 @@ def test_zennk_has_no_modular_twin():
     (measured deviation 86% on the relaxation path). ZENNK therefore keeps
     its dedicated implementation (no adapter) — same bucket as ZENER."""
     pass
+
+
+def test_viscoelastic_work_split_matches_pronk():
+    """The modular Viscoelasticity mechanism must split the mechanical work
+    like its PRONK twin: dissipation is the dashpot work on the BRANCH stress
+    L_i (eps - EV_i), not on the total stress.
+
+    Regression: compute_work dotted the total stress with DEV_i, which
+    overcounts by L_0/L_i and summed over branches. Measured on a 1 % ramp
+    and hold: Wm_d = 3.8e-4 for Wm = 1.4e-4, hence a NEGATIVE recoverable work
+    (-2.5e-4 against +7.5e-5 for PRONK). The same numbers ran under a
+    hyperelastic block at ln V = 0.5 (Wm_d 1.15 for Wm 0.40, Wm_r -0.75).
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3.0, 0.499
+    terms = ((1.0, 0.49, 16.67, 0.3356), (0.5, 0.49, 83.33, 1.678))   # tau = 1 s and 10 s
+
+    def path(eps):
+        return [sim.solver.StepMeca(control=uni, value=[eps, 0, 0, 0, 0, 0], ninc=100, time=1.0),
+                sim.solver.StepMeca(control=uni, value=[eps, 0, 0, 0, 0, 0], ninc=200, time=50.0)]
+
+    def split(res):
+        Wm, Wm_r, Wm_ir, Wm_d = (np.asarray(w) for w in res["Wm"])
+        assert np.allclose(Wm, Wm_r + Wm_ir + Wm_d, atol=1e-12), "energy balance not closed"
+        return Wm, Wm_r, Wm_d
+
+    branch = [x for t in terms for x in t]
+    pronk = sim.solver.solve(path(0.01), "PRONK", np.array([E0, nu0, 0.0, 2.0] + branch), 7 + 7 * 2)
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E0, C2=nu0),
+                          mechanisms=[Viscoelasticity(terms=terms)])
+    modul = sim.solver.solve(path(0.01), mat.umat_name, mat.props, mat.nstatev)
+
+    Wm_p, Wr_p, Wd_p = split(pronk)
+    Wm_m, Wr_m, Wd_m = split(modul)
+    assert Wm_m[-1] == pytest.approx(Wm_p[-1], rel=1e-6)
+    # PRONK evaluates the end-of-increment branch stress with the START strain
+    # (Prony_Nfast.cpp, A_v at line ~274); the modular one uses the end strain.
+    # Measured 0.3 % apart on this path, 6x apart before the fix.
+    assert Wr_m[-1] == pytest.approx(Wr_p[-1], rel=1e-2)
+    assert Wd_m[-1] == pytest.approx(Wd_p[-1], rel=1e-2)
+    assert np.all(Wr_m >= -1e-12) and np.all(Wd_m >= -1e-12)
+
+    # Same mechanism over a hyperelastic block under NLGEOM (the example
+    # MODUL_hyper_visco.py): the split must stay physical at finite stretch.
+    hyper = ModularMaterial(elasticity=YeohElasticity(C10=0.5, C20=-0.02, C30=0.002, kappa=500.0),
+                            mechanisms=[Viscoelasticity(terms=terms)])
+    res = sim.solver.solve(sim.solver.Block(steps=path(0.5), control_type="logarithmic"),
+                           hyper.umat_name, hyper.props, hyper.nstatev, corate="logarithmic_R")
+    Wm_h, Wr_h, Wd_h = split(res)
+    assert Wm_h[-1] > 0.3, "sanity: the ramp to ln V = 0.5 did work"
+    assert np.all(Wr_h >= -1e-12) and np.all(Wd_h >= -1e-12)
+    assert np.all(np.diff(Wd_h) >= -1e-12), "dissipation must not decrease"
+    assert Wd_h[-1] < Wm_h[-1]

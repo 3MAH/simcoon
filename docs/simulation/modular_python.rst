@@ -238,4 +238,7 @@ See also
 - :doc:`umat_catalog` — where ``MODUL`` and the adapter-served legacy names
   meet, props streams and statev layouts
 - :doc:`umat_tutorial` — writing a dedicated UMAT by hand instead
-- ``examples/mechanical/MODUL.py`` — runnable gallery example
+- ``examples/mechanical/MODUL.py`` — runnable gallery example (elasto-plasticity)
+- ``examples/mechanical/MODUL_finite.py`` — the same composition under NLGEOM
+- ``examples/mechanical/MODUL_hyper_visco.py`` — Yeoh block + Prony branches,
+  finite-strain viscoelasticity (rate sweep, relaxation, energy split)

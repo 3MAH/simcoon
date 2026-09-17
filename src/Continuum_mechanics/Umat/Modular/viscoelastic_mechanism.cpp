@@ -248,25 +248,28 @@ void ViscoelasticMechanism::tangent_contribution(
 }
 
 void ViscoelasticMechanism::compute_work(
-    const arma::vec& sigma_start,
-    const arma::vec& sigma,
+    const arma::vec& /*sigma_start*/,
+    const arma::vec& /*sigma*/,
+    const arma::vec& E_start,
+    const arma::vec& E_end,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d
 ) const {
-    // Dissipated work per Prony_Nfast lines 274-285:
-    //   W_d = sum_i 0.5 (A_v_i_start + A_v_i) . DEV_i
-    // with A_v_i = L_i . (eps - EV_i). The reversible contribution stored in
-    // the branch springs is picked up by the modular orchestrator's elastic
-    // work accounting (sigma . D(E - E_inel)).
+    // Dissipation of the dashpots (Prony_Nfast lines 274-288): trapezoidal
+    //   W_d = sum_i 0.5 (A_i_start + A_i_end) . DEV_i
+    // on the BRANCH stress A_i = L_i (eps - EV_i), the one the dashpot carries,
+    // not the total stress (that overcounts by L_0/L_i and made Wm_d exceed Wm).
+    // The recoverable part is closed by the orchestrator (Wm - Wm_ir - Wm_d).
     Wm_r  = 0.0;
     Wm_ir = 0.0;
     Wm_d  = 0.0;
 
-    const arma::vec sigma_avg = 0.5 * (sigma_start + sigma);
     for (int i = 0; i < N_prony_; ++i) {
-        const arma::vec DEV_i = ivc_.get(ev_key_[i]).delta_vec();
-        Wm_d += arma::dot(sigma_avg, DEV_i);
+        const InternalVariable& ev = ivc_.get(ev_key_[i]);
+        const arma::vec A_start = L_i_[i] * (E_start - ev.raw_voigt_start());
+        const arma::vec A_end = L_i_[i] * (E_end - ev.raw_voigt());
+        Wm_d += 0.5 * arma::dot(A_start + A_end, ev.delta_vec());
     }
 }
 
