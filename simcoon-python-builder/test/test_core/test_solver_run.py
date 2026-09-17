@@ -219,6 +219,13 @@ def test_strain_keys_at_finite_strain():
     np.testing.assert_allclose(res["GreenLagrange"][0, -1], 0.5 * (1.6 ** 2 - 1.0), atol=1e-10)
     E = 0.5 * (F.T @ F - np.eye(3))
     np.testing.assert_allclose(res["GreenLagrange"][:3, -1], np.diag(E), atol=1e-10)
+
+
+def test_dataframe_has_one_strain_column_set():
+    """to_dataframe writes 'Strain' and 'GreenLagrange', not the 'LogStrain' alias."""
+    pytest.importorskip("pandas")
+    res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=5),
+                "ELISO", ELISO_PROPS, 1, T_init=290.0)
     cols = res.to_dataframe().columns
     assert "Strain_11" in cols and "GreenLagrange_11" in cols and "LogStrain_11" not in cols
 
