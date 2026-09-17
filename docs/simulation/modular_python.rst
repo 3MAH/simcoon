@@ -78,7 +78,7 @@ argument (enum, int, or string aliases):
        :class:`YeohElasticity`, :class:`IsiharaElasticity`,
        :class:`GentThomasElasticity`, :class:`SwansonElasticity`
      - the potential's parameters (e.g. ``C10, C20, C30, kappa`` for Yeoh),
-       ``alpha`` keyword-only
+       ``volumetric`` and ``alpha`` keyword-only
      - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
        ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
 
@@ -89,8 +89,13 @@ The hyperelastic blocks are not a constant stiffness: the potential is
 evaluated at the elastic strain it is handed, bridged by
 :math:`\mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el})`. Under finite
 strain that strain is the elastic logarithmic strain, and the mechanisms act
-additively on it. Every potential shares the volumetric term
-:math:`U(J) = \kappa (J \ln J - J + 1)`.
+additively on it. Every potential shares its volumetric term :math:`U(J)`,
+chosen by the ``volumetric`` keyword: ``"log"`` (default) for
+:math:`U = \kappa (J \ln J - J + 1)`, ``"quadratic"`` for
+:math:`U = \frac{\kappa}{2} (J - 1)^2`. Both have :math:`U''(1) = \kappa`, so
+``kappa`` is the ground-state bulk modulus either way; they differ away from
+:math:`J = 1` (the quadratic one gives a pressure linear in :math:`J - 1`, the
+logarithmic one stiffens in compression and blows up as :math:`J \to 0`).
 
 Yield criteria
 --------------

@@ -5,6 +5,8 @@ standalone kernel of that potential. The bridge is b_el = exp(2 eps_el), so
 the reference kernel is driven with F = exp(eps_el).
 """
 
+import dataclasses
+
 import numpy as np
 import pytest
 from scipy.linalg import expm
@@ -61,12 +63,16 @@ def _umat(name, props, etot, F1, nstatev):
     return stress[:, 0], Lt[:, :, 0]
 
 
+@pytest.mark.parametrize("volumetric", ["log", "quadratic"])
 @pytest.mark.parametrize("state", list(STATES))
 @pytest.mark.parametrize("block,umat_name,umat_props",
                          MODELS, ids=[m[1] for m in MODELS])
-def test_modular_hyper_matches_standalone_kernel(block, umat_name, umat_props, state):
+def test_modular_hyper_matches_standalone_kernel(block, umat_name, umat_props, state, volumetric):
     eps = np.array(STATES[state])
+    block = dataclasses.replace(block, volumetric=volumetric)
     mat = ModularMaterial(elasticity=block)
+    # the standalone kernel selects U(J) by an optional trailing prop (absent = log)
+    umat_props = list(umat_props) + ([1.0] if volumetric == "quadratic" else [])
 
     sigma_mod, Lt_mod = _umat("MODUL", mat.props, eps, None, mat.nstatev)
 
@@ -78,6 +84,39 @@ def test_modular_hyper_matches_standalone_kernel(block, umat_name, umat_props, s
     scale = max(1.0, np.abs(tau_ref).max())
     assert np.abs(sigma_mod - tau_ref).max() < 1e-10 * scale
     assert np.abs(Lt_mod - Lt_ref).max() < 1e-9 * np.abs(Lt_ref).max()
+
+
+@pytest.mark.parametrize("umat_name,props,kappa", [
+    ("NEOHC", [0.5673, 1000.0], 1000.0), ("YEOHH", [0.30, -0.010, 0.0005, 1000.0], 1000.0),
+    ("OGDEN", [2.0, 1000.0, 0.4, 1.3, 0.1, 5.0], 1000.0),
+])
+@pytest.mark.parametrize("volumetric,dUdJ,dU2dJ2", [
+    ("log", lambda k, J: k * np.log(J), lambda k, J: k / J),
+    ("quadratic", lambda k, J: k * (J - 1.0), lambda k, J: k),
+])
+def test_volumetric_potential_under_pure_dilatation(umat_name, props, kappa, volumetric, dUdJ, dU2dJ2):
+    """Pure dilatation isolates U(J): sigma = U'(J) I, and the hydrostatic tangent is
+    3 J (U' + J U'') on the Kirchhoff box; a finite difference confirms it."""
+    props = list(props) + ([1.0] if volumetric == "quadratic" else [])
+    J = 1.2
+    F = np.cbrt(J) * np.eye(3)
+    sigma, Lt = _umat(umat_name, props, np.zeros(6), F, 1)
+    np.testing.assert_allclose(sigma[:3], dUdJ(kappa, J), rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(sigma[3:], 0.0, atol=1e-12)
+    np.testing.assert_allclose(Lt[0, :3].sum(), 3.0 * J * (dUdJ(kappa, J) + J * dU2dJ2(kappa, J)),
+                               rtol=1e-9)
+    # finite difference of tau_11 along a hydrostatic log-strain increment
+    d = 1e-6
+    tau = lambda Jx: Jx * _umat(umat_name, props, np.zeros(6), np.cbrt(Jx) * np.eye(3), 1)[0][0]
+    fd = (tau(J * np.exp(3 * d)) - tau(J * np.exp(-3 * d))) / (2 * d)
+    np.testing.assert_allclose(Lt[0, :3].sum(), fd, rtol=1e-6)
+
+
+def test_volumetric_selector_is_validated():
+    with pytest.raises(ValueError):
+        NeoHookeanElasticity(mu=0.5, kappa=1000.0, volumetric="cubic").to_props()
+    with pytest.raises(Exception):
+        _umat("NEOHC", [0.5673, 1000.0, 2.0], np.zeros(6), np.eye(3), 1)
 
 
 def test_yeoh_ground_state_is_L_iso():
@@ -92,8 +131,10 @@ def test_yeoh_ground_state_is_L_iso():
 def test_props_roundtrip_layout():
     """[potential, n_params, params..., alpha] preceded by the elasticity type."""
     block = YeohElasticity(C10=1.0, C20=2.0, C30=3.0, kappa=4.0, alpha=5.0)
-    assert block.to_props() == [2.0, 4.0, 1.0, 2.0, 3.0, 4.0, 5.0]
-    assert block.nprops == 7
+    assert block.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 0.0, 5.0]
+    assert block.nprops == 8
+    quad = YeohElasticity(C10=1.0, C20=2.0, C30=3.0, kappa=4.0, volumetric="quadratic")
+    assert quad.to_props() == [2.0, 5.0, 1.0, 2.0, 3.0, 4.0, 1.0, 0.0]
     mat = ModularMaterial(elasticity=block)
     # elasticity_type, then the block, then the mechanism count
     assert list(np.asarray(mat.props)) == [4.0] + block.to_props() + [0.0]
@@ -117,7 +158,7 @@ def test_potential_parameters_are_required_and_alpha_keyword_only():
 def test_hyper_blocks_are_exported():
     import simcoon.modular as md
 
-    for name in ("HyperPotential", "NeoHookeanElasticity", "MooneyRivlinElasticity",
+    for name in ("HyperPotential", "VolumetricPotential", "NeoHookeanElasticity", "MooneyRivlinElasticity",
                  "YeohElasticity", "IsiharaElasticity", "GentThomasElasticity",
                  "SwansonElasticity"):
         assert name in md.__all__

@@ -147,7 +147,11 @@ Unchanged dedicated implementations (out of the modular scope):
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
   (invariant-based hyperelasticity); OGDEN (isochoric principal
-  stretches, props = ``N, kappa, mu_1, alpha_1, ...``).
+  stretches, props = ``N, kappa, mu_1, alpha_1, ...``). The compressible
+  ones take one optional trailing prop selecting the volumetric term
+  :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
+  :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
+  with :math:`\kappa = 2 / D_1`).
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
