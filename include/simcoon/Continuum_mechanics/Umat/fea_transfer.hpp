@@ -176,12 +176,27 @@ void abaqus2smart_T(const double *stress, const double *ddsdde,
  * @param sigma simcoon stress vector
  * @param statev_smart simcoon state variables vector
  * @param Wm simcoon work quantities vector
- * @param Lt simcoon tangent matrix
+ * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel; ddsdde gets
+ *        abaqus_jacobian of it)
  */
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, 
     const int &ndi, const int &nshr, 
     const arma::vec &sigma, const arma::vec &statev_smart, 
     const arma::vec &Wm, const arma::mat &Lt);
+
+/**
+ * @brief The Abaqus material Jacobian of a corotated kernel tangent.
+ * @details Abaqus defines DDSDDE through the Jaumann rate of the Kirchhoff stress
+ *          divided by J: \f$ \frac{1}{J}\frac{\partial (J\boldsymbol{\sigma})}{\partial \boldsymbol{\varepsilon}}
+ *          = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I} \f$.
+ *          The kernels return the first term in Abaqus's corotated frame; this adds the
+ *          symmetric part of the second (the default symmetric solver keeps that part).
+ *          Used by the smart2abaqus_* routines; changes the Newton convergence only.
+ * @param Lt kernel tangent (6x6, Voigt, engineering shears)
+ * @param sigma Cauchy stress at the end of the increment (6)
+ * @return DDSDDE as a 6x6 matrix
+ */
+arma::mat abaqus_jacobian(const arma::mat &Lt, const arma::vec &sigma);
 
 /**
  * @brief Full transfer from simcoon to Abaqus format (mechanical)

@@ -486,8 +486,18 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     
 }
     
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt)
+mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
+    // Abaqus DDSDDE = (1/J) d(J sigma)/d eps = dsigma/deps + sigma (x) I, the Jaumann
+    // tangent of Kirchhoff over J (dJ = J tr(deps)); the kernels return dsigma/deps in
+    // the corotated frame. Symmetric part: Abaqus's default solver keeps that one.
+    const vec I = {1., 1., 1., 0., 0., 0.};
+    const mat sigma_I = sigma * I.t();
+    return Lt + 0.5*(sigma_I + sigma_I.t());
+}
+
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel)
 {
+    const mat Lt = abaqus_jacobian(Lt_kernel, sigma);
     
     if(ndi == 1) {                          // 1D
         stress[0] = sigma(0);
@@ -589,8 +599,9 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &n
     }
 }
 
-void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *dstran, double *time, double &dtime, double &temperature, double &Dtemperature, int &nprops, double *props,  int &nstatev, double *statev, const int &ndi, const int &nshr, double *drot, const vec &sigma, const mat &Lt, const vec &Etot, const vec &DEtot, const double &T, const double &DT, const double &Time, const double &DTime, const vec &props_smart, const vec &Wm, const vec &statev_smart, const mat &DR, bool &start)
+void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *dstran, double *time, double &dtime, double &temperature, double &Dtemperature, int &nprops, double *props,  int &nstatev, double *statev, const int &ndi, const int &nshr, double *drot, const vec &sigma, const mat &Lt_kernel, const vec &Etot, const vec &DEtot, const double &T, const double &DT, const double &Time, const double &DTime, const vec &props_smart, const vec &Wm, const vec &statev_smart, const mat &DR, bool &start)
 {
+    const mat Lt = abaqus_jacobian(Lt_kernel, sigma);
     
     if(ndi == 1) {                          // 1D
         stress[0] = sigma(0);
@@ -740,7 +751,8 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     }
 }
     
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE, const mat &dSdT, const mat &drpldE, const mat &drpldT) {
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT) {
+    const mat dSdE = abaqus_jacobian(dSdE_kernel, sigma);
     
     if(ndi == 1) {                          // 1D
         stress[0] = sigma(0);

@@ -37,6 +37,36 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
+TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
+{
+    // DDSDDE = dsigma/deps + sym(sigma (x) I): the kernel tangent plus the symmetric part of
+    // the term that turns dsigma/deps into (1/J) d(J sigma)/deps (Abaqus's definition).
+    const mat Lt = symmatu(randu<mat>(6, 6)) + 10.*eye(6, 6);
+    const vec sigma = {12., -3., 5., 2., -1., 4.};
+    const vec statev_smart = zeros(2);
+    const vec Wm = zeros(4);
+
+    double stress[6];
+    double ddsdde[36];
+    double statev[2 + 4];   // the state variables, then the four energies Wm
+    smart2abaqus_M(stress, ddsdde, statev, 3, 3, sigma, statev_smart, Wm, Lt);
+
+    const vec I = {1., 1., 1., 0., 0., 0.};
+    mat expected = Lt + 0.5*(sigma*I.t() + I*sigma.t());
+    for (int i = 0; i < 6; i++) {
+        ASSERT_NEAR(stress[i], sigma(i), 1.e-12);
+        for (int j = 0; j < 6; j++) {
+            ASSERT_NEAR(ddsdde[i + 6*j], expected(i, j), 1.e-12);   // column-major, as Fortran
+        }
+    }
+    // the added term is exactly the volumetric consistency term: contraction with a
+    // hydrostatic strain rate gives sigma tr(d) + (I sigma:d), as (1/J) d(J sigma) does
+    const vec d_hyd = {1., 1., 1., 0., 0., 0.};
+    const vec extra = (expected - Lt) * d_hyd;
+    ASSERT_NEAR(extra(0), 1.5*sigma(0) + 0.5*(sigma(0) + sigma(1) + sigma(2)), 1.e-12);
+    ASSERT_NEAR(extra(3), 1.5*sigma(3), 1.e-12);
+}
+
 TEST(Taba2sim, read_write)
 {
 
