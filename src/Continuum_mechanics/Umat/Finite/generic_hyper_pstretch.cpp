@@ -99,8 +99,9 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
         dW2dlambda_bar2.diag() += c_i*(alpha_i-1.)*(p/lambda_bar);
     }
 
-    double dUdJ = kappa*log(J);
-    double dU2dJ2 = kappa/J;
+    // U(J): kappa (J ln J - J + 1) unless props(2 + 2N) = 1 selects kappa/2 (J - 1)^2
+    double dUdJ = 0., dU2dJ2 = 0.;
+    volumetric_derivatives(volumetric_potential_of(props, 2 + 2*N_Ogden), kappa, J, dUdJ, dU2dJ2);
     
     ///@brief Initialization
     if(start)

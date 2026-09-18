@@ -1,0 +1,115 @@
+{
+  "initial_temperature": 290.0,
+  "corate": "logarithmic_R",
+  "blocks": [
+    {
+      "control_type": "small_strain",
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 100,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            0.02,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 290.0
+        },
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 100,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            -0.02,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 290.0
+        }
+      ]
+    },
+    {
+      "control_type": "small_strain",
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 100,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            -2.26e-05,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 290.0
+        }
+      ]
+    },
+    {
+      "control_type": "small_strain",
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "mode": "tabular",
+          "tabular": "path_id_3_tab1.csv",
+          "Dn_init": 1.0,
+          "Dn_mini": 0.01,
+          "control": [
+            "strain",
+            "zero",
+            "zero",
+            "zero",
+            "zero",
+            "zero"
+          ],
+          "tabular_T": false
+        }
+      ]
+    }
+  ]
+}

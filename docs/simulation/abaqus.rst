@@ -10,7 +10,6 @@ Simcoon provides ready-to-use UMAT bridge files in the ``software/`` directory t
 
 - ``software/umat_singleM.cpp`` - Single mechanical model (selected by material name)
 - ``software/umat_singleT.cpp`` - Single thermo-mechanical model
-- ``software/umat_singleM_multi.cpp`` - Multiscale mechanical model (reads from ``material.dat``)
 - ``software/umat_externalM.cpp`` - Template for adding custom external UMAT in C++
 - ``software/umat_externalT.cpp`` - Template for custom external thermo-mechanical UMAT
 
@@ -133,25 +132,38 @@ For coupled thermo-mechanical analysis with heat generation:
 
 The thermo-mechanical version provides:
 
-- Mechanical tangent ``ddsdde`` (:math:`\partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}`)
+- Mechanical tangent ``ddsdde`` (the Abaqus material Jacobian, see below)
 - Thermal stress tangent ``ddsddt`` (:math:`\partial \boldsymbol{\sigma} / \partial T`)
 - Heat flux derivative ``drplde`` (:math:`\partial r / \partial \boldsymbol{\varepsilon}`)
 - Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
 
-Using umat_singleM_multi (Multiscale)
--------------------------------------
+Material Jacobian convention
+----------------------------
 
-For multiscale homogenization models, the material definition is read from a ``data/material.dat`` file in the working directory:
+Abaqus integrates a UMAT in its corotated frame: ``STRESS`` and ``STRAN`` are
+rotated by Abaqus before the call (``DROT`` is the rotation increment, used
+here to rotate the tensorial state variables), ``DSTRAN`` is the logarithmic
+strain increment, and ``STRESS`` is the Cauchy stress. Under ``NLGEOM``
+Abaqus defines ``DDSDDE`` through the Jaumann rate of the Kirchhoff stress
+divided by :math:`J`:
 
-.. code-block:: bash
+.. math::
 
-    g++ -shared -fPIC -std=c++17 -O2 -o libumat_simcoon_multi.so umat_singleM_multi.cpp \
-        -I$SIMCOON_DIR/include \
-        -L$SIMCOON_DIR/lib -lsimcoon \
-        -larmadillo -llapack -lblas
+   \mathbf{C}^{\text{Abaqus}} = \frac{1}{J}\frac{\partial (J\boldsymbol{\sigma})}{\partial \boldsymbol{\varepsilon}}
+   = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I}
 
-Create ``data/material.dat`` in your Abaqus working directory with the material definition. See the homogenization documentation for file format details.
+since :math:`\mathrm{d}J = J\,\mathrm{tr}(\mathrm{d}\boldsymbol{\varepsilon})`. The
+simcoon kernels return the first term, the corotational tangent
+:math:`\partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}`;
+``smart2abaqus_M`` (and the thermomechanical ``smart2abaqus_T``) add the symmetric
+part of :math:`\boldsymbol{\sigma} \otimes \mathbf{I}`, which is what the default
+symmetric solver of Abaqus keeps (``abaqus_jacobian`` in ``fea_transfer.hpp``).
+This term does not change the stress, hence not the converged solution: it
+restores the quadratic convergence of the global Newton loop when
+:math:`\sigma / E` is not small (elastomers, shape memory alloys). Without
+``NLGEOM`` the exact Jacobian is the first term alone; the added term is then of
+order :math:`\sigma / E` and only affects the iteration count.
 
 Using umat_externalM (Custom Model)
 -----------------------------------
@@ -262,13 +274,15 @@ simcoon uses a specific layout for state variables (``statev`` array):
 
 .. code-block:: none
 
-    statev[0:nstatev_smart]  - Model-specific state variables
-    statev[nstatev-4]        - Wm (total mechanical work)
-    statev[nstatev-3]        - Wm_r (recoverable work)
-    statev[nstatev-2]        - Wm_ir (irrecoverable work)
-    statev[nstatev-1]        - Wm_d (dissipated work)
+    statev[0]                - Wm (total mechanical work)
+    statev[1]                - Wm_r (recoverable work)
+    statev[2]                - Wm_ir (irrecoverable work)
+    statev[3]                - Wm_d (dissipated work)
+    statev[4:nstatev]        - Model-specific state variables (nstatev_smart of them)
 
-Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``.
+Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``: the four work
+quantities come first, then the model's own variables (the same layout as the
+Ansys ``ustatev``, see :doc:`ansys`).
 
 Available Models
 ----------------
@@ -384,7 +398,7 @@ props-translating adapters — identical usage and results; see
      - Periodic layered
      - Layered composite homogenization
 
-For micromechanics models, use ``umat_singleM_multi.cpp`` with a ``data/material.dat`` file.
+Mean-field micromechanics models (MIHEN, MIMTN, MISCN, MIPLN) are **not** reachable through the Abaqus wrappers. Since 2.0 their sub-phases are passed in memory rather than read from ``Nellipsoids``/``Nlayers`` files, which the Abaqus entry point cannot supply; drive them from Python instead (see :doc:`python_solver`).
 
 Troubleshooting
 ---------------

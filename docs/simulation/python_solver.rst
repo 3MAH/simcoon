@@ -6,9 +6,8 @@ from Python: the loading path is defined with :class:`~simcoon.solver.Block`
 and :class:`~simcoon.solver.StepMeca` / :class:`~simcoon.solver.StepThermomeca`
 objects, and the results come back as numpy arrays — no ``path.txt``,
 ``output.dat`` or result files involved. Since simcoon 2.0 this package *is*
-``sim.solver``; legacy loading files are parsed into loading objects with
-:func:`~simcoon.solver.from_file` (the raw pre-2.0 file-to-file runner remains
-available as the low-level binding ``simcoon._core.solver``).
+``sim.solver``, JSON is the only file format it reads, and the pre-2.0 text
+inputs are converted once with ``scripts/legacy_to_json.py``.
 
 Quick start
 -----------
@@ -28,13 +27,14 @@ A uniaxial tension test on an elastic isotropic material:
     res = solver.solve(step, "ELISO", [70000., 0.3, 1.E-5], nstatev=1)
 
     stress = res["Stress"]     # Cauchy stress history, shape (6, N)
-    strain = res["Strain"]     # Green-Lagrange strain history, shape (6, N)
+    strain = res["Strain"]     # logarithmic strain history, shape (6, N)
 
 Results follow the fedoo ``DataSet`` conventions — components first, one
 column per increment — so they interoperate directly with fedoo utilities
 (e.g. ``fedoo.util.voigt_tensors.StressTensorList(res["Stress"])``).
 Available fields include ``Stress`` (Cauchy), ``Kirchhoff``, ``PKII``,
-``Strain``, ``LogStrain``, ``F``, ``R``, ``DR`` (``(3, 3, N)``),
+``Strain`` (logarithmic, alias ``LogStrain``), ``GreenLagrange``, ``F``, ``R``,
+``DR`` (``(3, 3, N)``),
 ``TangentMatrix`` (``(6, 6, N)``), ``Statev``, ``Wm``, ``Time``, ``Temp`` and,
 for thermomechanical runs, ``Q``, ``r``, ``Wt`` and the coupled tangents
 ``dSdE``, ``dSdT``, ``drdE``, ``drdT``.
@@ -66,6 +66,10 @@ Loading control
                            mode='tabular',
                            tabular=np.column_stack([t, e11]))
 
+  In a saved path the table is the one input that is not JSON: ``save_path_json``
+  writes it as ``<stem>_tab<k>.csv`` next to the JSON (``#`` header naming the
+  columns, one row per increment) and the step's ``"tabular"`` entry holds that
+  filename; ``load_path_json`` reads it back, comma- or whitespace-separated.
 * Cyclic loading repeats the steps of a block: ``Block(steps=[...], ncycle=10)``.
   Tabular steps cannot be cycled (their time column is absolute); unroll the
   cycles into explicit steps instead.
@@ -101,17 +105,64 @@ For finite-element couplers, the point-wise thermomechanical UMAT batch entry
 ``sim.umat_T(...)`` complements ``sim.umat(...)``; it returns
 ``(sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT)``.
 
-Legacy file formats
--------------------
+Mean-field composites
+---------------------
 
-Existing ``path.txt`` / ``material.dat`` inputs are parsed into loading
-objects — same solve, one entry point:
+The mean-field models (MIHEN, MIMTN, MISCN, MIPLN) take their sub-phases in memory,
+as :class:`~simcoon.solver.micromechanics.Ellipsoid` or
+:class:`~simcoon.solver.micromechanics.Layer` objects passed to ``solve(phases=...)``
+or ``sim.L_eff(..., phases=...)`` (see :doc:`solver`, ``phases``). Every orientation
+in those objects is a :class:`simcoon.Rotation`: the material frame of a phase
+(``material_orientation``) and the geometry of an inclusion or a layer
+(``geometry_orientation``). Any of these forms is accepted and coerced:
 
 .. code-block:: python
 
-    blocks, T_init = solver.from_file("data", "path.txt")
-    material = solver.material_from_file("data", "material.dat")
-    res = solver.solve(blocks, T_init=T_init, **material)
+    from simcoon.solver.micromechanics import Ellipsoid, as_rotation, euler_angles
+
+    fibre = Ellipsoid(umat_name="ELISO", concentration=0.2, nstatev=1,
+                      props=[50000., 0.3, 0.], a1=50.,
+                      geometry_orientation=sim.Rotation.from_rotvec([0, 0, np.pi / 4]))
+    fibre.geometry_orientation = (45., 0., 0.)                       # Euler angles, degrees
+    fibre.geometry_orientation = {"psi": 45., "theta": 0., "phi": 0.}  # the JSON form
+    euler_angles(fibre.geometry_orientation)   # {'psi': 45.0, 'theta': 0.0, 'phi': 0.0}
+
+The Euler angles are the ``'zxz'`` sequence the C++ side reads, in degrees:
+``as_rotation((psi, theta, phi))`` is
+``Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)`` (scipy's extrinsic
+``zxz``), applied actively. A phase at that orientation responds with
+``R.apply_stiffness(L_local)``, which the test suite pins against the solver and
+``L_eff``. The JSON files and the dicts handed to the extension keep the angles;
+``euler_angles`` writes them back, with the usual caveat that the decomposition is not
+unique at ``theta = 0`` (the z angles merge into ``psi``). ``solve(orientation=...)``
+and ``sim.L_eff(umat_name, props, nstatev, orientation=..., phases=...)`` take the
+same forms for the frame of the material or of the whole RVE; ``L_eff`` also takes the
+phase objects directly.
+
+An orientation distribution splits one phase into phases rotated about a direction,
+with concentrations following the ODF:
+
+.. code-block:: python
+
+    from simcoon.solver.micromechanics import Peak, discretize_odf
+
+    peaks = [Peak(method=3, mean=90., s_dev=10.)]     # Gaussian, degrees
+    phases = discretize_odf([matrix, fibre], num_phase=1, peaks=peaks, nphases=18,
+                            axis=(0., 0., 1.), angle_range=(0., 180.))
+    L = sim.L_eff("MIMTN", props, nstatev, phases=phases)
+
+The k-th copy is rotated by ``alpha_k`` about ``axis`` on top of the orientations the
+phase already has (``Rotation.from_rotvec(alpha_k * axis) * orientation``), the
+material frame following unless ``rotate_material=False``; ``alpha_k`` runs from
+``angle_min`` in ``nphases`` equal steps and each copy takes the Simpson integral of
+the density over its step, normalised to the parent's concentration. The density is a
+director distribution, periodic over 180 degrees: the default half turn is right when
+a half turn about ``axis`` maps the inclusion onto itself (``axis`` along or normal to
+a principal axis of the inclusion); about any other direction give
+``angle_range=(0., 360.)``. The pre-2.0 Euler sweeps are the cases ``axis=(0, 0, 1)``
+(psi or phi) and ``axis=(1, 0, 0)`` (theta) from an unrotated phase. Peak profiles
+(``method``: 1 standard-deviation kernel, 2 hard cut-off, 3 Gaussian, 4 Lorentzian,
+5 pseudo-Voigt, 6 Pearson VII, 7 uniform) are evaluated by ``sim.get_densities_ODF``.
 
 JSON configuration
 ------------------
@@ -129,6 +180,23 @@ Materials and loading paths round-trip through JSON
 
 Results can be persisted with ``res.save("run.npz")`` /
 ``SolverResults.load("run.npz")``, or flattened with ``res.to_dataframe()``.
+
+Legacy text inputs
+------------------
+
+JSON is the only format simcoon reads or writes since 2.0: nothing in the package
+parses ``path.txt``, ``material.dat``, ``tab_file_<n>.txt`` or ``N<kind><n>.dat``.
+A pre-2.0 ``data`` directory is converted once with the migration script shipped in
+the repository (not in the package), the tables its mode-3 steps referenced being
+rewritten as ``<stem>_tab<k>.csv`` files next to the path JSON:
+
+.. code-block:: bash
+
+    python scripts/legacy_to_json.py data   # writes path.json, material.json, ellipsoids<N>.json, ...
+
+.. code-block:: python
+
+    res = solver.solve(**solver.load_simulation_json("data/material.json", "data/path.json"))
 
 Solver parameters
 -----------------
@@ -161,10 +229,6 @@ API reference
    :members:
 
 .. autofunction:: simcoon.solver.solve
-
-.. autofunction:: simcoon.solver.from_file
-
-.. autofunction:: simcoon.solver.material_from_file
 
 .. autoclass:: simcoon.solver.SolverResults
    :members:

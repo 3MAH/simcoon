@@ -16,9 +16,11 @@
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/python_wrappers/dict_get.hpp>
+#include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
 
 using namespace std;
@@ -28,11 +30,6 @@ namespace py = pybind11;
 namespace simpy {
 
 namespace {
-
-template <typename T>
-T dget(const py::dict &d, const char *key, const T &dflt) {
-    return d.contains(key) ? d[key].cast<T>() : dflt;
-}
 
 //Fill the fields shared by step_meca and step_thermomeca (identical member names)
 template <typename StepPtr>
@@ -147,7 +144,8 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
                     const std::string &umat_name, const py::array_t<double> &props_py,
                     const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve,
                     const int &solver_type, const int &corate_type,
-                    const py::dict &params_py, const bool &record_tangent) {
+                    const py::dict &params_py, const bool &record_tangent,
+                    const py::object &phases) {
 
     vec props = carma::arr_to_col(props_py);
 
@@ -227,11 +225,18 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     simcoon::solver_memory_sink sink;
     sink.record_tangent = record_tangent;
 
+    //Sub-phases of a mean-field model, built HERE, while the GIL is still held: they are read
+    //from Python objects. umat_multi used to read them from Nellipsoids<N>.dat / Nlayers<N>.dat
+    //at the first increment; it checks their count against props[0] itself.
+    const std::vector<simcoon::phase_characteristics> sub_phases =
+        make_sub_phases(phases, umat_name, T_init);
+
     int status = 0;
     {
         py::gil_scoped_release nogil;
         status = simcoon::solver_run(blocks, T_init, so, umat_name, props, nstatev,
-                                     psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink);
+                                     psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink,
+                                     sub_phases);
     }
 
     //Assemble the results (canonical state; measure transforms happen in Python)

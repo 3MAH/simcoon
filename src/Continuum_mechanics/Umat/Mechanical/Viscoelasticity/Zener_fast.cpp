@@ -142,8 +142,10 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
             dPhidv = -1.*sum((dPhidsigma)%(L1*Lambdav))-1./DTime;
         }
         else {
-            Phi(0) = norm_strain(flow_V1);
-            dPhidv = -1.*sum((dPhidsigma)%(L1*Lambdav));
+            //No time, no flow: the branch is INACTIVE. The stationary condition
+            //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+            Phi(0) = 0.;
+            dPhidv = -1.;
         }
         kappa_j[0] = L0*Lambdav;
         

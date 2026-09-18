@@ -3,10 +3,10 @@ Isotropic elasticity (thermomechanical)
 =======================================
 """
 
+import os
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
 
@@ -69,23 +69,24 @@ corate_type = 2
 props = np.array([rho, c_p, E, nu, alpha])
 
 path_data = "../data"
-path_results = "results"
-pathfile = "THERM_ELISO_path.txt"
-outputfile = "results_THERM_ELISO.txt"
+pathfile = "THERM_ELISO_path.json"
 
-sim._core.solver(
+###################################################################################
+# The loading path is read in Python and the simulation runs in memory: no result
+# file is written. A thermomechanical run also carries the heat flux, the heat
+# source and the thermal work terms.
+
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 ###################################################################################
@@ -95,20 +96,14 @@ sim._core.solver(
 # We plot the stress-strain curve, the temperature evolution, the mechanical work
 # terms and the thermal work terms.
 
-outputfile_macro = os.path.join(path_results, "results_THERM_ELISO_global-0.txt")
-
 fig = plt.figure()
 
 # Get the data
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q, r = np.loadtxt(outputfile_macro, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-    outputfile_macro, usecols=(20, 21, 22, 23, 24, 25, 26), unpack=True
-)
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
+time, T, Q, r = res["Time"], res["Temp"], res["Q"], res["r"]
+Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
+Wt, Wt_r, Wt_ir = res["Wt"]
 
 # Stress vs Strain
 ax = fig.add_subplot(2, 2, 1)

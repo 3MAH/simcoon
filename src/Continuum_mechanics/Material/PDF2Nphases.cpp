@@ -35,19 +35,18 @@
 #include <simcoon/Simulation/Maths/stats.hpp>
 #include <simcoon/Continuum_mechanics/Material/PDF.hpp>
 #include <simcoon/Continuum_mechanics/Material/PDF2Nphases.hpp>
-#include <simcoon/Continuum_mechanics/Material/read.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
     
-vec get_densities_PDF(const vec &x, const string &path_data, const string &input_peaks) {
+vec get_densities_PDF(const vec &x, const std::vector<peak> &peaks) {
     
     vec y = zeros(x.n_elem);
     
     PDF pdf_rve(0, x.min(), x.max());
-    read_peak(pdf_rve, path_data, input_peaks);
+    pdf_rve.peaks = peaks;
     
     for(unsigned int i=0; i<x.n_elem; i++) {
 		y(i) = pdf_rve.density(x(i));

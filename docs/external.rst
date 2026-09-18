@@ -23,7 +23,7 @@ Your plugin must inherit from ``umat_plugin_ext_api`` and implement the followin
     class umat_plugin_ext : public umat_plugin_ext_api {
     public:
         std::string name() const override {
-            return "umext";  // Material name used in material.dat
+            return "umext";  // Material name used in material.json
         }
 
         void umat_external_M(
@@ -82,7 +82,7 @@ Your plugin wraps an external ``umat_`` function with the standard Abaqus signat
     class umat_plugin_aba : public umat_plugin_aba_api {
     public:
         std::string name() const override {
-            return "umaba";  // Material name used in material.dat
+            return "umaba";  // Material name used in material.json
         }
     
         void umat_abaqus(
@@ -166,7 +166,7 @@ Your plugin wraps an external ``usermat_`` function with the standard Ansys sign
     class umat_plugin_ans : public umat_plugin_ans_api {
     public:
         std::string name() const override {
-            return "umans";  // Material name used in material.dat
+            return "umans";  // Material name used in material.json
         }
     
         void umat_ansys(
@@ -280,73 +280,50 @@ Setting Up Input Files
 
 To use an external UMAT, configure your input files as follows:
 
-**material.dat**
+**material.json**
 
 Specify the material name matching the plugin's ``name()`` return value:
 
-.. code-block:: none
+.. code-block:: json
 
-    Material
-    Name    UMEXT
-    Number_of_material_parameters   3
-    Number_of_internal_variables    1
-    
-    #Orientation
-    psi     0
-    theta   0
-    phi     0
-    
-    #Mechanical
-    E       70000
-    nu      0.3
-    alpha   0.
+    {
+      "name": "UMEXT",
+      "props": [70000.0, 0.3, 0.0],
+      "nstatev": 1,
+      "orientation": {"psi": 0.0, "theta": 0.0, "phi": 0.0}
+    }
 
-For UMABA format, use ``Name  UMABA`` instead. For Ansys USERMAT, use ``Name  UMANS``.
+For UMABA format, use ``"name": "UMABA"`` instead. For Ansys USERMAT, use ``"name": "UMANS"``.
+The solver type and the corotational rate are arguments of ``sim.solver.solve``
+(``solver_type``, ``corate``); the latter is also recorded in the path file.
 
-**solver_essentials.inp**
+**path.json**
 
-.. code-block:: none
+Standard loading path definition (see :doc:`simulation/solver` for details), here a
+uniaxial tension to 2 % strain followed by an unloading, 100 increments each:
 
-    Solver_type_0_Newton_tangent_1_RNL
-    0
-    Rate_type
-    2
+.. code-block:: json
 
-**path.txt**
+    {
+      "initial_temperature": 290.0,
+      "corate": "logarithmic",
+      "blocks": [
+        {
+          "control_type": "small_strain",
+          "ncycle": 1,
+          "steps": [
+            {"mode": "linear", "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "value": [0.02, 0.0, 0.0, 0.0, 0.0, 0.0], "time": 1.0, "ninc": 100},
+            {"mode": "linear", "control": ["strain", "stress", "stress", "stress", "stress", "stress"],
+             "value": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "time": 1.0, "ninc": 100}
+          ]
+        }
+      ]
+    }
 
-Standard loading path definition (see :doc:`simulation/solver` for details):
+.. code-block:: python
 
-.. code-block:: none
-
-    #Initial_temperature
-    290
-    #Number_of_blocks
-    1
-    
-    #Block
-    1
-    #Loading_type
-    1
-    #Control_type(NLGEOM)
-    1
-    #Repeat
-    1
-    #Steps
-    2
-    
-    #Mode
-    1
-    #Dn_init 1.
-    #Dn_mini 1.
-    #Dn_inc 0.01
-    #time
-    1
-    #prescribed_mechanical_state
-    E 0.02
-    S 0 S 0
-    S 0 S 0 S 0
-    #prescribed_temperature_state
-    T 290
+    res = sim.solver.solve(**sim.solver.load_simulation_json("data/material.json", "data/path.json"))
 
 Testing External Plugins
 ------------------------
@@ -359,38 +336,34 @@ Located in ``test/Umats/UMEXT/``, this test validates the UMEXT plugin format:
 
 .. code-block:: cpp
 
-    // Read configuration files
-    solver_essentials(solver_type, corate_type, path_data, sol_essentials);
-    solver_control(div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, 
-                   maxiter_solver, inforce_solver, precision_solver, 
-                   lambda_solver, path_data, sol_control);
-    read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, 
-                  phi_rve, path_data, materialfile);
-    
-    // Run solver with external UMAT
-    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, 
-           solver_type, corate_type, ...);
-    
-    // Compare results against reference
-    mat C, R;
+    // The loading programme, built in code: two strain-driven steps, 100 increments each
+    std::vector<block> blocks(1);
+    blocks[0].type = 1; blocks[0].control_type = 1; blocks[0].ncycle = 1; blocks[0].nstep = 2;
+    blocks[0].generate();
+    // ... fill the two step_meca (cBC_meca, BC_meca, Dn_inc, BC_Time, BC_T) ...
+
+    // Run the solver with the external UMAT, results kept in memory
+    solver_output so(1); so.o_type(0) = 1; so.o_nfreq(0) = 1;
+    solver_params ctrl;
+    solver_memory_sink sink;
+    int status = solver_run(blocks, 290., so, "UMEXT", props, 1, 0., 0., 0., 0, 2, ctrl, sink);
+
+    // Compare with the committed reference (strain in columns 8:14, stress in 14:20)
+    mat C;
     C.load("comparison/results_job_global-0.txt");
-    R.load(path_results + "/results_job_global-0.txt");
-    // Verify results match within tolerance
+    // EXPECT_LT(fabs(C(i, 8 + k) - sink.Etot[i](k)), 1.E-6), same for sink.sigma
 
-The test data is located in ``testBin/Umats/UMEXT/data/``:
+The test data is located in ``testBin/Umats/UMEXT/``:
 
-- ``material.dat`` - Material definition with ``Name UMEXT``
-- ``path.txt`` - Loading path (uniaxial tension to 2% strain)
-- ``solver_essentials.inp`` - Solver type configuration
-- ``solver_control.inp`` - Solver convergence parameters
-- ``output.dat`` - Output configuration
+- ``data/material.json`` and ``data/path.json`` - the material (``"name": "UMEXT"``) and
+  the loading path (uniaxial tension to 2 % strain, then unloading), as read from Python
+- ``comparison/results_job_global-0.txt`` - the reference response the C++ test compares
+  with; the test itself builds the same programme in code and reads no input file
 
 **TUMABA Test**
 
 Located in ``test_extern/Umats/UMABA/``, this test validates the Abaqus UMAT compatibility layer.
-The test structure is identical to TUMEXT but uses ``Name UMABA`` in the material file.
-
-The test data is located in ``testBin/Umats/UMABA/data/``.
+The test structure is identical to TUMEXT with the ``UMABA`` name; its reference is in ``testBin/Umats/UMABA/comparison/``.
 
 .. note::
 

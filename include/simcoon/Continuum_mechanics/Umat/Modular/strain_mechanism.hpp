@@ -461,6 +461,9 @@ public:
      * @brief Compute work decomposition
      * @param sigma_start Stress at start of increment
      * @param sigma Current stress
+     * @param E_start Total strain at start of increment (the strain the
+     *        constraints see, without the thermal part removed)
+     * @param E_end Total strain at end of increment
      * @param Wm_r Output: recoverable work increment
      * @param Wm_ir Output: irrecoverable (stored) work increment
      * @param Wm_d Output: dissipated work increment
@@ -468,6 +471,8 @@ public:
     virtual void compute_work(
         const arma::vec& sigma_start,
         const arma::vec& sigma,
+        const arma::vec& E_start,
+        const arma::vec& E_end,
         double& Wm_r,
         double& Wm_ir,
         double& Wm_d

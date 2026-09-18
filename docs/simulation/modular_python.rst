@@ -43,9 +43,9 @@ Quick start
     res = solver.solve(step, "MODUL", mat.props, mat.nstatev)
 
 ``mat.props`` and ``mat.nstatev`` are all any caller needs — they work
-identically with ``material.dat`` files, :func:`simcoon.umat` point
-evaluation, micromechanics phase files (``Nellipsoids``/``Nlayers``) and FEA
-couplings such as fedoo.
+identically with :func:`simcoon.umat` point evaluation, mean-field
+micromechanics (whose phases are passed in memory through the ``phases``
+argument of :func:`~simcoon.solver.solve`) and FEA couplings such as fedoo.
 
 Elasticity
 ----------
@@ -78,7 +78,7 @@ argument (enum, int, or string aliases):
        :class:`YeohElasticity`, :class:`IsiharaElasticity`,
        :class:`GentThomasElasticity`, :class:`SwansonElasticity`
      - the potential's parameters (e.g. ``C10, C20, C30, kappa`` for Yeoh),
-       ``alpha`` keyword-only
+       ``volumetric`` and ``alpha`` keyword-only
      - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
        ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
 
@@ -89,8 +89,13 @@ The hyperelastic blocks are not a constant stiffness: the potential is
 evaluated at the elastic strain it is handed, bridged by
 :math:`\mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el})`. Under finite
 strain that strain is the elastic logarithmic strain, and the mechanisms act
-additively on it. Every potential shares the volumetric term
-:math:`U(J) = \kappa (J \ln J - J + 1)`.
+additively on it. Every potential shares its volumetric term :math:`U(J)`,
+chosen by the ``volumetric`` keyword: ``"log"`` (default) for
+:math:`U = \kappa (J \ln J - J + 1)`, ``"quadratic"`` for
+:math:`U = \frac{\kappa}{2} (J - 1)^2`. Both have :math:`U''(1) = \kappa`, so
+``kappa`` is the ground-state bulk modulus either way; they differ away from
+:math:`J = 1` (the quadratic one gives a pressure linear in :math:`J - 1`, the
+logarithmic one stiffens in compression and blows up as :math:`J \to 0`).
 
 Yield criteria
 --------------
@@ -233,4 +238,7 @@ See also
 - :doc:`umat_catalog` — where ``MODUL`` and the adapter-served legacy names
   meet, props streams and statev layouts
 - :doc:`umat_tutorial` — writing a dedicated UMAT by hand instead
-- ``examples/mechanical/MODUL.py`` — runnable gallery example
+- ``examples/mechanical/MODUL.py`` — runnable gallery example (elasto-plasticity)
+- ``examples/mechanical/MODUL_finite.py`` — the same composition under NLGEOM
+- ``examples/mechanical/MODUL_hyper_visco.py`` — Yeoh block + Prony branches,
+  finite-strain viscoelasticity (rate sweep, relaxation, energy split)

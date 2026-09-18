@@ -3,10 +3,10 @@ Shape Memory Alloy - Thermomechanical coupling
 =================================================
 """
 
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-import os
 
 plt.rcParams["figure.figsize"] = (18, 10)
 
@@ -101,25 +101,21 @@ props = np.array([
 ])
 
 path_data = "../data"
-path_results = "results"
 
-# Run the simulation
-pathfile = "THERM_SMADI_path.txt"
-outputfile = "results_THERM_SMADI.txt"
+# Run the simulation: the path file is parsed in Python and the case runs in
+# memory, so no result file is written.
+pathfile = "THERM_SMADI_path.json"
 
-sim._core.solver(
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 ###################################################################################
@@ -130,18 +126,13 @@ sim._core.solver(
 # terms and the thermal work terms for the SMA thermomechanical response.
 
 fig = plt.figure()
-outputfile_macro = os.path.join(path_results, "results_THERM_SMADI_global-0.txt")
 
 # Get the data
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q, r = np.loadtxt(outputfile_macro, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-    outputfile_macro, usecols=(20, 21, 22, 23, 24, 25, 26), unpack=True
-)
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
+time, T, Q, r = res["Time"], res["Temp"], res["Q"], res["r"]
+Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
+Wt, Wt_r, Wt_ir = res["Wt"]
 
 # Stress vs Strain
 ax = fig.add_subplot(2, 2, 1)
@@ -193,43 +184,31 @@ plt.show()
 # Here we test the effect of the increment size on the results.
 
 increments = [10, 100, 1000]
-outputfile_globals = {}
 
+# Run each case and collect its history: every path file is parsed in Python and
+# the case runs in memory, so nothing is written to — or read back from — disk.
+data = []
 for inc in increments:
-    pathfile = f"THERM_SMADI_path_{inc}.txt"
-    outputfile = f"results_THERM_SMADI_{inc}.txt"
-    sim._core.solver(
+    pathfile = f"THERM_SMADI_path_{inc}.json"
+    blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+    res_inc = sim.solver.solve(
+        blocks,
         umat_name,
         props,
         nstatev,
-        psi_rve,
-        theta_rve,
-        phi_rve,
-        solver_type,
-        corate_type,
-        path_data,
-        path_results,
-        pathfile,
-        outputfile,
+        T_init=T_init,
+        solver_type=solver_type,
+        corate=corate_type,
+        orientation=(psi_rve, theta_rve, phi_rve),
     )
-    outputfile_globals[inc] = f"results_THERM_SMADI_{inc}_global-0.txt"
-
-# Load data for each increment
-data = []
-for inc in increments:
-    path = os.path.join(path_results, outputfile_globals[inc])
-    e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-        path, usecols=range(8, 20), unpack=True
-    )
-    time, T, Q, r = np.loadtxt(path, usecols=range(4, 8), unpack=True)
-    Wm, Wm_r, Wm_ir, Wm_d, Wt, Wt_r, Wt_ir = np.loadtxt(
-        path, usecols=range(20, 27), unpack=True
-    )
+    Wm_i, Wm_r_i, Wm_ir_i, Wm_d_i = res_inc["Wm"]
+    Wt_i, Wt_r_i, Wt_ir_i = res_inc["Wt"]
     data.append(
         {
-            "e11": e11, "s11": s11, "time": time, "T": T,
-            "Wm": Wm, "Wm_r": Wm_r, "Wm_ir": Wm_ir, "Wm_d": Wm_d,
-            "Wt": Wt, "Wt_r": Wt_r, "Wt_ir": Wt_ir,
+            "e11": res_inc["Strain"][0], "s11": res_inc["Stress"][0],
+            "time": res_inc["Time"], "T": res_inc["Temp"],
+            "Wm": Wm_i, "Wm_r": Wm_r_i, "Wm_ir": Wm_ir_i, "Wm_d": Wm_d_i,
+            "Wt": Wt_i, "Wt_r": Wt_r_i, "Wt_ir": Wt_ir_i,
         }
     )
 

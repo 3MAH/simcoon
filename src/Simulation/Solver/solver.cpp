@@ -42,7 +42,7 @@
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
@@ -89,7 +89,7 @@ inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
 
 namespace simcoon{
 
-int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink) {
+int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink, const std::vector<phase_characteristics> &sub_phases) {
 
     if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_algorithmic) {
         throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
@@ -140,6 +140,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
 
     ///Material properties
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
+
+    //Attached before the block loop: construct() rebuilds the RVE's own geometry and state
+    //variables, never its sub_phases, so these survive it.
+    if (!sub_phases.empty()) {
+        rve.sub_phases = sub_phases;
+    }
 
     //Output
     int o_ncount = 0;
@@ -202,6 +208,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 DR = eye(3,3);   // blocks 2+: don't leak the previous block's last rotation into set_start
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
+                sv_M->Detot = zeros(6);   // blocks 2+: don't add the previous block's last log-strain increment again
                 sv_M->DT = 0.;
 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
@@ -735,6 +742,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 // and assess_inc would then add a stale full-increment DTime once per
                                 // forced sub-iteration. Recompute from the fraction actually accepted.
                                 DTime = Dtinc*sptr_meca->times(inc);
+                                if (blocks[i].control_type == 1) {
+                                    // small strain: the logarithmic strain is the infinitesimal one
+                                    sv_M->Detot = sv_M->DEtot;
+                                }
                                 sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
@@ -804,6 +815,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 DR = eye(3,3);
                 DTime = 0.;
                 sv_T->DEtot = zeros(6);
+                sv_T->Detot = zeros(6);
                 sv_T->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
@@ -1088,6 +1100,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
                                 }
 
+                                // thermomechanical blocks are small strain: log strain = infinitesimal one
+                                sv_T->Detot = sv_T->DEtot;
                                 sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
                                 //start variables ready for the next increment
                                 
@@ -1134,55 +1148,4 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
     return 0;
 }
 
-void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile, const int &tangent_mode) {
-    if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
-        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
-                                    + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
-    }
-
-    //Check if the required directories exist:
-    if(!filesystem::is_directory(path_data)) {
-        cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
-        return;
-    }
-    if(!filesystem::is_directory(path_results)) {
-        cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        filesystem::create_directory(path_results);
-    }
-
-    std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
-    std::string filename = outputfile.substr(0,outputfile.length()-4); //to remove the extension
-
-    std::string outputfile_global = filename + "_global" + ext_filename;
-    std::string outputfile_local = filename + "_local" + ext_filename;
-
-    std::string output_info_file = "output.dat";
-
-    std::vector<block> blocks;  //loading blocks
-    double T_init = 0.;
-
-    //Read the loading path
-    read_path(blocks, T_init, path_data, pathfile);
-
-    solver_output so(blocks.size());
-    read_output(so, blocks.size(), nstatev, path_data, output_info_file);
-
-    //Check output and step files
-    check_path_output(blocks, so);
-
-    solver_params ctrl;
-    ctrl.div_tnew_dt = div_tnew_dt_solver;
-    ctrl.mul_tnew_dt = mul_tnew_dt_solver;
-    ctrl.miniter = miniter_solver;
-    ctrl.maxiter = maxiter_solver;
-    ctrl.inforce = inforce_solver;
-    ctrl.precision = precision_solver;
-    ctrl.lambda = lambda_solver;
-    ctrl.tangent_mode = tangent_mode;
-
-    solver_file_sink sink(path_results, outputfile_global, outputfile_local);
-    //status intentionally ignored: the historical file-driven solver() returned void on early aborts
-    solver_run(blocks, T_init, so, umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink);
-}
-    
 } //namespace simcoon

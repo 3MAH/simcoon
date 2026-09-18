@@ -11,7 +11,7 @@ from simcoon._core import *
 from simcoon import modular
 # In-memory solver API (2.0): the subpackage replaces the pre-2.0 file-driven
 # `solver` function from the star-import above (still reachable as
-# simcoon._core.solver; parse legacy files with simcoon.solver.from_file).
+# simcoon._core.solver; legacy text inputs are converted once by scripts/legacy_to_json.py).
 # `import` (not `from ... import`) is required: the latter would return the
 # existing function attribute without importing the subpackage.
 import simcoon.solver
@@ -19,6 +19,7 @@ import simcoon.solver
 from simcoon.pyumat import PythonUMAT, StepCut, registered
 from simcoon.__version__ import __version__
 from simcoon.rotation import Rotation  # override _CppRotation from star-import
+from simcoon.solver.micromechanics import L_eff  # override _core.L_eff: Rotation + phase objects
 from simcoon.tensor import Tensor2, Tensor4, dyadic, auto_dyadic, sym_dyadic, auto_sym_dyadic, double_contract  # unified tensor classes
 from simcoon.identify import identification, calc_cost
 from simcoon.parameter import (

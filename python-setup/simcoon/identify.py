@@ -50,12 +50,14 @@ def identification(
     --------
     >>> from simcoon.parameter import Parameter
     >>> from simcoon.identify import identification
-    >>> params = [
-    ...     Parameter(0, bounds=(10000, 200000), key="@Ef",
-    ...               sim_input_files=["material.dat"]),
-    ... ]
+    >>> params = [Parameter(0, bounds=(10000, 200000))]
     >>> result = identification(my_cost, params, seed=42)
     >>> print(f"Identified E = {params[0].value:.0f}")
+
+    ``my_cost`` receives the trial values and runs the model in memory
+    (:func:`simcoon.solver.solve` takes ``props`` directly). ``key`` and
+    ``sim_input_files`` are only needed to drive an external, file-based
+    solver by substituting the keys into its input decks.
     """
     bounds = [p.bounds for p in parameters]
 

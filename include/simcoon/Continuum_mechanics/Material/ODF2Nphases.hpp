@@ -24,7 +24,6 @@
 #include <iostream>
 #include <string.h>
 #include <armadillo>
-#include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Material/ODF.hpp>
 
 namespace simcoon{
@@ -39,14 +38,17 @@ namespace simcoon{
  */
 
 
-//Fill the ODF from a vector of angles, providing a file with the peak informations
-arma::vec get_densities_ODF(const arma::vec &, const std::string &, const std::string &, const bool &);
+/**
+ * @brief Densities of an ODF, summed over its peaks, at the angles x.
+ * @param x the angles, in [0, pi] (radians) or [0, 180] (degrees, radian = false)
+ * @param peaks the peaks; with radian = false their mean, s_dev and width are degrees
+ * @param radian whether x and the peak angles are radians
+ */
+arma::vec get_densities_ODF(const arma::vec &x, const std::vector<peak> &peaks, const bool &radian);
     
-//Fill the angles of the geom and material (if indicated 1 in angles_mat)
-void fill_angles(const double &, phase_characteristics &, const ODF &, const int & = 1);
+// The discretisation of a phase into phases oriented along the ODF is done in Python
+// (simcoon.solver.micromechanics.discretize_odf) from these densities.
     
-//This function computes the ODF of the selected angle, according to different methods (Lorentzian, Pearson...)
-phase_characteristics discretize_ODF(const phase_characteristics &, ODF &, const int &, const int &, const int & = 1);
 
 /** @} */ // end of material group
 

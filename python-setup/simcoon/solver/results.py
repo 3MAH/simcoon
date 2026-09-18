@@ -26,7 +26,8 @@ class SolverResults:
         (heat source).
     field_data : dict
         Tensor histories, components-first: 'Stress' (Cauchy, (6, N)),
-        'Kirchhoff', 'PKII', 'Strain' (Green-Lagrange), 'LogStrain',
+        'Kirchhoff', 'PKII', 'Strain' (logarithmic strain ln V, (6, N);
+        'LogStrain' is the same array), 'GreenLagrange' ((6, N)),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
         runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
@@ -41,6 +42,7 @@ class SolverResults:
         self.sv_type = int(raw.get("sv_type", 1))
 
         n = raw["time"].shape[0]
+        log_strain = raw["etot"].T
         self.scalar_data = {
             "Time": raw["time"],
             "Temp": raw["T"],
@@ -53,8 +55,9 @@ class SolverResults:
             "Stress": raw["sigma"].T,
             "Kirchhoff": raw["tau"].T,
             "PKII": raw["PKII"].T,
-            "Strain": raw["Etot"].T,
-            "LogStrain": raw["etot"].T,
+            "Strain": log_strain,
+            "LogStrain": log_strain,         # alias of "Strain": the same array
+            "GreenLagrange": raw["Etot"].T,
             "Statev": raw["statev"].T,
             "Wm": raw["Wm"].T,
             "F": raw["F1"].reshape(n, 3, 3).transpose(1, 2, 0),
@@ -138,6 +141,8 @@ class SolverResults:
             cols[k] = v
         comp = ["11", "22", "33", "12", "13", "23"]
         for k, v in self.field_data.items():
+            if k == "LogStrain":  # alias of "Strain": one set of columns
+                continue
             if v.ndim == 2 and v.shape[0] == 6:
                 for c in range(6):
                     cols[f"{k}_{comp[c]}"] = v[c]

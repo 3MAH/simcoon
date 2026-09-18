@@ -30,13 +30,42 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 
 
 using namespace std;
 using namespace arma;
 using namespace simcoon;
+
+TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
+{
+    // DDSDDE = dsigma/deps + sym(sigma (x) I): the kernel tangent plus the symmetric part of
+    // the term that turns dsigma/deps into (1/J) d(J sigma)/deps (Abaqus's definition).
+    const mat Lt = symmatu(randu<mat>(6, 6)) + 10.*eye(6, 6);
+    const vec sigma = {12., -3., 5., 2., -1., 4.};
+    const vec statev_smart = zeros(2);
+    const vec Wm = zeros(4);
+
+    double stress[6];
+    double ddsdde[36];
+    double statev[2 + 4];   // the state variables, then the four energies Wm
+    smart2abaqus_M(stress, ddsdde, statev, 3, 3, sigma, statev_smart, Wm, Lt);
+
+    const vec I = {1., 1., 1., 0., 0., 0.};
+    mat expected = Lt + 0.5*(sigma*I.t() + I*sigma.t());
+    for (int i = 0; i < 6; i++) {
+        ASSERT_NEAR(stress[i], sigma(i), 1.e-12);
+        for (int j = 0; j < 6; j++) {
+            ASSERT_NEAR(ddsdde[i + 6*j], expected(i, j), 1.e-12);   // column-major, as Fortran
+        }
+    }
+    // the added term is exactly the volumetric consistency term: contraction with a
+    // hydrostatic strain rate gives sigma tr(d) + (I sigma:d), as (1/J) d(J sigma) does
+    const vec d_hyd = {1., 1., 1., 0., 0., 0.};
+    const vec extra = (expected - Lt) * d_hyd;
+    ASSERT_NEAR(extra(0), 1.5*sigma(0) + 0.5*(sigma(0) + sigma(1) + sigma(2)), 1.e-12);
+    ASSERT_NEAR(extra(3), 1.5*sigma(3), 1.e-12);
+}
 
 TEST(Taba2sim, read_write)
 {
@@ -44,9 +73,6 @@ TEST(Taba2sim, read_write)
     /* initialize random seed: */
     srand(time(NULL));
     
-    string path_data = "data";
-    string materialfile = "material.dat";    
-    string inputfile = "Nellipsoids0.dat";
     
     //double psi_rve = 0.;
     //double theta_rve = 0.;
@@ -110,7 +136,22 @@ TEST(Taba2sim, read_write)
     
     rve.sptr_matprops->update(0, umat_name, 1, 0., 0., 0., nprops, props_smart);
 
-    read_ellipsoid(rve, path_data, inputfile);
+    //The two ELISO ellipsoidal phases of the historical Nellipsoids0.dat fixture, in code
+    rve.sub_phases_construct(2, 2, 1);
+    {
+        const vec props_matrix = {3000., 0.45, 0.};
+        const vec props_fibre = {50000., 0.3, 0.};
+        rve.sub_phases[0].sptr_matprops->update(0, "ELISO", 1, 0., 0., 0., 3, props_matrix);
+        rve.sub_phases[1].sptr_matprops->update(1, "ELISO", 1, 0., 0., 0., 3, props_fibre);
+        for (auto &sub : rve.sub_phases) {
+            sub.sptr_sv_global->resize(1);
+            sub.sptr_sv_local->resize(1);
+            sub.sptr_shape->concentration = 0.2;
+        }
+        auto fibre = std::dynamic_pointer_cast<ellipsoid>(rve.sub_phases[1].sptr_shape);
+        fibre->a1 = 50.;
+        fibre->psi_geom = simcoon::deg2rad(45.);
+    }
     size_statev(rve, nstatev_multi);
 
     rve.sptr_matprops->umat_name = umat_name;

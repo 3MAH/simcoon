@@ -39,7 +39,7 @@ from numpy.typing import NDArray
 
 __all__ = [
     # Enums
-    "ElasticityType", "HyperPotential", "YieldType", "IsoHardType", "KinHardType",
+    "ElasticityType", "HyperPotential", "VolumetricPotential", "YieldType", "IsoHardType", "KinHardType",
     "DamageType", "MechanismType",
     # Elastic-constant conventions
     "IsoConvention", "CubicConvention",
@@ -436,10 +436,12 @@ class OrthotropicElasticity:
 # logarithmic-strain-space form of multiplicative finite strain, exact for an
 # isotropic material, and the mechanisms keep riding additively on ln V.
 #
-# Every potential shares the volumetric term U(J) = kappa (J ln J - J + 1), so
-# ``kappa`` is the bulk compressibility throughout. The ground-state stiffness
-# (what the mechanisms take as their reference) is computed by the C++ block
-# from the potential itself, not declared here.
+# Every potential shares its volumetric term U(J), chosen by ``volumetric``:
+# "log" for kappa (J ln J - J + 1) (default) or "quadratic" for kappa/2 (J - 1)^2.
+# Both have U''(1) = kappa, so ``kappa`` is the ground-state bulk modulus
+# throughout. The ground-state stiffness (what the mechanisms take as their
+# reference) is computed by the C++ block from the potential itself, not
+# declared here.
 
 
 class HyperPotential(IntEnum):
@@ -452,17 +454,38 @@ class HyperPotential(IntEnum):
     SWANH = 5
 
 
+class VolumetricPotential(IntEnum):
+    """Volumetric term U(J) (mirrors C++ ``VolumetricPotential``, hyperelastic.hpp).
+
+    Selected by the trailing prop of every hyperelastic law (NEOHC, MOORI, YEOHH,
+    ISHAH, GETHH, SWANH, OGDEN and the modular blocks): absent or 0 for ``LOG_J``,
+    1 for ``QUADRATIC``.
+    """
+    LOG_J = 0       # kappa (J ln J - J + 1)
+    QUADRATIC = 1   # kappa / 2 (J - 1)^2
+
+
+_VOLUMETRIC_NAMES = {"log": VolumetricPotential.LOG_J,
+                     "quadratic": VolumetricPotential.QUADRATIC}
+
+
 @dataclass(frozen=True)
 class _HyperInvariantsElasticity:
     """Common serialization of an isochoric-invariant potential.
 
-    Props layout: ``[potential, n_params, params..., alpha]``. The potential
-    comes from the concrete subclass and the parameters are its fields in
-    declaration order, which is what gives each model its own named arguments.
-    They have no default, and ``alpha`` is keyword-only, so positional
+    Props layout: ``[potential, n_params, params..., volumetric, alpha]``, the
+    volumetric selector counted in ``n_params``. The potential comes from the
+    concrete subclass and the parameters are its fields in declaration order,
+    which is what gives each model its own named arguments. They have no
+    default; ``volumetric`` and ``alpha`` are keyword-only, so positional
     arguments always fill the potential's parameters.
+
+    ``volumetric`` selects U(J): ``"log"`` for
+    :math:`\kappa (J \ln J - J + 1)` (default) or ``"quadratic"`` for
+    :math:`\frac{\kappa}{2} (J - 1)^2`.
     """
     potential: ClassVar[HyperPotential]
+    volumetric: str = field(default="log", kw_only=True)
     alpha: float = field(default=0.0, kw_only=True)
 
     @property
@@ -470,12 +493,22 @@ class _HyperInvariantsElasticity:
         return ElasticityType.HYPER_INVARIANTS
 
     def potential_params(self) -> List[float]:
-        return [getattr(self, f.name) for f in fields(self) if f.name != "alpha"]
+        return [getattr(self, f.name) for f in fields(self)
+                if f.name not in ("alpha", "volumetric")]
+
+    @property
+    def volumetric_potential(self) -> VolumetricPotential:
+        if isinstance(self.volumetric, VolumetricPotential):
+            return self.volumetric
+        try:
+            return _VOLUMETRIC_NAMES[self.volumetric]
+        except (KeyError, TypeError):
+            raise ValueError(f"volumetric must be 'log' or 'quadratic', got {self.volumetric!r}")
 
     def to_props(self) -> List[float]:
         """Return the props values for this elasticity."""
-        params = self.potential_params()
-        return [float(self.potential), float(len(params))] + list(params) + [self.alpha]
+        params = list(self.potential_params()) + [float(self.volumetric_potential)]
+        return [float(self.potential), float(len(params))] + params + [self.alpha]
 
     @property
     def nprops(self) -> int:
@@ -486,14 +519,17 @@ class _HyperInvariantsElasticity:
 class NeoHookeanElasticity(_HyperInvariantsElasticity):
     r"""Compressible neo-Hookean potential (the ``NEOHC`` UMAT's).
 
-    :math:`W = \frac{\mu}{2}(\bar{I}_1 - 3) + \kappa (J \ln J - J + 1)`
+    :math:`W = \frac{\mu}{2}(\bar{I}_1 - 3) + U(J)`
 
     Parameters
     ----------
     mu : float
         Ground-state shear modulus.
     kappa : float
-        Bulk compressibility.
+        Ground-state bulk modulus, :math:`U''(1)`.
+    volumetric : str
+        ``"log"`` (:math:`U = \kappa (J \ln J - J + 1)`, default) or
+        ``"quadratic"`` (:math:`U = \frac{\kappa}{2} (J - 1)^2`); keyword-only.
     alpha : float
         Coefficient of thermal expansion.
     """
@@ -506,7 +542,7 @@ class NeoHookeanElasticity(_HyperInvariantsElasticity):
 class MooneyRivlinElasticity(_HyperInvariantsElasticity):
     r"""Mooney-Rivlin potential (the ``MOORI`` UMAT's).
 
-    :math:`W = C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3) + \kappa (J \ln J - J + 1)`
+    :math:`W = C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3) + U(J)`
     """
     potential = HyperPotential.MOORI
     C10: float
@@ -519,7 +555,7 @@ class YeohElasticity(_HyperInvariantsElasticity):
     r"""Yeoh potential (the ``YEOHH`` UMAT's).
 
     :math:`W = C_{10}(\bar{I}_1 - 3) + C_{20}(\bar{I}_1 - 3)^2
-    + C_{30}(\bar{I}_1 - 3)^3 + \kappa (J \ln J - J + 1)`
+    + C_{30}(\bar{I}_1 - 3)^3 + U(J)`
 
     The ground-state shear modulus is :math:`\mu = 2 C_{10}`; the higher-order
     terms carry the upturn at large stretch that a neo-Hookean cannot fit.
@@ -540,7 +576,7 @@ class IsiharaElasticity(_HyperInvariantsElasticity):
     r"""Isihara potential (the ``ISHAH`` UMAT's).
 
     :math:`W = C_{10}(\bar{I}_1 - 3) + C_{20}(\bar{I}_1 - 3)^2 + C_{01}(\bar{I}_2 - 3)
-    + \kappa (J \ln J - J + 1)`
+    + U(J)`
     """
     potential = HyperPotential.ISHAH
     C10: float
@@ -553,7 +589,7 @@ class IsiharaElasticity(_HyperInvariantsElasticity):
 class GentThomasElasticity(_HyperInvariantsElasticity):
     r"""Gent-Thomas potential (the ``GETHH`` UMAT's).
 
-    :math:`W = c_1(\bar{I}_1 - 3) + c_2 \ln(\bar{I}_2 / 3) + \kappa (J \ln J - J + 1)`
+    :math:`W = c_1(\bar{I}_1 - 3) + c_2 \ln(\bar{I}_2 / 3) + U(J)`
     """
     potential = HyperPotential.GETHH
     c1: float
@@ -1112,8 +1148,28 @@ class Viscoelasticity:
 
         eps^{in,visco} = sum_i (M_0 . L_i) . EV_i
 
-    where M_0 is the compliance at the reference (undamaged, long-term)
-    stiffness.
+    where M_0 is the compliance at the reference stiffness, i.e. the stiffness of
+    the elasticity block of the material.
+
+    That block is the **instantaneous** (glassy) stiffness, not the long-term one:
+    at t = 0 every EV_i is zero and the response is L_0, while at t -> infinity each
+    EV_i saturates at the total strain and the response relaxes to
+
+        L_infinity = L_0 - sum_i L_i
+
+    which is the usual Prony series E(t) = E_inf + sum_i E_i exp(-t/tau_i) written
+    with E(0) = E_inf + sum_i E_i. Two consequences:
+
+    * the branch moduli must satisfy ``sum_i E_i < E_0``, otherwise the long-term
+      stiffness is negative and the stress crosses zero during a hold (measured:
+      E_0 = 1, branches 1.0 and 0.5, a hold at 1 % strain relaxes from 0.01 to
+      -0.005 MPa). Nothing validates this today;
+    * over a **hyperelastic** elasticity block, the potential plays the
+      instantaneous role and the relaxed part is subtracted through the
+      ground-state compliance M_0, which is linear. The long-term response is then
+      not itself a hyperelastic potential, so the classical rubber model (an
+      equilibrium hyperelastic spring carrying Maxwell branches) is out of reach
+      of this mechanism.
 
     Parameters
     ----------
@@ -1480,9 +1536,11 @@ def viscoelastic_model(
     Parameters
     ----------
     E : float
-        Reference (long-term) Young's modulus.
+        **Instantaneous** (glassy) Young's modulus, i.e. E(0) of the Prony series:
+        the long-term modulus is ``E - sum_i E_i`` and must stay positive. Pass
+        ``E_inf + sum_i E_i`` when calibration gives the long-term modulus.
     nu : float
-        Reference Poisson's ratio.
+        Poisson's ratio of that same reference stiffness.
     prony_terms : sequence of (E_i, nu_i, etaB_i, etaS_i) tuples
         Per-branch parameters: branch modulus, branch Poisson ratio, bulk
         viscosity, shear viscosity.

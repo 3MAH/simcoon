@@ -33,40 +33,13 @@ namespace simcoon{
  */
 
 
-//function that solves a
 /**
- * @brief Main solver function for homogeneous thermomechanical problems.
- * 
- * @param umat_name Name of the constitutive model (UMAT)
- * @param props Vector of material properties
- * @param nstatev Number of internal state variables
- * @param psi_rve First Euler angle of RVE orientation (rad)
- * @param theta_rve Second Euler angle of RVE orientation (rad)
- * @param phi_rve Third Euler angle of RVE orientation (rad)
- * @param solver_type Global resolution scheme (0: classic Newton-Raphson, 1: RNL — control_type 1 only)
- * @param corate_type Type of corotational formulation
- * @param div Divisor for time stepping (default: 0.5)
- * @param mul Multiplier for time stepping (default: 2.0)
- * @param miniter Minimum iterations per increment (default: 10)
- * @param maxiter Maximum iterations per increment (default: 100)
- * @param inforce_solver Enforce solver convergence (default: 1)
- * @param precision Convergence tolerance (default: 1e-6)
- * @param lambda_eff Effective stiffness estimate for mixed control (default: 10000)
- * @param path_data Path to data directory (default: "data")
- * @param path_results Path to results directory (default: "results")
- * @param pathfile Name of loading path file (default: "path.txt")
- * @param outputfile Name of output file (default: "result_job.txt")
- * @param tangent_mode Tangent operator mode (tangent_* constants of parameter.hpp; default: tangent_default)
- * 
- * @details This function drives the simulation by:
- * - Reading the loading path from input files
- * - Managing time stepping with adaptive incrementation
- * - Calling the UMAT for constitutive updates
- * - Writing results to output files
- * 
+ * The file-driven entry point solver() left the library with the 2.0 JSON-only migration: the
+ * loading programme is built in Python and handed to solver_run() (solver_sink.hpp) in memory,
+ * and nothing here reads a file: JSON inputs are read in Python (simcoon.solver), the
+ * reference cases of testBin run through pytest, and the legacy text formats are converted
+ * once by scripts/legacy_to_json.py.
  */
-void solver(const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div = 0.5, const double &mul = 2., const int &miniter = 10, const int &maxiter = 100, const int &inforce_solver = 1, const double &precision = 1.E-6, const double &lambda_eff = 10000., const std::string &path_data = "data", const std::string &path_results = "results", const std::string &pathfile = "path.txt", const std::string &outputfile = "result_job.txt", const int &tangent_mode = tangent_default);
-
 
 /** @} */ // end of solver group
 
