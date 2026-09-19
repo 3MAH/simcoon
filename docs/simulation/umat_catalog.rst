@@ -152,7 +152,12 @@ Unchanged dedicated implementations (out of the modular scope):
   :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
   :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
   with :math:`\kappa = 2 / D_1`).
-- **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
+- **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
+  memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
+  scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,
+  ``[mp, np, n_matrix, max_iter]`` for MISCN, nothing for MIPLN (``mp``, ``np``:
+  integration points of the Eshelby integrals; ``n_matrix``: index of the matrix
+  phase in the list). The pre-2.0 leading ``nphases`` and file-number slots are gone.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 

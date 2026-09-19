@@ -8,14 +8,12 @@ dir = os.path.dirname(os.path.realpath('__file__'))
 
 nstatev = 0
 
-nphases = 2 #The number of phases
-int1 = 50
-int2 = 50
-n_matrix = 0
+int1 = 50  # Integration points of the Eshelby integrals, first direction
+int2 = 50  # Integration points of the Eshelby integrals, second direction
+n_matrix = 0  # Index of the matrix phase in the list of phases
 
-# props[1] used to be the number of the Nellipsoids<N>.dat file to read. The phases are
-# now handed to L_eff directly, so that slot is kept only for the layout of the vector.
-props = np.array([nphases, 0, int1, int2, n_matrix],  dtype='float')
+# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
+props = np.array([int1, int2, n_matrix], dtype="float")
 
 path_data = dir + '/data'
 

@@ -15,8 +15,8 @@ from simcoon.solver.micromechanics import (
     to_phase_dicts,
 )
 
-# props of the RVE: [nphases, file number (ignored now), mp, np, index of the matrix phase]
-MIMTN_PROPS = np.array([2.0, 1.0, 20.0, 20.0, 0.0])
+# props of the RVE: [mp, np, index of the matrix phase] (the phase count is the list's)
+MIMTN_PROPS = np.array([20.0, 20.0, 0.0])
 NSTATEV = 10000
 
 # Values of the file-based binding on Nellipsoids1.dat.
@@ -64,13 +64,14 @@ class TestLeffInMemoryPhases:
         with pytest.raises(Exception, match="phases"):
             sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV)
 
-    def test_phase_count_must_match_props(self):
-        #one phase at 100 %: the concentration check passes, the count check must not
+    def test_matrix_index_must_be_a_phase(self):
+        # one phase at 100 %: the concentration check passes, the matrix index must exist
         single = two_phase_composite()[:1]
         single[0].concentration = 1.0
-        with pytest.raises(Exception, match="sub-phases props\\[0\\] announces"):
-            sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,
-                            phases=to_phase_dicts(single))
+        L = np.asarray(sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV,
+                                       phases=to_phase_dicts(single)))
+        L_iso = np.asarray(sim.L_iso([5000.0, 0.3], "Enu"))
+        np.testing.assert_allclose(L, L_iso, rtol=1e-9)   # a one-phase composite is that phase
 
     def test_homogeneous_model_needs_no_phases(self):
         L = np.asarray(sim._core.L_eff("ELISO", np.array([70000.0, 0.3, 1.0e-5]), 1))

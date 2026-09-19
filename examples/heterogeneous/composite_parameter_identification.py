@@ -37,13 +37,11 @@ import os
 # volume fractions.
 #
 # The phases are built as objects and passed to ``L_eff``. A candidate
-# :math:`(E_f, \\nu_f)` is simply written into the reinforcement, where the
-# identification loop used to copy a template and substitute keys such as
-# ``@2p`` into ``Nellipsoids0.dat`` before every single evaluation.
+# :math:`(E_f, \\nu_f)` is written into the reinforcement,
 #
-# simcoon's key system (``simcoon.parameter``) remains the tool of choice when
+# Note that simcoon's key system (``simcoon.parameter``) remains the tool of choice when
 # the forward model is an *external* code driven by input files, such as an
-# Abaqus job; it is simply not needed when simcoon itself is the forward model.
+# Abaqus job; it is not needed when simcoon itself is the forward model.
 
 
 def load_experimental_data(filepath):
@@ -84,11 +82,17 @@ def compute_E_eff(E_f, nu_f, concentrations, umat_name, props_composite):
         Effective Young's modulus at each volume fraction [MPa]
     """
     matrix = Ellipsoid(
-        number=0, umat_name="ELISO", save=1, nstatev=1,
+        number=0,
+        umat_name="ELISO",
+        save=1,
+        nstatev=1,
         props=np.array([2250.0, 0.19, 8.8e-5]),
     )
     reinforcement = Ellipsoid(
-        number=1, umat_name="ELISO", save=1, nstatev=1,
+        number=1,
+        umat_name="ELISO",
+        save=1,
+        nstatev=1,
         props=np.array([E_f, nu_f, 0.5e-6]),
     )
 
@@ -98,7 +102,10 @@ def compute_E_eff(E_f, nu_f, concentrations, umat_name, props_composite):
         reinforcement.concentration = c
 
         L = sim.L_eff(
-            umat_name, props_composite, 0, phases=[matrix, reinforcement],
+            umat_name,
+            props_composite,
+            0,
+            phases=[matrix, reinforcement],
         )
         iso_props = sim.L_iso_props(L).flatten()
         E_eff[i] = iso_props[0]
@@ -117,7 +124,12 @@ def cost_function(params_opt, c_exp, E_exp, umat_name, props_composite):
 
 
 def identify_reinforcement(
-    c_exp, E_exp, umat_name, props_composite, bounds, verbose=True,
+    c_exp,
+    E_exp,
+    umat_name,
+    props_composite,
+    bounds,
+    verbose=True,
 ):
     """
     Identify reinforcement properties using differential evolution.
@@ -176,7 +188,6 @@ def identify_reinforcement(
 # physically meaningful identified properties.
 
 if __name__ == "__main__":
-
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
     except NameError:
@@ -195,8 +206,8 @@ if __name__ == "__main__":
     for c, E in zip(c_exp, E_exp):
         print(f"  c = {c:.1f}  ->  E_eff = {E:.0f} MPa")
 
-    # Composite definition: [nphases, unused, int1, int2, n_matrix]
-    props_composite = np.array([2, 0, 50, 50, 0], dtype="float")
+    # Composite definition: [int1, int2, n_matrix] (Eshelby integration points, matrix index)
+    props_composite = np.array([50, 50, 0], dtype="float")
 
     # Bounds for identification (E_f, nu_f)
     bounds = [(10000, 200000), (0.01, 0.45)]
@@ -205,14 +216,22 @@ if __name__ == "__main__":
     # Identification with Mori-Tanaka
     # -----------------------------------------------------------------
     result_MT = identify_reinforcement(
-        c_exp, E_exp, "MIMTN", props_composite, bounds,
+        c_exp,
+        E_exp,
+        "MIMTN",
+        props_composite,
+        bounds,
     )
 
     # -----------------------------------------------------------------
     # Identification with Self-Consistent
     # -----------------------------------------------------------------
     result_SC = identify_reinforcement(
-        c_exp, E_exp, "MISCN", props_composite, bounds,
+        c_exp,
+        E_exp,
+        "MISCN",
+        props_composite,
+        bounds,
     )
 
     # -----------------------------------------------------------------
@@ -225,10 +244,14 @@ if __name__ == "__main__":
     print(f"")
     print(f"  {'Scheme':<20} {'E_f [MPa]':>12} {'nu_f':>8} {'MSE':>14}")
     print(f"  {'-' * 56}")
-    print(f"  {'Mori-Tanaka':<20} {result_MT['E_f']:>12.0f} "
-          f"{result_MT['nu_f']:>8.3f} {result_MT['mse']:>14.2e}")
-    print(f"  {'Self-Consistent':<20} {result_SC['E_f']:>12.0f} "
-          f"{result_SC['nu_f']:>8.3f} {result_SC['mse']:>14.2e}")
+    print(
+        f"  {'Mori-Tanaka':<20} {result_MT['E_f']:>12.0f} "
+        f"{result_MT['nu_f']:>8.3f} {result_MT['mse']:>14.2e}"
+    )
+    print(
+        f"  {'Self-Consistent':<20} {result_SC['E_f']:>12.0f} "
+        f"{result_SC['nu_f']:>8.3f} {result_SC['mse']:>14.2e}"
+    )
     print()
 
     # Note on model limitations
@@ -243,10 +266,18 @@ if __name__ == "__main__":
     c_model = np.arange(0.0, 0.51, 0.01)
 
     E_MT = compute_E_eff(
-        result_MT["E_f"], result_MT["nu_f"], c_model, "MIMTN", props_composite,
+        result_MT["E_f"],
+        result_MT["nu_f"],
+        c_model,
+        "MIMTN",
+        props_composite,
     )
     E_SC = compute_E_eff(
-        result_SC["E_f"], result_SC["nu_f"], c_model, "MISCN", props_composite,
+        result_SC["E_f"],
+        result_SC["nu_f"],
+        c_model,
+        "MISCN",
+        props_composite,
     )
     # Reference with handbook glass properties
     E_ref_MT = compute_E_eff(73000, 0.22, c_model, "MIMTN", props_composite)
@@ -255,12 +286,23 @@ if __name__ == "__main__":
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
     # Left: Identified fits
-    ax1.plot(c_exp, E_exp, "kx", markersize=10, markeredgewidth=2,
-             label="Exp. (Wang 2003)")
-    ax1.plot(c_model, E_MT, "b-", linewidth=2,
-             label=f"MT identified (E_f={result_MT['E_f']:.0f})")
-    ax1.plot(c_model, E_SC, "r-", linewidth=2,
-             label=f"SC identified (E_f={result_SC['E_f']:.0f})")
+    ax1.plot(
+        c_exp, E_exp, "kx", markersize=10, markeredgewidth=2, label="Exp. (Wang 2003)"
+    )
+    ax1.plot(
+        c_model,
+        E_MT,
+        "b-",
+        linewidth=2,
+        label=f"MT identified (E_f={result_MT['E_f']:.0f})",
+    )
+    ax1.plot(
+        c_model,
+        E_SC,
+        "r-",
+        linewidth=2,
+        label=f"SC identified (E_f={result_SC['E_f']:.0f})",
+    )
     ax1.set_xlabel("Reinforcement volume fraction $c$", fontsize=12)
     ax1.set_ylabel("Effective Young's modulus $E_{eff}$ [MPa]", fontsize=12)
     ax1.set_title("Identified Reinforcement Properties", fontsize=13)
@@ -268,16 +310,27 @@ if __name__ == "__main__":
     ax1.grid(True, alpha=0.3)
 
     # Right: Reference vs Identified
-    ax2.plot(c_exp, E_exp, "kx", markersize=10, markeredgewidth=2,
-             label="Exp. (Wang 2003)")
-    ax2.plot(c_model, E_ref_MT, "b--", linewidth=1.5, alpha=0.6,
-             label="MT with E_f=73 GPa (handbook)")
-    ax2.plot(c_model, E_ref_SC, "r--", linewidth=1.5, alpha=0.6,
-             label="SC with E_f=73 GPa (handbook)")
-    ax2.plot(c_model, E_MT, "b-", linewidth=2, alpha=0.8,
-             label="MT identified")
-    ax2.plot(c_model, E_SC, "r-", linewidth=2, alpha=0.8,
-             label="SC identified")
+    ax2.plot(
+        c_exp, E_exp, "kx", markersize=10, markeredgewidth=2, label="Exp. (Wang 2003)"
+    )
+    ax2.plot(
+        c_model,
+        E_ref_MT,
+        "b--",
+        linewidth=1.5,
+        alpha=0.6,
+        label="MT with E_f=73 GPa (handbook)",
+    )
+    ax2.plot(
+        c_model,
+        E_ref_SC,
+        "r--",
+        linewidth=1.5,
+        alpha=0.6,
+        label="SC with E_f=73 GPa (handbook)",
+    )
+    ax2.plot(c_model, E_MT, "b-", linewidth=2, alpha=0.8, label="MT identified")
+    ax2.plot(c_model, E_SC, "r-", linewidth=2, alpha=0.8, label="SC identified")
     ax2.set_xlabel("Reinforcement volume fraction $c$", fontsize=12)
     ax2.set_ylabel("Effective Young's modulus $E_{eff}$ [MPa]", fontsize=12)
     ax2.set_title("Handbook vs Identified Properties", fontsize=13)
@@ -287,7 +340,8 @@ if __name__ == "__main__":
     fig.suptitle(
         "Composite Reinforcement Identification — Glass/Epoxy\n"
         "Mori-Tanaka vs Self-Consistent + Differential Evolution",
-        fontsize=14, fontweight="bold",
+        fontsize=14,
+        fontweight="bold",
     )
     plt.tight_layout()
     plt.show()

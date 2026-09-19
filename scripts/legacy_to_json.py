@@ -271,6 +271,10 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
     for i in range(nprops):
         tk.skip()
         props[i] = tk.f()
+    if umat_name in ("MIHEN", "MIMTN", "MISCN", "MIPLN"):
+        # pre-2.0 layout [nphases, Nphases<X>.dat number, ...]: the count is the length of
+        # the phase list and nothing is read from disk, both slots are gone
+        props = props[2:]
     return {
         "umat_name": umat_name,
         "props": props,

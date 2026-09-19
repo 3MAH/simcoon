@@ -9,6 +9,7 @@ material-point solver and homogenization tools.
 This gallery contains examples demonstrating:
 
 - **Chaboche cyclic plasticity** - Identifying 7 elasto-plastic parameters (``EPCHA`` UMAT) from cyclic uniaxial tests, with an NMSE-per-response cost
+- **Keys in a JSON material file** - The key-substitution workflow (``keys/material.json`` template, ``parameters.inp``) on the JSON inputs of the solver, identifying the yield stress and hardening modulus of ``EPICP`` with ``differential_evolution``, the exponent fixed through a ``Constant``
 
 .. note::
 

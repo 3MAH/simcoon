@@ -21,14 +21,12 @@ import os
 
 nstatev = 0  # None here
 
-nphases = 2  # Number of phases
-int1 = 50  # Number of integration points along the long axis
-int2 = 50  # Number of integration points along the lat axis
-n_matrix = 0  # Phase number for the matrix
+int1 = 50  # Integration points of the Eshelby integrals, first direction
+int2 = 50  # Integration points of the Eshelby integrals, second direction
+n_matrix = 0  # Index of the matrix phase in the list of phases
 
-# The second slot used to hold the number of the Nellipsoids<N>.dat file describing the
-# sub-phases. Nothing is read from disk any more, so it is kept only for the layout.
-props = np.array([nphases, 0, int1, int2, n_matrix], dtype="float")
+# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
+props = np.array([int1, int2, n_matrix], dtype="float")
 
 ###############################################################################
 # The two phases are described in memory, as objects: a matrix and a spherical

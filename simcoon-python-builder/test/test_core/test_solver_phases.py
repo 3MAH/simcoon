@@ -21,8 +21,8 @@ from simcoon.solver.micromechanics import (Cylinder, Ellipsoid, Layer, Phase,
 #: the historical reference case of the C++ test TMIMTN: a two-level composite
 MIMTN_CASE = Path(__file__).resolve().parents[3] / "testBin" / "Umats" / "MIMTN"
 
-# [nphases, unused (was the Nellipsoids file number), mp, np, index of the matrix phase]
-MIMTN_PROPS = np.array([2.0, 0.0, 20.0, 20.0, 0.0])
+# [mp, np, index of the matrix phase] (the phase count is the list's)
+MIMTN_PROPS = np.array([20.0, 20.0, 0.0])
 NSTATEV = 10000
 
 # Glass/epoxy of the shipped examples: 80 % matrix, 20 % spherical reinforcement.
@@ -73,13 +73,13 @@ class TestSolverWithInMemoryPhases:
         with pytest.raises(Exception, match="phases"):
             slv.solve(uniaxial_step(), "MIMTN", MIMTN_PROPS, NSTATEV)
 
-    def test_phase_count_must_match_props(self):
-        #one phase at 100 %: the concentration check passes, the count check must not
+    def test_single_phase_composite_is_that_phase(self):
+        # one phase at 100 %: the composite responds as the phase itself
         single = two_phase_composite()[:1]
         single[0].concentration = 1.0
-        with pytest.raises(Exception, match="sub-phases props\\[0\\] announces"):
-            slv.solve(uniaxial_step(), "MIMTN", MIMTN_PROPS, NSTATEV,
-                      phases=single)
+        res = slv.solve(uniaxial_step(), "MIMTN", MIMTN_PROPS, NSTATEV, phases=single)
+        E_phase = single[0].props[0]
+        assert res["Stress"][0, -1] / res["Strain"][0, -1] == pytest.approx(E_phase, rel=1e-6)
 
     def test_single_phase_model_is_untouched(self):
         # ELISO takes no sub-phases: the new argument must not disturb it.

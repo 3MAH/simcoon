@@ -99,7 +99,7 @@ class TestOrientationConvention:
 
     def test_l_eff_geometry_frame(self):
         # rotating the fibre of an isotropic-matrix composite rotates its stiffness
-        props = np.array([2.0, 1.0, 20.0, 20.0, 0.0])
+        props = np.array([20.0, 20.0, 0.0])   # mp, np, matrix index
         def composite(rot):
             matrix = Ellipsoid(umat_name="ELISO", concentration=0.8, nstatev=1,
                                props=[5000.0, 0.3, 0.0])
@@ -157,7 +157,7 @@ class TestDiscretizeODF:
     def test_uniform_sweep_about_z_is_transversely_isotropic(self):
         # a 4th-order tensor rotated about z carries harmonics up to 4 alpha: 8 equally
         # spaced angles over a half turn average them out exactly
-        props = np.array([9.0, 1.0, 20.0, 20.0, 0.0])
+        props = np.array([20.0, 20.0, 0.0])
         phases = discretize_odf(self.composite(), 1, [Peak(method=7)], 8)
         L = np.asarray(sim.L_eff("MIMTN", props, 10000, phases=to_phase_dicts(phases)))
         assert L[0, 0] == pytest.approx(L[1, 1], rel=1e-9)
@@ -583,7 +583,7 @@ class TestNestedPhases:
                  Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0],
                            geometry_orientation=(45.0, 0.0, 0.0))]
         outer = [Ellipsoid(number=0, umat_name="MIMTN", concentration=0.8, nstatev=1000,
-                           props=[2.0, 1.0, 20.0, 20.0, 0.0], phases=inner),
+                           props=[20.0, 20.0, 0.0], phases=inner),
                  Ellipsoid(number=1, concentration=0.2, a1=50.0, props=[50000.0, 0.3, 0.0])]
         return outer
 

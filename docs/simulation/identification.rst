@@ -50,9 +50,9 @@ Parameter class
    # Create parameters programmatically
    params = [
        Parameter(number=0, bounds=(100, 300), key="@E",
-                 sim_input_files=["material.dat"]),
+                 sim_input_files=["material.json"]),
        Parameter(number=1, bounds=(0.1, 0.4), key="@nu",
-                 sim_input_files=["material.dat"]),
+                 sim_input_files=["material.json"]),
    ]
 
    # Or read from a file
@@ -71,8 +71,15 @@ Parameter class
 .. code-block:: none
 
    #Number  #min     #max     #key  #number_of_files  #files
-   0        100      300      @E    1                  material.dat
-   1        0.1      0.4      @nu   1                  material.dat
+   0        100      300      @E    1                  material.json
+   1        0.1      0.4      @nu   1                  material.json
+
+A template is any text file, so the JSON inputs of the solver work as they are:
+``keys/material.json`` with ``"props": [70000.0, 0.3, 1.0e-5, @sigmaY, @k, @m]``
+is not valid JSON until the substitution and is valid after it. The
+``identification/json_keys_identification.py`` example runs this chain end to
+end (copy, apply, ``load_simulation_json``, ``solve``, ``calc_cost``,
+``identification``).
 
 Constant class
 ^^^^^^^^^^^^^^

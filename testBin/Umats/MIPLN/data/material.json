@@ -1,9 +1,6 @@
 {
   "name": "MIPLN",
-  "props": [
-    2.0,
-    0.0
-  ],
+  "props": [],
   "nstatev": 0,
   "orientation": {
     "psi": 0.0,

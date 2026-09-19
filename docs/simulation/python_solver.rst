@@ -111,7 +111,9 @@ Mean-field composites
 The mean-field models (MIHEN, MIMTN, MISCN, MIPLN) take their sub-phases in memory,
 as :class:`~simcoon.solver.micromechanics.Ellipsoid` or
 :class:`~simcoon.solver.micromechanics.Layer` objects passed to ``solve(phases=...)``
-or ``sim.L_eff(..., phases=...)`` (see :doc:`solver`, ``phases``). Every orientation
+or ``sim.L_eff(..., phases=...)`` (see :doc:`solver`, ``phases``); their own ``props``
+carry only the scheme's settings, ``[mp, np, n_matrix]`` for Mori-Tanaka (see
+:doc:`umat_catalog`). Every orientation
 in those objects is a :class:`simcoon.Rotation`: the material frame of a phase
 (``material_orientation``) and the geometry of an inclusion or a layer
 (``geometry_orientation``). Any of these forms is accepted and coerced:

@@ -54,8 +54,8 @@ void get_L_elastic(phase_characteristics &rve)
         check_sub_phases(rve);
     }
     if (shape == 2) {
-        ellipsoid_multi::mp = rve.sptr_matprops->props(2);
-        ellipsoid_multi::np = rve.sptr_matprops->props(3);
+        ellipsoid_multi::mp = rve.sptr_matprops->props(0);
+        ellipsoid_multi::np = rve.sptr_matprops->props(1);
         ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
         ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
         ellipsoid_multi::y.set_size(ellipsoid_multi::np);
@@ -112,7 +112,7 @@ void get_L_elastic(phase_characteristics &rve)
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
-            int n_matrix = rve.sptr_matprops->props(4);
+            int n_matrix = rve.sptr_matprops->props(2);
             Lt_Mori_Tanaka(rve, n_matrix);
             break;	
         }
@@ -120,7 +120,7 @@ void get_L_elastic(phase_characteristics &rve)
             for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                 get_L_elastic(rve.sub_phases[i]);
             }
-            int n_matrix = rve.sptr_matprops->props(4);
+            int n_matrix = rve.sptr_matprops->props(2);
             Lt_Self_Consistent(rve, n_matrix, true, 1);
             
             mat Lt_n = zeros(6,6);
