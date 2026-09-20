@@ -100,7 +100,6 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	UNUSED(coords);
 	UNUSED(celent);
 	UNUSED(dfgrd0);
-	UNUSED(dfgrd1);
 	UNUSED(noel);
 	UNUSED(npt);
 	UNUSED(layer);
@@ -128,7 +127,7 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     
 	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, Lt, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, statev_smart, DR, start);
     external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, pnewdt);
-	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma, statev_smart, Wm, Lt);
+	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma, statev_smart, Wm, Lt, abaqus_nlgeom(dfgrd1));
 }
 
 void external_umat(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {

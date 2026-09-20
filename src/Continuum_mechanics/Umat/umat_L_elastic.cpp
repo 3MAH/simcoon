@@ -42,10 +42,9 @@ namespace simcoon{
 void get_L_elastic(phase_characteristics &rve)
 {
     
-    std::map<string, int> list_umat;
-    list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
-    
-    int method = list_umat[rve.sptr_matprops->umat_name];
+    static const std::map<string, int> list_umat = {{"ELISO",1},{"ELIST",2},{"ELORT",3},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104}};
+    const auto it_umat = list_umat.find(rve.sptr_matprops->umat_name);
+    const int method = (it_umat != list_umat.end()) ? it_umat->second : 0;
     
     //Mean-field models: the caller gave the sub-phases; the ellipsoidal schemes need the
     //quadrature points of the Eshelby integrals
@@ -121,7 +120,7 @@ void get_L_elastic(phase_characteristics &rve)
                 get_L_elastic(rve.sub_phases[i]);
             }
             int n_matrix = rve.sptr_matprops->props(2);
-            Lt_Self_Consistent(rve, n_matrix, true, 1);
+            Lt_Self_Consistent(rve, n_matrix, true, self_consistent_start(rve));
             
             mat Lt_n = zeros(6,6);
             int nbiter=0;
@@ -132,7 +131,7 @@ void get_L_elastic(phase_characteristics &rve)
                 for (unsigned int i=0; i<rve.sub_phases.size(); i++) {
                     get_L_elastic(rve.sub_phases[i]);
                 }
-                Lt_Self_Consistent(rve, n_matrix, false, 1);
+                Lt_Self_Consistent(rve, n_matrix, false, self_consistent_start(rve));
                 umat_M->Lt = zeros(6,6);
                 for (auto r : rve.sub_phases) {
                     umat_sub_phases_M = std::dynamic_pointer_cast<state_variables_M>(r.sptr_sv_global);
@@ -152,8 +151,7 @@ void get_L_elastic(phase_characteristics &rve)
             break;
         }
         default: {
-            cout << "Error: The choice of Cnstitutive model is not purely linear elastic or could not be found in the umat library :" << rve.sptr_matprops->umat_name << "\n";
-            return;
+            throw std::invalid_argument("L_eff: " + rve.sptr_matprops->umat_name + " is not a linear elastic model (ELISO, ELIST, ELORT) nor a mean-field model of such phases");
         }
     }
     

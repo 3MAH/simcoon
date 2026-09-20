@@ -84,13 +84,21 @@ void umat_multi(phase_characteristics &rve, const arma::mat &DR, const double &T
 int sub_phase_shape(const std::string &umat_name);
 
 /**
- * @brief Check that a mean-field phase carries the sub-phases props[0] announces.
+ * @brief Check the sub-phases and the props of a mean-field phase.
  *
- * The caller builds them now (they used to be read from Nellipsoids/Nlayers files).
+ * The props hold the scheme's settings only: MIHEN [mp, np], MIMTN [mp, np, n_matrix],
+ * MISCN [mp, np, n_matrix, (start)], MIPLN []. Checked: at least one sub-phase, the
+ * exact props length, mp and np >= 1, n_matrix among the phases given.
  * @param phase the mean-field phase
- * @throws std::invalid_argument when the count differs
+ * @throws std::invalid_argument on any of the above
  */
 void check_sub_phases(const phase_characteristics &phase);
+
+/**
+ * @brief First guess of the self-consistent scheme: props(3) when given, else 1.
+ * @return 1 Mori-Tanaka (default), 0 homogeneous strain (n_matrix < 0)
+ */
+int self_consistent_start(const phase_characteristics &phase);
 
 
 /** @} */ // end of micromechanics group

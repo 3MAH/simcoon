@@ -27,17 +27,6 @@ namespace simpy{
 
 namespace {
 
-void dict_angles(const py::dict &d, const char *key, double &psi, double &theta, double &phi) {
-    psi = theta = phi = 0.;
-    if (!d.contains(key) || d[key].is_none()) {
-        return;
-    }
-    py::dict angles = d[key].cast<py::dict>();
-    psi = simcoon::deg2rad(dget(angles, "psi", 0.));
-    theta = simcoon::deg2rad(dget(angles, "theta", 0.));
-    phi = simcoon::deg2rad(dget(angles, "phi", 0.));
-}
-
 std::string dict_string(const py::dict &d, const char *key, const int &number) {
     if (!d.contains(key) || d[key].is_none()) {
         throw std::invalid_argument("phase " + to_string(number) + ": no '" + key + "' entry");
@@ -46,28 +35,26 @@ std::string dict_string(const py::dict &d, const char *key, const int &number) {
 }
 
 vec dict_props(const py::dict &d, const int &number) {
-    if (!d.contains("props")) {
+    if (!d.contains("props") || d["props"].is_none()) {
         throw std::invalid_argument("phase " + to_string(number) + ": no 'props' entry");
     }
-    auto arr = py::array_t<double, py::array::c_style | py::array::forcecast>::ensure(d["props"]);
-    if (!arr) {
-        throw std::invalid_argument("phase " + to_string(number) + ": 'props' is not a sequence of numbers");
-    }
-    if (arr.size() == 0) {
-        //update() only asserts, and asserts are compiled out of the release wheels: props(0)
-        //would then read out of bounds.
+    const vec props = vec_of(d["props"], "phase " + to_string(number) + ": 'props'");
+    if (props.n_elem == 0) {
         throw std::invalid_argument("phase " + to_string(number) + ": 'props' is empty");
     }
-    //Copying constructor: the buffer belongs to Python and must not be aliased into arma.
-    return vec(static_cast<const double *>(arr.data()), arr.size());
+    return props;
 }
 
 } //anonymous namespace
 
 std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &phases,
                                                             const std::string &umat_name,
-                                                            const double &T_init) {
+                                                            const double &T_init, const int &depth) {
 
+    //a list that contains itself would recurse until the stack overflows
+    if (depth > 16) {
+        throw std::invalid_argument(umat_name + ": sub-phases nested more than 16 levels deep (a list that contains itself?)");
+    }
     const int shape_type = simcoon::sub_phase_shape(umat_name);
     const bool given = static_cast<bool>(phases) && !phases.is_none();
 
@@ -112,12 +99,20 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
                                             + umat_name + " builds " + expected_kind + "s");
             }
         }
+        const std::string here = "phase " + to_string(number);
+        check_keys(p, {"kind", "number", "umat_name", "save", "concentration", "material_orientation",
+                       "geometry_orientation", "semi_axes", "coatingof", "layerup", "layerdown",
+                       "nstatev", "props", "phases"}, here);
         const std::string umat_i = dict_string(p, "umat_name", number);
         const vec props_i = dict_props(p, number);
         const int nstatev_i = dget(p, "nstatev", 1);
+        if (nstatev_i < 0) {
+            throw std::invalid_argument(here + ": nstatev = " + to_string(nstatev_i) + " is negative");
+        }
 
         double psi_mat, theta_mat, phi_mat;
-        dict_angles(p, "material_orientation", psi_mat, theta_mat, phi_mat);
+        angles_of(p.contains("material_orientation") ? p["material_orientation"].cast<py::object>() : py::object(py::none()),
+                  here + ", material_orientation", psi_mat, theta_mat, phi_mat);
 
         sub.sptr_matprops->update(number, umat_i, dget(p, "save", 1),
                                   psi_mat, theta_mat, phi_mat, props_i.n_elem, props_i);
@@ -132,16 +127,21 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         if (!p.contains("concentration") || p["concentration"].is_none()) {
             throw std::invalid_argument("phase " + to_string(number) + ": no 'concentration' entry");
         }
-        sub.sptr_shape->concentration = p["concentration"].cast<double>();
-        total_concentration += sub.sptr_shape->concentration;
+        const double concentration = p["concentration"].cast<double>();
+        if (!(concentration >= 0. && concentration <= 1.)) {   //also refuses NaN
+            throw std::invalid_argument(here + ": concentration = " + to_string(concentration) + " is not in [0, 1]");
+        }
+        sub.sptr_shape->concentration = concentration;
+        total_concentration += concentration;
 
         //A mean-field sub-phase carries its own sub-phases; a homogeneous one must not.
         const py::object nested = p.contains("phases") ? p["phases"].cast<py::object>()
                                                        : py::object(py::none());
-        sub.sub_phases = make_sub_phases(nested, umat_i, T_init);
+        sub.sub_phases = make_sub_phases(nested, umat_i, T_init, depth + 1);
 
         double psi_geom, theta_geom, phi_geom;
-        dict_angles(p, "geometry_orientation", psi_geom, theta_geom, phi_geom);
+        angles_of(p.contains("geometry_orientation") ? p["geometry_orientation"].cast<py::object>() : py::object(py::none()),
+                  here + ", geometry_orientation", psi_geom, theta_geom, phi_geom);
 
         if (shape_type == 2) {
             auto sptr_ellipsoid = std::dynamic_pointer_cast<simcoon::ellipsoid>(sub.sptr_shape);
@@ -153,7 +153,8 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
             }
             sptr_ellipsoid->coatingof = coatingof;
             py::dict axes = (p.contains("semi_axes") && !p["semi_axes"].is_none())
-                          ? p["semi_axes"].cast<py::dict>() : p;
+                          ? p["semi_axes"].cast<py::dict>() : py::dict();   //absent: the unit sphere
+            check_keys(axes, {"a1", "a2", "a3"}, here + ", semi_axes");
             sptr_ellipsoid->a1 = dget(axes, "a1", 1.);
             sptr_ellipsoid->a2 = dget(axes, "a2", 1.);
             sptr_ellipsoid->a3 = dget(axes, "a3", 1.);
@@ -172,7 +173,7 @@ std::vector<simcoon::phase_characteristics> make_sub_phases(const py::object &ph
         }
     }
 
-    if (std::abs(total_concentration - 1.) > 1.e-6) {
+    if (!(std::abs(total_concentration - 1.) <= 1.e-6)) {
         throw std::invalid_argument(umat_name + ": the concentrations of the " + to_string(nphases)
                                     + " phases sum to " + to_string(total_concentration)
                                     + ", not 1");

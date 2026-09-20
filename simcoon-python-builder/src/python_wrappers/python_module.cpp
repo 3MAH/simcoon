@@ -27,12 +27,9 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/tensor.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
-#include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
 
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
@@ -64,7 +61,7 @@ PYBIND11_MODULE(_core, m)
     }
 #endif
 
-    m.doc() = "pybind11 example plugin"; // optional module docstring
+    m.doc() = "simcoon C++ core: constitutive laws, continuum mechanics, homogenization and the in-memory solver";
 
     // Create a Python-visible base exception for all simcoon errors.
     // Using simcoon::simcoon_error (not std::runtime_error) so that the global
@@ -265,9 +262,7 @@ PYBIND11_MODULE(_core, m)
 
     //The file-driven entry points (solver, read_matprops, read_path) are gone: the loading
     //programme is built in Python and handed over in memory. See simcoon.solver.solve.
-    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true, "phases"_a = pybind11::none());  // corate default = log_R (exact polar rotation + exact tangent transport); `phases` gives the sub-phases of a mean-field model in memory
+    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "orientation"_a = pybind11::none(), "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true, "phases"_a = pybind11::none(), "In-memory solver: blocks as Block.to_dict() makes them, `orientation` a {psi, theta, phi} dict in degrees, `phases` the sub-phase dicts of a mean-field model; returns the raw history as a dict of arrays. simcoon.solver.solve is the public entry");
 
-    // Register the from-python converters for ODF functions
-    m.def("get_densities_ODF", &get_densities_ODF, "x"_a, "peaks"_a, "radian"_a = false, "Densities of an orientation distribution function at the angles x, summed over its peaks (a sequence of dicts {number, method, mean, s_dev, width, ampl, params}); degrees unless radian");
 
 }

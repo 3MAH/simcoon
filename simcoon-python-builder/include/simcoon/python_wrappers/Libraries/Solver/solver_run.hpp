@@ -11,8 +11,7 @@ namespace simpy {
 /**
  * @brief In-memory solver entry point for the Python bindings (no file I/O).
  *
- * Runs the same incremental solver loop as the file-based binding, but takes the
- * loading programme as Python data and returns the full converged history in memory.
+ * Takes the loading programme as Python data and returns the full converged history in memory.
  *
  * @param[in] blocks_py list of block dicts (control_type, ncycle, steps[] with
  *            cBC_meca/BC_meca/mode/times/tabular... — see simcoon.solver.Block.to_dict)
@@ -20,24 +19,25 @@ namespace simpy {
  * @param[in] umat_name 5-char UMAT name (dispatch key)
  * @param[in] props_py material properties (units MPa)
  * @param[in] nstatev number of internal state variables
- * @param[in] psi_rve,theta_rve,phi_rve material orientation Euler angles
+ * @param[in] orientation material orientation: {psi, theta, phi} in DEGREES, as every dict of
+ *            the bindings (None: identity)
  * @param[in] solver_type solver scheme (0 = Newton)
  * @param[in] corate_type objective rate (0 Jaumann, 1 Green-Naghdi, 2 log, 3 log_R, 4 Truesdell, 5 log_F)
  * @param[in] params_py numeric controls (div/mul_tnew_dt, miniter, maxiter, inforce,
  *            precision, lambda_solver, tangent_mode)
  * @param[in] record_tangent whether to record the per-increment tangent history
  * @param[in] phases sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN): a sequence
- *            of dicts, one per phase, as simcoon.solver.micromechanics produces. They used to
- *            be read from Nellipsoids<N>.dat / Nlayers<N>.dat in a "data" directory; nothing is
- *            read from disk any more. None for every single-phase model.
- * @return dict of numpy arrays keyed "Strain", "Stress", "F", "R", "Statev", "Wm", "Temp",
- *         "Time", ... plus "status" (0 = completed) — consumed by simcoon.solver.SolverResults
+ *            of dicts, one per phase, as simcoon.solver.micromechanics produces. None for every
+ *            single-phase model.
+ * @return dict of numpy arrays, the raw history: status, sv_type, block, cycle, step, inc, time, T,
+ *         Etot, etot, PKII, tau, sigma, F1, R, DR, Wm, statev, Lt when record_tangent; thermomechanical
+ *         runs add Q, r, Wt and dSdE, dSdT, drdE, drdT. simcoon.solver.SolverResults names them.
  */
 py::dict solver_run(const py::list &blocks_py, const double &T_init,
                     const std::string &umat_name, const py::array_t<double> &props_py,
-                    const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve,
+                    const int &nstatev, const py::object &orientation,
                     const int &solver_type, const int &corate_type,
                     const py::dict &params_py, const bool &record_tangent,
-                    const py::object &phases = py::object());
+                    const py::object &phases = py::none());
 
 } //namespace simpy

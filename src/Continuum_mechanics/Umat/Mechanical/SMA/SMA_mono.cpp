@@ -112,6 +112,9 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     Ms = props(offset + 3);
     Af = props(offset + 4);
     nvariants = int(props(offset + 5));
+    if (nvariants < 1) {
+        throw std::invalid_argument("SMA_mono: nvariants = " + std::to_string(nvariants) + ", at least one variant is needed");
+    }
     c_lambda0 = props(offset + 6);
     p0_lambda0 = props(offset + 7);
     n_lambda0 = props(offset + 8);

@@ -11,7 +11,7 @@ being the only optional one (``solve(record_tangent=False)`` skips it).
 
     res = sim.solver.solve(blocks, umat_name, props, nstatev, T_init=T_init)
 
-    e11, e22, e33, e12, e13, e23 = res["Strain"]   # logarithmic strain, (6, N)
+    e11, e22, e33, e12, e13, e23 = res["Strain"]   # strain integrated with the objective rate, (6, N)
     s11, s22, s33, s12, s13, s23 = res["Stress"]   # Cauchy stress, (6, N)
     time, T = res["Time"], res["Temp"]             # (N,)
     Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]              # mechanical energies, (4, N)
@@ -73,7 +73,7 @@ run gives every conjugate pair:
      - Content
    * - ``Strain``
      - (6, N)
-     - Logarithmic (Eulerian) strain :math:`\boldsymbol{\varepsilon} = \ln \mathbf{V}`; ``LogStrain`` is the same array
+     - Eulerian strain integrated along the path with the objective rate of the run (``corate``). With the logarithmic rates (``"logarithmic"``, ``"logarithmic_R"``, the default) it is the logarithmic strain :math:`\boldsymbol{\varepsilon} = \ln \mathbf{V}`; with ``"jaumann"`` or ``"green_naghdi"`` it departs from it under large rotations (simple shear). ``LogStrain`` is the same array
    * - ``GreenLagrange``
      - (6, N)
      - Green-Lagrange strain :math:`\mathbf{E} = \frac{1}{2}(\mathbf{F}^T\mathbf{F} - \mathbf{I})`
@@ -91,7 +91,7 @@ run gives every conjugate pair:
      - 2nd Piola-Kirchhoff stress :math:`\mathbf{S}`
    * - ``R``
      - (3, 3, N)
-     - Rotation :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}`
+     - Rotation accumulated by the objective rate of the run; it is the :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}` for ``"green_naghdi"`` and ``"logarithmic_R"``, and differs from it for the other rates
    * - ``DR``
      - (3, 3, N)
      - Rotation increment :math:`\Delta\mathbf{R}` of the objective rate over the increment

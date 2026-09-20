@@ -161,9 +161,13 @@ part of :math:`\boldsymbol{\sigma} \otimes \mathbf{I}`, which is what the defaul
 symmetric solver of Abaqus keeps (``abaqus_jacobian`` in ``fea_transfer.hpp``).
 This term does not change the stress, hence not the converged solution: it
 restores the quadratic convergence of the global Newton loop when
-:math:`\sigma / E` is not small (elastomers, shape memory alloys). Without
-``NLGEOM`` the exact Jacobian is the first term alone; the added term is then of
-order :math:`\sigma / E` and only affects the iteration count.
+:math:`\sigma / E` is not small (elastomers, shape memory alloys). It is added
+only where Abaqus's definition has it: for ``NLGEOM`` steps (Abaqus hands
+``DFGRD1`` as the identity otherwise, which ``abaqus_nlgeom`` reads) and for the
+cases with three direct components (3D, plane strain, axisymmetric). Without
+``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation procedures
+(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D
+condense the kernel tangent as it is, the element owning the thickness change.
 
 Using umat_externalM (Custom Model)
 -----------------------------------

@@ -197,7 +197,7 @@ class StepThermomeca(StepMeca):
     def T_end(self, T_hold: float) -> float:
         """Temperature at the end of the step; flux/convection steps leave the
         chained hold temperature unchanged (the reached T is solution-dependent)."""
-        if self.thermal_control != "temperature":
+        if as_code(self.thermal_control, THERMAL_CONTROL, "thermal control") != THERMAL_CONTROL["temperature"]:
             return T_hold
         return super().T_end(T_hold)
 

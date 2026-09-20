@@ -12,6 +12,8 @@ We first import *simcoon* (the Python simulation module of simcoon) and *numpy*:
 
 .. code-block:: python
 
+    import os
+
     import numpy as np
     import simcoon as sim
 
@@ -235,8 +237,7 @@ reads back. Every name below is a keyword of :class:`~simcoon.solver.Block`,
 a path built in Python and a path read from the file are the same objects (see
 :doc:`python_solver`). Enumerated entries (``control_type``, ``mode``,
 ``control``, ``thermal_control``, ``corate``) accept the names given here or the
-integer codes of the C++ solver; ``save_path_json`` writes back whatever the
-objects hold.
+integer codes of the C++ solver; ``save_path_json`` always writes the names.
 
 General structure
 ^^^^^^^^^^^^^^^^^
@@ -286,7 +287,7 @@ Path and block parameters
      - Finite deformation with logarithmic (true) strain :math:`\boldsymbol{\varepsilon}` / Kirchhoff stress :math:`\boldsymbol{\tau}`
    * - ``"biot"`` (4)
      - Yes
-     - Finite deformation with Biot strain :math:`\mathbf{U} - \mathbf{I}` / Biot stress :math:`\mathbf{T}_B = \frac{1}{2}(\mathbf{R}^T\mathbf{P} + \mathbf{P}^T\mathbf{R})`
+     - Finite deformation with the right stretch :math:`\mathbf{U}` / Biot stress :math:`\mathbf{T}_B = \frac{1}{2}(\mathbf{R}^T\mathbf{P} + \mathbf{P}^T\mathbf{R})`. The kinematic targets are the components of :math:`\mathbf{U}` itself, not of the Biot strain :math:`\mathbf{U} - \mathbf{I}`: the undeformed state is 1 on the diagonal, and a 8 % stretch is ``1.08``
    * - ``"F"`` (5)
      - Yes
      - Finite deformation with deformation gradient :math:`\mathbf{F}` control (Eulerian velocity L)

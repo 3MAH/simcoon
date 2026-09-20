@@ -73,9 +73,7 @@ protected:
     /**
      * @brief Tabular loading data of a mode-3 step.
      *
-     * When non-empty, mode-3 generation reads increments from this matrix instead
-     * One row per increment; columns follow the exact layout
-     * of a mode-3 path file without the leading label token:
+     * One row per increment; columns:
      * [time, (T if cBC_T==0, or Q if cBC_T==1 for thermomechanical steps),
      *  controlled mechanical components with cBC_meca(k) < 2, in internal Voigt
      *  order (6 components for control_type <= 4, 9 for 5/6)].

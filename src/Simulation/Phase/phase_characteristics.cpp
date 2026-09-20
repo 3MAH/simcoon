@@ -334,6 +334,7 @@ phase_characteristics& phase_characteristics::operator = (const phase_characteri
     sptr_matprops = pc.sptr_matprops;
     sptr_sv_global = pc.sptr_sv_global;
     sptr_sv_local = pc.sptr_sv_local;
+    sptr_multi = pc.sptr_multi;
     sptr_out_global = pc.sptr_out_global;
     sptr_out_local = pc.sptr_out_local;
     

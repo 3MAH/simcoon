@@ -127,8 +127,7 @@
  * @defgroup material Material Properties
  * @brief Material characterization functions
  * 
- * Functions and classes for material property management,
- * ODF/PDF processing, and crystallography.
+ * Functions and classes for material property management and crystallography.
  */
 
 //=============================================================================

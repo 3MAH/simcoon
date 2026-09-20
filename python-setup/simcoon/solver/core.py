@@ -72,9 +72,7 @@ def solve(
     phases : sequence, optional
         Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): the
         Ellipsoid / Layer objects of :mod:`simcoon.solver.micromechanics`, or the
-        dicts they convert to. They used to be read from ``data/Nellipsoids0.dat``
-        at the first increment; nothing is read from disk any more. Leave it None
-        for every single-phase model.
+        dicts they convert to. Leave it None for every single-phase model.
     record_tangent : bool
         Capture the tangent operator history ('TangentMatrix' or the coupled
         thermomechanical tangents).
@@ -133,10 +131,8 @@ def solve(
         blocks_py.append(b.to_dict(T_run))
         T_run = b.T_end(T_run)
 
-    angles = euler_angles(orientation)
-    psi, theta, phi = (float(np.deg2rad(angles[k])) for k in ("psi", "theta", "phi"))
     # Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): dataclasses are accepted
-    # as readily as the dicts the binding reads. They used to be read from Nellipsoids<N>.dat.
+    # as readily as the dicts the binding reads.
     phases_py = None if phases is None else to_phase_dicts(phases)
 
     with law_ctx:
@@ -146,7 +142,7 @@ def solve(
             umat_name,
             np.asarray(props, dtype=float).ravel(),
             int(nstatev),
-            psi, theta, phi,
+            euler_angles(orientation),
             int(solver_type),
             corate_code,
             run_params,

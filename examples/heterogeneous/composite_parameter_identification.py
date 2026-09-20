@@ -238,10 +238,10 @@ if __name__ == "__main__":
     # Summary
     # -----------------------------------------------------------------
     print(f"\n{'=' * 60}")
-    print(f" SUMMARY")
+    print(" SUMMARY")
     print(f"{'=' * 60}")
-    print(f"  Reference glass: E_f ~ 73000 MPa, nu_f ~ 0.22")
-    print(f"")
+    print("  Reference glass: E_f ~ 73000 MPa, nu_f ~ 0.22")
+    print("")
     print(f"  {'Scheme':<20} {'E_f [MPa]':>12} {'nu_f':>8} {'MSE':>14}")
     print(f"  {'-' * 56}")
     print(

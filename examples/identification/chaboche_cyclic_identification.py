@@ -98,9 +98,9 @@ def run_one_test(props, programme):
 
     Only the **last** block is returned. The first two blocks are the virtual
     pre-cycle and the initial-state alignment; the experiment corresponds to the
-    third one, the mode-3 replay of the table its third block embeds. The legacy result file
-    carried exactly that window, so returning the whole history (501 increments
-    against 201 experimental points) would break the cost function.
+    third one, the tabular replay of the experimental strain history. The experimental
+    file covers exactly that window (201 points against 501 increments for the whole
+    history), so only that block can be compared with it.
     """
     blocks, T_init = programme
     res = sim.solver.solve(

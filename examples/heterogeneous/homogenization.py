@@ -8,7 +8,6 @@ composite material considering spherical and ellipsoidal reinforcements.
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 
 ###################################################################################

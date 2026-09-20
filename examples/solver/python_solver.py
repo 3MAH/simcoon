@@ -3,8 +3,7 @@ In-memory Python solver
 =======================
 
 Drive the simcoon material-point solver directly from Python: loading blocks
-are built as objects, results come back as numpy arrays (fedoo-style layout),
-and no path.txt / result files are involved.
+are built as objects and results come back as numpy arrays (fedoo-style layout).
 
 Two demonstrations:
 

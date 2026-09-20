@@ -6,7 +6,7 @@ and ``calc_cost()`` (multi-level weighted cost function for parameter
 identification from multiple tests).
 """
 
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 import numpy as np
 from scipy.optimize import differential_evolution
@@ -181,7 +181,7 @@ def calc_cost(
     for i in range(n_tests):
         exp_i = y_exp_2d[i]
         num_i = y_num_2d[i]
-        n_pts, n_resp = exp_i.shape
+        n_resp = exp_i.shape[1]
 
         if num_i.shape != exp_i.shape:
             raise ValueError(

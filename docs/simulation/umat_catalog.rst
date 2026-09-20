@@ -155,9 +155,12 @@ Unchanged dedicated implementations (out of the modular scope):
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
   memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
   scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,
-  ``[mp, np, n_matrix, max_iter]`` for MISCN, nothing for MIPLN (``mp``, ``np``:
-  integration points of the Eshelby integrals; ``n_matrix``: index of the matrix
-  phase in the list). The pre-2.0 leading ``nphases`` and file-number slots are gone.
+  ``[mp, np, n_matrix]`` or ``[mp, np, n_matrix, start]`` for MISCN, nothing for
+  MIPLN (``mp``, ``np``: integration points of the Eshelby integrals; ``n_matrix``:
+  index of the matrix phase in the list; ``start``: first guess of the
+  self-consistent iteration, 1 Mori-Tanaka (default) or 0 homogeneous strain with
+  ``n_matrix < 0``). The length is checked, so the pre-2.0 layout with its leading
+  ``nphases`` and file-number slots is refused rather than misread.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 

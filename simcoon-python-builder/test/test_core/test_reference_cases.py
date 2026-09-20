@@ -12,7 +12,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import simcoon as sim
 from simcoon import solver as slv
 from simcoon.solver.micromechanics import load_ellipsoids_json, load_layers_json
 
@@ -102,7 +101,9 @@ def test_logarithmic_strain_under_F_control():
     F_target = np.array([[1.0, 0.5, 0.2], [0.0, 0.8, 0.0], [0.0, 0.0, 1.0]])
     F_end = np.ascontiguousarray(res["F"][:, :, -1])
     np.testing.assert_allclose(F_end, F_target, atol=1e-9)
-    def log_strain(F):
-        w, V = np.linalg.eigh(F.T @ F)
-        return 0.5 * (V * np.log(w)) @ V.T
-    assert np.linalg.norm(log_strain(F_end) - log_strain(F_target)) < 1e-3
+    # the strain the solver integrated along the path (logarithmic rate) against ln V of the
+    # target, computed here from F: the two are independent
+    w, n = np.linalg.eigh(F_target @ F_target.T)
+    lnV = 0.5 * (n * np.log(w)) @ n.T
+    lnV_voigt = np.array([lnV[0, 0], lnV[1, 1], lnV[2, 2], 2 * lnV[0, 1], 2 * lnV[0, 2], 2 * lnV[1, 2]])
+    np.testing.assert_allclose(res["Strain"][:, -1], lnV_voigt, atol=1e-3)

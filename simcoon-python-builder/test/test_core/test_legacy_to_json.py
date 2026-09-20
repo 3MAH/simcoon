@@ -4,9 +4,6 @@ load the script and exercise its parsers and the one-way conversion to JSON."""
 
 import importlib.util
 import json
-import os
-import tempfile
-import warnings
 from pathlib import Path
 
 import numpy as np
@@ -14,11 +11,10 @@ import pytest
 
 import simcoon as sim
 from simcoon import solver as slv
-from simcoon.solver import Block, StepMeca, StepThermomeca, solve
-from simcoon.solver.micromechanics import (Cylinder, Ellipsoid, Layer, Phase, Section,
-                                           euler_angles, load_ellipsoids_json,
-                                           load_layers_json, to_phase_dicts)
-from test_solver_run import (ELISO_PROPS, ELISO_T_PROPS, EPICP_NSTATEV, EPICP_PROPS, _FILE_ORDER,
+from simcoon.solver import StepMeca, StepThermomeca, solve
+from simcoon.solver.micromechanics import (euler_angles, load_ellipsoids_json,
+                                           load_layers_json)
+from test_solver_run import (ELISO_PROPS, ELISO_T_PROPS, _FILE_ORDER,
                              _UNIAXIAL, assert_ran_and_responded)
 
 _SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "legacy_to_json.py"
@@ -226,12 +222,9 @@ alpha 1.E-5
     assert res.status == 0
 
 
-# The file-driven binding this module used to cross-check against (sim._core.solver)
-# is gone, so from_file can no longer be compared run-for-run against the C++ reader.
-# The grammar it reproduces is still the documented one and still implemented in C++
-# (test/support/file_readers.cpp), so pin the parse itself: every field below is a
-# place where a silent drift would produce a different loading programme that the
-# "status == 0 and the stress is finite" assertions would not notice.
+# No other reader of the legacy grammar exists to compare with, so the parse itself is
+# pinned: every field below is a place where a silent drift would produce a different
+# loading programme that "status == 0 and the stress is finite" would not notice.
 PATH_FIXTURE = """#Initial_temperature
 300.0
 #Number_of_blocks
@@ -491,3 +484,80 @@ class TestDatToJsonConversion:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# ---------------------------------------------------------------------------
+# mean-field models: the legacy props open with [nphases, file number]
+# ---------------------------------------------------------------------------
+
+_MATERIAL = ("Material\nName\t{name}\nNumber_of_material_parameters\t{n}\n"
+             "Number_of_internal_variables\t1\n\n#Orientation\npsi\t0\ntheta\t0\nphi\t0\n\n#Mechanical\n{props}\n")
+
+_ELLIPSOID_ROW = "{i}\t0\t{name}\t1\t{c}\t0\t0\t0\t{a1}\t1\t1\t0\t0\t0\t{n}\t1\t{props}\n"
+
+
+def _ellipsoids(rows):
+    return "header\n" + "".join(_ELLIPSOID_ROW.format(i=i, name=name, c=c, a1=a1, n=len(props),
+                                                     props="\t".join(str(p) for p in props))
+                                for i, (name, c, a1, props) in enumerate(rows))
+
+
+@pytest.mark.parametrize("name, legacy_props, expected", [
+    ("MIMTN", [2, 0, 20, 20, 0], [20.0, 20.0, 0.0]),
+    ("MISCN", [2, 0, 20, 20, 0, 1], [20.0, 20.0, 0.0, 1.0]),
+    ("MIPLN", [2, 0], []),
+    ("ELISO", [70000.0, 0.3, 1e-5], [70000.0, 0.3, 1e-5]),
+])
+def test_material_props_lose_the_legacy_mean_field_slots(tmp_path, name, legacy_props, expected):
+    body = "\n".join(f"p{i} {v}" for i, v in enumerate(legacy_props))
+    (tmp_path / "material.dat").write_text(_MATERIAL.format(name=name, n=len(legacy_props), props=body))
+    kw = legacy.material_from_file(str(tmp_path), "material.dat")
+    np.testing.assert_array_equal(kw["props"], expected)
+
+
+def test_nested_mean_field_rows_are_stripped_and_nested(tmp_path):
+    """A MIMTN row names its own sub-phase file in props[1]: the converted phase carries
+    them, with the 2.0 props, and the result solves."""
+    (tmp_path / "Nellipsoids0.dat").write_text(_ellipsoids([
+        ("MIMTN", 0.8, 1, [2, 1, 20, 20, 0]), ("ELISO", 0.2, 50, [50000.0, 0.3, 0.0])]))
+    (tmp_path / "Nellipsoids1.dat").write_text(_ellipsoids([
+        ("ELISO", 0.7, 1, [5000.0, 0.3, 0.0]), ("ELISO", 0.3, 1, [20000.0, 0.3, 0.0])]))
+    out = legacy.convert_dat_to_json(tmp_path / "Nellipsoids0.dat", tmp_path / "ellipsoids0.json")
+    phases = load_ellipsoids_json(out)
+    np.testing.assert_array_equal(phases[0].props, [20.0, 20.0, 0.0])
+    assert [q.concentration for q in phases[0].phases] == [0.7, 0.3]
+    L = sim.L_eff("MIMTN", [20.0, 20.0, 0.0], 1, phases=phases)
+    assert np.all(np.linalg.eigvalsh(0.5 * (L + L.T)) > 0.0)
+
+
+def test_missing_nested_file_warns(tmp_path):
+    (tmp_path / "Nellipsoids0.dat").write_text(_ellipsoids([
+        ("MIMTN", 0.8, 1, [2, 7, 20, 20, 0]), ("ELISO", 0.2, 50, [50000.0, 0.3, 0.0])]))
+    with pytest.warns(UserWarning, match="Nellipsoids7.dat"):
+        phases = legacy.load_ellipsoids_dat(tmp_path / "Nellipsoids0.dat")
+    assert phases[0].phases == []
+
+
+def test_cycled_tabular_block_is_refused(tmp_path):
+    step3 = "#Mode\n3\n#File\ntab.txt\n#Dn_init 1.\n#Dn_mini 1.\n#prescribed_mechanical_state\nE\n0 0\n0 0 0\n#T_is_set\n0\n"
+    data = write_path_file(tmp_path, _path_text([step3], ncycle=2),
+                           extra_files={"tab.txt": "1 0.5 0.001\n2 1.0 0.002\n"})
+    with pytest.raises(ValueError, match="Unroll the cycles"):
+        legacy.from_file(data, "path.txt")
+
+
+def test_legacy_solver_settings_are_reported(tmp_path):
+    (tmp_path / "solver_control.inp").write_text(
+        "div_tnew_dt_solver\n0.5\nmul_tnew_dt_solver\n2\nminiter_solver\n10\nmaxiter_solver\n100\n"
+        "inforce_solver\n1\nprecision_solver\n1.E-5\nlambda_solver\n10000.\n")
+    (tmp_path / "solver_essentials.inp").write_text("Solver_type_0_Newton_tangent_1_RNL\n1\nCorate_type\n2\n")
+    assert legacy.solver_kwargs_of(str(tmp_path)) == {"precision": 1e-5, "solver_type": 1}
+
+
+def test_a_latin1_label_does_not_hide_the_path(tmp_path):
+    flags = ["E"] + ["S"] * 5
+    text = _path_text([_step_text(flags, [0.01, 0, 0, 0, 0, 0], ninc=10)]).replace("#time", "#dur\u00e9e")
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "path.txt").write_bytes(text.encode("latin-1"))
+    assert [Path(w).name for w in legacy.convert_to_json(str(data))] == ["path.json"]

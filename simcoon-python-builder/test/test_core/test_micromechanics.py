@@ -5,14 +5,12 @@ Tests the JSON-based I/O for phase configurations (ellipsoids, layers, cylinders
 """
 
 import pytest
-import json
 import tempfile
 import os
 import numpy as np
-from pathlib import Path
 
 import simcoon as sim
-from simcoon.solver import Block, StepMeca, solve
+from simcoon.solver import StepMeca, solve
 from simcoon.solver.micromechanics import (
     EULER_SEQ,
     Peak,
@@ -146,6 +144,49 @@ class TestDiscretizeODF:
         phases = discretize_odf(self.composite(base), 1, [Peak(method=7)], 4, axis=n)
         assert phases[3].material_orientation.equals(phases[3].geometry_orientation * base.inv(), tol=1e-12)
 
+    def test_malformed_peaks_are_refused(self):
+        x = np.linspace(0.0, 90.0, 5)
+        for peaks, message in (([{"mean": 30.0}], "no 'method'"), ([{"method": 0}], "1 to 7"),
+                               ([{"method": 3, "methd": 1}], "unknown entries"),
+                               ([{"method": 3, "s_dev": 0.0}], "s_dev"),
+                               ([{"method": 4, "width": 0.0}], "width"),
+                               ([{"method": 5, "params": []}], "params needs 1"),
+                               ([{"method": 6, "params": [1.0, 0.0]}], "shape")):
+            with pytest.raises(ValueError, match=message):
+                sim.get_densities_ODF(x, peaks)
+        with pytest.raises(ValueError, match="must lie in"):
+            sim.get_densities_ODF([-1.0, 10.0], [Peak()])
+
+    @pytest.mark.parametrize("peak, expected", [
+    ({'method': 1, 'mean': 40.0, 'params': [1.0, 0.5, 2.0, 1.0]},
+     [0.3566651602447377, 0.9945303330076852, 0.1876587073661953, 0.005979608223535716, 0.3566651602447375]),
+    ({'method': 2, 'mean': 170.0, 's_dev': 12.0, 'ampl': 2.0},
+     [1.4132965557154336, 0.0009331060403447629, 4.467279520345654e-10, 0.15911901743645537, 1.4132965557154336]),
+    ({'method': 3, 'mean': 5.0, 's_dev': 10.0, 'ampl': 1.5},
+     [3.0257786004732883, 0.020489728789630575, 7.019228677806676e-16, 0.0005065783521005087, 3.0257786004732883]),
+    ({'method': 4, 'mean': 90.0, 'width': 15.0, 'ampl': 0.7},
+     [0.024790974022486378, 0.04109480521872039, 1.7080960442387314, 0.04109480521872037, 0.024790974022486378]),
+    ({'method': 5, 'mean': 120.0, 's_dev': 8.0, 'width': 20.0, 'ampl': 1.2, 'params': [0.35]},
+     [0.02683521260168469, 0.02012112892597051, 0.08369086662031242, 0.16247010119366517, 0.027312595059575475]),
+    ({'method': 6, 'mean': 60.0, 'width': 25.0, 'params': [0.0, 1.7]},
+     [0.09256584316280778, 0.5094880999984644, 0.3592136259508243, 0.05391559545149874, 0.09199049533876534]),
+    ({'method': 7},
+     [1.0, 1.0, 1.0, 1.0, 1.0]),
+    ])
+    def test_densities_match_the_cpp_implementation_they_replace(self, peak, expected):
+        """Values of simcoon::get_densities_ODF (1.x to 2.0) at x = 0, 37, 90, 143, 180 deg."""
+        x = np.array([0.0, 37.0, 90.0, 143.0, 180.0])
+        np.testing.assert_allclose(sim.get_densities_ODF(x, [peak]), expected, rtol=1e-12, atol=1e-15)
+        np.testing.assert_allclose(sim.get_densities_ODF(x, [Peak(**peak)]), expected, rtol=1e-12, atol=1e-15)
+        rad = {k: (np.deg2rad(v) if k in ("mean", "s_dev", "width") else v) for k, v in peak.items()}
+        np.testing.assert_allclose(sim.get_densities_ODF(np.deg2rad(x), [rad], radian=True), expected,
+                                   rtol=1e-12, atol=1e-15)
+
+    def test_density_is_periodic_over_a_half_turn(self):
+        pk = Peak(method=3, mean=175.0, s_dev=10.0)
+        np.testing.assert_allclose(sim.get_densities_ODF([0.0], [pk]), sim.get_densities_ODF([180.0], [pk]), rtol=1e-12)
+        assert pk.density(np.deg2rad(5.0), periodic=True, scale=np.pi / 180) > 100 * pk.density(np.deg2rad(5.0), scale=np.pi / 180)
+
     def test_gaussian_peak_weights_follow_the_density(self):
         # a narrow Gaussian at 90 deg: the phases near 90 deg carry the mass, the sum is the parent
         peaks = [Peak(method=3, mean=90.0, s_dev=10.0, ampl=1.0)]
@@ -219,7 +260,6 @@ class TestEllipsoid:
 
     def test_coated_ellipsoid(self):
         """Test coated ellipsoid (core-shell)."""
-        core = Ellipsoid(number=0, coatingof=0)
         shell = Ellipsoid(number=1, coatingof=0)
         assert shell.coatingof == 0
 

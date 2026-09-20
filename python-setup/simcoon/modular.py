@@ -471,7 +471,7 @@ _VOLUMETRIC_NAMES = {"log": VolumetricPotential.LOG_J,
 
 @dataclass(frozen=True)
 class _HyperInvariantsElasticity:
-    """Common serialization of an isochoric-invariant potential.
+    r"""Common serialization of an isochoric-invariant potential.
 
     Props layout: ``[potential, n_params, params..., volumetric, alpha]``, the
     volumetric selector counted in ``n_params``. The potential comes from the
@@ -496,14 +496,18 @@ class _HyperInvariantsElasticity:
         return [getattr(self, f.name) for f in fields(self)
                 if f.name not in ("alpha", "volumetric")]
 
+    def __post_init__(self):
+        self.volumetric_potential   # a bad selector fails at construction, not at to_props()
+
     @property
     def volumetric_potential(self) -> VolumetricPotential:
-        if isinstance(self.volumetric, VolumetricPotential):
-            return self.volumetric
-        try:
-            return _VOLUMETRIC_NAMES[self.volumetric]
-        except (KeyError, TypeError):
-            raise ValueError(f"volumetric must be 'log' or 'quadratic', got {self.volumetric!r}")
+        if isinstance(self.volumetric, str):
+            if self.volumetric in _VOLUMETRIC_NAMES:
+                return _VOLUMETRIC_NAMES[self.volumetric]
+        elif self.volumetric in tuple(VolumetricPotential):   # the enum or its 0/1 code
+            return VolumetricPotential(self.volumetric)
+        raise ValueError(f"volumetric must be 'log' or 'quadratic' (or the VolumetricPotential "
+                         f"code 0/1), got {self.volumetric!r}")
 
     def to_props(self) -> List[float]:
         """Return the props values for this elasticity."""
@@ -613,6 +617,7 @@ class SwansonElasticity(_HyperInvariantsElasticity):
     kappa: float
 
     def __post_init__(self):
+        super().__post_init__()
         for i, term in enumerate(self.terms):
             if len(term) != 4:
                 raise TypeError(
@@ -1424,7 +1429,7 @@ class ModularMaterial:
             lines.append(f"    alpha1={el.alpha1}, alpha2={el.alpha2}, alpha3={el.alpha3}")
         elif isinstance(el, SwansonElasticity):
             lines.append(f"    {len(el.terms)} Swanson terms (A, B, alpha, beta), "
-                         f"kappa={el.kappa}, alpha={el.alpha}")
+                         f"kappa={el.kappa}, volumetric={el.volumetric}, alpha={el.alpha}")
             for k, term in enumerate(el.terms):
                 A, B, a, b = term
                 lines.append(f"      [{k}] A={A}, B={B}, alpha={a}, beta={b}")

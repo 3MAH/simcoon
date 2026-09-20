@@ -121,8 +121,8 @@ class TestNestedComposite:
     chained through props[1] in the file era."""
 
     def test_reference_case_of_the_cpp_test(self):
-        """TMIMTN's fixture, driven from Python through its JSON files (converted from
-        the .dat / .txt the C++ test still reads), against its committed reference."""
+        """The nested Mori-Tanaka fixture, driven through its JSON files, against its
+        committed reference."""
         data = MIMTN_CASE / "data"
         outer = load_ellipsoids_json(data / "ellipsoids0.json")
         outer[0].phases = load_ellipsoids_json(data / "ellipsoids1.json")

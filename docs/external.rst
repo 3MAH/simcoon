@@ -356,9 +356,10 @@ Located in ``test/Umats/UMEXT/``, this test validates the UMEXT plugin format:
 The test data is located in ``testBin/Umats/UMEXT/``:
 
 - ``data/material.json`` and ``data/path.json`` - the material (``"name": "UMEXT"``) and
-  the loading path (uniaxial tension to 2 % strain, then unloading), as read from Python
+  the loading path (uniaxial tension to 2 % strain, then unloading), to run the plugin
+  from Python with ``load_simulation_json``
 - ``comparison/results_job_global-0.txt`` - the reference response the C++ test compares
-  with; the test itself builds the same programme in code and reads no input file
+  with; the test builds the same programme in code
 
 **TUMABA Test**
 

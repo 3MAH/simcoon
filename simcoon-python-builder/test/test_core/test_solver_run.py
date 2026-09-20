@@ -11,11 +11,9 @@ the physics imposes (free thermal expansion, cycle bookkeeping, plastic flow,
 the rotation history) is checked directly.
 """
 
-import json
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -139,6 +137,9 @@ def test_finite_strain_controls(umat, props, nstatev, control_type, corate):
     F11 = res["F"][0, 0]
     assert F11[-1] > 1.0
     assert np.all(np.diff(F11) > -1e-12)
+    # ... and the prescribed component is reached, read in the measure of the control type
+    reached = {2: res["GreenLagrange"][0, -1], 3: res["Strain"][0, -1], 4: F11[-1]}[control_type]
+    np.testing.assert_allclose(reached, target, rtol=1e-6)
     # lateral faces stay stress-free
     assert np.abs(res["Stress"][1:, -1]).max() < 1e-3 * max(abs(res["Stress"][0, -1]), 1.0)
 
@@ -528,3 +529,27 @@ def test_lambda_solver_param():
     np.testing.assert_allclose(res["Stress"][0, -1], 700.0, rtol=1e-8)
 
 
+
+
+# ---------------------------------------------------------------------------
+# the binding leaves the caller's arrays alone and refuses what would crash it
+# ---------------------------------------------------------------------------
+
+def test_solver_run_does_not_steal_the_callers_arrays():
+    """carma's rvalue overloads take ownership of an owning, F-contiguous array: BC_meca
+    came back zeroed, pointing into memory armadillo had freed."""
+    import simcoon._core as core
+    BC = np.array([0.01, 0.0, 0.0, 0.0, 0.0, 0.0])
+    BC_w = np.asfortranarray(np.zeros((3, 3)))
+    step = {"mode": 1, "Dn_init": 1.0, "Dn_mini": 1.0, "Dn_inc": 0.1, "time": 1.0,
+            "cBC_meca": [0, 1, 1, 1, 1, 1], "BC_meca": BC, "BC_w": BC_w, "cBC_T": 0, "BC_T": 290.0}
+    block = {"type": 1, "control_type": 1, "ncycle": 1, "steps": [step]}
+    core.solver_run([block], 290.0, "ELISO", np.array(ELISO_PROPS, dtype=float), 1)
+    assert BC.flags.owndata and BC_w.flags.owndata
+    np.testing.assert_array_equal(BC, [0.01, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+
+def test_negative_nstatev_is_refused():
+    step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=2)
+    with pytest.raises(ValueError, match="nstatev"):
+        solve(step, "ELISO", ELISO_PROPS, -1, T_init=290.0)

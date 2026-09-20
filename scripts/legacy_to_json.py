@@ -21,7 +21,7 @@ import glob
 import os
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -62,6 +62,23 @@ class _Tokens:
         self._i += n
 
 
+#: Legacy files carry free-text labels (accents included) that the parsers skip: latin-1
+#: decodes any byte, so an encoding can never make a file silently unreadable.
+_LEGACY_ENCODING = "latin-1"
+
+_MEAN_FIELD = {"MIHEN": "ellipsoids", "MIMTN": "ellipsoids", "MISCN": "ellipsoids", "MIPLN": "layers"}
+
+
+def _ninc_of(Dn_inc: float) -> int:
+    """Increments of a step from the legacy increment fraction."""
+    exact = 1.0 / Dn_inc
+    ninc = max(1, round(exact))
+    if abs(exact - ninc) > 1e-9:
+        warnings.warn(f"#Dn_inc {Dn_inc:g} does not divide the step: {exact:.4g} increments become {ninc} "
+                      "equal ones", UserWarning, stacklevel=3)
+    return ninc
+
+
 def _read_meca_targets(tk: _Tokens, control_type: int):
     """Read the per-component flags+targets of a linear/sinusoidal step."""
     if control_type <= 4:
@@ -94,7 +111,7 @@ def _read_rotation(tk: _Tokens):
 def _load_tab_file(path_data: str, filename: str) -> np.ndarray:
     """Load a mode-3 increment file: one row per increment, leading label stripped."""
     rows = []
-    with open(os.path.join(path_data, filename)) as f:
+    with open(os.path.join(path_data, filename), encoding=_LEGACY_ENCODING) as f:
         for line in f:
             toks = line.split()
             if toks:
@@ -118,7 +135,7 @@ def _parse_meca_step(tk: _Tokens, control_type: int, path_data: str) -> StepMeca
             raise ValueError("mechanical steps only accept a temperature (T) condition")
         T_final = tk.f()
         return StepMeca(control=control, value=value, time=time,
-                        ninc=round(1.0 / Dn_inc), mode=mode,
+                        ninc=_ninc_of(Dn_inc), mode=mode,
                         Dn_init=Dn_init, Dn_mini=Dn_mini, BC_w=BC_w, T_final=T_final)
     if mode == 3:
         tk.skip(); tabfile = tk.s()
@@ -149,7 +166,7 @@ def _parse_thermomeca_step(tk: _Tokens, control_type: int, path_data: str) -> St
         thermal = tk.s()
         thermal_value = tk.f()
         kwargs = dict(control=control, value=value, time=time,
-                      ninc=round(1.0 / Dn_inc), mode=mode,
+                      ninc=_ninc_of(Dn_inc), mode=mode,
                       Dn_init=Dn_init, Dn_mini=Dn_mini, BC_w=BC_w)
         if thermal == "T":
             return StepThermomeca(T_final=thermal_value, **kwargs)
@@ -198,7 +215,7 @@ def from_file(path_data: str = "data", pathfile: str = "path.txt") -> Tuple[List
     T_init : float
         The initial temperature declared in the file.
     """
-    with open(os.path.join(path_data, pathfile)) as f:
+    with open(os.path.join(path_data, pathfile), encoding=_LEGACY_ENCODING) as f:
         tk = _Tokens(f.read())
 
     tk.skip(); T_init = tk.f()
@@ -235,6 +252,10 @@ def _reanchor_tabular_times(blocks) -> None:
     """
     t_run = 0.0
     for b in blocks:
+        if b.ncycle > 1 and any(s.mode in ("tabular", 3) for s in b.steps):
+            raise ValueError("a block repeated (#Repeat > 1) holds a tabular step: its table would have "
+                             "to restart at every cycle, which the absolute-time tables of 2.0 cannot "
+                             "express. Unroll the cycles into explicit steps, one table each.")
         for _ in range(b.ncycle):
             for s in b.steps:
                 if s.mode in ("tabular", 3) and s.tabular is not None:
@@ -247,6 +268,41 @@ def _reanchor_tabular_times(blocks) -> None:
                     t_run += float(s.time)
 
 
+def _split_mean_field_props(umat_name: str, props: np.ndarray, where: str):
+    """The 2.0 props of a mean-field model and the number of its sub-phase file.
+
+    The pre-2.0 layout opened with [nphases, number of the N<kind><number>.dat file]: the
+    count is now the length of the phase list and nothing is read from disk, so both slots
+    go. Returns (props, None) for any other model.
+    """
+    if umat_name not in _MEAN_FIELD:
+        return props, None
+    if len(props) < 2:
+        warnings.warn(f"{where}: {umat_name} props {props.tolist()} do not open with the legacy "
+                      "[nphases, file number] slots; left as they are", UserWarning, stacklevel=3)
+        return props, None
+    return props[2:], int(props[1])
+
+
+def _nest_mean_field(items: List, filepath, _seen=()) -> List:
+    """Give every mean-field row its sub-phases, read from the file its props[1] names."""
+    folder = os.path.dirname(str(filepath))
+    for item in items:
+        item.props, file_number = _split_mean_field_props(item.umat_name, item.props, str(filepath))
+        if file_number is None:
+            continue
+        kind = _MEAN_FIELD[item.umat_name]
+        nested = os.path.join(folder, f"N{kind}{file_number}.dat")
+        if os.path.abspath(nested) in _seen or not os.path.isfile(nested):
+            warnings.warn(f"{filepath}: phase {item.number} ({item.umat_name}) names {os.path.basename(nested)}, "
+                          "which is missing or refers back to itself; its sub-phases are left empty",
+                          UserWarning, stacklevel=3)
+            continue
+        loader = load_ellipsoids_dat if kind == "ellipsoids" else load_layers_dat
+        item.phases = loader(nested, _seen=_seen + (os.path.abspath(str(filepath)),))
+    return items
+
+
 def material_from_file(path_data: str = "data", materialfile: str = "material.dat") -> dict:
     """Parse a legacy material definition file into solve() keyword arguments.
 
@@ -257,7 +313,7 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
         :func:`~simcoon.solver.solve` like the JSON loader. The orientation is the
         file's Euler angles, in degrees, as solve() takes them.
     """
-    with open(os.path.join(path_data, materialfile)) as f:
+    with open(os.path.join(path_data, materialfile), encoding=_LEGACY_ENCODING) as f:
         tk = _Tokens(f.read())
 
     tk.skip(2); umat_name = tk.s()
@@ -271,10 +327,7 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
     for i in range(nprops):
         tk.skip()
         props[i] = tk.f()
-    if umat_name in ("MIHEN", "MIMTN", "MISCN", "MIPLN"):
-        # pre-2.0 layout [nphases, Nphases<X>.dat number, ...]: the count is the length of
-        # the phase list and nothing is read from disk, both slots are gone
-        props = props[2:]
+    props, _ = _split_mean_field_props(umat_name, props, materialfile)
     return {
         "umat_name": umat_name,
         "props": props,
@@ -290,13 +343,13 @@ def material_from_file(path_data: str = "data", materialfile: str = "material.da
 def _corate_of_essentials(path_data: str, essentials: str):
     """The corate named by a solver_essentials.inp, or None when there is no such file.
 
-    Nothing else in that file survives the migration: the solver type is an argument of
-    solve(), and solver_control.inp only ever held the defaults of solve(params=...).
+    The solver type of that file and solver_control.inp are arguments of solve(): see
+    solver_kwargs_of, which reports the ones that differ from its defaults.
     """
     filename = os.path.join(path_data, essentials)
     if not os.path.isfile(filename):
         return None
-    with open(filename) as f:
+    with open(filename, encoding=_LEGACY_ENCODING) as f:
         tk = _Tokens(f.read())
     tk.skip(); tk.i()            # solver type
     tk.skip(); code = tk.i()     # Rate_type
@@ -309,13 +362,57 @@ def _corate_of_essentials(path_data: str, essentials: str):
 def _is_path_file(filename: str) -> bool:
     """A loading path file opens with #Initial_temperature; tables and data do not."""
     try:
-        with open(filename) as f:
+        with open(filename, encoding=_LEGACY_ENCODING) as f:
             for line in f:
                 if line.strip():
                     return line.strip().startswith("#Initial_temperature")
-    except (OSError, UnicodeDecodeError):
+    except OSError:
         return False
     return False
+
+
+def _is_material_file(filename: str) -> bool:
+    """A material file opens with the token 'Material'."""
+    try:
+        with open(filename, encoding=_LEGACY_ENCODING) as f:
+            return f.read(200).split()[:1] == ["Material"]
+    except OSError:
+        return False
+
+
+#: solver_control.inp labels -> solve() keywords, with the defaults of solve()
+_SOLVER_CONTROL = {"div_tnew_dt_solver": ("div_tnew_dt", 0.5), "mul_tnew_dt_solver": ("mul_tnew_dt", 2.0),
+                   "miniter_solver": ("miniter", 10), "maxiter_solver": ("maxiter", 100),
+                   "inforce_solver": ("inforce", 1), "precision_solver": ("precision", 1.0e-6),
+                   "lambda_solver": ("lambda_solver", 10000.0)}
+
+
+def solver_kwargs_of(path_data: str, control: str = "solver_control.inp",
+                     essentials: str = "solver_essentials.inp") -> dict:
+    """The solve() keywords a legacy directory sets away from the defaults.
+
+    solver_control.inp and the solver type of solver_essentials.inp have no JSON
+    counterpart: they are arguments of solve(). Most legacy files hold the defaults, but
+    not all (a looser ``precision_solver`` is common), and a converted case run without
+    them converges to a different tolerance.
+    """
+    kwargs = {}
+    filename = os.path.join(path_data, control)
+    if os.path.isfile(filename):
+        with open(filename, encoding=_LEGACY_ENCODING) as f:
+            tokens = f.read().split()
+        for label, value in zip(tokens[0::2], tokens[1::2]):
+            if label in _SOLVER_CONTROL:
+                key, default = _SOLVER_CONTROL[label]
+                if abs(float(value) - default) > 1e-12 * max(1.0, abs(default)):
+                    kwargs[key] = type(default)(float(value))
+    filename = os.path.join(path_data, essentials)
+    if os.path.isfile(filename):
+        with open(filename, encoding=_LEGACY_ENCODING) as f:
+            tokens = f.read().split()
+        if len(tokens) > 1 and int(tokens[1]) != 0:
+            kwargs["solver_type"] = int(tokens[1])
+    return kwargs
 
 
 def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
@@ -331,7 +428,10 @@ def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
     ``material.json``; every ``N<kind><n>.dat`` sub-phase file becomes ``<kind><n>.json``
     (see :func:`~simcoon.solver.micromechanics.convert_dat_to_json`). ``output.dat``
     and ``solver_control.inp`` have no JSON counterpart: the results come back in
-    memory and the control parameters are the defaults of :func:`solve`.
+    memory, and the control parameters are arguments of :func:`solve` (a warning lists
+    the ones the directory sets away from its defaults, see :func:`solver_kwargs_of`).
+    A mean-field row is given its sub-phases, read from the file its props named. Every
+    file left unconverted is named in a warning.
 
     The legacy files are left in place. Returns the paths written.
     """
@@ -339,6 +439,7 @@ def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
     os.makedirs(out_dir, exist_ok=True)
     corate = _corate_of_essentials(path_data, essentials) or "logarithmic_R"
     written = []
+    skipped = []
 
     for name in sorted(os.listdir(path_data)):
         src = os.path.join(path_data, name)
@@ -349,9 +450,9 @@ def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
             save_path_json(dst, blocks, T_init, corate)
             written.append(dst)
             written += sorted(glob.glob(os.path.join(out_dir, stem + "_tab*.csv")))
-        elif ext == ".dat" and name == materialfile:
+        elif ext == ".dat" and (name == materialfile or _is_material_file(src)):
             material = material_from_file(path_data, name)
-            dst = os.path.join(out_dir, "material.json")
+            dst = os.path.join(out_dir, stem + ".json")
             save_material_json(dst, material["umat_name"], material["props"],
                                material["nstatev"], material["orientation"])
             written.append(dst)
@@ -359,13 +460,22 @@ def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
             try:
                 kind_from_dat_name(name)
             except ValueError:
-                continue     # not a sub-phase file (raw data, an identification template)
+                skipped.append(name)     # raw data, an identification template...
+                continue
             json_name = (stem[1:] if stem[:1].lower() == "n" else stem).lower() + ".json"
             try:
                 written.append(str(convert_dat_to_json(src, os.path.join(out_dir, json_name))))
             except ValueError as exc:
                 #an identification template or an Abaqus deck under a sub-phase file name
                 warnings.warn(f"{src}: not converted ({exc})", UserWarning, stacklevel=2)
+    if skipped:
+        warnings.warn(f"{path_data}: not converted, neither a path, a material nor a sub-phase file: "
+                      + ", ".join(skipped), UserWarning, stacklevel=2)
+    extra = solver_kwargs_of(path_data, essentials=essentials)
+    if extra:
+        warnings.warn(f"{path_data}: the legacy solver settings differ from the defaults of solve(); "
+                      f"pass them to reproduce the case: solve(..., {', '.join(f'{k}={v!r}' for k, v in extra.items())})",
+                      UserWarning, stacklevel=2)
     return written
 # =============================================================================
 # Legacy .dat input (read-only)
@@ -373,9 +483,8 @@ def convert_to_json(path_data: str = "data", out_dir: Optional[str] = None,
 #
 # The historical tab-separated files (Nphases0.dat, Nlayers0.dat,
 # Nellipsoids0.dat, Ncylinders0.dat, Nsections0.dat) used to be parsed in C++ by
-# src/Simulation/Phase/read.cpp. They are read here instead, the way path.txt and
-# material.dat are read by solver/files.py, so the C++ side never touches the
-# filesystem. Reading only: JSON is the format written from now on, and
+# src/Simulation/Phase/read.cpp. They are read here instead, like path.txt and
+# material.dat above, so the C++ side never touches the filesystem. Reading only: JSON is the format written from now on, and
 # convert_dat_to_json() is the one-way door.
 #
 # Every row holds the fixed columns of its kind, then nprops, nstatev, then the
@@ -401,7 +510,7 @@ def _dat_rows(filepath: Union[str, Path], kind: str) -> List[List[str]]:
         If a row does not hold exactly the columns its own nprops announces.
     """
     n_fixed = _DAT_LAYOUTS[kind]
-    with open(filepath) as f:
+    with open(filepath, encoding=_LEGACY_ENCODING) as f:
         lines = f.readlines()
     if not lines:
         raise ValueError(f"{filepath}: empty file, a header line was expected")
@@ -441,10 +550,10 @@ def _dat_props(tokens: List[str], n_fixed: int) -> np.ndarray:
     return np.array([float(t) for t in tokens[n_fixed:]], dtype=float)
 
 
-def load_phases_dat(filepath: Union[str, Path]) -> List[Phase]:
+def load_phases_dat(filepath: Union[str, Path], _seen=()) -> List[Phase]:
     """Load phases from a legacy ``Nphases<N>.dat`` file."""
     n = _DAT_LAYOUTS['phases']
-    return [
+    return _nest_mean_field([
         Phase(
             number=int(t[0]),
             umat_name=t[1],
@@ -455,13 +564,13 @@ def load_phases_dat(filepath: Union[str, Path]) -> List[Phase]:
             props=_dat_props(t, n),
         )
         for t in _dat_rows(filepath, 'phases')
-    ]
+    ], filepath, _seen)
 
 
-def load_layers_dat(filepath: Union[str, Path]) -> List[Layer]:
+def load_layers_dat(filepath: Union[str, Path], _seen=()) -> List[Layer]:
     """Load layers from a legacy ``Nlayers<N>.dat`` file."""
     n = _DAT_LAYOUTS['layers']
-    return [
+    return _nest_mean_field([
         Layer(
             number=int(t[0]),
             umat_name=t[1],
@@ -473,13 +582,13 @@ def load_layers_dat(filepath: Union[str, Path]) -> List[Layer]:
             props=_dat_props(t, n),
         )
         for t in _dat_rows(filepath, 'layers')
-    ]
+    ], filepath, _seen)
 
 
-def load_ellipsoids_dat(filepath: Union[str, Path]) -> List[Ellipsoid]:
+def load_ellipsoids_dat(filepath: Union[str, Path], _seen=()) -> List[Ellipsoid]:
     """Load ellipsoidal inclusions from a legacy ``Nellipsoids<N>.dat`` file."""
     n = _DAT_LAYOUTS['ellipsoids']
-    return [
+    return _nest_mean_field([
         Ellipsoid(
             number=int(t[0]),
             coatingof=int(t[1]),
@@ -495,13 +604,13 @@ def load_ellipsoids_dat(filepath: Union[str, Path]) -> List[Ellipsoid]:
             props=_dat_props(t, n),
         )
         for t in _dat_rows(filepath, 'ellipsoids')
-    ]
+    ], filepath, _seen)
 
 
-def load_cylinders_dat(filepath: Union[str, Path]) -> List[Cylinder]:
+def load_cylinders_dat(filepath: Union[str, Path], _seen=()) -> List[Cylinder]:
     """Load cylindrical inclusions from a legacy ``Ncylinders<N>.dat`` file."""
     n = _DAT_LAYOUTS['cylinders']
-    return [
+    return _nest_mean_field([
         Cylinder(
             number=int(t[0]),
             coatingof=int(t[1]),
@@ -516,7 +625,7 @@ def load_cylinders_dat(filepath: Union[str, Path]) -> List[Cylinder]:
             props=_dat_props(t, n),
         )
         for t in _dat_rows(filepath, 'cylinders')
-    ]
+    ], filepath, _seen)
 
 
 def load_sections_dat(filepath: Union[str, Path]) -> List[Section]:
@@ -561,9 +670,9 @@ def kind_from_dat_name(name: str) -> str:
 
 
 def convert_dat_to_json(filepath: Union[str, Path],
-                        json_path: Union[str, Path] = None,
-                        kind: str = None,
-                        prop_names: List[str] = None) -> Path:
+                        json_path: Optional[Union[str, Path]] = None,
+                        kind: Optional[str] = None,
+                        prop_names: Optional[List[str]] = None) -> Path:
     """Convert one legacy .dat file to its JSON equivalent.
 
     Parameters
@@ -608,6 +717,8 @@ def main(argv=None) -> int:
     parser.add_argument("data_dirs", nargs="+", help="legacy data directories to convert")
     parser.add_argument("--out", default=None, help="write the JSON files there instead of next to the sources")
     args = parser.parse_args(argv)
+    if args.out is not None and len(args.data_dirs) > 1:
+        parser.error("--out takes a single data directory: several would overwrite each other's files")
     for d in args.data_dirs:
         for written in convert_to_json(d, args.out):
             print(written)

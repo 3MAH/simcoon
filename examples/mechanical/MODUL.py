@@ -13,8 +13,8 @@ The loading applies a monotonic tensile ramp to 2% strain, then two
 strain-controlled cycles between -2% and +2%, exposing isotropic-hardening
 growth and the initial yield plateau.
 
-Both the material and the loading path are built in Python: no ``path.txt``,
-no ``material.dat``, no result file on disk.
+Both the material and the loading path are built in Python, and the results come
+back in memory.
 """
 
 import matplotlib.pyplot as plt

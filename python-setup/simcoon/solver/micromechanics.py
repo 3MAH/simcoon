@@ -3,11 +3,10 @@ Micromechanics data classes and JSON I/O for Simcoon.
 
 Dataclasses and I/O functions describing the sub-phases of a mean-field model (phases,
 layers, ellipsoids, ...), and their in-memory form for ``sim.L_eff`` and
-``sim.solver.solve``. Nothing here calls the C++ extension, but the package that hosts
-the module does import it: ``simcoon`` is not importable without ``simcoon._core``.
+``sim.solver.solve``. ``L_eff`` calls the C++ extension; the rest is pure Python.
 
 Orientations (material frame of a phase, geometry of an inclusion or a layer) are
-``simcoon.Rotation`` objects; ``as_rotation`` also takes the Euler angles of the files.
+``simcoon.Rotation`` objects; ``as_rotation`` also takes their Euler angles in degrees.
 
 Classes
 -------
@@ -35,7 +34,9 @@ load_cylinders_json, save_cylinders_json
 load_sections_json, save_sections_json
     JSON I/O for textile sections
 as_rotation, euler_angles
-    An orientation as a simcoon.Rotation, and back to the (psi, theta, phi) of the files
+    An orientation as a simcoon.Rotation, and back to its (psi, theta, phi) in degrees
+get_densities_ODF
+    Density of an orientation distribution function (a sum of Peak profiles)
 discretize_odf
     Split a phase into phases oriented along an ODF about a direction
 L_eff
@@ -56,16 +57,18 @@ Example
 
 from __future__ import annotations
 
+import copy
 import json
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 
 from simcoon import _core
-from simcoon._core import get_densities_ODF
+from scipy.spatial.transform import Rotation as _ScipyRotation
+
 from simcoon.rotation import Rotation
 
 
@@ -83,7 +86,7 @@ _ANGLES = ('psi', 'theta', 'phi')
 #: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
 EULER_SEQ = 'zxz'
 
-Orientation = Union[Rotation, Dict[str, float], "Sequence[float]", None]
+Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
 
 
 def as_rotation(value: Orientation) -> Rotation:
@@ -98,6 +101,8 @@ def as_rotation(value: Orientation) -> Rotation:
         return Rotation.identity()
     if isinstance(value, Rotation):
         return value
+    if isinstance(value, _ScipyRotation):
+        return Rotation.from_scipy(value)
     if isinstance(value, dict):
         unknown = set(value) - set(_ANGLES)
         if unknown:
@@ -119,6 +124,13 @@ def euler_angles(rotation: Orientation) -> Dict[str, float]:
     scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
     same rotation as the angles that were given, written differently.
     """
+    if not isinstance(rotation, _ScipyRotation) and rotation is not None:
+        # angles given as angles are written as given: no detour through a quaternion
+        # (float noise, and a gimbal-locked triplet rewritten) for a no-op
+        as_rotation(rotation)   # validates the dict keys / the 3 values
+        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
+                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
+        return dict(zip(_ANGLES, values))
     rot = as_rotation(rotation)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" — see above
@@ -126,11 +138,29 @@ def euler_angles(rotation: Orientation) -> Dict[str, float]:
     return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
 
 
+def _dataclass_eq(self, other):
+    """Field-wise equality: the generated one compares Rotations by identity and raises
+    on arrays, so a saved-then-loaded phase could never be compared to its source."""
+    if other.__class__ is not self.__class__:
+        return NotImplemented
+    for f in fields(self):
+        a, b = getattr(self, f.name), getattr(other, f.name)
+        if isinstance(a, Rotation) and isinstance(b, Rotation):
+            same = a.equals(b)
+        elif isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+            same = np.array_equal(a, b)
+        else:
+            same = a == b
+        if not same:
+            return False
+    return True
+
+
 def _coerce_fields(obj):
     """props given as a list, orientations in any accepted form, nested phases given as
     dicts (the JSON form)."""
-    if isinstance(obj.props, list):
-        obj.props = np.array(obj.props, dtype=float)
+    if not isinstance(obj.props, np.ndarray):
+        obj.props = np.asarray([] if obj.props is None else obj.props, dtype=float).ravel()
     for name in ('material_orientation', 'geometry_orientation'):
         if hasattr(obj, name):
             setattr(obj, name, as_rotation(getattr(obj, name)))
@@ -142,12 +172,12 @@ def _coerce_fields(obj):
                       for p in nested]
 
 
-@dataclass
+@dataclass(eq=False)
 class Phase:
     """
     Generic phase for micromechanics homogenization.
 
-    Corresponds to Nphases.dat format and C++ phase_characteristics class.
+    Mirrors the C++ phase_characteristics class.
 
     Attributes
     ----------
@@ -167,7 +197,7 @@ class Phase:
         Material properties array
     phases : list
         Sub-phases of a phase that is itself a mean-field model (MIHEN, MIMTN, MISCN:
-        ellipsoids; MIPLN: layers), the way Nellipsoids<N>.dat chained through props[1].
+        ellipsoids; MIPLN: layers).
         Empty for a homogeneous phase.
     """
     number: int = 0
@@ -182,13 +212,15 @@ class Phase:
     def __post_init__(self):
         _coerce_fields(self)
 
+    __eq__ = _dataclass_eq
 
-@dataclass
+
+@dataclass(eq=False)
 class Layer(Phase):
     """
     Layer phase for laminate homogenization.
 
-    Corresponds to Nlayers.dat format and C++ layer class.
+    Mirrors the C++ layer class.
     Layers are oriented using geometry orientation angles.
 
     Additional Attributes
@@ -196,21 +228,21 @@ class Layer(Phase):
     geometry_orientation : Rotation
         Orientation of the geometry (any form ``as_rotation`` accepts)
     layerup : int
-        Index of layer above (-1 if none)
+        Index of layer above (0 by default, as the C++ layer)
     layerdown : int
-        Index of layer below (-1 if none)
+        Index of layer below (0 by default, as the C++ layer)
     """
     geometry_orientation: Rotation = field(default_factory=Rotation.identity)
     layerup: int = 0
     layerdown: int = 0
 
 
-@dataclass
+@dataclass(eq=False)
 class Ellipsoid(Phase):
     """
     Ellipsoidal inclusion for Eshelby-based homogenization.
 
-    Corresponds to Nellipsoids.dat format and C++ ellipsoid class.
+    Mirrors the C++ ellipsoid class.
 
     Shape types based on semi-axis ratios:
     - Sphere: a1 = a2 = a3
@@ -251,12 +283,12 @@ class Ellipsoid(Phase):
             return "general_ellipsoid"
 
 
-@dataclass
+@dataclass(eq=False)
 class Cylinder(Phase):
     """
     Cylindrical inclusion for micromechanics.
 
-    Corresponds to Ncylinders.dat format and C++ cylinder class.
+    Mirrors the C++ cylinder class.
 
     Additional Attributes
     ---------------------
@@ -280,12 +312,11 @@ class Cylinder(Phase):
         return self.L / self.R if self.R > 0 else float('inf')
 
 
-@dataclass
+@dataclass(eq=False)
 class Section:
     """
     Section/yarn for textile composite homogenization.
 
-    Corresponds to Nsections.dat format.
 
     Attributes
     ----------
@@ -312,12 +343,14 @@ class Section:
     def __post_init__(self):
         _coerce_fields(self)
 
+    __eq__ = _dataclass_eq
+
 
 # =============================================================================
 # JSON I/O
 # =============================================================================
 
-def _props_to_dict(props: np.ndarray, prop_names: List[str] = None) -> Dict[str, float]:
+def _props_to_dict(props: np.ndarray, prop_names: Optional[List[str]] = None) -> Dict[str, float]:
     """Convert props array to dict with named keys."""
     if prop_names and len(prop_names) == len(props):
         return {name: float(val) for name, val in zip(prop_names, props)}
@@ -442,16 +475,18 @@ def _load_json(filepath: Union[str, Path], kind: str, prop_names: Optional[List[
     cls, layout = _JSON_LAYOUTS[kind]
     with open(filepath, 'r') as f:
         data = json.load(f)
+    if kind not in data:
+        raise ValueError(f"{filepath}: no '{kind}' entry (top-level keys: {sorted(data)})")
     return [_from_json_entry(entry, cls, layout, prop_names, str(filepath))
-            for entry in data.get(kind, [])]
+            for entry in data[kind]]
 
 
 def _save_json(filepath: Union[str, Path], kind: str, items: List,
                prop_names: Optional[List[str]]):
     _, layout = _JSON_LAYOUTS[kind]
-    with open(filepath, 'w') as f:
-        json.dump({kind: [_to_json_entry(item, layout, prop_names) for item in items]},
-                  f, indent=2)
+    payload = {kind: [_to_json_entry(item, layout, prop_names) for item in items]}
+    with open(filepath, 'w') as f:   # opened once the payload exists: a failed save keeps the file
+        json.dump(payload, f, indent=2)
 
 
 def load_phases_json(filepath: Union[str, Path],
@@ -467,7 +502,7 @@ def load_phases_json(filepath: Union[str, Path],
 
 
 def save_phases_json(filepath: Union[str, Path], phases: List[Phase],
-                     prop_names: List[str] = None):
+                     prop_names: Optional[List[str]] = None):
     """Save phases to a JSON file (the layout ``load_phases_json`` reads), ``prop_names``
     naming the properties."""
     _save_json(filepath, 'phases', phases, prop_names)
@@ -482,7 +517,7 @@ def load_layers_json(filepath: Union[str, Path],
 
 
 def save_layers_json(filepath: Union[str, Path], layers: List[Layer],
-                     prop_names: List[str] = None):
+                     prop_names: Optional[List[str]] = None):
     """Save layers to a JSON file (the layout ``load_layers_json`` reads)."""
     _save_json(filepath, 'layers', layers, prop_names)
 
@@ -496,7 +531,7 @@ def load_ellipsoids_json(filepath: Union[str, Path],
 
 
 def save_ellipsoids_json(filepath: Union[str, Path], ellipsoids: List[Ellipsoid],
-                         prop_names: List[str] = None):
+                         prop_names: Optional[List[str]] = None):
     """Save ellipsoids to a JSON file (the layout ``load_ellipsoids_json`` reads)."""
     _save_json(filepath, 'ellipsoids', ellipsoids, prop_names)
 
@@ -510,7 +545,7 @@ def load_cylinders_json(filepath: Union[str, Path],
 
 
 def save_cylinders_json(filepath: Union[str, Path], cylinders: List[Cylinder],
-                        prop_names: List[str] = None):
+                        prop_names: Optional[List[str]] = None):
     """Save cylinders to a JSON file (the layout ``load_cylinders_json`` reads)."""
     _save_json(filepath, 'cylinders', cylinders, prop_names)
 
@@ -524,7 +559,7 @@ def load_sections_json(filepath: Union[str, Path],
 
 
 def save_sections_json(filepath: Union[str, Path], sections: List[Section],
-                       prop_names: List[str] = None):
+                       prop_names: Optional[List[str]] = None):
     """Save sections to a JSON file (the layout ``load_sections_json`` reads)."""
     _save_json(filepath, 'sections', sections, prop_names)
 
@@ -533,14 +568,30 @@ def save_sections_json(filepath: Union[str, Path], sections: List[Section],
 # Orientation distribution functions (ODF): the peaks, in memory
 # =============================================================================
 
-@dataclass
-class Peak:
-    """One peak of an orientation (ODF) or parameter (PDF) distribution.
+#: parameters each profile reads, for validation: (needs s_dev, needs width, len(params))
+_PROFILES = {1: (False, False, 4), 2: (True, False, 0), 3: (True, False, 0), 4: (False, True, 0),
+             5: (True, True, 1), 6: (False, True, 2), 7: (False, False, 0)}
 
-    ``method`` selects the profile the C++ side evaluates: 1 standard deviation kernel
-    (``params``), 2 hard cut-off, 3 Gaussian, 4 Lorentzian, 5 pseudo-Voigt (``params``),
-    6 Pearson VII (``params``), 7 uniform. Angles (``mean``, ``s_dev``, ``width``) are
-    degrees, as in the files.
+
+@dataclass(eq=False)
+class Peak:
+    r"""One peak of an orientation (ODF) or parameter (PDF) distribution.
+
+    ``method`` selects the profile, with :math:`d = x - \text{mean}`:
+
+    1. standard-deviation kernel,
+       :math:`|(a_1 \cos^{2p_1} d + a_2 \cos^{2p_2} d\,\sin^{2p_2} d) \cos d|`,
+       ``params = [a1, a2, p1, p2]``
+    2. hard cut-off, :math:`A \exp(-\tfrac{1}{2}(|d|/s)^2)`
+    3. Gaussian, :math:`\frac{A}{s\sqrt{2\pi}} \exp(-\tfrac{1}{2}(d/s)^2)`
+    4. Lorentzian, :math:`\frac{A\,w}{2\pi\,(d^2 + (w/2)^2)}`
+    5. pseudo-Voigt, :math:`\eta\,L + (1-\eta)\,G`, ``params = [eta]``
+    6. Pearson VII, :math:`M\,(1 + (d/w)^2/m)^{-m}`, ``params = [M, m]`` (``M = 0`` reads 1)
+    7. uniform, 1
+
+    with :math:`A` = ``ampl``, :math:`s` = ``s_dev``, :math:`w` = ``width``. For an ODF the
+    angles (``mean``, ``s_dev``, ``width``) are degrees; the profile is evaluated in
+    radians, which sets the Gaussian and Lorentzian normalisations.
     """
     number: int = 0
     method: int = 3
@@ -551,17 +602,90 @@ class Peak:
     params: np.ndarray = field(default_factory=lambda: np.array([]))
 
     def __post_init__(self):
-        if isinstance(self.params, list):
-            self.params = np.array(self.params, dtype=float)
+        if not isinstance(self.params, np.ndarray):
+            self.params = np.asarray(self.params, dtype=float).ravel()
+        if self.method not in _PROFILES:
+            raise ValueError(f"Peak.method = {self.method!r}: 1 to 7 expected (see the class docstring)")
+        needs_s_dev, needs_width, n_params = _PROFILES[self.method]
+        if needs_s_dev and not self.s_dev > 0.0:
+            raise ValueError(f"Peak (method {self.method}): s_dev = {self.s_dev} must be > 0")
+        if needs_width and not self.width > 0.0:
+            raise ValueError(f"Peak (method {self.method}): width = {self.width} must be > 0")
+        if self.params.size < n_params:
+            raise ValueError(f"Peak (method {self.method}): params needs {n_params} values, got {self.params.size}")
+        if self.method == 6 and not self.params[1] > 0.0:
+            raise ValueError("Peak (method 6): the Pearson VII shape params[1] must be > 0")
+
+    __eq__ = _dataclass_eq
+
+    def density(self, x, periodic: bool = False, scale: float = 1.0) -> np.ndarray:
+        """The profile at ``x``. ``scale`` converts ``mean``, ``s_dev`` and ``width`` to the
+        unit of ``x`` (pi/180 for degrees against radians). ``periodic`` adds the images at
+        plus and minus pi: a director distribution, as an ODF is (profiles 2 to 6)."""
+        x = np.asarray(x, dtype=float)
+        mean, s_dev, width = self.mean * scale, self.s_dev * scale, self.width * scale
+
+        def profile(d):
+            if self.method == 1:
+                a1, a2, p1, p2 = self.params[:4]
+                c = np.cos(d)
+                with np.errstate(invalid='ignore'):   # a negative cosine to a fractional power
+                    y = np.abs((a1 * c ** (2 * p1) + a2 * c ** (2 * p2) * np.sin(d) ** (2 * p2)) * c)
+                y = np.where(np.abs(d - 0.5 * np.pi) < 1e-6, 0.0, y)
+                return np.where(np.abs(d) < 1e-6, a1, y)
+            if self.method == 2:
+                return self.ampl * np.exp(-0.5 * (np.abs(d) / s_dev) ** 2)
+            gauss = lambda: self.ampl / (s_dev * np.sqrt(2 * np.pi)) * np.exp(-0.5 * (d / s_dev) ** 2)
+            lorentz = lambda: self.ampl * width / (2 * np.pi * (d ** 2 + (width / 2) ** 2))
+            if self.method == 3:
+                return gauss()
+            if self.method == 4:
+                return lorentz()
+            if self.method == 5:
+                eta = self.params[0]
+                return eta * lorentz() + (1.0 - eta) * gauss()
+            if self.method == 6:
+                peak_max, shape = self.params[:2]
+                return (peak_max if abs(peak_max) >= 1e-9 else 1.0) * (1.0 + (d / width) ** 2 / shape) ** (-shape)
+            return np.ones_like(d)
+
+        d = x - mean
+        if periodic and 2 <= self.method <= 6:
+            return profile(d) + profile(d - np.pi) + profile(d + np.pi)
+        return profile(d)
 
 
 _PEAK_FIELDS = ('number', 'method', 'mean', 's_dev', 'width', 'ampl', 'params')
 
 
-def to_peak_dicts(peaks: List[Peak]) -> List[Dict]:
-    """The peaks as ``sim.get_densities_ODF`` reads them."""
-    return [{f: (np.asarray(getattr(p, f), dtype=float) if f == 'params' else getattr(p, f))
-             for f in _PEAK_FIELDS} for p in peaks]
+def _as_peaks(peaks) -> List[Peak]:
+    """Peak objects out of Peak objects or of their dicts (the JSON entries)."""
+    out = []
+    for pk in peaks:
+        if isinstance(pk, dict):
+            unknown = set(pk) - set(_PEAK_FIELDS)
+            if unknown:
+                raise ValueError(f"peak: unknown entries {sorted(unknown)}; expected {_PEAK_FIELDS}")
+            if pk.get('method') is None:
+                raise ValueError("peak: no 'method' entry (1 to 7, see Peak)")
+            pk = Peak(**pk)
+        out.append(pk)
+    return out
+
+
+def get_densities_ODF(x, peaks, radian: bool = False) -> np.ndarray:
+    """Density of an orientation distribution function at the angles ``x``: the sum of its
+    peaks (:class:`Peak` objects or their dicts), each a director distribution of period
+    180 degrees. ``x`` lies in [0, 180] degrees, or [0, pi] with ``radian``; the angles of
+    the peaks follow the same unit."""
+    x = np.asarray(x, dtype=float)
+    scale = 1.0 if radian else np.pi / 180.0
+    x_rad = x * scale
+    if x.size and (x_rad.min() < 0.0 or x_rad.max() > np.pi * (1 + 1e-12)):
+        raise ValueError(f"get_densities_ODF: x must lie in [0, {'pi' if radian else '180'}], "
+                         f"got [{x.min():g}, {x.max():g}]")
+    return sum((pk.density(x_rad, periodic=True, scale=scale) for pk in _as_peaks(peaks)),
+               np.zeros_like(x_rad))
 
 
 def load_peaks_json(filepath: Union[str, Path]) -> List[Peak]:
@@ -605,13 +729,15 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
     physically distinct orientations span a full turn: give ``angle_range=(0, 360)``,
     knowing that the density then repeats over the two half turns.
 
-    The Euler-angle sweeps of the pre-2.0 files map onto this: a sweep of ``psi`` or
+    Euler-angle sweeps map onto this: a sweep of ``psi`` or
     ``phi`` from an unrotated phase is ``axis=(0, 0, 1)``, a sweep of ``theta`` is
     ``axis=(1, 0, 0)``.
 
-    Returns a new list; the phases are renumbered by position, the others untouched.
+    Returns a new list of new objects, numbered by position; the caller's phases are
+    left untouched. ``coatingof`` indices pointing past the swept phase are shifted; a
+    coating OF the swept phase is refused (which of its copies would it coat?).
     """
-    import copy
+    phases = phases_from_dicts([p for p in phases]) if any(isinstance(p, dict) for p in phases) else list(phases)
     if not 0 <= num_phase < len(phases):
         raise ValueError(f"num_phase = {num_phase} is outside the {len(phases)} phases given")
     if nphases < 1:
@@ -623,14 +749,13 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
     a_min, a_max = (float(a) for a in angle_range)
     if a_max <= a_min:
         raise ValueError("angle_range must be (min, max) with max > min, in degrees")
-    peak_dicts = [pk if isinstance(pk, dict) else to_peak_dicts([pk])[0] for pk in peaks]
 
     parent = phases[num_phase]
     d = (a_max - a_min) / nphases
     alphas = a_min + d * np.arange(nphases)
     # Simpson over each bin, the density being periodic over 180 deg (director distribution)
     x = np.concatenate([alphas - d / 2, alphas, alphas + d / 2]) % 180.0
-    rho = np.asarray(get_densities_ODF(x, peak_dicts, False)).ravel()
+    rho = get_densities_ODF(x, peaks)
     weights = d / 6.0 * (rho[:nphases] + 4.0 * rho[nphases:2 * nphases] + rho[2 * nphases:])
     if weights.sum() <= 0.0:
         raise ValueError("the ODF density is zero over the whole angle_range")
@@ -646,7 +771,14 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
         if rotate_material:
             copy_k.material_orientation = rot * copy_k.material_orientation
         swept.append(copy_k)
-    out = list(phases[:num_phase]) + swept + list(phases[num_phase + 1:])
+    others = [copy.copy(ph) for ph in phases]
+    for ph in others:
+        coated = getattr(ph, 'coatingof', 0)
+        if coated == num_phase and num_phase != 0 and ph is not others[num_phase]:
+            raise ValueError(f"phase {ph.number} coats phase {num_phase}, which is being discretised")
+        if coated > num_phase:
+            ph.coatingof = coated + nphases - 1
+    out = others[:num_phase] + swept + others[num_phase + 1:]
     for i, ph in enumerate(out):
         ph.number = i
     return out
@@ -666,7 +798,7 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
     geometry, which the binding checks against the one the model builds, and ``phases``
     carries the sub-phases of a phase that is itself a mean-field model.
 
-    Angles are left in degrees, as in the files; the binding converts them to radians.
+    Angles are left in degrees; the binding converts them to radians.
     """
     out = {
         'kind': _kind_of(phase),
@@ -777,7 +909,7 @@ __all__ = [
     'phases_from_dicts',
     # Orientation distribution functions
     'Peak',
-    'to_peak_dicts',
+    'get_densities_ODF',
     'load_peaks_json',
     'save_peaks_json',
     'discretize_odf',

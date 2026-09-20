@@ -340,7 +340,7 @@ model_colors = {
 # The model-specific material parameters are retrieved from the ``umat`` object.
 #
 # A uniaxial loading path is prescribed using the loading history stored in
-# ``path_UT.txt``.
+# ``path_UT.json``.
 #
 # The constitutive response is computed by calling the solver interface,
 # which evaluates the Cauchy stress as a function of the applied stretch.
@@ -433,7 +433,7 @@ plt.show()
 # For each constitutive model contained in ``list_umats``, we:
 #
 # 1) retrieve the model-specific material parameters from the ``umat`` object,
-# 2) prescribe a pure shear loading path using the history in ``path_PS.txt``,
+# 2) prescribe a pure shear loading path using the history in ``path_PS.json``,
 # 3) compute the constitutive response using the solver interface,
 # 4) rebuild the stretch and the nominal stress from the returned histories,
 # 5) plot the numerical prediction together with the corresponding Treloar
@@ -537,7 +537,7 @@ plt.show()
 #
 # For each constitutive model contained in ``list_umats``, we retrieve the
 # model-specific material parameters from the ``umat`` object, prescribe an
-# equibiaxial tension loading path using the history in ``path_ET.txt``, run the
+# equibiaxial tension loading path using the history in ``path_ET.json``, run the
 # solver, then rebuild the stretch and the nominal stress from the returned
 # histories. Finally, we plot the numerical prediction together with the
 # corresponding Treloar experimental data for comparison.

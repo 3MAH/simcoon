@@ -26,11 +26,6 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - Material
   Continuum_mechanics/Material/crystallo.cpp
-  Continuum_mechanics/Material/ODF.cpp
-  Continuum_mechanics/Material/ODF2Nphases.cpp
-  Continuum_mechanics/Material/PDF.cpp
-  Continuum_mechanics/Material/PDF2Nphases.cpp
-  Continuum_mechanics/Material/peak.cpp
   Continuum_mechanics/Material/variant.cpp
 
   # Continuum Mechanics - Micromechanics

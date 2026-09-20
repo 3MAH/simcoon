@@ -50,9 +50,9 @@ colors = ["blue", "red", "green", "black"]
 rate = ["Jaumann", "Green-Naghdi", "Logarithmic"]
 
 ###############################################################################
-# Note that the loading path is described in the file `path.txt` :
-# Here the Control_type(NLGEOM) has the value 5, which means that
-# the transformation gradient is passed a a kinematical loading path in the file.
+# The loading path is described in ``data/path.json``. Its block has
+# ``"control_type": "F"``: the deformation gradient itself is prescribed, component
+# by component.
 #
 # The simulation therefore consists in a simple shear up to a shear transformation of 5.0
 # time is set to 5 seconds, with 100 increments, so that time matches the value of the shear transformation.
@@ -93,9 +93,8 @@ for i, rate_name in enumerate(rate):
         orientation=(psi_rve, theta_rve, phi_rve),
     )
     time = res["Time"]
-    # The deleted data/output.dat asked for `strain_type 3`, so the columns this
-    # example has always plotted were ln V: res["LogStrain"] (= res["Strain"]).
-    # res["GreenLagrange"] at gamma = 5 differs by an order of magnitude.
+    # res["Strain"] is the strain integrated with the objective rate of the run, which is
+    # what the comparison is about; res["GreenLagrange"] is the same for every rate.
     e11, e22, e12 = res["LogStrain"][0], res["LogStrain"][1], res["LogStrain"][3]
     r11 = np.minimum(res["R"][0, 0], 1.0)
     values = [e11, e12, e22, np.arccos(r11)]

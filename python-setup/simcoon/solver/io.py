@@ -1,13 +1,14 @@
 """JSON round-trip for materials and loading paths.
 
-Schema (after the feature/python_solver PR #63 design)::
+Schema (the orientation is the 'zxz' Euler angles in degrees, see
+:func:`~simcoon.solver.micromechanics.as_rotation`)::
 
     material.json: {"name": "ELISO", "props": [...], "nstatev": 1,
                     "orientation": {"psi": 0, "theta": 0, "phi": 0}}
 
     path.json: {"initial_temperature": 293.15,
                 "corate": "logarithmic_R",
-                "blocks": [{"type": "mechanical", "control_type": "small_strain",
+                "blocks": [{"control_type": "small_strain",
                             "ncycle": 1,
                             "steps": [{"mode": "linear", "control": [...],
                                        "value": [...], "time": 1.0, "ninc": 100,
@@ -30,6 +31,7 @@ import numpy as np
 
 from .blocks import Block, StepMeca, StepThermomeca
 from .maps import CONTROL_TYPES, CORATE_TYPES, STEP_MODES, THERMAL_CONTROL, as_code
+from .micromechanics import euler_angles
 
 _STEP_SCALARS = ("time", "ninc", "mode", "Dn_init", "Dn_mini", "T_final",
                  "thermal_control", "Q", "q_conv", "tabular_T")
@@ -45,14 +47,14 @@ def _name_of(value, mapping: dict, what: str) -> str:
 
 
 def save_material_json(filename: str, umat_name: str, props, nstatev: int,
-                       orientation=(0.0, 0.0, 0.0)) -> None:
-    """Write a material definition to JSON."""
-    psi, theta, phi = (float(x) for x in orientation)
+                       orientation=None) -> None:
+    """Write a material definition to JSON; ``orientation`` takes the forms of
+    ``solve(orientation=...)`` (a Rotation, Euler angles in degrees, the JSON dict)."""
     payload = {
         "name": umat_name,
         "props": np.asarray(props, dtype=float).ravel().tolist(),
         "nstatev": int(nstatev),
-        "orientation": {"psi": psi, "theta": theta, "phi": phi},
+        "orientation": euler_angles(orientation),
     }
     with open(filename, "w") as f:
         json.dump(payload, f, indent=2)
@@ -79,7 +81,8 @@ _CONTROL_LETTER = {"strain": "E", "stress": "S"}
 def _table_columns(step: StepMeca, ncols: int) -> List[str]:
     """Header names of a mode-3 table: time, thermal column, controlled components."""
     names = ["time"]
-    if getattr(step, "thermal_control", "temperature") == "heat_flux":
+    thermal = getattr(step, "thermal_control", "temperature")
+    if as_code(thermal, THERMAL_CONTROL, "thermal control") == THERMAL_CONTROL["heat_flux"]:
         names.append("Q")
     elif step.tabular_T:
         names.append("T")
@@ -88,7 +91,7 @@ def _table_columns(step: StepMeca, ncols: int) -> List[str]:
         control = [control] * (ncols - len(names))
     comp = _FULL_NAMES if len(control) == 9 else _VOIGT_NAMES
     for c, ij in zip(control, comp):
-        letter = _CONTROL_LETTER.get(str(c).lower()) if isinstance(c, str) else None
+        letter = _CONTROL_LETTER.get(_CONTROL_NAMES.get(c, c))   # names, aliases and codes alike
         if letter is not None:
             names.append(letter + ij)
     if len(names) != ncols:  # unknown layout: keep the file readable anyway
@@ -167,7 +170,7 @@ def _step_from_json(d: dict, base_dir: str) -> StepMeca:
         kwargs["value"] = np.asarray(d["value"], dtype=float)
     if "BC_w" in d:
         kwargs["BC_w"] = np.asarray(d["BC_w"], dtype=float)
-    if "tabular" in d:
+    if d.get("tabular") is not None:
         tab = d["tabular"]
         if isinstance(tab, str):
             tab = read_table(tab if os.path.isabs(tab) else os.path.join(base_dir, tab))
@@ -177,16 +180,20 @@ def _step_from_json(d: dict, base_dir: str) -> StepMeca:
 
 def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
                    corate="logarithmic_R") -> None:
-    """Write a loading path (list of Blocks) to JSON.
+    """Write a loading path to JSON; ``blocks`` and ``corate`` take the forms of ``solve``
+    (a step, a Block or a sequence of them; ``None`` for the default rate).
 
     Enumerated entries are written by name (``"small_strain"``, ``"linear"``,
     ``"strain"``...) whatever form the objects hold, keys in the documented order,
-    and only the keys that apply to a step. The table of every tabular step goes to its own CSV next to the JSON,
-    ``<stem>_tab<k>.csv`` (k counting the tabular steps of the path from 1), and
-    the JSON references it by that name.
+    and only the keys that apply to a step. The table of every tabular step goes to
+    its own CSV next to the JSON, ``<stem>_tab<k>.csv`` (k counting the tabular steps
+    of the path from 1), and the JSON references it by that name.
     """
-    if isinstance(blocks, Block):
+    if isinstance(blocks, (Block, StepMeca)):
         blocks = [blocks]
+    blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
+    if corate is None:
+        corate = "logarithmic_R"
     filename = str(filename)
     base_dir = os.path.dirname(filename)
     stem = os.path.splitext(os.path.basename(filename))[0]
@@ -197,7 +204,9 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
         steps = []
         for s in b.steps:
             table_name = None
-            if s.tabular is not None:
+            if as_code(s.mode, STEP_MODES, "step mode") == STEP_MODES["tabular"]:
+                if s.tabular is None:
+                    raise ValueError("tabular steps require the `tabular` table")
                 ntab += 1
                 table_name = f"{stem}_tab{ntab}.csv"
                 write_table(os.path.join(base_dir, table_name), s)

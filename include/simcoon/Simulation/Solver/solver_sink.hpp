@@ -38,8 +38,7 @@ namespace simcoon{
 /**
  * @brief Numeric controls of the global Newton-Raphson / adaptive time-stepping loop.
  *
- * Defaults mirror the historical defaults of solver() (see solver.hpp).
- * Named solver_params because read.hpp already declares a solver_control() function.
+ * Defaults of the adaptive Newton loop.
  */
 struct solver_params {
     double div_tnew_dt = 0.5;   ///< time-step division factor on non-convergence
@@ -127,8 +126,8 @@ public:
  * @brief In-memory core of the solver: runs the block/cycle/step/increment loops
  * on already-built loading blocks and streams results to a sink.
  *
- * This is the single numerical engine; solver() (solver.hpp) is its file-driven
- * wrapper (read_path/read_output in, solver_file_sink out).
+ * This is the single numerical engine: the loading path, the material and the sub-phases
+ * come in memory, the history goes to the sink.
  *
  * @param blocks Loading blocks with fully-defined steps (mutated during the run:
  *        step generation and the inforce residual carry-over write into the steps)

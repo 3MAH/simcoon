@@ -35,10 +35,9 @@ Methods for computing effective properties of heterogeneous materials:
 
 ### 3. **Material** - Material Characterization
 
-Functions for material property characterization and orientation distribution:
+Functions for material property characterization (orientation distributions are handled
+in Python, see `simcoon.solver.micromechanics.get_densities_ODF` and `discretize_odf`):
 
-- **ODF** (Orientation Distribution Function) - Crystallographic texture representation or fiber direction representation
-- **PDF** (Probability Density Function) - Statistical phase distributions
 - **Crystallography** - Crystal structure and slip system definitions
 - **Variant** - Crystallographic variant management for phase transformations
 

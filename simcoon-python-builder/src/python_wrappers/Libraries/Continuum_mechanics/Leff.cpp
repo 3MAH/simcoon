@@ -26,15 +26,13 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
 
     vec props_cpp = carma::arr_to_col(props);
 
+    if (nstatev < 0) {
+        throw std::invalid_argument("L_eff: nstatev = " + std::to_string(nstatev) + " is negative");
+    }
     //The orientation of the material frame, as the phase dicts carry it: {psi, theta, phi}
     //in degrees (simcoon.solver.micromechanics.euler_angles), None for the identity.
-    double psi_rve = 0., theta_rve = 0., phi_rve = 0.;
-    if (static_cast<bool>(orientation) && !orientation.is_none()) {
-        py::dict angles = orientation.cast<py::dict>();
-        psi_rve = simcoon::deg2rad(dget(angles, "psi", 0.));
-        theta_rve = simcoon::deg2rad(dget(angles, "theta", 0.));
-        phi_rve = simcoon::deg2rad(dget(angles, "phi", 0.));
-    }
+    double psi_rve, theta_rve, phi_rve;
+    angles_of(orientation, "L_eff, orientation", psi_rve, theta_rve, phi_rve);
 
     double T_init = 273.15;
 
@@ -47,7 +45,7 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     auto sv_M = std::dynamic_pointer_cast<simcoon::state_variables_M>(rve.sptr_sv_global);
 
     //The sub-phases of a mean-field model come in as Python objects; nothing is read from disk.
-    //get_L_elastic checks their count against props[0].
+    //get_L_elastic checks them against the props of the model (check_sub_phases).
     rve.sub_phases = make_sub_phases(phases, umat_name, T_init);
 
     //Second we call a recursive method that find all the elastic moduli iof the phases

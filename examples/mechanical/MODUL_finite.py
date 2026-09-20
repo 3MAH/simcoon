@@ -20,8 +20,8 @@ The loading is a log-strain cycle +15% / -15% / 0 — genuinely finite
 stretches (lambda from 0.86 to 1.16) — exposing the elasto-plastic
 hysteresis loop in the (ln V, tau) work-conjugate plane.
 
-Both the material and the loading path are built in Python: no ``path.txt``,
-no ``material.dat``, no result file on disk.
+Both the material and the loading path are built in Python, and the results come
+back in memory.
 """
 
 import matplotlib.pyplot as plt
@@ -98,9 +98,7 @@ res = solver.solve(
 # ---------------------
 # The in-memory results carry every stress and strain measure the solver
 # integrated, so the model's own work-conjugate pair is read directly:
-# ``LogStrain`` is ln V and ``Kirchhoff`` is tau. (The legacy file output
-# reported Green-Lagrange strain and Cauchy stress, which had to be converted
-# by hand — and only exactly so on a rotation-free path such as this one.)
+# ``LogStrain`` is ln V and ``Kirchhoff`` is tau.
 
 e11 = res["LogStrain"][0]
 tau11 = res["Kirchhoff"][0]

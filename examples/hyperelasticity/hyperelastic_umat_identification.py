@@ -109,7 +109,7 @@ def run_case(props, programme):
 
     ``programme`` is the ``(blocks, T_init)`` pair ``load_path_json`` read once per case —
     an identification evaluates this thousands of times, and none of them touches the
-    disk. The two quantities the old result file carried are rebuilt from the
+    disk. The two quantities compared with the experiment are built from the
     histories: the largest isochoric principal stretch, and the 11 component of the
     nominal stress :math:`P = J\\,\\sigma\\,F^{-T}`.
     """

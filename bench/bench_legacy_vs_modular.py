@@ -411,8 +411,8 @@ def main():
     ap.add_argument("--repeats", type=int, default=8)
     args = ap.parse_args()
 
-    print(f"| family | legacy [ms] | MODUL [ms] | ratio | max dev |")
-    print(f"|---|---|---|---|---|")
+    print("| family | legacy [ms] | MODUL [ms] | ratio | max dev |")
+    print("|---|---|---|---|---|")
     for key in args.families.split(","):
         key = key.strip()
         if key not in FAMILIES:

@@ -176,13 +176,15 @@ void abaqus2smart_T(const double *stress, const double *ddsdde,
  * @param sigma simcoon stress vector
  * @param statev_smart simcoon state variables vector
  * @param Wm simcoon work quantities vector
- * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel; ddsdde gets
- *        abaqus_jacobian of it)
+ * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel)
+ * @param nlgeom whether the step is geometrically nonlinear (abaqus_nlgeom(dfgrd1)): ddsdde
+ *        then gets abaqus_jacobian of Lt for the 3D, plane-strain and axisymmetric cases;
+ *        plane stress and 1D always condense the kernel tangent as it is
  */
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, 
     const int &ndi, const int &nshr, 
     const arma::vec &sigma, const arma::vec &statev_smart, 
-    const arma::vec &Wm, const arma::mat &Lt);
+    const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom = true);
 
 /**
  * @brief The Abaqus material Jacobian of a corotated kernel tangent.
@@ -191,12 +193,20 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev,
  *          = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I} \f$.
  *          The kernels return the first term in Abaqus's corotated frame; this adds the
  *          symmetric part of the second (the default symmetric solver keeps that part).
- *          Used by the smart2abaqus_* routines; changes the Newton convergence only.
+ *          Used by smart2abaqus_M and smart2abaqus_T for NLGEOM steps. Without NLGEOM the
+ *          Jacobian is the kernel tangent (J = 1 by assumption), which also keeps
+ *          linear-perturbation procedures (*FREQUENCY, *BUCKLE) on the right stiffness.
  * @param Lt kernel tangent (6x6, Voigt, engineering shears)
  * @param sigma Cauchy stress at the end of the increment (6)
  * @return DDSDDE as a 6x6 matrix
  */
 arma::mat abaqus_jacobian(const arma::mat &Lt, const arma::vec &sigma);
+
+/**
+ * @brief Whether Abaqus runs the step with NLGEOM: DFGRD1 is the identity otherwise.
+ * @param dfgrd1 the DFGRD1 array of the UMAT interface (9 values)
+ */
+bool abaqus_nlgeom(const double *dfgrd1);
 
 /**
  * @brief Full transfer from simcoon to Abaqus format (mechanical)
@@ -273,7 +283,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
     const arma::vec &sigma, const arma::vec &statev_smart, const double &r, 
     const arma::vec &Wm, const arma::vec &Wt, 
     const arma::mat &dSdE, const arma::mat &dSdT, 
-    const arma::mat &drpldE, const arma::mat &drpldT);
+    const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom = true);
 
 //=============================================================================
 // ANSYS USERMAT TRANSFER FUNCTIONS

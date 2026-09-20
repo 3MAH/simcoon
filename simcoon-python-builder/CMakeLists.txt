@@ -42,7 +42,6 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp
 
   # Material
-  src/python_wrappers/Libraries/Material/ODF.cpp
 
   # Maths
   src/python_wrappers/Libraries/Maths/lagrange.cpp

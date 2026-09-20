@@ -27,7 +27,7 @@ A uniaxial tension test on an elastic isotropic material:
     res = solver.solve(step, "ELISO", [70000., 0.3, 1.E-5], nstatev=1)
 
     stress = res["Stress"]     # Cauchy stress history, shape (6, N)
-    strain = res["Strain"]     # logarithmic strain history, shape (6, N)
+    strain = res["Strain"]     # strain history (logarithmic for the default rate), shape (6, N)
 
 Results follow the fedoo ``DataSet`` conventions — components first, one
 column per increment — so they interoperate directly with fedoo utilities
@@ -162,9 +162,12 @@ director distribution, periodic over 180 degrees: the default half turn is right
 a half turn about ``axis`` maps the inclusion onto itself (``axis`` along or normal to
 a principal axis of the inclusion); about any other direction give
 ``angle_range=(0., 360.)``. The pre-2.0 Euler sweeps are the cases ``axis=(0, 0, 1)``
-(psi or phi) and ``axis=(1, 0, 0)`` (theta) from an unrotated phase. Peak profiles
-(``method``: 1 standard-deviation kernel, 2 hard cut-off, 3 Gaussian, 4 Lorentzian,
-5 pseudo-Voigt, 6 Pearson VII, 7 uniform) are evaluated by ``sim.get_densities_ODF``.
+(psi or phi) and ``axis=(1, 0, 0)`` (theta) from an unrotated phase. The density itself
+is ``sim.get_densities_ODF(x, peaks)``, the sum of the :class:`~simcoon.solver.micromechanics.Peak`
+profiles (``method``: 1 standard-deviation kernel, 2 hard cut-off, 3 Gaussian,
+4 Lorentzian, 5 pseudo-Voigt, 6 Pearson VII, 7 uniform; formulas in the class), useful to
+plot a distribution before discretising it; ``Peak.density(x)`` without ``periodic`` is
+the plain profile, for a distribution of a parameter rather than of an orientation.
 
 JSON configuration
 ------------------

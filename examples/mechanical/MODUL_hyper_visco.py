@@ -35,8 +35,8 @@ The script runs the same ramp to ln V = 0.5 (stretch 1.65) at three rates,
 bracketing the instantaneous (pure Yeoh) and the long-term responses, then a
 ramp-and-hold relaxation with its energy decomposition.
 
-Both the material and the loading path are built in Python: no ``path.txt``,
-no ``material.dat``, no result file on disk.
+Both the material and the loading path are built in Python, and the results come
+back in memory.
 """
 
 import numpy as np

@@ -1,9 +1,8 @@
-"""sim.L_eff with its sub-phases given in memory, instead of read from Nellipsoids<N>.dat.
+"""sim.L_eff with its sub-phases given in memory.
 
-The reference values were produced by the previous, file-based binding on the shipped
-fixture testBin/Umats/MIMTN/data/Nellipsoids1.dat (Mori-Tanaka, ELISO matrix at 80 %,
-ELISO fibre at 20 % with a1 = 50 and a 45 deg geometry angle). Both paths agreed to the
-last bit, so these numbers pin the migration.
+The reference values pin a Mori-Tanaka composite (ELISO matrix at 80 %, ELISO fibre at
+20 % with a1 = 50 and a 45 deg geometry angle); they were produced by the 1.x file-based
+binding, which agreed with this one to the last bit.
 """
 
 import numpy as np
@@ -72,6 +71,69 @@ class TestLeffInMemoryPhases:
                                        phases=to_phase_dicts(single)))
         L_iso = np.asarray(sim.L_iso([5000.0, 0.3], "Enu"))
         np.testing.assert_allclose(L, L_iso, rtol=1e-9)   # a one-phase composite is that phase
+
+    @pytest.mark.parametrize("props, message", [
+        ([2.0, 0.0, 20.0, 20.0, 0.0], "got 5 values"),      # the pre-2.0 layout
+        ([20.0, 20.0], "got 2 values"),
+        ([20.0, 20.0, 2.0], "n_matrix = 2.* is not one of the 2 phases"),
+        ([20.0, 20.0, -1.0], "n_matrix = -1"),
+        ([20.0, 20.0, 1e300], "n_matrix"),
+        ([20.0, 20.0, float("nan")], "n_matrix"),
+        ([0.0, 20.0, 0.0], "mp and np"),
+        ([1e12, 20.0, 0.0], "mp and np"),
+        ([float("nan"), 20.0, 0.0], "mp and np"),
+    ])
+    def test_props_are_validated(self, props, message):
+        with pytest.raises(ValueError, match=message):
+            sim.L_eff("MIMTN", props, NSTATEV, phases=two_phase_composite())
+
+    def test_self_consistent_start_option(self):
+        phases = two_phase_composite()
+        L_default = sim.L_eff("MISCN", [20.0, 20.0, 0.0], NSTATEV, phases=phases)
+        L_mt = sim.L_eff("MISCN", [20.0, 20.0, 0.0, 1.0], NSTATEV, phases=phases)
+        np.testing.assert_allclose(L_default, L_mt, rtol=1e-12)
+        with pytest.raises(ValueError, match="start = 2"):
+            sim.L_eff("MISCN", [20.0, 20.0, 0.0, 2.0], NSTATEV, phases=phases)
+        with pytest.raises(ValueError, match="takes n_matrix < 0"):
+            sim.L_eff("MISCN", [20.0, 20.0, 0.0, 0.0], NSTATEV, phases=phases)
+
+    # Each case below used to crash the interpreter or return a silently wrong stiffness.
+    def test_self_referencing_phases_are_refused(self):
+        p = to_phase_dicts(two_phase_composite())
+        p[1]["umat_name"], p[1]["props"], p[1]["phases"] = "MIMTN", MIMTN_PROPS, p
+        with pytest.raises(ValueError, match="16 levels"):
+            sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, None, p)
+
+    @pytest.mark.parametrize("mutate, message", [
+        (lambda p: p[1].update(semi_axis=p[1].pop("semi_axes")), "unknown entry 'semi_axis'"),
+        (lambda p: p[1].update(geometry_orientaton=p[1].pop("geometry_orientation")), "unknown entry"),
+        (lambda p: p[1]["geometry_orientation"].update(psy=45.0), "unknown entry 'psy'"),
+        (lambda p: p[1]["semi_axes"].update(a4=1.0), "unknown entry 'a4'"),
+        (lambda p: p[0].update(concentration=float("nan")), "concentration"),
+        (lambda p: (p[0].update(concentration=1.5), p[1].update(concentration=-0.5)), "concentration"),
+        (lambda p: p[1].update(nstatev=-1), "nstatev"),
+        (lambda p: p[1].update(props=[[1.0, 2.0], [3.0]]), "not a sequence of numbers"),
+    ])
+    def test_malformed_phase_dicts_are_refused(self, mutate, message):
+        p = to_phase_dicts(two_phase_composite())
+        mutate(p)
+        with pytest.raises(ValueError, match=message):
+            sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, None, p)
+
+    def test_orientation_keys_and_nstatev_are_checked(self):
+        phases = to_phase_dicts(two_phase_composite())
+        with pytest.raises(ValueError, match="unknown entry 'psy'"):
+            sim._core.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, {"psy": 45.0}, phases)
+        with pytest.raises(ValueError, match="nstatev"):
+            sim._core.L_eff("MIMTN", MIMTN_PROPS, -1, None, phases)
+
+    def test_non_elastic_phase_is_refused(self):
+        phases = two_phase_composite()
+        phases[1].umat_name, phases[1].props, phases[1].nstatev = "EPICP", np.array([50000., .3, 0., 300., 1000., .3]), 8
+        with pytest.raises(ValueError, match="not a linear elastic model"):
+            sim.L_eff("MIMTN", MIMTN_PROPS, NSTATEV, phases=phases)
+        with pytest.raises(ValueError, match="not a linear elastic model"):
+            sim.L_eff("XXXXX", [1.0], 1)
 
     def test_homogeneous_model_needs_no_phases(self):
         L = np.asarray(sim._core.L_eff("ELISO", np.array([70000.0, 0.3, 1.0e-5]), 1))

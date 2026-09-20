@@ -20,7 +20,10 @@ import os
 # First we define the number of state variables (if any) at the macroscopic level
 # and the material properties.
 
-dir = os.path.dirname(os.path.realpath("__file__"))
+try:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+except NameError:   # executed by the docs gallery, from the example's directory
+    script_dir = os.getcwd()
 nstatev = 0
 
 int1 = 50  # Integration points of the Eshelby integrals, first direction
@@ -55,7 +58,7 @@ phases = [matrix, reinforcement]
 # - ``MIMTN`` → Mori-Tanaka scheme
 # - ``MISCN`` → Self-consistent scheme
 
-path_data = dir + "/data"
+path_data = os.path.join(script_dir, "data")
 
 psi_rve = 0.0
 theta_rve = 0.0
@@ -146,8 +149,7 @@ umat_name = "MIMTN"
 
 print(f"\nComputing effective properties for c={c_reinf * 100:.0f}% reinforcement...")
 for i, ar in enumerate(aspect_ratios):
-    # The semi-axes of the reinforcement: a1/a3 = ar, a2 = a3 = 1. This used to mean
-    # rewriting line 2 of data/Nellipsoids0.dat and restoring it afterwards.
+    # The semi-axes of the reinforcement: a1/a3 = ar, a2 = a3 = 1
     reinforcement.a1 = ar
     reinforcement.a2 = 1.0
     reinforcement.a3 = 1.0

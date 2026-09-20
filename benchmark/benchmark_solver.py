@@ -32,7 +32,7 @@ import numpy as np
 import simcoon as sim
 from simcoon.solver import Block, StepMeca
 
-# Props/nstatev mirror testBin/Umats/<name>/data/material.dat (the canonical
+# Props/nstatev mirror testBin/Umats/<name>/data/material.json (the canonical
 # validated materials). Uniaxial strain-driven tension, lateral stress-free.
 BENCHMARK_CASES = {
     "ELISO": {

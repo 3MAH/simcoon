@@ -12,14 +12,11 @@ We present one section per model.
 
 # sphinx_gallery_thumbnail_number = 1
 
-from math import fabs
 import numpy as np
 import pandas as pd
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 from typing import NamedTuple, List, Tuple
-from dataclasses import dataclass
 from scipy.optimize import fsolve
 
 # ###################################################################################

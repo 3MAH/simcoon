@@ -287,7 +287,7 @@ The key system works with any simulation tool. For example, with fedoo
 Gallery Examples
 ----------------
 
-Two complete examples demonstrate the identification workflow:
+Complete examples of the identification workflow, besides the key-based one above:
 
 - **Hyperelastic identification**: Mooney-Rivlin parameters from Treloar data
   using ``differential_evolution`` and simcoon stress functions

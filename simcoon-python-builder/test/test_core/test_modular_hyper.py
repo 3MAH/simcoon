@@ -115,7 +115,7 @@ def test_volumetric_potential_under_pure_dilatation(umat_name, props, kappa, vol
 def test_volumetric_selector_is_validated():
     with pytest.raises(ValueError):
         NeoHookeanElasticity(mu=0.5, kappa=1000.0, volumetric="cubic").to_props()
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match="volumetric potential"):
         _umat("NEOHC", [0.5673, 1000.0, 2.0], np.zeros(6), np.eye(3), 1)
 
 

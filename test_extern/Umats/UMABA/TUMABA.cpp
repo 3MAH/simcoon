@@ -33,7 +33,6 @@
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
-#include <simcoon/Simulation/Solver/solver.hpp>
 
 using namespace std;
 using namespace arma;

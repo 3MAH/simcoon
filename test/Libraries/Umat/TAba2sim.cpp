@@ -48,7 +48,7 @@ TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
 
     double stress[6];
     double ddsdde[36];
-    double statev[2 + 4];   // the state variables, then the four energies Wm
+    double statev[4 + 2];   // the four energies Wm, then the state variables
     smart2abaqus_M(stress, ddsdde, statev, 3, 3, sigma, statev_smart, Wm, Lt);
 
     const vec I = {1., 1., 1., 0., 0., 0.};
@@ -65,6 +65,26 @@ TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
     const vec extra = (expected - Lt) * d_hyd;
     ASSERT_NEAR(extra(0), 1.5*sigma(0) + 0.5*(sigma(0) + sigma(1) + sigma(2)), 1.e-12);
     ASSERT_NEAR(extra(3), 1.5*sigma(3), 1.e-12);
+
+    // without NLGEOM the Jacobian is the kernel tangent
+    smart2abaqus_M(stress, ddsdde, statev, 3, 3, sigma, statev_smart, Wm, Lt, false);
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 6; j++) {
+            ASSERT_NEAR(ddsdde[i + 6*j], Lt(i, j), 1.e-12);
+        }
+    }
+    // plane stress condenses the kernel tangent, NLGEOM or not
+    double ps_on[9], ps_off[9];
+    smart2abaqus_M(stress, ps_on, statev, 2, 1, sigma, statev_smart, Wm, Lt, true);
+    smart2abaqus_M(stress, ps_off, statev, 2, 1, sigma, statev_smart, Wm, Lt, false);
+    for (int k = 0; k < 9; k++) ASSERT_NEAR(ps_on[k], ps_off[k], 1.e-12);
+    ASSERT_NEAR(ps_on[0], Lt(0,0) - Lt(0,2)*Lt(2,0)/Lt(2,2), 1.e-12);
+
+    // DFGRD1 = identity is how Abaqus says "no NLGEOM"
+    double F_id[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
+    double F_def[9] = {1.1, 0., 0., 0., 1., 0., 0., 0., 1.};
+    ASSERT_FALSE(abaqus_nlgeom(F_id));
+    ASSERT_TRUE(abaqus_nlgeom(F_def));
 }
 
 TEST(Taba2sim, read_write)

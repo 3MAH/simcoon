@@ -757,13 +757,13 @@ enum class HyperPotential {
 // volumetric potential (VolumetricPotential, 0 when absent).
 
 /**
- * @brief Volumetric part $ U(J) $ of a hyperelastic potential.
+ * @brief Volumetric part \f$ U(J) \f$ of a hyperelastic potential.
  *
- * Both share the ground-state bulk modulus $ U''(1) = \kappa $.
+ * Both share the ground-state bulk modulus \f$ U''(1) = \kappa \f$.
  */
 enum class VolumetricPotential {
-    LOG_J = 0,      ///< $ U = \kappa (J \ln J - J + 1) $ (default)
-    QUADRATIC = 1   ///< $ U = rac{\kappa}{2} (J - 1)^2 $
+    LOG_J = 0,      ///< \f$ U = \kappa (J \ln J - J + 1) \f$ (default)
+    QUADRATIC = 1   ///< \f$ U = \frac{\kappa}{2} (J - 1)^2 \f$
 };
 
 /**
@@ -776,7 +776,7 @@ enum class VolumetricPotential {
 VolumetricPotential volumetric_potential_of(const arma::vec &props, const arma::uword n_used);
 
 /**
- * @brief First and second derivatives of $ U(J) $.
+ * @brief First and second derivatives of \f$ U(J) \f$.
  */
 void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2);
 
