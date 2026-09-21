@@ -7,6 +7,9 @@ giving users access to all scipy rotation features (batch operations, ``mean()``
 methods (``apply_stress``, ``apply_stiffness``, etc.).
 """
 
+import warnings
+from typing import Dict, Sequence, Union
+
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
@@ -461,3 +464,93 @@ class Rotation(ScipyRotation):
         key_rots = type(self).concatenate([self, other])
         interp = Slerp([0.0, 1.0], key_rots)
         return interp(t)
+
+
+# ---------------------------------------------------------------------
+# Orientations: the coercion every simcoon API that takes an orientation
+# (phases, fibre directions) funnels through
+# ---------------------------------------------------------------------
+
+_ANGLES = ('psi', 'theta', 'phi')
+
+#: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
+#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
+#: solver applies it actively (material frame -> global frame): a phase at
+#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
+#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
+#: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
+EULER_SEQ = 'zxz'
+
+Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
+
+
+def as_rotation(value: Orientation) -> Rotation:
+    """An orientation as a :class:`simcoon.Rotation`.
+
+    ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
+    in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
+    files (missing angles are 0), or ``None`` for the identity. The angles are the
+    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
+    """
+    if value is None:
+        return Rotation.identity()
+    if isinstance(value, Rotation):
+        return value
+    if isinstance(value, ScipyRotation):
+        return Rotation.from_scipy(value)
+    if isinstance(value, dict):
+        unknown = set(value) - set(_ANGLES)
+        if unknown:
+            raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
+        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
+    else:
+        angles = np.asarray(value, dtype=float).ravel()
+        if angles.size != 3:
+            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
+                             f"expected, got {angles.size} values")
+    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
+
+
+def euler_angles(rotation: Orientation) -> Dict[str, float]:
+    """The ``{"psi", "theta", "phi"}`` dict (degrees, ``EULER_SEQ``) of an orientation:
+    the form of the JSON files and of the dicts the C++ binding reads.
+
+    The decomposition is not unique when ``theta`` is 0 or 180 degrees (gimbal lock):
+    scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
+    same rotation as the angles that were given, written differently.
+    """
+    if not isinstance(rotation, ScipyRotation) and rotation is not None:
+        # angles given as angles are written as given: no detour through a quaternion
+        # (float noise, and a gimbal-locked triplet rewritten) for a no-op
+        as_rotation(rotation)   # validates the dict keys / the 3 values
+        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
+                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
+        return dict(zip(_ANGLES, values))
+    rot = as_rotation(rotation)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" - see above
+        psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)
+    return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
+
+
+def as_direction(value, reference=(1.0, 0.0, 0.0)) -> np.ndarray:
+    """A fibre direction, or a stack of them, as unit column vectors.
+
+    ``value`` is anything :func:`as_rotation` accepts -- including a BATCHED
+    ``Rotation``, one entry per direction -- and the directions are that rotation
+    applied to ``reference``. A ``(3,)`` or ``(n, 3)`` array of components is taken
+    as the directions themselves and merely normalised.
+
+    Returns a ``(3, n)`` array, one unit direction per column, which is the layout
+    the props of an anisotropic hyperelastic potential carry.
+    """
+    if isinstance(value, np.ndarray) and value.ndim == 2 and value.shape[1] == 3:
+        a = value.astype(float)
+    elif isinstance(value, np.ndarray) and value.shape == (3,):
+        a = value.astype(float).reshape(1, 3)
+    else:
+        a = np.atleast_2d(as_rotation(value).apply(np.asarray(reference, dtype=float)))
+    norms = np.linalg.norm(a, axis=1)
+    if np.any(norms < 1e-12):
+        raise ValueError("direction: a fibre direction has a zero norm")
+    return (a / norms[:, None]).T

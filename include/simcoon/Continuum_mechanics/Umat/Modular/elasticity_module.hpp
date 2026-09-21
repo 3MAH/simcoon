@@ -279,6 +279,18 @@ public:
     [[nodiscard]] ElasticityType type() const noexcept { return type_; }
 
     /**
+     * @brief The potential of a HYPER_INVARIANTS block
+     * @return The configured potential (meaningless for any other type)
+     */
+    [[nodiscard]] HyperPotential hyper_potential() const noexcept { return hyper_potential_; }
+
+    /**
+     * @brief The parameters of a HYPER_INVARIANTS block's potential
+     * @return That potential's own props (empty for any other type)
+     */
+    [[nodiscard]] const arma::vec& hyper_props() const noexcept { return hyper_props_; }
+
+    /**
      * @brief Check if the module is configured
      * @return True if configure has been called
      */

@@ -145,13 +145,80 @@ Unchanged dedicated implementations (out of the modular scope):
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
   SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
-  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
+  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA
   (invariant-based hyperelasticity); OGDEN (isochoric principal
   stretches, props = ``N, kappa, mu_1, alpha_1, ...``). The compressible
   ones take one optional trailing prop selecting the volumetric term
   :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
   :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
   with :math:`\kappa = 2 / D_1`).
+
+  HOLZA is the Gasser-Ogden-Holzapfel model, the only anisotropic one of the
+  set: an isotropic neo-Hookean matrix reinforced by :math:`n` families of
+  dispersed fibres,
+
+  .. math::
+
+     W = C_{10} \left(\bar{I}_1 - 3\right)
+       + \sum_i \frac{k_1}{2 k_2}
+         \left[ \exp\left(k_2 \left(\bar{I}^{*}_{4,i} - 1\right)^2\right) - 1 \right]
+       + U(J),
+
+  with :math:`\bar{I}^{*}_{4,i} = \kappa_d \bar{I}_1 + (1 - 3 \kappa_d) \bar{I}_{4,i}`
+  and :math:`\bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}} \, \mathbf{a}_{0,i}`.
+  The dispersion :math:`\kappa_d \in [0, 1/3]` interpolates between perfectly
+  aligned fibres (:math:`\kappa_d = 0`, the Holzapfel-Gasser-Ogden 2000 model)
+  and an isotropic distribution (:math:`\kappa_d = 1/3`). A fibre carries no
+  compression: its term is inactive wherever :math:`\bar{I}^{*}_{4,i} < 1`.
+
+  props = ``C10, k1, k2, kappa_d, n_fam, a0x_1, a0y_1, a0z_1, ..., kappa``,
+  where each :math:`\mathbf{a}_{0,i}` is a unit direction **in the local
+  material frame** (the solver's material orientation places it globally, as
+  for ELIST/ELORT). From Python the directions are given as a
+  :class:`simcoon.Rotation` applied to :math:`\mathbf{e}_1`, one entry per
+  family, which keeps Euler angles and their gimbal lock off the path to the
+  kernel::
+
+      sim.modular.HolzapfelElasticity(
+          C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
+          fibres=sim.Rotation.from_euler('zxz', [[0, 0, 40], [0, 0, -40]],
+                                         degrees=True),
+          kappa=1000.)
+
+  The same potential is available as a MODUL elasticity block, and may be composed
+  with any mechanism. Composed with **damage** -- anisotropic tissue with softening --
+  it is exact: damage subtracts no inelastic strain (it scales the stiffness instead),
+  so the elastic stretch is still the total one, and its driving force is built from
+  the current anisotropic tangent.
+
+  .. warning::
+
+     Composed with a mechanism that *does* subtract an inelastic strain
+     (**plasticity**, **viscoelasticity**), the fibre convection is
+     **approximate**. The block carries :math:`\mathbf{a}_{0,i}` from the reference
+     configuration and pushes it forward with the elastic stretch, so the inelastic
+     strain does not reorient the fibres. The composition is well posed and
+     converges -- the return mapping is handed the anisotropic tangent and its
+     consistency condition holds exactly -- but the response is only as good as that
+     assumption: exact while the inelastic strain is small or leaves the fibre
+     directions fixed, degrading as it reorients them. Representing the convection
+     exactly would require the convected directions as state variables, which the
+     additive corotational kinematics of the modular UMAT cannot express (there is
+     no plastic deformation gradient to convect with).
+
+     A second, separate caveat applies to **viscoelasticity** only: the Prony
+     branches are referenced to the elasticity block's ground-state stiffness, which
+     for HOLZA is *isotropic* (an unstretched fibre contributes nothing at
+     :math:`\bar{I}^{*}_{4,i} = 1`). The viscous response therefore carries none of
+     the fibre anisotropy, while the equilibrium response does.
+
+     Neither is rejected at run time; both are modelling choices left to the user.
+
+  A single scalar damage variable, finally, degrades matrix and fibres at the same
+  rate. The Holzapfel damage literature instead carries separate variables -- one on
+  the isotropic term and one per fibre family -- since collagen and ground substance
+  damage very differently. simcoon's damage mechanism is a single scalar, so the
+  composition models uniform softening, not anisotropic damage.
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
   memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
   scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,

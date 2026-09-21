@@ -191,9 +191,23 @@ void ElasticityModule::configure_hyper_invariants(HyperPotential potential, cons
     // form rather than a full evaluate(): the module is rebuilt on every UMAT
     // call. refresh_tensors() rejects a ground state that is not positive
     // definite, a genuine admissibility check on the parameters.
+    // A fibre family is unstretched at the ground state: tr(A) = 3 kappa_d + (1 - 3 kappa_d)
+    // = 1, so its derivatives vanish there (the tension-only switch) and mu0 is the matrix
+    // one. L_ is therefore the ISOTROPIC ground state even for an anisotropic potential,
+    // exact for the fibre-inactive state it describes. Plasticity and damage are unaffected
+    // (both are handed L_cur_, the current tangent). Viscoelasticity is NOT: it takes L0()
+    // as its branch reference, so for an anisotropic potential the Prony branches relax
+    // isotropically while the equilibrium branch does not -- documented as a caveat on
+    // HolzapfelElasticity and in the UMAT catalog.
     const arma::mat I3 = arma::eye(3, 3);
+    const arma::uword n_fam = hyper_potential_anisotropy(potential, params).a0.n_cols;
+    arma::vec I_bar0 = isochoric_invariants(I3, 1.0);
+    if (n_fam > 0) {
+        I_bar0.resize(3 + n_fam);
+        I_bar0.subvec(3, 3 + n_fam - 1).ones();
+    }
     const hyper_invariants_dW dW0 =
-        hyper_potential_derivatives(potential, params, isochoric_invariants(I3, 1.0), 1.0);
+        hyper_potential_derivatives(potential, params, I_bar0, 1.0);
     const double K0 = dW0.dU2dJ2;
     const double mu0 = 2. * (dW0.dWdI_1_bar + dW0.dWdI_2_bar);
     L_ = L_iso(K0, mu0, "Kmu");
@@ -313,11 +327,22 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
     const arma::mat b_el = V_el * V_el;
     const double J_el = std::exp(arma::trace(eps_t));
 
+    // An anisotropic potential carries reference fibre directions: push them forward with
+    // V_el, the same tensor that plays F here, and append their invariants to I_bar.
+    const hyper_anisotropy an = hyper_potential_anisotropy(hyper_potential_, hyper_props_);
+    const std::vector<arma::mat> A = structure_tensors_push_forward(V_el, an.a0, an.kappa_d, J_el);
+    arma::vec I_bar = isochoric_invariants(b_el, J_el);
+    if (!A.empty()) {
+        I_bar.resize(3 + A.size());
+        for (arma::uword i = 0; i < A.size(); i++) {
+            I_bar(3+i) = arma::trace(A[i]);
+        }
+    }
+
     const hyper_invariants_dW dW =
-        hyper_potential_derivatives(hyper_potential_, hyper_props_,
-                                    isochoric_invariants(b_el, J_el), J_el);
+        hyper_potential_derivatives(hyper_potential_, hyper_props_, I_bar, J_el);
     arma::vec sigma_cauchy;
-    hyper_invariants_response(dW, b_el, J_el, V_el, sigma_cauchy, Lt);
+    hyper_invariants_response(dW, b_el, J_el, V_el, sigma_cauchy, Lt, A);
     // MODUL is a kirchhoff_box model (umat_smart.cpp): its stress output IS tau.
     sigma = J_el * sigma_cauchy;
 }

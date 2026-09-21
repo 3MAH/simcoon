@@ -852,6 +852,20 @@ hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, con
  * \f$ \dot{\bar{I}}^{*}_{4,i} = 2 \, \textrm{dev} \mathbf{A}_i : \mathbf{d} \f$ —
  * the very relation \f$ \bar{I}_1 \f$ satisfies with \f$ \bar{\mathbf{b}} \f$.
  *
+ * @warning The directions are carried from the REFERENCE configuration and pushed
+ *          forward by @p F. When @p F is an elastic stretch that differs from the
+ *          total one -- a modular composition whose mechanism subtracts an inelastic
+ *          strain (plasticity, viscoelasticity) -- the fibres should first be convected
+ *          into the intermediate configuration, and are not: the inelastic strain does
+ *          not reorient them. The composition remains well posed and converges, and the
+ *          approximation is exact while the inelastic strain is small or leaves the
+ *          fibre directions fixed; its error grows with how much that strain reorients
+ *          them. Representing it exactly would need the convected directions as state,
+ *          which the additive corotational kinematics of the modular UMAT cannot express
+ *          (there is no plastic deformation gradient to convect with). Damage is
+ *          unaffected: it contributes no inelastic strain, so the elastic stretch is the
+ *          total one and the push-forward is exact.
+ *
  * @param F deformation gradient \f$ \mathbf{F} \f$ (or \f$ \mathbf{V}^{el} \f$ for an elastic state, as in hyper_invariants_response)
  * @param a0 3 x n_fam matrix of unit reference directions, one per column (empty gives an empty result)
  * @param kappa_d the dispersion \f$ \kappa_d \f$

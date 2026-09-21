@@ -69,73 +69,18 @@ import numpy as np
 from simcoon import _core
 from scipy.spatial.transform import Rotation as _ScipyRotation
 
-from simcoon.rotation import Rotation
+from simcoon import rotation as _rotation_module
+from simcoon.rotation import EULER_SEQ, Orientation, Rotation, as_rotation, euler_angles
 
 
 # =============================================================================
 # Data Classes
 # =============================================================================
 
-_ANGLES = ('psi', 'theta', 'phi')
-
-#: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
-#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
-#: solver applies it actively (material frame -> global frame): a phase at
-#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
-#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
-#: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
-EULER_SEQ = 'zxz'
-
-Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
-
-
-def as_rotation(value: Orientation) -> Rotation:
-    """An orientation as a :class:`simcoon.Rotation`.
-
-    ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
-    in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
-    files (missing angles are 0), or ``None`` for the identity. The angles are the
-    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
-    """
-    if value is None:
-        return Rotation.identity()
-    if isinstance(value, Rotation):
-        return value
-    if isinstance(value, _ScipyRotation):
-        return Rotation.from_scipy(value)
-    if isinstance(value, dict):
-        unknown = set(value) - set(_ANGLES)
-        if unknown:
-            raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
-        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
-    else:
-        angles = np.asarray(value, dtype=float).ravel()
-        if angles.size != 3:
-            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
-                             f"expected, got {angles.size} values")
-    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
-
-
-def euler_angles(rotation: Orientation) -> Dict[str, float]:
-    """The ``{"psi", "theta", "phi"}`` dict (degrees, ``EULER_SEQ``) of an orientation:
-    the form of the JSON files and of the dicts the C++ binding reads.
-
-    The decomposition is not unique when ``theta`` is 0 or 180 degrees (gimbal lock):
-    scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
-    same rotation as the angles that were given, written differently.
-    """
-    if not isinstance(rotation, _ScipyRotation) and rotation is not None:
-        # angles given as angles are written as given: no detour through a quaternion
-        # (float noise, and a gimbal-locked triplet rewritten) for a no-op
-        as_rotation(rotation)   # validates the dict keys / the 3 values
-        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
-                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
-        return dict(zip(_ANGLES, values))
-    rot = as_rotation(rotation)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" — see above
-        psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)
-    return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
+# The orientation coercion lives in simcoon.rotation, next to the Rotation class, because
+# it serves every API that takes one (phases here, fibre directions in modular.py). Re-exported
+# under the names this module has always published.
+_ANGLES = _rotation_module._ANGLES
 
 
 def _dataclass_eq(self, other):

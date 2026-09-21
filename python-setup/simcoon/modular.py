@@ -36,6 +36,8 @@ from typing import ClassVar, List, Sequence, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 
+from simcoon.rotation import Orientation, as_direction
+
 
 __all__ = [
     # Enums
@@ -49,6 +51,7 @@ __all__ = [
     "TransverseIsotropicElasticity", "OrthotropicElasticity",
     "NeoHookeanElasticity", "MooneyRivlinElasticity", "YeohElasticity",
     "IsiharaElasticity", "GentThomasElasticity", "SwansonElasticity",
+    "HolzapfelElasticity",
     # Yield criteria
     "VonMisesYield", "TrescaYield", "DruckerYield",
     "HillYield", "DFAYield", "AnisotropicYield",
@@ -452,6 +455,7 @@ class HyperPotential(IntEnum):
     ISHAH = 3
     GETHH = 4
     SWANH = 5
+    HOLZA = 6
 
 
 class VolumetricPotential(IntEnum):
@@ -631,10 +635,119 @@ class SwansonElasticity(_HyperInvariantsElasticity):
         return params
 
 
+@dataclass(frozen=True)
+class HolzapfelElasticity(_HyperInvariantsElasticity):
+    r"""Gasser-Ogden-Holzapfel potential (the ``HOLZA`` UMAT's).
+
+    An isotropic neo-Hookean ground matrix reinforced by one or two families of
+    dispersed collagen fibres:
+
+    :math:`W = C_{10}(\bar{I}_1 - 3)
+    + \sum_i \frac{k_1}{2 k_2}\left[\exp\left(k_2 (\bar{I}^*_{4,i} - 1)^2\right) - 1\right]
+    + U(J)`
+
+    where :math:`\bar{I}^*_{4,i} = \kappa_d \bar{I}_1 + (1 - 3\kappa_d)\bar{I}_{4,i}`
+    and :math:`\bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}}\, \mathbf{a}_{0,i}`.
+    A fibre carries no compression: its term is inactive where
+    :math:`\bar{I}^*_{4,i} < 1`.
+
+    Parameters
+    ----------
+    C10 : float
+        Neo-Hookean ground matrix; the matrix shear modulus is :math:`\mu = 2 C_{10}`.
+    k1 : float
+        Fibre stiffness, in stress units (MPa).
+    k2 : float
+        Fibre stiffening exponent, dimensionless.
+    kappa_d : float
+        Fibre dispersion, :math:`\kappa_d \in [0, 1/3]`. 0 gives perfectly aligned
+        fibres (the Holzapfel-Gasser-Ogden 2000 model), 1/3 an isotropic
+        distribution, for which the response no longer depends on ``fibres``.
+    fibres : Rotation or array-like
+        The fibre directions in the LOCAL material frame, as a (possibly batched)
+        :class:`simcoon.Rotation` -- one entry per family -- applied to
+        :math:`\mathbf{e}_1`, or directly as an ``(n, 3)`` array of components.
+        Going through a ``Rotation`` keeps Euler angles, and hence gimbal lock, out
+        of the path to the kernel. The solver's material orientation places the
+        local frame globally, as it does for ELIST/ELORT.
+    kappa : float
+        Ground-state bulk modulus, :math:`U''(1)`.
+    volumetric : str
+        ``"log"`` (default) or ``"quadratic"``; keyword-only.
+    alpha : float
+        Coefficient of thermal expansion.
+
+    Examples
+    --------
+    >>> import simcoon as sim
+    >>> HolzapfelElasticity(
+    ...     C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
+    ...     fibres=sim.Rotation.from_euler('zxz', [[0, 0, 40], [0, 0, -40]], degrees=True),
+    ...     kappa=1000.)               # doctest: +ELLIPSIS
+    HolzapfelElasticity(...)
+
+    Notes
+    -----
+    Composed with :class:`Damage` -- the classic anisotropic tissue with
+    softening -- this block is exact: damage subtracts no inelastic strain (it
+    scales the stiffness instead), so the elastic stretch is still the total
+    one, and its driving force uses the current anisotropic tangent.
+
+    .. warning::
+
+       Composed with :class:`Plasticity` or :class:`Viscoelasticity`, the fibre
+       convection is **approximate**. The block carries the reference directions
+       and pushes them forward with the *elastic* stretch, so the inelastic
+       strain does not reorient the fibres. The composition is well posed and
+       converges -- the return mapping gets the anisotropic tangent and its
+       consistency condition holds exactly -- but it is only as good as that
+       assumption, degrading as the inelastic strain reorients the fibres.
+       Nothing rejects it at run time; it is a modelling choice.
+
+       For :class:`Viscoelasticity` there is a second, separate caveat: the
+       Prony branches are referenced to the block's ground-state stiffness,
+       which is *isotropic* here (an unstretched fibre contributes nothing), so
+       the viscous response carries none of the fibre anisotropy while the
+       equilibrium response does.
+
+    A single scalar damage variable also degrades matrix and fibres at the same
+    rate; the Holzapfel damage literature uses separate variables per term.
+    """
+    potential = HyperPotential.HOLZA
+    C10: float
+    k1: float
+    k2: float
+    kappa_d: float
+    fibres: Orientation
+    kappa: float
+
+    def __post_init__(self):
+        super().__post_init__()
+        if not 0.0 <= float(self.kappa_d) <= 1.0/3.0:
+            raise ValueError(f"HolzapfelElasticity: kappa_d must lie in [0, 1/3], "
+                             f"got {self.kappa_d!r}")
+        self.directions     # a bad fibre spec fails at construction, not at to_props()
+
+    @property
+    def directions(self) -> NDArray[np.float64]:
+        """The unit fibre directions as a ``(3, n_fam)`` array, one per column."""
+        return as_direction(self.fibres)
+
+    def potential_params(self) -> List[float]:
+        a0 = self.directions
+        params = [float(self.C10), float(self.k1), float(self.k2), float(self.kappa_d),
+                  float(a0.shape[1])]
+        for i in range(a0.shape[1]):
+            params.extend(float(x) for x in a0[:, i])
+        params.append(float(self.kappa))
+        return params
+
+
 Elasticity = Union[IsotropicElasticity, CubicElasticity,
                    TransverseIsotropicElasticity, OrthotropicElasticity,
                    NeoHookeanElasticity, MooneyRivlinElasticity, YeohElasticity,
-                   IsiharaElasticity, GentThomasElasticity, SwansonElasticity]
+                   IsiharaElasticity, GentThomasElasticity, SwansonElasticity,
+                   HolzapfelElasticity]
 
 # ============================================================================
 # Yield criteria

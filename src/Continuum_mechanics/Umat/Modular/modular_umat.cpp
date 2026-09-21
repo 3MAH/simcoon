@@ -149,6 +149,15 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
                                         std::to_string(mech_type));
         }
     }
+
+    // NOTE: an anisotropic elastic potential composed with a mechanism that subtracts an
+    // inelastic strain is ACCEPTED, not rejected: it is well posed and converges (the return
+    // mapping is handed L_cur_, the anisotropic tangent, and the consistency condition holds
+    // exactly). What it leaves approximate is the fibre convection -- the reference directions
+    // are pushed forward by the elastic stretch, so the inelastic strain does not reorient
+    // them. That approximation is documented on structure_tensors_push_forward; representing
+    // it exactly needs the convected directions as state, which the additive corotational
+    // kinematics here cannot express (there is no F^p to convect with).
 }
 
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {
