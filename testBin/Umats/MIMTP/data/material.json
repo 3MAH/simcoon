@@ -1,0 +1,14 @@
+{
+  "name": "MIMTN",
+  "props": [
+    20.0,
+    20.0,
+    0.0
+  ],
+  "nstatev": 10000,
+  "orientation": {
+    "psi": 0.0,
+    "theta": 0.0,
+    "phi": 0.0
+  }
+}

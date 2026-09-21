@@ -18,7 +18,11 @@ Overview
 The Ansys ``USERMAT`` subroutine interface differs from Abaqus in several ways:
 
 - **Voigt notation**: Ansys uses (11, 22, 33, 12, 23, 13) vs simcoon's (11, 22, 33, 12, 13, 23)
-- **Finite strain handling**: Built-in Jaumann framework for rate-form behaviours
+- **Finite strain handling**: Ansys integrates the law in its own corotated frame
+  (in practice the Green-Naghdi one), passes Cauchy stress and logarithmic strain
+  already rotated, and defines ``dsdePl`` as :math:`\partial \Delta\boldsymbol{\sigma} / \partial \Delta\boldsymbol{\varepsilon}`
+  in that frame, with no :math:`J` factor: the kernel tangent is passed as is
+  (unlike Abaqus, see :doc:`abaqus`); ``rotateM`` rotates the tensorial state variables
 - **No time step control**: Cannot request smaller time steps from within USERMAT
 - **State variable initialization**: Cannot set non-zero initial values
 - **Model selection**: Uses numeric model code in props[0] instead of material name

@@ -25,12 +25,12 @@
 #include <assert.h>
 #include <armadillo>
 #include <memory>
+#include <stdexcept>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/multiphase.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Simulation/Phase/read.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
 #include <simcoon/Continuum_mechanics/Micromechanics/schemes.hpp>
@@ -40,48 +40,82 @@ using namespace arma;
 
 namespace simcoon{
     
-///@brief The elastic isotropic UMAT requires 4 constants, plus the number of constants for each materials:
-///@brief props[0] : Number of phases
-///@brief props[1] : File # that stores the microstructure properties
-///@brief props[2] : Number of integration points in the 1 direction
-///@brief props[3] : Number of integration points in the 2 direction
 
-///@brief The table Nphases.dat will store the necessary informations about the geometry of the phases and the material properties
+int sub_phase_shape(const std::string &umat_name) {
+    if (umat_name == "MIHEN" || umat_name == "MIMTN" || umat_name == "MISCN") {
+        return 2;
+    }
+    if (umat_name == "MIPLN") {
+        return 1;
+    }
+    return 0;
+}
+
+int self_consistent_start(const phase_characteristics &phase) {
+    const vec &props = phase.sptr_matprops->props;
+    return (props.n_elem > 3) ? static_cast<int>(props(3)) : 1;
+}
+
+void check_sub_phases(const phase_characteristics &phase) {
+    const std::string &name = phase.sptr_matprops->umat_name;
+    const vec &props = phase.sptr_matprops->props;
+    const int nphases = static_cast<int>(phase.sub_phases.size());
+    if (nphases == 0) {
+        throw std::invalid_argument(name + " needs its sub-phases: pass them (phases=) to the solver or to L_eff.");
+    }
+
+    //The props are the scheme's settings only. An exact length turns the pre-2.0 layout
+    //[nphases, file number, mp, np, n_matrix] into an error instead of a misread n_matrix.
+    const bool self_consistent = (name == "MISCN");
+    const uword n_min = (name == "MIPLN") ? 0 : ((name == "MIHEN") ? 2 : 3);
+    const uword n_max = self_consistent ? 4 : n_min;
+    if (props.n_elem < n_min || props.n_elem > n_max) {
+        throw std::invalid_argument(name + " takes props = " + std::string(name == "MIPLN" ? "[]" : (name == "MIHEN" ? "[mp, np]"
+                                    : (self_consistent ? "[mp, np, n_matrix] or [mp, np, n_matrix, start]" : "[mp, np, n_matrix]")))
+                                    + ", got " + std::to_string(props.n_elem) + " values (the leading [nphases, file number] slots no longer exist)");
+    }
+    //comparisons written so that NaN fails them; the casts to int come after
+    if (n_min >= 2 && !(props(0) >= 1. && props(0) <= 10000. && props(1) >= 1. && props(1) <= 10000.)) {
+        throw std::invalid_argument(name + ": mp and np, the integration points of the Eshelby integrals, must be in [1, 10000]");
+    }
+    if (n_min >= 3) {
+        if (!(props(2) >= -1. && props(2) < static_cast<double>(nphases))) {
+            throw std::invalid_argument(name + ": n_matrix = " + std::to_string(props(2)) + " is not one of the "
+                                        + std::to_string(nphases) + " phases given");
+        }
+        const int n_matrix = static_cast<int>(props(2));
+        const int start = self_consistent ? self_consistent_start(phase) : 1;
+        if (start != 0 && start != 1) {
+            throw std::invalid_argument(name + ": start = " + std::to_string(start) + " is neither 0 (homogeneous strain) nor 1 (Mori-Tanaka)");
+        }
+        if (start == 1 && (n_matrix < 0 || n_matrix >= nphases)) {
+            throw std::invalid_argument(name + ": n_matrix = " + std::to_string(n_matrix) + " is not one of the "
+                                        + std::to_string(nphases) + " phases given");
+        }
+        if (start == 0 && n_matrix >= 0) {
+            throw std::invalid_argument(name + ": the homogeneous-strain start (start = 0) takes n_matrix < 0");
+        }
+    }
+}
 
 void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const unsigned int &solver_type, double &tnew_dt, const int &method)
 {
 
-    int nphases = phase.sptr_matprops->props(0); // Number of phases
-    string path_data = "data";
-    string inputfile; //file # that stores the microstructure properties
-    
+    check_sub_phases(phase);
+    const int nphases = static_cast<int>(phase.sub_phases.size());
+
     shared_ptr<state_variables_M> umat_phase_M = std::dynamic_pointer_cast<state_variables_M>(phase.sptr_sv_local); //shared_ptr on state variables of the rve
     shared_ptr<state_variables_M> umat_sub_phases_M; //shared_ptr on state variables
     
-    //1 - We need to figure out the type of geometry and read the phase
-    if(start) {
-        switch (method) {
-                
-            case 100: case 101: case 102: case 103: {
-                //Definition of the static vectors x,wx,y,wy
-                ellipsoid_multi::mp = phase.sptr_matprops->props(2);
-                ellipsoid_multi::np = phase.sptr_matprops->props(3);
-                ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
-                ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
-                ellipsoid_multi::y.set_size(ellipsoid_multi::np);
-                ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
-                points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
-                
-                inputfile = "Nellipsoids" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_ellipsoid(phase, path_data, inputfile);
-                break;
-            }
-            case 104: {
-                inputfile = "Nlayers" + to_string(int(phase.sptr_matprops->props(1))) + ".dat";
-                read_layer(phase, path_data, inputfile);
-                break;
-            }
-        }
+    //1 - Quadrature points of the Eshelby integrals (ellipsoidal schemes only)
+    if (start && (sub_phase_shape(phase.sptr_matprops->umat_name) == 2)) {
+        ellipsoid_multi::mp = phase.sptr_matprops->props(0);
+        ellipsoid_multi::np = phase.sptr_matprops->props(1);
+        ellipsoid_multi::x.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::wx.set_size(ellipsoid_multi::mp);
+        ellipsoid_multi::y.set_size(ellipsoid_multi::np);
+        ellipsoid_multi::wy.set_size(ellipsoid_multi::np);
+        points(ellipsoid_multi::x, ellipsoid_multi::wx, ellipsoid_multi::y, ellipsoid_multi::wy,ellipsoid_multi::mp, ellipsoid_multi::np);
     }
     
 	//Initialization
@@ -122,18 +156,18 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
                 break;
             }
             case 101: {
-                int n_matrix = phase.sptr_matprops->props(4);
+                int n_matrix = phase.sptr_matprops->props(2);
                 DE_Mori_Tanaka(phase, n_matrix);
                 break;
             }
             case 102: {
-                int n_matrix = phase.sptr_matprops->props(4);
+                int n_matrix = phase.sptr_matprops->props(2);
                 DE_Mori_Tanaka_iso(phase, n_matrix);
                 break;
             }
             case 103: {
-                int n_matrix = phase.sptr_matprops->props(4);
-                DE_Self_Consistent(phase, n_matrix, start, phase.sptr_matprops->props(5));
+                int n_matrix = phase.sptr_matprops->props(2);
+                DE_Self_Consistent(phase, n_matrix, start, self_consistent_start(phase));
                 break;
             }
             case 104: {
@@ -172,18 +206,18 @@ void umat_multi(phase_characteristics &phase, const mat &DR, const double &Time,
                 break;
             }
             case 101: {
-                int n_matrix = phase.sptr_matprops->props(4);
+                int n_matrix = phase.sptr_matprops->props(2);
                 Lt_Mori_Tanaka(phase, n_matrix);
                 break;
             }
             case 102: {
-                int n_matrix = phase.sptr_matprops->props(4);
+                int n_matrix = phase.sptr_matprops->props(2);
                 Lt_Mori_Tanaka_iso(phase, n_matrix);
                 break;
             }
             case 103: {
-                int n_matrix = phase.sptr_matprops->props(4);
-                Lt_Self_Consistent(phase, n_matrix, start, phase.sptr_matprops->props(5));
+                int n_matrix = phase.sptr_matprops->props(2);
+                Lt_Self_Consistent(phase, n_matrix, start, self_consistent_start(phase));
                 break;
             }
             case 104: {

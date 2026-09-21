@@ -14,12 +14,13 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # The Prony series (generalized Maxwell) constitutive law is a rate-dependent,
 # isotropic, linear viscoelastic model that considers thermal strains.
 # It extends the Zener (standard linear solid) model to :math:`N` Maxwell branches
-# connected in parallel with a long-term elastic spring.
+# connected in parallel with an equilibrium spring, the whole assembly having the
+# instantaneous stiffness :math:`E_0` (so the long-term modulus is :math:`E_0 - \sum_i E_i`).
 #
 # The material parameters are:
 #
-# 1. The long-term (equilibrium) Young's modulus :math:`E_0`
-# 2. The long-term Poisson's ratio :math:`\nu_0`
+# 1. The instantaneous (glassy) Young's modulus :math:`E_0`
+# 2. The instantaneous Poisson's ratio :math:`\nu_0`
 # 3. The coefficient of thermal expansion :math:`\alpha`
 # 4. The number of Prony branches :math:`N`
 #
@@ -35,7 +36,7 @@ plt.rcParams["figure.figsize"] = (18, 10)
 # .. math::
 #
 #   \boldsymbol{\sigma}(t) = \mathbf{L}_0 : \boldsymbol{\varepsilon}(t)
-#   + \sum_{i=1}^{N} \mathbf{L}_i : \boldsymbol{\varepsilon}^{v}_i(t)
+#   - \sum_{i=1}^{N} \mathbf{L}_i : \boldsymbol{\varepsilon}^{v}_i(t)
 #
 # where each viscous strain :math:`\boldsymbol{\varepsilon}^{v}_i` evolves according
 # to the Maxwell element ODE with characteristic viscosities :math:`\eta_{B,i}`
@@ -43,8 +44,8 @@ plt.rcParams["figure.figsize"] = (18, 10)
 
 umat_name = "PRONK"  # 5 character code for the generalized Maxwell (Prony) model
 
-E_0 = 9400.0  # Long-term Young's modulus (MPa)
-nu_0 = 0.4  # Long-term Poisson's ratio
+E_0 = 9400.0  # Instantaneous Young's modulus (MPa); long-term = E_0 - sum(E_i)
+nu_0 = 0.4  # Instantaneous Poisson's ratio
 alpha = 0.0  # Coefficient of thermal expansion
 n_prony = 5  # Number of Prony (Maxwell) branches
 
@@ -54,7 +55,7 @@ mat_file = os.path.join(path_data, "Prony_raw.dat")
 E_i, nu_i, etaB_i, etaS_i = np.loadtxt(mat_file, usecols=(0, 1, 2, 3), unpack=True)
 
 # nstatev depends on the number of branches
-nstatev = 8 + 7 * n_prony  # Number of internal state variables
+nstatev = 7 + 7 * n_prony  # T_init, total viscous strain (6), then (v_i, eps_v_i) per branch
 
 psi_rve = 0.0
 theta_rve = 0.0
@@ -67,23 +68,23 @@ props = np.array([E_0, nu_0, alpha, n_prony])
 for i in range(n_prony):
     props = np.append(props, [E_i[i], nu_i[i], etaB_i[i], etaS_i[i]])
 
-path_results = "results"
-pathfile = "PRONK_path.txt"
-outputfile = "results_PRONK.txt"
+pathfile = "PRONK_path.json"
 
-sim._core.solver(
+###################################################################################
+# The loading path is read in Python and the simulation runs in memory: no result
+# file is written, and the histories come back as component-first arrays.
+
+blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+
+res = sim.solver.solve(
+    blocks,
     umat_name,
     props,
     nstatev,
-    psi_rve,
-    theta_rve,
-    phi_rve,
-    solver_type,
-    corate_type,
-    path_data,
-    path_results,
-    pathfile,
-    outputfile,
+    T_init=T_init,
+    solver_type=solver_type,
+    corate=corate_type,
+    orientation=(psi_rve, theta_rve, phi_rve),
 )
 
 ###################################################################################
@@ -93,19 +94,12 @@ sim._core.solver(
 # We plot the stress-strain response which shows the viscoelastic behavior
 # (rate-dependent stiffness and hysteresis from viscous dissipation).
 
-outputfile_macro = os.path.join(path_results, "results_PRONK_global-0.txt")
+e11, e22, e33, e12, e13, e23 = res["Strain"]
+s11, s22, s33, s12, s13, s23 = res["Stress"]
+time, T = res["Time"], res["Temp"]
+Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
 
 fig = plt.figure()
-
-e11, e22, e33, e12, e13, e23, s11, s22, s33, s12, s13, s23 = np.loadtxt(
-    outputfile_macro,
-    usecols=(8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19),
-    unpack=True,
-)
-time, T, Q_out, r = np.loadtxt(outputfile_macro, usecols=(4, 5, 6, 7), unpack=True)
-Wm, Wm_r, Wm_ir, Wm_d = np.loadtxt(
-    outputfile_macro, usecols=(20, 21, 22, 23), unpack=True
-)
 
 # First subplot: Stress vs Strain
 ax1 = fig.add_subplot(1, 2, 1)

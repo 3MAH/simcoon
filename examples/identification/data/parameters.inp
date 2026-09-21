@@ -1,0 +1,3 @@
+#Number  #min   #max    #key      #number_of_files  #files
+0        100    600     @sigmaY   1                 material.json
+1        100    5000    @k        1                 material.json

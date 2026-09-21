@@ -14,18 +14,8 @@
 using namespace std;
 using namespace arma;
 
-///@brief The viscoelastic Prony series model requires 4+N*4 constants:
-//      -------------------
-///@brief      props(0) = E0                - Thermoelastic Young's modulus
-///@brief      props(1) = nu0               - Thermoelastic Poisson's ratio
-///@brief      props(2) = alpha_iso         - Thermoelastic CTE
-///@brief      props(3) = N_prony           - Number of Prony series
-///@brief      props(4+i*4) = E_visco(i)    - Viscoelastic Young modulus of Prony branch i
-///@brief      props(4+i*4+1) = nu_visco(i) - Viscoelastic Poisson ratio of Prony branch i
-///@brief      props(4+i*4+2) = etaB_visco  - Viscoelastic Bulk viscosity of Prony branch i
-///@brief      props(4+i*4+3) = etaS_visco  - Viscoelastic Bulk viscosity of Prony branch i
-
-///@brief Number of statev required for thermoelastic constitutive law : 7+N*7
+// Model, props and statev layout: see the Doxygen block in
+// simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Prony_Nfast.hpp
 
 namespace simcoon {
     
@@ -96,6 +86,12 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         EV_i[i] = rotate_strain(EV_i[i], DR);
     }
     
+    vec sigma_start = sigma;
+    std::vector<vec> DEV_i(N_prony);
+    std::vector<vec> A_v(N_prony);
+    std::vector<mat> dA_dEv(N_prony);
+    std::vector<vec> A_v_start(N_prony);
+
     std::vector<mat> L_i(N_prony);
     std::vector<mat> H_i(N_prony);
     std::vector<mat> invH_i(N_prony);
@@ -104,13 +100,15 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
         invH_i[i] = inv(H_i[i]);
+
+        //Unconditionally, as the mechanical Prony_Nfast does: a default-constructed
+        //arma::vec has size 0, so the `A_v_start[i] +=` below threw
+        //"addition: incompatible matrix dimensions: 0x1 and 6x1" on the first call.
+        DEV_i[i] = zeros(6);
+        A_v[i] = zeros(6);
+        A_v_start[i] = zeros(6);
     }
     
-    vec sigma_start = sigma;
-    std::vector<vec> DEV_i(N_prony);
-    std::vector<vec> A_v(N_prony);
-    std::vector<mat> dA_dEv(N_prony);
-    std::vector<vec> A_v_start(N_prony);
     
     if(start) { //Initialization
         T_init = T;
@@ -206,8 +204,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
             else {
-                Phi(i) = norm_strain(flow_visco[i]);
-                dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]));
+                //No time, no flow: the branch is INACTIVE. The stationary condition
+                //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+                Phi(i) = 0.;
+                dPhidv[i] = -1.;
             }
             kappa_j[i] = L_i[i]*Lambdav[i];
             K(i,i) = dPhidv[i];

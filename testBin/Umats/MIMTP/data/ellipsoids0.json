@@ -1,0 +1,94 @@
+{
+  "ellipsoids": [
+    {
+      "number": 0,
+      "coatingof": 0,
+      "umat_name": "MODUL",
+      "save": 1,
+      "concentration": 0.7,
+      "material_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "semi_axes": {
+        "a1": 1.0,
+        "a2": 1.0,
+        "a3": 1.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "nstatev": 8,
+      "props": {
+        "prop_0": 0.0,
+        "prop_1": 0.0,
+        "prop_2": 70000.0,
+        "prop_3": 0.3,
+        "prop_4": 1e-05,
+        "prop_5": 1.0,
+        "prop_6": 0.0,
+        "prop_7": 0.0,
+        "prop_8": 3.0,
+        "prop_9": 0.0,
+        "prop_10": 1.0,
+        "prop_11": 1.0,
+        "prop_12": 100.0,
+        "prop_13": 150.0,
+        "prop_14": 20.0
+      },
+      "prop_names": [
+        "prop_0",
+        "prop_1",
+        "prop_2",
+        "prop_3",
+        "prop_4",
+        "prop_5",
+        "prop_6",
+        "prop_7",
+        "prop_8",
+        "prop_9",
+        "prop_10",
+        "prop_11",
+        "prop_12",
+        "prop_13",
+        "prop_14"
+      ]
+    },
+    {
+      "number": 1,
+      "coatingof": 0,
+      "umat_name": "ELISO",
+      "save": 1,
+      "concentration": 0.3,
+      "material_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "semi_axes": {
+        "a1": 1.0,
+        "a2": 1.0,
+        "a3": 1.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "nstatev": 1,
+      "props": {
+        "prop_0": 400000.0,
+        "prop_1": 0.2,
+        "prop_2": 0.0
+      },
+      "prop_names": [
+        "prop_0",
+        "prop_1",
+        "prop_2"
+      ]
+    }
+  ]
+}

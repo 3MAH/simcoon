@@ -184,8 +184,8 @@ ContinuumTangent assemble_algorithmic_tangent(
  * @brief Lazy per-mechanism Hessian provider for compute_tangent_operator().
  *
  * Invoked ONLY when the algorithmic operator is requested — expensive Hessians
- * (e.g. the SMA finite-difference $ \partial oldsymbol{\Lambda}/\partial
- * oldsymbol{\sigma} $) must not be evaluated in the other modes.
+ * (e.g. the SMA finite-difference \f$ \partial \boldsymbol{\Lambda}/\partial
+ * \boldsymbol{\sigma} \f$) must not be evaluated in the other modes.
  */
 using HessianProvider = std::function<std::vector<arma::mat>()>;
 

@@ -305,7 +305,7 @@ if(BUILD_PYTHON_BINDINGS)
 
       # Ensure carma::carma target exists with proper include directories. carma headers
       # include pybind11 and numpy, and on Windows libsimcoon (which has no pybind11 of its
-      # own) force-includes cnalloc.h, so both have to come with the target.
+      # own) force-includes numpy_alloc.hpp, so both have to come with the target.
       if(NOT TARGET carma::carma)
         add_library(carma::carma INTERFACE IMPORTED)
         set_target_properties(carma::carma PROPERTIES
@@ -420,22 +420,29 @@ if(NOT WIN32)
   endif()
 endif()
 
-# On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
-# This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.
-# Only needed on Windows due to stricter heap validation.
-# See: https://github.com/RUrlus/carma/issues/89
-if(WIN32 AND BUILD_PYTHON_BINDINGS)
-  target_link_libraries(simcoon PRIVATE carma::carma)
-
-  # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
-  # BEFORE any Armadillo headers.
-  set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
-  if(EXISTS "${CARMA_CNALLOC_H}")
-    message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
-    target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
+# Armadillo memory through numpy's allocator (simcoon-python-builder/include/.../numpy_alloc.hpp,
+# force-included ahead of every source of the target; OWNER_SRC defines the target's single
+# numpy C-API table). Applied to _core everywhere and, below, to libsimcoon on Windows, where
+# Armadillo objects cross the libsimcoon/_core boundary and mixed allocators corrupt the heap
+# (https://github.com/RUrlus/carma/issues/89).
+set(SIMCOON_NUMPY_ALLOC_HPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/include/simcoon/python_wrappers/numpy_alloc.hpp")
+function(simcoon_use_numpy_allocator target owner_src)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE "/FI${SIMCOON_NUMPY_ALLOC_HPP}")
   else()
-    message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H}")
+    target_compile_options(${target} PRIVATE "SHELL:-include ${SIMCOON_NUMPY_ALLOC_HPP}")
   endif()
+  # directory-scoped property: call this from the CMakeLists.txt that defines the target
+  set_source_files_properties("${owner_src}" PROPERTIES COMPILE_DEFINITIONS SIMCOON_NUMPY_API_OWNER)
+endfunction()
+
+if(WIN32 AND BUILD_PYTHON_BINDINGS)
+  target_link_libraries(simcoon PRIVATE carma::carma)   # pybind11 + numpy headers
+  set(SIMCOON_NUMPY_ALLOC_CPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/src/numpy_alloc.cpp")
+  target_sources(simcoon PRIVATE "${SIMCOON_NUMPY_ALLOC_CPP}")
+  simcoon_use_numpy_allocator(simcoon "${SIMCOON_NUMPY_ALLOC_CPP}")
+  # _core imports libsimcoon's table at its own import (python_module.cpp)
+  set(SIMCOON_NUMPY_ALLOC_IN_LIB TRUE)
 endif()
 
 ##Testing

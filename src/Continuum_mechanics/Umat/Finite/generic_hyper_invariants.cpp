@@ -38,12 +38,10 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
+///@brief props: the parameters of the potential (see HyperPotential, hyperelastic.hpp), then an
+///@brief optional selector of the volumetric term U(J) (see VolumetricPotential)
 
-///@brief No statev is required for thermoelastic constitutive law
+///@brief No statev is required for a hyperelastic constitutive law
 
 void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {  	

@@ -100,7 +100,7 @@ void DE_Mori_Tanaka_iso(phase_characteristics &rve, const int &n_matrix);
  * @param rve Phase characteristics of the RVE
  * @param n_matrix Index of the matrix phase
  * @param start Flag indicating if this is the first iteration
- * @param max_iter Maximum number of iterations (default: 1)
+ * @param option_start First guess at start: 1 Mori-Tanaka (default), 0 homogeneous strain (n_matrix < 0)
  * 
  * @details The Self-Consistent scheme determines the effective medium iteratively:
  * \f[
@@ -108,16 +108,16 @@ void DE_Mori_Tanaka_iso(phase_characteristics &rve, const int &n_matrix);
  * \f]
  * where the localization tensors depend on the (unknown) effective medium.
  */
-void Lt_Self_Consistent(phase_characteristics &rve, const int &n_matrix, const bool &start, const int &max_iter = 1);
+void Lt_Self_Consistent(phase_characteristics &rve, const int &n_matrix, const bool &start, const int &option_start = 1);
 
 /**
  * @brief Compute strain increment using the Self-Consistent scheme.
  * @param rve Phase characteristics of the RVE
  * @param n_matrix Index of the matrix phase
  * @param start Flag indicating if this is the first iteration
- * @param max_iter Maximum number of iterations (default: 1)
+ * @param option_start First guess at start: 1 Mori-Tanaka (default), 0 homogeneous strain (n_matrix < 0)
  */
-void DE_Self_Consistent(phase_characteristics &rve, const int &n_matrix, const bool &start, const int &max_iter = 1);
+void DE_Self_Consistent(phase_characteristics &rve, const int &n_matrix, const bool &start, const int &option_start = 1);
     
 /**
  * @brief Compute tangent stiffness using the Periodic Layer scheme.

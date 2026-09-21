@@ -22,15 +22,14 @@ from solver_harness import (
     S_STRAIN,
     S_STRESS,
     S_WM,
-    path_file,
     run_path,
 )
 
 
-def _run_finite(base_dir, umat_name, props, nstatev, corate, targets,
+def _run_finite(umat_name, props, nstatev, corate, targets,
                 control_type=3):
-    return run_path(base_dir, umat_name, props, nstatev, corate,
-                    path_file(targets, control_type))
+    return run_path(umat_name, props, nstatev, corate,
+                    targets, control_type)
 
 
 def _elastic_modul():
@@ -40,16 +39,16 @@ def _elastic_modul():
     )
 
 
-def test_modul_finite_matches_legacy_eliso(tmp_path):
+def test_modul_finite_matches_legacy_eliso():
     """Elastic-only MODUL and legacy ELISO (modular adapter) are the same
     log-strain Kirchhoff box; under NLGEOM ct3 + corate 3 their histories must
     coincide, and the controlled Kirchhoff stress must map to e11 = tau11/E
     exactly (pins the Kirchhoff-route output: a spurious Cauchy->Kirchhoff
     conversion would scale the response by J)."""
     mat = _elastic_modul()
-    h_mod = _run_finite(tmp_path / "mod", mat.umat_name, mat.props,
+    h_mod = _run_finite(mat.umat_name, mat.props,
                         mat.nstatev, 3, [("S", 15000.0)])
-    h_leg = _run_finite(tmp_path / "leg", "ELISO", [100000.0, 0.3, 0.0], 1, 3,
+    h_leg = _run_finite("ELISO", [100000.0, 0.3, 0.0], 1, 3,
                         [("S", 15000.0)])
 
     assert abs(h_mod[-1, C_TIME] - 1.0) < 1e-6
@@ -62,13 +61,13 @@ def test_modul_finite_matches_legacy_eliso(tmp_path):
     assert abs(h_mod[-1, S_STRAIN][0] - 0.15) < 1e-6
 
 
-def test_modul_finite_hyperelastic_closed_cycle(tmp_path):
+def test_modul_finite_hyperelastic_closed_cycle():
     """Load to 15% log strain and back to zero stress: a hyperelastic law
     leaves no residual strain and no residual work. This is the hyper/hypo
     consistency property corate 3 buys — a Jaumann-style rate would not
     return to zero."""
     mat = _elastic_modul()
-    hist = _run_finite(tmp_path, mat.umat_name, mat.props, mat.nstatev, 3,
+    hist = _run_finite(mat.umat_name, mat.props, mat.nstatev, 3,
                        [("S", 15000.0), ("S", 0.0)])
 
     assert abs(hist[-1, C_TIME] - 2.0) < 1e-6
@@ -80,17 +79,17 @@ def test_modul_finite_hyperelastic_closed_cycle(tmp_path):
     assert np.max(np.abs(final[S_WM])) < 1e-6 * 0.5 * 15000.0 * 0.15
 
 
-def test_modul_finite_rejects_non_log_corate(tmp_path):
+def test_modul_finite_rejects_non_log_corate():
     """Any corate other than 3 (log_R) degrades the composition to a
     non-integrable hypoelastic rate: rejected up front."""
     mat = _elastic_modul()
     for corate in (0, 1, 2, 5):
         with pytest.raises(RuntimeError, match="corate_type = 3"):
-            _run_finite(tmp_path / f"co{corate}", mat.umat_name, mat.props,
+            _run_finite(mat.umat_name, mat.props,
                         mat.nstatev, corate, [("S", 15000.0)])
 
 
-def test_modul_finite_plasticity_dissipates(tmp_path):
+def test_modul_finite_plasticity_dissipates():
     """Voce elasto-plasticity under NLGEOM: a strain-controlled cycle to 5%
     log strain and back yields on loading, re-yields in compression on the
     way back, and leaves strictly positive dissipation.
@@ -110,7 +109,7 @@ def test_modul_finite_plasticity_dissipates(tmp_path):
             ),
         ],
     )
-    hist = _run_finite(tmp_path, mat.umat_name, mat.props, mat.nstatev, 3,
+    hist = _run_finite(mat.umat_name, mat.props, mat.nstatev, 3,
                        [("E", 0.05), ("E", 0.0)])
 
     assert abs(hist[-1, C_TIME] - 2.0) < 1e-6

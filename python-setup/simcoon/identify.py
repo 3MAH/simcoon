@@ -6,7 +6,7 @@ and ``calc_cost()`` (multi-level weighted cost function for parameter
 identification from multiple tests).
 """
 
-from typing import Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 import numpy as np
 from scipy.optimize import differential_evolution
@@ -50,12 +50,14 @@ def identification(
     --------
     >>> from simcoon.parameter import Parameter
     >>> from simcoon.identify import identification
-    >>> params = [
-    ...     Parameter(0, bounds=(10000, 200000), key="@Ef",
-    ...               sim_input_files=["material.dat"]),
-    ... ]
+    >>> params = [Parameter(0, bounds=(10000, 200000))]
     >>> result = identification(my_cost, params, seed=42)
     >>> print(f"Identified E = {params[0].value:.0f}")
+
+    ``my_cost`` receives the trial values and runs the model in memory
+    (:func:`simcoon.solver.solve` takes ``props`` directly). ``key`` and
+    ``sim_input_files`` are only needed to drive an external, file-based
+    solver by substituting the keys into its input decks.
     """
     bounds = [p.bounds for p in parameters]
 
@@ -179,7 +181,7 @@ def calc_cost(
     for i in range(n_tests):
         exp_i = y_exp_2d[i]
         num_i = y_num_2d[i]
-        n_pts, n_resp = exp_i.shape
+        n_resp = exp_i.shape[1]
 
         if num_i.shape != exp_i.shape:
             raise ValueError(

@@ -19,7 +19,7 @@ CONTROL_TYPES = {
     "small_strain": 1,     # small-strain / Kirchhoff stress control
     "green_lagrange": 2,   # Green-Lagrange strain / PKII stress control
     "logarithmic": 3,      # logarithmic strain / Kirchhoff stress control
-    "biot": 4,             # Biot strain (U - I) / Biot stress control
+    "biot": 4,             # right stretch U (identity = 1, not the Biot strain U - I) / Biot stress control
     "F": 5,                # full deformation gradient control
     "gradU": 6,            # displacement gradient control
 }

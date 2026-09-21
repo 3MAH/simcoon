@@ -20,6 +20,7 @@
 ///@author Chemisky
 
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <string>
 #include <armadillo>
@@ -50,6 +51,9 @@ namespace simcoon {
 ///@brief   nvariants : Number of martensite variants
 ///@brief   c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0 : Lagrange parameters (variant)
 ///@brief   c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1 : Lagrange parameters (total)
+///@brief Then the crystallography, in props as well (nothing is read from a file):
+///@brief   for each variant i: n_i (3, habit plane normal), m_i (3, transformation direction)
+///@brief   then the interaction matrix Hnm, nvariants x nvariants, row by row
 
 
 void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
@@ -108,6 +112,9 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     Ms = props(offset + 3);
     Af = props(offset + 4);
     nvariants = int(props(offset + 5));
+    if (nvariants < 1) {
+        throw std::invalid_argument("SMA_mono: nvariants = " + std::to_string(nvariants) + ", at least one variant is needed");
+    }
     c_lambda0 = props(offset + 6);
     p0_lambda0 = props(offset + 7);
     n_lambda0 = props(offset + 8);
@@ -123,9 +130,22 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
-    std::string data_path= std::getenv("SIMCOON_DATA_PATH") ? std::getenv("SIMCOON_DATA_PATH") : "data" ;
-	mat Hnm = zeros(nvariants, nvariants);
-	Hnm.load(data_path+"/Hnm.inp", raw_ascii);
+
+    //The variants and their interaction matrix follow the 14 common parameters
+    const int offset_variants = offset + 14;
+    const int offset_Hnm = offset_variants + 6*nvariants;
+    if (props.n_elem < static_cast<unsigned int>(offset_Hnm + nvariants*nvariants)) {
+        throw std::invalid_argument(umat_name + ": props must carry, after its " + std::to_string(offset + 14)
+                                    + " parameters, the " + std::to_string(nvariants) + " variants (n_i, m_i: 6 values each) and the "
+                                    + std::to_string(nvariants) + "x" + std::to_string(nvariants) + " interaction matrix Hnm; got "
+                                    + std::to_string(props.n_elem) + " values");
+    }
+    mat Hnm(nvariants, nvariants);
+    for (int i = 0; i < nvariants; i++) {
+        for (int j = 0; j < nvariants; j++) {
+            Hnm(i, j) = props(offset_Hnm + i*nvariants + j);
+        }
+    }
     
 	// ######################  Statev #################################
 	
@@ -133,21 +153,13 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 	double T_init = statev(0);
     
 	std::vector<variant> var(nvariants);
-	
-	///@brief Properties of the variants, use "test.dat" to specify the parameters (for now)
-	ifstream paramvariant;
-	paramvariant.open(data_path+"/variant.inp", ios::in);
-	if(paramvariant) {
-		string chaine1;
-		for(int i=0; i<nvariants; i++) {
-			paramvariant >> chaine1 >> var[i].n(0) >> var[i].n(1) >> var[i].n(2) >> var[i].m(0) >> var[i].m(1) >> var[i].m(2);
-			var[i].build(g);
-		}		
+	for(int i=0; i<nvariants; i++) {
+		for (int k = 0; k < 3; k++) {
+			var[i].n(k) = props(offset_variants + 6*i + k);
+			var[i].m(k) = props(offset_variants + 6*i + 3 + k);
+		}
+		var[i].build(g);
 	}
-	else {
-		cout << "Error: cannot open .dat file \n";
-	}
-	paramvariant.close();
     
 	vec xin(nvariants);
 	vec xin_start(nvariants);

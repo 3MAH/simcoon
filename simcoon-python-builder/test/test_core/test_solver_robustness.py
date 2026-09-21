@@ -34,16 +34,16 @@ import numpy as np
 import pytest
 
 from simcoon.solver import Block, StepMeca, solve
-from solver_harness import C_TIME, S_STRESS, S_WM, path_file, run_path
+from solver_harness import C_TIME, S_STRESS, S_WM, run_path
 
 
-def _run_stress_cycle(base_dir, umat_name, props, nstatev, targets):
+def _run_stress_cycle(umat_name, props, nstatev, targets):
     """Small-strain (ct1), fully stress-controlled uniaxial cycle."""
-    return run_path(base_dir, umat_name, props, nstatev, 1,
-                    path_file([("S", t) for t in targets], 1))
+    return run_path(umat_name, props, nstatev, 1,
+                    [("S", t) for t in targets], 1)
 
 
-def test_modul_voce_stress_unload_cycle(tmp_path):
+def test_modul_voce_stress_unload_cycle():
     """MODUL + saturating Voce, load past yield then stress-unload to zero:
     used to die on 'inv(): matrix is singular'. Must now complete the cycle
     with the stress driven back to zero and positive plastic dissipation."""
@@ -58,7 +58,7 @@ def test_modul_voce_stress_unload_cycle(tmp_path):
             ),
         ],
     )
-    hist = _run_stress_cycle(tmp_path, mat.umat_name, mat.props, mat.nstatev,
+    hist = _run_stress_cycle(mat.umat_name, mat.props, mat.nstatev,
                              [400.0, 0.0])
     final = hist[-1]
     assert abs(final[C_TIME] - 2.0) < 1e-6

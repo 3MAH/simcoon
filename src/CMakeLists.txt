@@ -8,7 +8,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Functions/criteria.cpp
   Continuum_mechanics/Functions/damage.cpp
   Continuum_mechanics/Functions/derivatives.cpp
-  Continuum_mechanics/Functions/func_N.cpp
   Continuum_mechanics/Functions/hyperelastic.cpp
   Continuum_mechanics/Functions/kinematics.cpp
   Continuum_mechanics/Functions/natural_basis.cpp
@@ -27,12 +26,6 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - Material
   Continuum_mechanics/Material/crystallo.cpp
-  Continuum_mechanics/Material/ODF.cpp
-  Continuum_mechanics/Material/ODF2Nphases.cpp
-  Continuum_mechanics/Material/PDF.cpp
-  Continuum_mechanics/Material/PDF2Nphases.cpp
-  Continuum_mechanics/Material/peak.cpp
-  Continuum_mechanics/Material/read.cpp
   Continuum_mechanics/Material/variant.cpp
 
   # Continuum Mechanics - Micromechanics
@@ -125,16 +118,14 @@ target_sources(simcoon PRIVATE
   Simulation/Phase/material_characteristics.cpp
   Simulation/Phase/output.cpp
   Simulation/Phase/phase_characteristics.cpp
-  Simulation/Phase/read.cpp
   Simulation/Phase/state_variables.cpp
   Simulation/Phase/state_variables_M.cpp
   Simulation/Phase/state_variables_T.cpp
-  Simulation/Phase/write.cpp
 
   # Simulation - Solver
   Simulation/Solver/block.cpp
   Simulation/Solver/output.cpp
-  Simulation/Solver/read.cpp
+  Simulation/Solver/solver_assembly.cpp
   Simulation/Solver/solver.cpp
   Simulation/Solver/solver_sink.cpp
   Simulation/Solver/step.cpp

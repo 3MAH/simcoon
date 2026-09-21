@@ -147,8 +147,20 @@ Unchanged dedicated implementations (out of the modular scope):
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
   NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
   (invariant-based hyperelasticity); OGDEN (isochoric principal
-  stretches, props = ``N, kappa, mu_1, alpha_1, ...``).
-- **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN.
+  stretches, props = ``N, kappa, mu_1, alpha_1, ...``). The compressible
+  ones take one optional trailing prop selecting the volumetric term
+  :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
+  :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
+  with :math:`\kappa = 2 / D_1`).
+- **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
+  memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
+  scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,
+  ``[mp, np, n_matrix]`` or ``[mp, np, n_matrix, start]`` for MISCN, nothing for
+  MIPLN (``mp``, ``np``: integration points of the Eshelby integrals; ``n_matrix``:
+  index of the matrix phase in the list; ``start``: first guess of the
+  self-consistent iteration, 1 Mori-Tanaka (default) or 0 homogeneous strain with
+  ``n_matrix < 0``). The length is checked, so the pre-2.0 layout with its leading
+  ``nphases`` and file-number slots is refused rather than misread.
 - **Plugins**: UMEXT (external dylib), UMABA (Abaqus wrapper).
 - **Python**: PYEXT (registered Python law; ``props``/``nstatev`` from the object).
 

@@ -604,7 +604,7 @@ void run_umat_M(phase_characteristics &, const arma::mat &, const double &, cons
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
  * @endcode
 */	
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt);
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom);
 
 /**
  * @brief Transfer variables from simcoon to Abaqus format, considering a mechanical constitutive law, returning all Abaqus variables
@@ -745,7 +745,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT);
  * @endcode
 */ 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT);
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom);
             
 
 /** @} */ // end of umat_mechanical group

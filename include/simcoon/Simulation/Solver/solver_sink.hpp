@@ -38,8 +38,7 @@ namespace simcoon{
 /**
  * @brief Numeric controls of the global Newton-Raphson / adaptive time-stepping loop.
  *
- * Defaults mirror the historical defaults of solver() (see solver.hpp).
- * Named solver_params because read.hpp already declares a solver_control() function.
+ * Defaults of the adaptive Newton loop.
  */
 struct solver_params {
     double div_tnew_dt = 0.5;   ///< time-step division factor on non-convergence
@@ -127,8 +126,8 @@ public:
  * @brief In-memory core of the solver: runs the block/cycle/step/increment loops
  * on already-built loading blocks and streams results to a sink.
  *
- * This is the single numerical engine; solver() (solver.hpp) is its file-driven
- * wrapper (read_path/read_output in, solver_file_sink out).
+ * This is the single numerical engine: the loading path, the material and the sub-phases
+ * come in memory, the history goes to the sink.
  *
  * @param blocks Loading blocks with fully-defined steps (mutated during the run:
  *        step generation and the inforce residual carry-over write into the steps)
@@ -143,6 +142,10 @@ public:
  * @param corate_type Objective rate choice (see corate_kinematics, objective_rates.hpp)
  * @param ctrl Numeric solver controls
  * @param sink Results observer
+ * @param sub_phases Sub-phases of a mean-field model (MIHEN, MIMTN, MISCN, MIPLN), already
+ *        built by the caller. They used to be read from Nellipsoids<N>.dat / Nlayers<N>.dat
+ *        at the first increment; nothing is read from disk any more. Empty for every
+ *        single-phase model.
  * @return 0 on completion, 1 on early abort. A run aborts on an invalid solver type, an
  *         unrecognized thermal BC, a Newton loop that does not converge at the minimal
  *         increment with @p inforce == 0, or a prescribed state the material cannot reach.
@@ -161,7 +164,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                const std::string &umat_name, const arma::vec &props, const unsigned int &nstatev,
                const double &psi_rve, const double &theta_rve, const double &phi_rve,
                const int &solver_type, const int &corate_type,
-               const solver_params &ctrl, solver_results_sink &sink);
+               const solver_params &ctrl, solver_results_sink &sink,
+               const std::vector<phase_characteristics> &sub_phases = {});
 
 /** @} */ // end of solver group
 

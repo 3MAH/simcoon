@@ -50,9 +50,9 @@ Parameter class
    # Create parameters programmatically
    params = [
        Parameter(number=0, bounds=(100, 300), key="@E",
-                 sim_input_files=["material.dat"]),
+                 sim_input_files=["material.json"]),
        Parameter(number=1, bounds=(0.1, 0.4), key="@nu",
-                 sim_input_files=["material.dat"]),
+                 sim_input_files=["material.json"]),
    ]
 
    # Or read from a file
@@ -71,8 +71,15 @@ Parameter class
 .. code-block:: none
 
    #Number  #min     #max     #key  #number_of_files  #files
-   0        100      300      @E    1                  material.dat
-   1        0.1      0.4      @nu   1                  material.dat
+   0        100      300      @E    1                  material.json
+   1        0.1      0.4      @nu   1                  material.json
+
+A template is any text file, so the JSON inputs of the solver work as they are:
+``keys/material.json`` with ``"props": [70000.0, 0.3, 1.0e-5, @sigmaY, @k, @m]``
+is not valid JSON until the substitution and is valid after it. The
+``identification/json_keys_identification.py`` example runs this chain end to
+end (copy, apply, ``load_simulation_json``, ``solve``, ``calc_cost``,
+``identification``).
 
 Constant class
 ^^^^^^^^^^^^^^
@@ -118,13 +125,21 @@ identified values are written back to each ``Parameter.value``.
 
    params = [
        Parameter(0, bounds=(10000, 200000), key="@Ef",
-                 sim_input_files=["Nellipsoids0.dat"]),
+                 sim_input_files=["job.inp"]),
        Parameter(1, bounds=(0.01, 0.45), key="@nuf",
-                 sim_input_files=["Nellipsoids0.dat"]),
+                 sim_input_files=["job.inp"]),
    ]
 
    result = identification(my_cost_function, params, seed=42, disp=True)
    print(f"E_f = {params[0].value:.0f}, nu_f = {params[1].value:.3f}")
+
+``job.inp`` here is a placeholder: a template input deck of an **external**,
+file-driven solver, supplied by the user in the ``keys`` folder (it is not part
+of simcoon). ``sim_input_files`` is the bridge to such solvers: the keys are
+substituted into their decks before each evaluation (``copy_parameters`` +
+``apply_parameters``, called from ``my_cost_function``). Simcoon's own models
+no longer need it — pass ``props``, and for mean-field models the ``phases``,
+straight to :func:`~simcoon.solver.solve`, and leave ``sim_input_files`` out.
 
 **Arguments:**
 
@@ -272,7 +287,7 @@ The key system works with any simulation tool. For example, with fedoo
 Gallery Examples
 ----------------
 
-Two complete examples demonstrate the identification workflow:
+Complete examples of the identification workflow, besides the key-based one above:
 
 - **Hyperelastic identification**: Mooney-Rivlin parameters from Treloar data
   using ``differential_evolution`` and simcoon stress functions
