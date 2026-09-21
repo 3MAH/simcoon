@@ -515,6 +515,21 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
     return L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
 }
 
+// The two box operators of ANY symmetric A whose convected rate is
+// l*A + A*l^T - (2/3) tr(d) A, hence whose trace obeys d(tr A)/dt = 2 dev(A) : d.
+// b_bar satisfies this (tr = I_1_bar) and so does a fibre family's dispersed structure
+// tensor (tr = I*_4_bar): sharing them is what lets the anisotropic tangent reuse the
+// isotropic I_1 algebra verbatim.
+static mat gamma_linear(const mat &A) {
+    mat Id = eye(3,3);
+    mat dev_A = dev(A);
+    return (4./3.)*(trace(A)*Idev() - (sym_dyadic(dev_A,Id)+sym_dyadic(Id,dev_A)));
+}
+
+static mat gamma_quadratic(const mat &A) {
+    return 4.*auto_sym_dyadic(dev(A));
+}
+
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
@@ -550,12 +565,11 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
     // negligible next to the six dyadic products this function already builds per call.
     mat I_real = Ireal();
     mat I_vol = Ivol();
-    mat I_dev = Idev();
 
-    mat gamma_1 = (4./3.)*(I_bar(0)*I_dev - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
+    mat gamma_1 = gamma_linear(b_bar);
     mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
                     + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-    mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
+    mat gamma_11 = gamma_quadratic(b_bar);
     mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
     mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
 
@@ -576,7 +590,6 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
     mat I_vol = Ivol();
     return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
 }
-
 
 namespace {
 
@@ -614,6 +627,62 @@ void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa,
             dU2dJ2 = kappa;
             break;
     }
+}
+
+hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const vec &props) {
+
+    hyper_anisotropy an;
+    if (potential != HyperPotential::HOLZA) {
+        return an;      // isotropic potential: no fibres, no dispersion
+    }
+    require_props(props, 5, "HOLZA");
+    an.kappa_d = props(3);
+    if (an.kappa_d < 0. || an.kappa_d > 1./3.) {
+        throw std::invalid_argument("HOLZA: the dispersion kappa_d must lie in [0, 1/3], got "
+                                    + std::to_string(an.kappa_d));
+    }
+    if (props(4) < 1.) {
+        throw std::invalid_argument("HOLZA: at least one fibre family is required, got "
+                                    + std::to_string(props(4)));
+    }
+    const uword n_fam = uword(props(4));
+    require_props(props, 6 + 3*n_fam, "HOLZA");     // the a0 triplets, plus the trailing kappa
+    an.a0 = zeros(3, n_fam);
+    for (uword i = 0; i < n_fam; i++) {
+        vec a = props.subvec(5 + 3*i, 7 + 3*i);
+        const double a_norm = norm(a, 2);
+        if (a_norm < simcoon::iota) {
+            throw std::invalid_argument("HOLZA: fibre direction " + std::to_string(i)
+                                        + " has a zero norm");
+        }
+        an.a0.col(i) = a/a_norm;    // the API already sends unit cosines; normalise anyway
+    }
+    return an;
+}
+
+std::vector<mat> structure_tensors_push_forward(const mat &F, const mat &a0, const double &kappa_d, const double &mJ) {
+
+    std::vector<mat> A;
+    if (a0.n_elem == 0) {
+        return A;
+    }
+    double J=mJ;
+    if (fabs(mJ) < simcoon::iota) {
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in det function inside structure_tensors_push_forward.");
+        }
+    }
+    mat b_bar = pow(J,-2./3.)*(F*F.t());
+
+    A.reserve(a0.n_cols);
+    for (uword i = 0; i < a0.n_cols; i++) {
+        vec a_bar = pow(J,-1./3.)*(F*a0.col(i));
+        A.push_back(kappa_d*b_bar + (1.-3.*kappa_d)*(a_bar*a_bar.t()));
+    }
+    return A;
 }
 
 hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J) {

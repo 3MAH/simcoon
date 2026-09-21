@@ -22,6 +22,8 @@
  */
 
 #pragma once
+#include <string>
+#include <vector>
 #include <armadillo>
 
 namespace simcoon{
@@ -724,9 +726,15 @@ arma::mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const arma::mat 
 /**
  * @brief Derivatives of an isochoric-invariant hyperelastic potential.
  *
- * The seven scalars every potential of the form
+ * The scalars every potential of the form
  * \f$ W(\bar{I}_1, \bar{I}_2) + U(J) \f$ hands to the stress and tangent
  * builders. Zero-initialised, so a potential only writes the terms it has.
+ *
+ * An anisotropic potential additionally writes the two vector members, one entry
+ * per fibre family, holding the derivatives with respect to the fibre
+ * pseudo-invariant \f$ \bar{I}^{*}_{4,i} \f$ (see structure_tensors_push_forward).
+ * They stay empty for an isotropic potential, which is how the builders tell the
+ * two cases apart.
  */
 struct hyper_invariants_dW {
     double dWdI_1_bar = 0.;    ///< \f$ \partial W / \partial \bar{I}_1 \f$
@@ -736,6 +744,8 @@ struct hyper_invariants_dW {
     double dW2dI_22_bar = 0.;  ///< \f$ \partial^2 W / \partial \bar{I}_2^2 \f$
     double dUdJ = 0.;          ///< \f$ \partial U / \partial J \f$
     double dU2dJ2 = 0.;        ///< \f$ \partial^2 U / \partial J^2 \f$
+    arma::vec dWdI_a_bar;      ///< \f$ \partial W / \partial \bar{I}^{*}_{4,i} \f$, one per fibre family
+    arma::vec dW2dI_aa_bar;    ///< \f$ \partial^2 W / \partial \bar{I}^{*\,2}_{4,i} \f$, one per fibre family
 };
 
 /**
@@ -751,7 +761,8 @@ enum class HyperPotential {
     YEOHH = 2,  ///< Yeoh, props [C10, C20, C30, kappa]
     ISHAH = 3,  ///< Isihara, props [C10, C20, C01, kappa]
     GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
-    SWANH = 5   ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+    SWANH = 5,  ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+    HOLZA = 6   ///< Gasser-Ogden-Holzapfel, props [C10, k1, k2, kappa_d, n_fam, (a0x, a0y, a0z) x n_fam, kappa]
 };
 // Every potential above, and OGDEN, may carry ONE more prop after those listed: the
 // volumetric potential (VolumetricPotential, 0 when absent).
@@ -781,13 +792,94 @@ VolumetricPotential volumetric_potential_of(const arma::vec &props, const arma::
 void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2);
 
 /**
+ * @brief The fibre anisotropy carried by a hyperelastic potential's props.
+ *
+ * @see hyper_potential_anisotropy, which extracts it, and
+ *      structure_tensors_push_forward, which consumes it.
+ */
+struct hyper_anisotropy {
+    arma::mat a0;        ///< 3 x n_fam, one UNIT reference fibre direction \f$ \mathbf{a}_{0,i} \f$ per column; empty for an isotropic potential
+    double kappa_d = 0.; ///< the Gasser-Ogden-Holzapfel dispersion \f$ \kappa_d \in [0, 1/3] \f$
+};
+
+/**
+ * @brief The fibre directions and dispersion an anisotropic potential declares in its props.
+ *
+ * Isotropic potentials return an empty @c a0 and \f$ \kappa_d = 0 \f$. This is the
+ * single place that knows where the directions sit in a potential's props, so
+ * neither the standalone UMAT nor the modular block duplicates the layout.
+ *
+ * The reference directions are read as three direction cosines per family and
+ * normalised defensively: the Python API expresses them as a
+ * @c simcoon.Rotation applied to \f$ \mathbf{e}_1 \f$, so no Euler triplet (and
+ * hence no gimbal lock) sits anywhere on the path from the user to the kernel.
+ * They are expressed in the LOCAL material frame; the solver's material
+ * orientation places them globally, exactly as for ELIST/ELORT.
+ *
+ * @param potential the potential (see HyperPotential for its props)
+ * @param props the potential's own parameters, starting at index 0
+ * @return the reference fibre directions and the dispersion
+ * @throw std::invalid_argument if \f$ \kappa_d \notin [0, 1/3] \f$, if the family
+ *        count is not strictly positive, or if a direction has zero norm
+ */
+hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const arma::vec &props);
+
+/**
+ * @brief The pushed-forward isochoric structure tensors of a dispersed fibre family.
+ *
+ * With \f$ \bar{\mathbf{a}}_i = J^{-1/3} \mathbf{F} \mathbf{a}_{0,i} \f$ the
+ * isochoric push-forward of the i-th reference direction, the Gasser-Ogden-Holzapfel
+ * generalised structure tensor becomes, in the spatial configuration,
+ * \f[
+    \mathbf{A}_i = \kappa_d \, \bar{\mathbf{b}} + (1 - 3 \kappa_d) \, \bar{\mathbf{a}}_i \otimes \bar{\mathbf{a}}_i
+ * \f]
+ * whose trace is the fibre pseudo-invariant the potential is written in:
+ * \f[
+    \bar{I}^{*}_{4,i} = \textrm{tr} \, \mathbf{A}_i = \kappa_d \, \bar{I}_1 + (1 - 3 \kappa_d) \, \bar{I}_{4,i},
+    \qquad \bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}} \, \mathbf{a}_{0,i}
+ * \f]
+ * \f$ \kappa_d = 0 \f$ gives perfectly aligned fibres (the Holzapfel-Gasser-Ogden
+ * 2000 model), \f$ \kappa_d = 1/3 \f$ an isotropic distribution, for which
+ * \f$ \mathbf{A}_i = \bar{\mathbf{b}}/3 \f$ and the fibre term degenerates to a
+ * function of \f$ \bar{I}_1 \f$ alone.
+ *
+ * Returning \f$ \mathbf{A}_i \f$ rather than the bare \f$ \bar{\mathbf{a}}_i \f$
+ * is what makes the anisotropic stress and tangent reuse the isotropic
+ * \f$ \bar{I}_1 \f$ machinery: \f$ \bar{\mathbf{b}} \f$ and
+ * \f$ \bar{\mathbf{a}}_i \otimes \bar{\mathbf{a}}_i \f$ share the convected rate
+ * form \f$ \mathbf{l}\mathbf{A} + \mathbf{A}\mathbf{l}^T - \frac{2}{3}
+ * \textrm{tr}(\mathbf{d}) \mathbf{A} \f$, hence so does their combination, hence
+ * \f$ \dot{\bar{I}}^{*}_{4,i} = 2 \, \textrm{dev} \mathbf{A}_i : \mathbf{d} \f$ —
+ * the very relation \f$ \bar{I}_1 \f$ satisfies with \f$ \bar{\mathbf{b}} \f$.
+ *
+ * @param F deformation gradient \f$ \mathbf{F} \f$ (or \f$ \mathbf{V}^{el} \f$ for an elastic state, as in hyper_invariants_response)
+ * @param a0 3 x n_fam matrix of unit reference directions, one per column (empty gives an empty result)
+ * @param kappa_d the dispersion \f$ \kappa_d \f$
+ * @param mJ the determinant of \f$ \mathbf{F} \f$ (optional)
+ * @return one 3x3 symmetric \f$ \mathbf{A}_i \f$ per fibre family
+ *
+ * @details Example:
+ * @code
+ *      mat F = randu(3,3);
+ *      mat a0 = {{1.},{0.},{0.}};
+ *      std::vector<mat> A = structure_tensors_push_forward(F, a0, 0.1, det(F));
+ *      double I4_star = trace(A[0]);
+ * @endcode
+*/
+std::vector<arma::mat> structure_tensors_push_forward(const arma::mat &F, const arma::mat &a0, const double &kappa_d, const double &mJ = 0.);
+
+/**
  * @brief Derivatives of an isochoric-invariant potential.
  *
  * @param potential the potential (see HyperPotential for its props)
  * @param props the potential's own parameters, starting at index 0
- * @param I_bar isochoric invariants \f$ (\bar{I}_1, \bar{I}_2) \f$
+ * @param I_bar the isochoric invariants \f$ (\bar{I}_1, \bar{I}_2, \bar{I}_3) \f$, as
+ *        isochoric_invariants returns them. An anisotropic potential expects the fibre
+ *        pseudo-invariants appended to them, so that \f$ \bar{I}^{*}_{4,i} \f$ is
+ *        @c I_bar(3+i) — the caller gets them as the traces of
+ *        structure_tensors_push_forward, which it needs to build anyway.
  * @param J determinant of the deformation gradient
- * @return the seven derivatives
+ * @return the derivatives of the potential
  */
 hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
 
@@ -815,8 +907,12 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  *             this function multiplying and the caller dividing back (which
  *             is not exact in floating point).
  * @param[out] Lt_box canonical box tangent, 6x6
+ * @param[in] A the pushed-forward structure tensors of an anisotropic potential
+ *            (structure_tensors_push_forward), one per fibre family and in the same
+ *            order as @c dW.dWdI_a_bar. Empty for an isotropic potential, which is
+ *            the default.
  */
-void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &sigma, arma::mat &Lt_box);
+void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &sigma, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
 
 /** @} */ // end of hyperelastic group
 
