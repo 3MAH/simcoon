@@ -23,17 +23,18 @@ amplitudes (~1%, ~1.5%, ~2%). Each one needs a **pre-cycling** stage so the
 numerical model arrives at the comparison window with realistic accumulated
 backstress, then an **initial-state alignment** so it starts at the same
 residual strain as the experiment, then a **replay** of the experimental
-loading path. This is encoded in three blocks of the structured
-``path_id_N.txt`` config file:
+loading path. This is encoded in three blocks of the ``path_id_N.json`` file:
 
 1. Block 1 (mode 1, linear) — virtual pre-cycle (±1%, ±1.5%, ±2%)
 2. Block 2 (mode 1, linear) — set initial residual strain (first row of exp)
-3. Block 3 (mode 3, tab file) — replay ``tab_file_N.txt``
+3. Block 3 (mode 3, tabular) — replay of the experimental table, read from the
+   ``path_id_N_tab1.csv`` file the JSON references
 
-The ``path_id_N.txt`` and ``tab_file_N.txt`` files are provided in
-``data/`` because they are tricky to construct manually. When
-``feature/python_solver`` lands, this scaffolding will be replaced by Python
-helpers that build steps and tab files programmatically from the experimental
+The ``path_id_N.json`` / ``path_id_N_tab1.csv`` pairs are provided in ``data/``
+because they are tricky to construct manually (they were converted from the legacy
+``path_id_N.txt`` + ``tab_file_N.txt`` pairs with ``scripts/legacy_to_json.py``).
+A later step will
+replace this scaffolding by Python helpers that build the steps from the experimental
 data.
 
 Forward model: :func:`simcoon.solver` (UMAT material-point integrator).
@@ -55,10 +56,10 @@ from simcoon.identify import identification, calc_cost
 # layout (numbering is intentional: 1, 1.5, 2 strain amplitudes).
 # ---------------------------------------------------------------------------
 TESTS = [
-    # name      path file         tab file           exp file
-    ("test1", "path_id_1.txt", "tab_file_1.txt",  "exp_file_1.txt"),
-    ("test2", "path_id_2.txt", "tab_file_15.txt", "exp_file_15.txt"),
-    ("test3", "path_id_3.txt", "tab_file_2.txt",  "exp_file_2.txt"),
+    # name      path file (its mode-3 table embedded)   exp file
+    ("test1", "path_id_1.json", "exp_file_1.txt"),
+    ("test2", "path_id_2.json", "exp_file_15.txt"),
+    ("test3", "path_id_3.json", "exp_file_2.txt"),
 ]
 
 UMAT_NAME = "EPCHA"
@@ -83,39 +84,40 @@ PARAMS = [
 ]
 PARAM_NAMES = ["sigmaY", "Q", "b", "C_1", "D_1", "C_2", "D_2"]
 
-# σ11 lives at column 14 of the simcoon ``_global-0.txt`` output
-# (cols 8–13 = strain Voigt, 14–19 = stress Voigt).
-SIGMA11_COL = 14
-
-
 def build_props(x):
     """Assemble the EPCHA props vector from the optimizer's parameter array."""
     return np.array([E_FIXED, NU_FIXED, ALPHA_FIXED, *x])
 
 
-def run_one_test(props, pathfile, outputfile, path_data, path_results):
-    """Run one solver call and return the predicted σ11 trajectory."""
-    sim._core.solver(
-        UMAT_NAME, props, NSTATEV,
-        0.0, 0.0, 0.0,                  # psi, theta, phi
-        SOLVER_TYPE, CORATE_TYPE,
-        path_data, path_results,
-        pathfile, outputfile,
+def run_one_test(props, programme):
+    """Run one case and return the predicted σ11 trajectory.
+
+    ``programme`` is the ``(blocks, T_init)`` pair ``load_path_json`` read once in main():
+    an identification evaluates this thousands of times, and none of them touches the
+    disk or re-parses the path.
+
+    Only the **last** block is returned. The first two blocks are the virtual
+    pre-cycle and the initial-state alignment; the experiment corresponds to the
+    third one, the tabular replay of the experimental strain history. The experimental
+    file covers exactly that window (201 points against 501 increments for the whole
+    history), so only that block can be compared with it.
+    """
+    blocks, T_init = programme
+    res = sim.solver.solve(
+        blocks, UMAT_NAME, props, NSTATEV, T_init=T_init,
+        solver_type=SOLVER_TYPE, corate=CORATE_TYPE,
     )
-    base = outputfile[:-4] if outputfile.endswith(".txt") else outputfile
-    out = np.loadtxt(os.path.join(path_results, f"{base}_global-0.txt"))
-    return out[:, SIGMA11_COL]
+    block = np.asarray(res["Block"])
+    return np.asarray(res["Stress"][0])[block == block.max()]
 
 
-def cost(x, exp_stresses, path_data, path_results):
+def cost(x, exp_stresses, programmes):
     """NMSE-per-response cost across the three tests."""
     props = build_props(x)
     y_num = []
-    for name, pathfile, _tab, _exp in TESTS:
+    for programme in programmes:
         try:
-            sigma11 = run_one_test(
-                props, pathfile, f"sim_{name}.txt", path_data, path_results
-            )
+            sigma11 = run_one_test(props, programme)
         except Exception:
             return 1e12
         y_num.append(sigma11.reshape(-1, 1))
@@ -131,13 +133,11 @@ def main():
     os.chdir(script_dir)
 
     path_data = "data"
-    path_results = "results"
     path_exp = "exp_data"
-    os.makedirs(path_results, exist_ok=True)
 
     # Experimental σ11 — exp file columns: incr, time, strain, stress
     exp_stresses = []
-    for _, _, _, expfile in TESTS:
+    for _, _, expfile in TESTS:
         exp = np.loadtxt(os.path.join(path_exp, expfile))
         exp_stresses.append(exp[:, 3].reshape(-1, 1))
 
@@ -145,14 +145,17 @@ def main():
     print(" CHABOCHE CYCLIC PLASTICITY IDENTIFICATION")
     print(" 7 params from 3 cyclic tests, NMSE-per-response cost")
     print("=" * 60)
-    for i, (name, pathfile, tab, expfile) in enumerate(TESTS):
-        print(f"  {name}: {pathfile} + {tab} vs {expfile}  "
-              f"({len(exp_stresses[i])} pts)")
+    for i, (name, pathfile, expfile) in enumerate(TESTS):
+        print(f"  {name}: {pathfile} vs {expfile}  ({len(exp_stresses[i])} pts)")
+
+    # The loading programmes, parsed once for the whole identification
+    programmes = [sim.solver.load_path_json(os.path.join(path_data, pathfile))[:2]
+                  for _, pathfile, _ in TESTS]
 
     # Gallery budget (~1-2 min). Bump popsize/maxiter for tighter fits.
     result = identification(
         cost, PARAMS,
-        args=(exp_stresses, path_data, path_results),
+        args=(exp_stresses, programmes),
         seed=42,
         popsize=15, maxiter=80, tol=1e-6,
         disp=False,
@@ -170,12 +173,9 @@ def main():
     fig, ax = plt.subplots(figsize=(9, 7))
     final_props = build_props(np.array([p.value for p in PARAMS]))
     colors = ["tab:blue", "tab:orange", "tab:green"]
-    for (name, pathfile, _tab, expfile), color in zip(TESTS, colors):
+    for (name, _pf, expfile), programme, color in zip(TESTS, programmes, colors):
         exp = np.loadtxt(os.path.join(path_exp, expfile))
-        sigma_num = run_one_test(
-            final_props, pathfile, f"sim_{name}_final.txt",
-            path_data, path_results,
-        )
+        sigma_num = run_one_test(final_props, programme)
         ax.plot(exp[:, 2], exp[:, 3], color=color, linestyle="--",
                 linewidth=1.5, label=f"{name} — experiment")
         ax.plot(exp[:, 2], sigma_num, color=color, linestyle="-",

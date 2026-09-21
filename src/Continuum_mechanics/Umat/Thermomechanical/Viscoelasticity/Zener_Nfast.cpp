@@ -16,20 +16,8 @@
 using namespace std;
 using namespace arma;
 
-///@brief The viscoelastic burger model requires 4+N*4 constants:
-//      -------------------
-//
-///@brief
-///@brief      props(0) = E0                   - Thermoelastic Young's modulus
-///@brief      props(1) = nu0                  - Thermoelastic Poisson's ratio
-///@brief      props(2) = alpha_iso            - Thermoelastic CTE
-///@brief      props(3) = N_kelvin             - Number of Kelvin branches
-///@brief      props(4+i*4) = E_visco(i)       - Viscoelastic Young modulus of Zener branch i
-///@brief      props(4+i*4+1) = nu_visco(i)    - Viscoelastic Poisson ratio of Zener branch i
-///@brief      props(4+i*4+2) = etaB_visco     - Viscoelastic Bulk viscosity of Zener branch i
-///@brief      props(4+i*4+3) = etaS_visco     - Viscoelastic Bulk viscosity of Zener branch i
-
-///@brief Number of statev required for thermoelastic constitutive law : 7+N*7
+// Model, props and statev layout: see the Doxygen block in
+// simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_Nfast.hpp
 
 namespace simcoon {
     
@@ -99,6 +87,12 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         EV_i[i] = rotate_strain(EV_i[i], DR);
     }
     
+    vec sigma_start = sigma;
+    std::vector<vec> DEV_i(N_kelvin);
+    std::vector<vec> A_v(N_kelvin);
+    std::vector<mat> dA_dEv(N_kelvin);
+    std::vector<vec> A_v_start(N_kelvin);
+
     std::vector<mat> L_i(N_kelvin);
     std::vector<mat> H_i(N_kelvin);
     std::vector<mat> invH_i(N_kelvin);
@@ -107,22 +101,21 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
         invH_i[i] = inv(H_i[i]);
+
+        //Unconditionally, not only on the start increment: these are locals rebuilt
+        //at every call, so a second increment found them at size 0 and the
+        //`A_v_start[i] +=` below threw "0x1 and 6x1".
+        DEV_i[i] = zeros(6);
+        A_v[i] = zeros(6);
+        A_v_start[i] = zeros(6);
     }
     
-    vec sigma_start = sigma;
-    std::vector<vec> DEV_i(N_kelvin);
-    std::vector<vec> A_v(N_kelvin);
-    std::vector<mat> dA_dEv(N_kelvin);
-    std::vector<vec> A_v_start(N_kelvin);
     
     if(start) { //Initialization
         T_init = T;
         EV = zeros(6);
         for (int i=0; i<N_kelvin; i++) {
             EV_i[i] = zeros(6);
-            DEV_i[i] = zeros(6);
-            A_v[i] = zeros(6);
-            A_v_start[i] = zeros(6);
         }
         sigma = zeros(6);
         sigma_start = zeros(6);
@@ -212,8 +205,10 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
                 dPhidv[i] = -1.*sum((dPhi_idsigma[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
             else {
-                Phi(i) = norm_strain(flow_visco[i]);
-                dPhidv[i] = -1.*sum((dPhi_idsigma[i])%(L_i[i]*Lambdav[i]));
+                //No time, no flow: the branch is INACTIVE. The stationary condition
+                //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+                Phi(i) = 0.;
+                dPhidv[i] = -1.;
             }
             kappa_j[i] = L0*Lambdav[i];
             K(i,i) = dPhidv[i];

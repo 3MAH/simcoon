@@ -12,6 +12,7 @@ from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
 from .maps import CORATE_TYPES, TANGENT_MODES, as_code, tangent_default
+from .micromechanics import to_phase_dicts, euler_angles
 from .results import SolverResults
 
 
@@ -25,6 +26,7 @@ def solve(
     tangent_mode: Union[str, int] = tangent_default,
     solver_type: int = 0,
     orientation: Sequence[float] = (0.0, 0.0, 0.0),
+    phases: Optional[Sequence[Any]] = None,
     record_tangent: bool = True,
     raise_on_abort: bool = True,
     **params,
@@ -62,8 +64,15 @@ def solve(
         or 'closest_point' (reserved).
     solver_type : int
         0 = classic Newton-Raphson (default), 1 = RNL (control_type 1 only).
-    orientation : sequence of 3 floats
-        Euler angles (psi, theta, phi) of the material orientation (rad).
+    orientation : simcoon.Rotation, dict or sequence of 3 floats
+        Orientation of the material frame: a ``Rotation``, or its Euler angles
+        ``(psi, theta, phi)`` in degrees (see
+        :func:`~simcoon.solver.micromechanics.as_rotation`); applied actively,
+        material frame to global frame.
+    phases : sequence, optional
+        Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): the
+        Ellipsoid / Layer objects of :mod:`simcoon.solver.micromechanics`, or the
+        dicts they convert to. Leave it None for every single-phase model.
     record_tangent : bool
         Capture the tangent operator history ('TangentMatrix' or the coupled
         thermomechanical tangents).
@@ -122,7 +131,10 @@ def solve(
         blocks_py.append(b.to_dict(T_run))
         T_run = b.T_end(T_run)
 
-    psi, theta, phi = (float(x) for x in orientation)
+    # Sub-phases of a mean-field model (MIMTN, MISCN, MIHEN, MIPLN): dataclasses are accepted
+    # as readily as the dicts the binding reads.
+    phases_py = None if phases is None else to_phase_dicts(phases)
+
     with law_ctx:
         raw = _core.solver_run(
             blocks_py,
@@ -130,11 +142,12 @@ def solve(
             umat_name,
             np.asarray(props, dtype=float).ravel(),
             int(nstatev),
-            psi, theta, phi,
+            euler_angles(orientation),
             int(solver_type),
             corate_code,
             run_params,
             bool(record_tangent),
+            phases_py,
         )
     res = SolverResults(raw)
     if raise_on_abort and res.status != 0:

@@ -42,15 +42,15 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp
 
   # Material
-  src/python_wrappers/Libraries/Material/ODF.cpp
 
   # Maths
   src/python_wrappers/Libraries/Maths/lagrange.cpp
   src/python_wrappers/Libraries/Maths/rotation.cpp
 
-  # Solver
-  src/python_wrappers/Libraries/Solver/read.cpp
-  src/python_wrappers/Libraries/Solver/solver.cpp
+  # Phase
+  src/python_wrappers/Libraries/Phase/phases.cpp
+
+  # Solver (the file-driven bindings left with the JSON-only migration: solver_run only)
   src/python_wrappers/Libraries/Solver/solver_run.cpp
 )
 
@@ -102,6 +102,14 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+
+# Armadillo memory through numpy's allocator in every TU (buffers are stolen into numpy
+# arrays); python_module.cpp owns the module's numpy C-API table. Function in the root
+# CMakeLists.txt, shared with libsimcoon on Windows.
+simcoon_use_numpy_allocator(_core "${CMAKE_CURRENT_SOURCE_DIR}/src/python_wrappers/python_module.cpp")
+if(SIMCOON_NUMPY_ALLOC_IN_LIB)
+  target_compile_definitions(_core PRIVATE SIMCOON_NUMPY_ALLOC_IN_LIB)
+endif()
 
 # Threading: GCD on macOS (native, zero deps), OpenMP on Linux (libgomp),
 # serial on Windows (avoids runtime conflicts).

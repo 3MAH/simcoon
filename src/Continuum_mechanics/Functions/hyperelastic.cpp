@@ -592,23 +592,50 @@ void require_props(const vec &props, const uword n, const char *name) {
 
 }  // namespace
 
+VolumetricPotential volumetric_potential_of(const vec &props, const uword n_used) {
+    if (props.n_elem <= n_used) {
+        return VolumetricPotential::LOG_J;
+    }
+    const double code = props(n_used);
+    if (code == 0.) return VolumetricPotential::LOG_J;
+    if (code == 1.) return VolumetricPotential::QUADRATIC;
+    throw std::invalid_argument("volumetric potential: props(" + std::to_string(n_used) + ") = "
+                                + std::to_string(code) + " is neither 0 (kappa (J ln J - J + 1)) nor 1 (kappa/2 (J - 1)^2)");
+}
+
+void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2) {
+    switch (vol) {
+        case VolumetricPotential::LOG_J:
+            dUdJ = kappa*log(J);
+            dU2dJ2 = kappa/J;
+            break;
+        case VolumetricPotential::QUADRATIC:
+            dUdJ = kappa*(J-1.);
+            dU2dJ2 = kappa;
+            break;
+    }
+}
+
 hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J) {
 
     hyper_invariants_dW dW;
-    double kappa = 0.;  // every potential shares U(J) = kappa (J ln J - J + 1)
+    double kappa = 0.;  // the volumetric term U(J) is shared: see volumetric_derivatives
+    uword n_used = 0;   // props consumed by the isochoric potential; an optional props(n_used) selects U(J)
 
     switch (potential) {
         case HyperPotential::NEOHC: {
-            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + \kappa \left( J \]textrm{ln} J - J +1 \right) \f$
+            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + U(J) \f$
             require_props(props, 2, "NEOHC");
+            n_used = 2;
             double mu = props(0);
             kappa = props(1);
             dW.dWdI_1_bar = 0.5*mu;
             break;
         }
         case HyperPotential::MOORI: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + U(J) \f$
             require_props(props, 3, "MOORI");
+            n_used = 3;
             double C_10 = props(0);
             double C_01 = props(1);
             kappa = props(2);
@@ -617,8 +644,9 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
             break;
         }
         case HyperPotential::YEOHH: {
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + U(J) \f$
             require_props(props, 4, "YEOHH");
+            n_used = 4;
             double C_10 = props(0);
             double C_20 = props(1);
             double C_30 = props(2);
@@ -629,8 +657,9 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
         }
         case HyperPotential::ISHAH: {
             // Isihara model (1951)
-            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{01} left(\bar{I}_2 -3\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{01} left(\bar{I}_2 -3\right) + U(J) \f$
             require_props(props, 4, "ISHAH");
+            n_used = 4;
             double C_10 = props(0);
             double C_20 = props(1);
             double C_01 = props(2);
@@ -642,8 +671,9 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
         }
         case HyperPotential::GETHH: {
             // Gent-Thomas model (1958)
-            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + U(J) \f$
             require_props(props, 3, "GETHH");
+            n_used = 3;
             double c_1 = props(0);
             double c_2 = props(1);
             kappa = props(2);
@@ -656,10 +686,11 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
         }
         case HyperPotential::SWANH: {
             // Swanson model (1985)
-            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + \kappa \left( J textrm{ln} J - J +1 \right) \f$
+            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + U(J) \f$
             require_props(props, 2, "SWANH");
             int N_Swanson = int(props(0));
             require_props(props, 2 + 4*std::max(N_Swanson, 0), "SWANH");
+            n_used = 2 + 4*std::max(N_Swanson, 0);
             kappa = props(1);
             for (int i=0; i<N_Swanson; i++) {
                 const double A = props(2+i*4);
@@ -678,8 +709,7 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
                                         + std::to_string(static_cast<int>(potential)));
     }
 
-    dW.dUdJ = kappa*log(J);
-    dW.dU2dJ2 = kappa/J;
+    volumetric_derivatives(volumetric_potential_of(props, n_used), kappa, J, dW.dUdJ, dW.dU2dJ2);
     return dW;
 }
 

@@ -753,6 +753,32 @@ enum class HyperPotential {
     GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
     SWANH = 5   ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
 };
+// Every potential above, and OGDEN, may carry ONE more prop after those listed: the
+// volumetric potential (VolumetricPotential, 0 when absent).
+
+/**
+ * @brief Volumetric part \f$ U(J) \f$ of a hyperelastic potential.
+ *
+ * Both share the ground-state bulk modulus \f$ U''(1) = \kappa \f$.
+ */
+enum class VolumetricPotential {
+    LOG_J = 0,      ///< \f$ U = \kappa (J \ln J - J + 1) \f$ (default)
+    QUADRATIC = 1   ///< \f$ U = \frac{\kappa}{2} (J - 1)^2 \f$
+};
+
+/**
+ * @brief The volumetric potential selected by an optional trailing prop.
+ *
+ * @param props the props of the law
+ * @param n_used how many of them the isochoric potential consumed; props(n_used), when
+ *        present, selects the VolumetricPotential (0 or 1)
+ */
+VolumetricPotential volumetric_potential_of(const arma::vec &props, const arma::uword n_used);
+
+/**
+ * @brief First and second derivatives of \f$ U(J) \f$.
+ */
+void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2);
 
 /**
  * @brief Derivatives of an isochoric-invariant potential.

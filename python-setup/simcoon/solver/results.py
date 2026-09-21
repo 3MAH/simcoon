@@ -10,9 +10,16 @@ directly on the returned arrays.
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict
 
 import numpy as np
+
+
+#: read-only aliases of a stored history
+_ALIASES = {"LogStrain": "Strain"}
+#: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain
+_ARCHIVE_FORMAT = 2
 
 
 class SolverResults:
@@ -26,7 +33,8 @@ class SolverResults:
         (heat source).
     field_data : dict
         Tensor histories, components-first: 'Stress' (Cauchy, (6, N)),
-        'Kirchhoff', 'PKII', 'Strain' (Green-Lagrange), 'LogStrain',
+        'Kirchhoff', 'PKII', 'Strain' (strain integrated with the objective rate: ln V for the logarithmic rates, (6, N);
+        'LogStrain' is the same array), 'GreenLagrange' ((6, N)),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
         runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
@@ -53,8 +61,8 @@ class SolverResults:
             "Stress": raw["sigma"].T,
             "Kirchhoff": raw["tau"].T,
             "PKII": raw["PKII"].T,
-            "Strain": raw["Etot"].T,
-            "LogStrain": raw["etot"].T,
+            "Strain": raw["etot"].T,         # "LogStrain" is an alias, see _ALIASES
+            "GreenLagrange": raw["Etot"].T,
             "Statev": raw["statev"].T,
             "Wm": raw["Wm"].T,
             "F": raw["F1"].reshape(n, 3, 3).transpose(1, 2, 0),
@@ -75,6 +83,7 @@ class SolverResults:
 
     # -- dict-like interface -------------------------------------------------
     def __getitem__(self, key: str) -> np.ndarray:
+        key = _ALIASES.get(key, key)
         if key in self.field_data:
             return self.field_data[key]
         if key in self.scalar_data:
@@ -84,10 +93,11 @@ class SolverResults:
         )
 
     def __contains__(self, key: str) -> bool:
+        key = _ALIASES.get(key, key)
         return key in self.field_data or key in self.scalar_data
 
     def keys(self):
-        return list(self.scalar_data) + list(self.field_data)
+        return list(self.scalar_data) + list(self.field_data) + list(_ALIASES)
 
     def get_data(self, key: str) -> np.ndarray:
         """fedoo-style accessor (alias of __getitem__)."""
@@ -106,7 +116,8 @@ class SolverResults:
     # -- persistence ----------------------------------------------------------
     def save(self, filename: str) -> None:
         """Save all histories to a compressed npz archive."""
-        payload = {"status": np.array(self.status), "sv_type": np.array(self.sv_type)}
+        payload = {"status": np.array(self.status), "sv_type": np.array(self.sv_type),
+                   "format": np.array(_ARCHIVE_FORMAT)}
         for k, v in self.scalar_data.items():
             payload[f"scalar__{k}"] = v
         for k, v in self.field_data.items():
@@ -127,6 +138,18 @@ class SolverResults:
                 obj.scalar_data[k[len("scalar__"):]] = data[k]
             elif k.startswith("field__"):
                 obj.field_data[k[len("field__"):]] = data[k]
+        if "format" not in data.files and "GreenLagrange" not in obj.field_data:
+            # archive written before 'Strain' became the logarithmic strain: it holds the
+            # Green-Lagrange strain under 'Strain' and the log strain under 'LogStrain'
+            # (left at zero by small-strain runs, where every measure coincides)
+            warnings.warn(f"{filename}: archive of an older layout, 'Strain' held the Green-Lagrange "
+                          "strain; remapped to 'GreenLagrange' ('Strain' is the logarithmic strain)",
+                          UserWarning, stacklevel=2)
+            green = obj.field_data.pop("Strain")
+            log = obj.field_data.pop("LogStrain", green)
+            obj.field_data["GreenLagrange"] = green
+            obj.field_data["Strain"] = log if np.any(log) else green
+        obj.field_data.pop("LogStrain", None)
         return obj
 
     def to_dataframe(self):

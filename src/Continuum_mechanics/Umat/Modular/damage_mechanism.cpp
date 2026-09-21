@@ -306,6 +306,8 @@ void DamageMechanism::tangent_contribution(
 void DamageMechanism::compute_work(
     const arma::vec& sigma_start,
     const arma::vec& sigma,
+    const arma::vec& E_start,
+    const arma::vec& E_end,
     double& Wm_r,
     double& Wm_ir,
     double& Wm_d

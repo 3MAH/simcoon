@@ -114,6 +114,10 @@ addopts = "-v --tb=short"
 # uv configuration
 # =============================================================================
 
+[tool.ruff.lint.per-file-ignores]
+# the package __init__ re-exports its public names on purpose
+"__init__.py" = ["F401", "F403"]
+
 [tool.uv]
 # Disable build isolation for editable installs (enables direct cmake rebuilds)
 # Requires build dependencies to be installed first: scikit-build-core, pybind11, numpy

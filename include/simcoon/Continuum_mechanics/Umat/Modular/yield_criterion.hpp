@@ -202,9 +202,9 @@ public:
     [[nodiscard]] bool has_stable_flow_direction() const noexcept;
 
     /**
-     * @brief Analytic flow Hessian $ \mathrm{d}oldsymbol{\Lambda}/
-     * \mathrm{d}oldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
-     * oldsymbol{\sigma}^2 $ (6x6, compliance-like Voigt).
+     * @brief Analytic flow Hessian \f$ \mathrm{d}\boldsymbol{\Lambda}/
+     * \mathrm{d}\boldsymbol{\sigma} = \partial^2\sigma_{eq}/\partial
+     * \boldsymbol{\sigma}^2 \f$ (6x6, compliance-like Voigt).
      *
      * Dispatch: VON_MISES → deta_stress; HILL/DFA/ANISOTROPIC →
      * ddHill_stress / ddDFA_stress / ddAni_stress with the configured params.

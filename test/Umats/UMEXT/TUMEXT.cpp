@@ -1,40 +1,38 @@
 /* This file is part of simcoon.
- 
+
  simcoon is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
- 
+
  simcoon is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
- 
+
  You should have received a copy of the GNU General Public License
  along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
- 
+
  */
 
 ///@file TUMEXT.cpp
-///@brief Test with external user material functions
+///@brief The UMEXT plugin driven by the solver: the historical reference case, its
+///loading programme built in code (nothing is read from a file since the 2.0 JSON-only
+///migration; the plugin itself is what the test exercises).
 ///@version 1.0
 
 #include <gtest/gtest.h>
-#include <iostream>
-#include <fstream>
+#include <cmath>
+#include <memory>
 #include <string>
-#include <assert.h>
-#include <math.h>
+#include <vector>
 #include <armadillo>
-
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
-#include <simcoon/Simulation/Solver/step_thermomeca.hpp>
-#include <simcoon/Simulation/Solver/solver.hpp>
+#include <simcoon/Simulation/Solver/output.hpp>
+#include <simcoon/Simulation/Solver/solver_sink.hpp>
 
 using namespace std;
 using namespace arma;
@@ -42,51 +40,56 @@ using namespace simcoon;
 
 TEST(TUMEXT, TUMEXT_solver)
 {
-    string path_data = "data";
-    string path_results = "results";
-    string outputfile = "results_job.txt";
-    string pathfile = "path.txt";
-    string materialfile = "material.dat";
-    string sol_essentials = "solver_essentials.inp";
-    string sol_control = "solver_control.inp";
-    
-    string umat_name;
-    unsigned int nprops = 0;
-    unsigned int nstatev = 0;
-    vec props;
-    
-    double psi_rve = 0.;
-    double theta_rve = 0.;
-    double phi_rve = 0.;
-    
-    int solver_type = 0;
-    int corate_type = 0;
-    double div_tnew_dt_solver = 0.;
-    double mul_tnew_dt_solver = 0.;
-    int miniter_solver = 0;
-    int maxiter_solver = 0;
-    int inforce_solver = 0;
-    double precision_solver = 0.;
-    double lambda_solver = 0.;
-    
-    ASSERT_NO_THROW(solver_essentials(solver_type, corate_type, path_data, sol_essentials)) << "Failed to read solver essentials - check if file exists";
-    ASSERT_NO_THROW(solver_control(div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, sol_control)) << "Failed to read solver control - check if file exists";
-    
-    ASSERT_NO_THROW(read_matprops(umat_name, nprops, props, nstatev, psi_rve, theta_rve, phi_rve, path_data, materialfile)) << "Failed to read material properties - check if file exists";
-    solver(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve, solver_type, corate_type, div_tnew_dt_solver, mul_tnew_dt_solver, miniter_solver, maxiter_solver, inforce_solver, precision_solver, lambda_solver, path_data, path_results, pathfile, outputfile);
-    
-    string path_comparison = "comparison/results_job_global-0.txt";
-    string path_outputfile = path_results + "/" + "results_job_global-0.txt";
-    
-    mat C;
-    C.load(path_comparison);
+    //The material and the programme of the reference case: an elastic plugin (E = 70000 MPa,
+    //nu = 0.3), loaded in uniaxial tension to 2 % strain and unloaded, 100 increments each
+    const vec props = {70000., 0.3, 0.};
+    const double T_init = 290.;
+    const double targets[2] = {0.02, 0.};
 
-    mat R;
-    R.load(path_outputfile);
-    
-    for (unsigned int i=0; i<C.n_rows; i++) {
-        for (unsigned int j=0; j<C.n_cols; j++) {
-                EXPECT_LT(fabs(C(i,j) - R(i,j)),1.E-6);
+    std::vector<block> blocks(1);
+    blocks[0].number = 1;
+    blocks[0].type = 1;
+    blocks[0].control_type = 1;
+    blocks[0].ncycle = 1;
+    blocks[0].nstep = 2;
+    blocks[0].generate();
+    for (unsigned int j = 0; j < 2; j++) {
+        auto s = std::dynamic_pointer_cast<step_meca>(blocks[0].steps[j]);
+        s->number = j + 1;
+        s->control_type = 1;
+        s->mode = 1;
+        s->Dn_init = 1.;
+        s->Dn_mini = 1.;
+        s->Dn_inc = 0.01;
+        s->BC_Time = 1.;
+        s->cBC_meca(0) = 0;                 //strain-driven 11
+        for (unsigned int k = 1; k < 6; k++) {
+            s->cBC_meca(k) = 1;             //stress-free otherwise
+        }
+        s->BC_meca = zeros(6);
+        s->BC_meca(0) = targets[j];
+        s->cBC_T = 0;
+        s->BC_T = T_init;
+    }
+
+    solver_output so(1);
+    so.o_type(0) = 1;
+    so.o_nfreq(0) = 1;
+    solver_params ctrl;
+    solver_memory_sink sink;
+    sink.record_tangent = false;
+
+    const int status = solver_run(blocks, T_init, so, "UMEXT", props, 1, 0., 0., 0., 0, 2, ctrl, sink);
+    ASSERT_EQ(status, 0);
+
+    //The committed reference: strain in columns 8:14, stress in 14:20
+    mat C;
+    ASSERT_TRUE(C.load("comparison/results_job_global-0.txt")) << "missing reference";
+    ASSERT_EQ(C.n_rows, sink.sigma.size());
+    for (unsigned int i = 0; i < C.n_rows; i++) {
+        for (unsigned int k = 0; k < 6; k++) {
+            EXPECT_LT(fabs(C(i, 8 + k) - sink.Etot[i](k)), 1.E-6);
+            EXPECT_LT(fabs(C(i, 14 + k) - sink.sigma[i](k)), 1.E-6);
         }
     }
 }

@@ -14,14 +14,14 @@ Two micromechanical schemes are compared:
 
 **Forward model**: simcoon mean-field homogenization (``L_eff``)
 **Optimization**: ``scipy.optimize.differential_evolution`` (global optimizer)
-**Key system**: simcoon ``Parameter`` for generic file templating
+**Phases**: described in memory, so an evaluation touches no file at all
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import differential_evolution
 import simcoon as sim
-from simcoon import parameter as par
+from simcoon.solver.micromechanics import Ellipsoid
 import os
 
 ###################################################################################
@@ -36,10 +36,12 @@ import os
 # identified from experimental effective Young's modulus measurements at several
 # volume fractions.
 #
-# **Key System**: simcoon's key system allows parameters to be injected into
-# any input file via alphanumeric placeholders (e.g., ``@2p``). This makes the
-# identification workflow generic and applicable to any simulation tool
-# (simcoon solver, Mori-Tanaka, fedoo FE, etc.).
+# The phases are built as objects and passed to ``L_eff``. A candidate
+# :math:`(E_f, \\nu_f)` is written into the reinforcement,
+#
+# Note that simcoon's key system (``simcoon.parameter``) remains the tool of choice when
+# the forward model is an *external* code driven by input files, such as an
+# Abaqus job; it is not needed when simcoon itself is the forward model.
 
 
 def load_experimental_data(filepath):
@@ -57,10 +59,7 @@ def load_experimental_data(filepath):
 # ``L_eff`` function.
 
 
-def compute_E_eff(
-    E_f, nu_f, concentrations, umat_name, param_list, path_keys, path_data,
-    props_composite,
-):
+def compute_E_eff(E_f, nu_f, concentrations, umat_name, props_composite):
     """
     Compute effective Young's modulus at given volume fractions.
 
@@ -74,57 +73,63 @@ def compute_E_eff(
         Volume fractions of reinforcement
     umat_name : str
         Micromechanical scheme ("MIMTN" or "MISCN")
-    param_list : list of Parameter
-        Parameter objects with keys for file templating
-    path_keys : str
-        Path to template files
-    path_data : str
-        Path to working data directory (must be "data" relative to cwd)
     props_composite : numpy.ndarray
-        Composite definition array [nphases, num_file, int1, int2, n_matrix]
+        Composite definition array [nphases, unused, int1, int2, n_matrix]
 
     Returns
     -------
     numpy.ndarray
         Effective Young's modulus at each volume fraction [MPa]
     """
+    matrix = Ellipsoid(
+        number=0,
+        umat_name="ELISO",
+        save=1,
+        nstatev=1,
+        props=np.array([2250.0, 0.19, 8.8e-5]),
+    )
+    reinforcement = Ellipsoid(
+        number=1,
+        umat_name="ELISO",
+        save=1,
+        nstatev=1,
+        props=np.array([E_f, nu_f, 0.5e-6]),
+    )
+
     E_eff = np.zeros(len(concentrations))
-
     for i, c in enumerate(concentrations):
-        param_list[0].value = 1.0 - c
-        param_list[1].value = c
-        param_list[2].value = E_f
-        param_list[3].value = nu_f
+        matrix.concentration = 1.0 - c
+        reinforcement.concentration = c
 
-        par.copy_parameters(param_list, path_keys, path_data)
-        par.apply_parameters(param_list, path_data)
-
-        L = sim.L_eff(umat_name, props_composite, 0, 0.0, 0.0, 0.0)
+        L = sim.L_eff(
+            umat_name,
+            props_composite,
+            0,
+            phases=[matrix, reinforcement],
+        )
         iso_props = sim.L_iso_props(L).flatten()
         E_eff[i] = iso_props[0]
 
     return E_eff
 
 
-def cost_function(
-    params_opt, c_exp, E_exp, umat_name, param_list, path_keys, path_data,
-    props_composite,
-):
+def cost_function(params_opt, c_exp, E_exp, umat_name, props_composite):
     """MSE cost function for reinforcement property identification."""
     E_f, nu_f = params_opt
     try:
-        E_pred = compute_E_eff(
-            E_f, nu_f, c_exp, umat_name, param_list, path_keys, path_data,
-            props_composite,
-        )
+        E_pred = compute_E_eff(E_f, nu_f, c_exp, umat_name, props_composite)
         return np.mean((E_pred - E_exp) ** 2)
     except Exception:
         return 1e12
 
 
 def identify_reinforcement(
-    c_exp, E_exp, umat_name, param_list, path_keys, path_data,
-    props_composite, bounds, verbose=True,
+    c_exp,
+    E_exp,
+    umat_name,
+    props_composite,
+    bounds,
+    verbose=True,
 ):
     """
     Identify reinforcement properties using differential evolution.
@@ -142,8 +147,7 @@ def identify_reinforcement(
     result = differential_evolution(
         cost_function,
         bounds=bounds,
-        args=(c_exp, E_exp, umat_name, param_list, path_keys, path_data,
-              props_composite),
+        args=(c_exp, E_exp, umat_name, props_composite),
         strategy="best1bin",
         maxiter=200,
         popsize=15,
@@ -184,23 +188,15 @@ def identify_reinforcement(
 # physically meaningful identified properties.
 
 if __name__ == "__main__":
-
-    # -----------------------------------------------------------------
-    # Change to example directory (L_eff reads from data/ in cwd)
-    # -----------------------------------------------------------------
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
     except NameError:
         script_dir = os.getcwd()
-    os.chdir(script_dir)
-
-    path_keys = "keys_ident"
-    path_data = "data"
 
     # -----------------------------------------------------------------
     # Load experimental data (Wang 2003)
     # -----------------------------------------------------------------
-    c_exp, E_exp = load_experimental_data("data/E_exp.txt")
+    c_exp, E_exp = load_experimental_data(os.path.join(script_dir, "data", "E_exp.txt"))
 
     print("=" * 60)
     print(" COMPOSITE REINFORCEMENT IDENTIFICATION")
@@ -210,27 +206,8 @@ if __name__ == "__main__":
     for c, E in zip(c_exp, E_exp):
         print(f"  c = {c:.1f}  ->  E_eff = {E:.0f} MPa")
 
-    # -----------------------------------------------------------------
-    # Load parameters (key system)
-    # -----------------------------------------------------------------
-    # Define parameters inline (no external file needed):
-    #   @0p -> matrix concentration
-    #   @1p -> reinforcement concentration
-    #   @2p -> reinforcement E [MPa]
-    #   @3p -> reinforcement nu
-    param_list = [
-        par.Parameter(0, bounds=(0.0, 1.0), key="@0p",
-                      sim_input_files=["Nellipsoids0.dat"]),
-        par.Parameter(1, bounds=(0.0, 1.0), key="@1p",
-                      sim_input_files=["Nellipsoids0.dat"]),
-        par.Parameter(2, bounds=(10000, 200000), key="@2p",
-                      sim_input_files=["Nellipsoids0.dat"]),
-        par.Parameter(3, bounds=(0.01, 0.45), key="@3p",
-                      sim_input_files=["Nellipsoids0.dat"]),
-    ]
-
-    # Composite definition
-    props_composite = np.array([2, 0, 50, 50, 0], dtype="float")
+    # Composite definition: [int1, int2, n_matrix] (Eshelby integration points, matrix index)
+    props_composite = np.array([50, 50, 0], dtype="float")
 
     # Bounds for identification (E_f, nu_f)
     bounds = [(10000, 200000), (0.01, 0.45)]
@@ -239,32 +216,42 @@ if __name__ == "__main__":
     # Identification with Mori-Tanaka
     # -----------------------------------------------------------------
     result_MT = identify_reinforcement(
-        c_exp, E_exp, "MIMTN", param_list, path_keys, path_data,
-        props_composite, bounds,
+        c_exp,
+        E_exp,
+        "MIMTN",
+        props_composite,
+        bounds,
     )
 
     # -----------------------------------------------------------------
     # Identification with Self-Consistent
     # -----------------------------------------------------------------
     result_SC = identify_reinforcement(
-        c_exp, E_exp, "MISCN", param_list, path_keys, path_data,
-        props_composite, bounds,
+        c_exp,
+        E_exp,
+        "MISCN",
+        props_composite,
+        bounds,
     )
 
     # -----------------------------------------------------------------
     # Summary
     # -----------------------------------------------------------------
     print(f"\n{'=' * 60}")
-    print(f" SUMMARY")
+    print(" SUMMARY")
     print(f"{'=' * 60}")
-    print(f"  Reference glass: E_f ~ 73000 MPa, nu_f ~ 0.22")
-    print(f"")
+    print("  Reference glass: E_f ~ 73000 MPa, nu_f ~ 0.22")
+    print("")
     print(f"  {'Scheme':<20} {'E_f [MPa]':>12} {'nu_f':>8} {'MSE':>14}")
     print(f"  {'-' * 56}")
-    print(f"  {'Mori-Tanaka':<20} {result_MT['E_f']:>12.0f} "
-          f"{result_MT['nu_f']:>8.3f} {result_MT['mse']:>14.2e}")
-    print(f"  {'Self-Consistent':<20} {result_SC['E_f']:>12.0f} "
-          f"{result_SC['nu_f']:>8.3f} {result_SC['mse']:>14.2e}")
+    print(
+        f"  {'Mori-Tanaka':<20} {result_MT['E_f']:>12.0f} "
+        f"{result_MT['nu_f']:>8.3f} {result_MT['mse']:>14.2e}"
+    )
+    print(
+        f"  {'Self-Consistent':<20} {result_SC['E_f']:>12.0f} "
+        f"{result_SC['nu_f']:>8.3f} {result_SC['mse']:>14.2e}"
+    )
     print()
 
     # Note on model limitations
@@ -279,32 +266,43 @@ if __name__ == "__main__":
     c_model = np.arange(0.0, 0.51, 0.01)
 
     E_MT = compute_E_eff(
-        result_MT["E_f"], result_MT["nu_f"], c_model, "MIMTN",
-        param_list, path_keys, path_data, props_composite,
+        result_MT["E_f"],
+        result_MT["nu_f"],
+        c_model,
+        "MIMTN",
+        props_composite,
     )
     E_SC = compute_E_eff(
-        result_SC["E_f"], result_SC["nu_f"], c_model, "MISCN",
-        param_list, path_keys, path_data, props_composite,
+        result_SC["E_f"],
+        result_SC["nu_f"],
+        c_model,
+        "MISCN",
+        props_composite,
     )
     # Reference with handbook glass properties
-    E_ref_MT = compute_E_eff(
-        73000, 0.22, c_model, "MIMTN",
-        param_list, path_keys, path_data, props_composite,
-    )
-    E_ref_SC = compute_E_eff(
-        73000, 0.22, c_model, "MISCN",
-        param_list, path_keys, path_data, props_composite,
-    )
+    E_ref_MT = compute_E_eff(73000, 0.22, c_model, "MIMTN", props_composite)
+    E_ref_SC = compute_E_eff(73000, 0.22, c_model, "MISCN", props_composite)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
     # Left: Identified fits
-    ax1.plot(c_exp, E_exp, "kx", markersize=10, markeredgewidth=2,
-             label="Exp. (Wang 2003)")
-    ax1.plot(c_model, E_MT, "b-", linewidth=2,
-             label=f"MT identified (E_f={result_MT['E_f']:.0f})")
-    ax1.plot(c_model, E_SC, "r-", linewidth=2,
-             label=f"SC identified (E_f={result_SC['E_f']:.0f})")
+    ax1.plot(
+        c_exp, E_exp, "kx", markersize=10, markeredgewidth=2, label="Exp. (Wang 2003)"
+    )
+    ax1.plot(
+        c_model,
+        E_MT,
+        "b-",
+        linewidth=2,
+        label=f"MT identified (E_f={result_MT['E_f']:.0f})",
+    )
+    ax1.plot(
+        c_model,
+        E_SC,
+        "r-",
+        linewidth=2,
+        label=f"SC identified (E_f={result_SC['E_f']:.0f})",
+    )
     ax1.set_xlabel("Reinforcement volume fraction $c$", fontsize=12)
     ax1.set_ylabel("Effective Young's modulus $E_{eff}$ [MPa]", fontsize=12)
     ax1.set_title("Identified Reinforcement Properties", fontsize=13)
@@ -312,16 +310,27 @@ if __name__ == "__main__":
     ax1.grid(True, alpha=0.3)
 
     # Right: Reference vs Identified
-    ax2.plot(c_exp, E_exp, "kx", markersize=10, markeredgewidth=2,
-             label="Exp. (Wang 2003)")
-    ax2.plot(c_model, E_ref_MT, "b--", linewidth=1.5, alpha=0.6,
-             label="MT with E_f=73 GPa (handbook)")
-    ax2.plot(c_model, E_ref_SC, "r--", linewidth=1.5, alpha=0.6,
-             label="SC with E_f=73 GPa (handbook)")
-    ax2.plot(c_model, E_MT, "b-", linewidth=2, alpha=0.8,
-             label="MT identified")
-    ax2.plot(c_model, E_SC, "r-", linewidth=2, alpha=0.8,
-             label="SC identified")
+    ax2.plot(
+        c_exp, E_exp, "kx", markersize=10, markeredgewidth=2, label="Exp. (Wang 2003)"
+    )
+    ax2.plot(
+        c_model,
+        E_ref_MT,
+        "b--",
+        linewidth=1.5,
+        alpha=0.6,
+        label="MT with E_f=73 GPa (handbook)",
+    )
+    ax2.plot(
+        c_model,
+        E_ref_SC,
+        "r--",
+        linewidth=1.5,
+        alpha=0.6,
+        label="SC with E_f=73 GPa (handbook)",
+    )
+    ax2.plot(c_model, E_MT, "b-", linewidth=2, alpha=0.8, label="MT identified")
+    ax2.plot(c_model, E_SC, "r-", linewidth=2, alpha=0.8, label="SC identified")
     ax2.set_xlabel("Reinforcement volume fraction $c$", fontsize=12)
     ax2.set_ylabel("Effective Young's modulus $E_{eff}$ [MPa]", fontsize=12)
     ax2.set_title("Handbook vs Identified Properties", fontsize=13)
@@ -331,7 +340,8 @@ if __name__ == "__main__":
     fig.suptitle(
         "Composite Reinforcement Identification — Glass/Epoxy\n"
         "Mori-Tanaka vs Self-Consistent + Differential Evolution",
-        fontsize=14, fontweight="bold",
+        fontsize=14,
+        fontweight="bold",
     )
     plt.tight_layout()
     plt.show()

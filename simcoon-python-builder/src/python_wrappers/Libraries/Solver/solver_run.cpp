@@ -16,9 +16,11 @@
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Solver/solver_sink.hpp>
+#include <simcoon/python_wrappers/dict_get.hpp>
+#include <simcoon/python_wrappers/Libraries/Phase/phases.hpp>
 #include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
 
 using namespace std;
@@ -28,11 +30,6 @@ namespace py = pybind11;
 namespace simpy {
 
 namespace {
-
-template <typename T>
-T dget(const py::dict &d, const char *key, const T &dflt) {
-    return d.contains(key) ? d[key].cast<T>() : dflt;
-}
 
 //Fill the fields shared by step_meca and step_thermomeca (identical member names)
 template <typename StepPtr>
@@ -73,7 +70,8 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
         sptr->cBC_meca(k) = flag;
     }
     if (sd.contains("BC_meca")) {
-        vec BC_meca = carma::arr_to_col(sd["BC_meca"].cast<py::array_t<double>>());
+        //vec_of copies: carma's rvalue overloads would STEAL an owning array of the caller
+        vec BC_meca = vec_of(sd["BC_meca"], "solver_run: BC_meca");
         if (BC_meca.n_elem != size_meca) {
             throw std::invalid_argument("solver_run: BC_meca must have " + std::to_string(size_meca) + " components");
         }
@@ -85,7 +83,8 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
 
     //Rotation rate for the mixed finite-strain control types
     if (sd.contains("BC_w")) {
-        mat BC_w = carma::arr_to_mat(sd["BC_w"].cast<py::array_t<double>>());
+        const py::array_t<double> BC_w_py = sd["BC_w"].cast<py::array_t<double>>();
+        mat BC_w = carma::arr_to_mat(BC_w_py);   //const-ref overload: a copy
         if ((BC_w.n_rows != 3) || (BC_w.n_cols != 3)) {
             throw std::invalid_argument("solver_run: BC_w must be a 3x3 matrix");
         }
@@ -114,7 +113,8 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
         if (sptr->mode != 3) {
             throw std::invalid_argument("solver_run: tab_data is only valid for tabular steps (mode 3)");
         }
-        sptr->tab_data = carma::arr_to_mat(sd["tab_data"].cast<py::array_t<double>>());
+        const py::array_t<double> tab_py = sd["tab_data"].cast<py::array_t<double>>();
+        sptr->tab_data = carma::arr_to_mat(tab_py);   //const-ref overload: a copy
     }
     if ((sptr->mode == 3) && (sptr->tab_data.n_rows == 0)) {
         throw std::invalid_argument("solver_run: tabular steps (mode 3) require tab_data");
@@ -145,11 +145,17 @@ py::array_t<T> scalars_to_arr(const std::vector<T> &v) {
 
 py::dict solver_run(const py::list &blocks_py, const double &T_init,
                     const std::string &umat_name, const py::array_t<double> &props_py,
-                    const int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve,
+                    const int &nstatev, const py::object &orientation,
                     const int &solver_type, const int &corate_type,
-                    const py::dict &params_py, const bool &record_tangent) {
+                    const py::dict &params_py, const bool &record_tangent,
+                    const py::object &phases) {
 
+    if (nstatev < 0) {   //the library takes an unsigned: -1 would ask for 4 billion state variables
+        throw std::invalid_argument("solver_run: nstatev = " + std::to_string(nstatev) + " is negative");
+    }
     vec props = carma::arr_to_col(props_py);
+    double psi_rve, theta_rve, phi_rve;
+    angles_of(orientation, "solver_run, orientation", psi_rve, theta_rve, phi_rve);
 
     //Numeric solver controls
     simcoon::solver_params ctrl;
@@ -227,11 +233,17 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     simcoon::solver_memory_sink sink;
     sink.record_tangent = record_tangent;
 
+    //Sub-phases of a mean-field model, built HERE, while the GIL is still held: they are read
+    //from Python objects. umat_multi checks them against the props of the model (check_sub_phases).
+    const std::vector<simcoon::phase_characteristics> sub_phases =
+        make_sub_phases(phases, umat_name, T_init);
+
     int status = 0;
     {
         py::gil_scoped_release nogil;
         status = simcoon::solver_run(blocks, T_init, so, umat_name, props, nstatev,
-                                     psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink);
+                                     psi_rve, theta_rve, phi_rve, solver_type, corate_type, ctrl, sink,
+                                     sub_phases);
     }
 
     //Assemble the results (canonical state; measure transforms happen in Python)
