@@ -133,6 +133,7 @@ private:
     arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
     HyperPotential hyper_potential_;  ///< HYPER_INVARIANTS: the potential
     arma::vec hyper_props_; ///< HYPER_INVARIANTS: that potential's own parameters
+    hyper_anisotropy an_;   ///< HYPER_INVARIANTS: fibre directions + dispersion, parsed once by configure_hyper_invariants
     tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
@@ -277,18 +278,6 @@ public:
      * @return The configured type
      */
     [[nodiscard]] ElasticityType type() const noexcept { return type_; }
-
-    /**
-     * @brief The potential of a HYPER_INVARIANTS block
-     * @return The configured potential (meaningless for any other type)
-     */
-    [[nodiscard]] HyperPotential hyper_potential() const noexcept { return hyper_potential_; }
-
-    /**
-     * @brief The parameters of a HYPER_INVARIANTS block's potential
-     * @return That potential's own props (empty for any other type)
-     */
-    [[nodiscard]] const arma::vec& hyper_props() const noexcept { return hyper_props_; }
 
     /**
      * @brief Check if the module is configured

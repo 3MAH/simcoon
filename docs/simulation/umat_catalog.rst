@@ -168,8 +168,13 @@ Unchanged dedicated implementations (out of the modular scope):
   and :math:`\bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}} \, \mathbf{a}_{0,i}`.
   The dispersion :math:`\kappa_d \in [0, 1/3]` interpolates between perfectly
   aligned fibres (:math:`\kappa_d = 0`, the Holzapfel-Gasser-Ogden 2000 model)
-  and an isotropic distribution (:math:`\kappa_d = 1/3`). A fibre carries no
-  compression: its term is inactive wherever :math:`\bar{I}^{*}_{4,i} < 1`.
+  and an isotropic distribution (:math:`\kappa_d = 1/3`). The fibre term is inactive
+  wherever :math:`\bar{I}^{*}_{4,i} < 1`, which is the switch of the original
+  Gasser-Ogden-Holzapfel formulation. Note it is a condition on the *generalized*
+  invariant, not on fibre compression: once :math:`\kappa_d > 0` the term picks up a
+  :math:`\kappa_d \bar{I}_1` contribution, so a fibre with :math:`\bar{I}_{4,i} < 1` can
+  still be active (at :math:`\kappa_d = 0.2` a fibre shortened to 0.39 of its length
+  gives :math:`\bar{I}^{*}_4 = 1.12`).
 
   props = ``C10, k1, k2, kappa_d, n_fam, a0x_1, a0y_1, a0z_1, ..., kappa``,
   where each :math:`\mathbf{a}_{0,i}` is a unit direction **in the local
@@ -206,11 +211,12 @@ Unchanged dedicated implementations (out of the modular scope):
      additive corotational kinematics of the modular UMAT cannot express (there is
      no plastic deformation gradient to convect with).
 
-     A second, separate caveat applies to **viscoelasticity** only: the Prony
-     branches are referenced to the elasticity block's ground-state stiffness, which
-     for HOLZA is *isotropic* (an unstretched fibre contributes nothing at
-     :math:`\bar{I}^{*}_{4,i} = 1`). The viscous response therefore carries none of
-     the fibre anisotropy, while the equilibrium response does.
+     A second, separate caveat applies to **viscoelasticity** only: every Prony
+     branch is built as an *isotropic* :math:`\mathbf{L}_i(E_i, \nu_i)`, so the viscous
+     response carries none of the fibre anisotropy while the equilibrium response does.
+     That is a property of the viscoelastic mechanism's :math:`(E_i, \nu_i)`
+     parameterization rather than of HOLZA -- a Prony branch cannot follow an ELORT or
+     ELIST block's symmetry either.
 
      Neither is rejected at run time; both are modelling choices left to the user.
 

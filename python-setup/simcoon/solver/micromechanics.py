@@ -67,9 +67,7 @@ from typing import Dict, List, Optional, Sequence, Union
 import numpy as np
 
 from simcoon import _core
-from scipy.spatial.transform import Rotation as _ScipyRotation
 
-from simcoon import rotation as _rotation_module
 from simcoon.rotation import EULER_SEQ, Orientation, Rotation, as_rotation, euler_angles
 
 
@@ -78,9 +76,8 @@ from simcoon.rotation import EULER_SEQ, Orientation, Rotation, as_rotation, eule
 # =============================================================================
 
 # The orientation coercion lives in simcoon.rotation, next to the Rotation class, because
-# it serves every API that takes one (phases here, fibre directions in modular.py). Re-exported
-# under the names this module has always published.
-_ANGLES = _rotation_module._ANGLES
+# it serves every API that takes one (phases here, fibre directions in modular.py). The names
+# this module has always published are re-exported above.
 
 
 def _dataclass_eq(self, other):

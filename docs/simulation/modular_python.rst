@@ -81,6 +81,13 @@ argument (enum, int, or string aliases):
        ``volumetric`` and ``alpha`` keyword-only
      - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
        ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
+   * - :class:`HolzapfelElasticity`
+     - ``C10, k1, k2, kappa_d, fibres, kappa``, ``volumetric`` and ``alpha``
+       keyword-only; ``fibres`` is a :class:`simcoon.Rotation`, one entry per
+       fibre family, applied to :math:`\mathbf{e}_1`
+     - the ``HOLZA`` UMAT's potential (Gasser-Ogden-Holzapfel). The only
+       **anisotropic** block: see the caveats in :doc:`umat_catalog` before
+       composing it with plasticity or viscoelasticity
 
 ``alpha`` are the thermal-expansion coefficients (per direction where
 applicable).

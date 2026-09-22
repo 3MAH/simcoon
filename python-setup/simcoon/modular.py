@@ -648,8 +648,10 @@ class HolzapfelElasticity(_HyperInvariantsElasticity):
 
     where :math:`\bar{I}^*_{4,i} = \kappa_d \bar{I}_1 + (1 - 3\kappa_d)\bar{I}_{4,i}`
     and :math:`\bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}}\, \mathbf{a}_{0,i}`.
-    A fibre carries no compression: its term is inactive where
-    :math:`\bar{I}^*_{4,i} < 1`.
+    The fibre term is inactive where :math:`\bar{I}^*_{4,i} < 1`. That is a condition
+    on the *generalized* invariant, not on fibre compression: once
+    :math:`\kappa_d > 0` a fibre with :math:`\bar{I}_{4,i} < 1` can still be active,
+    through the :math:`\kappa_d \bar{I}_1` term.
 
     Parameters
     ----------
@@ -704,11 +706,13 @@ class HolzapfelElasticity(_HyperInvariantsElasticity):
        assumption, degrading as the inelastic strain reorients the fibres.
        Nothing rejects it at run time; it is a modelling choice.
 
-       For :class:`Viscoelasticity` there is a second, separate caveat: the
-       Prony branches are referenced to the block's ground-state stiffness,
-       which is *isotropic* here (an unstretched fibre contributes nothing), so
-       the viscous response carries none of the fibre anisotropy while the
-       equilibrium response does.
+       For :class:`Viscoelasticity` there is a second, separate caveat: every
+       Prony branch is built as an *isotropic* ``L_iso(E_i, nu_i)``, so the
+       viscous response carries none of the fibre anisotropy while the
+       equilibrium response does. This is a property of the viscoelastic
+       mechanism's ``(E_i, nu_i)`` parameterization, not of this block -- a
+       branch cannot follow an orthotropic or transversely isotropic elasticity
+       either.
 
     A single scalar damage variable also degrades matrix and fibres at the same
     rate; the Holzapfel damage literature uses separate variables per term.
@@ -733,14 +737,29 @@ class HolzapfelElasticity(_HyperInvariantsElasticity):
         """The unit fibre directions as a ``(3, n_fam)`` array, one per column."""
         return as_direction(self.fibres)
 
+    # `fibres` may hold a Rotation or an array, neither of which the dataclass-generated
+    # __eq__/__hash__ can handle (an array comparison is ambiguous, and an array is
+    # unhashable). Compare and hash the resolved directions instead, so this block behaves
+    # like every other Elasticity. Same reason micromechanics.py carries _dataclass_eq.
+    def _key(self):
+        return (float(self.C10), float(self.k1), float(self.k2), float(self.kappa_d),
+                float(self.kappa), self.volumetric, float(self.alpha),
+                tuple(self.directions.ravel()))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, HolzapfelElasticity):
+            return NotImplemented
+        return self._key() == other._key()
+
+    def __hash__(self) -> int:
+        return hash(self._key())
+
     def potential_params(self) -> List[float]:
         a0 = self.directions
-        params = [float(self.C10), float(self.k1), float(self.k2), float(self.kappa_d),
-                  float(a0.shape[1])]
-        for i in range(a0.shape[1]):
-            params.extend(float(x) for x in a0[:, i])
-        params.append(float(self.kappa))
-        return params
+        return ([float(self.C10), float(self.k1), float(self.k2), float(self.kappa_d),
+                 float(a0.shape[1])]
+                + a0.T.ravel().tolist()
+                + [float(self.kappa)])
 
 
 Elasticity = Union[IsotropicElasticity, CubicElasticity,

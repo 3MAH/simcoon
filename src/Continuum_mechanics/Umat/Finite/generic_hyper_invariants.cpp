@@ -79,17 +79,11 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }
 
-    // An anisotropic potential is written in the fibre pseudo-invariants: append them to
-    // I_bar as the traces of the structure tensors, which the response needs anyway.
+    // An anisotropic potential reads its fibre pseudo-invariants off the structure
+    // tensors (tr A_i); an isotropic one gets an empty A and ignores it.
     const hyper_anisotropy an = hyper_potential_anisotropy(it_potential->second, props);
     const std::vector<mat> A = structure_tensors_push_forward(F1, an.a0, an.kappa_d, J);
-    if (!A.empty()) {
-        I_bar.resize(3 + A.size());
-        for (uword i = 0; i < A.size(); i++) {
-            I_bar(3+i) = trace(A[i]);
-        }
-    }
-    const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J);
+    const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J, A);
     
     ///@brief Initialization
     if(start)

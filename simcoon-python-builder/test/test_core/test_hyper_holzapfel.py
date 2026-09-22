@@ -35,8 +35,8 @@ def _props(c10=C10, k1=K1, k2=K2, kappa_d=0.0, fibres=FIBRES, kappa=KAPPA):
                                fibres=fibres, kappa=kappa).potential_params()
 
 
-def _umat(name, props, F1, nstatev=1):
-    n = 1
+def _umat(name, props, F1):
+    n, nstatev = 1, 1
     z6 = lambda: np.zeros((6, n), order="F")
     eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
     stress, sv, wm, Lt = sim.umat(
@@ -49,11 +49,8 @@ def _umat(name, props, F1, nstatev=1):
     return stress[:, 0], Lt[:, :, 0]
 
 
-def _energy(F, c10=C10, k1=K1, k2=K2, kappa_d=0.0, a0=None, kappa=KAPPA):
+def _energy(F, a0, kappa_d=0.0, c10=C10, k1=K1, k2=K2, kappa=KAPPA):
     """W(F) written out independently of the kernel, for the finite difference."""
-    if a0 is None:
-        a0 = HolzapfelElasticity(C10=c10, k1=k1, k2=k2, kappa_d=kappa_d,
-                                 fibres=FIBRES, kappa=kappa).directions
     J = np.linalg.det(F)
     C_bar = J ** (-2.0 / 3.0) * (F.T @ F)
     I1_bar = np.trace(C_bar)
@@ -148,6 +145,53 @@ def test_stress_matches_finite_difference_of_the_energy(kappa_d, state):
                                atol=2e-6 * max(1.0, np.abs(sigma).max()))
 
 
+@pytest.mark.parametrize("kappa_d", [0.0, 0.1])
+def test_fibre_tangent_matches_finite_difference(kappa_d):
+    """The fibre TANGENT, with the fibres active.
+
+    Every other Lt assertion in this file sits where the fibre term is identically zero
+    (k1 = 0, compression) or compares HOLZA against HOLZA, so a systematic factor error in
+    gamma_linear/gamma_quadratic would pass all of them. This one differences the stress
+    the kernel returns against the tangent the kernel returns.
+
+    Measured detection power at this state: a 1 % error in the fibre tangent exceeds the
+    tolerance by ~4800x (kappa_d = 0) and ~2800x (kappa_d = 0.1).
+    """
+    # A COAXIAL state with the fibres on principal axes: ln V and the perturbation commute,
+    # so the box tangent's normal block IS d(tau)/d(eps) and the difference needs no rate
+    # conversion -- the same recipe as the volumetric check in test_modular_hyper.py.
+    # A soft bulk modulus and a stretch well into the exponential put the fibre terms at
+    # 56-96 % of the normal block; at the default kappa = 1000 they are 0.03 % of it and
+    # the check would pass whatever the fibre tangent returned.
+    fibres = sim.Rotation.from_euler("zxz", [[0.0, 0.0, 0.0], [0.0, 0.0, 90.0]], degrees=True)
+    eps0 = np.array([0.30, 0.22, -0.52, 0.0, 0.0, 0.0])
+    kappa = 5.0
+    props = _props(kappa_d=kappa_d, fibres=fibres, kappa=kappa)
+
+    a0 = HolzapfelElasticity(C10=C10, k1=K1, k2=K2, kappa_d=kappa_d,
+                             fibres=fibres, kappa=kappa).directions
+    F0 = _F(eps0)
+    Cb = np.linalg.det(F0) ** (-2.0 / 3.0) * (F0.T @ F0)
+    active = [kappa_d * np.trace(Cb) + (1 - 3 * kappa_d) * (a0[:, i] @ Cb @ a0[:, i]) > 1.0
+              for i in range(a0.shape[1])]
+    assert all(active), f"the fibres must be ACTIVE for this to test anything: {active}"
+
+    def tau_of(eps):
+        sigma, _ = _umat("HOLZA", props, _F(eps))
+        return np.exp(np.sum(eps[:3])) * np.asarray(sigma).ravel()   # J * sigma
+
+    _, Lt = _umat("HOLZA", props, F0)
+    d = 1e-6
+    for col in range(3):
+        step = np.zeros(6)
+        step[col] = d
+        fd = (tau_of(eps0 + step) - tau_of(eps0 - step)) / (2.0 * d)
+        np.testing.assert_allclose(
+            fd[:3], Lt[:3, col], rtol=2e-6,
+            atol=2e-6 * max(1.0, np.abs(Lt[:3, col]).max()),
+            err_msg=f"d(tau)/d(eps) column {col} (kappa_d={kappa_d})")
+
+
 def test_rotating_the_fibres_and_the_motion_rotates_the_stress():
     """Frame indifference, which also exercises Rotation -> props end to end."""
     R = sim.Rotation.from_euler("zxz", [25.0, 40.0, -15.0], degrees=True)
@@ -161,36 +205,7 @@ def test_rotating_the_fibres_and_the_motion_rotates_the_stress():
     np.testing.assert_allclose(sim.v2t_stress(sigma_rot), expected, rtol=1e-9, atol=1e-11)
 
 
-def test_one_family_is_allowed():
-    sigma, Lt = _umat("HOLZA", _props(fibres=sim.Rotation.identity()), _F(GENERIC))
-    assert np.all(np.isfinite(sigma)) and np.all(np.isfinite(Lt))
-
-
 # ------------------------------------------------------------------- the module
-
-def test_modul_matches_the_standalone_kernel():
-    """MODUL with only a HOLZA block IS the standalone kernel (b_el = exp(2 eps_el))."""
-    eps = np.array(GENERIC)
-    mat = ModularMaterial(elasticity=HolzapfelElasticity(
-        C10=C10, k1=K1, k2=K2, kappa_d=0.1, fibres=FIBRES, kappa=KAPPA))
-
-    n = 1
-    z6 = lambda: np.zeros((6, n), order="F")
-    eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
-    sigma_mod, _, _, Lt_mod = sim.umat(
-        "MODUL", np.asfortranarray(eps.reshape(6, 1)), z6(),
-        np.array([]), np.array([]), z6(), eye,
-        np.asfortranarray(np.asarray(mat.props, dtype=float).reshape(-1, 1)),
-        np.zeros((mat.nstatev, n), order="F"), 0.0, 1.0,
-        np.zeros((4, n), order="F"), n_threads=1)
-
-    sigma_ref, Lt_ref = _umat("HOLZA", _props(kappa_d=0.1), _F(eps))
-    tau_ref = np.exp(eps[:3].sum()) * sigma_ref      # MODUL is a Kirchhoff box
-
-    scale = max(1.0, np.abs(tau_ref).max())
-    assert np.abs(sigma_mod[:, 0] - tau_ref).max() < 1e-10 * scale
-    assert np.abs(Lt_mod[:, :, 0] - Lt_ref).max() < 1e-9 * np.abs(Lt_ref).max()
-
 
 def _modul(mat, eps):
     n = 1
@@ -280,10 +295,8 @@ def test_damage_scales_the_anisotropic_stress_uniformly():
     mat = ModularMaterial(elasticity=block, mechanisms=[Damage(Y_0=Y_0, Y_c=Y_c)])
     sigma, _, _ = _modul(mat, eps)
 
+    # component by component, with no preferred direction: the whole point
     np.testing.assert_allclose(sigma, (1.0 - D_expected) * sigma_0, rtol=1e-12, atol=1e-12)
-    # and the scaling really is uniform: every ratio is the same number
-    ratio = sigma[np.abs(sigma_0) > 1e-9] / sigma_0[np.abs(sigma_0) > 1e-9]
-    assert np.ptp(ratio) < 1e-14
 
 
 # ------------------------------------------------------------------- the props

@@ -536,20 +536,32 @@ def euler_angles(rotation: Orientation) -> Dict[str, float]:
 def as_direction(value, reference=(1.0, 0.0, 0.0)) -> np.ndarray:
     """A fibre direction, or a stack of them, as unit column vectors.
 
-    ``value`` is anything :func:`as_rotation` accepts -- including a BATCHED
-    ``Rotation``, one entry per direction -- and the directions are that rotation
-    applied to ``reference``. A ``(3,)`` or ``(n, 3)`` array of components is taken
-    as the directions themselves and merely normalised.
+    ``value`` is either a rotation -- a (possibly batched) ``Rotation``, the
+    ``{"psi", "theta", "phi"}`` dict, or ``None`` for the identity -- in which case the
+    directions are that rotation applied to ``reference``; or an ``(n, 3)`` array-like of
+    components, which is merely normalised.
+
+    A bare 3-sequence is **rejected**: ``[0, 0, 40]`` could be Euler angles in degrees or
+    a direction, and guessing from the argument's type silently produced the wrong fibre
+    orientation. Pass ``Rotation.from_euler(...)`` or ``[[x, y, z]]``.
 
     Returns a ``(3, n)`` array, one unit direction per column, which is the layout
     the props of an anisotropic hyperelastic potential carry.
     """
-    if isinstance(value, np.ndarray) and value.ndim == 2 and value.shape[1] == 3:
-        a = value.astype(float)
-    elif isinstance(value, np.ndarray) and value.shape == (3,):
-        a = value.astype(float).reshape(1, 3)
-    else:
+    # Dispatch on WHAT the value is, never on its type. Deciding "Euler angles vs
+    # components" from `isinstance(..., np.ndarray)` silently misread both forms: the list
+    # [1, 0, 0] became a 1-degree rotation, and np.array([0, 0, 40]) -- a triplet
+    # as_rotation accepts -- became the unit vector e3 instead of a 40-degree direction.
+    if value is None or isinstance(value, (ScipyRotation, dict)):
         a = np.atleast_2d(as_rotation(value).apply(np.asarray(reference, dtype=float)))
+    else:
+        a = np.asarray(value, dtype=float)
+        if a.ndim != 2 or a.shape[1] != 3:
+            raise ValueError(
+                f"direction: expected a Rotation (one entry per direction) or an (n, 3) "
+                f"array of components, got shape {a.shape}. A bare 3-sequence is ambiguous "
+                f"-- it could be Euler angles or one direction -- so pass either "
+                f"Rotation.from_euler(...) or [[x, y, z]].")
     norms = np.linalg.norm(a, axis=1)
     if np.any(norms < 1e-12):
         raise ValueError("direction: a fibre direction has a zero norm")

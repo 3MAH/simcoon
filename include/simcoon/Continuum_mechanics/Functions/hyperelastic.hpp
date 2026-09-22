@@ -866,6 +866,13 @@ hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, con
  *          unaffected: it contributes no inelastic strain, so the elastic stretch is the
  *          total one and the push-forward is exact.
  *
+ * @note When @p F is \f$ \mathbf{V}^{el} \f$ (the modular block), the push-forward is the
+ *       exact corotated one, \f$ \mathbf{U}\mathbf{a}_0 = \mathbf{R}^T\mathbf{F}\mathbf{a}_0 \f$,
+ *       ONLY because MODUL under finite strain rejects any corate other than 3 (log_R) --
+ *       see select_umat_M_finite in umat_smart.cpp. Under another corate the same code would
+ *       silently convect the fibres with a different spin, which is still objective but is a
+ *       different model. That guard and this function must stay in step.
+ *
  * @param F deformation gradient \f$ \mathbf{F} \f$ (or \f$ \mathbf{V}^{el} \f$ for an elastic state, as in hyper_invariants_response)
  * @param a0 3 x n_fam matrix of unit reference directions, one per column (empty gives an empty result)
  * @param kappa_d the dispersion \f$ \kappa_d \f$
@@ -888,14 +895,23 @@ std::vector<arma::mat> structure_tensors_push_forward(const arma::mat &F, const 
  * @param potential the potential (see HyperPotential for its props)
  * @param props the potential's own parameters, starting at index 0
  * @param I_bar the isochoric invariants \f$ (\bar{I}_1, \bar{I}_2, \bar{I}_3) \f$, as
- *        isochoric_invariants returns them. An anisotropic potential expects the fibre
- *        pseudo-invariants appended to them, so that \f$ \bar{I}^{*}_{4,i} \f$ is
- *        @c I_bar(3+i) — the caller gets them as the traces of
- *        structure_tensors_push_forward, which it needs to build anyway.
+ *        isochoric_invariants returns them
  * @param J determinant of the deformation gradient
+ * @param A the pushed-forward structure tensors (structure_tensors_push_forward), one per
+ *        fibre family. An anisotropic potential reads its pseudo-invariants off them as
+ *        \f$ \bar{I}^{*}_{4,i} = \textrm{tr}\,\mathbf{A}_i \f$, so the invariant and the
+ *        tensor the tangent is built from can never come from different code. Empty for an
+ *        isotropic potential, which is the default.
  * @return the derivatives of the potential
+ *
+ * @note The framework assumes the potential is ADDITIVELY SEPARABLE in \f$ \bar{I}_1 \f$,
+ *       \f$ \bar{I}_2 \f$ and each \f$ \bar{I}^{*}_{4,i} \f$: hyper_invariants_dW carries no
+ *       \f$ \partial^2 W / \partial \bar{I}_1 \partial \bar{I}^{*}_4 \f$ slot, and
+ *       hyper_invariants_response builds no cross term. A future coupled potential (the
+ *       Holzapfel-Ogden myocardium model, for instance) needs that slot added, not just a
+ *       new case here.
  */
-hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J, const std::vector<arma::mat> &A = {});
 
 /**
  * @brief Cauchy stress and canonical box tangent of an invariant potential.
