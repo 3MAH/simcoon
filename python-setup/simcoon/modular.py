@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 from enum import IntEnum
-from typing import ClassVar, List, Sequence, Tuple, Union
+from typing import ClassVar, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -41,7 +41,7 @@ from simcoon.rotation import Orientation, as_direction
 
 __all__ = [
     # Enums
-    "ElasticityType", "HyperPotential", "VolumetricPotential", "YieldType", "IsoHardType", "KinHardType",
+    "ElasticityType", "HyperPotential", "MuscleFibreLaw", "VolumetricPotential", "YieldType", "IsoHardType", "KinHardType",
     "DamageType", "MechanismType",
     # Elastic-constant conventions
     "IsoConvention", "CubicConvention",
@@ -51,7 +51,7 @@ __all__ = [
     "TransverseIsotropicElasticity", "OrthotropicElasticity",
     "NeoHookeanElasticity", "MooneyRivlinElasticity", "YeohElasticity",
     "IsiharaElasticity", "GentThomasElasticity", "SwansonElasticity",
-    "HolzapfelElasticity",
+    "HolzapfelElasticity", "MuscleElasticity",
     # Yield criteria
     "VonMisesYield", "TrescaYield", "DruckerYield",
     "HillYield", "DFAYield", "AnisotropicYield",
@@ -456,6 +456,48 @@ class HyperPotential(IntEnum):
     GETHH = 4
     SWANH = 5
     HOLZA = 6
+    MUSCL = 7
+
+
+class MuscleFibreLaw(IntEnum):
+    """Along-fibre force law of the ``MUSCL`` potential (mirrors C++ ``MuscleFibreLaw``).
+
+    The four laws share everything but the fibre force
+    :math:`f_d(\\bar{\\lambda}) = \\partial W / \\partial \\bar{\\lambda}`, so the choice
+    travels as a code in the props and changes the *interpretation* of the fibre
+    parameters, never their number.
+
+    ``NONE``
+        No fibre term. Activation acts only through the matrix multiplier
+        :math:`s(a)`, which is Nazari et al. (2010, 2011): the contractile force is
+        supplied by something else (1-D cable elements, in their ANSYS model).
+    ``SIMPLE``
+        :math:`f_d = a\\,\\sigma_{max}`, a constant active stress. ArtiSynth
+        ``SimpleForceMuscle``.
+    ``GENERIC``
+        :math:`f_d = a\\,\\sigma_{max} + P_1 (e^{P_2(\\bar{\\lambda}-1)} - 1)/\\bar{\\lambda}`.
+        ArtiSynth ``GenericMuscle``. **Here** :math:`P_1` **is a stress**, there is no
+        optimal length, and the active term does not depend on stretch.
+    ``BLEMKER``
+        :math:`f_d = \\sigma_{max}(a f_a(\\hat{\\lambda}) + f_p(\\hat{\\lambda}))/\\lambda_{opt}`
+        with the Hill force-length curve. Blemker et al. (2005); ArtiSynth
+        ``BlemkerMuscle``; FEBio. **Here** :math:`P_1` **is dimensionless.**
+
+    .. warning::
+
+       ArtiSynth ships ``P1 = 0.05`` as the default for both ``GenericMuscle`` and
+       ``BlemkerMuscle`` although it means different things in each. Use
+       :meth:`MuscleElasticity.generic` and :meth:`MuscleElasticity.blemker`, which
+       carry each law's own published values, rather than copying a number across.
+    """
+    NONE = 0
+    SIMPLE = 1
+    GENERIC = 2
+    BLEMKER = 3
+
+
+_FIBRE_LAW_NAMES = {"none": MuscleFibreLaw.NONE, "simple": MuscleFibreLaw.SIMPLE,
+                    "generic": MuscleFibreLaw.GENERIC, "blemker": MuscleFibreLaw.BLEMKER}
 
 
 class VolumetricPotential(IntEnum):
@@ -762,11 +804,261 @@ class HolzapfelElasticity(_HyperInvariantsElasticity):
                 + [float(self.kappa)])
 
 
+@dataclass(frozen=True)
+class MuscleElasticity(_HyperInvariantsElasticity):
+    r"""Activated skeletal muscle (the ``MUSCL`` UMAT's).
+
+    A 5-parameter Mooney-Rivlin ground matrix whose stiffness rises with the
+    activation, plus an along-fibre force law chosen by ``fibre_law``:
+
+    :math:`W = s(a) \left[ C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3)
+    + C_{20}(\bar{I}_1 - 3)^2 + C_{11}(\bar{I}_1 - 3)(\bar{I}_2 - 3)
+    + C_{02}(\bar{I}_2 - 3)^2 \right] + \sum_i \Phi(\bar{\lambda}_i; a) + s(a) U(J)`
+
+    with :math:`s(a) = 1 + (s_{max} - 1) a` and
+    :math:`\bar{\lambda} = \sqrt{\bar{I}^*_4}` the isochoric fibre stretch. See
+    :class:`MuscleFibreLaw` for :math:`\Phi`. The matrix form is Nazari et al.'s
+    Eq. (1) and is a superset of neo-Hookean, Mooney-Rivlin and second-order Yeoh.
+
+    The named constructors :meth:`nazari`, :meth:`blemker`, :meth:`generic`,
+    :meth:`simple_force` and :meth:`face` carry each source's published parameters
+    and are the intended entry points; the raw constructor is keyword-only, because
+    seventeen positional numbers would be unreadable.
+
+    Parameters
+    ----------
+    fibre_law : MuscleFibreLaw or str
+        ``"none"``, ``"simple"``, ``"generic"`` or ``"blemker"``.
+    C10, C01, C20, C11, C02 : float
+        Ground-matrix constants (MPa). Setting only ``C10`` gives neo-Hookean,
+        ``C10, C01`` Mooney-Rivlin, ``C10, C20`` the second-order Yeoh that
+        Nazari uses.
+    s_max : float
+        Matrix stiffness multiplier at full activation, :math:`s(1) \ge 1`.
+        Nazari's value is 10. Must be 1 unless ``fibre_law`` is ``NONE``.
+    activation : float
+        The activation :math:`a \in [0, 1]`. **This is an input that changes every
+        increment**, unlike every other parameter here: rewrite it and pass the
+        props again. See :attr:`activation_index`.
+    sigma_max : float
+        Maximum isometric fibre stress (MPa).
+    lambda_opt : float
+        Optimal fibre stretch. ``BLEMKER`` only; ``GENERIC`` has no optimal length.
+    lambda_star : float
+        Stretch at which the passive fibre curve switches from exponential to
+        linear. The switch is C1 by construction.
+    P1 : float
+        Passive fibre coefficient. **A stress for** ``GENERIC``, **dimensionless
+        for** ``BLEMKER`` -- see :class:`MuscleFibreLaw`.
+    P2 : float
+        Uncrimping factor (dimensionless).
+    zero_below_opt : bool
+        Whether the passive fibre force is zero below the optimal length. True in
+        ``BlemkerMuscle``, **false** in ``GenericMuscle``, which therefore produces
+        a negative fibre stress in compression. True is the physically safe choice.
+    kappa_d : float
+        Fibre dispersion :math:`\kappa_d \in [0, 1/3]`; 0 (perfectly aligned) for
+        muscle. Shared with :class:`HolzapfelElasticity`.
+    fibres : Rotation or array-like, optional
+        Fibre directions in the LOCAL material frame, as for
+        :class:`HolzapfelElasticity`. Required unless ``fibre_law`` is ``NONE``.
+    kappa : float
+        Ground-state bulk modulus, :math:`U''(1)`. It is scaled by :math:`s(a)`
+        along with the matrix constants, which is what keeps Poisson's ratio fixed
+        as the muscle stiffens.
+
+    Examples
+    --------
+    >>> import simcoon as sim
+    >>> law = sim.modular.MuscleElasticity.blemker(
+    ...     fibres=sim.Rotation.from_euler('zxz', [[0, 0, 0]], degrees=True),
+    ...     kappa=1000., activation=0.5)          # doctest: +ELLIPSIS
+    >>> law.fibre_law
+    <MuscleFibreLaw.BLEMKER: 3>
+
+    Notes
+    -----
+    The activation is a *prescribed* input, not a governed internal variable, so the
+    material point is thermodynamically open. At frozen activation the law is
+    hyperelastic and :math:`W_{m,d} = W_{m,ir} = 0`; along a path where the
+    activation varies, :math:`W_{m,r}` is the mechanical work residue rather than
+    the stored energy and **can go negative**.
+
+    ``s_max > 1`` and an active fibre law are rejected together: scaling the passive
+    stiffness with activation is Nazari's surrogate for the stress-stiffening a real
+    contractile fibre produces, and his own later 3-D muscle element drops it for
+    exactly that reason. Composing them double-counts.
+
+    The fibre-convection caveats of :class:`HolzapfelElasticity` apply verbatim.
+    """
+    potential = HyperPotential.MUSCL
+
+    #: Index of the activation among this potential's own parameters -- that is, its
+    #: index in the props of the standalone ``MUSCL`` UMAT. In a
+    #: :class:`ModularMaterial` the block is preceded by the elasticity type, the
+    #: potential code and the parameter count, so use
+    #: :attr:`ModularMaterial.activation_index` there rather than adding 3 by hand.
+    activation_index: ClassVar[int] = 7
+
+    fibre_law: Union[MuscleFibreLaw, str] = field(default=MuscleFibreLaw.BLEMKER, kw_only=True)
+    C10: float = field(default=0.0, kw_only=True)
+    C01: float = field(default=0.0, kw_only=True)
+    C20: float = field(default=0.0, kw_only=True)
+    C11: float = field(default=0.0, kw_only=True)
+    C02: float = field(default=0.0, kw_only=True)
+    s_max: float = field(default=1.0, kw_only=True)
+    activation: float = field(default=0.0, kw_only=True)
+    sigma_max: float = field(default=0.0, kw_only=True)
+    lambda_opt: float = field(default=1.0, kw_only=True)
+    lambda_star: float = field(default=1.4, kw_only=True)
+    P1: float = field(default=0.0, kw_only=True)
+    P2: float = field(default=6.6, kw_only=True)
+    zero_below_opt: bool = field(default=True, kw_only=True)
+    kappa_d: float = field(default=0.0, kw_only=True)
+    fibres: Optional[Orientation] = field(default=None, kw_only=True)
+    kappa: float = field(default=0.0, kw_only=True)
+
+    # ---- named constructors: one per source, with its own published parameters ----
+
+    @classmethod
+    def nazari(cls, **kwargs) -> "MuscleElasticity":
+        """Nazari et al. (2010, 2011): activation raises the matrix stiffness x1 -> x10.
+
+        No fibre term -- the contractile force comes from elsewhere. Parameters from
+        Nazari et al. (2010) Table 1 (:math:`d = 0.8` MPa\\ :sup:`-1`, so
+        :math:`\\kappa = 2/d`), the same numbers ArtiSynth's ``BadinFaceDemo`` carries.
+        """
+        return cls(**{"fibre_law": MuscleFibreLaw.NONE, "C10": 2.5e-3, "C20": 1.175e-3,
+                      "s_max": 10.0, "kappa": 2.5, "volumetric": "quadratic", **kwargs})
+
+    @classmethod
+    def blemker(cls, **kwargs) -> "MuscleElasticity":
+        """Blemker et al. (2005) fibre law, with ArtiSynth ``BlemkerMuscle``'s defaults.
+
+        ``sigma_max`` is 0.3 MPa (3e5 Pa) and ``P1`` is dimensionless.
+        """
+        return cls(**{"fibre_law": MuscleFibreLaw.BLEMKER, "sigma_max": 0.3,
+                      "lambda_opt": 1.0, "lambda_star": 1.4, "P1": 0.05, "P2": 6.6,
+                      "zero_below_opt": True, **kwargs})
+
+    @classmethod
+    def generic(cls, **kwargs) -> "MuscleElasticity":
+        """ArtiSynth ``GenericMuscle``: constant active stress, exponential passive fibre.
+
+        ``sigma_max`` is 0.03 MPa (3e4 Pa) and ``P1`` is a **stress**. ``zero_below_opt``
+        is False, matching the reference implementation -- which means a negative passive
+        fibre stress in compression.
+        """
+        return cls(**{"fibre_law": MuscleFibreLaw.GENERIC, "sigma_max": 0.03,
+                      "lambda_opt": 1.0, "lambda_star": 1.4, "P1": 0.05, "P2": 6.6,
+                      "zero_below_opt": False, **kwargs})
+
+    @classmethod
+    def simple_force(cls, **kwargs) -> "MuscleElasticity":
+        """ArtiSynth ``SimpleForceMuscle``: active stress only, no passive fibre term."""
+        return cls(**{"fibre_law": MuscleFibreLaw.SIMPLE, "sigma_max": 0.03, **kwargs})
+
+    @classmethod
+    def face(cls, **kwargs) -> "MuscleElasticity":
+        """The ArtiSynth face models' setting: :meth:`generic` at 0.1 MPa (100 kPa).
+
+        ``BadinFemMuscleFaceDemo`` and ``RefFemMuscleFaceDemo`` both do
+        ``setMaxStress(100000)`` on a ``GenericMuscle``, over a Mooney-Rivlin matrix
+        with Nazari's constants -- which this constructor also supplies.
+        """
+        return cls.generic(**{"sigma_max": 0.1, "C10": 2.5e-3, "C20": 1.175e-3,
+                              "kappa": 2.5, **kwargs})
+
+    # ---- validation and serialization ----
+
+    @property
+    def law(self) -> MuscleFibreLaw:
+        """``fibre_law`` resolved to the enum."""
+        if isinstance(self.fibre_law, str):
+            if self.fibre_law in _FIBRE_LAW_NAMES:
+                return _FIBRE_LAW_NAMES[self.fibre_law]
+        elif self.fibre_law in tuple(MuscleFibreLaw):
+            return MuscleFibreLaw(self.fibre_law)
+        raise ValueError(f"fibre_law must be one of {sorted(_FIBRE_LAW_NAMES)} (or the "
+                         f"MuscleFibreLaw code 0-3), got {self.fibre_law!r}")
+
+    def __post_init__(self):
+        super().__post_init__()
+        law = self.law
+        if not 0.0 <= float(self.activation) <= 1.0:
+            raise ValueError(f"MuscleElasticity: activation must lie in [0, 1], "
+                             f"got {self.activation!r}")
+        if float(self.s_max) < 1.0:
+            raise ValueError(f"MuscleElasticity: s_max must be >= 1, got {self.s_max!r}")
+        if float(self.s_max) > 1.0 and law is not MuscleFibreLaw.NONE:
+            raise ValueError(
+                "MuscleElasticity: s_max > 1 (activation-scaled matrix stiffness) and an "
+                "active fibre law represent the same physics, so composing them "
+                "double-counts it. Use s_max=1 with a fibre law, or fibre_law='none' "
+                "with s_max > 1 (Nazari's own model).")
+        if not 0.0 <= float(self.kappa_d) <= 1.0/3.0:
+            raise ValueError(f"MuscleElasticity: kappa_d must lie in [0, 1/3], "
+                             f"got {self.kappa_d!r}")
+        if float(self.lambda_opt) <= 0.0:
+            raise ValueError(f"MuscleElasticity: lambda_opt must be > 0, "
+                             f"got {self.lambda_opt!r}")
+        if law not in (MuscleFibreLaw.NONE, MuscleFibreLaw.SIMPLE):
+            if float(self.lambda_star) <= float(self.lambda_opt):
+                raise ValueError(f"MuscleElasticity: lambda_star must exceed lambda_opt, "
+                                 f"got {self.lambda_star!r} <= {self.lambda_opt!r}")
+            if float(self.P2) <= 0.0:
+                raise ValueError(f"MuscleElasticity: P2 must be > 0, got {self.P2!r}")
+        if law is not MuscleFibreLaw.NONE and self.fibres is None:
+            raise ValueError(f"MuscleElasticity: fibre_law {law.name} needs a fibre "
+                             f"direction; pass fibres=")
+        self.directions     # a bad fibre spec fails at construction, not at to_props()
+
+    @property
+    def directions(self) -> NDArray[np.float64]:
+        """The unit fibre directions as a ``(3, n_fam)`` array, one per column.
+
+        Empty, ``(3, 0)``, when no fibres are declared -- legal only for
+        ``fibre_law='none'``, whose response has no fibre term to place.
+        """
+        if self.fibres is None:
+            return np.zeros((3, 0))
+        return as_direction(self.fibres)
+
+    # `fibres` may hold a Rotation or an array, so the dataclass-generated __eq__ and
+    # __hash__ cannot be used; compare and hash the resolved directions instead, exactly
+    # as HolzapfelElasticity does.
+    def _key(self):
+        return (int(self.law), float(self.C10), float(self.C01), float(self.C20),
+                float(self.C11), float(self.C02), float(self.s_max), float(self.activation),
+                float(self.sigma_max), float(self.lambda_opt), float(self.lambda_star),
+                float(self.P1), float(self.P2), bool(self.zero_below_opt),
+                float(self.kappa_d), float(self.kappa), self.volumetric, float(self.alpha),
+                tuple(self.directions.ravel()))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, MuscleElasticity):
+            return NotImplemented
+        return self._key() == other._key()
+
+    def __hash__(self) -> int:
+        return hash(self._key())
+
+    def potential_params(self) -> List[float]:
+        a0 = self.directions
+        return ([float(self.law), float(self.C10), float(self.C01), float(self.C20),
+                 float(self.C11), float(self.C02), float(self.s_max), float(self.activation),
+                 float(self.sigma_max), float(self.lambda_opt), float(self.lambda_star),
+                 float(self.P1), float(self.P2), 1.0 if self.zero_below_opt else 0.0,
+                 float(self.kappa_d), float(a0.shape[1])]
+                + a0.T.ravel().tolist()
+                + [float(self.kappa)])
+
+
 Elasticity = Union[IsotropicElasticity, CubicElasticity,
                    TransverseIsotropicElasticity, OrthotropicElasticity,
                    NeoHookeanElasticity, MooneyRivlinElasticity, YeohElasticity,
                    IsiharaElasticity, GentThomasElasticity, SwansonElasticity,
-                   HolzapfelElasticity]
+                   HolzapfelElasticity, MuscleElasticity]
 
 # ============================================================================
 # Yield criteria
@@ -1481,6 +1773,32 @@ class ModularMaterial:
     def umat_name(self) -> str:
         """UMAT name string for use with ``simcoon.umat()``."""
         return "MODUL"
+
+    @property
+    def activation_index(self) -> int:
+        """Index of the muscle activation in :attr:`props`.
+
+        The activation of a :class:`MuscleElasticity` block is the one parameter that
+        is *driven*: a caller rewrites it every increment and passes the props again,
+        which is how a time-varying, per-point activation reaches the kernel without
+        any change to the UMAT interface. Read the index from here rather than
+        hard-coding it::
+
+            props = np.tile(mat.props[:, None], (1, n_points))
+            props[mat.activation_index, :] = activation_field
+            sim.umat("MODUL", ..., props=props, ...)
+
+        Raises
+        ------
+        TypeError
+            if the elasticity block is not a :class:`MuscleElasticity`.
+        """
+        if not isinstance(self._elasticity, MuscleElasticity):
+            raise TypeError(f"activation_index: the elasticity block is a "
+                            f"{type(self._elasticity).__name__}, which has no activation")
+        # props[0] is the elasticity type, props[1] the potential code and props[2] the
+        # parameter count; the potential's own parameters start at 3.
+        return 3 + MuscleElasticity.activation_index
 
     @property
     def props(self) -> NDArray[np.float64]:

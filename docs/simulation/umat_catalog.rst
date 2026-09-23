@@ -225,6 +225,127 @@ Unchanged dedicated implementations (out of the modular scope):
   the isotropic term and one per fibre family -- since collagen and ground substance
   damage very differently. simcoon's damage mechanism is a single scalar, so the
   composition models uniform softening, not anisotropic damage.
+
+  MUSCL is **activated skeletal muscle**, and the only law in simcoon driven by
+  something that is neither strain nor temperature. A 5-parameter Mooney-Rivlin ground
+  matrix whose stiffness rises with the activation :math:`a`, plus an along-fibre
+  force law:
+
+  .. math::
+
+     W = s(a) \Big[ C_{10}(\bar{I}_1 - 3) + C_{01}(\bar{I}_2 - 3)
+       + C_{20}(\bar{I}_1 - 3)^2 + C_{11}(\bar{I}_1 - 3)(\bar{I}_2 - 3)
+       + C_{02}(\bar{I}_2 - 3)^2 \Big]
+       + \sum_i \Phi(\bar{\lambda}_i; a) + s(a)\, U(J),
+
+  with :math:`s(a) = 1 + (s_{max} - 1)a` and
+  :math:`\bar{\lambda} = \sqrt{\bar{I}^{*}_{4}}` the isochoric fibre stretch. The
+  matrix is Nazari et al.'s Eq. (1) and is a superset of neo-Hookean, Mooney-Rivlin
+  and second-order Yeoh; setting only :math:`C_{10}` and :math:`C_{20}` with no fibre
+  term reproduces those laws bit for bit.
+
+  One potential covers a published family, selected by the leading prop
+  ``fibre_law``, which changes the *interpretation* of the fibre parameters and never
+  their number -- the same convention idiom the linear elasticity blocks use. With
+  :math:`\hat{\lambda} = \bar{\lambda}/\lambda_{opt}` and
+  :math:`f_d = \partial W / \partial \bar{\lambda}`:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 12 46 42
+
+     * - ``fibre_law``
+       - :math:`f_d(\bar{\lambda})`
+       - reproduces
+     * - 0 ``NONE``
+       - no fibre term
+       - Nazari et al. (2010, 2011): activation raises the matrix stiffness only, the
+         contractile force coming from elsewhere (1-D cable elements in their model)
+     * - 1 ``SIMPLE``
+       - :math:`a\,\sigma_{max}`
+       - ArtiSynth ``SimpleForceMuscle``
+     * - 2 ``GENERIC``
+       - :math:`a\,\sigma_{max} + P_1\left(e^{P_2(\bar{\lambda}-1)}-1\right)/\bar{\lambda}`
+       - ArtiSynth ``GenericMuscle``
+     * - 3 ``BLEMKER``
+       - :math:`\sigma_{max}\left(a f_a(\hat{\lambda}) + f_p(\hat{\lambda})\right)/\lambda_{opt}`
+       - Blemker et al. (2005); ArtiSynth ``BlemkerMuscle``; FEBio
+
+  :math:`f_p` is exponential between :math:`\lambda_{opt}` and :math:`\lambda^{*}`
+  then linear, and :math:`f_a` is the three-piece Hill parabola, zero outside
+  :math:`\hat{\lambda} \in [0.4, 1.6]`. As published both are only :math:`C^0` at
+  :math:`\hat{\lambda} = 1, 0.6, 1.4`; simcoon continues them across those junctions so
+  the tangent is not decided by round-off, exactly beyond a :math:`10^{-3}`
+  neighbourhood.
+
+  props = ``fibre_law, C10, C01, C20, C11, C02, s_max, act, sigma_max, lambda_opt,
+  lambda_star, P1, P2, zero_below_opt, kappa_d, n_fam, a0x_1, a0y_1, a0z_1, ..., kappa``.
+  From Python use the named constructors, which carry each source's published values::
+
+      sim.modular.MuscleElasticity.blemker(
+          fibres=sim.Rotation.from_euler('zxz', [[0, 0, 0]], degrees=True),
+          kappa=1000., activation=0.5)
+      sim.modular.MuscleElasticity.nazari()      # s_max = 10, no fibre term
+
+  .. warning::
+
+     ``P1`` means **different things** in ``GENERIC`` and ``BLEMKER``: a stress in the
+     former, dimensionless in the latter. ArtiSynth ships ``0.05`` as the default for
+     both, which in ``GenericMuscle`` at :math:`\sigma_{max} = 30` kPa gives 0.65 Pa of
+     passive fibre stress at :math:`\bar{\lambda} = 1.4` against 30 kPa active -- five
+     orders of magnitude apart. Likewise ``zero_below_opt`` is true in
+     ``BlemkerMuscle`` and **false** in ``GenericMuscle``, which therefore produces a
+     negative passive fibre stress in compression. Both are explicit props here rather
+     than hidden constants; do not carry a number across from one law to the other.
+
+  .. note::
+
+     **The activation is a driven input.** It is a prop, and ``umat_modular`` re-parses
+     its props on every call, so a caller supplies a time-varying, per-integration-point
+     activation by rewriting one row of a ``(nprops, n_points)`` props array between
+     increments -- nothing in the UMAT interface changes. ``props[0]`` of a
+     :class:`~simcoon.modular.ModularMaterial` is the elasticity type, so the absolute
+     index is :attr:`~simcoon.modular.ModularMaterial.activation_index`; read it from
+     there rather than hard-coding it. The solver's own ``props`` are fixed for a run,
+     so in-house a ramp is built as one block per activation level -- which is how
+     Nazari's static analyses were run.
+
+     Overlapping muscles are the driver's business, not the law's: Nazari takes the
+     **maximum** activation over the muscles sharing an element, Buchaillard et al. the
+     **sum**. One UMAT call sees one activation.
+
+  .. warning::
+
+     ``s_max > 1`` together with an active fibre law is **rejected**. Scaling the
+     passive stiffness with activation is Nazari's surrogate for the transverse
+     stress-stiffening a real contractile fibre produces -- his own later 3-D muscle
+     element drops it for exactly that reason -- so composing the two double-counts the
+     same physics. Use ``s_max = 1`` with a fibre law, or ``fibre_law = 0`` with
+     ``s_max > 1``.
+
+  .. note::
+
+     **An activated muscle is pre-stressed at zero strain**, unlike every other law in
+     simcoon: at the optimal length the Hill curve peaks at 1, so the fibre carries
+     exactly :math:`a\,\sigma_{max}` of deviatoric stress with no deformation at all.
+     The ground-state stiffness the UMAT reports as ``L`` is the *matrix* one and does
+     not include the active fibre's contribution; the composed mechanisms are handed the
+     current tangent, which does.
+
+     The law is hyperelastic only at **frozen** activation. The activation is prescribed
+     rather than governed, so the material point is thermodynamically open, drawing
+     chemical energy the mechanical balance does not see. :math:`W_{m,d}` and
+     :math:`W_{m,ir}` stay 0 -- booking the active term as dissipation would make
+     :math:`W_{m,d} < 0`, which is forbidden -- but along a path where the activation
+     varies :math:`W_{m,r}` is only the mechanical work residue, not the stored energy,
+     and it **can go negative**. Over a closed cycle in strain and activation,
+     :math:`\oint \boldsymbol{\tau} : \mathrm{d}\boldsymbol{\varepsilon}
+     = -\oint (\partial W / \partial a)\, \mathrm{d}a`, the metabolic input.
+
+  The fibre-convection caveats stated above for HOLZA apply verbatim. Blemker's full
+  model adds Criscione shear terms in :math:`\bar{I}_5` and cross-derivatives in
+  :math:`(\bar{I}_1, \bar{I}_4, \bar{I}_5)`, which the invariant framework's additive
+  separability cannot express; those are not part of MUSCL.
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
   memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
   scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,

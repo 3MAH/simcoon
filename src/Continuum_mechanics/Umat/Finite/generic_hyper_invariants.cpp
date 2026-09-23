@@ -72,7 +72,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         {"NEOHC", HyperPotential::NEOHC}, {"MOORI", HyperPotential::MOORI},
         {"YEOHH", HyperPotential::YEOHH}, {"ISHAH", HyperPotential::ISHAH},
         {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH},
-        {"HOLZA", HyperPotential::HOLZA}};
+        {"HOLZA", HyperPotential::HOLZA}, {"MUSCL", HyperPotential::MUSCL}};
 
     auto it_potential = list_potentials.find(umat_name);
     if (it_potential == list_potentials.end()) {

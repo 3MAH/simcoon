@@ -271,7 +271,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"MUSCL",17},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
 
     // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
     // unknown name and silently return zero stress; -1 falls to the default case
@@ -341,7 +341,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }                         
-            case 10: case 11: case 12: case 13: case 14: case 15: case 16: {
+            case 10: case 11: case 12: case 13: case 14: case 15: case 16: case 17: {
                 umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
@@ -378,7 +378,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         // Keyed on NAMES like the kirchhoff set above — ids are renumbered when kernels move.
         static const std::set<std::string> xbm_baked_box = {
             "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN",
-            "HOLZA"};
+            "HOLZA", "MUSCL"};
         if (corate_type != 2 && xbm_baked_box.count(rve.sptr_matprops->umat_name) > 0) {
             mat tau_t = v2t_stress(umat_M->tau);
             mat dSdE = DtauDe_2_DSDE(umat_M->Lt, umat_M->F1, tau_t);  // un-bake XBM -> dS/dE

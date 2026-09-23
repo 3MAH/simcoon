@@ -762,7 +762,8 @@ enum class HyperPotential {
     ISHAH = 3,  ///< Isihara, props [C10, C20, C01, kappa]
     GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
     SWANH = 5,  ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
-    HOLZA = 6   ///< Gasser-Ogden-Holzapfel, props [C10, k1, k2, kappa_d, n_fam, (a0x, a0y, a0z) x n_fam, kappa]
+    HOLZA = 6,  ///< Gasser-Ogden-Holzapfel, props [C10, k1, k2, kappa_d, n_fam, (a0x, a0y, a0z) x n_fam, kappa]
+    MUSCL = 7   ///< Activated skeletal muscle, props [fibre_law, C10, C01, C20, C11, C02, s_max, act, sigma_max, lambda_opt, lambda_star, P1, P2, zero_below_opt, kappa_d, n_fam, (a0x, a0y, a0z) x n_fam, kappa]
 };
 // Every potential above, and OGDEN, may carry ONE more prop after those listed: the
 // volumetric potential (VolumetricPotential, 0 when absent).
@@ -790,6 +791,71 @@ VolumetricPotential volumetric_potential_of(const arma::vec &props, const arma::
  * @brief First and second derivatives of \f$ U(J) \f$.
  */
 void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2);
+
+/**
+ * @brief The along-fibre force law of the MUSCL activated-muscle potential.
+ *
+ * MUSCL is one potential covering a family of published skeletal-muscle laws. They
+ * share everything but the fibre force
+ * \f$ f_d(\bar{\lambda}) = \partial W / \partial \bar{\lambda} \f$, so the choice
+ * travels as a code in the props and changes the INTERPRETATION of the fibre slots,
+ * never their count -- the convention idiom of the modular elasticity block.
+ *
+ * With \f$ \bar{\lambda} = \sqrt{\bar{I}^{*}_{4}} \f$ the isochoric fibre stretch,
+ * \f$ \hat{\lambda} = \bar{\lambda}/\lambda_{\textrm{opt}} \f$, and \f$ a \f$ the
+ * activation:
+ *
+ * | code | \f$ f_d(\bar{\lambda}) \f$ | reproduces |
+ * |------|----------------------------|------------|
+ * | NONE | -- (no fibre term) | Nazari et al. (2010, 2011): activation raises the MATRIX stiffness only; the contractile force comes from elsewhere (1-D cable elements in their ANSYS model) |
+ * | SIMPLE | \f$ a\,\sigma_{\textrm{max}} \f$ | ArtiSynth @c SimpleForceMuscle |
+ * | GENERIC | \f$ a\,\sigma_{\textrm{max}} + P_1 \left( e^{P_2 (\bar{\lambda}-1)} - 1 \right) / \bar{\lambda} \f$ | ArtiSynth @c GenericMuscle |
+ * | BLEMKER | \f$ \sigma_{\textrm{max}} \left( a\,f_a(\hat{\lambda}) + f_p(\hat{\lambda}) \right) / \lambda_{\textrm{opt}} \f$ | Blemker et al. (2005); ArtiSynth @c BlemkerMuscle, FEBio |
+ *
+ * \f[
+    f_p(\hat{\lambda}) = \begin{cases}
+      0 & \hat{\lambda} \le 1 \quad \textrm{(if zero\_below\_opt)} \\
+      P_1 \left( e^{P_2 (\hat{\lambda} - 1)} - 1 \right) & 1 < \hat{\lambda} \le \lambda^{*}/\lambda_{\textrm{opt}} \\
+      P_3 \hat{\lambda} + P_4 & \textrm{otherwise}
+    \end{cases}
+ * \f]
+ * \f[
+    f_a(\hat{\lambda}) = \begin{cases}
+      9 (\hat{\lambda} - 0.4)^2 & \hat{\lambda} \le 0.6 \\
+      1 - 4 (1 - \hat{\lambda})^2 & 0.6 < \hat{\lambda} < 1.4 \\
+      9 (\hat{\lambda} - 1.6)^2 & \hat{\lambda} \ge 1.4 \\
+      0 & \hat{\lambda} < 0.4 \ \textrm{or} \ \hat{\lambda} > 1.6
+    \end{cases}
+ * \f]
+ * with \f$ P_3 = P_1 P_2 e^{P_2 (\lambda^{*}/\lambda_{\textrm{opt}} - 1)} \f$ and
+ * \f$ P_4 = P_1 \left( e^{P_2 (\lambda^{*}/\lambda_{\textrm{opt}} - 1)} - 1 \right)
+ * - P_3 \lambda^{*}/\lambda_{\textrm{opt}} \f$, which make \f$ f_p \f$ continuously
+ * differentiable at \f$ \lambda^{*} \f$. The last branch of \f$ f_a \f$ is the zero
+ * band FEBio recommends; the parabolas vanish there with zero slope, so it costs no
+ * continuity.
+ *
+ * @warning \f$ P_1 \f$ MEANS DIFFERENT THINGS in GENERIC and BLEMKER: a stress in the
+ *          former (it is not multiplied by \f$ \sigma_{\textrm{max}} \f$), dimensionless
+ *          in the latter. ArtiSynth ships 0.05 as the default for both, which in
+ *          @c GenericMuscle with \f$ \sigma_{\textrm{max}} = 30 \f$ kPa is 0.65 Pa of
+ *          passive fibre stress at \f$ \bar{\lambda} = 1.4 \f$ against 30 kPa active --
+ *          five orders of magnitude apart. The code is what disambiguates; the Python
+ *          presets carry each law's own published value.
+ */
+enum class MuscleFibreLaw {
+    NONE = 0,     ///< no fibre term; activation acts through the matrix multiplier only
+    SIMPLE = 1,   ///< constant active stress, no passive fibre term
+    GENERIC = 2,  ///< constant active stress + exponential passive fibre; P1 in stress units
+    BLEMKER = 3   ///< Hill force-length active + exponential passive fibre; P1 dimensionless
+};
+
+/**
+ * @brief The fibre law selected by the leading prop of a MUSCL potential.
+ *
+ * @param code the value of props(0)
+ * @throw std::invalid_argument if it is not one of the MuscleFibreLaw values
+ */
+MuscleFibreLaw muscle_fibre_law_of(const double &code);
 
 /**
  * @brief The fibre anisotropy carried by a hyperelastic potential's props.

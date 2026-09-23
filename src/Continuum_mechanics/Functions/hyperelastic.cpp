@@ -605,7 +605,199 @@ void require_props(const vec &props, const uword n, const char *name) {
     }
 }
 
+// ---- MUSCL props layout -------------------------------------------------------
+// One layout for every fibre law: the law code changes the INTERPRETATION of the
+// fibre slots, never their count. The anisotropy tail is the HOLZA one, shifted.
+constexpr uword muscl_fibre_law  = 0;
+constexpr uword muscl_C10        = 1;
+constexpr uword muscl_C01        = 2;
+constexpr uword muscl_C20        = 3;
+constexpr uword muscl_C11        = 4;
+constexpr uword muscl_C02        = 5;
+constexpr uword muscl_s_max      = 6;
+constexpr uword muscl_act        = 7;
+constexpr uword muscl_sigma_max  = 8;
+constexpr uword muscl_lambda_opt = 9;
+constexpr uword muscl_lambda_star = 10;
+constexpr uword muscl_P1         = 11;
+constexpr uword muscl_P2         = 12;
+constexpr uword muscl_zero_below = 13;
+constexpr uword muscl_kappa_d    = 14;
+constexpr uword muscl_n_fam      = 15;
+constexpr uword muscl_a0         = 16;   // first direction cosine; kappa follows the triplets
+
+// Half-width of the C1 continuations that repair the corners of the published
+// force-length curves. f_p at lambda_opt and f_a at 0.6/1.4 lambda_opt are C0 only as
+// published, so a tangent discontinuity there is decided by round-off in lambda_bar.
+// The repair is local: outside a muscle_reg neighbourhood of a corner the curves are
+// the published ones to the last bit.
+constexpr double muscle_reg = 1.e-3;
+
+// Below this stretch the GENERIC passive branch, which carries a 1/lambda_bar factor and
+// is NOT gated at lambda_opt in its reference implementation, is continued linearly (C1)
+// instead of diverging. Only a Newton trial iterate ever reaches here; a finite answer
+// lets the solver cut the step, an inf does not.
+constexpr double muscle_lambda_floor = 0.1;
+
+// C1 Hermite blend on [x0, x1] between the values and slopes (y0, m0) and (y1, m1).
+void hermite_c1(const double &x, const double &x0, const double &x1,
+                const double &y0, const double &m0, const double &y1, const double &m1,
+                double &y, double &dy) {
+    const double h = x1 - x0;
+    const double t = (x - x0)/h;
+    const double t2 = t*t;
+    const double t3 = t2*t;
+    y = (2.*t3 - 3.*t2 + 1.)*y0 + (t3 - 2.*t2 + t)*h*m0
+      + (-2.*t3 + 3.*t2)*y1 + (t3 - t2)*h*m1;
+    dy = (6.*t2 - 6.*t)*(y0 - y1)/h + (3.*t2 - 4.*t + 1.)*m0 + (3.*t2 - 2.*t)*m1;
+}
+
+// exp with the HOLZA overflow guard: a wild trial stretch must give a large finite
+// number, never an inf that becomes a NaN stress the solver cannot step-cut out of.
+double exp_guarded(const double &x) {
+    return exp(std::min(x, 350.));
+}
+
+// Blemker/Hill active force-length f_a(r) and its derivative, r = lambda_bar/lambda_opt,
+// with the FEBio zero band outside [0.4, 1.6] and the two interior corners repaired.
+void muscle_f_active(const double &r, double &f, double &df) {
+    f = 0.;
+    df = 0.;
+    if (r <= 0.4 || r >= 1.6) {
+        return;     // the parabolas vanish here with zero slope: already C1
+    }
+    auto lo = [](const double &x, double &y, double &dy) {   // 9 (x - 0.4)^2
+        y = 9.*(x - 0.4)*(x - 0.4);
+        dy = 18.*(x - 0.4);
+    };
+    auto mid = [](const double &x, double &y, double &dy) {  // 1 - 4 (1 - x)^2
+        y = 1. - 4.*(1. - x)*(1. - x);
+        dy = 8.*(1. - x);
+    };
+    auto hi = [](const double &x, double &y, double &dy) {   // 9 (x - 1.6)^2
+        y = 9.*(x - 1.6)*(x - 1.6);
+        dy = 18.*(x - 1.6);
+    };
+    double y0, m0, y1, m1;
+    if (r < 0.6 - muscle_reg) {
+        lo(r, f, df);
+    } else if (r <= 0.6 + muscle_reg) {
+        lo(0.6 - muscle_reg, y0, m0);
+        mid(0.6 + muscle_reg, y1, m1);
+        hermite_c1(r, 0.6 - muscle_reg, 0.6 + muscle_reg, y0, m0, y1, m1, f, df);
+    } else if (r < 1.4 - muscle_reg) {
+        mid(r, f, df);
+    } else if (r <= 1.4 + muscle_reg) {
+        mid(1.4 - muscle_reg, y0, m0);
+        hi(1.4 + muscle_reg, y1, m1);
+        hermite_c1(r, 1.4 - muscle_reg, 1.4 + muscle_reg, y0, m0, y1, m1, f, df);
+    } else {
+        hi(r, f, df);
+    }
+}
+
+// The exponential-then-linear passive fibre curve, in the BLEMKER parameterisation:
+// f_p(r) = P1 (exp(P2 (r-1)) - 1) up to r_star, then P3 r + P4, which is C1 there by
+// construction of P3 and P4. r = lambda_bar/lambda_opt.
+void muscle_f_passive_raw(const double &r, const double &P1, const double &P2,
+                          const double &r_star, double &f, double &df) {
+    if (r <= r_star) {
+        const double e = exp_guarded(P2*(r - 1.));
+        f = P1*(e - 1.);
+        df = P1*P2*e;
+    } else {
+        const double E = exp_guarded(P2*(r_star - 1.));
+        const double P3 = P1*P2*E;
+        const double P4 = P1*(E - 1.) - P3*r_star;
+        f = P3*r + P4;
+        df = P3;
+    }
+}
+
+// The same curve gated below r = 1 (the "zero force below the optimal length" switch),
+// with the resulting corner at r = 1 repaired to C1 on [1, 1 + muscle_reg].
+void muscle_f_passive(const double &r, const double &P1, const double &P2,
+                      const double &r_star, const bool &zero_below, double &f, double &df) {
+    if (!zero_below) {
+        muscle_f_passive_raw(r, P1, P2, r_star, f, df);
+        return;
+    }
+    if (r <= 1.) {
+        f = 0.;
+        df = 0.;
+        return;
+    }
+    if (r >= 1. + muscle_reg) {
+        muscle_f_passive_raw(r, P1, P2, r_star, f, df);
+        return;
+    }
+    double y1, m1;
+    muscle_f_passive_raw(1. + muscle_reg, P1, P2, r_star, y1, m1);
+    hermite_c1(r, 1., 1. + muscle_reg, 0., 0., y1, m1, f, df);
+}
+
+// The GENERIC passive fibre curve. It differs from the BLEMKER one in more than
+// parameters: it carries a 1/lambda_bar factor, knows no optimal length (the switch to
+// the linear branch is at lambda_star itself), and its P1 is a STRESS. Written out
+// rather than reusing muscle_f_passive so neither form has to carry the other's
+// conventions.
+void muscle_f_passive_generic(const double &lam, const double &P1, const double &P2,
+                              const double &lam_star, double &f, double &df) {
+    if (lam <= lam_star) {
+        const double e = exp_guarded(P2*(lam - 1.));
+        f = P1*(e - 1.)/lam;
+        df = P1*(P2*e - (e - 1.)/lam)/lam;
+    } else {
+        const double E = exp_guarded(P2*(lam_star - 1.));
+        const double P3 = P1*P2*E;
+        const double P4 = P1*(E - 1.) - P3*lam_star;
+        f = P3 + P4/lam;
+        df = -P4/(lam*lam);
+    }
+}
+
+void muscle_f_passive_generic_reg(const double &lam, const double &P1, const double &P2,
+                                  const double &lam_star, const bool &zero_below,
+                                  double &f, double &df) {
+    if (zero_below) {
+        if (lam <= 1.) {
+            f = 0.;
+            df = 0.;
+            return;
+        }
+        if (lam < 1. + muscle_reg) {
+            double y1, m1;
+            muscle_f_passive_generic(1. + muscle_reg, P1, P2, lam_star, y1, m1);
+            hermite_c1(lam, 1., 1. + muscle_reg, 0., 0., y1, m1, f, df);
+            return;
+        }
+        muscle_f_passive_generic(lam, P1, P2, lam_star, f, df);
+        return;
+    }
+    // Ungated, the exponential branch runs below lambda_bar = 1 (the reference
+    // implementation's default) and its 1/lambda_bar factor then diverges. Continue it
+    // linearly below the floor: C1, bounded, and unreachable by any physical state.
+    if (lam < muscle_lambda_floor) {
+        double y0, m0;
+        muscle_f_passive_generic(muscle_lambda_floor, P1, P2, lam_star, y0, m0);
+        f = y0 + m0*(lam - muscle_lambda_floor);
+        df = m0;
+        return;
+    }
+    muscle_f_passive_generic(lam, P1, P2, lam_star, f, df);
+}
+
 }  // namespace
+
+MuscleFibreLaw muscle_fibre_law_of(const double &code) {
+    const int c = int(std::lround(code));
+    if (c == 0) return MuscleFibreLaw::NONE;
+    if (c == 1) return MuscleFibreLaw::SIMPLE;
+    if (c == 2) return MuscleFibreLaw::GENERIC;
+    if (c == 3) return MuscleFibreLaw::BLEMKER;
+    throw std::invalid_argument("MUSCL: fibre_law = " + std::to_string(code)
+                                + " is not one of 0 (NONE), 1 (SIMPLE), 2 (GENERIC), 3 (BLEMKER)");
+}
 
 VolumetricPotential volumetric_potential_of(const vec &props, const uword n_used) {
     if (props.n_elem <= n_used) {
@@ -634,28 +826,53 @@ void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa,
 hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const vec &props) {
 
     hyper_anisotropy an;
-    if (potential != HyperPotential::HOLZA) {
-        return an;      // isotropic potential: no fibres, no dispersion
+
+    // Where kappa_d, n_fam and the direction triplets sit differs per potential; that
+    // is the ONLY thing that does, so the parsing below is shared. A potential absent
+    // from this switch is isotropic: no fibres, no dispersion.
+    const char *name = nullptr;
+    uword off_kappa_d = 0;
+    bool fibres_optional = false;   // a family count of 0 is legal (MUSCL with no fibre term)
+    switch (potential) {
+        case HyperPotential::HOLZA:
+            name = "HOLZA";
+            off_kappa_d = 3;
+            break;
+        case HyperPotential::MUSCL:
+            name = "MUSCL";
+            off_kappa_d = muscl_kappa_d;
+            require_props(props, muscl_fibre_law + 1, name);
+            fibres_optional = (muscle_fibre_law_of(props(muscl_fibre_law)) == MuscleFibreLaw::NONE);
+            break;
+        default:
+            return an;
     }
-    require_props(props, 5, "HOLZA");
-    an.kappa_d = props(3);
+    const uword off_n_fam = off_kappa_d + 1;
+    const uword off_a0 = off_n_fam + 1;
+
+    require_props(props, off_n_fam + 1, name);
+    an.kappa_d = props(off_kappa_d);
     if (an.kappa_d < 0. || an.kappa_d > 1./3.) {
-        throw std::invalid_argument("HOLZA: the dispersion kappa_d must lie in [0, 1/3], got "
+        throw std::invalid_argument(std::string(name)
+                                    + ": the dispersion kappa_d must lie in [0, 1/3], got "
                                     + std::to_string(an.kappa_d));
     }
-    if (props(4) < 1.) {
-        throw std::invalid_argument("HOLZA: at least one fibre family is required, got "
-                                    + std::to_string(props(4)));
+    const double n_fam_prop = props(off_n_fam);
+    if (n_fam_prop < (fibres_optional ? 0. : 1.)) {
+        throw std::invalid_argument(std::string(name) + ": "
+                                    + (fibres_optional ? "a negative fibre family count, "
+                                                       : "at least one fibre family is required, got ")
+                                    + std::to_string(n_fam_prop));
     }
-    const uword n_fam = uword(props(4));
-    require_props(props, 6 + 3*n_fam, "HOLZA");     // the a0 triplets, plus the trailing kappa
+    const uword n_fam = uword(std::lround(n_fam_prop));
+    require_props(props, off_a0 + 3*n_fam + 1, name);   // the a0 triplets, plus the trailing kappa
     an.a0 = zeros(3, n_fam);
     for (uword i = 0; i < n_fam; i++) {
-        vec a = props.subvec(5 + 3*i, 7 + 3*i);
+        vec a = props.subvec(off_a0 + 3*i, off_a0 + 3*i + 2);
         const double a_norm = norm(a, 2);
         if (a_norm < simcoon::iota) {
-            throw std::invalid_argument("HOLZA: fibre direction " + std::to_string(i)
-                                        + " has a zero norm");
+            throw std::invalid_argument(std::string(name) + ": fibre direction "
+                                        + std::to_string(i) + " has a zero norm");
         }
         an.a0.col(i) = a/a_norm;    // the API already sends unit cosines; normalise anyway
     }
@@ -825,6 +1042,135 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
                 const double e = exp(std::min(k_2*E_bar*E_bar, 350.));
                 dW.dWdI_a_bar(i) = k_1*E_bar*e;
                 dW.dW2dI_aa_bar(i) = k_1*(1. + 2.*k_2*E_bar*E_bar)*e;
+            }
+            break;
+        }
+        case HyperPotential::MUSCL: {
+            // Activated skeletal muscle. A 5-parameter Mooney-Rivlin ground matrix whose
+            // stiffness rises with the activation (Nazari et al. 2010), plus an
+            // along-fibre force law selected by props(0) (see MuscleFibreLaw).
+            // \f$ W = s(a) \left[ C_{10} (\bar{I}_1 - 3) + C_{01} (\bar{I}_2 - 3)
+            //     + C_{20} (\bar{I}_1 - 3)^2 + C_{11} (\bar{I}_1 - 3)(\bar{I}_2 - 3)
+            //     + C_{02} (\bar{I}_2 - 3)^2 \right] + \sum_i \Phi(\bar{\lambda}_i; a) + s(a) U(J) \f$
+            require_props(props, muscl_n_fam + 1, "MUSCL");
+            const MuscleFibreLaw law = muscle_fibre_law_of(props(muscl_fibre_law));
+            const uword n_fam = uword(std::lround(std::max(props(muscl_n_fam), 0.)));
+            require_props(props, muscl_a0 + 3*n_fam + 1, "MUSCL");
+            n_used = muscl_a0 + 3*n_fam + 1;
+
+            const double act = props(muscl_act);
+            const double s_max = props(muscl_s_max);
+            if (act < 0. || act > 1.) {
+                throw std::invalid_argument("MUSCL: the activation must lie in [0, 1], got "
+                                            + std::to_string(act));
+            }
+            if (s_max < 1.) {
+                throw std::invalid_argument("MUSCL: the stiffening ratio s_max must be >= 1, got "
+                                            + std::to_string(s_max));
+            }
+            if (s_max > 1. && law != MuscleFibreLaw::NONE) {
+                // Both represent the SAME physics: scaling the passive stiffness with
+                // activation is Nazari's surrogate for the transverse stress-stiffening
+                // a real contractile fibre produces, and his own later 3-D muscle element
+                // drops it for exactly that reason. Composing them double-counts.
+                throw std::invalid_argument("MUSCL: s_max > 1 (activation-scaled matrix stiffness) "
+                                            "and an active fibre law represent the same effect; "
+                                            "use s_max = 1 with a fibre law, or fibre_law = 0 with s_max > 1");
+            }
+            const double s = 1. + (s_max - 1.)*act;
+
+            const double e_1 = I_bar(0) - 3.;
+            const double e_2 = I_bar(1) - 3.;
+            const double C_10 = props(muscl_C10);
+            const double C_01 = props(muscl_C01);
+            const double C_20 = props(muscl_C20);
+            const double C_11 = props(muscl_C11);
+            const double C_02 = props(muscl_C02);
+            dW.dWdI_1_bar = s*(C_10 + 2.*C_20*e_1 + C_11*e_2);
+            dW.dWdI_2_bar = s*(C_01 + C_11*e_1 + 2.*C_02*e_2);
+            dW.dW2dI_11_bar = s*2.*C_20;
+            dW.dW2dI_12_bar = s*C_11;
+            dW.dW2dI_22_bar = s*2.*C_02;
+            // U(J) scales with the matrix too. Nazari's law fixes the compressibility
+            // through \f$ d = (1 - 2\nu)/(c_{10} + c_{01}) \f$, so holding nu fixed while
+            // the C's scale by s forces kappa = 2/d to scale by s as well; freezing kappa
+            // instead would drift nu (0.4990 -> 0.4901 at full activation of a x10 law).
+            kappa = s*props(muscl_a0 + 3*n_fam);
+
+            if (A.size() != n_fam) {
+                throw std::invalid_argument("MUSCL: " + std::to_string(A.size())
+                                            + " structure tensors for " + std::to_string(n_fam)
+                                            + " fibre families (see structure_tensors_push_forward)");
+            }
+            // Sized even for fibre_law = NONE, so the response's size check passes and its
+            // zero-derivative guard skips the assembly rather than this case second-guessing it.
+            dW.dWdI_a_bar = zeros(n_fam);
+            dW.dW2dI_aa_bar = zeros(n_fam);
+            if (law == MuscleFibreLaw::NONE) {
+                break;
+            }
+
+            const double sigma_max = props(muscl_sigma_max);
+            const double lambda_opt = props(muscl_lambda_opt);
+            const double lambda_star = props(muscl_lambda_star);
+            const double P_1 = props(muscl_P1);
+            const double P_2 = props(muscl_P2);
+            const bool zero_below = (props(muscl_zero_below) != 0.);
+            if (sigma_max < 0.) {
+                throw std::invalid_argument("MUSCL: sigma_max must be >= 0, got "
+                                            + std::to_string(sigma_max));
+            }
+            if (lambda_opt <= 0.) {
+                throw std::invalid_argument("MUSCL: lambda_opt must be > 0, got "
+                                            + std::to_string(lambda_opt));
+            }
+            if (law != MuscleFibreLaw::SIMPLE) {
+                if (lambda_star <= lambda_opt) {
+                    throw std::invalid_argument("MUSCL: lambda_star must exceed lambda_opt, got "
+                                                + std::to_string(lambda_star) + " <= "
+                                                + std::to_string(lambda_opt));
+                }
+                if (P_2 <= 0.) {
+                    throw std::invalid_argument("MUSCL: the uncrimping factor P2 must be > 0, got "
+                                                + std::to_string(P_2));
+                }
+            }
+
+            for (uword i = 0; i < n_fam; i++) {
+                // tr(A_i) IS the fibre pseudo-invariant: no separate channel for it.
+                const double I_4 = trace(A[i]);
+                if (I_4 <= simcoon::iota) {
+                    continue;   // degenerate stretch; both derivatives stay 0
+                }
+                const double lam = sqrt(I_4);
+                double f_d = 0.;    // dW / d(lambda_bar)
+                double df_d = 0.;   // d2W / d(lambda_bar)^2
+                switch (law) {
+                    case MuscleFibreLaw::SIMPLE: {
+                        f_d = act*sigma_max;    // stretch-independent: no tangent contribution
+                        break;
+                    }
+                    case MuscleFibreLaw::GENERIC: {
+                        muscle_f_passive_generic_reg(lam, P_1, P_2, lambda_star, zero_below, f_d, df_d);
+                        f_d += act*sigma_max;
+                        break;
+                    }
+                    case MuscleFibreLaw::BLEMKER: {
+                        const double r = lam/lambda_opt;
+                        double f_p = 0., df_p = 0., f_a = 0., df_a = 0.;
+                        muscle_f_passive(r, P_1, P_2, lambda_star/lambda_opt, zero_below, f_p, df_p);
+                        muscle_f_active(r, f_a, df_a);
+                        f_d = sigma_max*(act*f_a + f_p)/lambda_opt;
+                        df_d = sigma_max*(act*df_a + df_p)/(lambda_opt*lambda_opt);
+                        break;
+                    }
+                    case MuscleFibreLaw::NONE:
+                        break;
+                }
+                // Chain rule from lambda_bar to the pseudo-invariant the builders use,
+                // d/dI*_4 = (1 / 2 lambda_bar) d/d(lambda_bar).
+                dW.dWdI_a_bar(i) = f_d/(2.*lam);
+                dW.dW2dI_aa_bar(i) = (df_d - f_d/lam)/(4.*I_4);
             }
             break;
         }

@@ -17,6 +17,7 @@ from simcoon.modular import (
     HolzapfelElasticity,
     IsiharaElasticity,
     ModularMaterial,
+    MuscleElasticity,
     MooneyRivlinElasticity,
     NeoHookeanElasticity,
     SwansonElasticity,
@@ -44,6 +45,14 @@ MODELS = [
      [0.0354, 0.0107, 7.48, 0.1, 2.0,
       np.cos(np.deg2rad(40.0)), np.sin(np.deg2rad(40.0)), 0.0,
       np.cos(np.deg2rad(40.0)), -np.sin(np.deg2rad(40.0)), 0.0, 1000.0]),
+    # Activated muscle, BLEMKER fibre law along e1 at 60 % activation. The block is the
+    # one whose natural state is NOT stress free, so this row also checks that the
+    # modular path carries the pre-stress exactly as the standalone kernel does.
+    (MuscleElasticity(fibre_law="blemker", C10=0.0025, C20=0.001175, activation=0.6,
+                      sigma_max=0.3, lambda_opt=1.0, lambda_star=1.4, P1=0.05, P2=6.6,
+                      fibres=sim.Rotation.identity(), kappa=1000.0), "MUSCL",
+     [3.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 1.0, 0.6, 0.3, 1.0, 1.4, 0.05, 6.6, 1.0,
+      0.0, 1.0, 1.0, 0.0, 0.0, 1000.0]),
 ]
 
 STATES = {

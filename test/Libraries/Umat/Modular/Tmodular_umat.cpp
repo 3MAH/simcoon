@@ -475,6 +475,24 @@ const std::vector<std::pair<HyperPotential, vec>> hyper_potentials = {
     // one fibre family along e1, dispersed: exercises the anisotropic ground state
     // (fibre inactive at I*_4 = 1) and the fibre tangent under the shared FD check
     {HyperPotential::HOLZA, {0.0354, 0.0107, 7.48, 0.1, 1.0, 1.0, 0.0, 0.0, 1000.0}},
+    // Nazari's muscle: no fibre term, the matrix stiffness x10 with activation. Its
+    // ground state is stress free like every row above, so it belongs in this table.
+    {HyperPotential::MUSCL, {0.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 10.0, 1.0,
+                             0.0, 1.0, 1.4, 0.0, 6.6, 1.0, 0.0, 0.0, 1000.0}},
+};
+
+// An ACTIVATED muscle is pre-stressed at zero strain -- that is the model, not a defect --
+// so it cannot join the table above, whose ground-state test asserts a stress-free
+// reference. It still has to answer the finite-difference tangent check.
+const std::vector<std::pair<HyperPotential, vec>> hyper_potentials_prestressed = {
+    // BLEMKER fibre law along e1 at 60 % activation
+    {HyperPotential::MUSCL, {3.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 1.0, 0.6,
+                             0.3, 1.0, 1.4, 0.05, 6.6, 1.0, 0.0,
+                             1.0, 1.0, 0.0, 0.0, 1000.0}},
+    // GENERIC fibre law: constant active stress, ungated passive branch
+    {HyperPotential::MUSCL, {2.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 1.0, 0.6,
+                             0.03, 1.0, 1.4, 0.05, 6.6, 0.0, 0.0,
+                             1.0, 1.0, 0.0, 0.0, 1000.0}},
 };
 
 // L0 is the closed-form ground state of the potential's own derivatives: it
@@ -517,7 +535,10 @@ TEST(ModularHyperelastic, EvaluateRejectsReducedDimension) {
 TEST(ModularHyperelastic, TangentMatchesFiniteDifference) {
     const vec eps = {0.28, -0.11, -0.09, 0.06, -0.03, 0.04};
     const double h = 1.0e-6;
-    for (const auto& [potential, p] : hyper_potentials) {
+    std::vector<std::pair<HyperPotential, vec>> all = hyper_potentials;
+    all.insert(all.end(), hyper_potentials_prestressed.begin(),
+               hyper_potentials_prestressed.end());
+    for (const auto& [potential, p] : all) {
         ElasticityModule em;
         em.configure_hyper_invariants(potential, p, 0.0);
         vec sigma, s_p, s_m;
@@ -537,6 +558,52 @@ TEST(ModularHyperelastic, TangentMatchesFiniteDifference) {
     }
 }
 
+// An activated muscle carries stress at ZERO STRAIN: that is what activation means, and
+// it is the one thing in the hyperelastic family whose natural state is not stress free.
+// At the optimal length the Hill curve peaks at 1, so the fibre contributes exactly
+// act * sigma_max to the deviatoric stress along its own direction.
+TEST(ModularHyperelastic, ActivatedMuscleIsPreStressedAtZeroStrain) {
+    const double act = 0.6, sigma_max = 0.3;
+    ElasticityModule em;
+    em.configure_hyper_invariants(
+        HyperPotential::MUSCL,
+        {3.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 1.0, act, sigma_max, 1.0, 1.4, 0.05, 6.6,
+         1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1000.0}, 0.0);
+
+    vec sigma;
+    mat Lt;
+    em.evaluate(zeros<vec>(6), 3, sigma, Lt);
+    EXPECT_NEAR(sigma(0) - sigma(1), act*sigma_max, 1e-12);   // the isometric identity
+    EXPECT_GT(norm(sigma, 2), 1e-3);                          // emphatically NOT stress free
+
+    // L0() is built from the ISOTROPIC ground state, so it is the matrix stiffness and
+    // does not carry the active fibre's contribution. Nothing consumes it as the muscle's
+    // tangent -- the mechanisms are handed L_cur_ -- but the two genuinely differ, and a
+    // reader comparing them should find that stated rather than surprising.
+    EXPECT_GT(norm(Lt - em.L0(), "fro"), 1e-12*norm(Lt, "fro"));
+    // Deactivate and the two coincide again, as for every other potential.
+    ElasticityModule off;
+    off.configure_hyper_invariants(
+        HyperPotential::MUSCL,
+        {3.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 1.0, 0.0, sigma_max, 1.0, 1.4, 0.05, 6.6,
+         1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1000.0}, 0.0);
+    vec sigma_off;
+    mat Lt_off;
+    off.evaluate(zeros<vec>(6), 3, sigma_off, Lt_off);
+    EXPECT_LT(norm(sigma_off, 2), 1e-12);
+    EXPECT_LT(norm(Lt_off - off.L0(), "fro"), 1e-12*norm(Lt_off, "fro"));
+}
+
+// s_max > 1 and an active fibre law represent the same physics; composing them
+// double-counts it, so the kernel refuses rather than silently modelling it twice.
+TEST(ModularHyperelastic, MuscleRejectsStiffeningTogetherWithActiveFibres) {
+    ElasticityModule em;
+    EXPECT_THROW(em.configure_hyper_invariants(
+        HyperPotential::MUSCL,
+        {3.0, 0.0025, 0.0, 0.001175, 0.0, 0.0, 10.0, 0.5, 0.3, 1.0, 1.4, 0.05, 6.6,
+         1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1000.0}, 0.0), std::invalid_argument);
+}
+
 // Isihara is a sum, W = C10 (I1-3) + C20 (I1-3)^2 + C01 (I2-3): its ground
 // shear modulus is 2 (C10 + C01), the C01 term included.
 TEST(ModularHyperelastic, IsiharaGroundShearModulus) {
@@ -547,7 +614,7 @@ TEST(ModularHyperelastic, IsiharaGroundShearModulus) {
 
 TEST(ModularHyperelastic, RejectsUnknownPotentialAndMissingParameters) {
     const std::vector<vec> bad = {
-        {7.0, 2.0, 0.5, 1000.0, 0.0},                       // no potential 7
+        {8.0, 2.0, 0.5, 1000.0, 0.0},                       // no potential 8 (7 is MUSCL)
         {2.0, 2.0, 0.30, -0.010, 0.0},                      // Yeoh needs 4 parameters
         {5.0, 6.0, 2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.0},   // Swanson: 2 terms announced, 1 given
     };

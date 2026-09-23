@@ -39,7 +39,7 @@ namespace simcoon{
  * \f]
  * and, for an anisotropic potential, the fibre pseudo-invariants
  * \f$ \bar{I}^{*}_{4,i} \f$ as well. @p umat_name selects the potential: NEOHC, MOORI,
- * YEOHH, ISHAH, GETHH, SWANH and HOLZA. The kernel evaluates the potential's
+ * YEOHH, ISHAH, GETHH, SWANH, HOLZA and MUSCL. The kernel evaluates the potential's
  * derivatives (hyper_potential_derivatives) and hands them to
  * hyper_invariants_response, which returns the Cauchy stress and the canonical box
  * tangent \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$.
@@ -52,6 +52,18 @@ namespace simcoon{
  * **statev**: one is required, @c statev(0), which stores the initial temperature.
  * The law is hyperelastic, so \f$ W_m = W_{m,r} \f$ and
  * \f$ W_{m,ir} = W_{m,d} = 0 \f$ throughout.
+ *
+ * @note MUSCL is hyperelastic only at FROZEN activation. Its activation is a prescribed
+ *       input, not a governed internal variable: the material point is thermodynamically
+ *       open, drawing chemical energy the mechanical balance does not see. At constant
+ *       activation \f$ W_{m,r} \f$ is the stored energy as usual, but along a path where
+ *       the activation varies \f$ W_{m,r} \f$ is only the mechanical work residue, and it
+ *       CAN GO NEGATIVE -- no other simcoon law does that. Over a closed cycle in strain
+ *       and activation,
+ *       \f$ \oint \boldsymbol{\tau} : \mathrm{d}\boldsymbol{\varepsilon}
+ *       = - \oint \frac{\partial W}{\partial a} \, \mathrm{d}a \f$, the metabolic input.
+ *       \f$ W_{m,d} \f$ stays 0 because the active term is a source, not a dissipation:
+ *       booking it as dissipation would make \f$ W_{m,d} < 0 \f$, which is forbidden.
  *
  * @param[in] umat_name the 5-letter name selecting the potential
  * @param[in] etot,Detot total strain and its increment

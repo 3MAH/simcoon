@@ -88,6 +88,14 @@ argument (enum, int, or string aliases):
      - the ``HOLZA`` UMAT's potential (Gasser-Ogden-Holzapfel). The only
        **anisotropic** block: see the caveats in :doc:`umat_catalog` before
        composing it with plasticity or viscoelasticity
+   * - :class:`MuscleElasticity`
+     - keyword-only throughout; use the named constructors ``nazari()``,
+       ``blemker()``, ``generic()``, ``simple_force()`` and ``face()``, which
+       carry each source's published parameters
+     - the ``MUSCL`` UMAT's potential: activated skeletal muscle, anisotropic
+       like HOLZA and inheriting its fibre caveats. The **activation** is a
+       driven input rewritten every increment, and an activated muscle is
+       pre-stressed at zero strain -- see :doc:`umat_catalog`
 
 ``alpha`` are the thermal-expansion coefficients (per direction where
 applicable).
