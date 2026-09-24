@@ -67,75 +67,13 @@ from typing import Dict, List, Optional, Sequence, Union
 import numpy as np
 
 from simcoon import _core
-from scipy.spatial.transform import Rotation as _ScipyRotation
 
-from simcoon.rotation import Rotation
+from simcoon.rotation import EULER_SEQ, Orientation, Rotation, as_rotation, euler_angles
 
 
 # =============================================================================
 # Data Classes
 # =============================================================================
-
-_ANGLES = ('psi', 'theta', 'phi')
-
-#: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
-#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
-#: solver applies it actively (material frame -> global frame): a phase at
-#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
-#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
-#: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
-EULER_SEQ = 'zxz'
-
-Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
-
-
-def as_rotation(value: Orientation) -> Rotation:
-    """An orientation as a :class:`simcoon.Rotation`.
-
-    ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
-    in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
-    files (missing angles are 0), or ``None`` for the identity. The angles are the
-    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
-    """
-    if value is None:
-        return Rotation.identity()
-    if isinstance(value, Rotation):
-        return value
-    if isinstance(value, _ScipyRotation):
-        return Rotation.from_scipy(value)
-    if isinstance(value, dict):
-        unknown = set(value) - set(_ANGLES)
-        if unknown:
-            raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
-        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
-    else:
-        angles = np.asarray(value, dtype=float).ravel()
-        if angles.size != 3:
-            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
-                             f"expected, got {angles.size} values")
-    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
-
-
-def euler_angles(rotation: Orientation) -> Dict[str, float]:
-    """The ``{"psi", "theta", "phi"}`` dict (degrees, ``EULER_SEQ``) of an orientation:
-    the form of the JSON files and of the dicts the C++ binding reads.
-
-    The decomposition is not unique when ``theta`` is 0 or 180 degrees (gimbal lock):
-    scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
-    same rotation as the angles that were given, written differently.
-    """
-    if not isinstance(rotation, _ScipyRotation) and rotation is not None:
-        # angles given as angles are written as given: no detour through a quaternion
-        # (float noise, and a gimbal-locked triplet rewritten) for a no-op
-        as_rotation(rotation)   # validates the dict keys / the 3 values
-        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
-                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
-        return dict(zip(_ANGLES, values))
-    rot = as_rotation(rotation)
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" — see above
-        psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)
-    return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
 
 
 def _dataclass_eq(self, other):
@@ -160,16 +98,21 @@ def _coerce_fields(obj):
     """props given as a list, orientations in any accepted form, nested phases given as
     dicts (the JSON form)."""
     if not isinstance(obj.props, np.ndarray):
-        obj.props = np.asarray([] if obj.props is None else obj.props, dtype=float).ravel()
-    for name in ('material_orientation', 'geometry_orientation'):
+        obj.props = np.asarray(
+            [] if obj.props is None else obj.props, dtype=float
+        ).ravel()
+    for name in ("material_orientation", "geometry_orientation"):
         if hasattr(obj, name):
             setattr(obj, name, as_rotation(getattr(obj, name)))
-    nested = getattr(obj, 'phases', None)
+    nested = getattr(obj, "phases", None)
     if nested and any(isinstance(p, dict) for p in nested):
         cls, layout = _JSON_LAYOUTS[_json_kind_of(obj.umat_name)]
-        obj.phases = [p if not isinstance(p, dict)
-                      else _from_json_entry(p, cls, layout, None, f"phases of {obj.umat_name}")
-                      for p in nested]
+        obj.phases = [
+            p
+            if not isinstance(p, dict)
+            else _from_json_entry(p, cls, layout, None, f"phases of {obj.umat_name}")
+            for p in nested
+        ]
 
 
 @dataclass(eq=False)
@@ -200,6 +143,7 @@ class Phase:
         ellipsoids; MIPLN: layers).
         Empty for a homogeneous phase.
     """
+
     number: int = 0
     umat_name: str = "ELISO"
     save: int = 1
@@ -232,6 +176,7 @@ class Layer(Phase):
     layerdown : int
         Index of layer below (0 by default, as the C++ layer)
     """
+
     geometry_orientation: Rotation = field(default_factory=Rotation.identity)
     layerup: int = 0
     layerdown: int = 0
@@ -263,6 +208,7 @@ class Ellipsoid(Phase):
     geometry_orientation : Rotation
         Orientation of the geometry (any form ``as_rotation`` accepts)
     """
+
     coatingof: int = 0
     a1: float = 1.0
     a2: float = 1.0
@@ -301,6 +247,7 @@ class Cylinder(Phase):
     geometry_orientation : Rotation
         Orientation of the geometry (any form ``as_rotation`` accepts)
     """
+
     coatingof: int = 0
     L: float = 1.0
     R: float = 1.0
@@ -309,7 +256,7 @@ class Cylinder(Phase):
     @property
     def aspect_ratio(self) -> float:
         """Length to radius ratio."""
-        return self.L / self.R if self.R > 0 else float('inf')
+        return self.L / self.R if self.R > 0 else float("inf")
 
 
 @dataclass(eq=False)
@@ -333,6 +280,7 @@ class Section:
     props : np.ndarray
         Material properties array
     """
+
     number: int = 0
     name: str = "Section"
     umat_name: str = "ELISO"
@@ -350,15 +298,20 @@ class Section:
 # JSON I/O
 # =============================================================================
 
-def _props_to_dict(props: np.ndarray, prop_names: Optional[List[str]] = None) -> Dict[str, float]:
+
+def _props_to_dict(
+    props: np.ndarray, prop_names: Optional[List[str]] = None
+) -> Dict[str, float]:
     """Convert props array to dict with named keys."""
     if prop_names and len(prop_names) == len(props):
         return {name: float(val) for name, val in zip(prop_names, props)}
     else:
-        return {f'prop_{i}': float(val) for i, val in enumerate(props)}
+        return {f"prop_{i}": float(val) for i, val in enumerate(props)}
 
 
-def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np.ndarray:
+def _props_from_json(
+    props, prop_names: Optional[List[str]], context: str
+) -> np.ndarray:
     """Positional props out of a JSON entry.
 
     ``save_*_json`` writes ``props`` as a ``name -> value`` mapping when it is given
@@ -371,8 +324,8 @@ def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np
     if not isinstance(props, dict):
         return np.array(props, dtype=float)
     if prop_names:
-        #either the caller's explicit order, or the one save_*_json recorded next to
-        #the mapping it wrote — a file written by simcoon round-trips without warning
+        # either the caller's explicit order, or the one save_*_json recorded next to
+        # the mapping it wrote — a file written by simcoon round-trips without warning
         missing = [n for n in prop_names if n not in props]
         if missing:
             raise ValueError(f"{context}: 'props' has no entry for {missing}")
@@ -381,7 +334,9 @@ def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np
         f"{context}: 'props' is a name -> value mapping and no `prop_names` was given, "
         "so the values are read in the order the file lists them. The C++ side reads "
         "them positionally: reordering the keys changes the material silently.",
-        UserWarning, stacklevel=4)
+        UserWarning,
+        stacklevel=4,
+    )
     return np.array(list(props.values()), dtype=float)
 
 
@@ -393,71 +348,137 @@ def _props_from_json(props, prop_names: Optional[List[str]], context: str) -> np
 # reading are the dataclass defaults, and a nested field is also accepted flat at the top
 # level.
 _JSON_LAYOUTS = {
-    'phases': (Phase, ('number', 'umat_name', 'save', 'concentration',
-                       'material_orientation', 'nstatev', 'props', 'phases')),
-    'layers': (Layer, ('number', 'umat_name', 'save', 'concentration',
-                       'material_orientation', 'geometry_orientation', 'nstatev', 'props',
-                       'layerup', 'layerdown', 'phases')),
-    'ellipsoids': (Ellipsoid, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
-                               'material_orientation', ('semi_axes', ('a1', 'a2', 'a3')),
-                               'geometry_orientation', 'nstatev', 'props', 'phases')),
-    'cylinders': (Cylinder, ('number', 'coatingof', 'umat_name', 'save', 'concentration',
-                             'material_orientation', ('geometry', ('L', 'R')),
-                             'geometry_orientation', 'nstatev', 'props', 'phases')),
-    'sections': (Section, ('number', 'name', 'umat_name', 'material_orientation',
-                           'nstatev', 'props')),
+    "phases": (
+        Phase,
+        (
+            "number",
+            "umat_name",
+            "save",
+            "concentration",
+            "material_orientation",
+            "nstatev",
+            "props",
+            "phases",
+        ),
+    ),
+    "layers": (
+        Layer,
+        (
+            "number",
+            "umat_name",
+            "save",
+            "concentration",
+            "material_orientation",
+            "geometry_orientation",
+            "nstatev",
+            "props",
+            "layerup",
+            "layerdown",
+            "phases",
+        ),
+    ),
+    "ellipsoids": (
+        Ellipsoid,
+        (
+            "number",
+            "coatingof",
+            "umat_name",
+            "save",
+            "concentration",
+            "material_orientation",
+            ("semi_axes", ("a1", "a2", "a3")),
+            "geometry_orientation",
+            "nstatev",
+            "props",
+            "phases",
+        ),
+    ),
+    "cylinders": (
+        Cylinder,
+        (
+            "number",
+            "coatingof",
+            "umat_name",
+            "save",
+            "concentration",
+            "material_orientation",
+            ("geometry", ("L", "R")),
+            "geometry_orientation",
+            "nstatev",
+            "props",
+            "phases",
+        ),
+    ),
+    "sections": (
+        Section,
+        ("number", "name", "umat_name", "material_orientation", "nstatev", "props"),
+    ),
 }
+
 
 def _kind_of(phase) -> str:
     """What to_phase_dict labels a phase with; the binding checks it against the geometry
     the model builds."""
-    for cls, kind in ((Ellipsoid, 'ellipsoid'), (Cylinder, 'cylinder'), (Layer, 'layer')):
+    for cls, kind in (
+        (Ellipsoid, "ellipsoid"),
+        (Cylinder, "cylinder"),
+        (Layer, "layer"),
+    ):
         if isinstance(phase, cls):
             return kind
-    return 'phase'
+    return "phase"
 
 
 def _json_kind_of(umat_name: str) -> str:
     """The layout of the sub-phases a mean-field model builds (sub_phase_shape in C++)."""
-    if umat_name in ('MIHEN', 'MIMTN', 'MISCN'):
-        return 'ellipsoids'
-    if umat_name == 'MIPLN':
-        return 'layers'
+    if umat_name in ("MIHEN", "MIMTN", "MISCN"):
+        return "ellipsoids"
+    if umat_name == "MIPLN":
+        return "layers"
     raise ValueError(f"{umat_name} is not a mean-field model: it has no sub-phases")
 
 
 def _to_json_entry(obj, layout, prop_names: Optional[List[str]]) -> Dict:
     entry = {}
     for col in layout:
-        if col == 'props':
+        if col == "props":
             props_data = _props_to_dict(obj.props, prop_names)
-            entry['props'] = props_data
-            entry['prop_names'] = list(props_data)
-        elif col == 'phases':
+            entry["props"] = props_data
+            entry["prop_names"] = list(props_data)
+        elif col == "phases":
             if obj.phases:
                 _, sub_layout = _JSON_LAYOUTS[_json_kind_of(obj.umat_name)]
-                entry['phases'] = [_to_json_entry(p, sub_layout, None) for p in obj.phases]
+                entry["phases"] = [
+                    _to_json_entry(p, sub_layout, None) for p in obj.phases
+                ]
         elif isinstance(col, tuple):
             key, fields = col
             entry[key] = {f: getattr(obj, f) for f in fields}
-        elif col.endswith('_orientation'):
+        elif col.endswith("_orientation"):
             entry[col] = euler_angles(getattr(obj, col))
         else:
             entry[col] = getattr(obj, col)
     return entry
 
 
-def _from_json_entry(entry: Dict, cls, layout, prop_names: Optional[List[str]], context: str):
+def _from_json_entry(
+    entry: Dict, cls, layout, prop_names: Optional[List[str]], context: str
+):
     kwargs = {}
     for col in layout:
-        if col == 'props':
-            kwargs['props'] = _props_from_json(entry.get('props', []),
-                                               prop_names or entry.get('prop_names'), context)
-        elif col == 'phases':
-            if entry.get('phases'):
-                sub_cls, sub_layout = _JSON_LAYOUTS[_json_kind_of(entry.get('umat_name', 'ELISO'))]
-                kwargs['phases'] = [_from_json_entry(p, sub_cls, sub_layout, None, context)
-                                    for p in entry['phases']]
+        if col == "props":
+            kwargs["props"] = _props_from_json(
+                entry.get("props", []), prop_names or entry.get("prop_names"), context
+            )
+        elif col == "phases":
+            if entry.get("phases"):
+                sub_cls, sub_layout = _JSON_LAYOUTS[
+                    _json_kind_of(entry.get("umat_name", "ELISO"))
+                ]
+                kwargs["phases"] = [
+                    _from_json_entry(p, sub_cls, sub_layout, None, context)
+                    for p in entry["phases"]
+                ]
         elif isinstance(col, tuple):
             key, fields = col
             nested = entry.get(key, {})
@@ -467,30 +488,40 @@ def _from_json_entry(entry: Dict, cls, layout, prop_names: Optional[List[str]], 
                 elif f in entry:
                     kwargs[f] = entry[f]
         elif col in entry:
-            kwargs[col] = entry[col]   # orientation dicts are coerced by __post_init__
+            kwargs[col] = entry[col]  # orientation dicts are coerced by __post_init__
     return cls(**kwargs)
 
 
-def _load_json(filepath: Union[str, Path], kind: str, prop_names: Optional[List[str]]) -> List:
+def _load_json(
+    filepath: Union[str, Path], kind: str, prop_names: Optional[List[str]]
+) -> List:
     cls, layout = _JSON_LAYOUTS[kind]
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         data = json.load(f)
     if kind not in data:
-        raise ValueError(f"{filepath}: no '{kind}' entry (top-level keys: {sorted(data)})")
-    return [_from_json_entry(entry, cls, layout, prop_names, str(filepath))
-            for entry in data[kind]]
+        raise ValueError(
+            f"{filepath}: no '{kind}' entry (top-level keys: {sorted(data)})"
+        )
+    return [
+        _from_json_entry(entry, cls, layout, prop_names, str(filepath))
+        for entry in data[kind]
+    ]
 
 
-def _save_json(filepath: Union[str, Path], kind: str, items: List,
-               prop_names: Optional[List[str]]):
+def _save_json(
+    filepath: Union[str, Path], kind: str, items: List, prop_names: Optional[List[str]]
+):
     _, layout = _JSON_LAYOUTS[kind]
     payload = {kind: [_to_json_entry(item, layout, prop_names) for item in items]}
-    with open(filepath, 'w') as f:   # opened once the payload exists: a failed save keeps the file
+    with open(
+        filepath, "w"
+    ) as f:  # opened once the payload exists: a failed save keeps the file
         json.dump(payload, f, indent=2)
 
 
-def load_phases_json(filepath: Union[str, Path],
-                     prop_names: Optional[List[str]] = None) -> List[Phase]:
+def load_phases_json(
+    filepath: Union[str, Path], prop_names: Optional[List[str]] = None
+) -> List[Phase]:
     """Load phases from a JSON file: ``{"phases": [{"number": 0, "umat_name": "ELISO",
     "save": 1, "concentration": 0.8, "material_orientation": {"psi": 0, "theta": 0,
     "phi": 0}, "nstatev": 1, "props": {"E": 70000, "nu": 0.3, "alpha": 1e-5}}]}``.
@@ -498,70 +529,89 @@ def load_phases_json(filepath: Union[str, Path],
     ``prop_names`` gives the order of a ``props`` mapping explicitly (see
     ``_props_from_json``); a file written by ``save_phases_json`` records it itself.
     """
-    return _load_json(filepath, 'phases', prop_names)
+    return _load_json(filepath, "phases", prop_names)
 
 
-def save_phases_json(filepath: Union[str, Path], phases: List[Phase],
-                     prop_names: Optional[List[str]] = None):
+def save_phases_json(
+    filepath: Union[str, Path],
+    phases: List[Phase],
+    prop_names: Optional[List[str]] = None,
+):
     """Save phases to a JSON file (the layout ``load_phases_json`` reads), ``prop_names``
     naming the properties."""
-    _save_json(filepath, 'phases', phases, prop_names)
+    _save_json(filepath, "phases", phases, prop_names)
 
 
-def load_layers_json(filepath: Union[str, Path],
-                     prop_names: Optional[List[str]] = None) -> List[Layer]:
+def load_layers_json(
+    filepath: Union[str, Path], prop_names: Optional[List[str]] = None
+) -> List[Layer]:
     """Load layers from a JSON file for laminate homogenization: the phase entry plus
     ``"geometry_orientation": {"psi", "theta", "phi"}``, ``"layerup"`` and
     ``"layerdown"``, under the top-level key ``"layers"``."""
-    return _load_json(filepath, 'layers', prop_names)
+    return _load_json(filepath, "layers", prop_names)
 
 
-def save_layers_json(filepath: Union[str, Path], layers: List[Layer],
-                     prop_names: Optional[List[str]] = None):
+def save_layers_json(
+    filepath: Union[str, Path],
+    layers: List[Layer],
+    prop_names: Optional[List[str]] = None,
+):
     """Save layers to a JSON file (the layout ``load_layers_json`` reads)."""
-    _save_json(filepath, 'layers', layers, prop_names)
+    _save_json(filepath, "layers", layers, prop_names)
 
 
-def load_ellipsoids_json(filepath: Union[str, Path],
-                         prop_names: Optional[List[str]] = None) -> List[Ellipsoid]:
+def load_ellipsoids_json(
+    filepath: Union[str, Path], prop_names: Optional[List[str]] = None
+) -> List[Ellipsoid]:
     """Load ellipsoids from a JSON file: the phase entry plus ``"coatingof"``,
     ``"semi_axes": {"a1", "a2", "a3"}`` and ``"geometry_orientation"``, under the
     top-level key ``"ellipsoids"``."""
-    return _load_json(filepath, 'ellipsoids', prop_names)
+    return _load_json(filepath, "ellipsoids", prop_names)
 
 
-def save_ellipsoids_json(filepath: Union[str, Path], ellipsoids: List[Ellipsoid],
-                         prop_names: Optional[List[str]] = None):
+def save_ellipsoids_json(
+    filepath: Union[str, Path],
+    ellipsoids: List[Ellipsoid],
+    prop_names: Optional[List[str]] = None,
+):
     """Save ellipsoids to a JSON file (the layout ``load_ellipsoids_json`` reads)."""
-    _save_json(filepath, 'ellipsoids', ellipsoids, prop_names)
+    _save_json(filepath, "ellipsoids", ellipsoids, prop_names)
 
 
-def load_cylinders_json(filepath: Union[str, Path],
-                        prop_names: Optional[List[str]] = None) -> List[Cylinder]:
+def load_cylinders_json(
+    filepath: Union[str, Path], prop_names: Optional[List[str]] = None
+) -> List[Cylinder]:
     """Load cylinders from a JSON file: the phase entry plus ``"coatingof"``,
     ``"geometry": {"L", "R"}`` and ``"geometry_orientation"``, under the top-level key
     ``"cylinders"``."""
-    return _load_json(filepath, 'cylinders', prop_names)
+    return _load_json(filepath, "cylinders", prop_names)
 
 
-def save_cylinders_json(filepath: Union[str, Path], cylinders: List[Cylinder],
-                        prop_names: Optional[List[str]] = None):
+def save_cylinders_json(
+    filepath: Union[str, Path],
+    cylinders: List[Cylinder],
+    prop_names: Optional[List[str]] = None,
+):
     """Save cylinders to a JSON file (the layout ``load_cylinders_json`` reads)."""
-    _save_json(filepath, 'cylinders', cylinders, prop_names)
+    _save_json(filepath, "cylinders", cylinders, prop_names)
 
 
-def load_sections_json(filepath: Union[str, Path],
-                       prop_names: Optional[List[str]] = None) -> List[Section]:
+def load_sections_json(
+    filepath: Union[str, Path], prop_names: Optional[List[str]] = None
+) -> List[Section]:
     """Load sections from a JSON file for textile composites: ``"number"``, ``"name"``,
     ``"umat_name"``, ``"material_orientation"``, ``"nstatev"``, ``"props"``, under the
     top-level key ``"sections"``."""
-    return _load_json(filepath, 'sections', prop_names)
+    return _load_json(filepath, "sections", prop_names)
 
 
-def save_sections_json(filepath: Union[str, Path], sections: List[Section],
-                       prop_names: Optional[List[str]] = None):
+def save_sections_json(
+    filepath: Union[str, Path],
+    sections: List[Section],
+    prop_names: Optional[List[str]] = None,
+):
     """Save sections to a JSON file (the layout ``load_sections_json`` reads)."""
-    _save_json(filepath, 'sections', sections, prop_names)
+    _save_json(filepath, "sections", sections, prop_names)
 
 
 # =============================================================================
@@ -569,8 +619,15 @@ def save_sections_json(filepath: Union[str, Path], sections: List[Section],
 # =============================================================================
 
 #: parameters each profile reads, for validation: (needs s_dev, needs width, len(params))
-_PROFILES = {1: (False, False, 4), 2: (True, False, 0), 3: (True, False, 0), 4: (False, True, 0),
-             5: (True, True, 1), 6: (False, True, 2), 7: (False, False, 0)}
+_PROFILES = {
+    1: (False, False, 4),
+    2: (True, False, 0),
+    3: (True, False, 0),
+    4: (False, True, 0),
+    5: (True, True, 1),
+    6: (False, True, 2),
+    7: (False, False, 0),
+}
 
 
 @dataclass(eq=False)
@@ -593,6 +650,7 @@ class Peak:
     angles (``mean``, ``s_dev``, ``width``) are degrees; the profile is evaluated in
     radians, which sets the Gaussian and Lorentzian normalisations.
     """
+
     number: int = 0
     method: int = 3
     mean: float = 0.0
@@ -605,16 +663,26 @@ class Peak:
         if not isinstance(self.params, np.ndarray):
             self.params = np.asarray(self.params, dtype=float).ravel()
         if self.method not in _PROFILES:
-            raise ValueError(f"Peak.method = {self.method!r}: 1 to 7 expected (see the class docstring)")
+            raise ValueError(
+                f"Peak.method = {self.method!r}: 1 to 7 expected (see the class docstring)"
+            )
         needs_s_dev, needs_width, n_params = _PROFILES[self.method]
         if needs_s_dev and not self.s_dev > 0.0:
-            raise ValueError(f"Peak (method {self.method}): s_dev = {self.s_dev} must be > 0")
+            raise ValueError(
+                f"Peak (method {self.method}): s_dev = {self.s_dev} must be > 0"
+            )
         if needs_width and not self.width > 0.0:
-            raise ValueError(f"Peak (method {self.method}): width = {self.width} must be > 0")
+            raise ValueError(
+                f"Peak (method {self.method}): width = {self.width} must be > 0"
+            )
         if self.params.size < n_params:
-            raise ValueError(f"Peak (method {self.method}): params needs {n_params} values, got {self.params.size}")
+            raise ValueError(
+                f"Peak (method {self.method}): params needs {n_params} values, got {self.params.size}"
+            )
         if self.method == 6 and not self.params[1] > 0.0:
-            raise ValueError("Peak (method 6): the Pearson VII shape params[1] must be > 0")
+            raise ValueError(
+                "Peak (method 6): the Pearson VII shape params[1] must be > 0"
+            )
 
     __eq__ = _dataclass_eq
 
@@ -629,14 +697,28 @@ class Peak:
             if self.method == 1:
                 a1, a2, p1, p2 = self.params[:4]
                 c = np.cos(d)
-                with np.errstate(invalid='ignore'):   # a negative cosine to a fractional power
-                    y = np.abs((a1 * c ** (2 * p1) + a2 * c ** (2 * p2) * np.sin(d) ** (2 * p2)) * c)
+                with np.errstate(
+                    invalid="ignore"
+                ):  # a negative cosine to a fractional power
+                    y = np.abs(
+                        (
+                            a1 * c ** (2 * p1)
+                            + a2 * c ** (2 * p2) * np.sin(d) ** (2 * p2)
+                        )
+                        * c
+                    )
                 y = np.where(np.abs(d - 0.5 * np.pi) < 1e-6, 0.0, y)
                 return np.where(np.abs(d) < 1e-6, a1, y)
             if self.method == 2:
                 return self.ampl * np.exp(-0.5 * (np.abs(d) / s_dev) ** 2)
-            gauss = lambda: self.ampl / (s_dev * np.sqrt(2 * np.pi)) * np.exp(-0.5 * (d / s_dev) ** 2)
-            lorentz = lambda: self.ampl * width / (2 * np.pi * (d ** 2 + (width / 2) ** 2))
+            gauss = lambda: (
+                self.ampl
+                / (s_dev * np.sqrt(2 * np.pi))
+                * np.exp(-0.5 * (d / s_dev) ** 2)
+            )
+            lorentz = lambda: (
+                self.ampl * width / (2 * np.pi * (d**2 + (width / 2) ** 2))
+            )
             if self.method == 3:
                 return gauss()
             if self.method == 4:
@@ -646,7 +728,9 @@ class Peak:
                 return eta * lorentz() + (1.0 - eta) * gauss()
             if self.method == 6:
                 peak_max, shape = self.params[:2]
-                return (peak_max if abs(peak_max) >= 1e-9 else 1.0) * (1.0 + (d / width) ** 2 / shape) ** (-shape)
+                return (peak_max if abs(peak_max) >= 1e-9 else 1.0) * (
+                    1.0 + (d / width) ** 2 / shape
+                ) ** (-shape)
             return np.ones_like(d)
 
         d = x - mean
@@ -655,7 +739,7 @@ class Peak:
         return profile(d)
 
 
-_PEAK_FIELDS = ('number', 'method', 'mean', 's_dev', 'width', 'ampl', 'params')
+_PEAK_FIELDS = ("number", "method", "mean", "s_dev", "width", "ampl", "params")
 
 
 def _as_peaks(peaks) -> List[Peak]:
@@ -665,8 +749,10 @@ def _as_peaks(peaks) -> List[Peak]:
         if isinstance(pk, dict):
             unknown = set(pk) - set(_PEAK_FIELDS)
             if unknown:
-                raise ValueError(f"peak: unknown entries {sorted(unknown)}; expected {_PEAK_FIELDS}")
-            if pk.get('method') is None:
+                raise ValueError(
+                    f"peak: unknown entries {sorted(unknown)}; expected {_PEAK_FIELDS}"
+                )
+            if pk.get("method") is None:
                 raise ValueError("peak: no 'method' entry (1 to 7, see Peak)")
             pk = Peak(**pk)
         out.append(pk)
@@ -682,32 +768,53 @@ def get_densities_ODF(x, peaks, radian: bool = False) -> np.ndarray:
     scale = 1.0 if radian else np.pi / 180.0
     x_rad = x * scale
     if x.size and (x_rad.min() < 0.0 or x_rad.max() > np.pi * (1 + 1e-12)):
-        raise ValueError(f"get_densities_ODF: x must lie in [0, {'pi' if radian else '180'}], "
-                         f"got [{x.min():g}, {x.max():g}]")
-    return sum((pk.density(x_rad, periodic=True, scale=scale) for pk in _as_peaks(peaks)),
-               np.zeros_like(x_rad))
+        raise ValueError(
+            f"get_densities_ODF: x must lie in [0, {'pi' if radian else '180'}], "
+            f"got [{x.min():g}, {x.max():g}]"
+        )
+    return sum(
+        (pk.density(x_rad, periodic=True, scale=scale) for pk in _as_peaks(peaks)),
+        np.zeros_like(x_rad),
+    )
 
 
 def load_peaks_json(filepath: Union[str, Path]) -> List[Peak]:
     """Load the peaks of a distribution: ``{"peaks": [{"number": 0, "method": 3,
     "mean": 90, "s_dev": 10, "width": 0, "ampl": 1, "params": []}, ...]}``."""
-    with open(filepath, 'r') as f:
+    with open(filepath, "r") as f:
         data = json.load(f)
-    return [Peak(**{k: v for k, v in entry.items() if k in _PEAK_FIELDS})
-            for entry in data.get('peaks', [])]
+    return [
+        Peak(**{k: v for k, v in entry.items() if k in _PEAK_FIELDS})
+        for entry in data.get("peaks", [])
+    ]
 
 
 def save_peaks_json(filepath: Union[str, Path], peaks: List[Peak]):
     """Save the peaks of a distribution (the layout ``load_peaks_json`` reads)."""
-    entries = [{f: (np.asarray(getattr(p, f), dtype=float).tolist() if f == 'params' else getattr(p, f))
-                for f in _PEAK_FIELDS} for p in peaks]
-    with open(filepath, 'w') as f:
-        json.dump({'peaks': entries}, f, indent=2)
+    entries = [
+        {
+            f: (
+                np.asarray(getattr(p, f), dtype=float).tolist()
+                if f == "params"
+                else getattr(p, f)
+            )
+            for f in _PEAK_FIELDS
+        }
+        for p in peaks
+    ]
+    with open(filepath, "w") as f:
+        json.dump({"peaks": entries}, f, indent=2)
 
 
-def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
-                   axis=(0.0, 0.0, 1.0), angle_range=(0.0, 180.0),
-                   rotate_material: bool = True) -> List:
+def discretize_odf(
+    phases: List,
+    num_phase: int,
+    peaks: List,
+    nphases: int,
+    axis=(0.0, 0.0, 1.0),
+    angle_range=(0.0, 180.0),
+    rotate_material: bool = True,
+) -> List:
     """Split one phase into ``nphases`` phases whose orientations follow an ODF.
 
     Phase ``num_phase`` of ``phases`` is replaced by ``nphases`` copies of itself, the
@@ -737,9 +844,15 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
     left untouched. ``coatingof`` indices pointing past the swept phase are shifted; a
     coating OF the swept phase is refused (which of its copies would it coat?).
     """
-    phases = phases_from_dicts([p for p in phases]) if any(isinstance(p, dict) for p in phases) else list(phases)
+    phases = (
+        phases_from_dicts([p for p in phases])
+        if any(isinstance(p, dict) for p in phases)
+        else list(phases)
+    )
     if not 0 <= num_phase < len(phases):
-        raise ValueError(f"num_phase = {num_phase} is outside the {len(phases)} phases given")
+        raise ValueError(
+            f"num_phase = {num_phase} is outside the {len(phases)} phases given"
+        )
     if nphases < 1:
         raise ValueError("nphases must be >= 1")
     n = np.asarray(axis, dtype=float).ravel()
@@ -756,7 +869,11 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
     # Simpson over each bin, the density being periodic over 180 deg (director distribution)
     x = np.concatenate([alphas - d / 2, alphas, alphas + d / 2]) % 180.0
     rho = get_densities_ODF(x, peaks)
-    weights = d / 6.0 * (rho[:nphases] + 4.0 * rho[nphases:2 * nphases] + rho[2 * nphases:])
+    weights = (
+        d
+        / 6.0
+        * (rho[:nphases] + 4.0 * rho[nphases : 2 * nphases] + rho[2 * nphases :])
+    )
     if weights.sum() <= 0.0:
         raise ValueError("the ODF density is zero over the whole angle_range")
     weights *= parent.concentration / weights.sum()
@@ -766,19 +883,21 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
         rot = Rotation.from_rotvec(np.deg2rad(alpha) * n)
         copy_k = copy.deepcopy(parent)
         copy_k.concentration = float(w)
-        if hasattr(copy_k, 'geometry_orientation'):
+        if hasattr(copy_k, "geometry_orientation"):
             copy_k.geometry_orientation = rot * copy_k.geometry_orientation
         if rotate_material:
             copy_k.material_orientation = rot * copy_k.material_orientation
         swept.append(copy_k)
     others = [copy.copy(ph) for ph in phases]
     for ph in others:
-        coated = getattr(ph, 'coatingof', 0)
+        coated = getattr(ph, "coatingof", 0)
         if coated == num_phase and num_phase != 0 and ph is not others[num_phase]:
-            raise ValueError(f"phase {ph.number} coats phase {num_phase}, which is being discretised")
+            raise ValueError(
+                f"phase {ph.number} coats phase {num_phase}, which is being discretised"
+            )
         if coated > num_phase:
             ph.coatingof = coated + nphases - 1
-    out = others[:num_phase] + swept + others[num_phase + 1:]
+    out = others[:num_phase] + swept + others[num_phase + 1 :]
     for i, ph in enumerate(out):
         ph.number = i
     return out
@@ -788,8 +907,10 @@ def discretize_odf(phases: List, num_phase: int, peaks: List, nphases: int,
 # Handing phases to the C++ side, in memory
 # =============================================================================
 
-def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
-                  number: Optional[int] = None) -> Dict:
+
+def to_phase_dict(
+    phase: Union[Phase, Layer, Ellipsoid, Cylinder], number: Optional[int] = None
+) -> Dict:
     """The in-memory form of one phase, as the C++ side expects it (see ``sim.L_eff``).
 
     The keys are those of the JSON files, with one deliberate difference: ``props`` stays
@@ -801,48 +922,57 @@ def to_phase_dict(phase: Union[Phase, Layer, Ellipsoid, Cylinder],
     Angles are left in degrees; the binding converts them to radians.
     """
     out = {
-        'kind': _kind_of(phase),
-        'number': phase.number if number is None else number,
-        'umat_name': phase.umat_name,
-        'save': phase.save,
-        'concentration': phase.concentration,
-        'material_orientation': euler_angles(phase.material_orientation),
-        'nstatev': phase.nstatev,
-        'props': np.asarray(phase.props, dtype=float),
+        "kind": _kind_of(phase),
+        "number": phase.number if number is None else number,
+        "umat_name": phase.umat_name,
+        "save": phase.save,
+        "concentration": phase.concentration,
+        "material_orientation": euler_angles(phase.material_orientation),
+        "nstatev": phase.nstatev,
+        "props": np.asarray(phase.props, dtype=float),
     }
-    geometry = getattr(phase, 'geometry_orientation', None)
+    geometry = getattr(phase, "geometry_orientation", None)
     if geometry is not None:
-        out['geometry_orientation'] = euler_angles(geometry)
+        out["geometry_orientation"] = euler_angles(geometry)
     if isinstance(phase, Ellipsoid):
-        out['coatingof'] = phase.coatingof
-        out['semi_axes'] = {'a1': phase.a1, 'a2': phase.a2, 'a3': phase.a3}
+        out["coatingof"] = phase.coatingof
+        out["semi_axes"] = {"a1": phase.a1, "a2": phase.a2, "a3": phase.a3}
     elif isinstance(phase, Cylinder):
-        out['coatingof'] = phase.coatingof
-        out['L'] = phase.L
-        out['R'] = phase.R
+        out["coatingof"] = phase.coatingof
+        out["L"] = phase.L
+        out["R"] = phase.R
     elif isinstance(phase, Layer):
-        out['layerup'] = phase.layerup
-        out['layerdown'] = phase.layerdown
+        out["layerup"] = phase.layerup
+        out["layerdown"] = phase.layerdown
     if phase.phases:
-        out['phases'] = to_phase_dicts(phase.phases)
+        out["phases"] = to_phase_dicts(phase.phases)
     return out
 
 
-_CLASS_OF_KIND = {'phase': Phase, 'layer': Layer, 'ellipsoid': Ellipsoid, 'cylinder': Cylinder}
+_CLASS_OF_KIND = {
+    "phase": Phase,
+    "layer": Layer,
+    "ellipsoid": Ellipsoid,
+    "cylinder": Cylinder,
+}
 
 
-def phases_from_dicts(dicts: List[Dict]) -> List[Union[Phase, Layer, Ellipsoid, Cylinder]]:
+def phases_from_dicts(
+    dicts: List[Dict],
+) -> List[Union[Phase, Layer, Ellipsoid, Cylinder]]:
     """The dataclasses back from the dicts ``to_phase_dicts`` made (or any dict in that
     form); ``kind`` picks the class, ``phases`` nests."""
     out = []
     for d in dicts:
-        cls = _CLASS_OF_KIND[d.get('kind', 'phase')]
-        _, layout = _JSON_LAYOUTS[d.get('kind', 'phase') + 's']
+        cls = _CLASS_OF_KIND[d.get("kind", "phase")]
+        _, layout = _JSON_LAYOUTS[d.get("kind", "phase") + "s"]
         out.append(_from_json_entry(d, cls, layout, None, "phases"))
     return out
 
 
-def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder, Dict]]) -> List[Dict]:
+def to_phase_dicts(
+    phases: List[Union[Phase, Layer, Ellipsoid, Cylinder, Dict]],
+) -> List[Dict]:
     """The whole sub-phase list, ready to be passed as ``phases=`` to ``sim.L_eff`` or
     ``sim.solver.solve``; a dict in the list is passed through as is.
 
@@ -852,16 +982,24 @@ def to_phase_dicts(phases: List[Union[Phase, Layer, Ellipsoid, Cylinder, Dict]])
     dataclass default is 0 for every phase, which would otherwise make every
     concentration tensor the identity and turn L_eff into a Voigt average.
     """
-    return [p if isinstance(p, dict) else to_phase_dict(p, number=i)
-            for i, p in enumerate(phases)]
+    return [
+        p if isinstance(p, dict) else to_phase_dict(p, number=i)
+        for i, p in enumerate(phases)
+    ]
 
 
 # =============================================================================
 # Effective stiffness
 # =============================================================================
 
-def L_eff(umat_name: str, props, nstatev: int, orientation: Orientation = None,
-          phases: Optional[List] = None) -> np.ndarray:
+
+def L_eff(
+    umat_name: str,
+    props,
+    nstatev: int,
+    orientation: Orientation = None,
+    phases: Optional[List] = None,
+) -> np.ndarray:
     """Elastic stiffness tensor (6x6, Voigt) of a material in the global frame.
 
     ``orientation`` is the material frame, in any form :func:`as_rotation` accepts
@@ -873,8 +1011,15 @@ def L_eff(umat_name: str, props, nstatev: int, orientation: Orientation = None,
     """
     angles = None if orientation is None else euler_angles(orientation)
     dicts = None if phases is None else to_phase_dicts(phases)
-    return np.asarray(_core.L_eff(str(umat_name), np.asarray(props, dtype=float).ravel(),
-                                  int(nstatev), angles, dicts))
+    return np.asarray(
+        _core.L_eff(
+            str(umat_name),
+            np.asarray(props, dtype=float).ravel(),
+            int(nstatev),
+            angles,
+            dicts,
+        )
+    )
 
 
 # =============================================================================
@@ -883,36 +1028,36 @@ def L_eff(umat_name: str, props, nstatev: int, orientation: Orientation = None,
 
 __all__ = [
     # Orientations
-    'EULER_SEQ',
-    'as_rotation',
-    'euler_angles',
+    "EULER_SEQ",
+    "as_rotation",
+    "euler_angles",
     # Data classes
-    'Phase',
-    'Layer',
-    'Ellipsoid',
-    'Cylinder',
-    'Section',
+    "Phase",
+    "Layer",
+    "Ellipsoid",
+    "Cylinder",
+    "Section",
     # JSON I/O
-    'load_phases_json',
-    'save_phases_json',
-    'load_layers_json',
-    'save_layers_json',
-    'load_ellipsoids_json',
-    'save_ellipsoids_json',
-    'load_cylinders_json',
-    'save_cylinders_json',
-    'load_sections_json',
-    'save_sections_json',
+    "load_phases_json",
+    "save_phases_json",
+    "load_layers_json",
+    "save_layers_json",
+    "load_ellipsoids_json",
+    "save_ellipsoids_json",
+    "load_cylinders_json",
+    "save_cylinders_json",
+    "load_sections_json",
+    "save_sections_json",
     # Handing phases to the C++ side, in memory, and back
-    'to_phase_dict',
-    'to_phase_dicts',
-    'phases_from_dicts',
+    "to_phase_dict",
+    "to_phase_dicts",
+    "phases_from_dicts",
     # Orientation distribution functions
-    'Peak',
-    'get_densities_ODF',
-    'load_peaks_json',
-    'save_peaks_json',
-    'discretize_odf',
+    "Peak",
+    "get_densities_ODF",
+    "load_peaks_json",
+    "save_peaks_json",
+    "discretize_odf",
     # Effective stiffness
-    'L_eff',
+    "L_eff",
 ]

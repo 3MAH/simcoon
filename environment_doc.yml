@@ -36,6 +36,9 @@ dependencies:
   - mock
   - matplotlib
   - pandas
-  - breathe
+  # breathe < 4.36 breaks on modern Sphinx (PyModulelevel), and Sphinx 9 breaks
+  # breathe 4.36 -- an unpinned solve picks breathe 4.15 + sphinx 9 and fails.
+  - breathe>=4.36
+  - sphinx<9
   - doxygen
   - scikit-learn

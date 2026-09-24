@@ -71,13 +71,19 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     static const std::map<string, HyperPotential> list_potentials = {
         {"NEOHC", HyperPotential::NEOHC}, {"MOORI", HyperPotential::MOORI},
         {"YEOHH", HyperPotential::YEOHH}, {"ISHAH", HyperPotential::ISHAH},
-        {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH}};
+        {"GETHH", HyperPotential::GETHH}, {"SWANH", HyperPotential::SWANH},
+        {"HOLZA", HyperPotential::HOLZA}};
 
     auto it_potential = list_potentials.find(umat_name);
     if (it_potential == list_potentials.end()) {
         throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }
-    const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J);
+
+    // An anisotropic potential reads its fibre pseudo-invariants off the structure
+    // tensors (tr A_i); an isotropic one gets an empty A and ignores it.
+    const hyper_anisotropy an = hyper_potential_anisotropy(it_potential->second, props);
+    const std::vector<mat> A = structure_tensors_push_forward(F1, an.a0, an.kappa_d, J);
+    const hyper_invariants_dW dW = hyper_potential_derivatives(it_potential->second, props, I_bar, J, A);
     
     ///@brief Initialization
     if(start)
@@ -91,7 +97,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         Wm_d = 0.;
     }
 
-    hyper_invariants_response(dW, b, J, F1, sigma, Lt);
+    hyper_invariants_response(dW, b, J, F1, sigma, Lt, A);
 
     if(start) {
         L = Lt;

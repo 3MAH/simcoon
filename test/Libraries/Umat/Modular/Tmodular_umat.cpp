@@ -472,6 +472,9 @@ const std::vector<std::pair<HyperPotential, vec>> hyper_potentials = {
     {HyperPotential::ISHAH, {0.1161, 0.0136, 0.0114, 4000.0}},
     {HyperPotential::GETHH, {0.2837, 0.05, 4000.0}},
     {HyperPotential::SWANH, {2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.2, 0.05, 1.1, 0.8}},
+    // one fibre family along e1, dispersed: exercises the anisotropic ground state
+    // (fibre inactive at I*_4 = 1) and the fibre tangent under the shared FD check
+    {HyperPotential::HOLZA, {0.0354, 0.0107, 7.48, 0.1, 1.0, 1.0, 0.0, 0.0, 1000.0}},
 };
 
 // L0 is the closed-form ground state of the potential's own derivatives: it

@@ -1,9 +1,15 @@
-sphinx
+# Sphinx toolchain for `make html` (docs/Makefile).
+# NOT pip-installable and required as well: doxygen (the binary). The html target
+# runs it first to produce the XML that breathe reads:
+#     conda install -c conda-forge doxygen
+# Sphinx 9 drops APIs breathe 4.36 still uses, so we pin Sphinx to 7 or 8 for now.
+sphinx>=7,<9
+breathe>=4.36
 sphinx-rtd-theme
-sphinxcontrib-napoleon
+sphinx-design
+sphinx-gallery
 matplotlib
 mock
-nbsphinx
-jupyter
+numpy
 scipy
 pandas

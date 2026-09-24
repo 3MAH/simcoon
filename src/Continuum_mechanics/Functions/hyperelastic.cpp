@@ -515,6 +515,22 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
     return L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
 }
 
+// The two box operators of ANY symmetric A whose convected rate is
+// l*A + A*l^T - (2/3) tr(d) A, hence whose trace obeys d(tr A)/dt = 2 dev(A) : d.
+// b_bar satisfies this (tr = I_1_bar) and so does a fibre family's dispersed structure
+// tensor (tr = I*_4_bar): sharing them is what lets the anisotropic tangent reuse the
+// isotropic I_1 algebra verbatim.
+// They take the deviator and trace already held by the caller rather than A itself: both
+// call sites have them, and recomputing dev(A) here once per operator put six extra
+// allocations per call on the isotropic path that the inline form did not pay.
+static mat gamma_linear(const mat &dev_A, const double &tr_A, const mat &I_dev, const mat &Id) {
+    return (4./3.)*(tr_A*I_dev - (sym_dyadic(dev_A,Id)+sym_dyadic(Id,dev_A)));
+}
+
+static mat gamma_quadratic(const mat &dev_A) {
+    return 4.*auto_sym_dyadic(dev_A);
+}
+
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
     double J=mJ;
     if (fabs(mJ) < simcoon::iota) {
@@ -552,10 +568,10 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
     mat I_vol = Ivol();
     mat I_dev = Idev();
 
-    mat gamma_1 = (4./3.)*(I_bar(0)*I_dev - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
+    mat gamma_1 = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id);
     mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
                     + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-    mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
+    mat gamma_11 = gamma_quadratic(dev_b_bar);
     mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
     mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
 
@@ -576,7 +592,6 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
     mat I_vol = Ivol();
     return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
 }
-
 
 namespace {
 
@@ -616,7 +631,74 @@ void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa,
     }
 }
 
-hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J) {
+hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const vec &props) {
+
+    hyper_anisotropy an;
+    if (potential != HyperPotential::HOLZA) {
+        return an;      // isotropic potential: no fibres, no dispersion
+    }
+    require_props(props, 5, "HOLZA");
+    an.kappa_d = props(3);
+    if (an.kappa_d < 0. || an.kappa_d > 1./3.) {
+        throw std::invalid_argument("HOLZA: the dispersion kappa_d must lie in [0, 1/3], got "
+                                    + std::to_string(an.kappa_d));
+    }
+    if (props(4) < 1.) {
+        throw std::invalid_argument("HOLZA: at least one fibre family is required, got "
+                                    + std::to_string(props(4)));
+    }
+    const uword n_fam = uword(props(4));
+    require_props(props, 6 + 3*n_fam, "HOLZA");     // the a0 triplets, plus the trailing kappa
+    an.a0 = zeros(3, n_fam);
+    for (uword i = 0; i < n_fam; i++) {
+        vec a = props.subvec(5 + 3*i, 7 + 3*i);
+        const double a_norm = norm(a, 2);
+        if (a_norm < simcoon::iota) {
+            throw std::invalid_argument("HOLZA: fibre direction " + std::to_string(i)
+                                        + " has a zero norm");
+        }
+        an.a0.col(i) = a/a_norm;    // the API already sends unit cosines; normalise anyway
+    }
+    return an;
+}
+
+std::vector<mat> structure_tensors_push_forward(const mat &F, const mat &a0, const double &kappa_d, const double &mJ) {
+
+    std::vector<mat> A;
+    if (a0.n_elem == 0) {
+        return A;
+    }
+    double J=mJ;
+    if (fabs(mJ) < simcoon::iota) {
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in det function inside structure_tensors_push_forward.");
+        }
+    }
+    const double Jm13 = pow(J,-1./3.);
+
+    // kappa_d = 0 (perfectly aligned fibres, the HGO 2000 model) is the common case and
+    // needs no b_bar at all -- building it there is a 3x3 product multiplied by zero.
+    mat kd_b_bar;
+    if (kappa_d > 0.) {
+        kd_b_bar = (kappa_d*Jm13*Jm13)*(F*F.t());
+    }
+
+    A.reserve(a0.n_cols);
+    for (uword i = 0; i < a0.n_cols; i++) {
+        vec a_bar = Jm13*(F*a0.col(i));
+        mat A_i = (1.-3.*kappa_d)*(a_bar*a_bar.t());
+        if (kappa_d > 0.) {
+            A_i += kd_b_bar;
+        }
+        A.push_back(A_i);
+    }
+    return A;
+}
+
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J, const std::vector<mat> &A) {
 
     hyper_invariants_dW dW;
     double kappa = 0.;  // the volumetric term U(J) is shared: see volumetric_derivatives
@@ -704,6 +786,48 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
             }
             break;
         }
+        case HyperPotential::HOLZA: {
+            // Gasser-Ogden-Holzapfel (2006); kappa_d = 0 is Holzapfel-Gasser-Ogden (2000)
+            // \f$ W = C_{10} \left(\bar{I}_1 - 3\right) + \sum_i \frac{k_1}{2 k_2} \left[ \textrm{exp}\left(k_2 \left(\bar{I}^*_{4,i} - 1\right)^2\right) - 1 \right] + U(J) \f$
+            require_props(props, 5, "HOLZA");
+            const double C_10 = props(0);
+            const double k_1 = props(1);
+            const double k_2 = props(2);
+            const uword n_fam = uword(std::lround(props(4)));
+            require_props(props, 6 + 3*n_fam, "HOLZA");
+            n_used = 6 + 3*n_fam;
+            kappa = props(5 + 3*n_fam);
+            dW.dWdI_1_bar = C_10;
+            if (A.size() != n_fam) {
+                throw std::invalid_argument("HOLZA: " + std::to_string(A.size())
+                                            + " structure tensors for " + std::to_string(n_fam)
+                                            + " fibre families (see structure_tensors_push_forward)");
+            }
+            dW.dWdI_a_bar = zeros(n_fam);
+            dW.dW2dI_aa_bar = zeros(n_fam);
+            for (uword i = 0; i < n_fam; i++) {
+                // tr(A_i) IS the fibre pseudo-invariant: no separate channel for it
+                const double E_bar = trace(A[i]) - 1.;
+                // The fibre TERM is inactive below the switch (note this is a condition on
+                // the pseudo-invariant, not on fibre compression: with kappa_d > 0 a
+                // compressed fibre can still have I*_4 > 1). The threshold is iota, not 0:
+                // psi'' jumps from 0 to k1 across it, so an exact comparison would let
+                // round-off in I*_4 decide a FINITE tangent. At I*_4 = 1 exactly (any
+                // unstretched fibre, e.g. pure dilatation) the two routes to b differ in
+                // the last bits and would otherwise disagree by k1.
+                if (E_bar <= simcoon::iota) {
+                    continue;
+                }
+                // Finite-arithmetic guard only: exp overflows to inf near arg 709, and a
+                // Newton trial iterate can overshoot the fibre stretch far past anything
+                // physical. inf here becomes NaN stress and tangent, which the solver
+                // cannot step-cut its way out of; a large finite value it can.
+                const double e = exp(std::min(k_2*E_bar*E_bar, 350.));
+                dW.dWdI_a_bar(i) = k_1*E_bar*e;
+                dW.dW2dI_aa_bar(i) = k_1*(1. + 2.*k_2*E_bar*E_bar)*e;
+            }
+            break;
+        }
         default:
             throw std::invalid_argument("hyper_potential_derivatives: unknown potential "
                                         + std::to_string(static_cast<int>(potential)));
@@ -713,16 +837,42 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
     return dW;
 }
 
-void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, vec &sigma, mat &Lt_box) {
+void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, vec &sigma, mat &Lt_box, const std::vector<mat> &A) {
+
+    if (A.size() != dW.dWdI_a_bar.n_elem || A.size() != dW.dW2dI_aa_bar.n_elem) {
+        throw std::invalid_argument("hyper_invariants_response: " + std::to_string(A.size())
+                                    + " structure tensors for "
+                                    + std::to_string(dW.dWdI_a_bar.n_elem) + " fibre derivatives");
+    }
 
     mat m_sigma_iso = sigma_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
     mat m_sigma_vol = sigma_vol_hyper(dW.dUdJ, b, J);
     mat m_sigma = m_sigma_iso + m_sigma_vol;
-    sigma = t2v_stress(m_sigma);
 
     mat Lt_iso = L_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b, J);
     mat Lt_vol = L_vol_hyper(dW.dUdJ, dW.dU2dJ2, b, J);
     mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+
+    // Fibre terms: the I_1 algebra with b_bar replaced by the family's structure tensor.
+    // kappa_d is already folded into A upstream, which is what keeps that substitution exact.
+    // Both derivatives are exactly 0 for a family below the tension switch -- the routine
+    // case, not an edge case -- so skip rather than assemble six 6x6 dyadics times zero.
+    if (!A.empty()) {
+        mat Id = eye(3,3);
+        mat I_dev = Idev();
+        for (uword i = 0; i < A.size(); i++) {
+            const double d1 = dW.dWdI_a_bar(i);
+            const double d2 = dW.dW2dI_aa_bar(i);
+            if (d1 == 0. && d2 == 0.) {
+                continue;
+            }
+            const mat dev_A = dev(A[i]);
+            m_sigma += (2./J)*d1*dev_A;
+            Lt_spatial += (1./J)*(gamma_linear(dev_A, trace(A[i]), I_dev, Id)*d1
+                                  + gamma_quadratic(dev_A)*d2);
+        }
+    }
+    sigma = t2v_stress(m_sigma);
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
     // XBM rate) -- identical object to the small-strain boxes and saint_venant.

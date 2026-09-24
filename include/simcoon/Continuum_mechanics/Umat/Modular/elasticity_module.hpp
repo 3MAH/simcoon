@@ -133,6 +133,7 @@ private:
     arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
     HyperPotential hyper_potential_;  ///< HYPER_INVARIANTS: the potential
     arma::vec hyper_props_; ///< HYPER_INVARIANTS: that potential's own parameters
+    hyper_anisotropy an_;   ///< HYPER_INVARIANTS: fibre directions + dispersion, parsed once by configure_hyper_invariants
     tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
