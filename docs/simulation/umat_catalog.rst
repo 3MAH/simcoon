@@ -250,6 +250,53 @@ order; trailing legacy slots are left untouched. Code that read specific
 legacy statev columns (e.g. the stored X_i of EPHAC) must be updated to the
 modular layout.
 
+Stress measure and tangent rate
+===============================
+
+Every **native** simcoon kernel is Kirchhoff-native. In the logarithmic framework the
+stored energy per *reference* volume gives
+:math:`\boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V}`, so :math:`\boldsymbol{\tau}`
+is the route stress, and the Cauchy stress is the derived output
+:math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J`, formed only at the boundaries -- the
+solver's output sinks and the Python wrapper. Nothing on the route carries Cauchy.
+
+**The stress measure** a kernel writes into ``sigma`` is declared, one entry per kernel, in
+``output_convention_of`` (``umat_smart.cpp``). A kernel that fails to declare it is
+rejected rather than given a default -- a missing declaration is an error of exactly
+:math:`J`, and invisible near :math:`J = 1`:
+
+- ``kirchhoff`` -- every native kernel.
+- ``cauchy`` -- only conventions simcoon does not own: ``HYPOO``, a Cauchy-rate
+  hypoelastic law, and the ``UMEXT`` / ``UMABA`` plugin adapters, whose contract belongs
+  to the host code (Abaqus ``DDSDDE`` is Cauchy-based). ``select_umat_M_finite`` converts
+  those to :math:`\boldsymbol{\tau}` on the way out.
+
+**The tangent rate is not declared, because it is not a choice.** Every kernel receives the
+solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in it. A kernel that
+builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family -- converts the
+spatial (Lie/Oldroyd) closed form of the potential in one step, with
+``Dtau_LieDD_2_DtauDe_corate``; a kernel handed the solver's already-corotated strain
+increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
+corrections, 2 (XBM), 3 (log_R) and 4 share the exact spectral map, and 5 (log_F) is the
+convected/Oldroyd-Lie box, which *is* the spatial tangent -- an identity.
+
+.. note::
+
+   ``MODUL`` passes corate 3 unconditionally rather than the solver's value, because it
+   evaluates its potential at :math:`\mathbf{V}^{el}` in the corotated frame
+   (:math:`\mathbf{R} = \mathbf{I}`), where the log box with respect to
+   :math:`\ln \mathbf{V}^{el}` **is**
+   :math:`\partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el}`. Any other
+   corate is already refused upstream under NLGEOM, so passing one down would not be more
+   general -- it would be wrong.
+
+**The Python contract.** ``sim.umat`` returns **Cauchy** stress and the **Kirchhoff box**
+tangent :math:`\partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e` with no :math:`J`,
+and takes ``corate=`` (default ``3``, log_R) selecting the rate that tangent is expressed
+in. The default is contract-preserving: corates 2 and 3 resolve to the same exact map, so it
+returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
+tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.
+
 Tangent-operator mode
 =====================
 

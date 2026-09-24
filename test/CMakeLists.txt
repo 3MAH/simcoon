@@ -34,6 +34,7 @@ set(TEST_SRCS
   test/Libraries/Umat/Ttangent_EPICP.cpp
   test/Libraries/Umat/Ttangent_EPHIL.cpp
   test/Libraries/Umat/Ttangent_EPCHA.cpp
+  test/Libraries/Umat/Tumat_conventions.cpp
   test/Libraries/Umat/Tunified_TR.cpp
   test/Libraries/Umat/Modular/Tmodular_umat.cpp
   test/Libraries/Umat/Treference_umats.cpp

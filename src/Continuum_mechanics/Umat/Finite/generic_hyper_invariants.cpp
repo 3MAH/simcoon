@@ -43,7 +43,7 @@ namespace simcoon{
 
 ///@brief No statev is required for a hyperelastic constitutive law
 
-void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {  	
 
     UNUSED(nprops);
@@ -97,7 +97,7 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
         Wm_d = 0.;
     }
 
-    hyper_invariants_response(dW, b, J, F1, sigma, Lt, A);
+    hyper_invariants_response(dW, b, J, F1, corate_type, sigma, Lt, A);
 
     if(start) {
         L = Lt;
