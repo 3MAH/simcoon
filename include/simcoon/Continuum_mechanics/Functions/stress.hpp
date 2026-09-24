@@ -83,6 +83,35 @@ arma::mat Cauchy2PKI(const arma::mat &sigma, const arma::mat &F, const double &J
 arma::mat Cauchy2Biot(const arma::mat &sigma, const arma::mat &F, const arma::mat &R = arma::zeros(3,3), const double &J = 0.);
 
 /**
+ * @brief Provides the Biot stress tensor \f$ \mathbf{T} \f$ from the Kirchhoff stress tensor \f$ \mathbf{\tau} \f$
+ *
+ * The missing member of the Kirchoff2* family (Kirchoff2PKI, Kirchoff2PKII): the same
+ * Biot stress as Cauchy2Biot, reached from the canonical route stress
+ * \f$ \mathbf{\tau} \f$ instead of from \f$ \mathbf{\sigma} = \mathbf{\tau}/J \f$. Since
+ * \f$ \mathbf{\Sigma} = \mathbf{\tau} \mathbf{F}^{-T} \f$ carries no \f$ J \f$, this route
+ * needs no determinant at all, where the Cauchy one multiplies by a \f$ J \f$ the caller
+ * had just divided out.
+ *
+ * \f[
+ *      \mathbf{T} = \frac{1}{2} \left( \mathbf{R}^T \cdot \mathbf{\Sigma} + \mathbf{\Sigma}^T \cdot \mathbf{R} \right),
+ *      \qquad \mathbf{\Sigma} = \mathbf{\tau} \mathbf{F}^{-T}
+ * \f]
+ *
+ * @param tau (3x3 arma::mat) the Kirchhoff stress tensor \f$ \mathbf{\tau} \f$
+ * @param F (3x3 arma::mat) transformation gradient \f$ \mathbf{F} \f$
+ * @param R (3x3 arma::mat, optional) rotation part of the transformation gradient \f$ \mathbf{R} \f$
+ * @return (3x3 arma::mat) the Biot stress tensor \f$ \mathbf{T} \f$
+ *
+ * @details Example:
+ * @code
+ *      mat F = randu(3,3);
+ *      mat tau = ...;
+ *      mat Biot = Kirchoff2Biot(tau, F);
+ * @endcode
+*/
+arma::mat Kirchoff2Biot(const arma::mat &tau, const arma::mat &F, const arma::mat &R = arma::zeros(3,3));
+
+/**
  * @brief Provides the second Piola Kirchoff stress tensor \f$ \mathbf{S} \f$ from the Cauchy stress tensor \f$ \mathbf{\sigma} \f$
  *
  * Returns a matrix, that is the first Piola-Kirchoff stress tensor from
