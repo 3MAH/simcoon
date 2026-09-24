@@ -331,10 +331,16 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
     const hyper_invariants_dW dW =
         hyper_potential_derivatives(hyper_potential_, hyper_props_,
                                     isochoric_invariants(b_el, J_el), J_el, A);
-    arma::vec sigma_cauchy;
-    hyper_invariants_response(dW, b_el, J_el, V_el, sigma_cauchy, Lt, A);
-    // MODUL is a kirchhoff_box model (umat_smart.cpp): its stress output IS tau.
-    sigma = J_el * sigma_cauchy;
+    // MODUL is a kirchhoff_box model (umat_smart.cpp): its stress output IS tau, which is now
+    // what hyper_invariants_response returns -- no conversion here any more.
+    //
+    // NOTE (pre-existing, unchanged by the Kirchhoff-native refactor): the J used throughout is
+    // J_el = exp(tr eps_el), so this is the Kirchhoff stress of the INTERMEDIATE configuration,
+    // not J*sigma. The two agree exactly when tr(eps_inelastic) = 0 (deviatoric plasticity) and
+    // differ by exp(tr eps_in) otherwise -- of order 3*alpha*DT for thermal expansion. The
+    // previous code multiplied the Cauchy stress by the same J_el, so this is bit-for-bit the
+    // same number; flagged here rather than silently altered.
+    hyper_invariants_response(dW, b_el, J_el, V_el, sigma, Lt, A);
 }
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {

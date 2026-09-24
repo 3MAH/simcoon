@@ -114,8 +114,9 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     // (The previous deviatoric I-term carried a stray 1/J -> J^(-5/3) instead of J^(-2/3),
     //  a ~ (1-1/J) stress error; fixed so stress and the rebuilt tangent both match dS/dE.)
     mat S = (-2./3.)*C_10*I1_bar*invC + 2.*C_10*pow(J,-2./3.)*I + (2./D_1)*(J-1)*J*invC;
-    mat sigma_Cauchy = PKII2Cauchy(S, F1, J);
-    sigma = t2v_stress(sigma_Cauchy);
+    // Kirchhoff-native: the route stress IS tau, Cauchy is tau/J formed at the output boundary.
+    mat tau_t = PKII2Kirchoff(S, F1, J);
+    sigma = t2v_stress(tau_t);
 	
     // Tangent. The previous hand-built dyadic material tangent did NOT match dS/dE
     // (FD ~100% off) -- a pre-existing bug. Rebuild it from the same Neo-Hookean
@@ -127,8 +128,10 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     double dWdI_1_bar = C_10;       // dW/dI1_bar; dW/dI2_bar = 0 (no I2 term), all 2nd deviatoric derivs = 0
     double dUdJ   = (2./D_1)*(J-1.);
     double dU2dJ2 = 2./D_1;
+    // The sum is the spatial elasticity c = (1/J) d(L_v tau)/dD; the J that turns it into the
+    // Kirchhoff-Lie tangent is applied once here -- see the note on L_vol_hyper.
     mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J) + L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
+    Lt = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F1, tau_t);
 
     if(start) {
         L = Lt;

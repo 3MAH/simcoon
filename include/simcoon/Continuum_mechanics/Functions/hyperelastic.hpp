@@ -409,7 +409,7 @@ arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat
  *      mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
  * @endcode
 */
-arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, arma::vec &lambda_bar, std::vector<arma::mat> &N_projectors);
+arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::vec &lambda_bar, const std::vector<arma::mat> &N_projectors);
 
 /**
  * @brief Provides the isochoric part of the Kirchoff stress tensor.
@@ -699,12 +699,22 @@ arma::mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_
 
 /**
  * @brief Provides the volumetric part of the hyperelastic tangent modulus
- * 
+ *
  * The volumetric part of the hyperelastic tangent modulus is defined as:
-\f[ 
-    \mathbf{L}^t_{\textrm{vol}} = J \left( \frac{\partial U}{\partial J} + \frac{\partial^2 U}{\partial J^2 \, J} \right) \left( \mathbf{I} \otimes \mathbf{I} \right) - 2 \frac{\partial U}{\partial J} \, J \left( \mathbf{I} \odot \mathbf{I} \right)
+\f[
+    \mathbf{L}^t_{\textrm{vol}} = \left( \frac{\partial U}{\partial J} + J \, \frac{\partial^2 U}{\partial J^2} \right) \left( \mathbf{I} \otimes \mathbf{I} \right) - 2 \frac{\partial U}{\partial J} \left( \mathbf{I} \odot \mathbf{I} \right)
 \f]
  * where U is the volumetric strain energy and \f$ J \f$ is the determinant of the transformation gradient
+ *
+ * @note This is the SPATIAL ELASTICITY \f$ \mathbb{c} = J^{-1} \partial (\mathcal{L}_v
+ *       \boldsymbol{\tau}) / \partial \mathbf{D} \f$, not \f$ \partial (\mathcal{L}_v
+ *       \boldsymbol{\sigma}) / \partial \mathbf{D} \f$: the two differ by exactly
+ *       \f$ \boldsymbol{\sigma} \otimes \mathbf{I} \f$, which here is
+ *       \f$ U'(J) \, \mathbf{I} \otimes \mathbf{I} \f$. A caller wanting the Kirchhoff-Lie
+ *       tangent multiplies by \f$ J \f$ once. Beware that the sibling
+ *       L_iso_hyper_invariants reaches the same convention through an EXPLICIT
+ *       \f$ 1/J \f$ while this one is \f$ J \f$-free by cancellation -- scale the two as a
+ *       sum, never one at a time.
  *
  * @param dUdJ the derivative of the volumetric strain energy with respect to \f$ J \f$ 
  * @param dU2dJ2 the second derivative of the volumetric strain energy with respect to \f$ J \f$ 
@@ -914,12 +924,19 @@ std::vector<arma::mat> structure_tensors_push_forward(const arma::mat &F, const 
 hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J, const std::vector<arma::mat> &A = {});
 
 /**
- * @brief Cauchy stress and canonical box tangent of an invariant potential.
+ * @brief Kirchhoff stress and canonical box tangent of an invariant potential.
  *
- * Assembles \f$ \boldsymbol{\sigma} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
+ * Assembles \f$ \boldsymbol{\tau} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
  * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, XBM rate — the same object the
  * small-strain boxes return) from the potential derivatives and the left
  * Cauchy-Green tensor.
+ *
+ * Kirchhoff on both outputs, deliberately: in the logarithmic framework the potential
+ * differentiates to \f$ \boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V} \f$ per
+ * REFERENCE volume, so \f$ \boldsymbol{\tau} \f$ is what the whole finite route carries and
+ * what the tangent is conjugate to. Cauchy is the derived output
+ * \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ and is formed only at the boundaries
+ * (the solver's sinks, the python wrapper), never on the route.
  *
  * @p F is only used to move the tangent into the box convention. The standalone
  * UMAT passes the deformation gradient; a caller that has an ELASTIC state
@@ -931,18 +948,14 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  * @param[in] b left Cauchy-Green tensor \f$ \mathbf{b} = \mathbf{F}\mathbf{F}^T \f$
  * @param[in] J \f$ \det \mathbf{F} \f$
  * @param[in] F deformation gradient (or V for an elastic state, see above)
- * @param[out] sigma Cauchy stress, 6-Voigt. Cauchy and not Kirchhoff because
- *             that is what the builders produce: a caller wanting
- *             \f$ \boldsymbol{\tau} \f$ multiplies by @p J once, rather than
- *             this function multiplying and the caller dividing back (which
- *             is not exact in floating point).
+ * @param[out] tau Kirchhoff stress, 6-Voigt
  * @param[out] Lt_box canonical box tangent, 6x6
  * @param[in] A the pushed-forward structure tensors of an anisotropic potential
  *            (structure_tensors_push_forward), one per fibre family and in the same
  *            order as @c dW.dWdI_a_bar. Empty for an isotropic potential, which is
  *            the default.
  */
-void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &sigma, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
+void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &tau, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
 
 /** @} */ // end of hyperelastic group
 
