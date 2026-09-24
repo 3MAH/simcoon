@@ -955,7 +955,7 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  *            order as @c dW.dWdI_a_bar. Empty for an isotropic potential, which is
  *            the default.
  */
-void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &tau, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
+void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, const int &corate_type, arma::vec &tau, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
 
 /** @} */ // end of hyperelastic group
 

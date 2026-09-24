@@ -40,7 +40,7 @@ using namespace arma;
 
 namespace simcoon{
 
-void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {  	
 
     UNUSED(nstatev);
@@ -131,7 +131,7 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     mat Lt_spatial = Lt_iso + Lt_vol;
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
-    Lt = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F1, m_tau);
+    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, m_tau);
 
     if(start) {
         L = Lt;

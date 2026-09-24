@@ -927,6 +927,21 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
     }
 }
 
+mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, const mat &F, const mat &tau) {
+    // Mirrors DSDE_2_DtauDe_corate above, one step earlier in the chain: from the SPATIAL
+    // (Lie/Oldroyd) tangent, which is what a hyperelastic potential closes on, straight to the
+    // box of the requested rate. Keep the two switches in step -- they answer the same question
+    // from different starting points.
+    switch (corate_type) {
+        case 0:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau);
+        case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
+        case 5:  return Dtau_LieDD;                                   // log_F: the box IS the Lie tangent
+        case 2:                                                       // XBM and...
+        case 3:                                                       // log_R: exact spectral map
+        default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
+    }
+}
+
 // Canonical box tangent Lt = d(tau_hat)/d(De) (full doc in objective_rates.hpp).
 // From the material tangent dS/dE:
 mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {

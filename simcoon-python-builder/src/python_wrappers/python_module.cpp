@@ -248,7 +248,13 @@ PYBIND11_MODULE(_core, m)
     // with an elastic Lt). The simcoon solver honors this via tnew_dt < 1 and
     // retries with a smaller increment; couplers driving umat directly must
     // subdivide the increment themselves in that situation.
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default);
+    // corate: the objective rate the returned Lt is expressed in (see corate_kinematics;
+    // 0 Jaumann, 1 Green-Naghdi, 2 XBM/log, 3 log_R, 4 Truesdell, 5 log_F). Default 3 = log_R,
+    // the framework's route. It is NOT a behaviour change for existing callers: corates 2 and 3
+    // resolve to the same exact spectral map, so 3 returns precisely the box the finite kernels
+    // used to bake unconditionally. Only the small-strain/in-rate kernels ignore it, since
+    // their tangent is already in the solver's frame.
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = 3);
     m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default);
 
     // Register the from-python converters for read and solver

@@ -712,6 +712,29 @@ arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, co
 arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, const arma::mat &F, const arma::mat &tau);
 
 /**
+ * @brief Box tangent in the requested corate, straight from the SPATIAL (Lie/Oldroyd) one.
+ *
+ * The closed form of a hyperelastic tangent is the spatial elasticity: the potential gives
+ * \f$ \mathbb{c} \f$, and \f$ J\,\mathbb{c} = \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
+ * is rate-free. This is the ONE map from there to the box
+ * \f$ \partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ of the solver's corate, so a
+ * kernel that knows the corate converts once instead of baking the log box and having the
+ * dispatcher un-bake and re-bake it (three maps, of which two cancelled).
+ *
+ * Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate corrections from
+ * \f$ \boldsymbol\tau \f$ and \f$ \mathbf{F} \f$; 2 (XBM), 3 (log_R) and 4 share the exact
+ * spectral map; 5 (log_F) is the convected/Oldroyd-Lie box, which IS the input — the
+ * identity, not an approximation.
+ *
+ * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
+ * @param corate_type the solver's corate (see corate_kinematics)
+ * @param F deformation gradient
+ * @param tau Kirchhoff stress (3x3)
+ * @return the box tangent in @p corate_type
+ */
+arma::mat Dtau_LieDD_2_DtauDe_corate(const arma::mat &Dtau_LieDD, const int &corate_type, const arma::mat &F, const arma::mat &tau);
+
+/**
  * @brief Assemble the canonical box tangent
  * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ (Kirchhoff, no-J, XBM/log rate)
  * that every finite UMAT must emit -- the single source of truth for the box-tangent convention.
