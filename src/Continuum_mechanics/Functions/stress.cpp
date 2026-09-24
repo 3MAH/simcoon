@@ -64,7 +64,20 @@ mat Cauchy2Biot(const mat &sigma, const mat &F, const mat &mR, const double &mJ)
 
     if (norm(R,1) < simcoon::iota) {
         mat U = zeros(3,3);
-        RU_decomposition(R,U,F);        
+        RU_decomposition(R,U,F);
+    }
+    return 0.5*(R.t()*PKI + PKI.t()*R);
+}
+
+mat Kirchoff2Biot(const mat &tau, const mat &F, const mat &mR) {
+
+    // No J anywhere on this route: PKI = tau*inv(F.t()) is already J-free.
+    mat PKI = Kirchoff2PKI(tau, F);
+    mat R = mR;
+
+    if (norm(R,1) < simcoon::iota) {
+        mat U = zeros(3,3);
+        RU_decomposition(R,U,F);
     }
     return 0.5*(R.t()*PKI + PKI.t()*R);
 }
