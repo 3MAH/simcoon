@@ -146,7 +146,11 @@ def test_stress_matches_finite_difference_of_the_energy(kappa_d, state):
 
 
 @pytest.mark.parametrize("kappa_d", [0.0, 0.1])
-def test_fibre_tangent_matches_finite_difference(kappa_d):
+@pytest.mark.parametrize("eps0", [
+    np.array([0.30, 0.22, -0.52, 0.0, 0.0, 0.0]),
+    np.array([0.34, 0.26, -0.34, 0.0, 0.0, 0.0]),
+], ids=["J=1", "J=1.30"])
+def test_fibre_tangent_matches_finite_difference(kappa_d, eps0):
     """The fibre TANGENT, with the fibres active.
 
     Every other Lt assertion in this file sits where the fibre term is identically zero
@@ -154,8 +158,14 @@ def test_fibre_tangent_matches_finite_difference(kappa_d):
     gamma_linear/gamma_quadratic would pass all of them. This one differences the stress
     the kernel returns against the tangent the kernel returns.
 
-    Measured detection power at this state: a 1 % error in the fibre tangent exceeds the
-    tolerance by ~4800x (kappa_d = 0) and ~2800x (kappa_d = 0.1).
+    Measured detection power at the J = 1 state: a 1 % error in the fibre tangent exceeds
+    the tolerance by ~4800x (kappa_d = 0) and ~2800x (kappa_d = 0.1).
+
+    TWO states, and the second is not redundant. The first has a trace of exactly 0.0, so
+    J = 1 and it is **blind to any error in a power of J** -- which is precisely the error
+    family a Kirchhoff/Cauchy refactor can introduce. The second carries J = exp(0.26) =
+    1.30, loading the volumetric block as well, so a stray or missing J anywhere on the
+    route shows up as a ~30 % discrepancy.
     """
     # A COAXIAL state with the fibres on principal axes: ln V and the perturbation commute,
     # so the box tangent's normal block IS d(tau)/d(eps) and the difference needs no rate
@@ -164,7 +174,6 @@ def test_fibre_tangent_matches_finite_difference(kappa_d):
     # 56-96 % of the normal block; at the default kappa = 1000 they are 0.03 % of it and
     # the check would pass whatever the fibre tangent returned.
     fibres = sim.Rotation.from_euler("zxz", [[0.0, 0.0, 0.0], [0.0, 0.0, 90.0]], degrees=True)
-    eps0 = np.array([0.30, 0.22, -0.52, 0.0, 0.0, 0.0])
     kappa = 5.0
     props = _props(kappa_d=kappa_d, fibres=fibres, kappa=kappa)
 

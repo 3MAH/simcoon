@@ -84,22 +84,24 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     //definition of the Right Cauchy-Green tensor
     vec Eel = t2v_strain(Green_Lagrange(F1));
         
-    //Compute the PKII stress and then the Cauchy stress
+    //Compute the PKII stress and then the Kirchhoff stress (the route stress)
     mat S = v2t_stress(el_pred(L, Eel, ndi));
-    sigma = t2v_stress(PKII2Cauchy(S, F1));
+    sigma = t2v_stress(PKII2Kirchoff(S, F1));
 
     // Box tangent in the canonical convention Lt = d(tau_hat)/d(De). For SVK the elastic
-    // stiffness L IS the material tangent dS/dE, so map it straight to the box tangent.
-    Lt = box_DtauDe_from_dSdE(L, F1, sigma);
-        
+    // stiffness L IS the material tangent dS/dE, so one map does it.
+    // NOT box_DtauDe_from_dSdE: that helper rebuilds tau as det(F)*its stress argument, i.e.
+    // it expects CAUCHY, and this kernel's stress is now tau -- feeding it here would square
+    // the J. (A wrong tangent does not move converged values, so the regression baseline
+    // cannot see this class of error; only the FD tangent tests can.)
+    Lt = DSDE_2_DtauDe(L, F1, v2t_stress(sigma));
+
     //Computation of the mechanical and thermal work quantities.
     // Wm is the Kirchhoff work per REFERENCE volume: tau:d(lnV), conjugate to the log-strain
-    // increment Detot. The box stress 'sigma' is the true Cauchy, so use tau = J*sigma (NOT
-    // sigma, which would give per-current-volume work) -- consistent with the small-strain
-    // (Kirchhoff-route) boxes whose route stress IS tau.
-    double J0 = det(F0), J1 = det(F1);
-    Wm   += 0.5*sum((J0*sigma_start + J1*sigma)%Detot);
-    Wm_r += 0.5*sum((J0*sigma_start + J1*sigma)%Detot);
+    // increment Detot. Both ends are ALREADY tau -- the kernel is Kirchhoff-native and the
+    // stored state is tau_n -- so no J enters here any more.
+    Wm   += 0.5*sum((sigma_start + sigma)%Detot);
+    Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

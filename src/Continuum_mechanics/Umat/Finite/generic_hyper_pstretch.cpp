@@ -115,17 +115,23 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
         Wm_d = 0.;
     }
 
-    mat m_sigma_iso = sigma_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors, J);
-    mat m_sigma_vol = sigma_vol_hyper(dUdJ, b, J);    
-    mat m_sigma = m_sigma_iso + m_sigma_vol;
-    sigma = t2v_stress(m_sigma);  
+    // Kirchhoff-native: the route stress IS tau, Cauchy is tau/J formed at the output boundary.
+    // The 3-argument tau_iso_hyper_pstretch needs no J at all.
+    mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
+    mat m_tau_vol = tau_vol_hyper(dUdJ, b, J);
+    mat m_tau = m_tau_iso + m_tau_vol;
+    sigma = t2v_stress(m_tau);
 
+    // These return the spatial elasticity c = (1/J) d(L_v tau)/dD, not d(L_v sigma)/dD (they
+    // differ by sigma (x) I). The J that turns c into the Kirchhoff-Lie tangent is applied once,
+    // below. L_iso carries an explicit 1/J and L_vol is J-free by cancellation, so they must be
+    // scaled as a sum -- see the note on L_vol_hyper.
     mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+    mat Lt_spatial = Lt_iso + Lt_vol;
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
-    Lt = box_DtauDe_from_spatial(Lt_spatial, F1, sigma);
+    Lt = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F1, m_tau);
 
     if(start) {
         L = Lt;
@@ -139,10 +145,10 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
 */
     
     //Computation of the mechanical and thermal work quantities.
-    // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
-    double J0 = det(F0);
-    Wm   += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
-    Wm_r += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
+    // Kirchhoff work per reference volume: tau:d(lnV). Both ends are ALREADY tau -- the kernel
+    // is Kirchhoff-native and the stored state is tau_n -- so no J enters here any more.
+    Wm   += 0.5*sum((sigma_start + sigma)%Detot);
+    Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

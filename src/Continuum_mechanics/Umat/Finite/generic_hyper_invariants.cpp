@@ -104,10 +104,10 @@ void umat_generic_hyper_invariants(const std::string &umat_name, const vec &etot
     }
 
     //Computation of the mechanical and thermal work quantities.
-    // Kirchhoff work per reference volume: tau:d(lnV) with tau = J*sigma (see saint_venant).
-    double J0 = det(F0);
-    Wm   += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
-    Wm_r += 0.5*sum((J0*sigma_start + J*sigma)%Detot);
+    // Kirchhoff work per reference volume: tau:d(lnV). Both ends are ALREADY tau -- the kernel
+    // is Kirchhoff-native and the stored state is tau_n -- so no J enters here any more.
+    Wm   += 0.5*sum((sigma_start + sigma)%Detot);
+    Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

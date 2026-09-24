@@ -837,7 +837,7 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
     return dW;
 }
 
-void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, vec &sigma, mat &Lt_box, const std::vector<mat> &A) {
+void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, vec &tau, mat &Lt_box, const std::vector<mat> &A) {
 
     if (A.size() != dW.dWdI_a_bar.n_elem || A.size() != dW.dW2dI_aa_bar.n_elem) {
         throw std::invalid_argument("hyper_invariants_response: " + std::to_string(A.size())
@@ -845,13 +845,22 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
                                     + std::to_string(dW.dWdI_a_bar.n_elem) + " fibre derivatives");
     }
 
-    mat m_sigma_iso = sigma_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
-    mat m_sigma_vol = sigma_vol_hyper(dW.dUdJ, b, J);
-    mat m_sigma = m_sigma_iso + m_sigma_vol;
+    // Kirchhoff throughout: tau is what the potential differentiates to per REFERENCE volume,
+    // and it is what every consumer on the finite route wants. Cauchy is tau/J, produced at the
+    // output boundary (solver_sink, the python wrapper), never on the route.
+    mat m_tau_iso = tau_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
+    mat m_tau_vol = tau_vol_hyper(dW.dUdJ, b, J);
+    mat m_tau = m_tau_iso + m_tau_vol;
 
+    // These two builders return the spatial elasticity c = (1/J) d(L_v tau)/dD -- NOT
+    // d(L_v sigma)/dD, which differs from it by sigma (x) I. The single J that turns c into the
+    // Kirchhoff-Lie tangent is applied once, below, where it is visible.
+    // The J is written ASYMMETRICALLY inside them (L_iso carries an explicit 1/J, L_vol carries
+    // none and is J-free by cancellation), so they must be scaled together as a sum and never
+    // "tidied" one at a time.
     mat Lt_iso = L_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b, J);
     mat Lt_vol = L_vol_hyper(dW.dUdJ, dW.dU2dJ2, b, J);
-    mat Lt_spatial = Lt_iso + Lt_vol;   // native hyperelastic tangent = Cauchy (Oldroyd/Lie) spatial elasticity, dsigma/dD
+    mat Lt_spatial = Lt_iso + Lt_vol;
 
     // Fibre terms: the I_1 algebra with b_bar replaced by the family's structure tensor.
     // kappa_d is already folded into A upstream, which is what keeps that substitution exact.
@@ -867,16 +876,17 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
                 continue;
             }
             const mat dev_A = dev(A[i]);
-            m_sigma += (2./J)*d1*dev_A;
+            m_tau += 2.*d1*dev_A;                                   // Kirchhoff: no 1/J
             Lt_spatial += (1./J)*(gamma_linear(dev_A, trace(A[i]), I_dev, Id)*d1
-                                  + gamma_quadratic(dev_A)*d2);
+                                  + gamma_quadratic(dev_A)*d2);     // in c, like the two above
         }
     }
-    sigma = t2v_stress(m_sigma);
+    tau = t2v_stress(m_tau);
 
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
-    // XBM rate) -- identical object to the small-strain boxes and saint_venant.
-    Lt_box = box_DtauDe_from_spatial(Lt_spatial, F, sigma);
+    // XBM rate) -- identical object to the small-strain boxes and saint_venant. J*Lt_spatial is
+    // the Kirchhoff-Lie tangent d(L_v tau)/dD that the spectral map consumes.
+    Lt_box = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F, m_tau);
 }
 
 } //namespace simcoon

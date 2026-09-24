@@ -196,7 +196,10 @@ bool stress_output_is_kirchhoff(const std::string &umat_name)
         "EPICP", "EPCHA", "MODUL",
         "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
         "EPANI", "EPDFA", "EPCHG", "EPHIN",
-        "PYEXT"};  // Python callback law: fed the log strain, returns tau (see umat_callback.hpp)
+        "PYEXT",   // Python callback law: fed the log strain, returns tau (see umat_callback.hpp)
+        // Kirchhoff-native since the finite kernels stopped detouring through Cauchy:
+        "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN",
+        "HOLZA"};
     return kirchhoff_box.count(umat_name) > 0;
 }
 

@@ -430,7 +430,10 @@ void run_yeohh(const vec& props, const mat& F1, vec& tau, mat& Lt) {
                                   static_cast<int>(props.n_elem), props, 1, statev,
                                   293., 0., 0., 1., Wm, Wr, Wi, Wd, 3, 3, false,
                                   tnew_dt, tangent_algorithmic);
-    tau = det(F1) * sigma;   // the finite kernels output Cauchy; MODUL outputs Kirchhoff
+    // Both sides are Kirchhoff-native now, so this bridge is a plain copy: that equality of
+    // convention is what the Kirchhoff-native refactor bought. It used to read
+    // `tau = det(F1)*sigma` because the finite kernels alone detoured through Cauchy.
+    tau = sigma;
 }
 
 }  // namespace
