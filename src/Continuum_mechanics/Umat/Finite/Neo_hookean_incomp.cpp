@@ -47,7 +47,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -131,7 +131,7 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     // The sum is the spatial elasticity c = (1/J) d(L_v tau)/dD; the J that turns it into the
     // Kirchhoff-Lie tangent is applied once here -- see the note on L_vol_hyper.
     mat Lt_spatial = L_iso_hyper_invariants(dWdI_1_bar, 0., 0., 0., 0., b, J) + L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F1, tau_t);
+    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, tau_t);
 
     if(start) {
         L = Lt;

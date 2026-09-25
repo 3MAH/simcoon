@@ -185,22 +185,108 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
     
 }
 
+const std::map<string, int> &finite_umat_names()
+{
+    // The finite dispatch's name -> id map. A file-scope accessor rather than a
+    // function-local static inside select_umat_M_finite so the convention test can iterate
+    // it; that removes a duplicate list rather than adding one. Plain types only: a
+    // function-local static of an armadillo type registers a destructor that runs at DLL
+    // unload, and on Windows that order is undefined.
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    return list_umat;
+}
+
+namespace {
+
+// The single convention table, behind a file-scope accessor so the throwing lookup and the
+// total predicate share one definition instead of one calling the other through a throw.
+// Plain types only: a function-local static of an armadillo type registers a destructor that
+// runs at DLL unload, and on Windows that order is undefined.
+const std::map<string, umat_convention> &umat_conventions()
+{
+    using SM = StressMeasure;
+
+    // Every NATIVE kernel is Kirchhoff. They split on the TANGENT instead, by who does the
+    // rate handling: a kernel fed the solver's corotated strain never builds a rate and is
+    // in_rate for free; a kernel that builds its tangent from F must commit to one before
+    // it knows the solver's, and commits to the log box.
+    static const std::map<string, umat_convention> conventions = {
+        // --- log-strain / small-strain boxes: the solver already did the rate handling ---
+        {"ELISO", {SM::kirchhoff}},
+        {"ELIST", {SM::kirchhoff}},
+        {"ELORT", {SM::kirchhoff}},
+        {"EPICP", {SM::kirchhoff}},
+        {"EPCHA", {SM::kirchhoff}},
+        {"EPKCP", {SM::kirchhoff}},
+        {"EPHIL", {SM::kirchhoff}},
+        {"EPTRI", {SM::kirchhoff}},
+        {"EPHAC", {SM::kirchhoff}},
+        {"EPANI", {SM::kirchhoff}},
+        {"EPDFA", {SM::kirchhoff}},
+        {"EPCHG", {SM::kirchhoff}},
+        {"EPHIN", {SM::kirchhoff}},
+        // MODUL builds its tangent from V_el in the corotated frame (R = I), so its log box
+        // IS d(tau)/d(eps_el) -- in-rate, but ONLY under corate 3, which it enforces.
+        {"MODUL", {SM::kirchhoff}},
+        // PYEXT: fed the log strain, returns tau (see umat_callback.hpp)
+        {"PYEXT", {SM::kirchhoff}},
+
+        // --- finite kernels: build the tangent from F, so they bake the log box ---
+        {"SNTVE", {SM::kirchhoff}},
+        {"NEOHI", {SM::kirchhoff}},
+        {"NEOHC", {SM::kirchhoff}},
+        {"MOORI", {SM::kirchhoff}},
+        {"YEOHH", {SM::kirchhoff}},
+        {"ISHAH", {SM::kirchhoff}},
+        {"GETHH", {SM::kirchhoff}},
+        {"SWANH", {SM::kirchhoff}},
+        {"OGDEN", {SM::kirchhoff}},
+        {"HOLZA", {SM::kirchhoff}},
+
+        // --- foreign conventions simcoon does not own ---
+        // HYPOO integrates a corotational CAUCHY rate (sigma = el_pred(sigma_start, L, DEel),
+        // hypoelastic_orthotropic.cpp:97). Declared rather than defaulted, which is the point
+        // of this table. Its Lt = L is dsigma/dD handed on as d(tau_hat)/dDe with no
+        // conversion -- off by J AND by sigma (x) I. KNOWN, tracked, not fixed here: the fix
+        // is a behaviour change needing its own baseline justification.
+        {"HYPOO", {SM::cauchy}},
+        // Plugin adapters: the contract is the host code's (Abaqus DDSDDE is Cauchy-based).
+        // UMABA is in fact unreachable today -- id 1 has no case in the finite switch, so it
+        // throws -- and UMEXT's body is fully commented out. Declared for completeness.
+        {"UMEXT", {SM::cauchy}},
+        {"UMABA", {SM::cauchy}},
+    };
+    return conventions;
+}
+
+}  // namespace
+
+umat_convention output_convention_of(const std::string &umat_name)
+{
+    const auto &conventions = umat_conventions();
+    auto it = conventions.find(umat_name);
+    if (it == conventions.end()) {
+        throw std::invalid_argument(
+            "output_convention_of: the umat '" + umat_name + "' has not declared what its raw "
+            "outputs are expressed in. Add it to the table in umat_smart.cpp: a missing stress "
+            "measure is an error of exactly J, a missing tangent rate is a wrong rate, and both "
+            "are silent.");
+    }
+    return it->second;
+}
+
 bool stress_output_is_kirchhoff(const std::string &umat_name)
 {
-    // Log-strain "box" kernels integrate the KIRCHHOFF stress directly
-    // (sigma = L : (ln V - hp), no 1/J): their raw in/out "sigma" is tau,
-    // not Cauchy. Genuine finite kernels (NEOHC, MOORI, ...) work in Cauchy.
-    // Used by select_umat_M_finite (internal Kirchhoff route) and by the
-    // python umat wrapper (Cauchy contract normalization at the boundary).
-    static const std::set<std::string> kirchhoff_box = {
-        "EPICP", "EPCHA", "MODUL",
-        "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
-        "EPANI", "EPDFA", "EPCHG", "EPHIN",
-        "PYEXT",   // Python callback law: fed the log strain, returns tau (see umat_callback.hpp)
-        // Kirchhoff-native since the finite kernels stopped detouring through Cauchy:
-        "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN",
-        "HOLZA"};
-    return kirchhoff_box.count(umat_name) > 0;
+    // Total where output_convention_of throws, and it shares that function's table rather than
+    // calling it: the python wrapper asks this for EVERY name it serves, including
+    // small-strain-only ones (SMADI, ZENER, the micro family) that the finite dispatch never
+    // sees and that therefore declare no finite convention. For those the answer is "leave the
+    // stress alone", not "refuse the call" -- and it must not cost a thrown exception per call.
+    // Inside the finite dispatch, where a missing declaration IS a bug, use
+    // output_convention_of and let it throw.
+    const auto &conventions = umat_conventions();
+    auto it = conventions.find(umat_name);
+    return it != conventions.end() && it->second.stress == StressMeasure::kirchhoff;
 }
 
 void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
@@ -274,7 +360,7 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
 
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    const std::map<string, int> &list_umat = finite_umat_names();
 
     // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
     // unknown name and silently return zero stress; -1 falls to the default case
@@ -296,7 +382,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 5: {
-                umat_hypoelasticity_ortho(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_hypoelasticity_ortho(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
              case 6: {
@@ -309,7 +395,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                  break;
              }
             case 8: {
-                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 201: {
@@ -341,15 +427,15 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 9: {
-                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }                         
             case 10: case 11: case 12: case 13: case 14: case 15: case 16: {
-                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 22: {
-                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 300: {
@@ -363,30 +449,27 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             }
         }
     
-        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Small-strain/
-        // log-strain boxes already return Kirchhoff (sigma = L:(ln V - hp), no 1/J); genuine finite boxes
-        // return Cauchy, mapped to tau here. Cauchy is a derived OUTPUT (tau/J), never on the route.
-        // Keyed on umat NAMES, not dispatch ids (see stress_output_is_kirchhoff:
-        // the ids are renumbered when kernels move; the legacy->201 remap once
-        // orphaned an id-keyed set. HYPOO kept in the Cauchy group for now).
-        if (stress_output_is_kirchhoff(rve.sptr_matprops->umat_name))
-            umat_M->tau = umat_M->sigma;                                                      // box output is already the Kirchhoff stress
+        // ONE declaration per kernel answers both of the questions below (see
+        // output_convention_of). It THROWS for a kernel that has not declared, which is how a
+        // newly added one is caught here rather than silently inheriting a default: a missing
+        // stress measure is an error of exactly J, a missing tangent rate is a wrong rate.
+        const umat_convention conv = output_convention_of(rve.sptr_matprops->umat_name);
+
+        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
+        // NATIVE kernel returns it directly, so this is a pass-through for all but the
+        // foreign-convention ones (HYPOO, a Cauchy-rate hypoelastic law, and the UMEXT/UMABA
+        // plugin adapters whose contract belongs to the host code). Cauchy is a derived OUTPUT
+        // (tau/J), never on the route.
+        if (conv.stress == StressMeasure::kirchhoff)
+            umat_M->tau = umat_M->sigma;                                                      // the kernel's output IS the Kirchhoff stress
         else
-            umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff
+            umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // Corate-exact tangent: the finite hyperelastic boxes bake Lt in the XBM rate regardless
-        // of corate; re-express it in the actual corate (no-op for corate 2 = XBM) so the consumer
-        // sees a matched tangent. Small-strain/hypoelastic boxes already emit it in-rate.
-        // Keyed on NAMES like the kirchhoff set above — ids are renumbered when kernels move.
-        static const std::set<std::string> xbm_baked_box = {
-            "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN",
-            "HOLZA"};
-        if (corate_type != 2 && xbm_baked_box.count(rve.sptr_matprops->umat_name) > 0) {
-            mat tau_t = v2t_stress(umat_M->tau);
-            mat dSdE = DtauDe_2_DSDE(umat_M->Lt, umat_M->F1, tau_t);  // un-bake XBM -> dS/dE
-            umat_M->Lt = DSDE_2_DtauDe_corate(dSdE, corate_type, umat_M->F1, tau_t);        // re-bake in the corate rate
-        }
+        // No tangent conversion here any more. Every kernel is handed corate_type and emits
+        // Lt IN that rate (Dtau_LieDD_2_DtauDe_corate, one map from the spatial closed form).
+        // This used to un-bake the log box to dS/dE and re-bake it -- three maps in all, of
+        // which two cancelled outright for corates 2, 3 and 4.
         rve.local2global();
 }
     
