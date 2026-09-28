@@ -64,6 +64,7 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Prony_Nfast.cpp
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Zener_fast.cpp
   Continuum_mechanics/Umat/Mechanical/Viscoelasticity/Zener_Nfast.cpp
+  Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.cpp
 
   # Continuum Mechanics - UMAT Thermomechanical Elasticity
   Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.cpp

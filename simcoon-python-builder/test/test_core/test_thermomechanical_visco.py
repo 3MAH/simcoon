@@ -72,8 +72,8 @@ def test_creep_recovery_dissipation_is_nonnegative(umat):
 
 @pytest.mark.parametrize("umat", sorted(_CREEP))
 def test_heat_source_derivatives_follow_the_returned_r(umat):
-    """drdE/drdT differentiate the r the kernel returns (flow directions frozen, continuum
-    dDs/dE): approximate, but no worse than the continuum dSdE they are built on."""
+    """The closed-form backward-Euler step gives the exact consistent derivatives: dSdE and
+    drdE/drdT match central differences of the returned stress and heat source."""
     props = _CREEP[umat][0].copy()
     props[4] = 1e-4                                    # thermal coupling on
     nstatev = _CREEP[umat][1]
@@ -101,5 +101,6 @@ def test_heat_source_derivatives_follow_the_returned_r(umat):
     fdrT = (call(De0, DT0 + hT)[2] - call(De0, DT0 - hT)[2]) / (2 * hT)
     err_S = np.abs(dSdE - fdS).max() / np.abs(fdS).max()
     err_r = np.abs(drdE - fdr).max() / np.abs(fdr).max()
-    assert err_r < 1.5 * err_S + 1e-3
-    assert abs(drdT - fdrT) < 5e-3 * abs(fdrT)
+    assert err_S < 1e-7
+    assert err_r < 1e-7
+    assert abs(drdT - fdrT) < 1e-6 * abs(fdrT)

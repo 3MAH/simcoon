@@ -388,7 +388,11 @@ integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
 3 = closest-point (reserved). Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
-the exact one of the hyperelastic law).
+the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
+``ZENNK``, ``PRONK`` and their thermomechanical versions) except for mode 0: their
+backward-Euler step is solved in closed form, so the tangent, and for the thermomechanical
+versions ``dSdT`` and the heat-source derivatives ``drdE``, ``drdT``, are the exact
+derivatives of the discrete update.
 
 Validation and performance
 ==========================

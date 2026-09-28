@@ -13,7 +13,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 
 using namespace std;
 using namespace arma;
@@ -79,7 +79,6 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
     mat L1 = L_iso(E1, nu1, "Enu");
     
     mat H1 = H_iso(etaB1, etaS1);                  //dimension of stiffness tensor
-    mat invH1 = inv(H1);
     
     if(start) { //Initialization
         T_init = T;
@@ -94,88 +93,20 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
     }
     
     //Variables at the start of the increment
-    vec DEV1 = zeros(6);
     vec EV1_start = EV1;
     vec A_v_start = stress_start - L1*EV1;
-    
-    //Variables required for the loop
-    vec s_j = zeros(1);
-    s_j(0) = v;
-    vec Ds_j = zeros(1);
-    vec ds_j = zeros(1);        
-    
-    //Determination of the initial, predicted stress
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV1;
+
+    // Implicit (backward-Euler) step of the Kelvin branch in closed form: the exact solution of
+    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
+    const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start},
+                                                  Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
+    EV1 = st.EV_i[0];
+    const vec DEV1 = EV1 - EV1_start;
+    v += norm_strain(DEV1);
+    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV1;
     stress = el_pred(L0, Eel, ndi);
+    Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
-    //Define the plastic function and the stress
-    vec Phi = zeros(1);
-    mat B = zeros(1,1);
-    vec Y_crit = zeros(1);
-    
-    double dPhidv=0.;
-    vec dPhidEv = zeros(6);
-    vec dPhidsigma = zeros(6);
-    
-    //Compute the explicit flow direction
-    vec flow_V1 = invH1*(stress-L1*EV1);
-    vec Lambdav = eta_norm_strain(flow_V1);
-    std::vector<vec> kappa_j(1);
-    kappa_j[0] = L0*Lambdav;
-    mat K = zeros(1,1);
-    
-    //Loop parameters
-    int compteur = 0;
-    double error = 1.;
-    
-    //Loop
-    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
-        v = s_j(0);
-
-        flow_V1 = (invH1*(stress-L1*EV1));
-        Lambdav = eta_norm_strain(flow_V1);
-        dPhidsigma = invH1*(eta_norm_strain(flow_V1)%Ir05()); //Dimension of strain (similar to Lambda in general)
-        
-        if (DTime > simcoon::iota) {
-            Phi(0) = norm_strain(flow_V1) - Ds_j(0)/DTime;
-            dPhidv = -1.*sum((dPhidsigma)%(L1*Lambdav))-1./DTime;
-        }
-        else {
-            //No time, no flow: the branch is INACTIVE. The stationary condition
-            //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
-            Phi(0) = 0.;
-            dPhidv = -1.;
-        }
-        kappa_j[0] = L0*Lambdav;
-        
-        K(0,0) = dPhidv;
-        B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
-        Y_crit(0) = norm_stress(flow_V1);
-        if (Y_crit(0) < simcoon::precision_umat) {
-            Y_crit(0) = simcoon::precision_umat;
-        }
-        
-        Newton_Raphon(Phi, Y_crit, B, Ds_j, ds_j, error);
-        
-        s_j(0) += ds_j(0);
-        EV1 = EV1 + ds_j(0)*Lambdav;
-        DEV1 = DEV1 + ds_j(0)*Lambdav;
-        
-        //the stress is now computed using the relationship stress = L(E-Ep)
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV1;
-        stress = el_pred(L0, Eel, ndi);
-    }
-    
-    //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
-    mat Bhat = zeros(1, 1);
-    Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-
-    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L0);
-    Lt = ct.Lt;
-    const std::vector<vec>& P_epsilon = ct.P_epsilon;
-    
     vec A_v = stress-L1*EV1;
     double Dgamma_loc = 0.5*sum((A_v_start + A_v)%DEV1);
     

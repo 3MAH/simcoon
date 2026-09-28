@@ -810,3 +810,59 @@ def test_damage_driving_force_is_the_undamaged_energy():
     exact = (psi0 ** 2 - Y0 ** 2) / (2. * (Yc - Y0))
     assert abs(wd[1] - exact) < 0.3 * abs(wd[0] - exact), "first order (explicit damage)"
     assert abs(wd[1] - exact) < 0.01 * exact
+
+
+@pytest.mark.parametrize("umat", ["ZENER", "ZENNK", "PRONK"])
+def test_viscoelastic_step_is_exact_backward_euler(umat):
+    """The linear viscoelastic kernels take the closed-form implicit step: the stress is the
+    backward-Euler solution, and Lt its exact derivative (central differences)."""
+    E0, nu0 = 3000., 0.35
+    branches = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
+    if umat == "ZENER":
+        branches = branches[:1]
+        props, nstatev = np.array([E0, nu0, 0., *branches[0]]), 8
+    else:
+        props = np.array([E0, nu0, 0., len(branches)] + [x for b in branches for x in b])
+        nstatev = 7 + 7 * len(branches)
+    L = lambda E, n: np.asarray(sim.L_iso([E, n], "Enu"))
+    Hv = lambda b, s: np.asarray(sim.L_iso([b, s], "Kmu"))       # 3 etaB Ivol + 2 etaS Idev
+    L0 = L(E0, nu0)
+    rng = np.random.default_rng(3)
+    eps_n, De, dt = 2e-3 * rng.standard_normal(6), 1e-3 * rng.standard_normal(6), 0.3
+    EVn = [1e-3 * rng.standard_normal(6) for _ in branches]
+    sv = np.zeros(nstatev)
+    sv[0] = 290.
+    if umat == "ZENER":
+        sv[2:8] = EVn[0]
+        sig = L0 @ (eps_n - EVn[0])
+    else:
+        for i, e in enumerate(EVn):
+            sv[8 + 7 * i:14 + 7 * i] = e
+        if umat == "ZENNK":
+            sig = L0 @ (eps_n - sum(EVn))
+        else:
+            sig = L0 @ eps_n - sum(L(*b[:2]) @ e for b, e in zip(branches, EVn))
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+
+    def call(d):
+        return sim.umat(umat, col(eps_n), col(d), I3, I3, col(sig), I3, col(props), col(sv), 0.5, dt,
+                        np.zeros((4, 1), order="F"), n_threads=1)
+
+    s, _, Wm, Lt = call(De)
+    e1 = eps_n + De
+    if umat in ("ZENER", "ZENNK"):
+        C = [dt * np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) for b in branches]
+        relaxed = [np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) @ Hv(*b[2:]) @ e for b, e in zip(branches, EVn)]
+        ref = np.linalg.solve(np.eye(6) + L0 @ sum(C), L0 @ (e1 - sum(relaxed)))
+    else:
+        ref = L0 @ e1
+        for b, e in zip(branches, EVn):
+            Li, Hi = L(*b[:2]), Hv(*b[2:])
+            A = np.linalg.inv(Hi + dt * Li)
+            ref = ref - Li @ (A @ Hi @ e + dt * A @ Li @ e1)
+    np.testing.assert_allclose(s[:, 0], ref, rtol=1e-12, atol=1e-12 * np.abs(ref).max())
+    h = 1e-8
+    fd = np.column_stack([(call(De + h * u)[0][:, 0] - call(De - h * u)[0][:, 0]) / (2 * h) for u in np.eye(6)])
+    assert np.linalg.norm(Lt[:, :, 0] - fd) < 1e-8 * np.linalg.norm(fd)
+    assert Wm[3, 0] > 0.

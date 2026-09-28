@@ -11,6 +11,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 using namespace std;
 using namespace arma;
 
@@ -93,12 +94,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
 
     std::vector<mat> L_i(N_prony);
     std::vector<mat> H_i(N_prony);
-    std::vector<mat> invH_i(N_prony);
     
     for (int i=0; i<N_prony; i++) {
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
-        invH_i[i] = inv(H_i[i]);
 
         //Unconditionally, as the mechanical Prony_Nfast does: a default-constructed
         //arma::vec has size 0, so the `A_v_start[i] +=` below threw
@@ -133,173 +132,33 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     double c_0 = rho*c_p;
     
     //Variables at the start of the increment
-    vec DEV_tilde = zeros(6);
-    vec EV_tilde_start = EV_tilde;
+    const std::vector<vec> EV_i_start = EV_i;
     for (int i=0; i<N_prony; i++) {
         A_v_start[i] += L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
     }
-    
-    //Variables required for the loop
-    vec s_j = v;
-    vec Ds_j = zeros(N_prony);
-    vec ds_j = zeros(N_prony);
-    
-    //Determination of the initial, predicted stress
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV_tilde;
-    vec DEel = DEtot - alpha*(DT);
-    if (ndi == 1) {
-        sigma(0) = sigma_start(0) + E0*DEel(0);
-    }
-    else if (ndi == 2) {
-        sigma(0) = sigma_start(0) + E0/(1. - (nu0*nu0))*(DEel(0)) + nu0*(DEel(1));
-        sigma(1) = sigma_start(1) + E0/(1. - (nu0*nu0))*(DEel(1)) + nu0*(DEel(0));
-        sigma(3) = sigma_start(3) + E0/(1.+nu0)*0.5*DEel(3);
-    }
-    else
-    sigma = sigma_start + (L0*DEel);
 
-    //Define the plastic function and the stress
-    vec Phi = zeros(N_prony);
-    mat B = zeros(N_prony,N_prony);
-    vec Y_crit = zeros(N_prony);
-    
-    vec dPhidv = zeros(N_prony);
-    std::vector<vec> dPhidEv(N_prony);
-    std::vector<vec> dPhi_idv_temp(N_prony);
+    // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
+    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
+    const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start,
+                                                     Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
+    EV_tilde = zeros(6);
     for (int i=0; i<N_prony; i++) {
-        dPhidEv[i] = zeros(6);
-        dPhi_idv_temp[i] = zeros(6);
+        EV_i[i] = st.EV_i[i];
+        DEV_i[i] = EV_i[i] - EV_i_start[i];
+        v(i) += norm_strain(DEV_i[i]);
+        EV_tilde += (M0*L_i[i])*EV_i[i];
     }
-    
-    //Compute the explicit flow direction
-    std::vector<vec> flow_visco(N_prony);
-    std::vector<vec> Lambdav(N_prony);
-    std::vector<vec> kappa_j(N_prony);
-    for (int i=0; i<N_prony; i++) {
-        flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot-alpha*(T+DT-T_init)-EV_i[i]));
-        Lambdav[i] = eta_norm_strain(flow_visco[i]);
-        kappa_j[i] = L_i[i]*Lambdav[i];
+    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde;
+    sigma = el_pred(L0, Eel, ndi);
+    if (tangent_mode == tangent_none) {
+        dSdE = L0;
+        dSdT = -L0*alpha;
     }
-    
-    mat K = zeros(N_prony,N_prony);
-    
-    //Loop parameters
-    int compteur = 0;
-    double error = 1.;
-
-    //Loop
-    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
-        v = s_j;
-
-        for (int i=0; i<N_prony; i++) {
-            flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot-alpha*(T+DT-T_init)-EV_i[i]));
-            Lambdav[i] = eta_norm_strain(flow_visco[i]);
-            dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
-            kappa_j[i] = L_i[i]*Lambdav[i];
-            
-            if (DTime > simcoon::iota) {
-                Phi(i) = norm_strain(flow_visco[i]) - Ds_j(i)/DTime;
-                dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
-            }
-            else {
-                //No time, no flow: the branch is INACTIVE. The stationary condition
-                //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
-                Phi(i) = 0.;
-                dPhidv[i] = -1.;
-            }
-            kappa_j[i] = L_i[i]*Lambdav[i];
-            K(i,i) = dPhidv[i];
-        }
-        
-        B = zeros(N_prony,N_prony);
-        for (int i=0; i<N_prony; i++) {
-            B(i, i) = K(i,i);
-            Y_crit(i) = norm_strain(flow_visco[i]);
-            if (Y_crit(i) < simcoon::precision_umat) {
-                Y_crit(i) = simcoon::precision_umat;
-            }
-        }
-        
-        Newton_Raphon(Phi, Y_crit, B, Ds_j, ds_j, error);
-
-        EV_tilde = zeros(6);
-        for (int i=0; i<N_prony; i++) {
-            s_j(i) += ds_j(i);
-            DEV_tilde += (M0*L_i[i])*(ds_j(i)*Lambdav[i]);
-            EV_i[i] += ds_j(i)*Lambdav[i];
-            DEV_i[i] += ds_j(i)*Lambdav[i];
-            EV_tilde += (M0*L_i[i])*EV_i[i];
-        }
-        
-        //the stress is now computed using the relationship sigma = L0 E-sum LpEp
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde;
-        DEel = DEtot - alpha*(DT) - DEV_tilde;
-        if (ndi == 1) {
-            sigma(0) = sigma_start(0) + E0*DEel(0);
-        }
-        else if (ndi == 2) {
-            sigma(0) = sigma_start(0) + E0/(1. - (nu0*nu0))*(DEel(0)) + nu0*(DEel(1));
-            sigma(1) = sigma_start(1) + E0/(1. - (nu0*nu0))*(DEel(1)) + nu0*(DEel(0));
-            sigma(3) = sigma_start(3) + E0/(1.+nu0)*0.5*DEel(3);
-        }
-        else
-        sigma = sigma_start + (L0*DEel);
-    }
-    
-    // Tangent modulus for prony series
-    // L0 - summation( (L_i[i]*Lambdav[i]) \dyad (dPhi_idv_temp[i]*Lambdav[i])/A[i] )
-    // where A[i]= K(i,i)
-                          
-    mat Bhat = zeros(N_prony, N_prony);
-    
-    vec op = zeros(N_prony);
-    mat delta = eye(N_prony,N_prony);
-    mat Bbar = zeros(N_prony,N_prony);
-    mat invBbar = zeros(N_prony, N_prony);
-    mat invBhat = zeros(N_prony, N_prony);
-    std::vector<vec> P_epsilon(N_prony);
-    std::vector<double> P_theta(N_prony);
-    dSdE = L0;
-    dSdT = -1.*L0*alpha;
-    
-    for (int i=0; i<N_prony; i++) {
-        P_epsilon[i] = zeros(6);
-        P_theta[i] = 0.;
-    }
-    
-    for (int i=0; i<N_prony; i++) {
-        
-        if(Ds_j(i) > simcoon::iota)
-            op(i) = 1.;
-        
-        for (int j = 0; j <N_prony; j++) {
-            Bhat(i, j) = - K(i,j);
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
+    else {
+        dSdE = st.dSdE;
+        dSdT = st.dSdT;
     }
 
-    invBbar = inv(Bbar);
-    
-    for (int i=0; i<N_prony; i++) {
-        for (int j = 0; j <N_prony; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    for (int i=0; i<N_prony; i++) {
-        for (int j = 0; j <N_prony; j++) {
-            P_epsilon[i] += invBhat(j, i)*(L_i[j]*dPhi_idv_temp[j]);
-            P_theta[i] += invBhat(j, i)*sum(dPhi_idv_temp[j]%(L_i[j]*alpha));
-        }
-        dSdE += -1.*(kappa_j[i]*P_epsilon[i].t());
-        dSdT +=  -1.*(kappa_j[i]*P_theta[i]);
-    }
-    
-    for (int i=0; i<N_prony; i++) {
-        A_v[i] += L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);
-    }
-    
     //computation of the internal energy production
     double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);
     double eta_r_start = c_0*log(T/T_init) + sum(alpha%sigma_start);
@@ -313,24 +172,25 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     double Deta = eta - eta_start;
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
-    
-    // r = (Dgamma - Tm alpha:(sigma - sigma_start) - rho c_p DT)/DTime, midpoint Tm as Wt: the
-    // heat source of the actual increments (a linearisation in (DEtot, DT) would vanish during a
-    // strain hold while the branches relax). drdE/drdT differentiate it with the flow directions
-    // frozen and the continuum dDs_i/dE = P_epsilon[i], dDs_i/dT = P_theta[i]: approximate, like
-    // dSdE (no algorithmic tangent here); the converged r is exact.
-    // branch forces L_i (E - alpha dT - EV_i): dA_i/dE = L_i (I - Lambda_i P_epsilon_i^T),
-    // dA_i/dT = -L_i (alpha + Lambda_i P_theta_i)
+
+    // branch forces L_i (E - alpha dT - EV_i): dA_i/dE = L_i (I - dEV_i/dE),
+    // dA_i/dT = -L_i (alpha + dEV_i/dT)
     double Dgamma_loc = 0.;
     vec dDgamma_dE = zeros(6);
     double dDgamma_dT = 0.;
     for (int i=0; i<N_prony; i++) {
+        A_v[i] = L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);
         const vec A_mid2 = A_v_start[i] + A_v[i];
-        const vec LLambda = L_i[i]*Lambdav[i];
+        const mat &dEVdE = st.dEVdE_i[i];
+        const vec &dEVdT = st.dEVdT_i[i];
         Dgamma_loc += 0.5*sum(A_mid2%DEV_i[i]);
-        dDgamma_dE += 0.5*(L_i[i]*DEV_i[i] - sum(DEV_i[i]%LLambda)*P_epsilon[i] + sum(A_mid2%Lambdav[i])*P_epsilon[i]);
-        dDgamma_dT += 0.5*(-sum(DEV_i[i]%(L_i[i]*alpha)) - sum(DEV_i[i]%LLambda)*P_theta[i] + sum(A_mid2%Lambdav[i])*P_theta[i]);
+        dDgamma_dE += 0.5*((L_i[i]*(eye(6,6) - dEVdE)).t()*DEV_i[i] + dEVdE.t()*A_mid2);
+        dDgamma_dT += 0.5*(-sum((L_i[i]*(alpha + dEVdT))%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
+
+    // r = (Dgamma - Tm alpha:(sigma - sigma_start) - rho c_p DT)/DTime, midpoint Tm as Wt: the heat
+    // source of the actual increments (it keeps flowing while the branches relax under a strain
+    // hold). With the closed-form step, drdE/drdT are its exact derivatives.
     if (DTime < 1.E-12) {
         r = 0.;
         drdE = zeros(6);
@@ -339,8 +199,8 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     else {
         const double Tm = T + 0.5*DT;
         r = (Dgamma_loc - Tm*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
-        drdE = (dDgamma_dE - Tm*(dSdE.t()*alpha))/DTime;
-        drdT = (dDgamma_dT - 0.5*sum(alpha%(sigma - sigma_start)) - Tm*sum(alpha%dSdT) - rho*c_p)/DTime;
+        drdE = (dDgamma_dE - Tm*(st.dSdE.t()*alpha))/DTime;
+        drdT = (dDgamma_dT - 0.5*sum(alpha%(sigma - sigma_start)) - Tm*sum(alpha%st.dSdT) - rho*c_p)/DTime;
     }
     
     //Computation of the mechanical and thermal work quantities
