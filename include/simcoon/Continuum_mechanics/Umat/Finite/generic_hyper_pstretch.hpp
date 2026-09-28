@@ -45,10 +45,14 @@ namespace simcoon{
  *   Constraints (validated, throws std::invalid_argument): \f$ N \geq 1 \f$ and every \f$ \alpha_i \neq 0 \f$.
  *   The ground-state shear modulus is \f$ \mu = \sum_i \mu_i \f$; N=1, \f$ \alpha_1 = 2 \f$ recovers the compressible neo-Hookean potential (NEOHC).
  *
- * The Cauchy stress and the spatial tangent are assembled from the isochoric principal-stretch
- * machinery (sigma_iso_hyper_pstretch / L_iso_hyper_pstretch) plus the volumetric part
- * (sigma_vol_hyper / L_vol_hyper); the returned Lt follows the canonical box convention
- * \f$ \partial \hat{\tau} / \partial D_e \f$ (see generic_hyper_invariants).
+ * The Kirchhoff stress \f$ \boldsymbol{\tau} \f$ is assembled from the isochoric
+ * principal-stretch machinery (tau_iso_hyper_pstretch) plus the volumetric part
+ * (tau_vol_hyper), and is what @p sigma carries: the kernel is Kirchhoff-native, Cauchy
+ * \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed only at the output boundaries.
+ * The spatial tangent comes from L_iso_hyper_pstretch / L_vol_hyper and is converted once,
+ * by Dtau_LieDD_2_DtauDe_corate, to the box
+ * \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$ in @p corate_type, the
+ * solver's objective rate (see generic_hyper_invariants).
  *
  * statev(0) stores the initial temperature; nstatev = 1.
  */

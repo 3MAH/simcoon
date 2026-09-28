@@ -347,6 +347,29 @@ public:
      * \f$ \mathbf{L} \f$ itself. Under NLGEOM the caller feeds the elastic
      * LOGARITHMIC strain and the stress is Kirchhoff.
      *
+     * @note A hyperelastic block evaluates its potential at the ELASTIC state only:
+     *       \f$ \mathbf{V}^{el} = \exp(\boldsymbol{\varepsilon}^{el}) \f$,
+     *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
+     *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
+     *       - The block defines a stored energy per REFERENCE volume,
+     *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
+     *         returns \f$ \boldsymbol{\tau} = \partial \psi / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$ -- the route's Kirchhoff stress, exactly as ELISO
+     *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
+     *         \f$ \boldsymbol{\tau}/J \f$ with the total \f$ J \f$. \f$ J^{el} \f$ is only the
+     *         argument of \f$ U \f$, so a stress-free volumetric inelastic strain (free thermal
+     *         expansion) stays stress-free. A multiplicative model with the energy per
+     *         INTERMEDIATE volume would instead scale this stress by
+     *         \f$ \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{in}) \f$; that is a different
+     *         modelling choice, which no simcoon law makes.
+     *       - The tangent is requested in corate 3 (log_R) whatever the solver's corate: in the
+     *         corotated frame (\f$ \mathbf{R} = \mathbf{I} \f$) the log box with respect to
+     *         \f$ \ln \mathbf{V}^{el} \f$ IS \f$ \partial \boldsymbol{\tau} / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$. MODUL under finite strain refuses any other
+     *         corate (select_umat_M_finite), and that guard is what makes this exact.
+     *
+     *       The linear blocks carry no \f$ J \f$ and build no rate, so neither applies to them.
+     *
      * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
      * @param[in]  ndi number of direct stress components. ndi < 3 statically
      *             condenses the STRESS only — the tangent is always the full

@@ -98,6 +98,17 @@ run gives every conjugate pair:
 
 .. note::
 
+   Internally the finite-strain solver carries the Kirchhoff stress
+   :math:`\boldsymbol{\tau}`: the constitutive kernels and the energies
+   :math:`W_m` work on it, and the prescribed PKII and Biot stresses are
+   derived from it. ``Kirchhoff`` is that stress as integrated; ``Stress`` is
+   the Cauchy stress :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J` formed
+   at output and stays the default measure. See
+   :ref:`stress-measure-tangent-rate` for the kernel contract and the
+   ``sim.umat`` boundary used by fedoo.
+
+.. note::
+
    In small deformations (``control_type="small_strain"``) all strain measures
    reduce to the infinitesimal strain and all stress measures to the Cauchy
    stress. Shear strain

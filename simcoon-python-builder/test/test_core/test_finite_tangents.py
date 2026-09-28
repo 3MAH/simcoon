@@ -2,15 +2,16 @@
 
 Why this file exists: **a wrong tangent does not move converged solver values.** Newton
 finds the same root with a poor Jacobian, so `regression_baseline.py` -- 100 combos of
-umat x control type x corate -- is structurally blind to this entire class of error.
+umat x control type x corate -- is structurally blind to this entire class of error. It
+caught neither of the two real tangent defects found in this area:
 
-It did not catch the defect this file was written for: ``saint_venant`` fed its stress to
-``box_DtauDe_from_dSdE``, a helper that rebuilds ``tau = det(F)*sigma`` and therefore
-expects **Cauchy**, after the kernel had been made Kirchhoff-native -- squaring the J. The
-regression matrix stayed IDENTICAL throughout.
+* ``saint_venant`` fed its stress to a helper that rebuilds ``tau = det(F)*sigma``, i.e.
+  expects **Cauchy**, after the kernel had been made Kirchhoff-native -- squaring the J;
+* ``HYPOO`` handed over ``dsigma/dD`` where the consumer reads ``d(tau_hat)/dDe`` (it now
+  integrates the Kirchhoff rate, for which ``L`` is the box itself).
 
-Both known defects of this kind are invisible at J = 1, so the state below carries J well
-away from 1 and the docstring states the relative size a J error would have.
+Both are invisible at J = 1, so every state here carries J well away from 1 and the
+docstrings state the relative size a J error would have.
 """
 
 import numpy as np
@@ -108,6 +109,54 @@ def test_jaumann_and_green_naghdi_differ_from_the_log_box():
             _, other = _umat(name, props, _F(EPS0), nstatev, corate=corate)
             assert np.abs(other - log_box).max() > 1e-9 * scale, \
                 f"{name}: corate {corate} returned the log box unchanged"
+
+
+HYPOO_PROPS = [70000., 60000., 50000., 0.3, 0.28, 0.25, 26000., 22000., 20000., 0., 0., 0.]
+
+
+def _hypoo(De, props=HYPOO_PROPS):
+    """One HYPOO increment from the reference state, with F1 consistent as exp(De).
+
+    HYPOO is a RATE kernel: it responds to ``Detot``, not to the total strain, so any
+    difference is taken along the increment.
+    """
+    De = np.asarray(De, dtype=float)
+    F1 = expm(sim.v2t_strain(De)).reshape(3, 3, 1).copy(order="F")
+    eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    stress, _, _, Lt = sim.umat(
+        "HYPOO", np.zeros((6, 1), order="F"), np.asfortranarray(De.reshape(6, 1)),
+        eye, F1, np.zeros((6, 1), order="F"), eye,
+        np.asfortranarray(np.asarray(props, dtype=float).reshape(-1, 1)),
+        np.zeros((1, 1), order="F"), 0.0, 1.0,
+        np.zeros((4, 1), order="F"), n_threads=1, corate=3)
+    return np.asarray(stress).ravel(), Lt[:, :, 0], float(np.linalg.det(F1[:, :, 0]))
+
+
+def test_hypoelastic_integrates_the_kirchhoff_rate():
+    """HYPOO integrates ``tau_{n+1} = tau_n + L : DEel``, so ``L`` IS its box tangent.
+
+    ``sim.umat`` exposes Cauchy, as for every other law: the returned stress is
+    ``tau / J1``. At this state J is 4 % away from 1, so a Cauchy-rate integration (or a
+    missing boundary conversion) would show here at that size.
+    """
+    De0 = np.array([0.09, -0.03, -0.02, 0.0, 0.0, 0.0])
+    cauchy, Lt, J = _hypoo(De0)
+    assert abs(J - 1.0) > 0.03, "J must be away from 1 or a measure error is invisible"
+
+    L_ortho = np.asarray(sim.L_ortho(HYPOO_PROPS[:9], "EnuG"))
+    np.testing.assert_allclose(Lt, L_ortho, rtol=1e-12, atol=1e-9)
+    np.testing.assert_allclose(J * cauchy, L_ortho @ De0, rtol=1e-12, atol=1e-9)
+
+    d = 1e-6
+    for col in range(6):
+        step = np.zeros(6)
+        step[col] = d
+        cp, _, Jp = _hypoo(De0 + step)
+        cm, _, Jm = _hypoo(De0 - step)
+        fd = (Jp * cp - Jm * cm) / (2.0 * d)
+        np.testing.assert_allclose(fd, Lt[:, col], rtol=1e-6,
+                                   atol=1e-6 * np.abs(Lt).max(),
+                                   err_msg=f"HYPOO: d(tau)/d(De) column {col}")
 
 
 def test_log_F_box_is_the_spatial_tangent_itself():
