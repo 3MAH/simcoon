@@ -1,10 +1,9 @@
 """HYPOO against ELORT: the rate and the total form of the same orthotropic stiffness.
 
 Both are Kirchhoff-native, so any difference between them is the integration form, never
-the stress measure. Along a path without rotation increments the two are identical; under
-rotation the rate form differs by a first-order time-discretisation gap (present even for an
-isotropic stiffness) and, for an anisotropic one, by the non-commutation of the stress
-transport with L -- the effect the pair exists to show.
+the stress measure. For an isotropic L they are the same law on any path, rotation included
+(the transported strain and stress satisfy the same recursion). For an anisotropic L they
+differ under rotation, by an amount of order one: HYPOO is kept as that reference.
 """
 
 import numpy as np
@@ -32,7 +31,7 @@ def _shear(name, props, ninc, gamma=1.0):
     return res["Kirchhoff"][:, -1]
 
 
-def _gap(props, ninc):
+def _gap(props, ninc=100):
     tau_e, tau_h = _shear("ELORT", props, ninc), _shear("HYPOO", props, ninc)
     return np.abs(tau_h - tau_e).max() / np.abs(tau_e).max()
 
@@ -46,12 +45,16 @@ def test_hypoo_equals_elort_without_rotation(corate):
                                    atol=1e-12 * np.abs(e[key]).max(), err_msg=key)
 
 
-def test_hypoo_shear_gap_is_discretisation_for_iso_and_anisotropy_for_ortho():
-    """Isotropic L: a first-order gap that halves with the increment. Orthotropic L: a gap
-    of order one, far above the discretisation part."""
-    iso_100, iso_200 = _gap(ISO, 100), _gap(ISO, 200)
-    assert iso_100 < 0.02
-    assert iso_200 < 0.6 * iso_100, "the isotropic gap must shrink at first order"
+def test_hypoo_equals_elort_in_shear_for_isotropic_L():
+    """Isotropic L: the rate and the total form coincide exactly, even in simple shear.
 
-    ort_100 = _gap(ORT, 100)
-    assert ort_100 > 20.0 * iso_100, "the anisotropic gap must dominate the discretisation"
+    This used to show a ~1 % first-order gap, which was the transport defect of the finite
+    route (the total form received its start strain untransported), not a property of the
+    rate form.
+    """
+    assert _gap(ISO) < 1e-12
+
+
+def test_hypoo_departs_from_elort_in_shear_for_orthotropic_L():
+    """Orthotropic L: the two are different laws under rotation (reference effect)."""
+    assert _gap(ORT) > 0.1

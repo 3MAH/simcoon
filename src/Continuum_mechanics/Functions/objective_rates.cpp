@@ -322,8 +322,15 @@ void Truesdell(mat &DF, mat &D, mat &L, const double &DTime, const mat &F0, cons
 
     //Note that The "spin" is actually L (spin for rigid frames of reference, "flot" for Truesdell)    
     D = 0.5*(L+L.t());
-    
-    DF = Hughes_Winget(L, DTime);
+
+    // The convected transport is exact: DF = F1 F0^-1, so the closed-form Almansi increment of
+    // Delta_log_strain_corate recovers e_A(F1) exactly.
+    try {
+        DF = F1*inv(F0);
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside Truesdell (DF).");
+    }
 }
 
 mat Hughes_Winget(const mat &Omega, const double &DTime) {
@@ -527,8 +534,9 @@ void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, cons
     }
 }
 
-// Corate-dispatched log-strain increment (full doc in objective_rates.hpp): A^F:D rate for log_F(5),
-// closed form for XBM(2), A^R:D for log_R(3), plain D for Jaumann/GN/Truesdell(0/1/4).
+// Corate-dispatched strain increment (full doc in objective_rates.hpp): A^F:D rate for log_F(5),
+// closed form for XBM(2), A^R:D for log_R(3), closed-form Almansi for Truesdell(4), plain D for
+// Jaumann/GN(0/1).
 mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
     if (corate_type == 5) {   // log_F: convected A^F:D rate (Omega carries the velocity gradient L)
         return Delta_log_strain_F(v2t_strain(A_F(F1)*t2v_strain(D)), Omega, DTime);
@@ -544,7 +552,10 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
     // natural-basis rotation -- stacking both double-counts the log_R correction (undershoots ln V
     // by ~11% under large open shear). A^R:D alone is the correct, self-consistent formulation.
     if (corate_type == 3) return Delta_log_strain(v2t_strain(A_R(F1)*t2v_strain(D)), Omega, DTime);  // log_R: A^R:D
-    return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN / Truesdell
+    if (corate_type == 4) {   // Truesdell: e_A(F1) = DF^-T e_A(F0) DF^-1 + De, exactly, with DR = DF
+        return 0.5*(eye(3,3) - inv_sympd(DR*DR.t()));
+    }
+    return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN
 }
 
 // ---------------------------------------------------------------------------
@@ -905,6 +916,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
     switch (corate_type) {
         case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
         case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // plain GN: path-integral strain -> rate identity
+        case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
         case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // log_F: F-transport, "spin" L -> convected/Lie
         case 2:                                                     // XBM (logarithmic)
         case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
@@ -920,6 +932,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
     switch (corate_type) {
         case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
         case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // plain GN: rate identity (see forward map)
+        case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
         case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                   // log_F: F-transport, "spin" L -> convected/Lie
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
@@ -934,6 +947,7 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
     switch (corate_type) {
         case 0:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau);
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
+        case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
         case 5:  return Dtau_LieDD;                                   // log_F: the box IS the Lie tangent
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map

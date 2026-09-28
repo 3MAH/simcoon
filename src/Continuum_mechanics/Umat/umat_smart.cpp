@@ -36,6 +36,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -365,6 +366,26 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     const mat &DR = umat_M->DR;
 
+    // Transport the start state with THIS increment's DR before the kernel sees it, so the
+    // total strain, the start stress and the internal variables (rotated by DR inside the
+    // kernels) all live in the same configuration. The stored etot is left untransported:
+    // set_start transports it at commit, together with the increment it belongs to.
+    const vec etot_stored = umat_M->etot;
+    if (corate_type != 4 && corate_type != 5) {
+        umat_M->etot = rotate_strain(etot_stored, DR);
+        umat_M->sigma = rotate_stress(umat_M->sigma, DR);
+    }
+    else if (corate_type == 4) {   // Truesdell, DR = DF: strain lower-, Kirchhoff stress upper-convected
+        const mat DR_inv = inv(DR);
+        umat_M->etot = t2v_strain(DR_inv.t()*v2t_strain(etot_stored)*DR_inv);
+        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR.t());
+    }
+    else {   // log_F, DR = DF: similarity transport, as in set_start
+        const mat DR_inv = inv(DR);
+        umat_M->etot = t2v_strain(DR*v2t_strain(etot_stored)*DR_inv);
+        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR_inv);
+    }
+
     switch (id_umat) {
 
             case 0: {
@@ -460,6 +481,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         // Lt IN that rate (Dtau_LieDD_2_DtauDe_corate, one map from the spatial closed form).
         // This used to un-bake the log box to dS/dE and re-bake it -- three maps in all, of
         // which two cancelled outright for corates 2, 3 and 4.
+        umat_M->etot = etot_stored;
         rve.local2global();
 }
     
@@ -614,8 +636,8 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
 //        break;
 //        }
         default: {
-            cout << "Error: The control type of the block does not correspond" << endl;
-            exit(0);
+            throw simcoon::exception_solver("run_umat: control type " + std::to_string(control_type)
+                                            + " is not supported by this block type");
         }
     }
 }
@@ -637,8 +659,8 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             break;
         }
         default: {
-            cout << "Error: The control type of the block does not correspond" << endl;
-            exit(0);
+            throw simcoon::exception_solver("run_umat: control type " + std::to_string(control_type)
+                                            + " is not supported by this block type");
         }
     }
 }

@@ -52,15 +52,21 @@ namespace simcoon{
  *
  * It is the RATE counterpart of ELORT, which evaluates the same orthotropic
  * \f$ \mathbf{L} \f$ in total form, \f$ \boldsymbol{\tau} = \mathbf{L} :
- * (\boldsymbol{\varepsilon} - \boldsymbol{\alpha} \Delta T) \f$. Along a path without rotation
- * increments the two are identical. Under rotation (shear, off-axis loading) they differ in
- * two ways:
- * - where the stress transport does not commute with an anisotropic \f$ \mathbf{L} \f$ -- the
- *   difference this kernel exists to show, of order one for a strongly orthotropic stiffness;
- * - by the time discretisation of the rate form, which sums transported increments where
- *   ELORT evaluates the total strain. That part is first order in the increment size and
- *   present even for an isotropic \f$ \mathbf{L} \f$ (about 1 % at \f$ \Delta\gamma = 0.01 \f$
- *   in simple shear); it vanishes as the increments are refined.
+ * (\boldsymbol{\varepsilon} - \boldsymbol{\alpha} \Delta T) \f$. For an isotropic
+ * \f$ \mathbf{L} \f$ the two are identical on any path, rotation included: the transported
+ * strain and the transported stress satisfy the same recursion. For an anisotropic
+ * \f$ \mathbf{L} \f$ they differ under rotation (shear, off-axis loading), by an amount of order
+ * one for a strongly orthotropic stiffness: the corotated strain increment is not
+ * work-conjugate to \f$ \boldsymbol{\tau} \f$ once \f$ \mathbf{L} \f$ is anisotropic, so the
+ * rate and the total form are different laws. That difference is what this kernel is kept as
+ * a reference for.
+ *
+ * @warning The material axes are fixed in the lab frame (the local frame is built from the
+ *          Euler angles only), for this kernel and for every anisotropic kernel on the finite
+ *          route. Under a rigid rotation HYPOO carries its accumulated stress along, but its
+ *          new increments, like the whole of ELORT's response, still use the unrotated axes;
+ *          part of the HYPOO/ELORT gap in shear comes from that placement, not from the
+ *          rate form.
  *
  * **props** (12): \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{xz}, \nu_{yz}, G_{xy}, G_{xz}, G_{yz},
  * \alpha_x, \alpha_y, \alpha_z \f$ ("EnuG" convention, material frame).
