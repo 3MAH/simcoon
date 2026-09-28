@@ -927,9 +927,10 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  * @brief Kirchhoff stress and canonical box tangent of an invariant potential.
  *
  * Assembles \f$ \boldsymbol{\tau} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
- * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, XBM rate — the same object the
+ * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, in the requested corate — the same object the
  * small-strain boxes return) from the potential derivatives and the left
- * Cauchy-Green tensor.
+ * Cauchy-Green tensor. The closed form is the spatial (Lie/Oldroyd) tangent; it is
+ * converted once, by Dtau_LieDD_2_DtauDe_corate, to the box of @p corate_type.
  *
  * Kirchhoff on both outputs, deliberately: in the logarithmic framework the potential
  * differentiates to \f$ \boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V} \f$ per
@@ -941,15 +942,16 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  * @p F is only used to move the tangent into the box convention. The standalone
  * UMAT passes the deformation gradient; a caller that has an ELASTIC state
  * rather than a total one passes \f$ \mathbf{V}^{el} = \exp(\boldsymbol{
- * \varepsilon}^{el}) \f$, whose square is @p b — the tangent is then
+ * \varepsilon}^{el}) \f$, whose square is @p b — with @p corate_type = 3 the tangent is then
  * \f$ \partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el} \f$.
  *
  * @param[in] dW potential derivatives at (@p b, @p J)
  * @param[in] b left Cauchy-Green tensor \f$ \mathbf{b} = \mathbf{F}\mathbf{F}^T \f$
  * @param[in] J \f$ \det \mathbf{F} \f$
  * @param[in] F deformation gradient (or V for an elastic state, see above)
+ * @param[in] corate_type the objective rate @p Lt_box is expressed in (see corate_kinematics)
  * @param[out] tau Kirchhoff stress, 6-Voigt
- * @param[out] Lt_box canonical box tangent, 6x6
+ * @param[out] Lt_box box tangent in @p corate_type, 6x6
  * @param[in] A the pushed-forward structure tensors of an anisotropic potential
  *            (structure_tensors_push_forward), one per fibre family and in the same
  *            order as @c dW.dWdI_a_bar. Empty for an isotropic potential, which is

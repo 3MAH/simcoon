@@ -23,7 +23,6 @@
 #include <string>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Finite/hypoelastic_orthotropic.hpp>
 
@@ -31,14 +30,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief The hypoelastic orthotropic UMAT requires 12 constants:
-///@brief props[0-2] : 3 Young moduli (Ex, Ey, Ez)
-///@brief props[3-5] : 3 Poisson ratios (nu_xy, nu_xz, nu_yz)
-///@brief props[6-8] : 3 shear moduli (Gxy, Gxz, Gyz)
-///@brief props[9-11] : 3 CTEs (alpha_x, alpha_y, alpha_z)
-
-///@brief No statev is required for thermoelastic constitutive law
 
 void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
@@ -97,34 +88,13 @@ void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const v
     vec DEel = DEtot - alpha*DT;
     sigma = el_pred(sigma_start, L, DEel);
     
-    // This kernel integrates a corotational CAUCHY rate, so L is dsigma/dD. The consumer reads
-    // Lt as the canonical box d(tau_hat)/dDe, and with tau = J sigma and dJ/dt = J tr(D),
-    //
-    //     d(tau_circ)/dD = J [ d(sigma_circ)/dD + sigma (x) I ],
-    //
-    // for ANY rate linear in the tensor and its transport -- the J and the stress-proportional
-    // term are both needed. `Lt = L` used to hand over the unconverted dsigma/dD: wrong by
-    // exactly that, and invisible at J ~ 1, which is why it survived.
-    //
-    // sigma (x) I is sigma on the STRESS index pair and I on the STRAIN pair, and it is NOT
-    // symmetrised here: the 0.5*(X + X^T) in abaqus_jacobian is a concession to Abaqus's
-    // symmetric equation solver, not the exact operator. In engineering Voigt that is
-    // sigma * I_v^T with I_v = {1,1,1,0,0,0}.
-    //
-    // No corate conversion: L is already expressed in the corotated frame the solver handed
-    // this kernel, so it is in-rate whatever corate_type is -- the same reason the small-strain
-    // boxes need none.
+    // Kirchhoff rate: sigma here is tau, so L is already the box d(tau_hat)/dDe, and in-rate
+    // whatever corate_type is (the increment arrives corotated).
+    UNUSED(F0);
+    UNUSED(F1);
     UNUSED(corate_type);
-    double J_hypo;
-    try {
-        J_hypo = det(F1);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in det: " << e.what() << endl;
-        throw simcoon::exception_det("Error in det function inside umat_hypoelasticity_ortho.");
-    }
-    const vec I_v = {1., 1., 1., 0., 0., 0.};
-    Lt = J_hypo*(L + sigma*I_v.t());
-        
+    Lt = L;
+
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
     Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);

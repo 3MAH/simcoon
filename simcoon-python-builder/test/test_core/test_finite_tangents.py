@@ -7,7 +7,8 @@ caught neither of the two real tangent defects found in this area:
 
 * ``saint_venant`` fed its stress to a helper that rebuilds ``tau = det(F)*sigma``, i.e.
   expects **Cauchy**, after the kernel had been made Kirchhoff-native -- squaring the J;
-* ``HYPOO`` hands over ``dsigma/dD`` where the consumer reads ``d(tau_hat)/dDe``.
+* ``HYPOO`` handed over ``dsigma/dD`` where the consumer reads ``d(tau_hat)/dDe`` (it now
+  integrates the Kirchhoff rate, for which ``L`` is the box itself).
 
 Both are invisible at J = 1, so every state here carries J well away from 1 and the
 docstrings state the relative size a J error would have.
@@ -113,50 +114,49 @@ def test_jaumann_and_green_naghdi_differ_from_the_log_box():
 HYPOO_PROPS = [70000., 60000., 50000., 0.3, 0.28, 0.25, 26000., 22000., 20000., 0., 0., 0.]
 
 
-def test_hypoelastic_tangent_carries_the_J_and_the_stress_term():
-    """HYPOO integrates a corotational CAUCHY rate, so its L is dsigma/dD, not the box.
+def _hypoo(De, props=HYPOO_PROPS):
+    """One HYPOO increment from the reference state, with F1 consistent as exp(De).
 
-    With ``tau = J sigma`` and ``dJ/dt = J tr(D)``, the consistent box is
-    ``J (L + sigma (x) I)``. Handing over the bare ``L`` -- which this kernel did -- is wrong
-    by both factors: at this state 4.1 % from the J and 7.6 % from the stress term, 9.9 %
-    together. Both vanish at J = 1 and zero stress, which is how it survived.
-
-    HYPOO is a RATE kernel: it responds to ``Detot``, not to the total strain, so the
-    difference is taken along the increment and F1 is kept consistent as exp(De).
+    HYPOO is a RATE kernel: it responds to ``Detot``, not to the total strain, so any
+    difference is taken along the increment.
     """
-    def _hypoo(De):
-        De = np.asarray(De, dtype=float)
-        F1 = expm(sim.v2t_strain(De)).reshape(3, 3, 1).copy(order="F")
-        eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
-        stress, sv, wm, Lt = sim.umat(
-            "HYPOO", np.zeros((6, 1), order="F"), np.asfortranarray(De.reshape(6, 1)),
-            eye, F1, np.zeros((6, 1), order="F"), eye,
-            np.asfortranarray(np.asarray(HYPOO_PROPS, dtype=float).reshape(-1, 1)),
-            np.zeros((1, 1), order="F"), 0.0, 1.0,
-            np.zeros((4, 1), order="F"), n_threads=1, corate=3)
-        return stress[:, 0], Lt[:, :, 0], float(np.linalg.det(F1[:, :, 0]))
+    De = np.asarray(De, dtype=float)
+    F1 = expm(sim.v2t_strain(De)).reshape(3, 3, 1).copy(order="F")
+    eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    stress, _, _, Lt = sim.umat(
+        "HYPOO", np.zeros((6, 1), order="F"), np.asfortranarray(De.reshape(6, 1)),
+        eye, F1, np.zeros((6, 1), order="F"), eye,
+        np.asfortranarray(np.asarray(props, dtype=float).reshape(-1, 1)),
+        np.zeros((1, 1), order="F"), 0.0, 1.0,
+        np.zeros((4, 1), order="F"), n_threads=1, corate=3)
+    return np.asarray(stress).ravel(), Lt[:, :, 0], float(np.linalg.det(F1[:, :, 0]))
 
+
+def test_hypoelastic_integrates_the_kirchhoff_rate():
+    """HYPOO integrates ``tau_{n+1} = tau_n + L : DEel``, so ``L`` IS its box tangent.
+
+    ``sim.umat`` exposes Cauchy, as for every other law: the returned stress is
+    ``tau / J1``. At this state J is 4 % away from 1, so a Cauchy-rate integration (or a
+    missing boundary conversion) would show here at that size.
+    """
     De0 = np.array([0.09, -0.03, -0.02, 0.0, 0.0, 0.0])
-    _, Lt, J = _hypoo(De0)
-    assert abs(J - 1.0) > 0.03, "J must be away from 1 or the J half is invisible"
+    cauchy, Lt, J = _hypoo(De0)
+    assert abs(J - 1.0) > 0.03, "J must be away from 1 or a measure error is invisible"
 
-    def tau_of(De):
-        stress, _, Jl = _hypoo(De)
-        return Jl * np.asarray(stress).ravel()
+    L_ortho = np.asarray(sim.L_ortho(HYPOO_PROPS[:9], "EnuG"))
+    np.testing.assert_allclose(Lt, L_ortho, rtol=1e-12, atol=1e-9)
+    np.testing.assert_allclose(J * cauchy, L_ortho @ De0, rtol=1e-12, atol=1e-9)
 
     d = 1e-6
-    for col in range(3):
+    for col in range(6):
         step = np.zeros(6)
         step[col] = d
-        fd = (tau_of(De0 + step) - tau_of(De0 - step)) / (2.0 * d)
-        np.testing.assert_allclose(
-            fd[:3], Lt[:3, col], rtol=2e-6,
-            atol=2e-6 * max(1.0, np.abs(Lt[:3, col]).max()),
-            err_msg=f"HYPOO: d(tau)/d(De) column {col}")
-
-    # and the bare dsigma/dD really is a different matrix, so the check above has teeth
-    L_ortho = np.asarray(sim.L_ortho(HYPOO_PROPS[:9], "EnuG"))
-    assert np.linalg.norm(Lt - L_ortho) > 0.05 * np.linalg.norm(Lt)
+        cp, _, Jp = _hypoo(De0 + step)
+        cm, _, Jm = _hypoo(De0 - step)
+        fd = (Jp * cp - Jm * cm) / (2.0 * d)
+        np.testing.assert_allclose(fd, Lt[:, col], rtol=1e-6,
+                                   atol=1e-6 * np.abs(Lt).max(),
+                                   err_msg=f"HYPOO: d(tau)/d(De) column {col}")
 
 
 def test_log_F_box_is_the_spatial_tangent_itself():

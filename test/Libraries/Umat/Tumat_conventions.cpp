@@ -65,18 +65,17 @@ TEST(UmatConventions, EveryNativeKernelDeclaresOnlyItsStressMeasure) {
     EXPECT_EQ(output_convention_of("NEOHC").stress, StressMeasure::kirchhoff);
     EXPECT_EQ(output_convention_of("SNTVE").stress, StressMeasure::kirchhoff);
     EXPECT_EQ(output_convention_of("EPICP").stress, StressMeasure::kirchhoff);
+    EXPECT_EQ(output_convention_of("HYPOO").stress, StressMeasure::kirchhoff);   // Kirchhoff rate
 }
 
-// Every NATIVE kernel is Kirchhoff since the Kirchhoff-native refactor. The only Cauchy
-// declarations left are conventions simcoon does not own, and they are declared EXPLICITLY --
-// which is the whole point: HYPOO used to sit in neither set and inherit "Cauchy + in-rate" by
-// omission, with a comment reading "kept in the Cauchy group for now".
+// Every NATIVE kernel is Kirchhoff, HYPOO included (it integrates the Kirchhoff rate). The only
+// Cauchy declarations left are the plugin adapters, whose convention simcoon does not own, and
+// they are declared EXPLICITLY rather than inherited by omission.
 TEST(UmatConventions, OnlyForeignConventionsAreCauchyAndTheyAreDeclared) {
     for (const auto &entry : finite_umat_names()) {
         const umat_convention conv = output_convention_of(entry.first);
         if (conv.stress == StressMeasure::cauchy) {
-            const bool foreign = (entry.first == "HYPOO"     // Cauchy-rate hypoelastic law
-                               || entry.first == "UMEXT"     // external dylib plugin
+            const bool foreign = (entry.first == "UMEXT"     // external dylib plugin
                                || entry.first == "UMABA");   // Abaqus wrapper
             EXPECT_TRUE(foreign)
                 << "'" << entry.first << "' declares Cauchy, but every NATIVE kernel should be "
@@ -84,7 +83,7 @@ TEST(UmatConventions, OnlyForeignConventionsAreCauchyAndTheyAreDeclared) {
                 << "with the reason; if not, the kernel needs converting.";
         }
     }
-    EXPECT_EQ(output_convention_of("HYPOO").stress, StressMeasure::cauchy);
+    EXPECT_EQ(output_convention_of("UMEXT").stress, StressMeasure::cauchy);
 }
 
 // stress_output_is_kirchhoff is consumed by the python wrapper for EVERY name it serves,
@@ -93,7 +92,8 @@ TEST(UmatConventions, OnlyForeignConventionsAreCauchyAndTheyAreDeclared) {
 TEST(UmatConventions, TheKirchhoffPredicateIsTotal) {
     EXPECT_TRUE(stress_output_is_kirchhoff("MODUL"));
     EXPECT_TRUE(stress_output_is_kirchhoff("HOLZA"));
-    EXPECT_FALSE(stress_output_is_kirchhoff("HYPOO"));
+    EXPECT_TRUE(stress_output_is_kirchhoff("HYPOO"));
+    EXPECT_FALSE(stress_output_is_kirchhoff("UMEXT"));   // plugin: the host's Cauchy convention
     EXPECT_FALSE(stress_output_is_kirchhoff("SMADI"));   // small-strain only: no finite convention
     EXPECT_FALSE(stress_output_is_kirchhoff("NOPE1"));   // unknown: leave the stress alone
 }

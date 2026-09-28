@@ -41,8 +41,11 @@ namespace simcoon{
  * \f$ \bar{I}^{*}_{4,i} \f$ as well. @p umat_name selects the potential: NEOHC, MOORI,
  * YEOHH, ISHAH, GETHH, SWANH and HOLZA. The kernel evaluates the potential's
  * derivatives (hyper_potential_derivatives) and hands them to
- * hyper_invariants_response, which returns the Cauchy stress and the canonical box
- * tangent \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$.
+ * hyper_invariants_response, which returns the Kirchhoff stress
+ * \f$ \boldsymbol{\tau} \f$ and the box tangent
+ * \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$ in the solver's corate.
+ * The kernel is Kirchhoff-native: the Cauchy stress
+ * \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed only at the output boundaries.
  *
  * **props** are the selected potential's own parameters, in the order HyperPotential
  * documents for it, optionally followed by one more entry selecting the volumetric term
@@ -56,8 +59,8 @@ namespace simcoon{
  * @param[in] umat_name the 5-letter name selecting the potential
  * @param[in] etot,Detot total strain and its increment
  * @param[in] F0,F1 deformation gradient at the start and the end of the increment
- * @param[in,out] sigma Cauchy stress, 6-Voigt
- * @param[out] Lt canonical box tangent, 6x6
+ * @param[in,out] sigma Kirchhoff stress \f$ \boldsymbol{\tau} \f$, 6-Voigt (the UMAT interface name)
+ * @param[out] Lt box tangent \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$ in @p corate_type, 6x6
  * @param[out] L the ground-state stiffness, set on the first call
  * @param[in] DR the increment of rigid-body rotation
  * @param[in] nprops,props the potential's parameters
@@ -68,6 +71,8 @@ namespace simcoon{
  * @param[in] ndi,nshr the number of direct and shear components
  * @param[in] start true on the first call of a block
  * @param[out] tnew_dt the suggested time-step scaling
+ * @param[in] corate_type the solver's objective rate, which @p Lt is expressed in
+ *            (see corate_kinematics and Dtau_LieDD_2_DtauDe_corate)
  * @param[in] tangent_mode unused: a hyperelastic law returns its exact tangent
  */
 void umat_generic_hyper_invariants(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm_0, double &Wm_1, double &Wm_2, double &Wm_3, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode = tangent_default);

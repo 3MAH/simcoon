@@ -229,9 +229,7 @@ namespace simpy {
 				arguments_type = 2;
 				break;
 			}
-			case 32: { // HYPOO (hypoelastic orthotropic, finite): rate-form
-				// corotational CAUCHY update (no J anywhere) -> no Kirchhoff
-				// boundary conversion applies (stress_output_is_kirchhoff false)
+			case 32: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;

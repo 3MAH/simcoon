@@ -85,7 +85,10 @@ The contract
   error.
 * **Finite strain**: under NLGEOM the caller feeds the corotational logarithmic
   strain and expects the Kirchhoff stress — the same convention as ``ELISO`` /
-  ``EPICP`` (``PYEXT`` belongs to the Kirchhoff-box set). Internal tensorial history
+  ``EPICP`` (``PYEXT`` belongs to the Kirchhoff-box set). The law never sees
+  the Cauchy stress: the solver and ``sim.umat`` form
+  :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J` at their own boundaries
+  (see :ref:`stress-measure-tangent-rate`). Internal tensorial history
   is not rotated by the solver; rotate it with ``DR`` in the law if needed.
 
 Step cuts and errors

@@ -202,10 +202,9 @@ const std::map<string, umat_convention> &umat_conventions()
 {
     using SM = StressMeasure;
 
-    // Every NATIVE kernel is Kirchhoff. They split on the TANGENT instead, by who does the
-    // rate handling: a kernel fed the solver's corotated strain never builds a rate and is
-    // in_rate for free; a kernel that builds its tangent from F must commit to one before
-    // it knows the solver's, and commits to the log box.
+    // Every NATIVE kernel is Kirchhoff. The groups below differ only in how the tangent reaches
+    // the solver's corate: fed the corotated strain (in-rate for free), or built from F and
+    // converted by Dtau_LieDD_2_DtauDe_corate.
     static const std::map<string, umat_convention> conventions = {
         // --- log-strain / small-strain boxes: the solver already did the rate handling ---
         {"ELISO", {SM::kirchhoff}},
@@ -226,8 +225,10 @@ const std::map<string, umat_convention> &umat_conventions()
         {"MODUL", {SM::kirchhoff}},
         // PYEXT: fed the log strain, returns tau (see umat_callback.hpp)
         {"PYEXT", {SM::kirchhoff}},
+        // HYPOO: the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
+        {"HYPOO", {SM::kirchhoff}},
 
-        // --- finite kernels: build the tangent from F, so they bake the log box ---
+        // --- finite kernels: build the tangent from F, then convert it to corate_type ---
         {"SNTVE", {SM::kirchhoff}},
         {"NEOHI", {SM::kirchhoff}},
         {"NEOHC", {SM::kirchhoff}},
@@ -240,12 +241,6 @@ const std::map<string, umat_convention> &umat_conventions()
         {"HOLZA", {SM::kirchhoff}},
 
         // --- foreign conventions simcoon does not own ---
-        // HYPOO integrates a corotational CAUCHY rate (sigma = el_pred(sigma_start, L, DEel),
-        // hypoelastic_orthotropic.cpp:97). Declared rather than defaulted, which is the point
-        // of this table. Its Lt = L is dsigma/dD handed on as d(tau_hat)/dDe with no
-        // conversion -- off by J AND by sigma (x) I. KNOWN, tracked, not fixed here: the fix
-        // is a behaviour change needing its own baseline justification.
-        {"HYPOO", {SM::cauchy}},
         // Plugin adapters: the contract is the host code's (Abaqus DDSDDE is Cauchy-based).
         // UMABA is in fact unreachable today -- id 1 has no case in the finite switch, so it
         // throws -- and UMEXT's body is fully commented out. Declared for completeness.
@@ -453,9 +448,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 
         // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
         // NATIVE kernel returns it directly, so this is a pass-through for all but the
-        // foreign-convention ones (HYPOO, a Cauchy-rate hypoelastic law, and the UMEXT/UMABA
-        // plugin adapters whose contract belongs to the host code). Cauchy is a derived OUTPUT
-        // (tau/J), never on the route.
+        // foreign-convention ones (the UMEXT/UMABA plugin adapters, whose contract belongs to
+        // the host code). Cauchy is a derived OUTPUT (tau/J), never on the route.
         if (conv.stress == StressMeasure::kirchhoff)
             umat_M->tau = umat_M->sigma;                                                      // the kernel's output IS the Kirchhoff stress
         else

@@ -449,8 +449,8 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
  * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
  * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
- * boundaries only. @c cauchy is reserved for conventions simcoon does not own: a
- * Cauchy-rate hypoelastic law, or a plugin adapter whose contract belongs to the host code.
+ * boundaries only. @c cauchy is reserved for the plugin adapters (UMEXT, UMABA), whose
+ * contract belongs to the host code.
  */
 enum class StressMeasure { kirchhoff, cauchy };
 

@@ -250,6 +250,8 @@ order; trailing legacy slots are left untouched. Code that read specific
 legacy statev columns (e.g. the stored X_i of EPHAC) must be updated to the
 modular layout.
 
+.. _stress-measure-tangent-rate:
+
 Stress measure and tangent rate
 ===============================
 
@@ -266,10 +268,19 @@ rejected rather than given a default -- a missing declaration is an error of exa
 :math:`J`, and invisible near :math:`J = 1`:
 
 - ``kirchhoff`` -- every native kernel.
-- ``cauchy`` -- only conventions simcoon does not own: ``HYPOO``, a Cauchy-rate
-  hypoelastic law, and the ``UMEXT`` / ``UMABA`` plugin adapters, whose contract belongs
+- ``cauchy`` -- only the ``UMEXT`` / ``UMABA`` plugin adapters, whose contract belongs
   to the host code (Abaqus ``DDSDDE`` is Cauchy-based). ``select_umat_M_finite`` converts
   those to :math:`\boldsymbol{\tau}` on the way out.
+
+``HYPOO`` is native too: it integrates the corotational *Kirchhoff* rate,
+:math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,
+and is the rate counterpart of ``ELORT`` (total form
+:math:`\boldsymbol{\tau} = \mathbf{L} : \boldsymbol{\varepsilon}^{el}`). With the same
+:math:`\mathbf{L}` the two are identical along a path without rotation increments. Under
+rotation they differ where the stress transport does not commute with an anisotropic
+:math:`\mathbf{L}` -- the effect the pair exists to show, free of any stress-measure effect --
+plus a time-discretisation gap of the rate form, first order in the increment size and
+present even for an isotropic stiffness.
 
 **The tangent rate is not declared, it is deducted from  the solver's ``corate_type``.** Every 
 kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in

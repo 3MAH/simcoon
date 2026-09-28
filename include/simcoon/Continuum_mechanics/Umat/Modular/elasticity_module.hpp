@@ -347,6 +347,25 @@ public:
      * \f$ \mathbf{L} \f$ itself. Under NLGEOM the caller feeds the elastic
      * LOGARITHMIC strain and the stress is Kirchhoff.
      *
+     * @note A hyperelastic block evaluates its potential at the ELASTIC state only:
+     *       \f$ \mathbf{V}^{el} = \exp(\boldsymbol{\varepsilon}^{el}) \f$,
+     *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
+     *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
+     *       - The stress is the Kirchhoff stress of the intermediate configuration, not
+     *         \f$ J \boldsymbol{\sigma} \f$ with the total \f$ J = \det \mathbf{F} \f$. With the
+     *         additive log-strain split \f$ \ln J = \textrm{tr}\,\boldsymbol{\varepsilon}^{el}
+     *         + \textrm{tr}\,\boldsymbol{\varepsilon}^{in} \f$ the two agree exactly when the
+     *         inelastic strain is traceless (deviatoric plasticity or viscous flow) and differ
+     *         by the factor \f$ \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{in}) \f$ otherwise:
+     *         \f$ \exp(3 \alpha \Delta T) \f$ for isotropic thermal expansion.
+     *       - The tangent is requested in corate 3 (log_R) whatever the solver's corate: in the
+     *         corotated frame (\f$ \mathbf{R} = \mathbf{I} \f$) the log box with respect to
+     *         \f$ \ln \mathbf{V}^{el} \f$ IS \f$ \partial \boldsymbol{\tau} / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$. MODUL under finite strain refuses any other
+     *         corate (select_umat_M_finite), and that guard is what makes this exact.
+     *
+     *       The linear blocks carry no \f$ J \f$ and build no rate, so neither applies to them.
+     *
      * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
      * @param[in]  ndi number of direct stress components. ndi < 3 statically
      *             condenses the STRESS only — the tangent is always the full
