@@ -351,13 +351,17 @@ public:
      *       \f$ \mathbf{V}^{el} = \exp(\boldsymbol{\varepsilon}^{el}) \f$,
      *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
      *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
-     *       - The stress is the Kirchhoff stress of the intermediate configuration, not
-     *         \f$ J \boldsymbol{\sigma} \f$ with the total \f$ J = \det \mathbf{F} \f$. With the
-     *         additive log-strain split \f$ \ln J = \textrm{tr}\,\boldsymbol{\varepsilon}^{el}
-     *         + \textrm{tr}\,\boldsymbol{\varepsilon}^{in} \f$ the two agree exactly when the
-     *         inelastic strain is traceless (deviatoric plasticity or viscous flow) and differ
-     *         by the factor \f$ \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{in}) \f$ otherwise:
-     *         \f$ \exp(3 \alpha \Delta T) \f$ for isotropic thermal expansion.
+     *       - The block defines a stored energy per REFERENCE volume,
+     *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
+     *         returns \f$ \boldsymbol{\tau} = \partial \psi / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$ -- the route's Kirchhoff stress, exactly as ELISO
+     *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
+     *         \f$ \boldsymbol{\tau}/J \f$ with the total \f$ J \f$. \f$ J^{el} \f$ is only the
+     *         argument of \f$ U \f$, so a stress-free volumetric inelastic strain (free thermal
+     *         expansion) stays stress-free. A multiplicative model with the energy per
+     *         INTERMEDIATE volume would instead scale this stress by
+     *         \f$ \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{in}) \f$; that is a different
+     *         modelling choice, which no simcoon law makes.
      *       - The tangent is requested in corate 3 (log_R) whatever the solver's corate: in the
      *         corotated frame (\f$ \mathbf{R} = \mathbf{I} \f$) the log box with respect to
      *         \f$ \ln \mathbf{V}^{el} \f$ IS \f$ \partial \boldsymbol{\tau} / \partial

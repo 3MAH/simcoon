@@ -331,7 +331,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
     const hyper_invariants_dW dW =
         hyper_potential_derivatives(hyper_potential_, hyper_props_,
                                     isochoric_invariants(b_el, J_el), J_el, A);
-    // tau built with J_el, not det F; corate 3, never the solver's (see evaluate() in the header).
+    // tau = dpsi/deps_el per reference volume; corate 3, never the solver's (see evaluate()).
     hyper_invariants_response(dW, b_el, J_el, V_el, 3, sigma, Lt, A);
 }
 

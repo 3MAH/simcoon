@@ -96,14 +96,15 @@ The hyperelastic blocks are not a constant stiffness: the potential is
 evaluated at the elastic strain it is handed, bridged by
 :math:`\mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el})`. Under finite
 strain that strain is the elastic logarithmic strain, and the mechanisms act
-additively on it. The potential then only sees the elastic volume change
-:math:`J^{el} = \exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{el})`, so the block
-returns the Kirchhoff stress of the intermediate configuration rather than
-:math:`J \boldsymbol{\sigma}` with the total :math:`J = \det \mathbf{F}`. The
-two are identical when the inelastic strain is traceless (deviatoric plasticity
-or viscous flow) and differ by the factor
-:math:`\exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{in})` otherwise, which is
-:math:`\exp(3 \alpha \Delta T)` with isotropic thermal expansion. Every potential shares its volumetric term :math:`U(J)`,
+additively on it. Like every other law, the block defines its stored energy per
+reference volume as a function of the elastic strain,
+:math:`\psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
+returns the Kirchhoff stress
+:math:`\boldsymbol{\tau} = \partial \psi / \partial \boldsymbol{\varepsilon}^{el}`;
+the ``Stress`` output is :math:`\boldsymbol{\tau}/J` with the total :math:`J`.
+The volumetric term only sees the elastic volume change
+:math:`J^{el} = \exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{el})`, so a free
+thermal expansion stays stress-free. Every potential shares its volumetric term :math:`U(J)`,
 chosen by the ``volumetric`` keyword: ``"log"`` (default) for
 :math:`U = \kappa (J \ln J - J + 1)`, ``"quadratic"`` for
 :math:`U = \frac{\kappa}{2} (J - 1)^2`. Both have :math:`U''(1) = \kappa`, so
