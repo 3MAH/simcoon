@@ -277,8 +277,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                             sptr_meca->generate(Time, sv_M->Etot, sv_M->PKII, sv_M->T);
                         }
                         else if (blocks[i].control_type == 3) {
-                            sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
-//                            sptr_meca->generate(Time, sv_M->etot, sv_M->tau, sv_M->T);
+                            // targets in ln V: rebuilt from the Almansi strain under corate 4
+                            sptr_meca->generate(Time, t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sv_M->sigma, sv_M->T);
                         }
                         else if (blocks[i].control_type == 4) {
                             vec Biot_vec = t2v_stress(sv_M->Biot_stress());
@@ -412,6 +412,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     }
                                     rve.to_start();
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                                    if (!sv_M->tau.is_finite()) {   // non-finite answer: cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_meca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -681,6 +688,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
                                             
                                             // Give up when the carried residual is not being absorbed:
@@ -913,6 +924,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     
                                     run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                     sv_T->Q = -1.*sv_T->r;
+                                    if (!sv_T->sigma.is_finite() || !std::isfinite(sv_T->r)) {   // cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                     
                                 }
                                 else{
@@ -1071,6 +1089,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
                                         
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";

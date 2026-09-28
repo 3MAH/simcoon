@@ -261,6 +261,23 @@ def test_logarithmic_control_under_truesdell():
     np.testing.assert_allclose(res["Strain"][0, -1], 0.5 * (1. - F11 ** -2), rtol=1e-10)
 
 
+@pytest.mark.parametrize("corate", ["logarithmic_R", "truesdell"])
+def test_logarithmic_control_matches_F_control(corate):
+    """Two logarithmic-control steps (0.1 then 0.2): the second one lands on its ln V target
+    (its start is rebuilt from the Almansi strain under Truesdell), and the stress equals the
+    F-controlled run through the same F (the kernel gets the Almansi increment of DF, not the
+    prescribed ln V increment)."""
+    steps = [StepMeca(control=_UNIAXIAL, value=[v, 0, 0, 0, 0, 0], ninc=20) for v in (0.1, 0.2)]
+    r3 = solve(Block(steps=steps, control_type="logarithmic"), "ELISO", ELISO_PROPS, 1,
+               T_init=290.0, corate=corate)
+    np.testing.assert_allclose(r3["LogStrain"][0, -1], 0.2, atol=1e-12)
+    F = r3["F"][:, :, -1]
+    r5 = solve(Block(steps=[StepMeca(control="F", value=F.ravel(), ninc=40)], control_type="F"),
+               "ELISO", ELISO_PROPS, 1, T_init=290.0, corate=corate)
+    np.testing.assert_allclose(r3["Kirchhoff"][:, -1], r5["Kirchhoff"][:, -1], rtol=1e-4,
+                               atol=1e-4 * np.abs(r5["Kirchhoff"][:, -1]).max())
+
+
 def test_small_strain_ignores_the_corate():
     """At small strain F stays I: every strain output is the small strain, whatever the corate."""
     for corate in range(6):

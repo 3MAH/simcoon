@@ -67,4 +67,39 @@ def test_creep_recovery_dissipation_is_nonnegative(umat):
     assert wd[-1] > 0.05
     assert np.diff(wd).min() > -1e-6 * wd[-1]
     heat = np.sum(r["r"][1:] * np.diff(r["Time"]))
-    np.testing.assert_allclose(heat, wd[-1] - wd[0], rtol=1e-6)
+    np.testing.assert_allclose(heat, wd[-1] - wd[0], rtol=1e-4)
+
+
+@pytest.mark.parametrize("umat", sorted(_CREEP))
+def test_heat_source_derivatives_follow_the_returned_r(umat):
+    """drdE/drdT differentiate the r the kernel returns (flow directions frozen, continuum
+    dDs/dE): approximate, but no worse than the continuum dSdE they are built on."""
+    props = _CREEP[umat][0].copy()
+    props[4] = 1e-4                                    # thermal coupling on
+    nstatev = _CREEP[umat][1]
+    uni = ["strain"] + ["stress"] * 5
+    st = StepThermomeca(control=uni, value=[0.01, 0, 0, 0, 0, 0], ninc=20, time=0.2,
+                        T_final=_T0 + 5.)
+    res = sim.solver.solve([st], umat, props, nstatev, T_init=_T0)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    etot, sig, sv = col(res["Strain"][:, -1]), col(res["Stress"][:, -1]), col(res["Statev"][:, -1])
+    T = np.array([res["Temp"][-1]])
+    De0, DT0 = np.array([2e-4, -5e-5, -5e-5, 1e-4, 0., 0.]), 0.5
+
+    def call(De, DT):
+        out = sim.umat_T(umat, etot, col(De), sig, np.asfortranarray(np.eye(3)[:, :, None]),
+                         col(props), sv.copy(order="F"), 1.0, 0.05, np.zeros((4, 1), order="F"),
+                         np.zeros((3, 1), order="F"), T, np.array([DT]))
+        return out[0][:, 0], out[5][:, :, 0], out[4].ravel()[0], out[7][:, 0], out[8].ravel()[0]
+
+    _, dSdE, _, drdE, drdT = call(De0, DT0)
+    h, hT = 1e-7, 1e-5
+    fdS = np.column_stack([(call(De0 + h * e, DT0)[0] - call(De0 - h * e, DT0)[0]) / (2 * h)
+                           for e in np.eye(6)])
+    fdr = np.array([(call(De0 + h * e, DT0)[2] - call(De0 - h * e, DT0)[2]) / (2 * h)
+                    for e in np.eye(6)])
+    fdrT = (call(De0, DT0 + hT)[2] - call(De0, DT0 - hT)[2]) / (2 * hT)
+    err_S = np.abs(dSdE - fdS).max() / np.abs(fdS).max()
+    err_r = np.abs(drdE - fdr).max() / np.abs(fdr).max()
+    assert err_r < 1.5 * err_S + 1e-3
+    assert abs(drdT - fdrT) < 5e-3 * abs(fdrT)

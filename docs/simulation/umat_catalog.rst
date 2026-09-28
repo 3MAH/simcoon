@@ -195,9 +195,11 @@ Unchanged dedicated implementations (out of the modular scope):
   the kinematics are exact: damage subtracts no inelastic strain (it scales the
   stiffness instead), so the elastic stretch is the total one and the fibres follow it.
   Its driving force, however, is
-  :math:`Y = \tfrac12\,\boldsymbol{\tau} : \mathbf{M}_t : \boldsymbol{\tau}`, built from the
-  current (tangent) compliance: it equals the stored energy only for a linear law, and
-  approximates it for this nonlinear potential.
+  :math:`Y = \tfrac12\,\boldsymbol{\tau} : \mathbf{M}_t : \boldsymbol{\tau}`, the damaged stress
+  against the undamaged tangent compliance: it is not the thermodynamic force
+  :math:`-\partial\psi/\partial D = \psi_0` (the undamaged energy), even for a linear law, where it
+  gives :math:`(1-D)^2\psi_0`; for this nonlinear potential the tangent compliance adds a
+  further approximation.
 
   .. warning::
 
@@ -284,11 +286,15 @@ and is the rate counterpart of ``ELORT`` (total form
 0 to 3: with the material axes following the body, the transported strain and stress satisfy
 the same recursion (a ~74 % orthotropic shear gap measured before 2.1 came from lab-fixed
 axes, not from the rate form). They differ under corate 4 even for an isotropic
-:math:`\mathbf{L}` -- ``ELORT`` is then the total Almansi law
-:math:`\boldsymbol{\tau} = \mathbf{L} : \mathbf{e}_A`, ``HYPOO`` integrates the Oldroyd rate of
-:math:`\boldsymbol{\tau}`, about 100 % apart in simple shear at :math:`\gamma = 1` -- and under
-corate 5 for an anisotropic :math:`\mathbf{L}` (about 6 %), whose similarity transport by a
-rotation-free stretch does not commute with it. For an
+:math:`\mathbf{L}`: ``ELORT`` is then the total Almansi law
+:math:`\boldsymbol{\tau} = \lambda\,\mathrm{tr}(\mathbf{e}_A)\mathbf{I} + 2\mu\,\mathbf{e}_A`, ``HYPOO``
+integrates the Oldroyd rate of :math:`\boldsymbol{\tau}`, whose isochoric solution is
+:math:`\boldsymbol{\tau} = \mu(\mathbf{b} - \mathbf{I})`. In simple shear both give
+:math:`\tau_{12} = \mu\gamma`; the normal stresses differ, :math:`\tau_{11} = \mu\gamma^2`,
+:math:`\tau_{22} = \tau_{33} = 0` for ``HYPOO`` against :math:`\tau_{11} = \tau_{33} = -\lambda\gamma^2/2`,
+:math:`\tau_{22} = -(\lambda/2 + \mu)\gamma^2` for ``ELORT``. Under corate 5 they differ for an
+anisotropic :math:`\mathbf{L}` only (about 6 % measured in orthotropic shear): the similarity
+transport by a rotation-free stretch does not commute with it. For an
 anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf{L}_R :
 \ln\mathbf{V}` is Cauchy-elastic, not hyperelastic.
 
@@ -332,17 +338,30 @@ isotropic laws (both finite-difference verified).
    :math:`\mathbf{X}_i = \tfrac23 C_i\,\mathbf{a}_i`, and the Truesdell rate convects the
    back-strain and the back-stress differently.
 
-**Mechanical work.** A kernel accumulates
-:math:`W_m = \sum \tfrac12(\boldsymbol{\tau}_n + \boldsymbol{\tau}_{n+1}) : \Delta\mathbf{e}` on the
-strain increment it is handed. Under the logarithmic corates (2, 3, 5) that is not the stress
-power once :math:`\boldsymbol{\tau}` and :math:`\mathbf{V}` stop being coaxial (anisotropy,
-plasticity), so the solver adds
-:math:`\tfrac12(\boldsymbol{\tau}_n + \boldsymbol{\tau}_{n+1}) : (\mathbf{D}\,\Delta t - \Delta\mathbf{e})`
-to :math:`W_m` and :math:`W_m^r`: :math:`W_m` is the true work per reference volume,
-:math:`\int \mathbf{P} : \mathrm{d}\mathbf{F}`, and :math:`W_m^r` carries the part of it that
-the rate does not conjugate. :func:`simcoon.umat` applies the same correction when it is given
-:math:`\mathbf{F}_0, \mathbf{F}_1`, on the start stress it is passed (already transported by the
-caller).
+**Mechanical work.** ``Wm`` is the work per reference volume,
+:math:`\int \mathbf{P} : \mathrm{d}\mathbf{F}`. A kernel accumulates
+:math:`\tfrac12(\hat{\boldsymbol{\tau}}_n + \boldsymbol{\tau}_{n+1}) : \Delta\mathbf{e}` on the strain
+increment it is handed, :math:`\hat{\boldsymbol{\tau}}_n` being the start stress transported to the
+end configuration. Per corate:
+
+- 0, 1 (Jaumann, Green-Naghdi): :math:`\Delta\mathbf{e} = \mathbf{D}\,\Delta t`, the kernel work
+  converges to the true work at second order.
+- 2 (XBM): the rate is conjugate, :math:`\mathbf{D} = (\ln\mathbf{V})^{\circ\log}`, so there is no
+  continuum gap.
+- 3, 5 (log_R, log_F): :math:`\boldsymbol{\tau} : \dot{\mathbf{e}} \neq \boldsymbol{\tau} : \mathbf{D}` as
+  soon as :math:`\boldsymbol{\tau}` is not coaxial with :math:`\mathbf{V}` (anisotropy, plasticity).
+- 4 (Truesdell): the kernel work is exactly the trapezoid
+  :math:`\tfrac12(\mathbf{S}_n + \mathbf{S}_{n+1}) : \Delta\mathbf{E}`.
+
+Under 2, 3 and 5 the solver replaces the kernel work by the midpoint stress power with both
+stresses in the lab frame, :math:`\tfrac12(\boldsymbol{\tau}_n + \boldsymbol{\tau}_{n+1}) :
+\mathrm{sym}\big(2(\mathbf{F}_1 - \mathbf{F}_0)(\mathbf{F}_1 + \mathbf{F}_0)^{-1}\big)`, which is the
+trapezoid of :math:`\mathbf{P} : \mathrm{d}\mathbf{F}` itself and zero under a rigid rotation (``Delta_work_conjugacy``).
+The difference is added to :math:`W_m` and :math:`W_m^r`, so :math:`W_m^r` then holds the stored
+energy plus the work the rate does not conjugate: under 3 and 5, in non-coaxial states, it is not
+a state function. :func:`simcoon.umat` does the same when it is given
+:math:`\mathbf{F}_0, \mathbf{F}_1`, recovering the lab start stress from the one it is passed
+(transported by the caller) as :math:`\mathrm{sym}(\Delta\mathbf{R}^{-1}\hat{\boldsymbol{\tau}}_n\Delta\mathbf{R})`.
 
 .. note::
 

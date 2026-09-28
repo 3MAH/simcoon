@@ -398,6 +398,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     // kernels) all live in the same configuration. The stored etot is left untransported:
     // set_start transports it at commit, together with the increment it belongs to.
     const vec etot_stored = umat_M->etot;
+    const vec tau_start_lab = umat_M->sigma;   // committed, untransported: for the work correction
     if (corate_type != 4 && corate_type != 5) {
         umat_M->etot = rotate_strain(etot_stored, DR);
         umat_M->sigma = rotate_stress(umat_M->sigma, DR);
@@ -417,7 +418,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR_inv);
     }
 
-    const vec tau_start_tr = umat_M->sigma;   // transported start stress, for the work correction
+    const vec tau_start_tr = umat_M->sigma;   // the start stress the kernel integrates from
 
     // ONE declaration per kernel (output_convention_of) answers the questions below. It THROWS
     // for a kernel that has not declared, so a new one is caught instead of inheriting a
@@ -427,8 +428,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         conv = output_convention_of(rve.sptr_matprops->umat_name);
 
     if (id_umat == 200) {   // MODUL
-        // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is
-        // ln V, i.e. corate 3 (log_R); any other corate makes it a non-integrable rate law.
+        // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
+        // corate 3, or 2 in closed form. Only 3 is accepted (policy: the production rate).
         if (corate_type != 3) {
             throw simcoon::exception_solver(
                 "MODUL under finite strain requires corate_type = 3 "
@@ -474,7 +475,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             RU_decomposition(R_hat, U, umat_M->F1);
         }
         umat_M->etot = rotate_strain(umat_M->etot, R_hat.t());
-        umat_M->Detot = rotate_strain(Detot_stored, R_hat.t());
+        umat_M->Detot = rotate_strain(umat_M->Detot, R_hat.t());   // the Truesdell override, if any
         umat_M->sigma = rotate_stress(umat_M->sigma, R_hat.t());
         DR_kernel = eye(3,3);
         if (convected) {
@@ -573,9 +574,9 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // Log corates: the kernel's work is on the corate strain, not D; restore the true work.
+        // Log corates: replace the kernel's work by the stress power, in one frame.
         if (corate_type == 2 || corate_type == 3 || corate_type == 5) {
-            const double dW = Delta_work_conjugacy(tau_start_tr, umat_M->tau, Detot_stored, umat_M->F0, umat_M->F1);
+            const double dW = Delta_work_conjugacy(tau_start_lab, tau_start_tr, umat_M->tau, Detot_stored, umat_M->F0, umat_M->F1);
             umat_M->Wm(0) += dW;
             umat_M->Wm(1) += dW;
         }

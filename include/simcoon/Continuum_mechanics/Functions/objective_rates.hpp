@@ -370,26 +370,32 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
 /**
- * @brief Work the kernel does not see: the gap between the stress power and the corate strain.
+ * @brief Correction that turns a box kernel's work into the stress power.
  *
- * A box kernel accumulates \f$ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e} \f$,
- * with \f$ \Delta\mathbf{e} \f$ the corate strain increment. Under the logarithmic rates
- * \f$ \boldsymbol{\tau}:\dot{\mathbf{e}} \neq \boldsymbol{\tau}:\mathbf{D} \f$ as soon as
- * \f$ \boldsymbol{\tau} \f$ and \f$ \mathbf{V} \f$ are not coaxial (anisotropy, plasticity); the
- * difference returned here,
- * \f[ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):(\mathbf{D}\,\Delta t - \Delta\mathbf{e}),
+ * A box kernel accumulates \f$ \tfrac12(\hat{\boldsymbol{\tau}}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e} \f$,
+ * with \f$ \Delta\mathbf{e} \f$ the corate strain increment and \f$ \hat{\boldsymbol{\tau}}_n \f$ the
+ * start stress transported to the end configuration. The value returned,
+ * \f[ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):\mathbf{D}\,\Delta t
+ *     - \tfrac12(\hat{\boldsymbol{\tau}}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e},
  *     \qquad \mathbf{D}\,\Delta t = \mathrm{sym}\!\left(2(\mathbf{F}_1-\mathbf{F}_0)(\mathbf{F}_1+\mathbf{F}_0)^{-1}\right), \f]
- * brings the mechanical work \f$ W_m \f$ back to the true work per reference volume. It vanishes
- * for coaxial states (every isotropic elastic law).
+ * replaces it by the midpoint stress power, both stresses in the lab frame: second order,
+ * zero under a rigid rotation. It removes two things. One is continuum: under log_R (3) and
+ * log_F (5), \f$ \boldsymbol{\tau}:\dot{\mathbf{e}} \neq \boldsymbol{\tau}:\mathbf{D} \f$ when
+ * \f$ \boldsymbol{\tau} \f$ is not coaxial with \f$ \mathbf{V} \f$ (Hill's conjugacy); the XBM
+ * rate (2) is conjugate, \f$ \mathbf{D} = (\ln\mathbf{V})^{\circ\log} \f$. The other is
+ * discrete: \f$ \hat{\boldsymbol{\tau}}_n \f$ against the corate increment leaves a first-order
+ * \f$ [\mathbf{W}, \boldsymbol{\tau}]:\mathbf{D} \f$ error. Under Truesdell (4) no correction is
+ * needed: the kernel work is exactly the \f$ (\mathbf{S}, \mathbf{E}) \f$ trapezoid.
  *
- * @param[in] tau_start Kirchhoff stress at the start of the increment, in the frame of @p tau (Voigt)
+ * @param[in] tau_start committed Kirchhoff stress at the start of the increment, untransported (Voigt)
+ * @param[in] tau_start_tr the start stress the kernel integrated from, transported (Voigt)
  * @param[in] tau Kirchhoff stress at the end of the increment (Voigt)
  * @param[in] Detot corate strain increment handed to the kernel (engineering Voigt)
  * @param[in] F0 deformation gradient at the start of the increment
  * @param[in] F1 deformation gradient at the end of the increment
- * @return the work correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$
+ * @return the correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$
  */
-double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1);
+double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_start_tr, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1);
 
 /**
  * @brief Corate spin dispatch: for the chosen objective rate, set the frame increment @p DR and the

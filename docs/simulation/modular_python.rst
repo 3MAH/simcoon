@@ -99,10 +99,9 @@ strain that strain is the elastic logarithmic strain, and the mechanisms act
 additively on it. Like every other law, the block defines its stored energy per
 reference volume as a function of the elastic strain,
 :math:`\psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
-returns the Kirchhoff stress
-:math:`\boldsymbol{\tau} = \partial \psi / \partial \boldsymbol{\varepsilon}^{el}` (exactly for an
-isotropic potential; for the anisotropic ``HolzapfelElasticity`` only while
-:math:`\boldsymbol{\tau}` stays coaxial with :math:`\mathbf{V}^{el}`);
+returns the Kirchhoff stress of :math:`W` at :math:`\mathbf{F} := \mathbf{V}^{el}`. It equals
+:math:`\partial \psi / \partial \boldsymbol{\varepsilon}^{el}` for an isotropic potential, and for the
+anisotropic ``HolzapfelElasticity`` only while it stays coaxial with :math:`\mathbf{V}^{el}`;
 the ``Stress`` output is :math:`\boldsymbol{\tau}/J` with the total :math:`J`.
 The volumetric term only sees the elastic volume change
 :math:`J^{el} = \exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{el})`, so a free

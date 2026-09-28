@@ -223,42 +223,28 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
         
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-        
-    vec A_v = L1*EV1;
-    mat dA_dEv = L1;
-
-    if(DTime < 1.E-12) {
+    // r = (Dgamma - Tm alpha:(sigma - sigma_start) - rho c_p DT)/DTime, midpoint Tm as Wt: the
+    // heat source of the actual increments (a linearisation in (DEtot, DT) would vanish during a
+    // strain hold while the branches relax). drdE/drdT differentiate it with the flow directions
+    // frozen and the continuum dDs_i/dE = P_epsilon[i], dDs_i/dT = P_theta[i]: approximate, like
+    // dSdE (no algorithmic tangent here); the converged r is exact.
+    // Kelvin branch force sigma - L1 EV1 (the viscous stress), as in the mechanical twin
+    const vec A_mid2 = (sigma_start - L1*EV1_start) + (sigma - L1*EV1);
+    const vec LLambda = L1*Lambdav;
+    const double Dgamma_loc = 0.5*sum(A_mid2%DEV1);
+    const vec dDgamma_dE = 0.5*(dSdE.t()*DEV1 - sum(DEV1%LLambda)*P_epsilon[0] + sum(A_mid2%Lambdav)*P_epsilon[0]);
+    const double dDgamma_dT = 0.5*(sum(dSdT%DEV1) - sum(DEV1%LLambda)*P_theta[0] + sum(A_mid2%Lambdav)*P_theta[0]);
+    if (DTime < 1.E-12) {
         r = 0.;
         drdE = zeros(6);
         drdT = 0.;
     }
     else {
-        Gamma_epsilon = (dSdE*DEV1)*(1./DTime) + sum((dA_dEv*Lambdav)%P_epsilon[0])*(DEV1/DTime) + sum(A_v%Lambdav)*P_epsilon[0]*(1./DTime) + sum(sigma%Lambdav)*P_epsilon[0]/DTime;
-        Gamma_theta = sum(dSdT%DEV1)*(1./DTime) + sum((dA_dEv*Lambdav)%DEV1)*P_theta[0]/DTime + sum(A_v%Lambdav)*P_theta[0]*(1./DTime) + sum(sigma%Lambdav)*P_theta[0]/DTime;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
-        
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
+        const double Tm = T + 0.5*DT;
+        r = (Dgamma_loc - Tm*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
+        drdE = (dDgamma_dE - Tm*(dSdE.t()*alpha))/DTime;
+        drdT = (dDgamma_dT - 0.5*sum(alpha%(sigma - sigma_start)) - Tm*sum(alpha%dSdT) - rho*c_p)/DTime;
     }
-        
-    // Dissipation on the viscous (Kelvin branch) stress sigma - L1 EV1, as in the mechanical twin.
-    const vec A_visc_start = sigma_start - L1*EV1_start;
-    const vec A_visc = sigma - L1*EV1;
-    double Dgamma_loc = 0.5*sum((A_visc_start + A_visc)%DEV1);
-    // Heat source from the actual increments: the linearisation above in (DEtot, DT) vanishes
-    // during a strain hold, while the branches keep relaxing and dissipating. drdE/drdT above
-    // stay the linearised (approximate) derivatives of this r.
-    if (DTime >= 1.E-12)
-        r = (Dgamma_loc - (T + 0.5*DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;   // midpoint T, as Wt
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

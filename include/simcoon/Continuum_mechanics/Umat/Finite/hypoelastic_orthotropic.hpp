@@ -57,8 +57,9 @@ namespace simcoon{
  * the transported stress satisfy the same recursion and the two are identical on any path,
  * anisotropic \f$ \mathbf{L} \f$ included. They are different laws under corate 4, even for an
  * isotropic \f$ \mathbf{L} \f$ (ELORT is then \f$ \boldsymbol{\tau} = \mathbf{L} : \mathbf{e}_A \f$,
- * HYPOO integrates the Oldroyd rate of \f$ \boldsymbol{\tau} \f$; ~100 % apart in simple shear at
- * \f$ \gamma = 1 \f$), and under corate 5 for an anisotropic \f$ \mathbf{L} \f$, whose
+ * HYPOO integrates the Oldroyd rate of \f$ \boldsymbol{\tau} \f$, isochoric solution
+ * \f$ \mu(\mathbf{b} - \mathbf{I}) \f$: same shear stress \f$ \mu\gamma \f$ in simple shear,
+ * different normal stresses), and under corate 5 for an anisotropic \f$ \mathbf{L} \f$, whose
  * similarity transport by a rotation-free stretch does not commute with it. HYPOO is kept as
  * that reference.
  *

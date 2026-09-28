@@ -74,7 +74,7 @@ run gives every conjugate pair:
      - Content
    * - ``Strain``
      - (6, N)
-     - Eulerian strain integrated along the path with the objective rate of the run (``corate``): the strain the constitutive law sees. With the logarithmic rates (``"logarithmic"``, ``"logarithmic_R"``, the default, ``"logarithmic_F"``) it is the logarithmic strain :math:`\ln \mathbf{V}` up to the integration error; with ``"jaumann"`` or ``"green_naghdi"`` it is only an approximation of it, which departs under large rotations (simple shear); with ``"truesdell"`` it is the **Almansi strain** :math:`\mathbf{e}_A = \frac{1}{2}(\mathbf{I} - \mathbf{b}^{-1})`, exactly, not a logarithmic strain
+     - Eulerian strain integrated along the path with the objective rate of the run (``corate``): the strain the constitutive law sees. With the logarithmic rates (``"logarithmic"``, ``"logarithmic_R"``, the default, ``"logarithmic_F"``) it is the logarithmic strain :math:`\ln \mathbf{V}` up to the integration error; with ``"jaumann"`` or ``"green_naghdi"`` it is the integral of :math:`\mathbf{D}` along the spin of the rate: path dependent, not a function of :math:`\mathbf{F}`, equal to :math:`\ln\mathbf{V}` only on paths whose principal axes do not rotate (in simple shear it departs at third order in :math:`\gamma`); with ``"truesdell"`` it is the **Almansi strain** :math:`\mathbf{e}_A = \frac{1}{2}(\mathbf{I} - \mathbf{b}^{-1})`, exactly, not a logarithmic strain
    * - ``LogStrain``
      - (6, N)
      - Logarithmic strain :math:`\ln \mathbf{V} = \frac{1}{2}\ln(\mathbf{F}\mathbf{F}^T)`, computed from :math:`\mathbf{F}`: exact whatever the rate. Use it, not ``Strain``, when the logarithmic strain is wanted under ``"truesdell"``, ``"jaumann"`` or ``"green_naghdi"``
@@ -95,7 +95,7 @@ run gives every conjugate pair:
      - 2nd Piola-Kirchhoff stress :math:`\mathbf{S}`
    * - ``R``
      - (3, 3, N)
-     - Rotation accumulated by the objective rate of the run; it is the :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}` for ``"green_naghdi"`` and ``"logarithmic_R"``, differs from it for ``"jaumann"`` and ``"logarithmic"``, and for the convected rates ``"truesdell"`` and ``"logarithmic_F"`` it is not a rotation: it accumulates the frame increments :math:`\Delta\mathbf{F}`, i.e. it is :math:`\mathbf{F}` itself
+     - Rotation accumulated by the objective rate of the run; it is the :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}` for ``"green_naghdi"`` and ``"logarithmic_R"``, differs from it for ``"jaumann"`` and ``"logarithmic"``, and for the convected rates ``"truesdell"`` and ``"logarithmic_F"`` it is not a rotation: it accumulates the frame increments :math:`\Delta\mathbf{F}`, i.e. it is :math:`\mathbf{F}` itself (to round-off: runs start at :math:`\mathbf{F} = \mathbf{I}`)
    * - ``DR``
      - (3, 3, N)
      - Frame increment of the objective rate over the increment: the rotation :math:`\Delta\mathbf{R}`, or :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}` for ``"truesdell"`` and ``"logarithmic_F"``

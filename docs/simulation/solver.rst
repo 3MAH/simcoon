@@ -238,8 +238,9 @@ The ``corate`` parameter controls the corotational formulation used in finite de
 Use ``"logarithmic_R"`` (3) for production work. The Jaumann (0), Green-Naghdi (1) and
 ``"logarithmic_F"`` (5) rates are provided for research and for comparing objective rates:
 under combined stretching and rotation they are different constitutive assumptions and give
-different responses. Under Jaumann and Green-Naghdi, ``Strain`` is only an approximation of
-:math:`\ln\mathbf{V}`; ``LogStrain`` and ``GreenLagrange`` are computed from :math:`\mathbf{F}`
+different responses. Under Jaumann and Green-Naghdi, ``Strain`` is the integral of
+:math:`\mathbf{D}` along the rate's spin, path dependent and equal to :math:`\ln\mathbf{V}` only
+when the principal axes do not rotate; ``LogStrain`` and ``GreenLagrange`` are computed from :math:`\mathbf{F}`
 and exact for every rate. At small strain (``"small_strain"`` blocks) the rate plays no role.
 
 The loading path file
