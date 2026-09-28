@@ -38,6 +38,7 @@
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -209,13 +210,16 @@ const std::map<string, umat_convention> &umat_conventions()
     // Dtau_LieDD_2_DtauDe_corate) and in the frame they run in (material or lab).
     static const std::map<string, umat_convention> conventions = {
         // --- log-strain boxes: fed the corotated strain, run in the material frame (B2) ---
-        // {measure, material_frame, layout_declared, tensorial statev {offset, stress_like}}
+        // {measure, material_frame, layout_declared, tensorial statev {offset, Tensor2Type}}
         {"ELISO", {SM::kirchhoff, true, true, {}}},
         {"ELIST", {SM::kirchhoff, true, true, {}}},
         {"ELORT", {SM::kirchhoff, true, true, {}}},
-        {"EPICP", {SM::kirchhoff, true, true, {{2, false}}}},                     // EP
-        {"EPCHA", {SM::kirchhoff, true, true, {{2, false}, {8, false}, {14, false},  // EP, a_1, a_2
-                                               {20, true}, {26, true}}}},          // X_1, X_2
+        {"EPICP", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP
+        {"EPCHA", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},                     // EP
+                                               {8, Tensor2Type::strain},                     // a_1
+                                               {14, Tensor2Type::strain},                    // a_2
+                                               {20, Tensor2Type::stress},                    // X_1
+                                               {26, Tensor2Type::stress}}}},                 // X_2
         // 201 adapters (modular engine): layout not declared -> refused under corates 4/5
         {"EPKCP", {SM::kirchhoff, true, false, {}}},
         {"EPHIL", {SM::kirchhoff, true, false, {}}},
@@ -357,17 +361,16 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
 namespace {
 
 // One tensorial internal variable carried by the rotation-free increment M of corates 4 and 5,
-// with its variance: Truesdell (4) stress-like upper-, strain-like lower-convected; log_F (5)
-// similarity for both. Same rules as the solver's transport of tau and etot.
-vec transport_convected(const vec &v, const mat &M, const int &corate_type, const bool &stress_like)
+// with its variance: Truesdell (4) is tensor2's own push-forward (stress F X F^T, strain
+// F^-T X F^-1, no Piola factor); log_F (5) the similarity M X M^-1 for both, symmetrised. Same
+// rules as the solver's transport of tau and etot.
+vec transport_convected(const vec &v, const mat &M, const int &corate_type, const Tensor2Type &type)
 {
-    const mat M_inv = inv(M);
-    if (stress_like) {
-        const mat X = v2t_stress(v);
-        return t2v_stress(corate_type == 4 ? mat(M*X*M.t()) : mat(M*X*M_inv));
-    }
-    const mat X = v2t_strain(v);
-    return t2v_strain(corate_type == 4 ? mat(M_inv.t()*X*M_inv) : mat(M*X*M_inv));
+    const tensor2 t = tensor2::from_voigt(v, type);
+    if (corate_type == 4)
+        return t.push_forward(M, false).to_arma_voigt();
+    const mat X = M*t.to_arma_mat()*inv(M);
+    return tensor2(mat(0.5*(X + X.t())), type).to_arma_voigt();
 }
 
 }  // namespace
@@ -464,7 +467,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             const mat M = R_hat.t()*DR*R_hat_n;
             for (const StatevTensor &t : conv.statev_tensors) {
                 const vec x = umat_M->statev.subvec(t.offset, t.offset + 5);
-                umat_M->statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.stress_like);
+                umat_M->statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.type);
             }
         }
     }

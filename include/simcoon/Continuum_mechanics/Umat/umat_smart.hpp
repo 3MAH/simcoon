@@ -455,13 +455,17 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  */
 enum class StressMeasure { kirchhoff, cauchy };
 
+// Declared in Functions/tensor.hpp (kept out of this widely included header).
+enum class Tensor2Type;
+
 /**
- * @brief One tensorial internal variable of a kernel's @c statev: 6 Voigt components starting
- *        at @c offset, strain-like (engineering shear) or stress-like.
+ * @brief One tensorial internal variable of a kernel's @c statev: 6 engineering Voigt
+ *        components starting at @c offset, with its Tensor2Type (@c strain: engineering shear;
+ *        @c stress). The type selects the transport, through tensor2 (see umat_convention).
  */
 struct StatevTensor {
     int offset;
-    bool stress_like;
+    Tensor2Type type;
 };
 
 /**
