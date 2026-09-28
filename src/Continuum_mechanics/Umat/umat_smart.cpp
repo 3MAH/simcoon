@@ -189,19 +189,15 @@ const std::map<string, int> &finite_umat_names()
 {
     // The finite dispatch's name -> id map. A file-scope accessor rather than a
     // function-local static inside select_umat_M_finite so the convention test can iterate
-    // it; that removes a duplicate list rather than adding one. Plain types only: a
-    // function-local static of an armadillo type registers a destructor that runs at DLL
-    // unload, and on Windows that order is undefined.
+    // it;
     static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
     return list_umat;
 }
 
 namespace {
 
-// The single convention table, behind a file-scope accessor so the throwing lookup and the
-// total predicate share one definition instead of one calling the other through a throw.
-// Plain types only: a function-local static of an armadillo type registers a destructor that
-// runs at DLL unload, and on Windows that order is undefined.
+// The single convention table, plain types only: a function-local static of an armadillo type 
+// registers a destructor that runs at DLL unload, and on Windows that order is undefined.
 const std::map<string, umat_convention> &umat_conventions()
 {
     using SM = StressMeasure;

@@ -447,7 +447,7 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  * @brief What a kernel's raw @c sigma out-parameter holds.
  *
  * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
- * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume, so that is the route
+ * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
  * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
  * boundaries only. @c cauchy is reserved for conventions simcoon does not own: a
  * Cauchy-rate hypoelastic law, or a plugin adapter whose contract belongs to the host code.
@@ -457,11 +457,9 @@ enum class StressMeasure { kirchhoff, cauchy };
 /**
  * @brief The conventions a kernel's raw outputs are expressed in.
  *
- * The TANGENT rate is deliberately absent: every kernel is handed the solver's
- * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it, so the rate is a requirement,
- * not a per-kernel choice to be declared. It was one briefly, while the finite kernels
- * baked the log box and select_umat_M_finite re-expressed it; passing the corate down
- * removed the choice along with two thirds of the conversions.
+ * The tangent rate is deliberately absent: every kernel is handed the solver's
+ * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it, contrary to the stress measure.
+ * that is a public contract.
  *
  * @see output_convention_of
  */
@@ -471,15 +469,6 @@ struct umat_convention {
 
 /**
  * @brief The declared output conventions of a mechanical kernel.
- *
- * The ONE place that knows what a kernel's raw outputs mean. Both facts used to live apart
- * -- a public predicate for the stress and a function-local set for the tangent, 190 lines
- * away -- so a new kernel had to be remembered in two places and being forgotten in either
- * was silent: a missing stress entry is an error of exactly \f$ J \f$, a missing tangent
- * entry a wrong rate. Declaring is now mandatory, because this throws.
- *
- * Keyed on NAMES, not dispatch ids: the ids are renumbered when kernels move, and the
- * legacy->201 remap once orphaned an id-keyed set.
  *
  * @param umat_name the 5-letter kernel name
  * @throw std::invalid_argument if the kernel has not declared its conventions
@@ -498,9 +487,7 @@ const std::map<std::string, int> &finite_umat_names();
  * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF stress.
  *
  * A thin accessor over output_convention_of, kept because the python wrapper consumes it
- * across the language boundary. TOTAL where that function throws: a name absent from the
- * table is not served by the finite dispatch, so it has no finite output convention and
- * the python boundary must leave its stress alone rather than refuse the call.
+ * across the language boundary.
  */
 bool stress_output_is_kirchhoff(const std::string &umat_name);
 

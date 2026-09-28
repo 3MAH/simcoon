@@ -271,10 +271,10 @@ rejected rather than given a default -- a missing declaration is an error of exa
   to the host code (Abaqus ``DDSDDE`` is Cauchy-based). ``select_umat_M_finite`` converts
   those to :math:`\boldsymbol{\tau}` on the way out.
 
-**The tangent rate is not declared, because it is not a choice.** Every kernel receives the
-solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in it. A kernel that
-builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family -- converts the
-spatial (Lie/Oldroyd) closed form of the potential in one step, with
+**The tangent rate is not declared, it is deducted from  the solver's ``corate_type``.** Every 
+kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
+ it. A kernel that  builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family
+  -- converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
 ``Dtau_LieDD_2_DtauDe_corate``; a kernel handed the solver's already-corotated strain
 increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
 corrections, 2 (XBM), 3 (log_R) and 4 share the exact spectral map, and 5 (log_F) is the
