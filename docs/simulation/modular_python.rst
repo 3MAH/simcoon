@@ -229,10 +229,12 @@ Mechanisms
        the branches follow the total strain and enter the tangent exactly
    * - :class:`Damage`
      - ``Y_0, Y_c, damage_type, A, n``
-     - Scalar stiffness-degradation damage; ``damage_type`` selects the
-       evolution law and its extra parameters: ``LINEAR`` (none),
-       ``EXPONENTIAL`` (``A``), ``POWER_LAW`` (``n``) or ``WEIBULL``
-       (``A, n``)
+     - Scalar stiffness-degradation damage, :math:`\boldsymbol{\sigma} = (1-D)\,\boldsymbol{\sigma}_{eff}`,
+       driven by the undamaged energy :math:`Y = \psi_0`; the other mechanisms
+       (plastic yield included) act on the effective stress (strain
+       equivalence). ``damage_type`` selects the evolution law and its extra
+       parameters: ``LINEAR`` (none), ``EXPONENTIAL`` (``A``), ``POWER_LAW``
+       (``n``) or ``WEIBULL`` (``A, n``)
 
 Multiple mechanisms compose additively on the inelastic strain; the
 registration order defines the statev layout (see the

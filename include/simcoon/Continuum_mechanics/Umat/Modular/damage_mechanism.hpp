@@ -29,6 +29,11 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * with S the compliance of the undamaged elasticity block (exact for a linear block; for a
  * hyperelastic one the tangent compliance makes it an approximation of psi_0).
  *
+ * Coupling (strain equivalence, Lemaitre): the other mechanisms work on the effective stress,
+ * the damage scales the result, sigma = (1 - D) sigma_eff. D is not an FB multiplier: it is the
+ * fixed point D = f(max(Y_max at the step start, Y(sigma_eff))), iterated until
+ * consistency_residual() vanishes; its tangent is the left factor stress_map().
+ *
  * Damage evolution follows:
  *   D = f(Y_max)
  *
@@ -137,6 +142,22 @@ public:
     /// this (1 - D) factor, matching the (1 - D) * L scaling applied in
     /// tangent_contribution.
     [[nodiscard]] double stiffness_reduction() const override;
+
+    /**
+     * @brief Linearised map from the effective to the damaged stress, \f$ d\boldsymbol{\sigma} = \mathbf{Q}\,d\boldsymbol{\sigma}_{eff} \f$.
+     *
+     * With \f$ \boldsymbol{\sigma} = (1 - D)\,\boldsymbol{\sigma}_{eff} \f$ and, while damage grows,
+     * \f$ dD = D'(Y)\,(\mathbf{S}\boldsymbol{\sigma}_{eff}) \cdot d\boldsymbol{\sigma}_{eff} \f$:
+     * \f$ \mathbf{Q} = (1 - D)\,\mathbf{I} - D'(Y)\,\boldsymbol{\sigma}_{eff} \otimes \mathbf{S}\boldsymbol{\sigma}_{eff} \f$
+     * (\f$ (1 - D)\,\mathbf{I} \f$ under unloading). Used by the orchestrator to couple damage
+     * exactly with the other mechanisms in the tangent. Call after compute_constraints.
+     * @param sigma damaged stress (6)
+     * @return \f$ \mathbf{Q} \f$ (6x6)
+     */
+    [[nodiscard]] arma::mat stress_map(const arma::vec& sigma) const;
+
+    /// @brief |max(Y_max at step start, Y(sigma)) - Y_max used for D|, relative: D consistent with the stress
+    [[nodiscard]] double consistency_residual(const arma::vec& sigma) const override;
 
     /// Explicitly integrated, energy-release-typed row — excluded from the
     /// drift-guard ARMING count (see StrainMechanism::guarded_constraints);

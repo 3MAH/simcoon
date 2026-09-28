@@ -868,11 +868,13 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
     assert Wm[3, 0] > 0.
 
 
-@pytest.mark.parametrize("mechs", ["visco", "visco+plast", "plast+visco", "visco+damage"])
+@pytest.mark.parametrize("mechs", ["visco", "visco+plast", "plast+visco", "visco+damage",
+                                   "plast+damage", "damage+plast", "visco+plast+damage"])
 @pytest.mark.parametrize("scale", [1.0, 10.0, -1.0])
-def test_modular_viscoelastic_tangent_is_exact(mechs, scale):
+def test_modular_composite_tangent_is_exact(mechs, scale):
     """The MODUL viscoelastic branches take their closed-form step before the elastic
-    prediction and enter the tangent by the chain rule: with the algorithmic tangent the
+    prediction and enter the tangent by the chain rule; plasticity works on the effective
+    stress and damage scales it (strain equivalence): with the algorithmic tangent the
     composite Lt matches central differences, loading and unloading (the damage softening
     term only while damage grows)."""
     from simcoon.modular import (ModularMaterial, IsotropicElasticity, Viscoelasticity,
@@ -901,3 +903,37 @@ def test_modular_viscoelastic_tangent_is_exact(mechs, scale):
     fd = np.column_stack([(call(De0 + h * u)[0][:, 0] - call(De0 - h * u)[0][:, 0]) / (2 * h)
                           for u in np.eye(6)])
     assert np.linalg.norm(Lt - fd) < 1e-7 * np.linalg.norm(fd)
+
+
+@pytest.mark.parametrize("scale", [1.0, 3.0, 10.0])
+def test_plasticity_with_damage_uses_the_effective_stress(scale):
+    """Strain equivalence (Lemaitre): the yield condition holds on sigma / (1 - D) at the
+    converged state, and D is the damage law at the undamaged energy of that state -- the
+    nominal-stress coupling left plastic strain on states below yield once damage grew."""
+    from simcoon.modular import (ModularMaterial, IsotropicElasticity, Plasticity,
+                                 VonMisesYield, VoceHardening, Damage)
+    from simcoon.solver import StepMeca, solve
+    E, nu, sY, Q, b, Y0, Yc = 3000., 0.35, 20., 10., 50., 0.001, 0.5
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=nu),
+                          mechanisms=[Plasticity(sigma_Y=sY, yield_criterion=VonMisesYield(),
+                                                 isotropic_hardening=VoceHardening(Q=Q, b=b)),
+                                      Damage(Y_0=Y0, Y_c=Yc)])
+    r = solve(StepMeca(control=["strain"] + ["stress"] * 5, value=[0.01, 0, 0, 0, 0, 0],
+                       ninc=10, time=0.5), "MODUL", mat.props, mat.nstatev, T_init=290.)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    sv = r["Statev"][:, -1]
+    out = sim.umat("MODUL", col(r["Strain"][:, -1]),
+                   col(scale * np.array([4e-4, 1e-4, -1e-4, 1.5e-4, 0., 0.])), I3, I3,
+                   col(r["Stress"][:, -1]), I3, col(mat.props), col(sv), 0.5, 0.3,
+                   np.zeros((4, 1), order="F"), n_threads=1)
+    sig, p, D, Ymax = out[0][:, 0], out[1][1, 0], out[1][-2, 0], out[1][-1, 0]
+    s_eff = sig / (1. - D)
+    vm = np.sqrt(0.5 * ((s_eff[0] - s_eff[1]) ** 2 + (s_eff[1] - s_eff[2]) ** 2
+                        + (s_eff[2] - s_eff[0]) ** 2) + 3. * np.sum(s_eff[3:] ** 2))
+    assert p > sv[1]
+    np.testing.assert_allclose(vm, sY + Q * (1. - np.exp(-b * p)), rtol=1e-8)
+    M0 = np.linalg.inv(np.asarray(sim.L_iso([E, nu], "Enu")))
+    Y = 0.5 * s_eff @ M0 @ s_eff
+    np.testing.assert_allclose(Ymax, max(Y, sv[-1]), rtol=1e-8)
+    np.testing.assert_allclose(D, (Ymax - Y0) / (Yc - Y0), rtol=1e-8)

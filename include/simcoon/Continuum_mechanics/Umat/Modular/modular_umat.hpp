@@ -55,6 +55,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
+class DamageMechanism;
+
 // Forward declarations
 class PlasticityMechanism;
 class ViscoelasticMechanism;
@@ -422,6 +424,18 @@ private:
         arma::mat& Lt,
         int tangent_mode = tangent_default
     );
+
+    /**
+     * @brief Right-multiply @p Lt by every mechanism's total_strain_map() (chain rule for
+     *        inelastic strains driven by the total strain alone).
+     */
+    void apply_total_strain_maps(arma::mat& Lt) const;
+
+    /**
+     * @brief Stress a mechanism works on: the effective stress \f$ \boldsymbol{\sigma}/(1 - D) \f$ for
+     *        all but damage (strain equivalence, Lemaitre), the nominal one for damage.
+     */
+    arma::vec mechanism_stress(const StrainMechanism& mech, const arma::vec& sigma) const;
 
     /**
      * @brief Assemble the local multiplier Jacobian B (phases 2 and 3 of the

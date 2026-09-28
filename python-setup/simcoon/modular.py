@@ -1353,7 +1353,9 @@ class Damage:
     The stiffness is scaled by ``1 - D``; ``D`` grows with the history maximum of the
     driving force ``Y = -dpsi/dD = psi_0``, the undamaged stored energy (per reference
     volume, MPa), ``1/2 sigma_eff : S : sigma_eff`` on the effective stress
-    ``sigma / (1 - D)``.
+    ``sigma / (1 - D)``. Composed with other mechanisms, strain equivalence (Lemaitre):
+    they act on the effective stress, the yield criterion of a ``Plasticity`` in
+    particular, and the damage scales the result.
 
     Parameters
     ----------

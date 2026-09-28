@@ -484,6 +484,20 @@ public:
         (void)DTime;
     }
 
+    /**
+     * @brief Residual of a state updated outside the FB rows (explicit fixed point), added to
+     *        the orchestrator's convergence error.
+     *
+     * The damage variable, for instance, is recomputed from the driving force at every
+     * iterate: the loop must not stop before it is consistent with the stress it produces.
+     * @param sigma stress of the current iterate
+     * @return normalised residual (0 when consistent; default)
+     */
+    [[nodiscard]] virtual double consistency_residual(const arma::vec& sigma) const {
+        (void)sigma;
+        return 0.;
+    }
+
     // ========== Work Quantities ==========
 
     /**
