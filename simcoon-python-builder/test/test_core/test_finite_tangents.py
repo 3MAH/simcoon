@@ -79,6 +79,33 @@ def test_box_tangent_matches_finite_difference(name, props, nstatev, corate):
             err_msg=f"{name}: d(tau)/d(eps) column {col} at corate {corate}")
 
 
+@pytest.mark.parametrize("name,props,nstatev", KERNELS, ids=[k[0] for k in KERNELS])
+def test_truesdell_box_is_the_convected_tangent(name, props, nstatev):
+    """Corate 4 (Truesdell): the box is d(tau_hat)/d(De) with the Kirchhoff stress transported
+    upper-convected, tau_hat = DF tau0 DF^T, and De the Almansi increment
+    1/2 (I - (DF DF^T)^-1). Its limit at DF -> I is the Lie tangent, which is what the kernels
+    return for corate 4; checked by central differences about the reference state F0."""
+    F0 = _F(EPS0)
+    sigma0, Lt = _umat(name, props, F0, nstatev, corate=4)
+    tau0 = sim.v2t_stress(np.exp(EPS0[:3].sum()) * np.asarray(sigma0).ravel())
+    d = 1e-6
+    for col in range(3):
+        dtau, de = [], []
+        for sgn in (1.0, -1.0):
+            DF = np.eye(3)
+            DF[col, col] += sgn * d
+            F1 = DF @ F0
+            sigma1, _ = _umat(name, props, F1, nstatev, corate=4)
+            tau1 = np.linalg.det(F1) * np.asarray(sigma1).ravel()
+            dtau.append(tau1 - np.asarray(sim.t2v_stress(DF @ tau0 @ DF.T)).ravel())
+            de.append(0.5 * (1.0 - 1.0 / (1.0 + sgn * d) ** 2))
+        fd = (dtau[0] - dtau[1]) / (de[0] - de[1])
+        np.testing.assert_allclose(
+            fd[:3], Lt[:3, col], rtol=1e-5,
+            atol=1e-5 * max(1.0, np.abs(Lt[:3, col]).max()),
+            err_msg=f"{name}: Truesdell box column {col}")
+
+
 def test_corates_2_and_3_return_the_same_box():
     """They resolve to the same exact spectral map, so the box is literally identical.
 

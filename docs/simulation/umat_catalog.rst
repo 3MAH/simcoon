@@ -276,20 +276,42 @@ rejected rather than given a default -- a missing declaration is an error of exa
 :math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,
 and is the rate counterpart of ``ELORT`` (total form
 :math:`\boldsymbol{\tau} = \mathbf{L} : \boldsymbol{\varepsilon}^{el}`). With the same
-:math:`\mathbf{L}` the two are identical along a path without rotation increments. Under
-rotation they differ where the stress transport does not commute with an anisotropic
-:math:`\mathbf{L}` -- the effect the pair exists to show, free of any stress-measure effect --
-plus a time-discretisation gap of the rate form, first order in the increment size and
-present even for an isotropic stiffness.
+isotropic :math:`\mathbf{L}` the two are identical on any path, rotation included. With an
+anisotropic :math:`\mathbf{L}` they differ under rotation: the corotated strain increment is
+no longer work-conjugate to :math:`\boldsymbol{\tau}`, so the rate and the total form are
+different laws, and HYPOO is kept as the reference that shows it.
 
-**The tangent rate is not declared, it is deducted from  the solver's ``corate_type``.** Every 
+.. warning::
+
+   On the finite route the material axes of every anisotropic kernel (ELIST, ELORT, HYPOO,
+   EPHIL, EPANI, EPDFA, EPHAC, anisotropic ``MODUL`` blocks including HOLZA) are fixed in
+   the lab frame: the local frame is built from the Euler angles only and does not rotate
+   with the material. A stretched orthotropic body rotated rigidly by 90 degrees keeps
+   reading its stretch against the unrotated stiffness. Use these laws under finite strain
+   only where the material rotation stays small; convecting the axes is planned.
+
+**The tangent rate is not declared, it is deduced from the solver's ``corate_type``.** Every
 kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
- it. A kernel that  builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family
-  -- converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
+it. A kernel that builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family --
+converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
 ``Dtau_LieDD_2_DtauDe_corate``; a kernel handed the solver's already-corotated strain
 increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
-corrections, 2 (XBM), 3 (log_R) and 4 share the exact spectral map, and 5 (log_F) is the
-convected/Oldroyd-Lie box, which *is* the spatial tangent -- an identity.
+corrections, 2 (XBM) and 3 (log_R) share the exact spectral map, and 4 (Truesdell) is the
+convected box, which *is* the spatial (Lie) tangent -- an identity: the Kirchhoff stress is
+transported upper-convected and the strain lower-convected, so the strain is the Almansi strain.
+5 (log_F) currently returns the Lie tangent too, not yet verified by finite differences.
+
+.. note::
+
+   The solver transports the total strain and the start stress with the variance each corate
+   requires (rotation for 0-3; lower-convected strain and upper-convected Kirchhoff stress for
+   4; similarity for 5). The **internal variables** of an inelastic kernel are transported by
+   the kernel itself, from :math:`\Delta\mathbf{R}` alone: EPICP/EPCHA apply
+   :math:`\Delta\mathbf{F}\,\mathbf{X}\,\Delta\mathbf{F}^T` to their strain-like state and the
+   modular engine keeps only the rotation part of :math:`\Delta\mathbf{F}`. For corates 0-3 this
+   is exact; for 4 and 5 the plastic and viscous states are not transported with their
+   variance, so use those corates with elastic, hyperelastic and rate-form laws. Handing the
+   kernels a variance-aware transport is planned for 2.2.
 
 .. note::
 
