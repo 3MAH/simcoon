@@ -120,8 +120,8 @@ Small-strain mechanical models
      - Generalized Maxwell (Prony series), N branches
      - legacy (kept)
      - E0, nu0, alpha, N, then per branch: E_i, nu_i, etaB_i, etaS_i
-     - Pedagogical reference; the modular Viscoelasticity mechanism is its
-       proven twin (< 0.1%)
+     - Pedagogical reference; the modular Viscoelasticity mechanism takes the
+       same closed-form step and is identical to it (round-off)
    * - LLDM0
      - Ductile damage (Lemaitre-Ladeveze-Dufailly)
      - legacy (kept)

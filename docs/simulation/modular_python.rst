@@ -224,8 +224,9 @@ Mechanisms
      - ``terms = ((E_i, nu_i, etaB_i, etaS_i), ...)``
      - Generalized Maxwell (Prony) branches: per branch a spring
        (:math:`E_i, \nu_i`) in series with bulk/shear dashpots
-       (:math:`\eta_B, \eta_S`) — same rheology and layout as the kept
-       ``PRONK`` kernel
+       (:math:`\eta_B, \eta_S`) — same rheology, layout and closed-form
+       backward-Euler step as the kept ``PRONK`` kernel (identical results);
+       the branches follow the total strain and enter the tangent exactly
    * - :class:`Damage`
      - ``Y_0, Y_c, damage_type, A, n``
      - Scalar stiffness-degradation damage; ``damage_type`` selects the

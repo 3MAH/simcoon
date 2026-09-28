@@ -192,8 +192,10 @@ void DamageMechanism::compute_constraints(
     // Critical value for convergence
     Y_crit(0) = std::max(Y_0_, 1e-6);
 
-    // Compute derivative dD/dY for tangent
-    if (Y_eff > Y_0_ && D_current_ < D_c_) {
+    // dD/dY for the tangent, only while damage grows in this increment (Y beyond the history
+    // maximum at the start of the step): under unloading the response is (1-D) L, no softening
+    const bool loading = Y_current_ > ivc_.get("Y_max").scalar_start();
+    if (loading && Y_eff > Y_0_ && D_current_ < D_c_) {
         switch (damage_type_) {
             case DamageType::LINEAR:
                 dD_dY_ = 1.0 / (Y_c_ - Y_0_);

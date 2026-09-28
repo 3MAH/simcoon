@@ -436,6 +436,9 @@ void ModularUMAT::return_mapping(
     // no damage, so this same call IS the whole elastic response — only the
     // constraint machinery below is skipped.
     const arma::vec Etot_end = Etot + DEtot;
+    for (auto& mech : mechanisms_) {
+        mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
+    }
     refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
     if (n_total == 0) {
         return;
@@ -628,6 +631,15 @@ void ModularUMAT::compute_tangent(
         }
         mechanisms_[m]->tangent_contribution(
             sigma, L_cur_, Ds_total, mech_offset_[m], Lt);
+    }
+
+    // Inelastic strains driven by the total strain alone (viscoelastic branches): chain rule,
+    // applied last, sigma = F(eps - eps_in(eps)).
+    for (const auto& mech : mechanisms_) {
+        const arma::mat map = mech->total_strain_map();
+        if (!map.is_empty()) {
+            Lt = Lt * map;
+        }
     }
 }
 

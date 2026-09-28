@@ -21,16 +21,18 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Each Prony branch i is a Maxwell element with its own stiffness L_i and
  * viscosity tensor H_i (bulk/shear split): driving stress L_i (eps - EV_i)
- * produces a strain rate invH_i . L_i (eps - EV_i). The lead scalar v_i is
- * the accumulated flow magnitude ("path length") and EV_i is the branch
- * viscous strain tensor. The constraint is an equality:
+ * produces a strain rate invH_i . L_i (eps - EV_i). EV_i is the branch
+ * viscous strain tensor, v_i accumulates || Delta EV_i ||.
  *
- *   Phi_i = || invH_i . L_i . (eps + Δeps - EV_i) ||_strain - Δv_i / Δt = 0
- *
- * Solved via the same FB complementarity residual used by plasticity; for
- * pure viscoelasticity (no activation threshold) the FB "inactive" branch is
- * unreachable except at the trivial rest state, so FB degrades cleanly to
- * the equality case.
+ * The branches are driven by the total strain alone and are linear, so their
+ * backward-Euler step is taken in closed form (maxwell_parallel_step,
+ * linear_viscoelastic.hpp), exactly as the PRONK kernel: the mechanism keeps
+ * its rows in the Fischer-Burmeister system, but they are always satisfied
+ * (Phi = -Y_crit, Delta s = 0), and predict() sets EV_i to the closed-form
+ * state before the elastic prediction, so the other mechanisms' return
+ * mapping starts from it. The stress sees it through inelastic_strain(); the tangent through
+ * total_strain_map(), I - sum_i M_0 L_i C_i L_i, applied by the orchestrator
+ * after every other contribution (exact, whatever the other mechanisms).
  *
  * Props per branch (4 values): E_i, nu_i, etaB_i, etaS_i.
  * Statev per branch (7 values): v_i (scalar), EV_i (6 Voigt).
@@ -71,12 +73,8 @@ private:
     std::vector<std::string> v_key_;    ///< "v_<i>" per branch
 
     // Per-iteration caches (CCP: frozen flow direction from previous iteration)
-    mutable std::vector<arma::vec> flow_i_;       ///< Strain-rate vector per branch
-    mutable std::vector<arma::vec> Lambda_i_;     ///< eta_norm_strain(flow_i)
-    mutable std::vector<arma::vec> kappa_i_;      ///< d(sigma)/d(v_i) = L M_0 L_i . Lambda_i (L_i . Lambda_i at L_0)
-    mutable std::vector<tensor2> kappa_t_;        ///< Typed mirror of kappa_i_ (stress) for the kappa() interface
-    mutable std::vector<arma::vec> dPhi_i_dv_;    ///< invH_i . (eta_norm_strain(flow_i) % Ir05())
-    mutable arma::vec K_diag_;                    ///< Cached diagonal K(i,i) = -dPhi_i_dv . kappa_i - 1/Δt
+    mutable std::vector<tensor2> kappa_t_;        ///< Zero fluxes: the rows carry no multiplier
+    arma::mat dEVtilde_dE_;                       ///< d(sum_i M_0 L_i EV_i)/d(eps), set by predict()
 
 public:
     explicit ViscoelasticMechanism(int N_prony);
@@ -123,6 +121,9 @@ public:
         const arma::vec& ds,
         int offset
     ) override;
+
+    [[nodiscard]] arma::mat total_strain_map() const override;
+    void predict(const arma::vec& E_total_end, double DTime) override;
 
     void tangent_contribution(
         const arma::vec& sigma,

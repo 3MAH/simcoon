@@ -206,9 +206,9 @@ def test_viscoelastic_matches_pronk_reference(work_in_examples):
     peak = np.max(np.abs(ref[:, 1]))
     assert peak > 1.0, "sanity: relaxation path produced stress"
     max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
-    assert max_diff / peak < 1e-3, (
-        f"MODUL viscoelastic deviates from PRONK by {max_diff/peak:.3%} "
-        "(consistent-tangent regression?)"
+    # both take the same closed-form backward-Euler step: identical to round-off
+    assert max_diff / peak < 1e-10, (
+        f"MODUL viscoelastic deviates from PRONK by {max_diff/peak:.3e}"
     )
 
 
@@ -866,3 +866,38 @@ def test_viscoelastic_step_is_exact_backward_euler(umat):
     fd = np.column_stack([(call(De + h * u)[0][:, 0] - call(De - h * u)[0][:, 0]) / (2 * h) for u in np.eye(6)])
     assert np.linalg.norm(Lt[:, :, 0] - fd) < 1e-8 * np.linalg.norm(fd)
     assert Wm[3, 0] > 0.
+
+
+@pytest.mark.parametrize("mechs", ["visco", "visco+plast", "plast+visco", "visco+damage"])
+@pytest.mark.parametrize("scale", [1.0, 10.0, -1.0])
+def test_modular_viscoelastic_tangent_is_exact(mechs, scale):
+    """The MODUL viscoelastic branches take their closed-form step before the elastic
+    prediction and enter the tangent by the chain rule: with the algorithmic tangent the
+    composite Lt matches central differences, loading and unloading (the damage softening
+    term only while damage grows)."""
+    from simcoon.modular import (ModularMaterial, IsotropicElasticity, Viscoelasticity,
+                                 Plasticity, VonMisesYield, VoceHardening, Damage)
+    from simcoon.solver import StepMeca, solve
+    terms = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
+    parts = {"visco": Viscoelasticity(terms=terms),
+             "plast": Plasticity(sigma_Y=20., yield_criterion=VonMisesYield(),
+                                 isotropic_hardening=VoceHardening(Q=10., b=50.)),
+             "damage": Damage(Y_0=0.001, Y_c=0.5)}
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=3000., C2=0.35),
+                          mechanisms=[parts[k] for k in mechs.split("+")])
+    r = solve(StepMeca(control=["strain"] + ["stress"] * 5, value=[0.01, 0, 0, 0, 0, 0],
+                       ninc=10, time=0.5), "MODUL", mat.props, mat.nstatev, T_init=290.)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
+    De0 = scale * np.array([4e-4, 1e-4, -1e-4, 1.5e-4, 0., 0.])
+
+    def call(d):
+        return sim.umat("MODUL", col(e), col(d), I3, I3, col(s), I3, col(mat.props), col(sv),
+                        0.5, 0.3, np.zeros((4, 1), order="F"), n_threads=1, tangent_mode=2)
+
+    Lt = call(De0)[3][:, :, 0]
+    h = 1e-8
+    fd = np.column_stack([(call(De0 + h * u)[0][:, 0] - call(De0 - h * u)[0][:, 0]) / (2 * h)
+                          for u in np.eye(6)])
+    assert np.linalg.norm(Lt - fd) < 1e-7 * np.linalg.norm(fd)

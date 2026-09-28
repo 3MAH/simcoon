@@ -455,6 +455,35 @@ public:
         arma::mat& Lt
     ) const = 0;
 
+    /**
+     * @brief Right factor of the tangent for an inelastic strain driven by the total strain alone.
+     *
+     * When \f$ \boldsymbol{\varepsilon}^{in} = \boldsymbol{\varepsilon}^{in}(\boldsymbol{\varepsilon}) \f$
+     * (the viscoelastic branches, updated in closed form), the response is
+     * \f$ \boldsymbol{\sigma} = \mathbf{F}(\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{in}(\boldsymbol{\varepsilon})) \f$
+     * and the orchestrator applies \f$ \mathbf{L}_t \leftarrow \mathbf{L}_t\,(\mathbf{I} - \partial
+     * \boldsymbol{\varepsilon}^{in}/\partial\boldsymbol{\varepsilon}) \f$ after every other contribution.
+     * @return \f$ \mathbf{I} - \partial\boldsymbol{\varepsilon}^{in}/\partial\boldsymbol{\varepsilon} \f$ (6x6), or an
+     *         empty matrix (default) when the mechanism has no such dependence
+     */
+    [[nodiscard]] virtual arma::mat total_strain_map() const {
+        return arma::mat();
+    }
+
+    /**
+     * @brief Closed-form part of the step, taken once before the elastic prediction.
+     *
+     * For a mechanism whose state is an explicit function of the total strain (the
+     * viscoelastic branches), so that the other mechanisms' return mapping starts from its
+     * final state. Default: nothing.
+     * @param E_total_end total strain at the end of the increment
+     * @param DTime time increment
+     */
+    virtual void predict(const arma::vec& E_total_end, double DTime) {
+        (void)E_total_end;
+        (void)DTime;
+    }
+
     // ========== Work Quantities ==========
 
     /**

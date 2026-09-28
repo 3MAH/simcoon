@@ -25,6 +25,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 #include <stdexcept>
 #include <cmath>
 
@@ -44,19 +45,9 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , M_0_(arma::eye(6, 6))
     , ev_key_(N_prony)
     , v_key_(N_prony)
-    , flow_i_(N_prony)
-    , Lambda_i_(N_prony)
-    , kappa_i_(N_prony)
-    , kappa_t_(N_prony, tensor2(Tensor2Type::stress))
-    , dPhi_i_dv_(N_prony)
-    , K_diag_(arma::zeros(N_prony))
+    , kappa_t_(N_prony, tensor2::zeros(Tensor2Type::stress))
+    , dEVtilde_dE_(arma::zeros(6, 6))
 {
-    for (int i = 0; i < N_prony_; ++i) {
-        flow_i_[i]     = arma::zeros(6);
-        Lambda_i_[i]   = arma::zeros(6);
-        kappa_i_[i]    = arma::zeros(6);
-        dPhi_i_dv_[i]  = arma::zeros(6);
-    }
 }
 
 void ViscoelasticMechanism::configure(const arma::vec& props, int& offset) {
@@ -101,72 +92,36 @@ void ViscoelasticMechanism::set_reference_stiffness(const arma::mat& L_0) {
 
 void ViscoelasticMechanism::compute_constraints(
     const arma::vec& /*sigma*/,
-    const arma::vec& E_total,
-    const arma::mat& L,
-    double DTime,
+    const arma::vec& /*E_total*/,
+    const arma::mat& /*L*/,
+    double /*DTime*/,
     arma::vec& Phi,
     arma::vec& Y_crit
 ) const {
+    // The branches are not solved by the FB system: predict() took their backward-Euler step
+    // in closed form. Their rows stay in the system (uniform bookkeeping) but are always
+    // satisfied: Phi = -Y_crit gives Delta s = 0.
     Phi.set_size(N_prony_);
     Y_crit.set_size(N_prony_);
-
-    // The stress sees EV_i through the inelastic strain M_0 L_i EV_i, so
-    // d(sigma)/d(v_i) = -L M_0 L_i Lambda_i with L the current elastic tangent.
-    // At the reference (every linear block) that is -L_i Lambda_i: keep the
-    // exact short product there, the full one for a state-dependent block.
-    const bool at_reference = L_0_.is_empty() || arma::approx_equal(L, L_0_, "absdiff", 0.0);
-
-    for (int i = 0; i < N_prony_; ++i) {
-        const arma::vec& EV_i = ivc_.get(ev_key_[i]).raw_voigt();
-
-        // Branch flow rate: driving stress through branch viscosity.
-        flow_i_[i] = invH_i_[i] * (L_i_[i] * (E_total - EV_i));
-        Lambda_i_[i] = eta_norm_strain(flow_i_[i]);
-        // The branch's own rate sensitivity goes through its spring L_i, never
-        // through the elastic block.
-        const arma::vec L_Lambda_i = L_i_[i] * Lambda_i_[i];
-        kappa_i_[i] = at_reference ? L_Lambda_i : arma::vec(L * (M0_L_i_[i] * Lambda_i_[i]));
-        // dPhi_i/dv_i stress-type term (Prony_Nfast line 188)
-        dPhi_i_dv_[i] = invH_i_[i] * (Lambda_i_[i] % Ir05());
-
-        const double flow_mag = norm_strain(flow_i_[i]);
-        const double Delta_v_i = ivc_.get(v_key_[i]).delta_scalar();
-
-        Y_crit(i) = std::max(flow_mag, simcoon::precision_umat);
-
-        if (DTime > simcoon::iota) {
-            Phi(i) = flow_mag - Delta_v_i / DTime;
-            K_diag_(i) = -arma::dot(dPhi_i_dv_[i], L_Lambda_i) - 1.0 / DTime;
-        } else {
-            //No time, no flow: the branch is INACTIVE. The stationary condition Phi = flow_mag
-            //has root EV_i = eps, which the solver's zero-time probe would commit as relaxed.
-            Phi(i) = -Y_crit(i);
-            K_diag_(i) = -1.0;
-        }
-    }
+    Y_crit.fill(1.0);
+    Phi.fill(-1.0);
 }
+
 void ViscoelasticMechanism::compute_jacobian_contribution(
     const arma::vec& /*sigma*/,
     const arma::mat& /*L*/,
     arma::mat& B,
     int row_offset
 ) const {
-    // Diagonal-only by structure: Phi_i depends on EV_i alone (EV_j is driven
-    // solely by v_j), so dPhi_i/dv_j = 0 for j != i. K_diag_(i) is cached by
-    // compute_constraints (it carries the -1/DTime term). The block coupling
-    // between branches enters only the consistent tangent (tangent_contribution).
+    // Unit diagonal for the always-satisfied rows (no coupling: the fluxes are zero).
     for (int i = 0; i < N_prony_; ++i) {
-        B(row_offset + i, row_offset + i) = K_diag_(i);
+        B(row_offset + i, row_offset + i) = -1.0;
     }
 }
 
 const std::vector<tensor2>& ViscoelasticMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
-    // Typed mirror of the cached d(sigma)/d(v_i) per branch.
-    for (int i = 0; i < N_prony_; ++i) {
-        kappa_t_[i] = stress(kappa_i_[i]);
-    }
-    return kappa_t_;
+    return kappa_t_;   // zero: the rows carry no multiplier
 }
 
 arma::vec ViscoelasticMechanism::inelastic_strain() const {
@@ -181,70 +136,45 @@ arma::vec ViscoelasticMechanism::inelastic_strain() const {
 }
 
 void ViscoelasticMechanism::update(
-    const arma::vec& ds,
-    int offset
+    const arma::vec& /*ds*/,
+    int /*offset*/
 ) {
-    // Apply the multiplier increment to each branch:
-    //   v_i   += ds_i      (lead scalar / accumulated flow length)
-    //   EV_i  += ds_i * Lambda_i
+    // Nothing: the branches took their step in predict(), before the elastic prediction.
+}
+
+void ViscoelasticMechanism::predict(const arma::vec& E_total_end, double DTime) {
+    // Closed-form backward-Euler step from the (rotated) start state: the branches see the
+    // total strain only, so it is final before the other mechanisms' return mapping starts.
+    // A zero time increment leaves them inactive (C_i = 0).
+    std::vector<arma::vec> EV_start(N_prony_);
     for (int i = 0; i < N_prony_; ++i) {
-        const double ds_i = ds(offset + i);
-        double& v_i = ivc_.get(v_key_[i]).scalar();
-        v_i += ds_i;
-        arma::vec& EV_i = ivc_.get(ev_key_[i]).raw_voigt();
-        EV_i += ds_i * Lambda_i_[i];
+        EV_start[i] = ivc_.get(ev_key_[i]).raw_voigt_start();
     }
+    const LinearViscoStep st = maxwell_parallel_step(L_0_.is_empty() ? arma::mat(arma::zeros(6, 6)) : L_0_,
+                                                     L_i_, H_i_, EV_start, E_total_end, arma::zeros(6), DTime);
+    dEVtilde_dE_.zeros();
+    for (int i = 0; i < N_prony_; ++i) {
+        InternalVariable& ev = ivc_.get(ev_key_[i]);
+        ev.raw_voigt() = st.EV_i[i];
+        InternalVariable& v = ivc_.get(v_key_[i]);
+        v.scalar() = v.scalar_start() + norm_strain(st.EV_i[i] - EV_start[i]);
+        dEVtilde_dE_ += M0_L_i_[i] * st.dEVdE_i[i];
+    }
+}
+
+arma::mat ViscoelasticMechanism::total_strain_map() const {
+    return arma::eye(6, 6) - dEVtilde_dE_;
 }
 
 void ViscoelasticMechanism::tangent_contribution(
     const arma::vec& /*sigma*/,
     const arma::mat& /*L*/,
-    const arma::vec& Ds,
-    int offset,
-    arma::mat& Lt
+    const arma::vec& /*Ds*/,
+    int /*offset*/,
+    arma::mat& /*Lt*/
 ) const {
-    // Consistent tangent contribution, Prony_Nfast lines 231-269. Active
-    // branches (Ds_i > 0) contribute -kappa_i ⊗ P_eps_i where P_eps_i is built
-    // from the inverse of the active block of (-K_{ij}). For a single branch
-    // or weakly-coupled multi-branch case, the diagonal approximation used
-    // here is the original Prony_Nfast behavior with op(i) = 0/1 activation
-    // masking.
-    std::vector<double> op(N_prony_, 0.0);
-    arma::mat Bhat = arma::zeros(N_prony_, N_prony_);
-    arma::mat Bbar = arma::eye(N_prony_, N_prony_);
-
-    for (int i = 0; i < N_prony_; ++i) {
-        if (Ds(offset + i) > simcoon::iota) {
-            op[i] = 1.0;
-        }
-        // K_diag_ (cached by compute_constraints) includes the -1/DTime term;
-        // recomputing the dot product alone drops it, which roughly doubles
-        // the rank-one correction and makes Lt singular (Prony_Nfast keeps it).
-        Bhat(i, i) = -K_diag_(i);
-    }
-
-    for (int i = 0; i < N_prony_; ++i) {
-        for (int j = 0; j < N_prony_; ++j) {
-            Bbar(i, j) = op[i] * op[j] * Bhat(i, j)
-                       + (i == j ? 1.0 - op[i] * op[j] : 0.0);
-        }
-    }
-
-    const arma::mat invBbar = arma::inv(Bbar);
-    arma::mat invBhat = arma::zeros(N_prony_, N_prony_);
-    for (int i = 0; i < N_prony_; ++i) {
-        for (int j = 0; j < N_prony_; ++j) {
-            invBhat(i, j) = op[i] * op[j] * invBbar(i, j);
-        }
-    }
-
-    for (int i = 0; i < N_prony_; ++i) {
-        arma::vec P_eps_i = arma::zeros(6);
-        for (int j = 0; j < N_prony_; ++j) {
-            P_eps_i += invBhat(j, i) * (L_i_[j] * dPhi_i_dv_[j]);
-        }
-        Lt -= kappa_i_[i] * P_eps_i.t();
-    }
+    // Nothing here: the branches enter the tangent through total_strain_map(), applied by
+    // the orchestrator after every other contribution.
 }
 
 void ViscoelasticMechanism::compute_work(
