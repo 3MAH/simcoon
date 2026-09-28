@@ -23,8 +23,11 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * effective stress concept:
  *   sigma_eff = sigma / (1 - D)
  *
- * Damage evolution is driven by an energy-based criterion:
- *   Y = (1/2) * sigma : S : sigma  (damage driving force)
+ * Damage evolution is driven by the thermodynamic force conjugate to D, the undamaged
+ * stored energy:
+ *   Y = -dpsi/dD = psi_0 = (1/2) * sigma_eff : S : sigma_eff
+ * with S the compliance of the undamaged elasticity block (exact for a linear block; for a
+ * hyperelastic one the tangent compliance makes it an approximation of psi_0).
  *
  * Damage evolution follows:
  *   D = f(Y_max)
@@ -189,6 +192,9 @@ public:
      * @return Damage driving force Y
      */
     double compute_driving_force(const arma::vec& sigma, const arma::mat& S) const;
+
+    /// @brief \f$ 1 - D \f$ (floored at iota): \f$ \boldsymbol{\sigma}_{eff} = \boldsymbol{\sigma} / (1 - D) \f$
+    double effective_factor() const;
 
     /**
      * @brief Compute damage from driving force

@@ -311,6 +311,15 @@ Path and block parameters
      - Yes
      - Finite deformation with displacement gradient :math:`\nabla\mathbf{u}` control
 
+.. important::
+
+   A run is either entirely small strain or entirely finite strain: do not mix
+   ``"small_strain"`` blocks with NLGEOM blocks. A small-strain block never updates
+   :math:`\mathbf{F}` (it stays :math:`\mathbf{I}`), so a finite-strain block that follows it
+   restarts its kinematics from :math:`\mathbf{F} = \mathbf{I}` and the strain accumulated
+   before is not carried into :math:`\mathbf{F}` (under ``"truesdell"``, rebuilt from
+   :math:`\mathbf{F}`, it is lost outright). The NLGEOM control types can be mixed freely.
+
 .. note::
 
    ``"logarithmic"`` control rebuilds the deformation gradient from the controlled strain as

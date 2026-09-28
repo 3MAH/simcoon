@@ -194,12 +194,11 @@ Unchanged dedicated implementations (out of the modular scope):
   with any mechanism. Composed with **damage** -- anisotropic tissue with softening --
   the kinematics are exact: damage subtracts no inelastic strain (it scales the
   stiffness instead), so the elastic stretch is the total one and the fibres follow it.
-  Its driving force, however, is
-  :math:`Y = \tfrac12\,\boldsymbol{\tau} : \mathbf{M}_t : \boldsymbol{\tau}`, the damaged stress
-  against the undamaged tangent compliance: it is not the thermodynamic force
-  :math:`-\partial\psi/\partial D = \psi_0` (the undamaged energy), even for a linear law, where it
-  gives :math:`(1-D)^2\psi_0`; for this nonlinear potential the tangent compliance adds a
-  further approximation.
+  Its driving force is the thermodynamic force :math:`Y = -\partial\psi/\partial D = \psi_0`, the
+  undamaged energy, evaluated as
+  :math:`\tfrac12\,\boldsymbol{\tau}_{eff} : \mathbf{M}_t : \boldsymbol{\tau}_{eff}` on the effective
+  stress :math:`\boldsymbol{\tau}/(1-D)`: exact for a linear block, an approximation of
+  :math:`\psi_0` through the tangent compliance for this nonlinear potential.
 
   .. warning::
 

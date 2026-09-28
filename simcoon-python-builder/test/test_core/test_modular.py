@@ -786,3 +786,27 @@ def test_viscoelastic_work_split_matches_pronk():
     assert np.all(Wr_h >= -1e-12) and np.all(Wd_h >= -1e-12)
     assert np.all(np.diff(Wd_h) >= -1e-12), "dissipation must not decrease"
     assert Wd_h[-1] < Wm_h[-1]
+
+
+def test_damage_driving_force_is_the_undamaged_energy():
+    """Y = -dpsi/dD = psi_0 = 1/2 E eps^2 (uniaxial strain, nu = 0), not the energy of the
+    damaged stress: the stored Y_max is psi_0, D follows the law at psi_0, sigma = (1-D) E eps,
+    and Wm_d converges to int psi_0 dD."""
+    from simcoon.modular import ModularMaterial, IsotropicElasticity, Damage
+    from simcoon.solver import StepMeca, solve
+    E, Y0, Yc, eps = 10000., 0.05, 2.0, 0.012
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=0.0, alpha=0.),
+                          mechanisms=[Damage(Y_0=Y0, Y_c=Yc)])
+    psi0 = 0.5 * E * eps ** 2
+    D = (psi0 - Y0) / (Yc - Y0)
+    wd = []
+    for ninc in (48, 192):
+        r = solve(StepMeca(control=["strain"] * 6, value=[eps, 0, 0, 0, 0, 0], ninc=ninc),
+                  "MODUL", mat.props, mat.nstatev, T_init=290.)
+        np.testing.assert_allclose(r["Statev"][2, -1], psi0, rtol=1e-12)
+        np.testing.assert_allclose(r["Statev"][1, -1], D, rtol=1e-12)
+        np.testing.assert_allclose(r["Stress"][0, -1], (1. - D) * E * eps, rtol=1e-12)
+        wd.append(r["Wm"][3, -1])
+    exact = (psi0 ** 2 - Y0 ** 2) / (2. * (Yc - Y0))
+    assert abs(wd[1] - exact) < 0.3 * abs(wd[0] - exact), "first order (explicit damage)"
+    assert abs(wd[1] - exact) < 0.01 * exact

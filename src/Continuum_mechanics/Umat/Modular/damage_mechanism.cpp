@@ -102,10 +102,16 @@ void DamageMechanism::register_variables() {
 // ========== Constitutive Computations ==========
 
 double DamageMechanism::compute_driving_force(const arma::vec& sigma, const arma::mat& /*S*/) const {
-    // Y = ½ σ : M : σ — strain-energy release rate. Uses the cached
-    // compliance-typed tensor4 (set in compute_constraints alongside the
-    // arma compliance), so no per-call 6×6 ctor copy.
-    return 0.5 * arma::dot(sigma, (M_cached_t_ * stress(sigma)).to_arma_voigt());
+    // Y = -dpsi/dD = psi_0, the UNDAMAGED energy: 1/2 sigma_0 : M : sigma_0 on the effective
+    // stress sigma_0 = sigma/(1 - D), exact for a linear block (M = the tangent compliance of
+    // the undamaged block, an approximation of psi_0 for a hyperelastic one).
+    const arma::vec sigma_0 = sigma / effective_factor();
+    return 0.5 * arma::dot(sigma_0, (M_cached_t_ * stress(sigma_0)).to_arma_voigt());
+}
+
+double DamageMechanism::effective_factor() const {
+    // the same D that scales the stress (stiffness_reduction)
+    return std::max(1.0 - ivc_.get("D").scalar(), simcoon::iota);
 }
 
 double DamageMechanism::compute_damage(double Y, double Y_max) const {
@@ -227,10 +233,11 @@ void DamageMechanism::compute_jacobian_contribution(
 
 const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
     const arma::vec& sigma) const {
-    // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ (strain-typed).
+    // Φ = Y - Y_max with Y = ½ σ : M : σ / (1-D)² → dΦ/dσ = M · σ / (1-D)² (strain-typed).
     // M_cached_ is populated by compute_constraints (must be called first).
+    const double f = effective_factor();
     dPhi_dsigma_cache_[0] = M_cached_valid_
-        ? strain(arma::vec(M_cached_ * sigma))
+        ? strain(arma::vec(M_cached_ * sigma / (f * f)))
         : tensor2::zeros(Tensor2Type::strain);
     return dPhi_dsigma_cache_;
 }
@@ -294,12 +301,10 @@ void DamageMechanism::tangent_contribution(
     // Additional contribution from damage evolution
     // If damage is evolving, there's a coupling term
     if (dD_dY_ > simcoon::iota && D < D_c_) {
-        // Compute dY/dsigma = S : sigma (using cached compliance)
-        arma::vec dY_dsigma = M_cached_ * sigma;
-
-        // Contribution: -dD/dY * sigma ⊗ dY/dsigma
-        // This represents the softening due to damage evolution
-        Lt -= dD_dY_ * (sigma * dY_dsigma.t());
+        // sigma = (1-D) sigma_0(eps): d sigma/d eps gains -sigma_0 ⊗ dD/deps, with
+        // dD/deps = dD/dY dpsi_0/deps = dD/dY sigma_0 (softening while damage grows)
+        const arma::vec sigma_0 = sigma / effective_factor();
+        Lt -= dD_dY_ * (sigma_0 * sigma_0.t());
     }
 }
 
@@ -320,8 +325,7 @@ void DamageMechanism::compute_work(
     Wm_d = 0.0;
 
     if (dD > simcoon::iota) {
-        // Energy dissipated by damage
-        // W_d = Y * dD (approximately)
+        // Energy dissipated by damage: Y dD, Y = psi_0 being the force conjugate to D
         Wm_d = Y_current_ * dD;
     }
 }
