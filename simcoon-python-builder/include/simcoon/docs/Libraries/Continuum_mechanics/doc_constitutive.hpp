@@ -697,12 +697,11 @@ constexpr auto umat = R"pbdoc(
     would break Lt_convert, which consumes exactly this object.
 
     A kernel may request a step cut instead of integrating a too-large increment
-    (the modular engine on a non-finite or runaway return mapping, the SMR* SMA
-    and LLDM0 damage laws on a failed local iteration, a Python law raising
-    simcoon.StepCut). The simcoon solver retries automatically; this batch entry
-    cannot subdivide, so it raises simcoon.StepCut (a RuntimeError) carrying the
-    smallest requested ``ratio``. The input arrays are untouched: discard the
-    call and retry with a smaller increment. umat_T behaves the same way.
+    (the modular engine does so on a non-finite or runaway return mapping, leaving
+    statev untouched with an elastic Lt). The simcoon solver retries
+    automatically; this batch entry cannot subdivide. For PYEXT the request is
+    raised as a RuntimeError; for the other kernels it is currently NOT reported
+    to the caller.
 )pbdoc";
 
 } // namespace simcoon_docs

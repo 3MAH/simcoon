@@ -513,6 +513,7 @@ extern "C" void usermat_(
         rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt
     );
     
-    // simcoon asks for a smaller increment through pnewdt < 1: Ansys bisects on keycut = 1.
-    if (pnewdt < 1.) *keycut = 1;
+    // Note: pnewdt from simcoon is ignored since Ansys USERMAT cannot control time step
+    // If simcoon requested a smaller time step (pnewdt < 1), we cannot honor it
+    // The user should ensure sufficiently small time increments are used
 }

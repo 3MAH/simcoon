@@ -213,7 +213,7 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Uses the spin from the polar decomposition :math:`\dot{\mathbf{R}}\mathbf{R}^T`
    * - 2
      - Logarithmic
-     - Uses the logarithmic (Xiao--Bruhns--Meyers) spin rate
+     - Uses the logarithmic (Xi--Meyers--Brühns) spin rate
    * - 3
      - Logarithmic_R (log_R)
      - Logarithmic strain transported by the exact polar rotation increment
@@ -222,20 +222,10 @@ The ``corate`` parameter controls the corotational formulation used in finite de
        internal-variable history)
    * - 4
      - Truesdell
-     - Convected (Truesdell / Oldroyd) rate, :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}`:
-       Kirchhoff stress transported upper-convected, strain lower-convected, so the
-       accumulated strain is the Almansi strain :math:`\frac12(\mathbf{I} - \mathbf{b}^{-1})`
-       and the box tangent is the Lie tangent. The internal variables of inelastic kernels are
-       not yet transported with their variance (they receive :math:`\Delta\mathbf{F}` and apply
-       their own rule), so use it with elastic, hyperelastic and rate-form laws
+     - Convected (Truesdell) rate, frame increment :math:`\Delta\mathbf{F}`
    * - 5
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
-
-Use ``"logarithmic_R"`` (3) for production work. The Jaumann (0), Green-Naghdi (1) and
-``"logarithmic_F"`` (5) rates are provided for research and for comparing objective rates:
-under combined stretching and rotation they are different constitutive assumptions and give
-different responses.
 
 The loading path file
 ---------------------
@@ -304,19 +294,6 @@ Path and block parameters
    * - ``"gradU"`` (6)
      - Yes
      - Finite deformation with displacement gradient :math:`\nabla\mathbf{u}` control
-
-.. note::
-
-   ``"logarithmic"`` control rebuilds the deformation gradient from the controlled strain as
-   :math:`\mathbf{F} = \exp(\boldsymbol{\varepsilon})\,\mathbf{R}`, i.e. it takes the
-   accumulated strain to be the Hencky strain :math:`\ln \mathbf{V}`, carried between
-   increments by the polar rotation. The stored strain follows the chosen corate, so the two
-   coincide exactly for the polar corates, ``"green_naghdi"`` and ``"logarithmic_R"``, and on
-   any path without simultaneous stretching and rotation (a superposed rigid spin included).
-   With ``"jaumann"``, ``"logarithmic"`` (XBM) or ``"logarithmic_F"`` under combined
-   stretching and rotation, strain-controlled components are approximate and a difference
-   is expected; this is one more reason to run with ``"logarithmic_R"`` (see the corate
-   table above).
 
 **ncycle**: number of times the step sequence of the block is repeated (cyclic loading). A block holding a tabular step cannot be cycled.
 

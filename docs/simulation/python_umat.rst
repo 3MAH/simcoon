@@ -102,14 +102,6 @@ solver's ``div_tnew_dt``). Any other exception aborts the solve and is re-raised
 ``RuntimeError`` unless ``raise_on_abort=False``) when the increment falls below
 ``Dn_mini``; with the default ``inforce=1`` it forces the minimal increment.
 
-The batch entry points ``sim.umat`` and ``sim.umat_T`` cannot subdivide an
-increment. When any kernel asks for a smaller one -- a Python law raising
-:class:`simcoon.StepCut`, or a built-in kernel (the modular engine on a
-non-finite or runaway return mapping, the SMR* SMA and LLDM0 damage laws on a
-failed local iteration) -- they raise :class:`simcoon.StepCut` carrying the
-smallest requested ``ratio``. The input arrays are left untouched: a
-finite-element coupler discards the call and retries with a smaller increment.
-
 Batch entry point and explicit registration
 ===========================================
 

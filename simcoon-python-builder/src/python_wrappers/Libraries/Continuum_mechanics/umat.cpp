@@ -1,9 +1,7 @@
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-#include <algorithm>
 #include <optional>
-#include <vector>
 
 #include <carma>
 #include <armadillo>
@@ -62,38 +60,6 @@ using namespace arma;
 namespace py=pybind11;
 
 namespace simpy {
-
-namespace {
-
-// Raise simcoon.StepCut for a batch whose kernels asked for a smaller increment (tnew_dt < 1),
-// with the smallest ratio asked for. Serial context, GIL held. The inputs are copied before the
-// kernels run, so the caller's arrays are untouched and the call can simply be retried.
-[[noreturn]] void raise_step_cut(const std::string &entry, const std::vector<double> &tnew_dt) {
-    std::vector<size_t> points;
-    double ratio = 1.;
-    for (size_t pt = 0; pt < tnew_dt.size(); ++pt) {
-        if (tnew_dt[pt] < 1.) {
-            points.push_back(pt);
-            ratio = std::min(ratio, tnew_dt[pt]);
-        }
-    }
-    const std::string msg = entry + ": the law requested a step cut at "
-        + std::to_string(points.size()) + " material point(s), the first being point "
-        + std::to_string(points.front()) + ". The batch entry cannot subdivide the increment: "
-        "discard this call and retry with a smaller increment (the input arrays are untouched).";
-    py::object exc;
-    try {
-        exc = py::module_::import("simcoon.pyumat").attr("StepCut")(py::arg("ratio") = ratio,
-                                                                    py::arg("msg") = msg);
-    } catch (py::error_already_set &) {   // bare _core use, without the python package
-        exc = py::module_::import("simcoon._core").attr("StepCut")(msg);
-        exc.attr("ratio") = ratio;
-    }
-    PyErr_SetObject(reinterpret_cast<PyObject *>(Py_TYPE(exc.ptr())), exc.ptr());
-    throw py::error_already_set();
-}
-
-}  // namespace
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
@@ -142,6 +108,11 @@ namespace {
 			start = false;
 		}
 
+		// Step-cut request of the kernels. Each point writes its OWN local (the kernels take
+		// `double &`), so the parallel branch has no shared write; only the serial PYEXT branch
+		// publishes it here, and only that branch inspects it. The documented contract for the
+		// built-in kernels is that a direct caller subdivides the increment itself.
+		double tnew_dt = 1.;
 		//bool use_temp;
 		//if (T.n_elem == 0.) use_temp = false; 
 		//else use_temp = true;
@@ -321,9 +292,6 @@ namespace {
 			kirchhoff_normalize = true;
 		}
 
-		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial
-		// context: no shared write, and no NumPy-backed allocation, in the parallel region.
-		std::vector<double> tnew_dt(nb_points, 1.);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
@@ -364,7 +332,7 @@ namespace {
 					break;
 				}
 			}
-			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
+			if (serial) tnew_dt = tnew_dt_pt;   // single thread: safe to publish
 			if (kirchhoff_normalize) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).
@@ -382,15 +350,17 @@ namespace {
 			// the batch on every platform.
 			for (int pt = 0; pt < nb_points; pt++) {
 				point_kernel(pt);
-				if (tnew_dt[pt] < 1.) raise_step_cut("umat", tnew_dt);
+				if (tnew_dt < 1.) {
+					throw std::runtime_error(
+						"umat: the law requested a step cut (simcoon.StepCut) at material point "
+						+ std::to_string(pt) + ", but the batch entry point cannot subdivide the "
+						"increment: catch it in the caller and re-run that point with a smaller "
+						"increment (the material-point solver handles it automatically).");
+				}
 			}
 		} else {
 			simcoon_parallel_for_safe(nb_points, point_kernel);
 		}
-		// A built-in kernel asks for a smaller increment through tnew_dt (e.g. the modular
-		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
-		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
-			raise_step_cut("umat", tnew_dt);
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}
@@ -433,9 +403,10 @@ namespace {
 		if (Time > simcoon::limit) {
 			start = false;
 		}
+		double tnew_dt = 0;
+
 		mat list_etot = carma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
-		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
 		mat list_Detot = carma::arr_to_mat_view(Detot_py);
 		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
 		cube DR = carma::arr_to_cube_view(DR_py);
@@ -545,7 +516,7 @@ namespace {
 
 			double T = vec_T(pt);
 			double DT = vec_DT(pt);
-			double tnew_dt_pt = 1.;
+			double tnew_dt_pt = tnew_dt;
 
 			switch (arguments_type) {
 				case 1: {
@@ -557,10 +528,7 @@ namespace {
 					break;
 				}
 			}
-			tnew_dt[pt] = tnew_dt_pt;
 		});
-		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
-			raise_step_cut("umat_T", tnew_dt);
 
 		// post-loop repacking (serial): dSdT (6,1,N) -> (6,N), drdE (1,6,N) -> (6,N), drdT (1,1,N) -> (N)
 		mat dSdT_out(ncomp, nb_points);

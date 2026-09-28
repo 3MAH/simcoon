@@ -706,7 +706,7 @@ arma::mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_
 \f]
  * where U is the volumetric strain energy and \f$ J \f$ is the determinant of the transformation gradient
  *
- * @note This is the SPATIAL ELASTICITY \f$ \boldsymbol{\mathsf{c}} = J^{-1} \partial (\mathcal{L}_v
+ * @note This is the SPATIAL ELASTICITY \f$ \mathbb{c} = J^{-1} \partial (\mathcal{L}_v
  *       \boldsymbol{\tau}) / \partial \mathbf{D} \f$, not \f$ \partial (\mathcal{L}_v
  *       \boldsymbol{\sigma}) / \partial \mathbf{D} \f$: the two differ by exactly
  *       \f$ \boldsymbol{\sigma} \otimes \mathbf{I} \f$, which here is

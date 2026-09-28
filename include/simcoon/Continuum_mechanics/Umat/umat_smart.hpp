@@ -458,8 +458,8 @@ enum class StressMeasure { kirchhoff, cauchy };
  * @brief The conventions a kernel's raw outputs are expressed in.
  *
  * The tangent rate is deliberately absent: every kernel is handed the solver's
- * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it. Unlike the stress measure, the
- * rate is therefore a public contract, not a per-kernel declaration.
+ * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it, contrary to the stress measure.
+ * that is a public contract.
  *
  * @see output_convention_of
  */
