@@ -101,8 +101,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         offset = 3;
     }
     else {
-        cout << "Error: Unknown umat_name in umat_sma_mono: " << umat_name << "\n";
-        exit(0);
+        throw simcoon::exception_solver(std::string("Error: Unknown umat_name in umat_sma_mono: ") + umat_name);
     }
 
     // Extract common parameters using offset

@@ -17,9 +17,28 @@ import numpy as np
 
 
 #: read-only aliases of a stored history
-_ALIASES = {"LogStrain": "Strain"}
-#: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain
-_ARCHIVE_FORMAT = 2
+_ALIASES: Dict[str, str] = {}
+#: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain,
+#: 3 since 'LogStrain' is ln V computed from F (no longer an alias of 'Strain')
+_ARCHIVE_FORMAT = 3
+
+
+def _log_strain(F: np.ndarray, strain: np.ndarray, finite: np.ndarray) -> np.ndarray:
+    """ln V = 1/2 ln(F F^T) in engineering Voigt (6, N) where ``finite``, else ``strain``."""
+    out = np.array(strain, dtype=float, copy=True)
+    idx = np.flatnonzero(finite)
+    if idx.size:
+        Fk = F[:, :, idx].transpose(2, 0, 1)
+        w, v = np.linalg.eigh(Fk @ Fk.transpose(0, 2, 1))
+        lnV = np.einsum("nij,nj,nkj->nik", v, 0.5 * np.log(w), v)
+        out[:, idx] = np.stack([lnV[:, 0, 0], lnV[:, 1, 1], lnV[:, 2, 2],
+                                2. * lnV[:, 0, 1], 2. * lnV[:, 0, 2], 2. * lnV[:, 1, 2]])
+    return out
+
+
+def _deformed(F: np.ndarray) -> np.ndarray:
+    """Increments whose F differs from the identity (fallback when the block kinds are unknown)."""
+    return np.any(np.abs(F - np.eye(3)[:, :, None]) > 0., axis=(0, 1))
 
 
 class SolverResults:
@@ -33,8 +52,10 @@ class SolverResults:
         (heat source).
     field_data : dict
         Tensor histories, components-first: 'Stress' (Cauchy, (6, N)),
-        'Kirchhoff', 'PKII', 'Strain' (strain integrated with the objective rate: ln V for the logarithmic rates, (6, N);
-        'LogStrain' is the same array), 'GreenLagrange' ((6, N)),
+        'Kirchhoff', 'PKII', 'Strain' (the strain integrated with the objective rate, (6, N):
+        ln V for the logarithmic rates, the Almansi strain for 'truesdell'),
+        'LogStrain' (ln V computed from F whatever the rate; the small strain on small-strain
+        blocks), 'GreenLagrange' ((6, N), computed from F),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
         runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
@@ -44,7 +65,9 @@ class SolverResults:
         recorded history is then partial).
     """
 
-    def __init__(self, raw: Dict[str, np.ndarray]):
+    def __init__(self, raw: Dict[str, np.ndarray], finite_blocks=None):
+        """``finite_blocks[k]`` tells whether block k runs a finite-strain control type; when
+        omitted, the increments whose F differs from the identity are taken as finite."""
         self.status = int(raw.get("status", 0))
         self.sv_type = int(raw.get("sv_type", 1))
 
@@ -61,7 +84,7 @@ class SolverResults:
             "Stress": raw["sigma"].T,
             "Kirchhoff": raw["tau"].T,
             "PKII": raw["PKII"].T,
-            "Strain": raw["etot"].T,         # "LogStrain" is an alias, see _ALIASES
+            "Strain": raw["etot"].T,
             "GreenLagrange": raw["Etot"].T,
             "Statev": raw["statev"].T,
             "Wm": raw["Wm"].T,
@@ -69,6 +92,12 @@ class SolverResults:
             "R": raw["R"].reshape(n, 3, 3).transpose(1, 2, 0),
             "DR": raw["DR"].reshape(n, 3, 3).transpose(1, 2, 0),
         }
+        F = self.field_data["F"]
+        if finite_blocks is None:
+            finite = _deformed(F)
+        else:
+            finite = np.asarray(finite_blocks, dtype=bool)[np.asarray(raw["block"], dtype=int)]
+        self.field_data["LogStrain"] = _log_strain(F, self.field_data["Strain"], finite)
         if "Lt" in raw:
             self.field_data["TangentMatrix"] = raw["Lt"].reshape(n, 6, 6).transpose(1, 2, 0)
         if self.sv_type == 2:
@@ -149,7 +178,11 @@ class SolverResults:
             log = obj.field_data.pop("LogStrain", green)
             obj.field_data["GreenLagrange"] = green
             obj.field_data["Strain"] = log if np.any(log) else green
-        obj.field_data.pop("LogStrain", None)
+        fmt = int(data["format"]) if "format" in data.files else 1
+        if fmt < 3:
+            # 'LogStrain' was an alias of 'Strain', not stored: rebuild it from F
+            obj.field_data["LogStrain"] = _log_strain(obj.field_data["F"], obj.field_data["Strain"],
+                                                      _deformed(obj.field_data["F"]))
         return obj
 
     def to_dataframe(self):

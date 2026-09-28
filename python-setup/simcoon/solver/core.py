@@ -149,7 +149,7 @@ def solve(
             bool(record_tangent),
             phases_py,
         )
-    res = SolverResults(raw)
+    res = SolverResults(raw, [bd["control_type"] > 1 for bd in blocks_py])
     if raise_on_abort and res.status != 0:
         raise RuntimeError(
             f"the solver aborted early after {len(res)} recorded increments "

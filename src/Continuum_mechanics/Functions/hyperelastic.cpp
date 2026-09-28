@@ -883,9 +883,8 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
     }
     tau = t2v_stress(m_tau);
 
-    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
-    // XBM rate) -- identical object to the small-strain boxes and saint_venant. J*Lt_spatial is
-    // the Kirchhoff-Lie tangent d(L_v tau)/dD that the spectral map consumes.
+    // Box tangent Lt = d(tau_hat)/d(De) in corate_type (Kirchhoff, no J). J*Lt_spatial is the
+    // Kirchhoff-Lie tangent d(L_v tau)/dD that the map consumes.
     Lt_box = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F, m_tau);
 }
 

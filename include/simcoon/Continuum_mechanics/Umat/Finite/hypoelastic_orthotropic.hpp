@@ -55,9 +55,12 @@ namespace simcoon{
  * (\boldsymbol{\varepsilon} - \boldsymbol{\alpha} \Delta T) \f$. Both run in the frame that
  * follows the material (see umat_convention), so for corates 0 to 3 the transported strain and
  * the transported stress satisfy the same recursion and the two are identical on any path,
- * anisotropic \f$ \mathbf{L} \f$ included. Under corate 5 the similarity transport by a
- * rotation-free stretch does not commute with an anisotropic \f$ \mathbf{L} \f$, and there the
- * rate and the total form are different laws; HYPOO is kept as that reference.
+ * anisotropic \f$ \mathbf{L} \f$ included. They are different laws under corate 4, even for an
+ * isotropic \f$ \mathbf{L} \f$ (ELORT is then \f$ \boldsymbol{\tau} = \mathbf{L} : \mathbf{e}_A \f$,
+ * HYPOO integrates the Oldroyd rate of \f$ \boldsymbol{\tau} \f$; ~100 % apart in simple shear at
+ * \f$ \gamma = 1 \f$), and under corate 5 for an anisotropic \f$ \mathbf{L} \f$, whose
+ * similarity transport by a rotation-free stretch does not commute with it. HYPOO is kept as
+ * that reference.
  *
  * **props** (12): \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{xz}, \nu_{yz}, G_{xy}, G_{xz}, G_{yz},
  * \alpha_x, \alpha_y, \alpha_z \f$ ("EnuG" convention, material frame).

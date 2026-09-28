@@ -225,8 +225,12 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Convected (Truesdell / Oldroyd) rate, :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}`:
        Kirchhoff stress transported upper-convected, strain lower-convected, so the
        accumulated strain is the Almansi strain :math:`\frac12(\mathbf{I} - \mathbf{b}^{-1})`
-       and the box tangent is the Lie tangent. Internal variables are transported with their
-       variance for the kernels that declare them (see :doc:`umat_catalog`)
+       and the box tangent is the Lie tangent. **Under this rate the default** ``Strain``
+       **output is the Almansi strain**, not the logarithmic one: read ``LogStrain`` for
+       :math:`\ln\mathbf{V}` (see :doc:`output`). ``"logarithmic"`` control still prescribes
+       :math:`\ln\mathbf{V}`, rebuilt from the stored strain as
+       :math:`-\frac12\ln(\mathbf{I} - 2\mathbf{e}_A)`. Internal variables are transported with
+       their variance for the kernels that declare them (see :doc:`umat_catalog`)
    * - 5
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
@@ -234,7 +238,9 @@ The ``corate`` parameter controls the corotational formulation used in finite de
 Use ``"logarithmic_R"`` (3) for production work. The Jaumann (0), Green-Naghdi (1) and
 ``"logarithmic_F"`` (5) rates are provided for research and for comparing objective rates:
 under combined stretching and rotation they are different constitutive assumptions and give
-different responses.
+different responses. Under Jaumann and Green-Naghdi, ``Strain`` is only an approximation of
+:math:`\ln\mathbf{V}`; ``LogStrain`` and ``GreenLagrange`` are computed from :math:`\mathbf{F}`
+and exact for every rate. At small strain (``"small_strain"`` blocks) the rate plays no role.
 
 The loading path file
 ---------------------

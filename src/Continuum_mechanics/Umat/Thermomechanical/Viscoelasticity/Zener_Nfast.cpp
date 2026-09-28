@@ -324,22 +324,22 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
     }
     
+    // Dissipation on the viscous (Kelvin branch) stresses sigma - L_i EV_i, as in the mechanical twin.
     double Dgamma_loc = 0.;
     for (int i=0; i<N_kelvin; i++) {
-        Dgamma_loc += 0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
+        const vec A_visc_start = sigma_start - L_i[i]*(EV_i[i] - DEV_i[i]);
+        const vec A_visc = sigma - L_i[i]*EV_i[i];
+        Dgamma_loc += 0.5*sum((A_visc_start + A_visc)%DEV_i[i]);
     }
     // Heat source from the actual increments: the linearisation above in (DEtot, DT) vanishes
-    // during a strain hold, while the branches keep relaxing and dissipating. Same leading
-    // terms, so drdE/drdT above remain its derivatives.
+    // during a strain hold, while the branches keep relaxing and dissipating. drdE/drdT above
+    // stay the linearised (approximate) derivatives of this r.
     if (DTime >= 1.E-12)
-        r = (Dgamma_loc - (T + DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
+        r = (Dgamma_loc - (T + 0.5*DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;   // midpoint T, as Wt
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEV));
-    for (int i=0; i<N_kelvin; i++) {
-        Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
-    }
+    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot) - Dgamma_loc;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     

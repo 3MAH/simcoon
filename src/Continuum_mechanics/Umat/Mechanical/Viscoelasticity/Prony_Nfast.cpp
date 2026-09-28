@@ -136,7 +136,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     vec DEV_tilde = zeros(6);
     vec EV_tilde_start = EV_tilde;
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v_start[i] += L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
     }
     
     //Variables required for the loop
@@ -271,7 +271,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     }
     
     for (int i=0; i<N_prony; i++) {
-        A_v[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v[i] += L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);
     }
     double Dgamma_loc = 0.;
     for (int i=0; i<N_prony; i++) {

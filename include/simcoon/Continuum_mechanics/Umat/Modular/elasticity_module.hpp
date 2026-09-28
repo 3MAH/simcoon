@@ -354,7 +354,9 @@ public:
      *       - The block defines a stored energy per REFERENCE volume,
      *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
      *         returns \f$ \boldsymbol{\tau} = \partial \psi / \partial
-     *         \boldsymbol{\varepsilon}^{el} \f$ -- the route's Kirchhoff stress, exactly as ELISO
+     *         \boldsymbol{\varepsilon}^{el} \f$ (the Kirchhoff stress for an isotropic
+     *         \f$ \psi \f$; for an anisotropic one, HOLZA, only while \f$ \boldsymbol{\tau} \f$
+     *         stays coaxial with \f$ \mathbf{V}^{el} \f$) -- the route's Kirchhoff stress, exactly as ELISO
      *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
      *         \f$ \boldsymbol{\tau}/J \f$ with the total \f$ J \f$. \f$ J^{el} \f$ is only the
      *         argument of \f$ U \f$, so a stress-free volumetric inelastic strain (free thermal

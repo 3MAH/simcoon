@@ -137,7 +137,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     vec DEV_tilde = zeros(6);
     vec EV_tilde_start = EV_tilde;
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v_start[i] += L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
     }
     
     //Variables required for the loop
@@ -298,7 +298,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     }
     
     for (int i=0; i<N_prony; i++) {
-        A_v[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v[i] += L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);
         dA_dEv[i] = -1.*L_i[i];
     }
     
@@ -349,10 +349,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         Dgamma_loc += 0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
     }
     // Heat source from the actual increments: the linearisation above in (DEtot, DT) vanishes
-    // during a strain hold, while the branches keep relaxing and dissipating. Same leading
-    // terms, so drdE/drdT above remain its derivatives.
+    // during a strain hold, while the branches keep relaxing and dissipating. drdE/drdT above
+    // stay the linearised (approximate) derivatives of this r.
     if (DTime >= 1.E-12)
-        r = (Dgamma_loc - (T + DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
+        r = (Dgamma_loc - (T + 0.5*DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;   // midpoint T, as Wt
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

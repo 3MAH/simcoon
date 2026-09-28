@@ -671,7 +671,9 @@ constexpr auto umat = R"pbdoc(
         1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default), 4 Truesdell,
         5 log_F. Choosing the coupler's own rate here spares it a tangent
         conversion. Kernels fed the corotated strain (the small-strain and
-        log-strain boxes, MODUL, HYPOO) are in-rate already and ignore it.
+        log-strain boxes, MODUL, HYPOO) are in-rate already and ignore it
+        (the in-memory solver runs MODUL under 3 only). Any other value
+        raises ValueError.
 
     Returns
     -------
@@ -691,6 +693,10 @@ constexpr auto umat = R"pbdoc(
     (or with a degenerate F) no conversion is applied, which is exact at small
     strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
     through unconverted.
+
+    Wm is the kernel's own work, on the strain increment it is handed. The
+    in-memory solver additionally corrects it to the true work under the
+    logarithmic corates (non-coaxial states); this function does not.
 
     Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
     d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J

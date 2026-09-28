@@ -95,7 +95,7 @@ namespace {
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -106,6 +106,11 @@ namespace {
 		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+		}
+		if (corate_type < 0 || corate_type > 5) {
+			throw std::invalid_argument("corate must be 0 (Jaumann), 1 (Green-Naghdi), 2 (logarithmic), "
+			                            "3 (logarithmic_R), 4 (Truesdell) or 5 (logarithmic_F); got "
+			                            + std::to_string(corate_type));
 		}
 		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): operator[] would default-insert
@@ -122,7 +127,7 @@ namespace {
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
-		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
+		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, corate_type, tangent_mode)
 		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
 		int nshr;
@@ -395,7 +400,7 @@ namespace {
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
 		// Point-wise thermomechanical UMAT batch entry (small strain), mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).

@@ -2,6 +2,7 @@
 the heat source during relaxation."""
 
 import numpy as np
+import pytest
 
 import simcoon as sim
 from simcoon.solver import StepThermomeca
@@ -37,3 +38,33 @@ def test_heat_released_during_a_strain_hold_balances_the_dissipation():
     dsig = r["Stress"][:, -1] - r["Stress"][:, i1]
     assert dWd > 0.0
     np.testing.assert_allclose(heat, dWd - T0 * ALPHA * np.sum(dsig[:3]), rtol=1e-8)
+
+
+# ----- dissipation of the Kelvin branches in creep and recovery ------------------------------
+
+_T0 = 293.15
+_CREEP = {  # rho, c_p, E0, nu0, alpha, (N,) E1, nu1, etaB, etaS -- alpha = 0: isothermal balance
+    "ZENER": (np.array([4.4, 0.656, 3000., 0.35, 0., 1500., 0.35, 3000., 1200.]), 8),
+    "ZENNK": (np.array([4.4, 0.656, 3000., 0.35, 0., 1., 1500., 0.35, 3000., 1200.]), 14),
+    "PRONK": (np.array([4.4, 0.656, 3000., 0.35, 0., 1., 1500., 0.35, 3000., 1200.]), 14),
+}
+
+
+@pytest.mark.parametrize("umat", sorted(_CREEP))
+def test_creep_recovery_dissipation_is_nonnegative(umat):
+    """Stress held, released, held again: the branches relax both ways, Wm_d never decreases
+    (the Zener_T kernels used the elastic L EV instead of the viscous stress and lost
+    dissipation in recovery), and the heat source integrates to Wm_d at constant T."""
+    props, nstatev = _CREEP[umat]
+
+    def step(v, t, n):
+        return StepThermomeca(control="stress", value=[v, 0, 0, 0, 0, 0], ninc=n, time=t,
+                              T_final=_T0)
+
+    r = sim.solver.solve([step(20., 0.1, 10), step(20., 5., 100), step(0., 0.1, 10),
+                          step(0., 5., 100)], umat, props, nstatev, T_init=_T0)
+    wd = r["Wm"][3]
+    assert wd[-1] > 0.05
+    assert np.diff(wd).min() > -1e-6 * wd[-1]
+    heat = np.sum(r["r"][1:] * np.diff(r["Time"]))
+    np.testing.assert_allclose(heat, wd[-1] - wd[0], rtol=1e-6)

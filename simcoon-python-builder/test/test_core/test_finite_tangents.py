@@ -220,3 +220,10 @@ def test_log_F_box_matches_finite_difference(name, props, nstatev):
     scale = np.abs(fd).max()
     np.testing.assert_allclose(Lt5, fd, atol=1e-6 * scale)
     np.testing.assert_allclose(Lt5, Lt3, atol=1e-9 * scale)
+
+
+@pytest.mark.parametrize("corate", [-1, 6])
+def test_umat_rejects_an_unknown_corate(corate):
+    """sim.umat validates the corate up front, before the parallel region."""
+    with pytest.raises(ValueError, match="corate"):
+        _umat("NEOHC", [1000., 10000.], _F(EPS0), corate=corate)

@@ -206,29 +206,78 @@ def test_ct5_F_variants(shape, corate):
 
 
 def test_strain_keys_at_finite_strain():
-    """'Strain' is the logarithmic strain (alias 'LogStrain'); 'GreenLagrange' is E."""
+    """'Strain' is the corate strain, 'LogStrain' is ln V from F, 'GreenLagrange' is E."""
     F_target = np.diag([1.6, 1.0, 1.0])
     step = StepMeca(control="F", value=F_target.ravel(), ninc=10)
     res = solve(Block(steps=[step], control_type="F"), "ELISO", ELISO_PROPS, 1,
                 T_init=290.0, corate="logarithmic_R")
     assert res.status == 0
-    assert res["Strain"] is res["LogStrain"]
     F = res["F"][:, :, -1]
-    # the log strain is integrated increment by increment (corotational rate): the
-    # endpoint carries the integration error of 10 increments, not a measure mix-up
+    # the corate strain is integrated increment by increment: the endpoint carries the
+    # integration error of 10 increments; LogStrain is ln V of F, exact
     np.testing.assert_allclose(res["Strain"][0, -1], np.log(1.6), rtol=1e-3)
+    np.testing.assert_allclose(res["LogStrain"][0, -1], np.log(1.6), atol=1e-12)
     np.testing.assert_allclose(res["GreenLagrange"][0, -1], 0.5 * (1.6 ** 2 - 1.0), atol=1e-10)
     E = 0.5 * (F.T @ F - np.eye(3))
     np.testing.assert_allclose(res["GreenLagrange"][:3, -1], np.diag(E), atol=1e-10)
 
 
-def test_dataframe_has_one_strain_column_set():
-    """to_dataframe writes 'Strain' and 'GreenLagrange', not the 'LogStrain' alias."""
+@pytest.mark.parametrize("control_type", ["logarithmic", "green_lagrange", "F"])
+@pytest.mark.parametrize("corate", [0, 1, 2, 3, 4, 5])
+def test_strain_outputs_for_every_corate(control_type, corate):
+    """Whatever the corate, LogStrain is ln V and GreenLagrange is E, both from F; under the
+    Truesdell rate 'Strain' is the Almansi strain 1/2 (I - b^-1), exactly."""
+    if control_type == "F":
+        value = np.array([[1.2, 0.3, 0.], [0., 0.95, 0.], [0., 0., 1.]]).ravel()
+        step = StepMeca(control="F", value=value, ninc=20)
+    else:
+        step = StepMeca(control=_UNIAXIAL, value=[0.2, 0, 0, 0, 0, 0], ninc=20)
+    res = solve(Block(steps=[step], control_type=control_type), "ELISO", ELISO_PROPS, 1,
+                T_init=290.0, corate=corate)
+    assert res.status == 0
+    for k in (0, len(res) // 2, -1):
+        F = res["F"][:, :, k]
+        w, v = np.linalg.eigh(F @ F.T)
+        lnV = v @ np.diag(0.5 * np.log(w)) @ v.T
+        np.testing.assert_allclose(res["LogStrain"][:, k], np.asarray(sim.t2v_strain(lnV)).ravel(),
+                                   atol=1e-12)
+        np.testing.assert_allclose(res["GreenLagrange"][:, k],
+                                   np.asarray(sim.t2v_strain(0.5 * (F.T @ F - np.eye(3)))).ravel(),
+                                   atol=1e-10)
+        if corate == 4:
+            e_A = 0.5 * (np.eye(3) - np.linalg.inv(F @ F.T))
+            np.testing.assert_allclose(res["Strain"][:, k], np.asarray(sim.t2v_strain(e_A)).ravel(),
+                                       atol=1e-10)
+
+
+def test_logarithmic_control_under_truesdell():
+    """Control type 3 prescribes ln V also under the Truesdell rate: F follows exp(eps), and
+    the stored strain is the Almansi strain of that F."""
+    res = solve(Block(steps=[StepMeca(control=_UNIAXIAL, value=[0.1, 0, 0, 0, 0, 0], ninc=10)],
+                      control_type="logarithmic"), "ELISO", ELISO_PROPS, 1, T_init=290.0,
+                corate="truesdell")
+    F11 = res["F"][0, 0, -1]
+    np.testing.assert_allclose(F11, np.exp(0.1), rtol=1e-10)
+    np.testing.assert_allclose(res["Strain"][0, -1], 0.5 * (1. - F11 ** -2), rtol=1e-10)
+
+
+def test_small_strain_ignores_the_corate():
+    """At small strain F stays I: every strain output is the small strain, whatever the corate."""
+    for corate in range(6):
+        res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=5),
+                    "ELISO", ELISO_PROPS, 1, T_init=290.0, corate=corate)
+        for key in ("LogStrain", "GreenLagrange"):
+            np.testing.assert_allclose(res[key], res["Strain"], atol=1e-15)
+        np.testing.assert_allclose(res["Strain"][0, -1], 0.01, rtol=1e-12)
+
+
+def test_dataframe_has_every_strain_measure():
+    """to_dataframe writes 'Strain', 'LogStrain' and 'GreenLagrange'."""
     pytest.importorskip("pandas")
     res = solve(StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=5),
                 "ELISO", ELISO_PROPS, 1, T_init=290.0)
     cols = res.to_dataframe().columns
-    assert "Strain_11" in cols and "GreenLagrange_11" in cols and "LogStrain_11" not in cols
+    assert "Strain_11" in cols and "GreenLagrange_11" in cols and "LogStrain_11" in cols
 
 
 def test_ct5_F_control():

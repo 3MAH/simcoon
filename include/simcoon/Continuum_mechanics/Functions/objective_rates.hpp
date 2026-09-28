@@ -370,6 +370,28 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
 /**
+ * @brief Work the kernel does not see: the gap between the stress power and the corate strain.
+ *
+ * A box kernel accumulates \f$ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e} \f$,
+ * with \f$ \Delta\mathbf{e} \f$ the corate strain increment. Under the logarithmic rates
+ * \f$ \boldsymbol{\tau}:\dot{\mathbf{e}} \neq \boldsymbol{\tau}:\mathbf{D} \f$ as soon as
+ * \f$ \boldsymbol{\tau} \f$ and \f$ \mathbf{V} \f$ are not coaxial (anisotropy, plasticity); the
+ * difference returned here,
+ * \f[ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):(\mathbf{D}\,\Delta t - \Delta\mathbf{e}),
+ *     \qquad \mathbf{D}\,\Delta t = \mathrm{sym}\!\left(2(\mathbf{F}_1-\mathbf{F}_0)(\mathbf{F}_1+\mathbf{F}_0)^{-1}\right), \f]
+ * brings the mechanical work \f$ W_m \f$ back to the true work per reference volume. It vanishes
+ * for coaxial states (every isotropic elastic law).
+ *
+ * @param[in] tau_start Kirchhoff stress at the start of the increment, in the frame of @p tau (Voigt)
+ * @param[in] tau Kirchhoff stress at the end of the increment (Voigt)
+ * @param[in] Detot corate strain increment handed to the kernel (engineering Voigt)
+ * @param[in] F0 deformation gradient at the start of the increment
+ * @param[in] F1 deformation gradient at the end of the increment
+ * @return the work correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$
+ */
+double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1);
+
+/**
  * @brief Corate spin dispatch: for the chosen objective rate, set the frame increment @p DR and the
  *        rate of deformation @p D / spin (or velocity gradient L) @p Omega from @p F0, @p F1.
  *        Single source of truth for the solver's control_type ladders (predictor + Newton-Raphson),
@@ -752,12 +774,9 @@ arma::mat Dtau_LieDD_2_DtauDe_corate(const arma::mat &Dtau_LieDD, const int &cor
  * @brief Assemble the canonical box tangent
  * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ (Kirchhoff, no-J, XBM/log rate)
  * that every finite UMAT must emit -- the single source of truth for the box-tangent convention.
- * @c box_DtauDe_from_dSdE builds it from the material tangent \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$;
- * @c box_DtauDe_from_spatial from the Cauchy (Oldroyd/Lie) spatial elasticity tensor
- * \f$ \partial\boldsymbol\sigma/\partial\mathbf{D} \f$.
+ * from the material tangent \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$.
 */
 arma::mat box_DtauDe_from_dSdE(const arma::mat &dSdE, const arma::mat &F, const arma::vec &sigma);
-arma::mat box_DtauDe_from_spatial(const arma::mat &Lt_spatial, const arma::mat &F, const arma::vec &sigma);
 
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis

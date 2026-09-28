@@ -33,7 +33,9 @@ Results follow the fedoo ``DataSet`` conventions — components first, one
 column per increment — so they interoperate directly with fedoo utilities
 (e.g. ``fedoo.util.voigt_tensors.StressTensorList(res["Stress"])``).
 Available fields include ``Stress`` (Cauchy), ``Kirchhoff``, ``PKII``,
-``Strain`` (logarithmic, alias ``LogStrain``), ``GreenLagrange``, ``F``, ``R``,
+``Strain`` (the strain of the objective rate: logarithmic for the default rate, Almansi
+for ``"truesdell"``), ``LogStrain`` (:math:`\ln\mathbf{V}` from :math:`\mathbf{F}`, exact
+whatever the rate), ``GreenLagrange``, ``F``, ``R``,
 ``DR`` (``(3, 3, N)``),
 ``TangentMatrix`` (``(6, 6, N)``), ``Statev``, ``Wm``, ``Time``, ``Temp`` and,
 for thermomechanical runs, ``Q``, ``r``, ``Wt`` and the coupled tangents

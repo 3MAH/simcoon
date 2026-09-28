@@ -558,6 +558,14 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
     return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN
 }
 
+double Delta_work_conjugacy(const vec &tau_start, const vec &tau, const vec &Detot, const mat &F0, const mat &F1) {
+    mat Fsum_inv;
+    if (!inv(Fsum_inv, F1 + F0))
+        throw simcoon::exception_inv("Delta_work_conjugacy: F1 + F0 is not invertible");
+    const mat LDt = 2.*(F1 - F0)*Fsum_inv;   // midpoint velocity gradient times DTime
+    return 0.5*sum((tau_start + tau)%(t2v_strain(0.5*(LDt + LDt.t())) - Detot));
+}
+
 // ---------------------------------------------------------------------------
 // EXACT log-box <-> material tangent maps (contract and derivation: see the
 // DtauDe_2_DSDE / DSDE_2_DtauDe Doxygen in objective_rates.hpp). Both
@@ -959,10 +967,6 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
 // From the material tangent dS/dE:
 mat box_DtauDe_from_dSdE(const mat &dSdE, const mat &F, const vec &sigma) {
     return DSDE_2_DtauDe(dSdE, F, det(F)*v2t_stress(sigma));
-}
-// From the Cauchy (Oldroyd/Lie) spatial elasticity tensor dsigma/dD:
-mat box_DtauDe_from_spatial(const mat &Lt_spatial, const mat &F, const vec &sigma) {
-    return box_DtauDe_from_dSdE(Dtau_LieDD_2_DSDE(det(F)*Lt_spatial, F), F, sigma);
 }
 
 mat Dtau_LieDD_Dtau_JaumannDD(const mat &Dtau_LieDD, const mat &tau) {

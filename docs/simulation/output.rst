@@ -12,6 +12,7 @@ being the only optional one (``solve(record_tangent=False)`` skips it).
     res = sim.solver.solve(blocks, umat_name, props, nstatev, T_init=T_init)
 
     e11, e22, e33, e12, e13, e23 = res["Strain"]   # strain integrated with the objective rate, (6, N)
+    lnV = res["LogStrain"]                          # ln V from F, whatever the rate
     s11, s22, s33, s12, s13, s23 = res["Stress"]   # Cauchy stress, (6, N)
     time, T = res["Time"], res["Temp"]             # (N,)
     Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]              # mechanical energies, (4, N)
@@ -73,10 +74,13 @@ run gives every conjugate pair:
      - Content
    * - ``Strain``
      - (6, N)
-     - Eulerian strain integrated along the path with the objective rate of the run (``corate``). With the logarithmic rates (``"logarithmic"``, ``"logarithmic_R"``, the default) it is the logarithmic strain :math:`\boldsymbol{\varepsilon} = \ln \mathbf{V}`; with ``"jaumann"`` or ``"green_naghdi"`` it departs from it under large rotations (simple shear). ``LogStrain`` is the same array
+     - Eulerian strain integrated along the path with the objective rate of the run (``corate``): the strain the constitutive law sees. With the logarithmic rates (``"logarithmic"``, ``"logarithmic_R"``, the default, ``"logarithmic_F"``) it is the logarithmic strain :math:`\ln \mathbf{V}` up to the integration error; with ``"jaumann"`` or ``"green_naghdi"`` it is only an approximation of it, which departs under large rotations (simple shear); with ``"truesdell"`` it is the **Almansi strain** :math:`\mathbf{e}_A = \frac{1}{2}(\mathbf{I} - \mathbf{b}^{-1})`, exactly, not a logarithmic strain
+   * - ``LogStrain``
+     - (6, N)
+     - Logarithmic strain :math:`\ln \mathbf{V} = \frac{1}{2}\ln(\mathbf{F}\mathbf{F}^T)`, computed from :math:`\mathbf{F}`: exact whatever the rate. Use it, not ``Strain``, when the logarithmic strain is wanted under ``"truesdell"``, ``"jaumann"`` or ``"green_naghdi"``
    * - ``GreenLagrange``
      - (6, N)
-     - Green-Lagrange strain :math:`\mathbf{E} = \frac{1}{2}(\mathbf{F}^T\mathbf{F} - \mathbf{I})`
+     - Green-Lagrange strain :math:`\mathbf{E} = \frac{1}{2}(\mathbf{F}^T\mathbf{F} - \mathbf{I})`, from :math:`\mathbf{F}`: exact whatever the rate
    * - ``F``
      - (3, 3, N)
      - Deformation gradient :math:`\mathbf{F}`
@@ -91,10 +95,10 @@ run gives every conjugate pair:
      - 2nd Piola-Kirchhoff stress :math:`\mathbf{S}`
    * - ``R``
      - (3, 3, N)
-     - Rotation accumulated by the objective rate of the run; it is the :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}` for ``"green_naghdi"`` and ``"logarithmic_R"``, and differs from it for the other rates
+     - Rotation accumulated by the objective rate of the run; it is the :math:`\mathbf{R}` of the polar decomposition :math:`\mathbf{F} = \mathbf{R}\mathbf{U}` for ``"green_naghdi"`` and ``"logarithmic_R"``, differs from it for ``"jaumann"`` and ``"logarithmic"``, and for the convected rates ``"truesdell"`` and ``"logarithmic_F"`` it is not a rotation: it accumulates the frame increments :math:`\Delta\mathbf{F}`, i.e. it is :math:`\mathbf{F}` itself
    * - ``DR``
      - (3, 3, N)
-     - Rotation increment :math:`\Delta\mathbf{R}` of the objective rate over the increment
+     - Frame increment of the objective rate over the increment: the rotation :math:`\Delta\mathbf{R}`, or :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}` for ``"truesdell"`` and ``"logarithmic_F"``
 
 .. note::
 
@@ -109,9 +113,9 @@ run gives every conjugate pair:
 
 .. note::
 
-   In small deformations (``control_type="small_strain"``) all strain measures
-   reduce to the infinitesimal strain and all stress measures to the Cauchy
-   stress. Shear strain
+   In small deformations (``control_type="small_strain"``) the rate plays no
+   role: all strain measures reduce to the infinitesimal strain and all stress
+   measures to the Cauchy stress. Shear strain
    components are engineering shears :math:`\gamma_{ij} = 2\varepsilon_{ij}`.
 
 Energies, state variables, tangent
@@ -126,7 +130,7 @@ Energies, state variables, tangent
      - Content
    * - ``Wm``
      - (4, N)
-     - Mechanical energies :math:`[W_m, W_m^r, W_m^{ir}, W_m^d]`: total, stored (recoverable), irrecoverable stored, dissipated
+     - Mechanical energies :math:`[W_m, W_m^r, W_m^{ir}, W_m^d]`: total, stored (recoverable), irrecoverable stored, dissipated, per reference volume. :math:`W_m` is the work :math:`\int \mathbf{P} : \mathrm{d}\mathbf{F}` whatever the rate (see :ref:`stress-measure-tangent-rate`)
    * - ``Statev``
      - (nstatev, N)
      - The internal state variables of the constitutive model, in the order the model defines them (see :doc:`umat_catalog`). Under finite strain, the tensorial ones of the kernels fed the logarithmic strain are components in the frame that follows the material (the material axes rotated with the body), not in the lab frame
@@ -196,8 +200,7 @@ Saving and tabulating
     df = res.to_dataframe()                          # pandas DataFrame
     df[["Time", "Strain_11", "Stress_11"]].to_csv("run.csv", index=False)
 
-``to_dataframe`` flattens the scalar histories and every 2-D history (the
-``LogStrain`` alias excepted): the 6-component ones become ``<key>_11`` ...
+``to_dataframe`` flattens the scalar histories and every 2-D history: the 6-component ones become ``<key>_11`` ...
 ``<key>_23`` columns, ``Wm`` and
 ``Statev`` become ``Wm_0`` ... and ``Statev_0`` ...; the ``(3, 3, N)`` and
 ``(6, 6, N)`` histories are left out of the table and read from ``res`` directly.
