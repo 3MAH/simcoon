@@ -186,10 +186,37 @@ def test_hypoelastic_integrates_the_kirchhoff_rate():
                                    err_msg=f"HYPOO: d(tau)/d(De) column {col}")
 
 
-def test_log_F_box_is_the_spatial_tangent_itself():
-    """corate 5 is the convected/Oldroyd-Lie box: an identity, not a spectral map."""
-    name, props, nstatev = KERNELS[1]          # NEOHC
-    _, lie = _umat(name, props, _F(EPS0), nstatev, corate=5)
-    _, log_box = _umat(name, props, _F(EPS0), nstatev, corate=3)
-    assert np.all(np.isfinite(lie))
-    assert np.abs(lie - log_box).max() > 1e-6 * np.abs(log_box).max()
+@pytest.mark.parametrize("name,props,nstatev", KERNELS, ids=[k[0] for k in KERNELS])
+def test_log_F_box_matches_finite_difference(name, props, nstatev):
+    """Corate 5 (log_F): De = A^F:D dt and the stress is carried by sym(DF X DF^-1), so the box
+    is c^J : (A^F)^-1 (chain rule). Checked by perturbing F along directions whose corate-5
+    increment is a unit Voigt vector; for these isotropic kernels it also equals corate 3's box.
+    (It used to return the Lie tangent, 8-13 % off.)"""
+    from scipy.linalg import logm
+    F0 = _F(EPS0)
+    sigma0, Lt5 = _umat(name, props, F0, nstatev, corate=5)
+    _, Lt3 = _umat(name, props, F0, nstatev, corate=3)
+    tau0 = sim.v2t_stress(np.linalg.det(F0) * np.asarray(sigma0).ravel())
+    lnV = lambda F: 0.5 * np.real(logm(F @ F.T))
+    sym = lambda X: 0.5 * (X + X.T)
+    A_F_inv = np.linalg.inv(np.asarray(sim.A_F(F0)))
+    d = 1e-6
+    fd = np.zeros((6, 6))
+    for c in range(6):
+        e = np.zeros(6)
+        e[c] = 1.0
+        M = sim.v2t_strain(A_F_inv @ e)
+        num, den = [], []
+        for sgn in (1.0, -1.0):
+            DF = expm(sgn * d * M)
+            F1 = DF @ F0
+            sigma1, _ = _umat(name, props, F1, nstatev, corate=5)
+            tau1 = np.linalg.det(F1) * np.asarray(sigma1).ravel()
+            tau_hat = np.asarray(sim.t2v_stress(sym(DF @ tau0 @ np.linalg.inv(DF)))).ravel()
+            De = np.asarray(sim.t2v_strain(lnV(F1) - sym(DF @ lnV(F0) @ np.linalg.inv(DF)))).ravel()
+            num.append(tau1 - tau_hat)
+            den.append(De[c])
+        fd[:, c] = (num[0] - num[1]) / (den[0] - den[1])
+    scale = np.abs(fd).max()
+    np.testing.assert_allclose(Lt5, fd, atol=1e-6 * scale)
+    np.testing.assert_allclose(Lt5, Lt3, atol=1e-9 * scale)

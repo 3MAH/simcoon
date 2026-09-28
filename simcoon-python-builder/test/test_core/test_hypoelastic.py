@@ -23,16 +23,17 @@ def _uniaxial(name, props, corate):
                             np.asarray(props, float), 1, T_init=290.0, corate=corate)
 
 
-def _shear(name, props, ninc, gamma=1.0):
+def _shear(name, props, ninc, gamma=1.0, corate=3):
     step = StepMeca(control="F", value=[1., gamma, 0., 0., 1., 0., 0., 0., 1.],
                     time=1.0, ninc=ninc, Dn_init=1.0, Dn_mini=1e-4)
     res = sim.solver.solve(Block(steps=[step], control_type="F"), name,
-                           np.asarray(props, float), 1, T_init=290.0, corate=3)
+                           np.asarray(props, float), 1, T_init=290.0, corate=corate)
     return res["Kirchhoff"][:, -1]
 
 
-def _gap(props, ninc=100):
-    tau_e, tau_h = _shear("ELORT", props, ninc), _shear("HYPOO", props, ninc)
+def _gap(props, ninc=100, corate=3):
+    tau_e = _shear("ELORT", props, ninc, corate=corate)
+    tau_h = _shear("HYPOO", props, ninc, corate=corate)
     return np.abs(tau_h - tau_e).max() / np.abs(tau_e).max()
 
 
@@ -45,16 +46,17 @@ def test_hypoo_equals_elort_without_rotation(corate):
                                    atol=1e-12 * np.abs(e[key]).max(), err_msg=key)
 
 
-def test_hypoo_equals_elort_in_shear_for_isotropic_L():
-    """Isotropic L: the rate and the total form coincide exactly, even in simple shear.
+@pytest.mark.parametrize("props", [ISO, ORT], ids=["iso", "ortho"])
+@pytest.mark.parametrize("corate", [0, 1, 2, 3])
+def test_hypoo_equals_elort_in_shear(props, corate):
+    """With the material axes following the body, the rate and the total form satisfy the same
+    recursion for every orthogonal corate, anisotropic L included: identical in simple shear.
+    (The ~74 % orthotropic gap measured before 2.1 was the lab-fixed axes, not the rate form.)"""
+    assert _gap(props, corate=corate) < 1e-10
 
-    This used to show a ~1 % first-order gap, which was the transport defect of the finite
-    route (the total form received its start strain untransported), not a property of the
-    rate form.
-    """
-    assert _gap(ISO) < 1e-12
 
-
-def test_hypoo_departs_from_elort_in_shear_for_orthotropic_L():
-    """Orthotropic L: the two are different laws under rotation (reference effect)."""
-    assert _gap(ORT) > 0.1
+def test_hypoo_departs_from_elort_under_log_F_for_orthotropic_L():
+    """Corate 5 transports by similarity with a rotation-free stretch increment, which does not
+    commute with an anisotropic L: there the rate and the total form are different laws."""
+    assert _gap(ORT, corate=5) > 0.01
+    assert _gap(ISO, corate=5) < 1e-10

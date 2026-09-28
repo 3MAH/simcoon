@@ -88,8 +88,12 @@ The contract
   ``EPICP`` (``PYEXT`` belongs to the Kirchhoff-box set). The law never sees
   the Cauchy stress: the solver and ``sim.umat`` form
   :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J` at their own boundaries
-  (see :ref:`stress-measure-tangent-rate`). Internal tensorial history
-  is not rotated by the solver; rotate it with ``DR`` in the law if needed.
+  (see :ref:`stress-measure-tangent-rate`). On the finite solver route the
+  law runs in the frame that follows the material: it receives ``DR`` equal to
+  the identity and its tensorial history stays in that frame, with nothing to
+  rotate. Through ``sim.umat`` it receives the caller's ``DR`` and must rotate
+  its history with it. ``PYEXT`` is refused under corates 4 and 5, which need
+  the history's variance.
 
 Step cuts and errors
 --------------------

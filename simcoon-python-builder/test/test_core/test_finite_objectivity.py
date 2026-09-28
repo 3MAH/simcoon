@@ -25,18 +25,26 @@ def _rz(th):
     return np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
 
 
+_PLASTIC = {
+    "EPICP": (np.array([200000., 0.3, 0., 300., 1000., 0.5]), 8, 0.05),
+    # EPCHA carries stress-like back-stresses X_1, X_2: they used not to be rotated at all
+    "EPCHA": (np.array([210000.0, 0.3, 0.0, 300.0, 200.0, 20.0, 30000.0, 172.0, 19500.0, 301.0]), 33, 0.02),
+}
+
+
+@pytest.mark.parametrize("umat", ["EPICP", "EPCHA"])
 @pytest.mark.parametrize("corate", [0, 2, 3, 4])
-def test_rigid_rotation_of_a_plastic_state_is_exact(corate):
-    """EPICP stretched into plasticity, then rotated rigidly by 90 degrees: the stress just
-    rotates, and no plastic strain or dissipation is created."""
-    props = np.array([200000., 0.3, 0., 300., 1000., 0.5])
-    F1 = np.diag([np.exp(0.05), 1., 1.])
+def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
+    """A plastic prestretch, then a rigid 90 degree rotation: the stress just rotates, and no
+    plastic strain or dissipation is created."""
+    props, nstatev, eps = _PLASTIC[umat]
+    F1 = np.diag([np.exp(eps), 1., 1.])
     R = _rz(np.pi / 2)
     steps = [StepMeca(control="F", value=F1.ravel().tolist(), time=1., ninc=50,
                       Dn_init=1., Dn_mini=1e-4),
              StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-4)]
-    r = sim.solver.solve(Block(steps=steps, control_type="F"), "EPICP", props, 8,
+    r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, props, nstatev,
                          T_init=290., corate=corate)
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     assert r["Statev"][1, i1] > 1e-2, "the stretch must have yielded"
@@ -107,3 +115,93 @@ def test_truesdell_rate_form_converges_to_the_oldroyd_solution():
         err.append(max(abs(tau[0, 1] - mu), abs(tau[0, 0] - mu)) / mu)
     assert err[1] < 5e-3
     assert err[1] < 0.3 * err[0], "first-order convergence to the Oldroyd solution"
+
+
+# ----- small-strain kernels driven with a rotation increment (sim.umat, Abaqus DROT) --------
+
+_SMADI = np.array([0, 67538.0, 67538.0, 0.349, 0.349, 1.0e-6, 1.0e-6, 0.0, 0.0418, 0.021, 0.0,
+                   10.0, 10.0, 300.0, 290.0, 295.0, 305.0, 0.2, 0.2, 0.2, 0.2, 300.0, 0.2, 2.0,
+                   1.0e-6, 1.0e-5, 1.0, 0.0])
+
+
+def test_sma_rotation_increment_rotates_the_transformation_strain():
+    """SMADI transformed at 323.15 K, then one call with a 90 degree DR and the total strain
+    rotated accordingly: the stress and the transformation strain just rotate, the martensite
+    fraction is unchanged. The rotation of ET used to be computed and discarded, giving
+    xi = 0.38 -> -2.5 on this very call."""
+    col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
+    temp = np.array([323.15])
+
+    def call(etot, Detot, sigma, DR, statev, Wm, time):
+        s, sv, wm, _ = sim.umat("SMADI", col(etot), col(Detot), np.array([]), np.array([]),
+                                col(sigma), DR, col(_SMADI), col(statev), time, 0.01, col(Wm),
+                                temp=temp, n_threads=1)
+        return np.asarray(s).ravel(), np.asarray(sv).ravel(), np.asarray(wm).ravel()
+
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    etot, sigma, statev, Wm = np.zeros(6), np.zeros(6), np.zeros(17), np.zeros(4)
+    de = np.array([5e-4, 0, 0, 0, 0, 0])
+    for i in range(60):
+        sigma, statev, Wm = call(etot, de, sigma, I3, statev, Wm, i * 0.01)
+        etot = etot + de
+    assert statev[1] > 0.05, "the loading must have transformed the material"
+
+    R = _rz(np.pi / 2)
+    rot_e = lambda v: np.asarray(sim.t2v_strain(R @ sim.v2t_strain(v) @ R.T)).ravel()
+    rot_s = lambda v: np.asarray(sim.t2v_stress(R @ sim.v2t_stress(v) @ R.T)).ravel()
+    s2, sv2, _ = call(rot_e(etot), np.zeros(6), sigma, R.reshape(3, 3, 1).copy(order="F"),
+                      statev, Wm, 0.6)
+    np.testing.assert_allclose(s2, rot_s(sigma), atol=1e-9 * np.abs(sigma).max())
+    np.testing.assert_allclose(sv2[2:8], rot_e(statev[2:8]), atol=1e-12)
+    assert sv2[1] == pytest.approx(statev[1], abs=1e-12)
+
+
+# ----- anisotropy axes follow the material (material frame of the box kernels) -------------
+
+_ORTHO = np.array([70000., 30000., 15000., 0.3, 0.3, 0.3, 8000., 6000., 5000., 0., 0., 0.])
+
+
+@pytest.mark.parametrize("orientation", [(0., 0., 0.), (30., 0., 0.)], ids=["aligned", "psi30"])
+@pytest.mark.parametrize("corate", [0, 1, 2, 3, 4, 5])
+@pytest.mark.parametrize("umat", ["ELORT", "HYPOO"])
+def test_orthotropic_axes_follow_a_rigid_rotation(umat, corate, orientation):
+    """An orthotropic body stretched along x, then rotated rigidly by 90 degrees: the stress
+    just rotates. With lab-fixed axes ELORT used to read the rotated stretch against E_y
+    (tau_22 = 664 instead of 1510, 56 %)."""
+    F1 = np.diag([np.exp(0.02), 1., 1.])
+    R = _rz(np.pi / 2)
+    steps = [StepMeca(control="F", value=F1.ravel().tolist(), time=1., ninc=50,
+                      Dn_init=1., Dn_mini=1e-4),
+             StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
+                      Dn_init=1., Dn_mini=1e-4)]
+    r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, _ORTHO, 1, T_init=290.,
+                         corate=corate, orientation=orientation)
+    i1 = np.argmin(np.abs(r["Time"] - 1.0))
+    tau1, tau2 = _v2t(r["Kirchhoff"][:, i1]), _v2t(r["Kirchhoff"][:, -1])
+    np.testing.assert_allclose(tau2, R @ tau1 @ R.T, atol=1e-10 * np.abs(tau1).max())
+
+
+def test_modul_fibres_follow_the_material_like_standalone_holza():
+    """A purely elastic MODUL-HOLZA material in simple shear must converge to the standalone
+    HOLZA kernel, which pushes its fibres with F exactly. With lab-fixed axes the MODUL fibres
+    stayed put: 190 % off at gamma = 0.5 and a factor 4e4 at gamma = 1."""
+    from simcoon.modular import HolzapfelElasticity, ModularMaterial
+    el = HolzapfelElasticity(C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
+                             fibres=sim.Rotation.from_euler("zxz", [[0.0, 0.0, 30.0]], degrees=True),
+                             kappa=1000.0)
+    mat = ModularMaterial(elasticity=el)
+
+    def shear(name, props, nstatev, ninc):
+        st = StepMeca(control="F", value=[1., 0.5, 0., 0., 1., 0., 0., 0., 1.], time=1., ninc=ninc,
+                      Dn_init=1., Dn_mini=1e-5)
+        return sim.solver.solve(Block(steps=[st], control_type="F"), name,
+                                np.asarray(props, float), nstatev, T_init=290., corate=3,
+                                record_tangent=False)["Kirchhoff"][:, -1]
+
+    err = []
+    for ninc in (100, 400):
+        ref = shear("HOLZA", el.potential_params(), 1, ninc)
+        err.append(np.abs(shear(mat.umat_name, mat.props, mat.nstatev, ninc) - ref).max()
+                   / np.abs(ref).max())
+    assert err[1] < 1e-4
+    assert err[1] < 0.35 * err[0], "first-order convergence to the F-pushed fibres"

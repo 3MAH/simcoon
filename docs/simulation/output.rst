@@ -129,7 +129,7 @@ Energies, state variables, tangent
      - Mechanical energies :math:`[W_m, W_m^r, W_m^{ir}, W_m^d]`: total, stored (recoverable), irrecoverable stored, dissipated
    * - ``Statev``
      - (nstatev, N)
-     - The internal state variables of the constitutive model, in the order the model defines them (see :doc:`umat_catalog`)
+     - The internal state variables of the constitutive model, in the order the model defines them (see :doc:`umat_catalog`). Under finite strain, the tensorial ones of the kernels fed the logarithmic strain are components in the frame that follows the material (the material axes rotated with the body), not in the lab frame
    * - ``TangentMatrix``
      - (6, 6, N)
      - Tangent operator :math:`\mathbf{L}_t` of the mechanical problem (``record_tangent=True``, the default)

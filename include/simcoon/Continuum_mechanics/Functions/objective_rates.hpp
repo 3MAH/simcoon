@@ -735,7 +735,10 @@ arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, cons
  * \f$ \boldsymbol\tau \f$ and \f$ \mathbf{F} \f$; 2 (XBM) and 3 (log_R) share the exact spectral
  * map; 4 (Truesdell) is the convected box, which IS the Lie tangent (identity), verified by
  * finite differences against the upper-convected stress and the Almansi increment. 5 (log_F)
- * returns the Lie tangent as well; that choice has not been verified by finite differences.
+ * is the chain rule through its increment \f$ \mathbf{D}_e = \mathbb{A}^F:\mathbf{D}\,\Delta t \f$
+ * with the stress carried by \f$ \mathrm{sym}(\Delta\mathbf{F}\,\boldsymbol\tau\,\Delta\mathbf{F}^{-1}) \f$:
+ * \f$ \mathbb{C}^J : (\mathbb{A}^F)^{-1} \f$, finite-difference verified, equal to the log box for
+ * isotropic laws.
  *
  * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
  * @param corate_type the solver's corate (see corate_kinematics)

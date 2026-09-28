@@ -276,19 +276,22 @@ rejected rather than given a default -- a missing declaration is an error of exa
 :math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,
 and is the rate counterpart of ``ELORT`` (total form
 :math:`\boldsymbol{\tau} = \mathbf{L} : \boldsymbol{\varepsilon}^{el}`). With the same
-isotropic :math:`\mathbf{L}` the two are identical on any path, rotation included. With an
-anisotropic :math:`\mathbf{L}` they differ under rotation: the corotated strain increment is
-no longer work-conjugate to :math:`\boldsymbol{\tau}`, so the rate and the total form are
-different laws, and HYPOO is kept as the reference that shows it.
+:math:`\mathbf{L}`, isotropic or anisotropic, the two are identical on any path for corates
+0 to 3: with the material axes following the body, the transported strain and stress satisfy
+the same recursion (a ~74 % orthotropic shear gap measured before 2.1 came from lab-fixed
+axes, not from the rate form). They differ under corate 5, whose similarity transport by a
+rotation-free stretch does not commute with an anisotropic :math:`\mathbf{L}`. For an
+anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf{L}_R :
+\ln\mathbf{V}` is Cauchy-elastic, not hyperelastic.
 
-.. warning::
-
-   On the finite route the material axes of every anisotropic kernel (ELIST, ELORT, HYPOO,
-   EPHIL, EPANI, EPDFA, EPHAC, anisotropic ``MODUL`` blocks including HOLZA) are fixed in
-   the lab frame: the local frame is built from the Euler angles only and does not rotate
-   with the material. A stretched orthotropic body rotated rigidly by 90 degrees keeps
-   reading its stretch against the unrotated stiffness. Use these laws under finite strain
-   only where the material rotation stays small; convecting the axes is planned.
+**Material frame.** On the finite route the kernels fed the logarithmic strain (ELISO, ELIST,
+ELORT, HYPOO, the plasticity names, ``MODUL``, ``PYEXT``) run in a frame that follows the
+material: the accumulated corate rotation for corates 0 to 3, the polar rotation of
+:math:`\mathbf{F}` for 4 and 5. Their anisotropy axes (orthotropic and transversely isotropic
+stiffness, Hill-type criteria, HOLZA fibres in ``MODUL``) therefore rotate with the body, as with
+Abaqus ``*ORIENTATION`` under NLGEOM, and their tensorial ``Statev`` are material-frame
+components. The kernels built from :math:`\mathbf{F}` (SNTVE, the Neo-Hookean and invariant
+family, OGDEN, HOLZA) are objective by construction and keep the lab frame.
 
 **The tangent rate is not declared, it is deduced from the solver's ``corate_type``.** Every
 kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
@@ -299,19 +302,21 @@ increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are
 corrections, 2 (XBM) and 3 (log_R) share the exact spectral map, and 4 (Truesdell) is the
 convected box, which *is* the spatial (Lie) tangent -- an identity: the Kirchhoff stress is
 transported upper-convected and the strain lower-convected, so the strain is the Almansi strain.
-5 (log_F) currently returns the Lie tangent too, not yet verified by finite differences.
+5 (log_F) is the chain rule through its own increment :math:`\mathbf{D}_e = \mathbb{A}^F :
+\mathbf{D}\,\Delta t`, :math:`\mathbb{C}^J : (\mathbb{A}^F)^{-1}`, equal to the log box for
+isotropic laws (both finite-difference verified).
 
 .. note::
 
-   The solver transports the total strain and the start stress with the variance each corate
-   requires (rotation for 0-3; lower-convected strain and upper-convected Kirchhoff stress for
-   4; similarity for 5). The **internal variables** of an inelastic kernel are transported by
-   the kernel itself, from :math:`\Delta\mathbf{R}` alone: EPICP/EPCHA apply
-   :math:`\Delta\mathbf{F}\,\mathbf{X}\,\Delta\mathbf{F}^T` to their strain-like state and the
-   modular engine keeps only the rotation part of :math:`\Delta\mathbf{F}`. For corates 0-3 this
-   is exact; for 4 and 5 the plastic and viscous states are not transported with their
-   variance, so use those corates with elastic, hyperelastic and rate-form laws. Handing the
-   kernels a variance-aware transport is planned for 2.2.
+   The solver transports the total strain, the start stress and the tensorial internal
+   variables with the variance each corate requires: rotation for 0-3 (in the material frame the
+   frame-relative increment is the identity, so a kernel is called with
+   :math:`\Delta\mathbf{R} = \mathbf{I}`); for 4, lower-convected strain-like and upper-convected
+   stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
+   internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
+   EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
+   plasticity names served by the modular engine, ``MODUL``, ``PYEXT``) is refused under
+   corates 4 and 5.
 
 .. note::
 

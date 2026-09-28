@@ -917,7 +917,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case 0:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau);
         case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // plain GN: path-integral strain -> rate identity
         case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
-        case 5:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // log_F: F-transport, "spin" L -> convected/Lie
+        case 5:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau)*inv(A_F(F));   // log_F: De = A^F:D dt, stress carried by sym(DF X DF^-1)
         case 2:                                                     // XBM (logarithmic)
         case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
                                                                     // R frame (Hoger/Miehe d(ln U)/dC in rate form),
@@ -933,7 +933,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
         case 0:  return DtauDe_JaumannDD_2_DSDE(Lt, F, tau);
         case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // plain GN: rate identity (see forward map)
         case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
-        case 5:  return Dtau_LieDD_2_DSDE(Lt, F);                   // log_F: F-transport, "spin" L -> convected/Lie
+        case 5:  return DtauDe_JaumannDD_2_DSDE(Lt*A_F(F), F, tau); // log_F: inverse of the forward map
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
         default: return DtauDe_2_DSDE(Lt, F, tau);
@@ -948,7 +948,7 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
         case 0:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau);
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
         case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
-        case 5:  return Dtau_LieDD;                                   // log_F: the box IS the Lie tangent
+        case 5:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau)*inv(A_F(F));   // log_F: chain rule through De = A^F:D dt
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map
         default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);

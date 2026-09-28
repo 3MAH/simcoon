@@ -180,7 +180,7 @@ void umat_elasticity_trans_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, 
     
     Wt += (T+0.5*DT)*Deta;
     Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir = (T+0.5*DT)*Deta_ir;
+    Wt_ir += (T+0.5*DT)*Deta_ir;
     
     statev(0) = T_init;
 }

@@ -225,9 +225,8 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Convected (Truesdell / Oldroyd) rate, :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}`:
        Kirchhoff stress transported upper-convected, strain lower-convected, so the
        accumulated strain is the Almansi strain :math:`\frac12(\mathbf{I} - \mathbf{b}^{-1})`
-       and the box tangent is the Lie tangent. The internal variables of inelastic kernels are
-       not yet transported with their variance (they receive :math:`\Delta\mathbf{F}` and apply
-       their own rule), so use it with elastic, hyperelastic and rate-form laws
+       and the box tangent is the Lie tangent. Internal variables are transported with their
+       variance for the kernels that declare them (see :doc:`umat_catalog`)
    * - 5
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
