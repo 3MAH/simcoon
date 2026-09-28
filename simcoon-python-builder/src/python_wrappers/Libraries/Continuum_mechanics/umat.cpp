@@ -1,7 +1,9 @@
 #include <pybind11/embed.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <algorithm>
 #include <optional>
+#include <vector>
 
 #include <carma>
 #include <armadillo>
@@ -60,8 +62,40 @@ using namespace arma;
 namespace py=pybind11;
 
 namespace simpy {
+
+namespace {
+
+// Raise simcoon.StepCut for a batch whose kernels asked for a smaller increment (tnew_dt < 1),
+// with the smallest ratio asked for. Serial context, GIL held. The inputs are copied before the
+// kernels run, so the caller's arrays are untouched and the call can simply be retried.
+[[noreturn]] void raise_step_cut(const std::string &entry, const std::vector<double> &tnew_dt) {
+    std::vector<size_t> points;
+    double ratio = 1.;
+    for (size_t pt = 0; pt < tnew_dt.size(); ++pt) {
+        if (tnew_dt[pt] < 1.) {
+            points.push_back(pt);
+            ratio = std::min(ratio, tnew_dt[pt]);
+        }
+    }
+    const std::string msg = entry + ": the law requested a step cut at "
+        + std::to_string(points.size()) + " material point(s), the first being point "
+        + std::to_string(points.front()) + ". The batch entry cannot subdivide the increment: "
+        "discard this call and retry with a smaller increment (the input arrays are untouched).";
+    py::object exc;
+    try {
+        exc = py::module_::import("simcoon.pyumat").attr("StepCut")(py::arg("ratio") = ratio,
+                                                                    py::arg("msg") = msg);
+    } catch (py::error_already_set &) {   // bare _core use, without the python package
+        exc = py::module_::import("simcoon._core").attr("StepCut")(msg);
+        exc.attr("ratio") = ratio;
+    }
+    PyErr_SetObject(reinterpret_cast<PyObject *>(Py_TYPE(exc.ptr())), exc.ptr());
+    throw py::error_already_set();
+}
+
+}  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -73,7 +107,7 @@ namespace simpy {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
 		}
-		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
+		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): operator[] would default-insert
 		// 0 = UMEXT, silently routing typos to the external-plugin path
 		const auto it_umat = list_umat.find(umat_name_py);
@@ -89,7 +123,7 @@ namespace simpy {
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
 		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
-		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
+		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
 		int nshr;
 		if (ndi==3) {
@@ -108,11 +142,6 @@ namespace simpy {
 			start = false;
 		}
 
-		// Step-cut request of the kernels. Each point writes its OWN local (the kernels take
-		// `double &`), so the parallel branch has no shared write; only the serial PYEXT branch
-		// publishes it here, and only that branch inspects it. The documented contract for the
-		// built-in kernels is that a direct caller subdivides the increment itself.
-		double tnew_dt = 1.;
 		//bool use_temp;
 		//if (T.n_elem == 0.) use_temp = false; 
 		//else use_temp = true;
@@ -222,16 +251,14 @@ namespace simpy {
 				arguments_type = 1;
 				break;
 			}
-			case 21: case 22: case 23: case 24: case 25: case 26: {
+			case 21: case 22: case 23: case 24: case 25: case 26: case 27: {
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 2;
 				break;
 			}
-			case 32: { // HYPOO (hypoelastic orthotropic, finite): rate-form
-				// corotational CAUCHY update (no J anywhere) -> no Kirchhoff
-				// boundary conversion applies (stress_output_is_kirchhoff false)
+			case 32: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
 				F0 = carma::arr_to_cube_view(F0_py);
 				F1 = carma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;
@@ -294,6 +321,9 @@ namespace simpy {
 			kirchhoff_normalize = true;
 		}
 
+		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial
+		// context: no shared write, and no NumPy-backed allocation, in the parallel region.
+		std::vector<double> tnew_dt(nb_points, 1.);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
@@ -330,11 +360,11 @@ namespace simpy {
 					break;
 				}
 				case 2: {
-					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
+					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, corate_type, tangent_mode);
 					break;
 				}
 			}
-			if (serial) tnew_dt = tnew_dt_pt;   // single thread: safe to publish
+			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
 			if (kirchhoff_normalize) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).
@@ -352,17 +382,15 @@ namespace simpy {
 			// the batch on every platform.
 			for (int pt = 0; pt < nb_points; pt++) {
 				point_kernel(pt);
-				if (tnew_dt < 1.) {
-					throw std::runtime_error(
-						"umat: the law requested a step cut (simcoon.StepCut) at material point "
-						+ std::to_string(pt) + ", but the batch entry point cannot subdivide the "
-						"increment: catch it in the caller and re-run that point with a smaller "
-						"increment (the material-point solver handles it automatically).");
-				}
+				if (tnew_dt[pt] < 1.) raise_step_cut("umat", tnew_dt);
 			}
 		} else {
 			simcoon_parallel_for_safe(nb_points, point_kernel);
 		}
+		// A built-in kernel asks for a smaller increment through tnew_dt (e.g. the modular
+		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
+		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
+			raise_step_cut("umat", tnew_dt);
 		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
 
 	}
@@ -405,10 +433,9 @@ namespace simpy {
 		if (Time > simcoon::limit) {
 			start = false;
 		}
-		double tnew_dt = 0;
-
 		mat list_etot = carma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
+		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
 		mat list_Detot = carma::arr_to_mat_view(Detot_py);
 		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
 		cube DR = carma::arr_to_cube_view(DR_py);
@@ -518,7 +545,7 @@ namespace simpy {
 
 			double T = vec_T(pt);
 			double DT = vec_DT(pt);
-			double tnew_dt_pt = tnew_dt;
+			double tnew_dt_pt = 1.;
 
 			switch (arguments_type) {
 				case 1: {
@@ -530,7 +557,10 @@ namespace simpy {
 					break;
 				}
 			}
+			tnew_dt[pt] = tnew_dt_pt;
 		});
+		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
+			raise_step_cut("umat_T", tnew_dt);
 
 		// post-loop repacking (serial): dSdT (6,1,N) -> (6,N), drdE (1,6,N) -> (6,N), drdT (1,1,N) -> (N)
 		mat dSdT_out(ncomp, nb_points);

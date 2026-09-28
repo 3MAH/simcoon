@@ -22,6 +22,8 @@
  */
 
 #pragma once
+#include <string>
+#include <vector>
 #include <armadillo>
 
 namespace simcoon{
@@ -407,7 +409,7 @@ arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::mat
  *      mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
  * @endcode
 */
-arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, arma::vec &lambda_bar, std::vector<arma::mat> &N_projectors);
+arma::mat tau_iso_hyper_pstretch(const arma::vec &dWdlambda_bar, const arma::vec &lambda_bar, const std::vector<arma::mat> &N_projectors);
 
 /**
  * @brief Provides the isochoric part of the Kirchoff stress tensor.
@@ -697,12 +699,22 @@ arma::mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_
 
 /**
  * @brief Provides the volumetric part of the hyperelastic tangent modulus
- * 
+ *
  * The volumetric part of the hyperelastic tangent modulus is defined as:
-\f[ 
-    \mathbf{L}^t_{\textrm{vol}} = J \left( \frac{\partial U}{\partial J} + \frac{\partial^2 U}{\partial J^2 \, J} \right) \left( \mathbf{I} \otimes \mathbf{I} \right) - 2 \frac{\partial U}{\partial J} \, J \left( \mathbf{I} \odot \mathbf{I} \right)
+\f[
+    \mathbf{L}^t_{\textrm{vol}} = \left( \frac{\partial U}{\partial J} + J \, \frac{\partial^2 U}{\partial J^2} \right) \left( \mathbf{I} \otimes \mathbf{I} \right) - 2 \frac{\partial U}{\partial J} \left( \mathbf{I} \odot \mathbf{I} \right)
 \f]
  * where U is the volumetric strain energy and \f$ J \f$ is the determinant of the transformation gradient
+ *
+ * @note This is the SPATIAL ELASTICITY \f$ \boldsymbol{\mathsf{c}} = J^{-1} \partial (\mathcal{L}_v
+ *       \boldsymbol{\tau}) / \partial \mathbf{D} \f$, not \f$ \partial (\mathcal{L}_v
+ *       \boldsymbol{\sigma}) / \partial \mathbf{D} \f$: the two differ by exactly
+ *       \f$ \boldsymbol{\sigma} \otimes \mathbf{I} \f$, which here is
+ *       \f$ U'(J) \, \mathbf{I} \otimes \mathbf{I} \f$. A caller wanting the Kirchhoff-Lie
+ *       tangent multiplies by \f$ J \f$ once. Beware that the sibling
+ *       L_iso_hyper_invariants reaches the same convention through an EXPLICIT
+ *       \f$ 1/J \f$ while this one is \f$ J \f$-free by cancellation -- scale the two as a
+ *       sum, never one at a time.
  *
  * @param dUdJ the derivative of the volumetric strain energy with respect to \f$ J \f$ 
  * @param dU2dJ2 the second derivative of the volumetric strain energy with respect to \f$ J \f$ 
@@ -724,9 +736,15 @@ arma::mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const arma::mat 
 /**
  * @brief Derivatives of an isochoric-invariant hyperelastic potential.
  *
- * The seven scalars every potential of the form
+ * The scalars every potential of the form
  * \f$ W(\bar{I}_1, \bar{I}_2) + U(J) \f$ hands to the stress and tangent
  * builders. Zero-initialised, so a potential only writes the terms it has.
+ *
+ * An anisotropic potential additionally writes the two vector members, one entry
+ * per fibre family, holding the derivatives with respect to the fibre
+ * pseudo-invariant \f$ \bar{I}^{*}_{4,i} \f$ (see structure_tensors_push_forward).
+ * They stay empty for an isotropic potential, which is how the builders tell the
+ * two cases apart.
  */
 struct hyper_invariants_dW {
     double dWdI_1_bar = 0.;    ///< \f$ \partial W / \partial \bar{I}_1 \f$
@@ -736,6 +754,8 @@ struct hyper_invariants_dW {
     double dW2dI_22_bar = 0.;  ///< \f$ \partial^2 W / \partial \bar{I}_2^2 \f$
     double dUdJ = 0.;          ///< \f$ \partial U / \partial J \f$
     double dU2dJ2 = 0.;        ///< \f$ \partial^2 U / \partial J^2 \f$
+    arma::vec dWdI_a_bar;      ///< \f$ \partial W / \partial \bar{I}^{*}_{4,i} \f$, one per fibre family
+    arma::vec dW2dI_aa_bar;    ///< \f$ \partial^2 W / \partial \bar{I}^{*\,2}_{4,i} \f$, one per fibre family
 };
 
 /**
@@ -751,7 +771,8 @@ enum class HyperPotential {
     YEOHH = 2,  ///< Yeoh, props [C10, C20, C30, kappa]
     ISHAH = 3,  ///< Isihara, props [C10, C20, C01, kappa]
     GETHH = 4,  ///< Gent-Thomas, props [c1, c2, kappa]
-    SWANH = 5   ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+    SWANH = 5,  ///< Swanson, props [N, kappa, (A, B, alpha, beta) x N]
+    HOLZA = 6   ///< Gasser-Ogden-Holzapfel, props [C10, k1, k2, kappa_d, n_fam, (a0x, a0y, a0z) x n_fam, kappa]
 };
 // Every potential above, and OGDEN, may carry ONE more prop after those listed: the
 // volumetric potential (VolumetricPotential, 0 when absent).
@@ -781,42 +802,162 @@ VolumetricPotential volumetric_potential_of(const arma::vec &props, const arma::
 void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2);
 
 /**
+ * @brief The fibre anisotropy carried by a hyperelastic potential's props.
+ *
+ * @see hyper_potential_anisotropy, which extracts it, and
+ *      structure_tensors_push_forward, which consumes it.
+ */
+struct hyper_anisotropy {
+    arma::mat a0;        ///< 3 x n_fam, one UNIT reference fibre direction \f$ \mathbf{a}_{0,i} \f$ per column; empty for an isotropic potential
+    double kappa_d = 0.; ///< the Gasser-Ogden-Holzapfel dispersion \f$ \kappa_d \in [0, 1/3] \f$
+};
+
+/**
+ * @brief The fibre directions and dispersion an anisotropic potential declares in its props.
+ *
+ * Isotropic potentials return an empty @c a0 and \f$ \kappa_d = 0 \f$. This is the
+ * single place that knows where the directions sit in a potential's props, so
+ * neither the standalone UMAT nor the modular block duplicates the layout.
+ *
+ * The reference directions are read as three direction cosines per family and
+ * normalised defensively: the Python API expresses them as a
+ * @c simcoon.Rotation applied to \f$ \mathbf{e}_1 \f$, so no Euler triplet (and
+ * hence no gimbal lock) sits anywhere on the path from the user to the kernel.
+ * They are expressed in the LOCAL material frame; the solver's material
+ * orientation places them globally, exactly as for ELIST/ELORT.
+ *
+ * @param potential the potential (see HyperPotential for its props)
+ * @param props the potential's own parameters, starting at index 0
+ * @return the reference fibre directions and the dispersion
+ * @throw std::invalid_argument if \f$ \kappa_d \notin [0, 1/3] \f$, if the family
+ *        count is not strictly positive, or if a direction has zero norm
+ */
+hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const arma::vec &props);
+
+/**
+ * @brief The pushed-forward isochoric structure tensors of a dispersed fibre family.
+ *
+ * With \f$ \bar{\mathbf{a}}_i = J^{-1/3} \mathbf{F} \mathbf{a}_{0,i} \f$ the
+ * isochoric push-forward of the i-th reference direction, the Gasser-Ogden-Holzapfel
+ * generalised structure tensor becomes, in the spatial configuration,
+ * \f[
+    \mathbf{A}_i = \kappa_d \, \bar{\mathbf{b}} + (1 - 3 \kappa_d) \, \bar{\mathbf{a}}_i \otimes \bar{\mathbf{a}}_i
+ * \f]
+ * whose trace is the fibre pseudo-invariant the potential is written in:
+ * \f[
+    \bar{I}^{*}_{4,i} = \textrm{tr} \, \mathbf{A}_i = \kappa_d \, \bar{I}_1 + (1 - 3 \kappa_d) \, \bar{I}_{4,i},
+    \qquad \bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}} \, \mathbf{a}_{0,i}
+ * \f]
+ * \f$ \kappa_d = 0 \f$ gives perfectly aligned fibres (the Holzapfel-Gasser-Ogden
+ * 2000 model), \f$ \kappa_d = 1/3 \f$ an isotropic distribution, for which
+ * \f$ \mathbf{A}_i = \bar{\mathbf{b}}/3 \f$ and the fibre term degenerates to a
+ * function of \f$ \bar{I}_1 \f$ alone.
+ *
+ * Returning \f$ \mathbf{A}_i \f$ rather than the bare \f$ \bar{\mathbf{a}}_i \f$
+ * is what makes the anisotropic stress and tangent reuse the isotropic
+ * \f$ \bar{I}_1 \f$ machinery: \f$ \bar{\mathbf{b}} \f$ and
+ * \f$ \bar{\mathbf{a}}_i \otimes \bar{\mathbf{a}}_i \f$ share the convected rate
+ * form \f$ \mathbf{l}\mathbf{A} + \mathbf{A}\mathbf{l}^T - \frac{2}{3}
+ * \textrm{tr}(\mathbf{d}) \mathbf{A} \f$, hence so does their combination, hence
+ * \f$ \dot{\bar{I}}^{*}_{4,i} = 2 \, \textrm{dev} \mathbf{A}_i : \mathbf{d} \f$ —
+ * the very relation \f$ \bar{I}_1 \f$ satisfies with \f$ \bar{\mathbf{b}} \f$.
+ *
+ * @warning The directions are carried from the REFERENCE configuration and pushed
+ *          forward by @p F. When @p F is an elastic stretch that differs from the
+ *          total one -- a modular composition whose mechanism subtracts an inelastic
+ *          strain (plasticity, viscoelasticity) -- the fibres should first be convected
+ *          into the intermediate configuration, and are not: the inelastic strain does
+ *          not reorient them. The composition remains well posed and converges, and the
+ *          approximation is exact while the inelastic strain is small or leaves the
+ *          fibre directions fixed; its error grows with how much that strain reorients
+ *          them. Representing it exactly would need the convected directions as state,
+ *          which the additive corotational kinematics of the modular UMAT cannot express
+ *          (there is no plastic deformation gradient to convect with). Damage is
+ *          unaffected: it contributes no inelastic strain, so the elastic stretch is the
+ *          total one and the push-forward is exact.
+ *
+ * @note When @p F is \f$ \mathbf{V}^{el} \f$ (the modular block), the push-forward is the
+ *       exact corotated one, \f$ \mathbf{U}\mathbf{a}_0 = \mathbf{R}^T\mathbf{F}\mathbf{a}_0 \f$,
+ *       ONLY because MODUL under finite strain rejects any corate other than 3 (log_R) --
+ *       see select_umat_M_finite in umat_smart.cpp. Under another corate the same code would
+ *       silently convect the fibres with a different spin, which is still objective but is a
+ *       different model. That guard and this function must stay in step.
+ *
+ * @param F deformation gradient \f$ \mathbf{F} \f$ (or \f$ \mathbf{V}^{el} \f$ for an elastic state, as in hyper_invariants_response)
+ * @param a0 3 x n_fam matrix of unit reference directions, one per column (empty gives an empty result)
+ * @param kappa_d the dispersion \f$ \kappa_d \f$
+ * @param mJ the determinant of \f$ \mathbf{F} \f$ (optional)
+ * @return one 3x3 symmetric \f$ \mathbf{A}_i \f$ per fibre family
+ *
+ * @details Example:
+ * @code
+ *      mat F = randu(3,3);
+ *      mat a0 = {{1.},{0.},{0.}};
+ *      std::vector<mat> A = structure_tensors_push_forward(F, a0, 0.1, det(F));
+ *      double I4_star = trace(A[0]);
+ * @endcode
+*/
+std::vector<arma::mat> structure_tensors_push_forward(const arma::mat &F, const arma::mat &a0, const double &kappa_d, const double &mJ = 0.);
+
+/**
  * @brief Derivatives of an isochoric-invariant potential.
  *
  * @param potential the potential (see HyperPotential for its props)
  * @param props the potential's own parameters, starting at index 0
- * @param I_bar isochoric invariants \f$ (\bar{I}_1, \bar{I}_2) \f$
+ * @param I_bar the isochoric invariants \f$ (\bar{I}_1, \bar{I}_2, \bar{I}_3) \f$, as
+ *        isochoric_invariants returns them
  * @param J determinant of the deformation gradient
- * @return the seven derivatives
+ * @param A the pushed-forward structure tensors (structure_tensors_push_forward), one per
+ *        fibre family. An anisotropic potential reads its pseudo-invariants off them as
+ *        \f$ \bar{I}^{*}_{4,i} = \textrm{tr}\,\mathbf{A}_i \f$, so the invariant and the
+ *        tensor the tangent is built from can never come from different code. Empty for an
+ *        isotropic potential, which is the default.
+ * @return the derivatives of the potential
+ *
+ * @note The framework assumes the potential is ADDITIVELY SEPARABLE in \f$ \bar{I}_1 \f$,
+ *       \f$ \bar{I}_2 \f$ and each \f$ \bar{I}^{*}_{4,i} \f$: hyper_invariants_dW carries no
+ *       \f$ \partial^2 W / \partial \bar{I}_1 \partial \bar{I}^{*}_4 \f$ slot, and
+ *       hyper_invariants_response builds no cross term. A future coupled potential (the
+ *       Holzapfel-Ogden myocardium model, for instance) needs that slot added, not just a
+ *       new case here.
  */
-hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J);
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const arma::vec &props, const arma::vec &I_bar, const double &J, const std::vector<arma::mat> &A = {});
 
 /**
- * @brief Cauchy stress and canonical box tangent of an invariant potential.
+ * @brief Kirchhoff stress and canonical box tangent of an invariant potential.
  *
- * Assembles \f$ \boldsymbol{\sigma} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
- * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, XBM rate — the same object the
+ * Assembles \f$ \boldsymbol{\tau} \f$ and \f$ \partial \hat{\boldsymbol{\tau}} /
+ * \partial \mathbf{D}_e \f$ (Kirchhoff, no J, in the requested corate — the same object the
  * small-strain boxes return) from the potential derivatives and the left
- * Cauchy-Green tensor.
+ * Cauchy-Green tensor. The closed form is the spatial (Lie/Oldroyd) tangent; it is
+ * converted once, by Dtau_LieDD_2_DtauDe_corate, to the box of @p corate_type.
+ *
+ * Kirchhoff on both outputs, deliberately: in the logarithmic framework the potential
+ * differentiates to \f$ \boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V} \f$ per
+ * REFERENCE volume, so \f$ \boldsymbol{\tau} \f$ is what the whole finite route carries and
+ * what the tangent is conjugate to. Cauchy is the derived output
+ * \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ and is formed only at the boundaries
+ * (the solver's sinks, the python wrapper), never on the route.
  *
  * @p F is only used to move the tangent into the box convention. The standalone
  * UMAT passes the deformation gradient; a caller that has an ELASTIC state
  * rather than a total one passes \f$ \mathbf{V}^{el} = \exp(\boldsymbol{
- * \varepsilon}^{el}) \f$, whose square is @p b — the tangent is then
+ * \varepsilon}^{el}) \f$, whose square is @p b — with @p corate_type = 3 the tangent is then
  * \f$ \partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el} \f$.
  *
  * @param[in] dW potential derivatives at (@p b, @p J)
  * @param[in] b left Cauchy-Green tensor \f$ \mathbf{b} = \mathbf{F}\mathbf{F}^T \f$
  * @param[in] J \f$ \det \mathbf{F} \f$
  * @param[in] F deformation gradient (or V for an elastic state, see above)
- * @param[out] sigma Cauchy stress, 6-Voigt. Cauchy and not Kirchhoff because
- *             that is what the builders produce: a caller wanting
- *             \f$ \boldsymbol{\tau} \f$ multiplies by @p J once, rather than
- *             this function multiplying and the caller dividing back (which
- *             is not exact in floating point).
- * @param[out] Lt_box canonical box tangent, 6x6
+ * @param[in] corate_type the objective rate @p Lt_box is expressed in (see corate_kinematics)
+ * @param[out] tau Kirchhoff stress, 6-Voigt
+ * @param[out] Lt_box box tangent in @p corate_type, 6x6
+ * @param[in] A the pushed-forward structure tensors of an anisotropic potential
+ *            (structure_tensors_push_forward), one per fibre family and in the same
+ *            order as @c dW.dWdI_a_bar. Empty for an isotropic potential, which is
+ *            the default.
  */
-void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, arma::vec &sigma, arma::mat &Lt_box);
+void hyper_invariants_response(const hyper_invariants_dW &dW, const arma::mat &b, const double &J, const arma::mat &F, const int &corate_type, arma::vec &tau, arma::mat &Lt_box, const std::vector<arma::mat> &A = {});
 
 /** @} */ // end of hyperelastic group
 

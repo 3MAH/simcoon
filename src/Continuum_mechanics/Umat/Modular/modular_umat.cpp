@@ -149,6 +149,10 @@ void ModularUMAT::configure_from_props(const arma::vec& props, int offset) {
                                         std::to_string(mech_type));
         }
     }
+
+    // An anisotropic elastic potential composed with an inelastic mechanism is accepted on
+    // purpose; the fibre-convection approximation that entails is documented on
+    // structure_tensors_push_forward (hyperelastic.hpp).
 }
 
 void ModularUMAT::initialize(int nstatev, arma::vec& statev) {

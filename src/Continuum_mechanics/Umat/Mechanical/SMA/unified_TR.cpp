@@ -231,9 +231,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // (gradient of Prager/Drucker stress potential), which has engineering shear
     // convention — they MUST rotate as strain (legacy SmartPlus used rotate_stress
     // by mistake, producing factor-2 errors on shears after any finite rotation).
-    rotate_strain(ET, DR);
-    rotate_strain(EReo, DR);
-    rotate_strain(areo, DR);
+    ET = rotate_strain(ET, DR);
+    EReo = rotate_strain(EReo, DR);
+    areo = rotate_strain(areo, DR);
 
     // Variables values at the start of the increment
     vec stress_start = stress;

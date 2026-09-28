@@ -36,6 +36,9 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -185,19 +188,105 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
     
 }
 
+const std::map<string, int> &finite_umat_names()
+{
+    // The finite dispatch's name -> id map. A file-scope accessor rather than a
+    // function-local static inside select_umat_M_finite so the convention test can iterate
+    // it;
+    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    return list_umat;
+}
+
+namespace {
+
+// The single convention table, plain types only: a function-local static of an armadillo type 
+// registers a destructor that runs at DLL unload, and on Windows that order is undefined.
+const std::map<string, umat_convention> &umat_conventions()
+{
+    using SM = StressMeasure;
+
+    // Every NATIVE kernel is Kirchhoff. The groups below differ in how the tangent reaches the
+    // solver's corate (fed the corotated strain: in-rate for free; built from F: converted by
+    // Dtau_LieDD_2_DtauDe_corate) and in the frame they run in (material or lab).
+    static const std::map<string, umat_convention> conventions = {
+        // --- log-strain boxes: fed the corotated strain, run in the material frame (B2) ---
+        // {measure, material_frame, layout_declared, tensorial statev {offset, Tensor2Type}}
+        {"ELISO", {SM::kirchhoff, true, true, {}}},
+        {"ELIST", {SM::kirchhoff, true, true, {}}},
+        {"ELORT", {SM::kirchhoff, true, true, {}}},
+        {"EPICP", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain}}}},                  // EP
+        {"EPCHA", {SM::kirchhoff, true, true, {{2, Tensor2Type::strain},                     // EP
+                                               {8, Tensor2Type::strain},                     // a_1
+                                               {14, Tensor2Type::strain},                    // a_2
+                                               {20, Tensor2Type::stress},                    // X_1
+                                               {26, Tensor2Type::stress}}}},                 // X_2
+        // 201 adapters (modular engine): layout not declared -> refused under corates 4/5
+        {"EPKCP", {SM::kirchhoff, true, false, {}}},
+        {"EPHIL", {SM::kirchhoff, true, false, {}}},
+        {"EPTRI", {SM::kirchhoff, true, false, {}}},
+        {"EPHAC", {SM::kirchhoff, true, false, {}}},
+        {"EPANI", {SM::kirchhoff, true, false, {}}},
+        {"EPDFA", {SM::kirchhoff, true, false, {}}},
+        {"EPCHG", {SM::kirchhoff, true, false, {}}},
+        {"EPHIN", {SM::kirchhoff, true, false, {}}},
+        // MODUL builds its tangent from V_el, so its log box IS d(tau)/d(eps_el); it enforces
+        // corate 3, and in the material frame its fibres rotate with the body.
+        {"MODUL", {SM::kirchhoff, true, false, {}}},
+        // PYEXT: fed the log strain, returns tau (see umat_callback.hpp)
+        {"PYEXT", {SM::kirchhoff, true, false, {}}},
+        // HYPOO: the rate counterpart of ELORT, tau_{n+1} = tau_n + L : DEel
+        {"HYPOO", {SM::kirchhoff, true, true, {}}},
+
+        // --- finite kernels: build the tangent from F, then convert it to corate_type ---
+        {"SNTVE", {SM::kirchhoff}},
+        {"NEOHI", {SM::kirchhoff}},
+        {"NEOHC", {SM::kirchhoff}},
+        {"MOORI", {SM::kirchhoff}},
+        {"YEOHH", {SM::kirchhoff}},
+        {"ISHAH", {SM::kirchhoff}},
+        {"GETHH", {SM::kirchhoff}},
+        {"SWANH", {SM::kirchhoff}},
+        {"OGDEN", {SM::kirchhoff}},
+        {"HOLZA", {SM::kirchhoff}},
+
+        // --- foreign conventions simcoon does not own ---
+        // Plugin adapters: the contract is the host code's (Abaqus DDSDDE is Cauchy-based).
+        // UMABA is in fact unreachable today -- id 1 has no case in the finite switch, so it
+        // throws -- and UMEXT's body is fully commented out. Declared for completeness.
+        {"UMEXT", {SM::cauchy}},
+        {"UMABA", {SM::cauchy}},
+    };
+    return conventions;
+}
+
+}  // namespace
+
+umat_convention output_convention_of(const std::string &umat_name)
+{
+    const auto &conventions = umat_conventions();
+    auto it = conventions.find(umat_name);
+    if (it == conventions.end()) {
+        throw std::invalid_argument(
+            "output_convention_of: the umat '" + umat_name + "' has not declared what its raw "
+            "outputs are expressed in. Add it to the table in umat_smart.cpp: a missing stress "
+            "measure is an error of exactly J, a missing tangent rate is a wrong rate, and both "
+            "are silent.");
+    }
+    return it->second;
+}
+
 bool stress_output_is_kirchhoff(const std::string &umat_name)
 {
-    // Log-strain "box" kernels integrate the KIRCHHOFF stress directly
-    // (sigma = L : (ln V - hp), no 1/J): their raw in/out "sigma" is tau,
-    // not Cauchy. Genuine finite kernels (NEOHC, MOORI, ...) work in Cauchy.
-    // Used by select_umat_M_finite (internal Kirchhoff route) and by the
-    // python umat wrapper (Cauchy contract normalization at the boundary).
-    static const std::set<std::string> kirchhoff_box = {
-        "EPICP", "EPCHA", "MODUL",
-        "ELISO", "ELIST", "ELORT", "EPKCP", "EPHIL", "EPTRI", "EPHAC",
-        "EPANI", "EPDFA", "EPCHG", "EPHIN",
-        "PYEXT"};  // Python callback law: fed the log strain, returns tau (see umat_callback.hpp)
-    return kirchhoff_box.count(umat_name) > 0;
+    // Total where output_convention_of throws, and it shares that function's table rather than
+    // calling it: the python wrapper asks this for EVERY name it serves, including
+    // small-strain-only ones (SMADI, ZENER, the micro family) that the finite dispatch never
+    // sees and that therefore declare no finite convention. For those the answer is "leave the
+    // stress alone", not "refuse the call" -- and it must not cost a thrown exception per call.
+    // Inside the finite dispatch, where a missing declaration IS a bug, use
+    // output_convention_of and let it throw.
+    const auto &conventions = umat_conventions();
+    auto it = conventions.find(umat_name);
+    return it != conventions.end() && it->second.stress == StressMeasure::kirchhoff;
 }
 
 void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
@@ -269,9 +358,26 @@ void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double
     
 }
 
+namespace {
+
+// One tensorial internal variable carried by the rotation-free increment M of corates 4 and 5,
+// with its variance: Truesdell (4) is tensor2's own push-forward (stress F X F^T, strain
+// F^-T X F^-1, no Piola factor); log_F (5) the similarity M X M^-1 for both, symmetrised. Same
+// rules as the solver's transport of tau and etot.
+vec transport_convected(const vec &v, const mat &M, const int &corate_type, const Tensor2Type &type)
+{
+    const tensor2 t = tensor2::from_voigt(v, type);
+    if (corate_type == 4)
+        return t.push_forward(M, false).to_arma_voigt();
+    const mat X = M*t.to_arma_mat()*inv(M);
+    return tensor2(mat(0.5*(X + X.t())), type).to_arma_voigt();
+}
+
+}  // namespace
+
 void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt)
 {
-    static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
+    const std::map<string, int> &list_umat = finite_umat_names();
 
     // guarded lookup: operator[] would default-insert 0 (=UMEXT, a no-op) for an
     // unknown name and silently return zero stress; -1 falls to the default case
@@ -285,6 +391,87 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     auto umat_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_local);
     const mat &DR = umat_M->DR;
 
+    // Transport the start state with THIS increment's DR before the kernel sees it, so the
+    // total strain, the start stress and the internal variables (rotated by DR inside the
+    // kernels) all live in the same configuration. The stored etot is left untransported:
+    // set_start transports it at commit, together with the increment it belongs to.
+    const vec etot_stored = umat_M->etot;
+    if (corate_type != 4 && corate_type != 5) {
+        umat_M->etot = rotate_strain(etot_stored, DR);
+        umat_M->sigma = rotate_stress(umat_M->sigma, DR);
+    }
+    else if (corate_type == 4) {   // Truesdell, DR = DF: strain lower-, Kirchhoff stress upper-convected
+        const mat DR_inv = inv(DR);
+        umat_M->etot = t2v_strain(DR_inv.t()*v2t_strain(etot_stored)*DR_inv);
+        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR.t());
+    }
+    else {   // log_F, DR = DF: similarity transport, as in set_start
+        const mat DR_inv = inv(DR);
+        umat_M->etot = t2v_strain(DR*v2t_strain(etot_stored)*DR_inv);
+        umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR_inv);
+    }
+
+    // ONE declaration per kernel (output_convention_of) answers the questions below. It THROWS
+    // for a kernel that has not declared, so a new one is caught instead of inheriting a
+    // default; unknown names fall to the switch's own error.
+    umat_convention conv{StressMeasure::kirchhoff};
+    if (id_umat >= 0)
+        conv = output_convention_of(rve.sptr_matprops->umat_name);
+
+    if (id_umat == 200) {   // MODUL
+        // sigma = L : (ln V - sum eps_inel) is a genuine stored-energy
+        // law ONLY when the accumulated corotational strain is exactly
+        // the logarithmic strain, i.e. corate 3 (log_R). Any other
+        // corate degrades it to a non-integrable hypoelastic rate
+        // (spurious dissipation in closed cycles), so it is rejected
+        // rather than silently accepted.
+        if (corate_type != 3) {
+            throw simcoon::exception_solver(
+                "MODUL under finite strain requires corate_type = 3 "
+                "(log_R): the modular composition is hyperelastic in "
+                "the logarithmic strain; got corate_type = "
+                + std::to_string(corate_type));
+        }
+    }
+
+    // A box kernel runs in the frame that follows the material, R_hat (see umat_convention), so
+    // its anisotropy axes rotate with the body and its statev lives in that frame. For corates
+    // 0-3, R_hat_{n+1} = DR R_hat_n and the frame-relative increment is I; for 4 and 5 it is the
+    // rotation-free stretch M, applied here to the declared statev tensors.
+    const vec Detot_stored = umat_M->Detot;
+    mat R_hat = eye(3,3);
+    mat DR_kernel = DR;
+    if (conv.material_frame) {
+        const bool convected = (corate_type == 4 || corate_type == 5);
+        mat R_hat_n;
+        if (!convected) {
+            R_hat_n = umat_M->R;
+            R_hat = DR*umat_M->R;
+        }
+        else {
+            mat U;
+            RU_decomposition(R_hat_n, U, umat_M->F0);
+            RU_decomposition(R_hat, U, umat_M->F1);
+        }
+        umat_M->etot = rotate_strain(umat_M->etot, R_hat.t());
+        umat_M->Detot = rotate_strain(Detot_stored, R_hat.t());
+        umat_M->sigma = rotate_stress(umat_M->sigma, R_hat.t());
+        DR_kernel = eye(3,3);
+        if (convected) {
+            if (!conv.layout_declared) {
+                throw simcoon::exception_solver(
+                    "corate_type " + std::to_string(corate_type) + " requires the tensorial "
+                    "internal variables of '" + rve.sptr_matprops->umat_name + "' to be declared "
+                    "(umat_conventions, umat_smart.cpp); use corate_type 3");
+            }
+            const mat M = R_hat.t()*DR*R_hat_n;
+            for (const StatevTensor &t : conv.statev_tensors) {
+                const vec x = umat_M->statev.subvec(t.offset, t.offset + 5);
+                umat_M->statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.type);
+            }
+        }
+    }
+
     switch (id_umat) {
 
             case 0: {
@@ -293,20 +480,20 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 5: {
-                umat_hypoelasticity_ortho(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_hypoelasticity_ortho(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
              case 6: {
-                umat_plasticity_iso_CCP(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_plasticity_iso_CCP(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                  break;
              }
              case 7: {
                 // Chaboche on the log-strain/Kirchhoff box route, same as EPICP
-                umat_plasticity_chaboche_CCP(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_plasticity_chaboche_CCP(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                  break;
              }
             case 8: {
-                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_saint_venant(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 201: {
@@ -316,43 +503,30 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 // so they integrate correctly under finite strain. They were absent from this
                 // finite dispatcher, so a missing-key lookup returned 0 and they silently fell
                 // through to case 0 (no-op) -> zero stress under NLGEOM.
-                umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
             case 200: {
                 // MODUL under NLGEOM is a Hencky hyperelastic composition:
-                // sigma = L : (ln V - sum eps_inel) is a genuine stored-energy
-                // law ONLY when the accumulated corotational strain is exactly
-                // the logarithmic strain, i.e. corate 3 (log_R). Any other
-                // corate degrades it to a non-integrable hypoelastic rate
-                // (spurious dissipation in closed cycles), so it is rejected
-                // rather than silently accepted.
-                if (corate_type != 3) {
-                    throw simcoon::exception_solver(
-                        "MODUL under finite strain requires corate_type = 3 "
-                        "(log_R): the modular composition is hyperelastic in "
-                        "the logarithmic strain; got corate_type = "
-                        + std::to_string(corate_type));
-                }
-                umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
             case 9: {
-                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_neo_hookean_incomp(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }                         
-            case 10: case 11: case 12: case 13: case 14: case 15: {
-                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+            case 10: case 11: case 12: case 13: case 14: case 15: case 16: {
+                umat_generic_hyper_invariants(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 22: {
-                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_generic_hyper_pstretch(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->F0, umat_M->F1, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, corate_type, umat_M->tangent_mode);
                 break;
             }
             case 300: {
                 // PYEXT: process-wide callback UMAT (umat_callback.hpp; registered by the Python
                 // bindings). Small-strain convention on the log-strain / Kirchhoff box, as EPICP.
-                umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_callback_M(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
             default: {
@@ -360,29 +534,30 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             }
         }
     
-        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Small-strain/
-        // log-strain boxes already return Kirchhoff (sigma = L:(ln V - hp), no 1/J); genuine finite boxes
-        // return Cauchy, mapped to tau here. Cauchy is a derived OUTPUT (tau/J), never on the route.
-        // Keyed on umat NAMES, not dispatch ids (see stress_output_is_kirchhoff:
-        // the ids are renumbered when kernels move; the legacy->201 remap once
-        // orphaned an id-keyed set. HYPOO kept in the Cauchy group for now).
-        if (stress_output_is_kirchhoff(rve.sptr_matprops->umat_name))
-            umat_M->tau = umat_M->sigma;                                                      // box output is already the Kirchhoff stress
+        // Back from the material frame: the stress and the box tangent (both in the kernel's
+        // frame) to the lab; statev stays in the material frame.
+        if (conv.material_frame) {
+            umat_M->sigma = rotate_stress(umat_M->sigma, R_hat);
+            umat_M->Lt = rotate_stiffness(umat_M->Lt, R_hat);
+            umat_M->L = rotate_stiffness(umat_M->L, R_hat);
+            umat_M->Detot = Detot_stored;
+        }
+
+        // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
+        // NATIVE kernel returns it directly, so this is a pass-through for all but the
+        // foreign-convention ones (the UMEXT/UMABA plugin adapters, whose contract belongs to
+        // the host code). Cauchy is a derived OUTPUT (tau/J), never on the route.
+        if (conv.stress == StressMeasure::kirchhoff)
+            umat_M->tau = umat_M->sigma;                                                      // the kernel's output IS the Kirchhoff stress
         else
-            umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // genuine Cauchy -> Kirchhoff
+            umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // Corate-exact tangent: the finite hyperelastic boxes bake Lt in the XBM rate regardless
-        // of corate; re-express it in the actual corate (no-op for corate 2 = XBM) so the consumer
-        // sees a matched tangent. Small-strain/hypoelastic boxes already emit it in-rate.
-        // Keyed on NAMES like the kirchhoff set above — ids are renumbered when kernels move.
-        static const std::set<std::string> xbm_baked_box = {
-            "SNTVE", "NEOHI", "NEOHC", "MOORI", "YEOHH", "ISHAH", "GETHH", "SWANH", "OGDEN"};
-        if (corate_type != 2 && xbm_baked_box.count(rve.sptr_matprops->umat_name) > 0) {
-            mat tau_t = v2t_stress(umat_M->tau);
-            mat dSdE = DtauDe_2_DSDE(umat_M->Lt, umat_M->F1, tau_t);  // un-bake XBM -> dS/dE
-            umat_M->Lt = DSDE_2_DtauDe_corate(dSdE, corate_type, umat_M->F1, tau_t);        // re-bake in the corate rate
-        }
+        // No tangent conversion here any more. Every kernel is handed corate_type and emits
+        // Lt IN that rate (Dtau_LieDD_2_DtauDe_corate, one map from the spatial closed form).
+        // This used to un-bake the log box to dS/dE and re-bake it -- three maps in all, of
+        // which two cancelled outright for corates 2, 3 and 4.
+        umat_M->etot = etot_stored;
         rve.local2global();
 }
     
@@ -537,8 +712,8 @@ void run_umat_T(phase_characteristics &rve, const mat &DR,const double &Time,con
 //        break;
 //        }
         default: {
-            cout << "Error: The control type of the block does not correspond" << endl;
-            exit(0);
+            throw simcoon::exception_solver("run_umat: control type " + std::to_string(control_type)
+                                            + " is not supported by this block type");
         }
     }
 }
@@ -560,8 +735,8 @@ void run_umat_M(phase_characteristics &rve, const mat &DR, const double &Time, c
             break;
         }
         default: {
-            cout << "Error: The control type of the block does not correspond" << endl;
-            exit(0);
+            throw simcoon::exception_solver("run_umat: control type " + std::to_string(control_type)
+                                            + " is not supported by this block type");
         }
     }
 }

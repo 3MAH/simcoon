@@ -349,7 +349,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
                                         sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                        sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
+                                        sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(sv_M->etot, sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
@@ -432,11 +432,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                     }
                                     else if (blocks[i].control_type == 3) {
+                                        const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
                                         sv_M->Detot = zeros(6);
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -563,7 +564,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
                                             sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                            sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
+                                            sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(sv_M->etot, sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
@@ -623,11 +624,12 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             }
                                         }
                                         else if (blocks[i].control_type == 3) {
+                                            const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
                                             //sv_M->DEtot = zeros(6);
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));

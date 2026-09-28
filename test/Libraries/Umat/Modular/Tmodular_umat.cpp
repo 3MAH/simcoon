@@ -430,7 +430,10 @@ void run_yeohh(const vec& props, const mat& F1, vec& tau, mat& Lt) {
                                   static_cast<int>(props.n_elem), props, 1, statev,
                                   293., 0., 0., 1., Wm, Wr, Wi, Wd, 3, 3, false,
                                   tnew_dt, tangent_algorithmic);
-    tau = det(F1) * sigma;   // the finite kernels output Cauchy; MODUL outputs Kirchhoff
+    // Both sides are Kirchhoff-native now, so this bridge is a plain copy: that equality of
+    // convention is what the Kirchhoff-native refactor bought. It used to read
+    // `tau = det(F1)*sigma` because the finite kernels alone detoured through Cauchy.
+    tau = sigma;
 }
 
 }  // namespace
@@ -472,6 +475,9 @@ const std::vector<std::pair<HyperPotential, vec>> hyper_potentials = {
     {HyperPotential::ISHAH, {0.1161, 0.0136, 0.0114, 4000.0}},
     {HyperPotential::GETHH, {0.2837, 0.05, 4000.0}},
     {HyperPotential::SWANH, {2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.2, 0.05, 1.1, 0.8}},
+    // one fibre family along e1, dispersed: exercises the anisotropic ground state
+    // (fibre inactive at I*_4 = 1) and the fibre tangent under the shared FD check
+    {HyperPotential::HOLZA, {0.0354, 0.0107, 7.48, 0.1, 1.0, 1.0, 0.0, 0.0, 1000.0}},
 };
 
 // L0 is the closed-form ground state of the potential's own derivatives: it

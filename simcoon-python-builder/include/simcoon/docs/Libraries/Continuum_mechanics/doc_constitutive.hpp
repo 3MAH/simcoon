@@ -634,4 +634,75 @@ constexpr auto H_iso = R"pbdoc(
         print(H_iso)
 )pbdoc";
 
+constexpr auto umat = R"pbdoc(
+    Integrate a constitutive law over one increment at a batch of material points.
+
+    This is the point-level entry used by finite-element couplers (fedoo).
+
+    Parameters
+    ----------
+    umat_name : str
+        5-letter model name (see the UMAT catalog).
+    etot, Detot : numpy.ndarray, shape (6, N)
+        Strain at the start of the increment and its increment (Voigt, engineering
+        shear). Under finite strain: the corotational logarithmic strain.
+    F0, F1 : numpy.ndarray, shape (3, 3, N)
+        Deformation gradient at the start and the end of the increment. May be
+        empty for a small-strain call.
+    sigma : numpy.ndarray, shape (6, N)
+        CAUCHY stress at the start of the increment.
+    DR : numpy.ndarray, shape (3, 3, N)
+        Rotation increment of the objective rate.
+    props, statev, Wm : numpy.ndarray
+        Material parameters, state variables and the accumulated work terms
+        (Wm, Wm_r, Wm_ir, Wm_d).
+    time, dtime : float
+        Time at the start of the increment and its increment.
+    temp : numpy.ndarray, optional
+        Temperature per point.
+    ndi : int
+        Number of direct stress components (3, 2 or 1).
+    n_threads : int
+        Threads for the point loop.
+    tangent_mode : int
+        0 none, 1 continuum, 2 algorithmic (default).
+    corate : int
+        Objective rate the returned tangent is expressed in: 0 Jaumann,
+        1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default), 4 Truesdell,
+        5 log_F. Choosing the coupler's own rate here spares it a tangent
+        conversion. Kernels fed the corotated strain (the small-strain and
+        log-strain boxes, MODUL, HYPOO) are in-rate already and ignore it.
+
+    Returns
+    -------
+    tuple
+        (sigma, statev, Wm, Lt): the CAUCHY stress at the end of the increment,
+        the updated state variables and work terms, and the tangent Lt, shape
+        (6, 6, N).
+
+    Notes
+    -----
+    Stress measures. Inside simcoon the finite-strain route carries the KIRCHHOFF
+    stress tau: every native kernel takes and returns tau, and Wm is accumulated
+    per reference volume on tau. The Cauchy stress is formed only at the
+    boundaries, and this function is one of them: for a Kirchhoff kernel with F0
+    and F1 given, sigma is multiplied by det(F0) on the way in and divided by
+    det(F1) on the way out, so the caller always exchanges Cauchy. Without F0/F1
+    (or with a degenerate F) no conversion is applied, which is exact at small
+    strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
+    through unconverted.
+
+    Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
+    d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J
+    would break Lt_convert, which consumes exactly this object.
+
+    A kernel may request a step cut instead of integrating a too-large increment
+    (the modular engine on a non-finite or runaway return mapping, the SMR* SMA
+    and LLDM0 damage laws on a failed local iteration, a Python law raising
+    simcoon.StepCut). The simcoon solver retries automatically; this batch entry
+    cannot subdivide, so it raises simcoon.StepCut (a RuntimeError) carrying the
+    smallest requested ``ratio``. The input arrays are untouched: discard the
+    call and retry with a smaller increment. umat_T behaves the same way.
+)pbdoc";
+
 } // namespace simcoon_docs

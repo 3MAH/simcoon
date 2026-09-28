@@ -145,13 +145,86 @@ Unchanged dedicated implementations (out of the modular scope):
 - **SMA**: SMADI/SMADC/SMAAI/SMAAC (unified),
   SMRDI/SMRDC/SMRAI/SMRAC (unified with reorientation), SMAMO/SMAMC (monocrystal).
 - **Finite strain**: HYPOO (hypoelastic orthotropic), SNTVE (Saint-Venant),
-  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH
+  NEOHI/NEOHC (Neo-Hookean), MOORI, YEOHH, ISHAH, GETHH, SWANH, HOLZA
   (invariant-based hyperelasticity); OGDEN (isochoric principal
   stretches, props = ``N, kappa, mu_1, alpha_1, ...``). The compressible
   ones take one optional trailing prop selecting the volumetric term
   :math:`U(J)`: absent or 0 for :math:`\kappa (J \ln J - J + 1)`, 1 for
   :math:`\frac{\kappa}{2} (J - 1)^2` (NEOHI has the latter form built in,
   with :math:`\kappa = 2 / D_1`).
+
+  HOLZA is the Gasser-Ogden-Holzapfel model, the only anisotropic one of the
+  set: an isotropic neo-Hookean matrix reinforced by :math:`n` families of
+  dispersed fibres,
+
+  .. math::
+
+     W = C_{10} \left(\bar{I}_1 - 3\right)
+       + \sum_i \frac{k_1}{2 k_2}
+         \left[ \exp\left(k_2 \left(\bar{I}^{*}_{4,i} - 1\right)^2\right) - 1 \right]
+       + U(J),
+
+  with :math:`\bar{I}^{*}_{4,i} = \kappa_d \bar{I}_1 + (1 - 3 \kappa_d) \bar{I}_{4,i}`
+  and :math:`\bar{I}_{4,i} = \mathbf{a}_{0,i} \cdot \bar{\mathbf{C}} \, \mathbf{a}_{0,i}`.
+  The dispersion :math:`\kappa_d \in [0, 1/3]` interpolates between perfectly
+  aligned fibres (:math:`\kappa_d = 0`, the Holzapfel-Gasser-Ogden 2000 model)
+  and an isotropic distribution (:math:`\kappa_d = 1/3`). The fibre term is inactive
+  wherever :math:`\bar{I}^{*}_{4,i} < 1`, which is the switch of the original
+  Gasser-Ogden-Holzapfel formulation. Note it is a condition on the *generalized*
+  invariant, not on fibre compression: once :math:`\kappa_d > 0` the term picks up a
+  :math:`\kappa_d \bar{I}_1` contribution, so a fibre with :math:`\bar{I}_{4,i} < 1` can
+  still be active (at :math:`\kappa_d = 0.2` a fibre shortened to 0.39 of its length
+  gives :math:`\bar{I}^{*}_4 = 1.12`).
+
+  props = ``C10, k1, k2, kappa_d, n_fam, a0x_1, a0y_1, a0z_1, ..., kappa``,
+  where each :math:`\mathbf{a}_{0,i}` is a unit direction **in the local
+  material frame** (the solver's material orientation places it globally, as
+  for ELIST/ELORT). From Python the directions are given as a
+  :class:`simcoon.Rotation` applied to :math:`\mathbf{e}_1`, one entry per
+  family, which keeps Euler angles and their gimbal lock off the path to the
+  kernel::
+
+      sim.modular.HolzapfelElasticity(
+          C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
+          fibres=sim.Rotation.from_euler('zxz', [[0, 0, 40], [0, 0, -40]],
+                                         degrees=True),
+          kappa=1000.)
+
+  The same potential is available as a MODUL elasticity block, and may be composed
+  with any mechanism. Composed with **damage** -- anisotropic tissue with softening --
+  it is exact: damage subtracts no inelastic strain (it scales the stiffness instead),
+  so the elastic stretch is still the total one, and its driving force is built from
+  the current anisotropic tangent.
+
+  .. warning::
+
+     Composed with a mechanism that *does* subtract an inelastic strain
+     (**plasticity**, **viscoelasticity**), the fibre convection is
+     **approximate**. The block carries :math:`\mathbf{a}_{0,i}` from the reference
+     configuration and pushes it forward with the elastic stretch, so the inelastic
+     strain does not reorient the fibres. The composition is well posed and
+     converges -- the return mapping is handed the anisotropic tangent and its
+     consistency condition holds exactly -- but the response is only as good as that
+     assumption: exact while the inelastic strain is small or leaves the fibre
+     directions fixed, degrading as it reorients them. Representing the convection
+     exactly would require the convected directions as state variables, which the
+     additive corotational kinematics of the modular UMAT cannot express (there is
+     no plastic deformation gradient to convect with).
+
+     A second, separate caveat applies to **viscoelasticity** only: every Prony
+     branch is built as an *isotropic* :math:`\mathbf{L}_i(E_i, \nu_i)`, so the viscous
+     response carries none of the fibre anisotropy while the equilibrium response does.
+     That is a property of the viscoelastic mechanism's :math:`(E_i, \nu_i)`
+     parameterization rather than of HOLZA -- a Prony branch cannot follow an ELORT or
+     ELIST block's symmetry either.
+
+     Neither is rejected at run time; both are modelling choices left to the user.
+
+  A single scalar damage variable, finally, degrades matrix and fibres at the same
+  rate. The Holzapfel damage literature instead carries separate variables -- one on
+  the isotropic term and one per fibre family -- since collagen and ground substance
+  damage very differently. simcoon's damage mechanism is a single scalar, so the
+  composition models uniform softening, not anisotropic damage.
 - **Multiscale**: MIHEN, MIMTN, MISCN, MIPLN. Their sub-phases are passed in
   memory (``phases=``, see :doc:`python_solver`) and their ``props`` hold only the
   scheme's settings: ``[mp, np]`` for MIHEN, ``[mp, np, n_matrix]`` for MIMTN,
@@ -176,6 +249,91 @@ For the Chaboche-family names and EPKCP the columns re-mean: the layout is
 order; trailing legacy slots are left untouched. Code that read specific
 legacy statev columns (e.g. the stored X_i of EPHAC) must be updated to the
 modular layout.
+
+.. _stress-measure-tangent-rate:
+
+Stress measure and tangent rate
+===============================
+
+Every **native** simcoon kernel is Kirchhoff-native. In the logarithmic framework the
+stored energy per *reference* volume gives
+:math:`\boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V}`, so :math:`\boldsymbol{\tau}`
+is the route stress, and the Cauchy stress is the derived output
+:math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J`, formed only at the boundaries -- the
+solver's output sinks and the Python wrapper. Nothing on the route carries Cauchy.
+
+**The stress measure** a kernel writes into ``sigma`` is declared, one entry per kernel, in
+``output_convention_of`` (``umat_smart.cpp``). A kernel that fails to declare it is
+rejected rather than given a default -- a missing declaration is an error of exactly
+:math:`J`, and invisible near :math:`J = 1`:
+
+- ``kirchhoff`` -- every native kernel.
+- ``cauchy`` -- only the ``UMEXT`` / ``UMABA`` plugin adapters, whose contract belongs
+  to the host code (Abaqus ``DDSDDE`` is Cauchy-based). ``select_umat_M_finite`` converts
+  those to :math:`\boldsymbol{\tau}` on the way out.
+
+``HYPOO`` is native too: it integrates the corotational *Kirchhoff* rate,
+:math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,
+and is the rate counterpart of ``ELORT`` (total form
+:math:`\boldsymbol{\tau} = \mathbf{L} : \boldsymbol{\varepsilon}^{el}`). With the same
+:math:`\mathbf{L}`, isotropic or anisotropic, the two are identical on any path for corates
+0 to 3: with the material axes following the body, the transported strain and stress satisfy
+the same recursion (a ~74 % orthotropic shear gap measured before 2.1 came from lab-fixed
+axes, not from the rate form). They differ under corate 5, whose similarity transport by a
+rotation-free stretch does not commute with an anisotropic :math:`\mathbf{L}`. For an
+anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf{L}_R :
+\ln\mathbf{V}` is Cauchy-elastic, not hyperelastic.
+
+**Material frame.** On the finite route the kernels fed the logarithmic strain (ELISO, ELIST,
+ELORT, HYPOO, the plasticity names, ``MODUL``, ``PYEXT``) run in a frame that follows the
+material: the accumulated corate rotation for corates 0 to 3, the polar rotation of
+:math:`\mathbf{F}` for 4 and 5. Their anisotropy axes (orthotropic and transversely isotropic
+stiffness, Hill-type criteria, HOLZA fibres in ``MODUL``) therefore rotate with the body, as with
+Abaqus ``*ORIENTATION`` under NLGEOM, and their tensorial ``Statev`` are material-frame
+components. The kernels built from :math:`\mathbf{F}` (SNTVE, the Neo-Hookean and invariant
+family, OGDEN, HOLZA) are objective by construction and keep the lab frame.
+
+**The tangent rate is not declared, it is deduced from the solver's ``corate_type``.** Every
+kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
+it. A kernel that builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family --
+converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
+``Dtau_LieDD_2_DtauDe_corate``; a kernel handed the solver's already-corotated strain
+increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
+corrections, 2 (XBM) and 3 (log_R) share the exact spectral map, and 4 (Truesdell) is the
+convected box, which *is* the spatial (Lie) tangent -- an identity: the Kirchhoff stress is
+transported upper-convected and the strain lower-convected, so the strain is the Almansi strain.
+5 (log_F) is the chain rule through its own increment :math:`\mathbf{D}_e = \mathbb{A}^F :
+\mathbf{D}\,\Delta t`, :math:`\mathbb{C}^J : (\mathbb{A}^F)^{-1}`, equal to the log box for
+isotropic laws (both finite-difference verified).
+
+.. note::
+
+   The solver transports the total strain, the start stress and the tensorial internal
+   variables with the variance each corate requires: rotation for 0-3 (in the material frame the
+   frame-relative increment is the identity, so a kernel is called with
+   :math:`\Delta\mathbf{R} = \mathbf{I}`); for 4, lower-convected strain-like and upper-convected
+   stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
+   internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
+   EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
+   plasticity names served by the modular engine, ``MODUL``, ``PYEXT``) is refused under
+   corates 4 and 5.
+
+.. note::
+
+   ``MODUL`` passes corate 3 unconditionally rather than the solver's value, because it
+   evaluates its potential at :math:`\mathbf{V}^{el}` in the corotated frame
+   (:math:`\mathbf{R} = \mathbf{I}`), where the log box with respect to
+   :math:`\ln \mathbf{V}^{el}` **is**
+   :math:`\partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el}`. Any other
+   corate is already refused upstream under NLGEOM, so passing one down would not be more
+   general -- it would be wrong.
+
+**The Python contract.** ``sim.umat`` returns **Cauchy** stress and the **Kirchhoff box**
+tangent :math:`\partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e` with no :math:`J`,
+and takes ``corate=`` (default ``3``, log_R) selecting the rate that tangent is expressed
+in. The default is contract-preserving: corates 2 and 3 resolve to the same exact map, so it
+returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
+tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.
 
 Tangent-operator mode
 =====================

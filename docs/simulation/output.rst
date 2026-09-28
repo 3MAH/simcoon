@@ -98,6 +98,17 @@ run gives every conjugate pair:
 
 .. note::
 
+   Internally the finite-strain solver carries the Kirchhoff stress
+   :math:`\boldsymbol{\tau}`: the constitutive kernels and the energies
+   :math:`W_m` work on it, and the prescribed PKII and Biot stresses are
+   derived from it. ``Kirchhoff`` is that stress as integrated; ``Stress`` is
+   the Cauchy stress :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J` formed
+   at output and stays the default measure. See
+   :ref:`stress-measure-tangent-rate` for the kernel contract and the
+   ``sim.umat`` boundary used by fedoo.
+
+.. note::
+
    In small deformations (``control_type="small_strain"``) all strain measures
    reduce to the infinitesimal strain and all stress measures to the Cauchy
    stress. Shear strain
@@ -118,7 +129,7 @@ Energies, state variables, tangent
      - Mechanical energies :math:`[W_m, W_m^r, W_m^{ir}, W_m^d]`: total, stored (recoverable), irrecoverable stored, dissipated
    * - ``Statev``
      - (nstatev, N)
-     - The internal state variables of the constitutive model, in the order the model defines them (see :doc:`umat_catalog`)
+     - The internal state variables of the constitutive model, in the order the model defines them (see :doc:`umat_catalog`). Under finite strain, the tensorial ones of the kernels fed the logarithmic strain are components in the frame that follows the material (the material axes rotated with the body), not in the lab frame
    * - ``TangentMatrix``
      - (6, 6, N)
      - Tangent operator :math:`\mathbf{L}_t` of the mechanical problem (``record_tangent=True``, the default)

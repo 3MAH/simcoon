@@ -14,6 +14,7 @@ from scipy.linalg import expm
 import simcoon as sim
 from simcoon.modular import (
     GentThomasElasticity,
+    HolzapfelElasticity,
     IsiharaElasticity,
     ModularMaterial,
     MooneyRivlinElasticity,
@@ -36,6 +37,13 @@ MODELS = [
     (SwansonElasticity(terms=((0.5, 0.1, 0.9, 0.6), (0.2, 0.05, 1.1, 0.8)),
                        kappa=4000.0), "SWANH",
      [2.0, 4000.0, 0.5, 0.1, 0.9, 0.6, 0.2, 0.05, 1.1, 0.8]),
+    (HolzapfelElasticity(C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.1,
+                         fibres=sim.Rotation.from_euler(
+                             "zxz", [[0.0, 0.0, 40.0], [0.0, 0.0, -40.0]], degrees=True),
+                         kappa=1000.0), "HOLZA",
+     [0.0354, 0.0107, 7.48, 0.1, 2.0,
+      np.cos(np.deg2rad(40.0)), np.sin(np.deg2rad(40.0)), 0.0,
+      np.cos(np.deg2rad(40.0)), -np.sin(np.deg2rad(40.0)), 0.0, 1000.0]),
 ]
 
 STATES = {

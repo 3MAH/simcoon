@@ -366,8 +366,8 @@ void state_variables::set_start(const int &corate_type)
 
     if(corate_type != 4 && corate_type != 5) {
         PKII_start = PKII;
-        tau_start = rotate_stress(tau,DR);
-        sigma_start = rotate_stress(sigma,DR);
+        tau_start = tau;       // transported with the NEXT increment's DR, in select_umat_M_finite
+        sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
         etot = rotate_strain(etot,DR) + Detot;
@@ -378,13 +378,17 @@ void state_variables::set_start(const int &corate_type)
         R = DR*R;
         nb.from_F(F1);
     }
-    else { //corate_type 4 (Truesdell) or 5 (naive log_F): DR is here understood as DF (convected), so the transport uses inv(DF), NOT transpose -- the basis is no longer orthonormal
+    else { //corate_type 4 (Truesdell) or 5 (log_F): DR is here understood as DF (convected)
         PKII_start = PKII;
-        tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
-        sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));
+        tau_start = tau;
+        sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
-        etot = t2v_strain(DR*v2t_strain(etot)*inv(DR)) + Detot;
+        const mat DF_inv = inv(DR);
+        if (corate_type == 4)   // Truesdell: strain-like, lower-convected -> etot is the Almansi strain
+            etot = t2v_strain(DF_inv.t()*v2t_strain(etot)*DF_inv) + Detot;
+        else                    // log_F: similarity transport, as ln V = F ln U F^-1
+            etot = t2v_strain(DR*v2t_strain(etot)*DF_inv) + Detot;
         T += DT;
         F0 = F1;
         U0 = U1;
@@ -461,14 +465,14 @@ arma::mat state_variables::PKI_stress_start()
 arma::mat state_variables::Biot_stress()
 //----------------------------------------------------------------------
 {
-    return Cauchy2Biot(v2t_stress(sigma), F1);
+    return Kirchoff2Biot(v2t_stress(tau), F1);
 }
 
 //----------------------------------------------------------------------
 arma::mat state_variables::Biot_stress_start()
 //----------------------------------------------------------------------
 {
-    return Cauchy2Biot(v2t_stress(sigma_start), F0);
+    return Kirchoff2Biot(v2t_stress(tau_start), F0);
 }
 
 //----------------------------------------------------------------------

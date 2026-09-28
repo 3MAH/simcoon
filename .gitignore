@@ -15,3 +15,11 @@ testBin/**/T*
 __pycache__/
 *.py[cod]
 .DS_Store
+
+# ── Documentation build artifacts ─────────────────────────────────────────
+# `make html` (docs/Makefile) writes all three: _build holds the Sphinx HTML and
+# the Doxygen XML breathe reads, while sphinx-gallery generates docs/examples/
+# from ../examples/ (gallery_dirs in conf.py) along with its timing table.
+docs/_build/
+docs/examples/
+docs/sg_execution_times.rst

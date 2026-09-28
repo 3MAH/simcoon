@@ -328,6 +328,11 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_kelvin; i++) {
         Dgamma_loc += 0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
     }
+    // Heat source from the actual increments: the linearisation above in (DEtot, DT) vanishes
+    // during a strain hold, while the branches keep relaxing and dissipating. Same leading
+    // terms, so drdE/drdT above remain its derivatives.
+    if (DTime >= 1.E-12)
+        r = (Dgamma_loc - (T + DT)*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
@@ -340,7 +345,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     Wt += (T+0.5*DT)*Deta;
     Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir = (T+0.5*DT)*Deta_ir;
+    Wt_ir += (T+0.5*DT)*Deta_ir;
         
     //Return the statev;
     statev(0) = T_init;

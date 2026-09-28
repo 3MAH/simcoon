@@ -166,7 +166,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     std::vector<vec> Lambdav(N_prony);
     std::vector<vec> kappa_j(N_prony);
     for (int i=0; i<N_prony; i++) {
-        flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot-EV_i[i]));
+        flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot-alpha*(T+DT-T_init)-EV_i[i]));
         Lambdav[i] = eta_norm_strain(flow_visco[i]);
         kappa_j[i] = L_i[i]*Lambdav[i];
     }
@@ -183,7 +183,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         v = s_j;
 
         for (int i=0; i<N_prony; i++) {
-            flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot)-L_i[i]*EV_i[i]);
+            flow_visco[i] = invH_i[i]*(L_i[i]*(Etot+DEtot-alpha*(T+DT-T_init)-EV_i[i]));
             Lambdav[i] = eta_norm_strain(flow_visco[i]);
             dPhi_idv_temp[i] = invH_i[i]*(eta_norm_strain(flow_visco[i])%Ir05()); //Dimension of strain (The flow is of stress type here)
             
