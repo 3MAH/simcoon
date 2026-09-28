@@ -837,7 +837,7 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
     return dW;
 }
 
-void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, vec &tau, mat &Lt_box, const std::vector<mat> &A) {
+void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, const int &corate_type, vec &tau, mat &Lt_box, const std::vector<mat> &A) {
 
     if (A.size() != dW.dWdI_a_bar.n_elem || A.size() != dW.dW2dI_aa_bar.n_elem) {
         throw std::invalid_argument("hyper_invariants_response: " + std::to_string(A.size())
@@ -886,7 +886,7 @@ void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, cons
     // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff, no-J,
     // XBM rate) -- identical object to the small-strain boxes and saint_venant. J*Lt_spatial is
     // the Kirchhoff-Lie tangent d(L_v tau)/dD that the spectral map consumes.
-    Lt_box = Dtau_LieDD_Dtau_logarithmicDD(J*Lt_spatial, F, m_tau);
+    Lt_box = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F, m_tau);
 }
 
 } //namespace simcoon

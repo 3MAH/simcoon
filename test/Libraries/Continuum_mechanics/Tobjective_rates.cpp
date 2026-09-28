@@ -570,3 +570,47 @@ TEST(Tobjective_rates, logR_logF_same_N1)
     EXPECT_LT(norm(N1_lr - N1_lf, 2), 1.E-12);
     EXPECT_LT(norm(N2_lr - N2_lf, 2), 1.E-12);
 }
+
+// Dtau_LieDD_2_DtauDe_corate maps the SPATIAL (Lie/Oldroyd) tangent -- the closed form a
+// hyperelastic potential produces -- straight to the box of the requested rate, in ONE step.
+// It must agree with the established two-step route through dS/dE that it replaces, for every
+// corate. This is what licenses passing corate_type into the kernels: before it, they baked the
+// log box and select_umat_M_finite un-baked and re-baked, three maps of which two cancelled.
+//
+// Note a wrong tangent does NOT move converged solver values (Newton finds the same root), so
+// the regression baseline is structurally blind to this class of error. Only a check like this
+// one, or a finite-difference of the tangent, can see it.
+TEST(Tobjective_rates, Dtau_LieDD_2_DtauDe_corate_matches_the_two_step_route)
+{
+    mat F = {{1.17, 0.06, -0.02},
+             {0.03, 0.94,  0.05},
+             {-0.01, 0.02, 0.98}};
+    const double J = det(F);
+    ASSERT_GT(std::abs(J - 1.0), 0.05) << "J must be away from 1 or a J error would be invisible";
+
+    // a representative Kirchhoff stress and a representative spatial tangent
+    const mat tau = {{ 180.,  22., -9.},
+                     {  22., -60., 14.},
+                     {  -9.,  14., 35.}};
+    const mat C_tau = L_iso(70000., 0.3, "Enu");   // stands in for J * c, any 6x6 will do
+
+    for (int corate : {0, 1, 2, 3, 4, 5}) {
+        const mat one_step = Dtau_LieDD_2_DtauDe_corate(C_tau, corate, F, tau);
+        const mat two_step = DSDE_2_DtauDe_corate(Dtau_LieDD_2_DSDE(C_tau, F), corate, F, tau);
+        EXPECT_LT(norm(one_step - two_step, "fro"), 1.E-9*norm(two_step, "fro"))
+            << "corate " << corate;
+    }
+
+    // corate 5 (log_F) is the convected/Oldroyd-Lie box, i.e. the input itself -- an identity,
+    // not an approximation. Pin it so nobody "generalises" it into a spectral map.
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 5, F, tau) - C_tau, "fro"), 1.E-12);
+
+    // corates 2, 3 and 4 share the exact spectral map: the log box IS the box for all three.
+    const mat box2 = Dtau_LieDD_2_DtauDe_corate(C_tau, 2, F, tau);
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 3, F, tau) - box2, "fro"), 1.E-12);
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 4, F, tau) - box2, "fro"), 1.E-12);
+
+    // ...and Jaumann and Green-Naghdi genuinely differ from it, or the loop above proves nothing.
+    EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 0, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
+    EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 1, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
+}

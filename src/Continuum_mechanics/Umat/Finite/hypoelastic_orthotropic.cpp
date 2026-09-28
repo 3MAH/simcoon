@@ -39,7 +39,7 @@ namespace simcoon{
 
 ///@brief No statev is required for thermoelastic constitutive law
 
-void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -52,6 +52,10 @@ void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const v
     UNUSED(DTime);
     UNUSED(nshr);
     UNUSED(tnew_dt);
+    // This kernel is a corotational CAUCHY-rate law: L is already expressed in the frame the
+    // solver handed it, so it needs no rate conversion. (Its Lt = L is separately known to be
+    // the wrong OBJECT -- dsigma/dD handed on as d(tau_hat)/dDe -- which is fixed on its own.)
+    UNUSED(corate_type);
     
     double T_init = statev(0);
     

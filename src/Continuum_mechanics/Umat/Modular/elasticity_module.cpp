@@ -340,7 +340,12 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
     // differ by exp(tr eps_in) otherwise -- of order 3*alpha*DT for thermal expansion. The
     // previous code multiplied the Cauchy stress by the same J_el, so this is bit-for-bit the
     // same number; flagged here rather than silently altered.
-    hyper_invariants_response(dW, b_el, J_el, V_el, sigma, Lt, A);
+    // Corate 3 (log_R), unconditionally: MODUL under finite strain accepts no other
+    // (select_umat_M_finite), and that guard is exactly what makes this block's tangent
+    // in-rate -- V_el is the corotated stretch (R = I), so the log box with respect to
+    // ln(V_el) IS d(tau)/d(eps_el). Passing the solver's corate here would be wrong, not
+    // more general: any other value is already refused upstream.
+    hyper_invariants_response(dW, b_el, J_el, V_el, 3, sigma, Lt, A);
 }
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {

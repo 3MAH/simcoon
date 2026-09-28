@@ -461,12 +461,6 @@ arma::mat state_variables::PKI_stress_start()
 arma::mat state_variables::Biot_stress()
 //----------------------------------------------------------------------
 {
-    // From tau, the canonical route stress -- as PKII already is (select_umat_M_finite).
-    // NOT from `sigma`: that field holds the KERNEL's raw stress, which for every
-    // kirchhoff_box law (ELISO, EPICP, MODUL, the 201 family, and since the
-    // Kirchhoff-native refactor every finite kernel too) is tau, not Cauchy. Feeding it to
-    // Cauchy2Biot scaled the Biot stress by exactly J -- an 11.7 % error on the control-type-4
-    // residual at J = 1.12 -- for as long as those kernels have existed.
     return Kirchoff2Biot(v2t_stress(tau), F1);
 }
 
