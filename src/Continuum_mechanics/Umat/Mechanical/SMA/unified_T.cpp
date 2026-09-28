@@ -245,7 +245,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     }
 
     //Rotation of internal variables (tensors)
-    rotate_strain(ET, DR);
+    ET = rotate_strain(ET, DR);
 
     //Variables values at the start of the increment
     vec stress_start = stress;

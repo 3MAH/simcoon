@@ -88,8 +88,12 @@ The contract
   ``EPICP`` (``PYEXT`` belongs to the Kirchhoff-box set). The law never sees
   the Cauchy stress: the solver and ``sim.umat`` form
   :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J` at their own boundaries
-  (see :ref:`stress-measure-tangent-rate`). Internal tensorial history
-  is not rotated by the solver; rotate it with ``DR`` in the law if needed.
+  (see :ref:`stress-measure-tangent-rate`). On the finite solver route the
+  law runs in the frame that follows the material: it receives ``DR`` equal to
+  the identity and its tensorial history stays in that frame, with nothing to
+  rotate. Through ``sim.umat`` it receives the caller's ``DR`` and must rotate
+  its history with it. ``PYEXT`` is refused under corates 4 and 5, which need
+  the history's variance.
 
 Step cuts and errors
 --------------------
@@ -101,6 +105,14 @@ solver's ``div_tnew_dt``). Any other exception aborts the solve and is re-raised
 ``KeyboardInterrupt``. With ``inforce=0`` the solver aborts (``status = 1``, a
 ``RuntimeError`` unless ``raise_on_abort=False``) when the increment falls below
 ``Dn_mini``; with the default ``inforce=1`` it forces the minimal increment.
+
+The batch entry points ``sim.umat`` and ``sim.umat_T`` cannot subdivide an
+increment. When any kernel asks for a smaller one -- a Python law raising
+:class:`simcoon.StepCut`, or a built-in kernel (the modular engine on a
+non-finite or runaway return mapping, the SMR* SMA and LLDM0 damage laws on a
+failed local iteration) -- they raise :class:`simcoon.StepCut` carrying the
+smallest requested ``ratio``. The input arrays are left untouched: a
+finite-element coupler discards the call and retries with a smaller increment.
 
 Batch entry point and explicit registration
 ===========================================

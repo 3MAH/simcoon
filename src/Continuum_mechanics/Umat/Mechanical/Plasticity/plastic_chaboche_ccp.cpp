@@ -138,14 +138,17 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     X_2(5) = statev(31);
     
     double Hp = statev(32);
-    
-    vec X = X_1 + X_2;
-    
-    //Rotation of internal variables (tensors)
+
+    //Rotation of internal variables (tensors): the back-strains are strain-like, the
+    //back-stresses stress-like
     EP = rotate_strain(EP, DR);
     a_1 = rotate_strain(a_1, DR);
     a_2 = rotate_strain(a_2, DR);
-    
+    X_1 = rotate_stress(X_1, DR);
+    X_2 = rotate_stress(X_2, DR);
+
+    vec X = X_1 + X_2;
+
     //Elstic stiffness tensor
     L = L_iso(E, nu, "Enu");
         
@@ -158,6 +161,9 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
         EP = vide;
         a_1 = vide;
         a_2 = vide;
+        X_1 = vide;
+        X_2 = vide;
+        X = vide;
         p = 0.;
         Hp = 0.;
         

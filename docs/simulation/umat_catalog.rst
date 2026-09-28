@@ -276,20 +276,47 @@ rejected rather than given a default -- a missing declaration is an error of exa
 :math:`\boldsymbol{\tau}_{n+1} = \boldsymbol{\tau}_n + \mathbf{L} : \Delta\boldsymbol{\varepsilon}^{el}`,
 and is the rate counterpart of ``ELORT`` (total form
 :math:`\boldsymbol{\tau} = \mathbf{L} : \boldsymbol{\varepsilon}^{el}`). With the same
-:math:`\mathbf{L}` the two are identical along a path without rotation increments. Under
-rotation they differ where the stress transport does not commute with an anisotropic
-:math:`\mathbf{L}` -- the effect the pair exists to show, free of any stress-measure effect --
-plus a time-discretisation gap of the rate form, first order in the increment size and
-present even for an isotropic stiffness.
+:math:`\mathbf{L}`, isotropic or anisotropic, the two are identical on any path for corates
+0 to 3: with the material axes following the body, the transported strain and stress satisfy
+the same recursion (a ~74 % orthotropic shear gap measured before 2.1 came from lab-fixed
+axes, not from the rate form). They differ under corate 5, whose similarity transport by a
+rotation-free stretch does not commute with an anisotropic :math:`\mathbf{L}`. For an
+anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf{L}_R :
+\ln\mathbf{V}` is Cauchy-elastic, not hyperelastic.
 
-**The tangent rate is not declared, it is deducted from  the solver's ``corate_type``.** Every 
+**Material frame.** On the finite route the kernels fed the logarithmic strain (ELISO, ELIST,
+ELORT, HYPOO, the plasticity names, ``MODUL``, ``PYEXT``) run in a frame that follows the
+material: the accumulated corate rotation for corates 0 to 3, the polar rotation of
+:math:`\mathbf{F}` for 4 and 5. Their anisotropy axes (orthotropic and transversely isotropic
+stiffness, Hill-type criteria, HOLZA fibres in ``MODUL``) therefore rotate with the body, as with
+Abaqus ``*ORIENTATION`` under NLGEOM, and their tensorial ``Statev`` are material-frame
+components. The kernels built from :math:`\mathbf{F}` (SNTVE, the Neo-Hookean and invariant
+family, OGDEN, HOLZA) are objective by construction and keep the lab frame.
+
+**The tangent rate is not declared, it is deduced from the solver's ``corate_type``.** Every
 kernel receives the solver's ``corate_type`` and must return :math:`\mathbf{L}_t` expressed in
- it. A kernel that  builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family
-  -- converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
+it. A kernel that builds its tangent from :math:`\mathbf{F}` -- the finite hyperelastic family --
+converts the spatial (Lie/Oldroyd) closed form of the potential in one step, with
 ``Dtau_LieDD_2_DtauDe_corate``; a kernel handed the solver's already-corotated strain
 increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
-corrections, 2 (XBM), 3 (log_R) and 4 share the exact spectral map, and 5 (log_F) is the
-convected/Oldroyd-Lie box, which *is* the spatial tangent -- an identity.
+corrections, 2 (XBM) and 3 (log_R) share the exact spectral map, and 4 (Truesdell) is the
+convected box, which *is* the spatial (Lie) tangent -- an identity: the Kirchhoff stress is
+transported upper-convected and the strain lower-convected, so the strain is the Almansi strain.
+5 (log_F) is the chain rule through its own increment :math:`\mathbf{D}_e = \mathbb{A}^F :
+\mathbf{D}\,\Delta t`, :math:`\mathbb{C}^J : (\mathbb{A}^F)^{-1}`, equal to the log box for
+isotropic laws (both finite-difference verified).
+
+.. note::
+
+   The solver transports the total strain, the start stress and the tensorial internal
+   variables with the variance each corate requires: rotation for 0-3 (in the material frame the
+   frame-relative increment is the identity, so a kernel is called with
+   :math:`\Delta\mathbf{R} = \mathbf{I}`); for 4, lower-convected strain-like and upper-convected
+   stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
+   internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
+   EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
+   plasticity names served by the modular engine, ``MODUL``, ``PYEXT``) is refused under
+   corates 4 and 5.
 
 .. note::
 

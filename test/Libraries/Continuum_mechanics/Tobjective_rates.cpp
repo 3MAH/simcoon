@@ -601,14 +601,18 @@ TEST(Tobjective_rates, Dtau_LieDD_2_DtauDe_corate_matches_the_two_step_route)
             << "corate " << corate;
     }
 
-    // corate 5 (log_F) is the convected/Oldroyd-Lie box, i.e. the input itself -- an identity,
-    // not an approximation. Pin it so nobody "generalises" it into a spectral map.
-    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 5, F, tau) - C_tau, "fro"), 1.E-12);
+    // corate 4 (Truesdell) is the convected box: the Lie tangent itself (stress upper-, strain
+    // lower-convected, Almansi increment), FD-verified in test_finite_tangents.py.
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 4, F, tau) - C_tau, "fro"), 1.E-12);
 
-    // corates 2, 3 and 4 share the exact spectral map: the log box IS the box for all three.
+    // corate 5 (log_F): De = A^F:D dt with the stress carried by sym(DF X DF^-1), so the box is
+    // the chain rule c^J : (A^F)^-1 (FD-verified; equal to the log box for isotropic laws).
+    const mat box5 = Dtau_LieDD_Dtau_JaumannDD(C_tau, tau)*inv(A_F(F));
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 5, F, tau) - box5, "fro"), 1.E-9*norm(box5, "fro"));
+
+    // corates 2 and 3 share the exact spectral map.
     const mat box2 = Dtau_LieDD_2_DtauDe_corate(C_tau, 2, F, tau);
     EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 3, F, tau) - box2, "fro"), 1.E-12);
-    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 4, F, tau) - box2, "fro"), 1.E-12);
 
     // ...and Jaumann and Green-Naghdi genuinely differ from it, or the loop above proves nothing.
     EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 0, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));

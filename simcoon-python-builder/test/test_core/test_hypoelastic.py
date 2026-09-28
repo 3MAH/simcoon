@@ -1,10 +1,9 @@
 """HYPOO against ELORT: the rate and the total form of the same orthotropic stiffness.
 
 Both are Kirchhoff-native, so any difference between them is the integration form, never
-the stress measure. Along a path without rotation increments the two are identical; under
-rotation the rate form differs by a first-order time-discretisation gap (present even for an
-isotropic stiffness) and, for an anisotropic one, by the non-commutation of the stress
-transport with L -- the effect the pair exists to show.
+the stress measure. For an isotropic L they are the same law on any path, rotation included
+(the transported strain and stress satisfy the same recursion). For an anisotropic L they
+differ under rotation, by an amount of order one: HYPOO is kept as that reference.
 """
 
 import numpy as np
@@ -24,16 +23,17 @@ def _uniaxial(name, props, corate):
                             np.asarray(props, float), 1, T_init=290.0, corate=corate)
 
 
-def _shear(name, props, ninc, gamma=1.0):
+def _shear(name, props, ninc, gamma=1.0, corate=3):
     step = StepMeca(control="F", value=[1., gamma, 0., 0., 1., 0., 0., 0., 1.],
                     time=1.0, ninc=ninc, Dn_init=1.0, Dn_mini=1e-4)
     res = sim.solver.solve(Block(steps=[step], control_type="F"), name,
-                           np.asarray(props, float), 1, T_init=290.0, corate=3)
+                           np.asarray(props, float), 1, T_init=290.0, corate=corate)
     return res["Kirchhoff"][:, -1]
 
 
-def _gap(props, ninc):
-    tau_e, tau_h = _shear("ELORT", props, ninc), _shear("HYPOO", props, ninc)
+def _gap(props, ninc=100, corate=3):
+    tau_e = _shear("ELORT", props, ninc, corate=corate)
+    tau_h = _shear("HYPOO", props, ninc, corate=corate)
     return np.abs(tau_h - tau_e).max() / np.abs(tau_e).max()
 
 
@@ -46,12 +46,17 @@ def test_hypoo_equals_elort_without_rotation(corate):
                                    atol=1e-12 * np.abs(e[key]).max(), err_msg=key)
 
 
-def test_hypoo_shear_gap_is_discretisation_for_iso_and_anisotropy_for_ortho():
-    """Isotropic L: a first-order gap that halves with the increment. Orthotropic L: a gap
-    of order one, far above the discretisation part."""
-    iso_100, iso_200 = _gap(ISO, 100), _gap(ISO, 200)
-    assert iso_100 < 0.02
-    assert iso_200 < 0.6 * iso_100, "the isotropic gap must shrink at first order"
+@pytest.mark.parametrize("props", [ISO, ORT], ids=["iso", "ortho"])
+@pytest.mark.parametrize("corate", [0, 1, 2, 3])
+def test_hypoo_equals_elort_in_shear(props, corate):
+    """With the material axes following the body, the rate and the total form satisfy the same
+    recursion for every orthogonal corate, anisotropic L included: identical in simple shear.
+    (The ~74 % orthotropic gap measured before 2.1 was the lab-fixed axes, not the rate form.)"""
+    assert _gap(props, corate=corate) < 1e-10
 
-    ort_100 = _gap(ORT, 100)
-    assert ort_100 > 20.0 * iso_100, "the anisotropic gap must dominate the discretisation"
+
+def test_hypoo_departs_from_elort_under_log_F_for_orthotropic_L():
+    """Corate 5 transports by similarity with a rotation-free stretch increment, which does not
+    commute with an anisotropic L: there the rate and the total form are different laws."""
+    assert _gap(ORT, corate=5) > 0.01
+    assert _gap(ISO, corate=5) < 1e-10

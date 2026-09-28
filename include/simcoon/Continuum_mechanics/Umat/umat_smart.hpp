@@ -24,6 +24,7 @@
 
 #pragma once
 #include <string>
+#include <vector>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
@@ -454,17 +455,45 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const 
  */
 enum class StressMeasure { kirchhoff, cauchy };
 
+// Declared in Functions/tensor.hpp (kept out of this widely included header).
+enum class Tensor2Type;
+
+/**
+ * @brief One tensorial internal variable of a kernel's @c statev: 6 engineering Voigt
+ *        components starting at @c offset, with its Tensor2Type (@c strain: engineering shear;
+ *        @c stress). The type selects the transport, through tensor2 (see umat_convention).
+ */
+struct StatevTensor {
+    int offset;
+    Tensor2Type type;
+};
+
 /**
  * @brief The conventions a kernel's raw outputs are expressed in.
  *
  * The tangent rate is deliberately absent: every kernel is handed the solver's
- * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it, contrary to the stress measure.
- * that is a public contract.
+ * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it. Unlike the stress measure, the
+ * rate is therefore a public contract, not a per-kernel declaration.
+ *
+ * @c material_frame marks a kernel fed the logarithmic strain (a "box" kernel): on the finite
+ * route it runs in the frame that follows the material, \f$ \hat{\mathbf{R}}_{n+1} \f$ (the
+ * accumulated corate rotation for corates 0-3, the polar rotation of \f$ \mathbf{F}_1 \f$ for 4
+ * and 5), so its anisotropy axes rotate with the body and its @c statev is stored in that
+ * frame. It is then called with \f$ \Delta\mathbf{R} = \mathbf{I} \f$. Kernels built from
+ * \f$ \mathbf{F} \f$ are objective by construction and keep the lab frame.
+ *
+ * For corates 4 and 5 the frame-relative increment is a rotation-free stretch, and the
+ * dispatcher transports the tensors listed in @c statev_tensors with it, each with its variance.
+ * @c layout_declared says the list is complete (an empty list: no tensorial state); a material
+ * frame kernel that has not declared it is refused under corates 4 and 5.
  *
  * @see output_convention_of
  */
 struct umat_convention {
     StressMeasure stress;
+    bool material_frame = false;
+    bool layout_declared = false;
+    std::vector<StatevTensor> statev_tensors = {};
 };
 
 /**

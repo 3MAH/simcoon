@@ -52,15 +52,12 @@ namespace simcoon{
  *
  * It is the RATE counterpart of ELORT, which evaluates the same orthotropic
  * \f$ \mathbf{L} \f$ in total form, \f$ \boldsymbol{\tau} = \mathbf{L} :
- * (\boldsymbol{\varepsilon} - \boldsymbol{\alpha} \Delta T) \f$. Along a path without rotation
- * increments the two are identical. Under rotation (shear, off-axis loading) they differ in
- * two ways:
- * - where the stress transport does not commute with an anisotropic \f$ \mathbf{L} \f$ -- the
- *   difference this kernel exists to show, of order one for a strongly orthotropic stiffness;
- * - by the time discretisation of the rate form, which sums transported increments where
- *   ELORT evaluates the total strain. That part is first order in the increment size and
- *   present even for an isotropic \f$ \mathbf{L} \f$ (about 1 % at \f$ \Delta\gamma = 0.01 \f$
- *   in simple shear); it vanishes as the increments are refined.
+ * (\boldsymbol{\varepsilon} - \boldsymbol{\alpha} \Delta T) \f$. Both run in the frame that
+ * follows the material (see umat_convention), so for corates 0 to 3 the transported strain and
+ * the transported stress satisfy the same recursion and the two are identical on any path,
+ * anisotropic \f$ \mathbf{L} \f$ included. Under corate 5 the similarity transport by a
+ * rotation-free stretch does not commute with an anisotropic \f$ \mathbf{L} \f$, and there the
+ * rate and the total form are different laws; HYPOO is kept as that reference.
  *
  * **props** (12): \f$ E_x, E_y, E_z, \nu_{xy}, \nu_{xz}, \nu_{yz}, G_{xy}, G_{xz}, G_{yz},
  * \alpha_x, \alpha_y, \alpha_z \f$ ("EnuG" convention, material frame).

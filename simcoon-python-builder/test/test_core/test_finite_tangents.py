@@ -79,6 +79,33 @@ def test_box_tangent_matches_finite_difference(name, props, nstatev, corate):
             err_msg=f"{name}: d(tau)/d(eps) column {col} at corate {corate}")
 
 
+@pytest.mark.parametrize("name,props,nstatev", KERNELS, ids=[k[0] for k in KERNELS])
+def test_truesdell_box_is_the_convected_tangent(name, props, nstatev):
+    """Corate 4 (Truesdell): the box is d(tau_hat)/d(De) with the Kirchhoff stress transported
+    upper-convected, tau_hat = DF tau0 DF^T, and De the Almansi increment
+    1/2 (I - (DF DF^T)^-1). Its limit at DF -> I is the Lie tangent, which is what the kernels
+    return for corate 4; checked by central differences about the reference state F0."""
+    F0 = _F(EPS0)
+    sigma0, Lt = _umat(name, props, F0, nstatev, corate=4)
+    tau0 = sim.v2t_stress(np.exp(EPS0[:3].sum()) * np.asarray(sigma0).ravel())
+    d = 1e-6
+    for col in range(3):
+        dtau, de = [], []
+        for sgn in (1.0, -1.0):
+            DF = np.eye(3)
+            DF[col, col] += sgn * d
+            F1 = DF @ F0
+            sigma1, _ = _umat(name, props, F1, nstatev, corate=4)
+            tau1 = np.linalg.det(F1) * np.asarray(sigma1).ravel()
+            dtau.append(tau1 - np.asarray(sim.t2v_stress(DF @ tau0 @ DF.T)).ravel())
+            de.append(0.5 * (1.0 - 1.0 / (1.0 + sgn * d) ** 2))
+        fd = (dtau[0] - dtau[1]) / (de[0] - de[1])
+        np.testing.assert_allclose(
+            fd[:3], Lt[:3, col], rtol=1e-5,
+            atol=1e-5 * max(1.0, np.abs(Lt[:3, col]).max()),
+            err_msg=f"{name}: Truesdell box column {col}")
+
+
 def test_corates_2_and_3_return_the_same_box():
     """They resolve to the same exact spectral map, so the box is literally identical.
 
@@ -159,10 +186,37 @@ def test_hypoelastic_integrates_the_kirchhoff_rate():
                                    err_msg=f"HYPOO: d(tau)/d(De) column {col}")
 
 
-def test_log_F_box_is_the_spatial_tangent_itself():
-    """corate 5 is the convected/Oldroyd-Lie box: an identity, not a spectral map."""
-    name, props, nstatev = KERNELS[1]          # NEOHC
-    _, lie = _umat(name, props, _F(EPS0), nstatev, corate=5)
-    _, log_box = _umat(name, props, _F(EPS0), nstatev, corate=3)
-    assert np.all(np.isfinite(lie))
-    assert np.abs(lie - log_box).max() > 1e-6 * np.abs(log_box).max()
+@pytest.mark.parametrize("name,props,nstatev", KERNELS, ids=[k[0] for k in KERNELS])
+def test_log_F_box_matches_finite_difference(name, props, nstatev):
+    """Corate 5 (log_F): De = A^F:D dt and the stress is carried by sym(DF X DF^-1), so the box
+    is c^J : (A^F)^-1 (chain rule). Checked by perturbing F along directions whose corate-5
+    increment is a unit Voigt vector; for these isotropic kernels it also equals corate 3's box.
+    (It used to return the Lie tangent, 8-13 % off.)"""
+    from scipy.linalg import logm
+    F0 = _F(EPS0)
+    sigma0, Lt5 = _umat(name, props, F0, nstatev, corate=5)
+    _, Lt3 = _umat(name, props, F0, nstatev, corate=3)
+    tau0 = sim.v2t_stress(np.linalg.det(F0) * np.asarray(sigma0).ravel())
+    lnV = lambda F: 0.5 * np.real(logm(F @ F.T))
+    sym = lambda X: 0.5 * (X + X.T)
+    A_F_inv = np.linalg.inv(np.asarray(sim.A_F(F0)))
+    d = 1e-6
+    fd = np.zeros((6, 6))
+    for c in range(6):
+        e = np.zeros(6)
+        e[c] = 1.0
+        M = sim.v2t_strain(A_F_inv @ e)
+        num, den = [], []
+        for sgn in (1.0, -1.0):
+            DF = expm(sgn * d * M)
+            F1 = DF @ F0
+            sigma1, _ = _umat(name, props, F1, nstatev, corate=5)
+            tau1 = np.linalg.det(F1) * np.asarray(sigma1).ravel()
+            tau_hat = np.asarray(sim.t2v_stress(sym(DF @ tau0 @ np.linalg.inv(DF)))).ravel()
+            De = np.asarray(sim.t2v_strain(lnV(F1) - sym(DF @ lnV(F0) @ np.linalg.inv(DF)))).ravel()
+            num.append(tau1 - tau_hat)
+            den.append(De[c])
+        fd[:, c] = (num[0] - num[1]) / (den[0] - den[1])
+    scale = np.abs(fd).max()
+    np.testing.assert_allclose(Lt5, fd, atol=1e-6 * scale)
+    np.testing.assert_allclose(Lt5, Lt3, atol=1e-9 * scale)

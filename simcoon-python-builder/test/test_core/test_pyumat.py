@@ -354,8 +354,42 @@ def test_batch_umat_step_cut_is_a_clear_error():
     n = 4
     etot, Detot, sigma, Wm, DR = _batch_inputs(n)
     with sim.registered(StepCutAbove(threshold=-1.0)):
-        with pytest.raises(RuntimeError, match="cannot subdivide"):
+        with pytest.raises(sim.StepCut, match="cannot subdivide"):
             call_pyumat_batch(etot, Detot, sigma, DR, Wm)
+
+
+def test_batch_umat_builtin_kernel_step_cut_is_raised():
+    """A built-in kernel's step-cut request (tnew_dt < 1) used to be dropped on the parallel
+    path: the caller got an unchanged state and an elastic tangent with no signal. It is now
+    raised as sim.StepCut, and the caller's input arrays are untouched so it can retry.
+
+    Trigger: a non-finite increment, which the modular engine (serving ELISO through the 201
+    adapter) rejects with tnew_dt = 0.5. n is above the parallel cutoff (100, parallel.hpp),
+    so the chunked GCD and the OpenMP paths are the ones exercised, with the cut at an
+    interior point and at the last one.
+    """
+    n = 300
+    etot = np.zeros((6, n), order="F")
+    Detot = np.zeros((6, n), order="F")
+    Detot[0, :] = 1e-4
+    Detot[0, [137, n - 1]] = np.nan
+    sigma = np.zeros((6, n), order="F")
+    DR = np.repeat(np.eye(3)[:, :, None], n, axis=2).copy(order="F")
+    props = np.asfortranarray(np.array([70000., 0.3, 0.]).reshape(-1, 1))
+    statev = np.zeros((1, n), order="F")
+    Wm = np.zeros((4, n), order="F")
+    before = [a.copy() for a in (etot, Detot, sigma, statev, Wm)]
+
+    with pytest.raises(sim.StepCut, match="2 material point.*point 137") as info:
+        sim.umat("ELISO", etot, Detot, np.array([]), np.array([]), sigma, DR, props,
+                 statev, 0.5, 1.0, Wm, n_threads=4)
+    assert info.value.ratio == pytest.approx(0.5)
+    for a, b in zip((etot, Detot, sigma, statev, Wm), before):
+        np.testing.assert_array_equal(a, b)
+
+    Detot[0, [137, n - 1]] = 1e-4                       # the same batch, finite: no cut
+    sim.umat("ELISO", etot, Detot, np.array([]), np.array([]), sigma, DR, props,
+             statev, 0.5, 1.0, Wm, n_threads=4)
 
 
 def test_batch_umat_stops_at_the_first_failing_point():

@@ -110,7 +110,12 @@ void logarithmic_R(arma::mat &DR, arma::mat &N_1,  arma::mat &N_2, arma::mat &D,
  * This function computes the increment of the transformation gradient \f$ \Delta \mathbf{F} \f$, the rate of deformation \f$ \mathbf{D} \f$ and the velocity gradient \f$ \mathbf{L} \f$ depending on \f$ \mathbf{F}_0 \f$ and \f$ \mathbf{F}_1 \f$ 
  * (\f$ \mathbf{F} \f$ at the beginning and end of an increment) using the Truesdell rate and the time difference \f$ \Delta t \f$
  *
- * Note that this objective rate correspond to the covariant derivative
+ * The frame increment is exact, \f$ \Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1} \f$: the solver
+ * transports the Kirchhoff stress upper-convected (\f$ \Delta\mathbf{F}\,\boldsymbol{\tau}\,
+ * \Delta\mathbf{F}^T \f$) and the strain lower-convected (\f$ \Delta\mathbf{F}^{-T}\mathbf{e}\,
+ * \Delta\mathbf{F}^{-1} \f$), so the accumulated strain is the Almansi strain
+ * \f$ \mathbf{e}_A = \tfrac12(\mathbf{I} - \mathbf{b}^{-1}) \f$ (see Delta_log_strain_corate) and the
+ * box tangent is the Lie tangent.
  * 
  * @param[out] DF 3x3 matrix representing the increment of transformation gradient \f$ \Delta \mathbf{F} \f$
  * @param[out] D 3x3 matrix representing the rate of deformation \f$ \mathbf{D} \f$
@@ -351,7 +356,12 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
  *    L, carried in @p Omega). \f$ \mathbf{A}^{F} \f$ now recovers \f$ \ln V \f$ like \f$ \mathbf{A}^{R} \f$
  *    (the earlier \f$ -\tfrac12\ln(b_i b_j) \f$ indefinite term was removed). A genuine rate, used for
  *    ALL control_types so inelastic UMATs integrate from a real \f$ \mathbf{D}_e \f$.
- *  - **0/1/4** Jaumann / Green-Naghdi / Truesdell (\f$ \mathbf{A}=\mathbf{I} \f$): \f$ \mathbf{D}_e=\mathbf{D} \f$.
+ *  - **4** Truesdell: the closed-form Almansi increment
+ *    \f$ \Delta\mathbf{e} = \tfrac12\left(\mathbf{I} - (\Delta\mathbf{F}\,\Delta\mathbf{F}^T)^{-1}\right) \f$
+ *    with @p DR \f$ = \Delta\mathbf{F} \f$. Since \f$ \Delta\mathbf{F}^{-T}\mathbf{b}_0^{-1}\Delta\mathbf{F}^{-1}
+ *    = \mathbf{b}_1^{-1} \f$, lower-convected transport plus this increment gives
+ *    \f$ \mathbf{e}_A(\mathbf{F}_1) \f$ exactly.
+ *  - **0/1** Jaumann / Green-Naghdi (\f$ \mathbf{A}=\mathbf{I} \f$): \f$ \mathbf{D}_e=\mathbf{D} \f$.
  *
  * Only affects rate-form/hypoelastic UMATs that accumulate \f$ \epsilon \f$; hyperelastic boxes read
  * stress/tangent off \f$ \mathbf{F}_1 \f$ and are unchanged.
@@ -715,16 +725,20 @@ arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, cons
  * @brief Box tangent in the requested corate, straight from the SPATIAL (Lie/Oldroyd) one.
  *
  * The closed form of a hyperelastic tangent is the spatial elasticity: the potential gives
- * \f$ \mathbb{c} \f$, and \f$ J\,\mathbb{c} = \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
+ * \f$ \boldsymbol{\mathsf{c}} \f$, and \f$ J\,\boldsymbol{\mathsf{c}} = \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
  * is rate-free. This is the ONE map from there to the box
  * \f$ \partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ of the solver's corate, so a
  * kernel that knows the corate converts once instead of baking the log box and having the
  * dispatcher un-bake and re-bake it (three maps, of which two cancelled).
  *
  * Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate corrections from
- * \f$ \boldsymbol\tau \f$ and \f$ \mathbf{F} \f$; 2 (XBM), 3 (log_R) and 4 share the exact
- * spectral map; 5 (log_F) is the convected/Oldroyd-Lie box, which IS the input — the
- * identity, not an approximation.
+ * \f$ \boldsymbol\tau \f$ and \f$ \mathbf{F} \f$; 2 (XBM) and 3 (log_R) share the exact spectral
+ * map; 4 (Truesdell) is the convected box, which IS the Lie tangent (identity), verified by
+ * finite differences against the upper-convected stress and the Almansi increment. 5 (log_F)
+ * is the chain rule through its increment \f$ \mathbf{D}_e = \mathbb{A}^F:\mathbf{D}\,\Delta t \f$
+ * with the stress carried by \f$ \mathrm{sym}(\Delta\mathbf{F}\,\boldsymbol\tau\,\Delta\mathbf{F}^{-1}) \f$:
+ * \f$ \mathbb{C}^J : (\mathbb{A}^F)^{-1} \f$, finite-difference verified, equal to the log box for
+ * isotropic laws.
  *
  * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
  * @param corate_type the solver's corate (see corate_kinematics)

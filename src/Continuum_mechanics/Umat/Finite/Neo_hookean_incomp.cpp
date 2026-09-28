@@ -138,14 +138,12 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     }
 
 
-    //Computation of the mechanical and thermal work quantities
-    /*
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
+    // Kirchhoff work per reference volume, tau : d(lnV), as in saint_venant.
+    Wm   += 0.5*sum((sigma_start + sigma)%Detot);
+    Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
-    */
-    
+
     statev(0) = T_init;
 }
 
