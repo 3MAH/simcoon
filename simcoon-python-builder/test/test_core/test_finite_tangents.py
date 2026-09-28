@@ -227,3 +227,43 @@ def test_umat_rejects_an_unknown_corate(corate):
     """sim.umat validates the corate up front, before the parallel region."""
     with pytest.raises(ValueError, match="corate"):
         _umat("NEOHC", [1000., 10000.], _F(EPS0), corate=corate)
+
+
+_WORK_CASES = [
+    ("ELISO", [70000., 0.3, 0.], 1),
+    ("ELORT", [150000., 10000., 10000., 0.3, 0.3, 0.45, 5000., 5000., 3500., 0., 0., 0.], 1),
+    ("EPICP", [200000., 0.3, 0., 300., 1000., 0.5], 8),
+    ("HYPOO", [150000., 10000., 10000., 0.3, 0.3, 0.45, 5000., 5000., 3500., 0., 0., 0.], 1),
+    ("SNTVE", [70000., 0.3, 0.], 1),
+    ("NEOHC", [1000., 10000.], 1),
+]
+
+
+@pytest.mark.parametrize("name, props, nstatev", _WORK_CASES)
+@pytest.mark.parametrize("corate", [0, 2, 3, 5])
+def test_umat_work_is_the_stress_power_under_the_log_corates(name, props, nstatev, corate):
+    """Non-coaxial state, arbitrary strain increment: under the log corates the Wm increment of
+    sim.umat is the midpoint stress power 1/2 (tau_n + tau_n+1) : D dt, as in the solver; under
+    the others it stays the kernel's 1/2 (tau_n + tau_n+1) : De."""
+    rng = np.random.default_rng(0)
+    F0 = np.eye(3) + 0.2 * rng.standard_normal((3, 3))
+    F0 = F0 if np.linalg.det(F0) > 0 else -F0
+    F1 = (np.eye(3) + 0.05 * rng.standard_normal((3, 3))) @ F0
+    R0, R1 = np.linalg.qr(F0)[0], np.linalg.qr(F1)[0]   # any orthogonal DR: only transported by the caller
+    De = 0.03 * rng.standard_normal(6)
+    sig0 = 100. * rng.standard_normal(6)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    cube = lambda m: np.asarray(m, dtype=float).reshape(3, 3, 1).copy(order="F")
+    statev = np.zeros((nstatev, 1), order="F")
+    statev[0] = 290.
+    sig1, _, Wm, _ = sim.umat(name, col(np.zeros(6)), col(De), cube(F0), cube(F1), col(sig0),
+                              cube(R1 @ R0.T), col(props), statev, 0.5, 1.,
+                              np.zeros((4, 1), order="F"), n_threads=1, corate=corate)
+    tau0 = sig0 * np.linalg.det(F0)
+    tau1 = sig1[:, 0] * np.linalg.det(F1)
+    if corate in (2, 3, 5):
+        Ldt = 2. * (F1 - F0) @ np.linalg.inv(F1 + F0)
+        ref = 0.5 * np.dot(tau0 + tau1, np.asarray(sim.t2v_strain(0.5 * (Ldt + Ldt.T))).ravel())
+    else:
+        ref = 0.5 * np.dot(tau0 + tau1, De)
+    np.testing.assert_allclose(Wm[0, 0], ref, rtol=1e-10, atol=1e-10 * abs(ref))

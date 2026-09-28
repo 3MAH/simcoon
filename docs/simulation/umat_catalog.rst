@@ -340,7 +340,9 @@ plasticity), so the solver adds
 :math:`\tfrac12(\boldsymbol{\tau}_n + \boldsymbol{\tau}_{n+1}) : (\mathbf{D}\,\Delta t - \Delta\mathbf{e})`
 to :math:`W_m` and :math:`W_m^r`: :math:`W_m` is the true work per reference volume,
 :math:`\int \mathbf{P} : \mathrm{d}\mathbf{F}`, and :math:`W_m^r` carries the part of it that
-the rate does not conjugate. :func:`simcoon.umat` returns the kernel's own work.
+the rate does not conjugate. :func:`simcoon.umat` applies the same correction when it is given
+:math:`\mathbf{F}_0, \mathbf{F}_1`, on the start stress it is passed (already transported by the
+caller).
 
 .. note::
 

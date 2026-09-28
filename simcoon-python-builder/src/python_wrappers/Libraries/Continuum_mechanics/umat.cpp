@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <vector>
 
@@ -64,6 +65,47 @@ namespace py=pybind11;
 namespace simpy {
 
 namespace {
+
+// Delta_work_conjugacy (objective_rates.hpp) for one point of the parallel region: plain doubles,
+// no allocation (an armadillo temporary would go through the numpy allocator, which needs the
+// GIL) and no throw. The start stress is the one the kernel used: as passed, already transported
+// by the caller. Returns 0 on a singular F1 + F0.
+double point_work_conjugacy(const double *tau_start, const double *tau, const double *De,
+                            const arma::cube &F0, const arma::cube &F1, const int pt) {
+	double S[3][3], M[3][3], C[3][3], D[3][3];
+	for (int i = 0; i < 3; i++)
+		for (int j = 0; j < 3; j++) {
+			S[i][j] = F1(i,j,pt) + F0(i,j,pt);
+			M[i][j] = F1(i,j,pt) - F0(i,j,pt);
+		}
+	const double det = S[0][0]*(S[1][1]*S[2][2] - S[1][2]*S[2][1])
+	                 - S[0][1]*(S[1][0]*S[2][2] - S[1][2]*S[2][0])
+	                 + S[0][2]*(S[1][0]*S[2][1] - S[1][1]*S[2][0]);
+	if (!(std::abs(det) > simcoon::iota))
+		return 0.;
+	for (int i = 0; i < 3; i++)   // cofactor inverse: C = S^-1
+		for (int j = 0; j < 3; j++) {
+			const int a = (j+1)%3, b = (j+2)%3, c = (i+1)%3, d = (i+2)%3;
+			C[i][j] = (S[a][c]*S[b][d] - S[a][d]*S[b][c])/det;
+		}
+	double L[3][3];   // midpoint velocity gradient times DTime: 2 (F1 - F0)(F1 + F0)^-1
+	for (int i = 0; i < 3; i++)
+		for (int j = 0; j < 3; j++) {
+			L[i][j] = 0.;
+			for (int k = 0; k < 3; k++)
+				L[i][j] += 2.*M[i][k]*C[k][j];
+		}
+	for (int i = 0; i < 3; i++)
+		for (int j = 0; j < 3; j++)
+			D[i][j] = 0.5*(L[i][j] + L[j][i]);
+	const int vi[6] = {0,1,2,0,0,1}, vj[6] = {0,1,2,1,2,2};
+	double dW = 0.;
+	for (int k = 0; k < 6; k++) {
+		const double Dk = (k < 3) ? D[vi[k]][vj[k]] : 2.*D[vi[k]][vj[k]];   // engineering shear
+		dW += 0.5*(tau_start[k] + tau[k])*(Dk - De[k]);
+	}
+	return dW;
+}
 
 // Raise simcoon.StepCut for a batch whose kernels asked for a smaller increment (tnew_dt < 1),
 // with the smallest ratio asked for. Serial context, GIL held. The inputs are copied before the
@@ -359,6 +401,8 @@ namespace {
 				const double J0 = arma::det(F0.slice(pt));
 				if (J0 > simcoon::iota) sigma *= J0;
 			}
+			double tau_start[6];
+			for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
 			switch (arguments_type) {
 				case 1: {
 					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
@@ -370,6 +414,12 @@ namespace {
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
+			if (kirchhoff_normalize && (corate_type == 2 || corate_type == 3 || corate_type == 5)) {
+				// true work under the log corates, as select_umat_M_finite
+				const double dW = point_work_conjugacy(tau_start, sigma.memptr(), Detot.memptr(), F0, F1, pt);
+				Wm(0) += dW;
+				Wm(1) += dW;
+			}
 			if (kirchhoff_normalize) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).

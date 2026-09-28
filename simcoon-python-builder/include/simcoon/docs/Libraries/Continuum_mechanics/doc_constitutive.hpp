@@ -694,9 +694,12 @@ constexpr auto umat = R"pbdoc(
     strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
     through unconverted.
 
-    Wm is the kernel's own work, on the strain increment it is handed. The
-    in-memory solver additionally corrects it to the true work under the
-    logarithmic corates (non-coaxial states); this function does not.
+    Wm is the work per reference volume. Under the logarithmic corates (2, 3,
+    5), with F0 and F1 given, it is corrected to the stress power
+    1/2 (tau_n + tau_n+1) : D dt with D dt = sym(2 (F1 - F0)(F1 + F0)^-1),
+    tau_n being the start stress as passed: the kernel alone accumulates
+    1/2 (tau_n + tau_n+1) : De on the corate strain increment, which differs
+    from it for non-coaxial states. The in-memory solver does the same.
 
     Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
     d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J
