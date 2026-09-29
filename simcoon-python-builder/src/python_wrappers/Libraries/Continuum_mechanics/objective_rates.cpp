@@ -174,11 +174,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         // Release the GIL while it runs, and use the exception-safe loop on every platform.
         auto run_points = [&](auto&& point_kernel) {
             py::gil_scoped_release release;
-#ifdef _WIN32
             simcoon_parallel_for_safe(nb_points, point_kernel, 100, n_threads);
-#else
-            simcoon_parallel_for_safe(nb_points, point_kernel);
-#endif
         };
 
         if (F0.ndim() == 2) {

@@ -61,7 +61,9 @@
 /// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
 ///
 /// GCD on macOS, OpenMP on Linux, native threads on Windows (parallel only past
-/// @p cutoff items). The first exception thrown by @p func is rethrown AFTER the loop:
+/// @p cutoff items). @p n_threads = 1 runs it serially on every platform; otherwise it caps
+/// the Windows workers (0 = one per hardware thread), while GCD and OpenMP keep their own
+/// runtime sizing. The first exception thrown by @p func is rethrown AFTER the loop:
 /// an exception escaping an active OpenMP parallel region (or a GCD block) is undefined
 /// behavior (std::terminate), which would kill e.g. a Python session on the first singular
 /// slice of a batch.
@@ -74,8 +76,8 @@
 #if defined(__APPLE__)
 
 template<typename F>
-void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
-    if (N <= cutoff) {
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100, unsigned int n_threads = 0) {
+    if (N <= cutoff || n_threads == 1) {
         for (int i = 0; i < N; i++) func(i);
         return;
     }
@@ -154,9 +156,9 @@ void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100, unsigned int n
 #else
 
 template<typename F>
-void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100, unsigned int n_threads = 0) {
     std::exception_ptr eptr = nullptr;
-    #pragma omp parallel for schedule(static) if(N > cutoff)
+    #pragma omp parallel for schedule(static) if(N > cutoff && n_threads != 1)
     for (int i = 0; i < N; i++) {
         try {
             func(i);
