@@ -1093,10 +1093,9 @@ arma::mat batch_contract(const arma::cube &t4, Tensor4Type t4type,
 
     // General path: N tensor4, 1 or N tensor2
     arma::mat result(6, N);
-    #pragma omp parallel for schedule(static) if(N > 100)
-    for (int i = 0; i < N; i++) {
+    simcoon_parallel_for_safe(N, [&](int i) {
         result.col(i) = slice_fixed<6,6>(t4, i) * t2.col(bc2 ? 0 : i);
-    }
+    });
     return result;
 }
 

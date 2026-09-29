@@ -102,6 +102,10 @@ target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
 target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+if(WIN32)
+  # MSVC (vcpkg): BLAS/LAPACK explicitly, as for libsimcoon (root CMakeLists.txt)
+  target_link_libraries(_core PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
 
 # Armadillo memory through numpy's allocator in every TU (buffers are stolen into numpy
 # arrays); python_module.cpp owns the module's numpy C-API table. Function in the root
@@ -111,12 +115,11 @@ if(SIMCOON_NUMPY_ALLOC_IN_LIB)
   target_compile_definitions(_core PRIVATE SIMCOON_NUMPY_ALLOC_IN_LIB)
 endif()
 
-# Threading: GCD on macOS (native, zero deps), OpenMP on Linux (libgomp),
-# serial on Windows (avoids runtime conflicts).
+# Threading (parallel.hpp): GCD on macOS, OpenMP on Linux, std::thread on Windows.
 if(APPLE)
   message(STATUS "macOS: using Grand Central Dispatch for parallelism")
 elseif(WIN32)
-  message(STATUS "Windows: parallel loops disabled (serial fallback)")
+  message(STATUS "Windows: parallel loops on std::thread; OpenMP not linked")
 else()
   find_package(OpenMP)
   if(OpenMP_CXX_FOUND)

@@ -10,7 +10,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
-#include <simcoon/parallel.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
@@ -419,7 +419,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				if (tnew_dt[pt] < 1.) raise_step_cut("umat", tnew_dt);
 			}
 		} else {
-			simcoon_parallel_for_safe(nb_points, point_kernel);
+			parallel_for_nogil(nb_points, point_kernel, n_threads);
 		}
 		// A built-in kernel asks for a smaller increment through tnew_dt (e.g. the modular
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
@@ -564,7 +564,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			}
 		}
 
-		simcoon_parallel_for_safe(nb_points, [&](int pt) {
+		auto thermal_point_kernel = [&](int pt) {
 			// props aliased without copying: no NumPy-backed allocation in the
 			// parallel region (same GIL-safety pattern as launch_umat)
 			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
@@ -592,7 +592,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;
-		});
+		};
+		parallel_for_nogil(nb_points, thermal_point_kernel, n_threads);
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
 

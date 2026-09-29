@@ -101,7 +101,9 @@ jobs:
               -DCMAKE_CXX_COMPILER_LAUNCHER="$env:SCCACHE_PATH" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cmake --build build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $env:SCCACHE_PATH --show-stats
 
       - name: Tests (Unix)

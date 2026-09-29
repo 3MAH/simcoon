@@ -958,7 +958,7 @@ class TestTensor4BatchConcentration:
 
 class TestBatchParallelPath:
     """Exercise the parallel branch of simcoon_parallel_for_safe (N > 100 cutoff:
-    GCD on macOS, OpenMP on Linux): correctness vs singles, and a mid-loop throw
+    GCD on macOS, OpenMP on Linux, native threads on Windows): correctness vs singles, and a mid-loop throw
     (singular slice) must surface as a clean Python exception, not a process kill."""
 
     N_PAR = 300
@@ -975,6 +975,15 @@ class TestBatchParallelPath:
         for i in (0, 137, self.N_PAR - 1):
             single_inv = Tensor4.stiffness(arr[i]).inverse()
             assert_allclose(batch_inv.mat[i], single_inv.mat, rtol=1e-9, atol=1e-9)
+
+    def test_contract_parallel_matches_singles(self):
+        arr = self._spd_batch(seed=14)
+        rng = np.random.default_rng(15)
+        strains = rng.standard_normal((self.N_PAR, 6))
+        batch = Tensor4.stiffness(arr).contract(Tensor2.strain(strains))
+        for i in (0, 137, self.N_PAR - 1):
+            single = Tensor4.stiffness(arr[i]).contract(Tensor2.strain(strains[i]))
+            assert_allclose(batch[i].voigt, single.voigt, rtol=1e-12, atol=1e-12)
 
     def test_rotate_parallel_matches_singles(self):
         arr = self._spd_batch(seed=12)

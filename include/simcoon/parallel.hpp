@@ -16,112 +16,114 @@
  */
 
 ///@file parallel.hpp
-///@brief Cross-platform parallel-for: GCD on macOS, OpenMP on Linux, serial on Windows.
+///@brief Exception-safe parallel-for: GCD on macOS, OpenMP where available, std::thread otherwise.
 
 #pragma once
 
-#if defined(__APPLE__)
-  #include <dispatch/dispatch.h>
-
-  template<typename F>
-  void simcoon_parallel_for(int N, F&& func) {
-      dispatch_apply(static_cast<size_t>(N), DISPATCH_APPLY_AUTO, ^(size_t i) {
-          func(static_cast<int>(i));
-      });
-  }
-
-#elif defined(_OPENMP)
-  #include <omp.h>
-
-  template<typename F>
-  void simcoon_parallel_for(int N, F&& func) {
-      #pragma omp parallel for
-      for (int i = 0; i < N; i++) {
-          func(i);
-      }
-  }
-
-#else
-
-  template<typename F>
-  void simcoon_parallel_for(int N, F&& func) {
-      for (int i = 0; i < N; i++) {
-          func(i);
-      }
-  }
-
-#endif
-
+#include <algorithm>
+#include <atomic>
 #include <exception>
 #include <mutex>
 #include <thread>
-#include <algorithm>
+#include <vector>
+
+#if defined(__APPLE__)
+  #include <dispatch/dispatch.h>
+#endif
+
+/// Batches of at most this many items run serially: the parallel set-up would cost more.
+constexpr int simcoon_parallel_cutoff = 100;
+
+namespace simcoon_parallel_detail {
+
+/// Run func over [begin, end), keeping the first exception: the remaining items of this range
+/// are skipped, the other ranges still run, and the caller rethrows after the join.
+template<typename F>
+void run_range(int begin, int end, F& func, std::exception_ptr& eptr, std::mutex& mtx) {
+    try {
+        for (int i = begin; i < end; i++) func(i);
+    } catch (...) {
+        std::lock_guard<std::mutex> lk(mtx);
+        if (!eptr) eptr = std::current_exception();
+    }
+}
+
+/// Contiguous ranges of about 8 per hardware thread, at least 32 items (like OpenMP
+/// schedule(static) but load-balanced): a per-item hand-out through a shared counter costs more
+/// than ~1 microsecond kernels gain, one range per thread leaves the plastic hot spots of a mesh
+/// to a single worker.
+inline int chunk_size(int N) {
+    const int hw = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
+    return std::max(N / (8 * hw), 32);
+}
+
+}  // namespace simcoon_parallel_detail
 
 /// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
 ///
-/// GCD on macOS, OpenMP on Linux (both parallel only past @p cutoff items), serial fallback
-/// elsewhere. The first exception thrown by @p func is captured and rethrown AFTER the loop:
-/// an exception escaping an active OpenMP parallel region (or a GCD block) is undefined
-/// behavior (std::terminate), which would kill e.g. a Python session on the first singular
-/// slice of a batch.
+/// GCD on macOS, OpenMP where the build has it (Linux), std::thread otherwise (Windows, whose
+/// Python stack would carry a second OpenMP runtime); serial up to @p cutoff items.
+/// @p n_threads = 1 runs serially on every platform; otherwise it caps the std::thread workers
+/// (0 = one per hardware thread), while GCD and OpenMP keep their own runtime sizing. The first
+/// exception thrown by @p func is rethrown AFTER the loop: an exception escaping an active
+/// OpenMP parallel region (or a GCD block, or a thread) would std::terminate, killing e.g. a
+/// Python session on the first singular slice of a batch.
 ///
 /// @warning CONTRACT: @p func must not touch Python memory (numpy allocation, refcounts,
 /// anything needing the GIL). Worker threads acquiring the GIL while the calling thread
 /// blocks on the loop is the lock cycle behind the 1.11.2 macOS parallel-UMAT deadlock
 /// (carma copy -> PyDataMem_NEW -> GIL inside GCD). Do all numpy<->arma conversion BEFORE
 /// the loop, and release the GIL around the C++ call in the Python bindings.
-#if defined(__APPLE__)
-
 template<typename F>
-void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
-    if (N <= cutoff) {
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = simcoon_parallel_cutoff,
+                               unsigned int n_threads = 0) {
+    if (N <= cutoff || n_threads == 1) {
         for (int i = 0; i < N; i++) func(i);
         return;
     }
-    // Manual chunking (contiguous ranges, like OpenMP schedule(static)): dispatch_apply
-    // hands out its iterations through a contended atomic counter, which at ~1 microsecond
-    // per item costs more than the parallelism gains. ~8 chunks per core balances load
-    // without paying that per-item toll.
-    const int hw = std::max(1u, std::thread::hardware_concurrency());
-    const int chunk = std::max(N / (8 * hw), 32);
-    const size_t nblocks = static_cast<size_t>((N + chunk - 1) / chunk);
     std::exception_ptr eptr = nullptr;
     std::mutex mtx;
-    // dispatch_apply is synchronous, so pointers to these stack locals stay valid; the
-    // block captures the pointers by value (no __block C++-object machinery needed).
+
+#if defined(__APPLE__)
+    const int chunk = simcoon_parallel_detail::chunk_size(N);
+    const size_t nblocks = static_cast<size_t>((N + chunk - 1) / chunk);
+    // dispatch_apply is synchronous, so pointers to these stack locals stay valid; the block
+    // captures the pointers by value (no __block C++-object machinery needed).
     std::exception_ptr *pe = &eptr;
     std::mutex *pm = &mtx;
+    auto *pf = &func;
     dispatch_apply(nblocks, DISPATCH_APPLY_AUTO, ^(size_t b) {
         const int start = static_cast<int>(b) * chunk;
-        const int end = std::min(N, start + chunk);
-        try {
-            for (int i = start; i < end; i++) func(i);
-        } catch (...) {
-            // Remaining items of THIS chunk are skipped; other chunks still run
-            // (same semantics as the OpenMP branch: no cancellation, first
-            // exception rethrown after the join).
-            std::lock_guard<std::mutex> lk(*pm);
-            if (!*pe) *pe = std::current_exception();
-        }
+        simcoon_parallel_detail::run_range(start, std::min(N, start + chunk), *pf, *pe, *pm);
     });
-    if (eptr) std::rethrow_exception(eptr);
-}
+
+#elif defined(_OPENMP)
+    #pragma omp parallel for schedule(static)
+    for (int i = 0; i < N; i++) {
+        simcoon_parallel_detail::run_range(i, i + 1, func, eptr, mtx);
+    }
 
 #else
-
-template<typename F>
-void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
-    std::exception_ptr eptr = nullptr;
-    #pragma omp parallel for schedule(static) if(N > cutoff)
-    for (int i = 0; i < N; i++) {
-        try {
-            func(i);
-        } catch (...) {
-            #pragma omp critical (simcoon_parallel_for_safe_eptr)
-            { if (!eptr) eptr = std::current_exception(); }
+    const int chunk = simcoon_parallel_detail::chunk_size(N);
+    const int nchunks = (N + chunk - 1) / chunk;
+    const unsigned int hw = std::max(1u, std::thread::hardware_concurrency());
+    const int workers = std::min(nchunks, static_cast<int>(n_threads ? std::min(n_threads, hw) : hw));
+    std::atomic<int> next{0};
+    auto worker = [&]() {
+        for (int c = next++; c < nchunks; c = next++) {
+            simcoon_parallel_detail::run_range(c * chunk, std::min(N, (c + 1) * chunk), func, eptr, mtx);
         }
+    };
+    std::vector<std::thread> threads;
+    threads.reserve(workers - 1);
+    try {
+        for (int w = 1; w < workers; w++) threads.emplace_back(worker);
+    } catch (...) {
+        // thread creation failed: finish on the threads we have
     }
+    worker();
+    for (auto &t : threads) t.join();
+#endif
+
     if (eptr) std::rethrow_exception(eptr);
 }
-
-#endif
