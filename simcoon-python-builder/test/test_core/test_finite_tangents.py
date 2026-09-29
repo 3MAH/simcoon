@@ -290,3 +290,28 @@ def test_umat_work_with_identity_F_is_the_kernel_work():
                               col([200000., 0.3, 0., 300., 1000., 0.5]), statev, 0.5, 1.,
                               np.zeros((4, 1), order="F"), n_threads=1, corate=3)
     np.testing.assert_allclose(Wm[0, 0], 0.5 * np.dot(sig0 + sig1[:, 0], De), rtol=1e-12)
+
+
+def test_umat_work_correction_can_be_turned_off():
+    """work_correction=False (a caller whose F is not in the basis of its stresses): Wm is the
+    kernel's own trapezoid 1/2 (tau_n + tau_n+1) : De even under a log corate with F0 != F1."""
+    rng = np.random.default_rng(0)
+    F0 = np.eye(3) + 0.2 * rng.standard_normal((3, 3))
+    F0 = F0 if np.linalg.det(F0) > 0 else -F0
+    F1 = (np.eye(3) + 0.05 * rng.standard_normal((3, 3))) @ F0
+    De = 0.03 * rng.standard_normal(6)
+    sig0 = 100. * rng.standard_normal(6)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    cube = lambda m: np.asarray(m, dtype=float).reshape(3, 3, 1).copy(order="F")
+    statev = np.zeros((1, 1), order="F")
+    statev[0] = 290.
+    common = (col(np.zeros(6)), col(De), cube(F0), cube(F1), col(sig0), cube(np.eye(3)),
+              col([70000., 0.3, 0.]), statev)
+    sig1, _, Wm_off, _ = sim.umat("ELISO", *common, 0.5, 1., np.zeros((4, 1), order="F"),
+                                  n_threads=1, corate=3, work_correction=False)
+    tau0 = sig0 * np.linalg.det(F0)
+    tau1 = sig1[:, 0] * np.linalg.det(F1)
+    np.testing.assert_allclose(Wm_off[0, 0], 0.5 * np.dot(tau0 + tau1, De), rtol=1e-12)
+    _, _, Wm_on, _ = sim.umat("ELISO", *common, 0.5, 1., np.zeros((4, 1), order="F"),
+                              n_threads=1, corate=3)
+    assert abs(Wm_on[0, 0] - Wm_off[0, 0]) > 1e-6 * abs(Wm_off[0, 0])   # default: corrected
