@@ -370,6 +370,47 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
 /**
+ * @brief Whether the work correction applies: the logarithmic corates 2 (XBM), 3 (log_R) and
+ *        5 (log_F), whose box kernels work on a strain increment other than \f$ \mathbf{D}\,\Delta t \f$.
+ * @param corate_type the corate (see corate_kinematics)
+ * @return true for 2, 3 and 5
+ */
+inline bool work_correction_applies(const int corate_type) {
+    return corate_type == 2 || corate_type == 3 || corate_type == 5;
+}
+
+/**
+ * @brief Correction that turns a box kernel's work into the stress power.
+ *
+ * A box kernel accumulates \f$ \tfrac12(\hat{\boldsymbol{\tau}}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e} \f$,
+ * with \f$ \Delta\mathbf{e} \f$ the corate strain increment and \f$ \hat{\boldsymbol{\tau}}_n \f$ the
+ * start stress transported to the end configuration. The value returned,
+ * \f[ \tfrac12(\boldsymbol{\tau}_n+\boldsymbol{\tau}_{n+1}):\mathbf{D}\,\Delta t
+ *     - \tfrac12(\hat{\boldsymbol{\tau}}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e},
+ *     \qquad \mathbf{D}\,\Delta t = \mathrm{sym}\!\left(2(\mathbf{F}_1-\mathbf{F}_0)(\mathbf{F}_1+\mathbf{F}_0)^{-1}\right), \f]
+ * replaces it by the midpoint stress power, both stresses in the lab frame: second order,
+ * zero under a rigid rotation. It removes two things. One is continuum: under log_R (3) and
+ * log_F (5), \f$ \boldsymbol{\tau}:\dot{\mathbf{e}} \neq \boldsymbol{\tau}:\mathbf{D} \f$ when
+ * \f$ \boldsymbol{\tau} \f$ is not coaxial with \f$ \mathbf{V} \f$ (Hill's conjugacy); the XBM
+ * rate (2) is conjugate, \f$ \mathbf{D} = (\ln\mathbf{V})^{\circ\log} \f$. The other is
+ * discrete: \f$ \hat{\boldsymbol{\tau}}_n \f$ against the corate increment leaves a first-order
+ * \f$ [\mathbf{W}, \boldsymbol{\tau}]:\mathbf{D} \f$ error. Under Truesdell (4) no correction is
+ * needed: the kernel work is exactly the \f$ (\mathbf{S}, \mathbf{E}) \f$ trapezoid.
+ *
+ * @param[in] tau_start committed Kirchhoff stress at the start of the increment, untransported (Voigt)
+ * @param[in] tau_start_tr the start stress the kernel integrated from, transported (Voigt)
+ * @param[in] tau Kirchhoff stress at the end of the increment (Voigt)
+ * @param[in] Detot corate strain increment handed to the kernel (engineering Voigt)
+ * @param[in] F0 deformation gradient at the start of the increment
+ * @param[in] F1 deformation gradient at the end of the increment
+ * @param[in] corate_type the corate: the correction applies to 2, 3 and 5 only (0 otherwise)
+ * @return the correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$; 0 for a singular
+ *         \f$ \mathbf{F}_1 + \mathbf{F}_0 \f$. Never allocates on the heap nor throws, so it is
+ *         safe in a parallel region.
+ */
+double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_start_tr, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, const int &corate_type);
+
+/**
  * @brief Corate spin dispatch: for the chosen objective rate, set the frame increment @p DR and the
  *        rate of deformation @p D / spin (or velocity gradient L) @p Omega from @p F0, @p F1.
  *        Single source of truth for the solver's control_type ladders (predictor + Newton-Raphson),
@@ -752,12 +793,9 @@ arma::mat Dtau_LieDD_2_DtauDe_corate(const arma::mat &Dtau_LieDD, const int &cor
  * @brief Assemble the canonical box tangent
  * \f$ \mathbf{L}_t=\partial\hat{\boldsymbol\tau}/\partial\mathbf{D}_e \f$ (Kirchhoff, no-J, XBM/log rate)
  * that every finite UMAT must emit -- the single source of truth for the box-tangent convention.
- * @c box_DtauDe_from_dSdE builds it from the material tangent \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$;
- * @c box_DtauDe_from_spatial from the Cauchy (Oldroyd/Lie) spatial elasticity tensor
- * \f$ \partial\boldsymbol\sigma/\partial\mathbf{D} \f$.
+ * from the material tangent \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$.
 */
 arma::mat box_DtauDe_from_dSdE(const arma::mat &dSdE, const arma::mat &F, const arma::vec &sigma);
-arma::mat box_DtauDe_from_spatial(const arma::mat &Lt_spatial, const arma::mat &F, const arma::vec &sigma);
 
 /**
  * @brief Computes the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated using the Zaremba-Jaumann-Noll spin from the tangent modulus that links the Kirchoff stress tensor \f$ \mathbf{\tau} \f$ and rate of deformation \f$ \mathbf{D} \f$ integrated in the natural covariant vector basis

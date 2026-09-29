@@ -23,6 +23,7 @@
 */
 
 #pragma once
+#include <map>
 #include <string>
 #include <vector>
 #include <armadillo>
@@ -515,23 +516,26 @@ const std::map<std::string, int> &finite_umat_names();
 /**
  * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF stress.
  *
- * A thin accessor over output_convention_of, kept because the python wrapper consumes it
- * across the language boundary.
+ * Reads the same convention table as output_convention_of but never throws: a name with no
+ * finite convention (the small-strain-only kernels) returns false, i.e. the stress is left
+ * alone. Used by the python wrapper for every name it serves.
  */
 bool stress_output_is_kirchhoff(const std::string &umat_name);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering non-linear kinematics
  * @param rve Reference to the phase characteristics.
- * @param DR arma::mat increment of rigid body rotation
- * @param Time value of step time at the beginning of the current increment 
+ * @param DR_global frame increment of the corate, in global coordinates (\f$ \Delta\mathbf{F} \f$ for corates 4 and 5)
+ * @param Time value of step time at the beginning of the current increment
  * @param DTime Increment of time
  * @param ndi number of direct stress components
  * @param nshr number of shear stress components
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
+ * @param corate_type objective rate (0 Jaumann, 1 Green-Naghdi, 2 logarithmic, 3 log_R, 4 Truesdell, 5 log_F)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details Under the logarithmic corates (2, 3, 5) the mechanical work is corrected to the true
+ * work per reference volume (see Delta_work_conjugacy). Example: 
  * @code 
     bool start = false;
     double Time = 0.;

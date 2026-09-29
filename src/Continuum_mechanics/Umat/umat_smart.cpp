@@ -191,8 +191,7 @@ void phases_2_statev(vec &statev, unsigned int &pos, const phase_characteristics
 const std::map<string, int> &finite_umat_names()
 {
     // The finite dispatch's name -> id map. A file-scope accessor rather than a
-    // function-local static inside select_umat_M_finite so the convention test can iterate
-    // it;
+    // function-local static inside select_umat_M_finite so the convention test can iterate it.
     static const std::map<string, int> list_umat = {{"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"HYPOO",5},{"EPICP",6},{"EPCHA",7},{"EPKCP",201},{"SNTVE",8},{"NEOHI",9},{"NEOHC",10},{"MOORI",11},{"YEOHH",12},{"ISHAH",13},{"GETHH",14},{"SWANH",15},{"HOLZA",16},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPCHG",201},{"EPHIN",201},{"MODUL",200},{"OGDEN",22},{"PYEXT",300}};
     return list_umat;
 }
@@ -209,7 +208,7 @@ const std::map<string, umat_convention> &umat_conventions()
     // solver's corate (fed the corotated strain: in-rate for free; built from F: converted by
     // Dtau_LieDD_2_DtauDe_corate) and in the frame they run in (material or lab).
     static const std::map<string, umat_convention> conventions = {
-        // --- log-strain boxes: fed the corotated strain, run in the material frame (B2) ---
+        // --- log-strain boxes: fed the corotated strain, run in the material frame ---
         // {measure, material_frame, layout_declared, tensorial statev {offset, Tensor2Type}}
         {"ELISO", {SM::kirchhoff, true, true, {}}},
         {"ELIST", {SM::kirchhoff, true, true, {}}},
@@ -369,7 +368,10 @@ vec transport_convected(const vec &v, const mat &M, const int &corate_type, cons
     const tensor2 t = tensor2::from_voigt(v, type);
     if (corate_type == 4)
         return t.push_forward(M, false).to_arma_voigt();
-    const mat X = M*t.to_arma_mat()*inv(M);
+    mat M_inv;
+    if (!inv(M_inv, M))
+        throw simcoon::exception_inv("transport_convected: the frame-relative stretch is not invertible");
+    const mat X = M*t.to_arma_mat()*M_inv;
     return tensor2(mat(0.5*(X + X.t())), type).to_arma_voigt();
 }
 
@@ -396,20 +398,27 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     // kernels) all live in the same configuration. The stored etot is left untransported:
     // set_start transports it at commit, together with the increment it belongs to.
     const vec etot_stored = umat_M->etot;
+    const vec tau_start_lab = umat_M->sigma;   // committed, untransported: for the work correction
     if (corate_type != 4 && corate_type != 5) {
         umat_M->etot = rotate_strain(etot_stored, DR);
         umat_M->sigma = rotate_stress(umat_M->sigma, DR);
     }
     else if (corate_type == 4) {   // Truesdell, DR = DF: strain lower-, Kirchhoff stress upper-convected
-        const mat DR_inv = inv(DR);
+        mat DR_inv;
+        if (!inv(DR_inv, DR))
+            throw simcoon::exception_inv("select_umat_M_finite: DF is not invertible");
         umat_M->etot = t2v_strain(DR_inv.t()*v2t_strain(etot_stored)*DR_inv);
         umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR.t());
     }
     else {   // log_F, DR = DF: similarity transport, as in set_start
-        const mat DR_inv = inv(DR);
+        mat DR_inv;
+        if (!inv(DR_inv, DR))
+            throw simcoon::exception_inv("select_umat_M_finite: DF is not invertible");
         umat_M->etot = t2v_strain(DR*v2t_strain(etot_stored)*DR_inv);
         umat_M->sigma = t2v_stress(DR*v2t_stress(umat_M->sigma)*DR_inv);
     }
+
+    const vec tau_start_tr = umat_M->sigma;   // the start stress the kernel integrates from
 
     // ONE declaration per kernel (output_convention_of) answers the questions below. It THROWS
     // for a kernel that has not declared, so a new one is caught instead of inheriting a
@@ -419,12 +428,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         conv = output_convention_of(rve.sptr_matprops->umat_name);
 
     if (id_umat == 200) {   // MODUL
-        // sigma = L : (ln V - sum eps_inel) is a genuine stored-energy
-        // law ONLY when the accumulated corotational strain is exactly
-        // the logarithmic strain, i.e. corate 3 (log_R). Any other
-        // corate degrades it to a non-integrable hypoelastic rate
-        // (spurious dissipation in closed cycles), so it is rejected
-        // rather than silently accepted.
+        // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
+        // corate 3, or 2 in closed form. Only 3 is accepted (policy: the production rate).
         if (corate_type != 3) {
             throw simcoon::exception_solver(
                 "MODUL under finite strain requires corate_type = 3 "
@@ -434,11 +439,24 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         }
     }
 
+    if (id_umat == 7 && corate_type == 4) {   // EPCHA
+        // X_i = 2/3 C_i a_i is stored: Truesdell convects a (strain) and X (stress) differently,
+        // so the pair would drift apart. log_F transports both by the same similarity.
+        throw simcoon::exception_solver(
+            "EPCHA stores its back stresses X_i = 2/3 C_i a_i, which the Truesdell rate "
+            "(corate_type 4) cannot keep consistent; use corate_type 3 (or 5)");
+    }
+
     // A box kernel runs in the frame that follows the material, R_hat (see umat_convention), so
     // its anisotropy axes rotate with the body and its statev lives in that frame. For corates
     // 0-3, R_hat_{n+1} = DR R_hat_n and the frame-relative increment is I; for 4 and 5 it is the
     // rotation-free stretch M, applied here to the declared statev tensors.
     const vec Detot_stored = umat_M->Detot;
+    if (corate_type == 4) {
+        // Truesdell: the kernel's increment is the closed-form Almansi increment of DR = DF,
+        // whatever the solver's control variable is (logarithmic control increments ln V).
+        umat_M->Detot = t2v_strain(Euler_Almansi(DR));
+    }
     mat R_hat = eye(3,3);
     mat DR_kernel = DR;
     if (conv.material_frame) {
@@ -454,7 +472,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             RU_decomposition(R_hat, U, umat_M->F1);
         }
         umat_M->etot = rotate_strain(umat_M->etot, R_hat.t());
-        umat_M->Detot = rotate_strain(Detot_stored, R_hat.t());
+        umat_M->Detot = rotate_strain(umat_M->Detot, R_hat.t());   // the Truesdell override, if any
         umat_M->sigma = rotate_stress(umat_M->sigma, R_hat.t());
         DR_kernel = eye(3,3);
         if (convected) {
@@ -466,6 +484,11 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             }
             const mat M = R_hat.t()*DR*R_hat_n;
             for (const StatevTensor &t : conv.statev_tensors) {
+                if (t.offset + 6 > static_cast<int>(umat_M->statev.n_elem)) {
+                    throw simcoon::exception_solver(
+                        "'" + rve.sptr_matprops->umat_name + "' declares a statev tensor at offset "
+                        + std::to_string(t.offset) + ", past nstatev = " + std::to_string(umat_M->statev.n_elem));
+                }
                 const vec x = umat_M->statev.subvec(t.offset, t.offset + 5);
                 umat_M->statev.subvec(t.offset, t.offset + 5) = transport_convected(x, M, corate_type, t.type);
             }
@@ -497,12 +520,8 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 break;
             }
             case 201: {
-                // Legacy names served by the modular engine on the log-strain measures
-                // (etot/Detot), exactly like EPICP above. The anisotropic-plasticity ones are
-                // corotational return-mapping models that transport their internal state by DR,
-                // so they integrate correctly under finite strain. They were absent from this
-                // finite dispatcher, so a missing-key lookup returned 0 and they silently fell
-                // through to case 0 (no-op) -> zero stress under NLGEOM.
+                // Legacy names served by the modular engine on the log-strain box, like EPICP:
+                // run in the material frame, so their anisotropy axes follow the body.
                 umat_legacy_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
                 break;
             }
@@ -540,7 +559,6 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             umat_M->sigma = rotate_stress(umat_M->sigma, R_hat);
             umat_M->Lt = rotate_stiffness(umat_M->Lt, R_hat);
             umat_M->L = rotate_stiffness(umat_M->L, R_hat);
-            umat_M->Detot = Detot_stored;
         }
 
         // tau is the canonical Kirchhoff route stress (Wm stays on the Kirchhoff route). Every
@@ -553,11 +571,15 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
-        // No tangent conversion here any more. Every kernel is handed corate_type and emits
-        // Lt IN that rate (Dtau_LieDD_2_DtauDe_corate, one map from the spatial closed form).
-        // This used to un-bake the log box to dS/dE and re-bake it -- three maps in all, of
-        // which two cancelled outright for corates 2, 3 and 4.
+        // Log corates: replace the kernel's work by the stress power, in one frame.
+        const double dW = Delta_work_conjugacy(tau_start_lab, tau_start_tr, umat_M->tau, Detot_stored,
+                                               umat_M->F0, umat_M->F1, corate_type);
+        umat_M->Wm(0) += dW;
+        umat_M->Wm(1) += dW;
+
+        // No tangent conversion: every kernel emits Lt in corate_type already.
         umat_M->etot = etot_stored;
+        umat_M->Detot = Detot_stored;
         rve.local2global();
 }
     

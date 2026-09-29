@@ -49,6 +49,18 @@ namespace simcoon {
  * - "p": accumulated plastic strain (scalar)
  * - "EP": plastic strain tensor (6 Voigt)
  * - "X_i": backstress tensors from kinematic hardening
+ *
+ * @note **Integration and tangent.** The return mapping is a cutting plane: each FB
+ * iterate adds \f$ \delta p\,\mathbf{n}_k \f$ with the flow direction
+ * \f$ \mathbf{n}_k \f$ of that iterate. For von Mises with isotropic hardening
+ * \f$ \mathbf{n} \f$ is fixed over the step (radial return), the update is the closest-point
+ * one and the algorithmic tangent is its exact derivative. With kinematic hardening
+ * (\f$ \mathbf{n} \f$ follows \f$ \boldsymbol{\sigma} - \mathbf{X} \f$) or a Hill, DFA,
+ * Drucker or Tresca criterion \f$ \mathbf{n} \f$ rotates between iterates: the update is
+ * path dependent and the tangent approximate (\f$ 10^{-4} \f$ to \f$ 10^{-2} \f$
+ * relative, more for Tresca). The closest-point integrator (tangent_closest_point) is
+ * reserved for the next version. Under damage the mechanism works on the effective
+ * stress (strain equivalence, see DamageMechanism).
  */
 class PlasticityMechanism final : public StrainMechanism {
 private:

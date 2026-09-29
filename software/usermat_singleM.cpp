@@ -386,7 +386,7 @@ void smart2ansys_M(
 ///@param kSectPt Section point number
 ///@param ldStep Load step number
 ///@param iSubst Substep number
-///@param keycut Cutback flag (output: set to 1 to request cutback - not supported)
+///@param keycut Cutback flag (output: set to 1 when simcoon requests a smaller increment)
 ///@param nDirect Number of direct stress components (1, 2, or 3)
 ///@param nShear Number of shear stress components (0, 1, or 3)
 ///@param ncomp Total stress components (nDirect + nShear)
@@ -442,14 +442,13 @@ extern "C" void usermat_(
     UNUSED(defGrad);
     UNUSED(tsstif);
     
-    // keycut: set to 1 to request time step cutback (not supported in simcoon bridge)
-    *keycut = 0;
+    *keycut = 0;   // raised below when the kernel asks for a smaller increment
     
     bool start = false;
     double Time_smart = 0.;
     double DTime_smart = 0.;
     int solver_type = 0;
-    double pnewdt = 1.0;  // Not used by Ansys but required by select_umat_M
+    double pnewdt = 1.0;  // < 1 after the call: step-cut request, mapped to keycut
     
     // Get model code from first material property
     int model_code = static_cast<int>(prop[0]);

@@ -23,11 +23,13 @@
 #include <fstream>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
@@ -384,11 +386,17 @@ void state_variables::set_start(const int &corate_type)
         sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
-        const mat DF_inv = inv(DR);
-        if (corate_type == 4)   // Truesdell: strain-like, lower-convected -> etot is the Almansi strain
-            etot = t2v_strain(DF_inv.t()*v2t_strain(etot)*DF_inv) + Detot;
-        else                    // log_F: similarity transport, as ln V = F ln U F^-1
+        if (corate_type == 4) {
+            // Truesdell: the lower-convected strain IS the Almansi strain, e_A = 1/2 (I - b^-1),
+            // exactly and whatever the control type (logarithmic control increments ln V).
+            etot = t2v_strain(Euler_Almansi(F1));
+        }
+        else {   // log_F: similarity transport, as ln V = F ln U F^-1
+            mat DF_inv;
+            if (!inv(DF_inv, DR))
+                throw simcoon::exception_inv("set_start: DF is not invertible");
             etot = t2v_strain(DR*v2t_strain(etot)*DF_inv) + Detot;
+        }
         T += DT;
         F0 = F1;
         U0 = U1;
@@ -451,14 +459,14 @@ state_variables& state_variables::rotate_fix2natural(const state_variables& sv, 
 arma::mat state_variables::PKI_stress()
 //----------------------------------------------------------------------
 {
-    return Cauchy2PKI(v2t_stress(sigma), F1);
+    return Kirchoff2PKI(v2t_stress(tau), F1);   // from tau, the route stress
 }
 
 //----------------------------------------------------------------------
 arma::mat state_variables::PKI_stress_start()
 //----------------------------------------------------------------------
 {
-    return Cauchy2PKI(v2t_stress(sigma_start), F0);
+    return Kirchoff2PKI(v2t_stress(tau_start), F0);
 }
 
 //----------------------------------------------------------------------

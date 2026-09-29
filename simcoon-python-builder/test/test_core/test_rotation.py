@@ -388,3 +388,89 @@ class TestBatch:
             rotations2.apply_stress(sigma),
             atol=1e-10,
         )
+
+
+# ---------------------------------------------------------------------------
+# Batched rotations
+#
+# Every fixture above is a SINGLE rotation, so `_is_batch` is False and each
+# apply_* call takes the C++ branch. The batched branch -- a numpy einsum per
+# operator -- had no test at all. These pin it against the single-rotation path,
+# which is the reference implementation.
+# ---------------------------------------------------------------------------
+
+class TestBatchedMechanics:
+    N = 7
+
+    @pytest.fixture
+    def angles(self):
+        rng = np.random.default_rng(20240921)
+        return rng.uniform(-np.pi, np.pi, size=(self.N, 3))
+
+    @pytest.fixture
+    def batch_rot(self, angles):
+        return sim.Rotation.from_euler("zxz", angles)
+
+    @pytest.fixture
+    def singles(self, angles):
+        return [sim.Rotation.from_euler("zxz", a) for a in angles]
+
+    @pytest.fixture
+    def L_batch(self):
+        """A batch of anisotropic stiffnesses: an isotropic one would hide index errors."""
+        rng = np.random.default_rng(11)
+        out = np.empty((6, 6, self.N), order="F")
+        for k in range(self.N):
+            s = rng.normal(size=(6, 6))
+            out[:, :, k] = 0.5 * (s + s.T) + 8.0 * np.eye(6)
+        return out
+
+    @pytest.mark.parametrize("active", [True, False])
+    def test_apply_stiffness_batch_matches_single(self, batch_rot, singles, L_batch, active):
+        got = np.asarray(batch_rot.apply_stiffness(L_batch, active))
+        assert got.shape == (6, 6, self.N)
+        for k, r in enumerate(singles):
+            want = np.asarray(r.apply_stiffness(np.ascontiguousarray(L_batch[:, :, k]), active))
+            np.testing.assert_allclose(got[:, :, k], want, rtol=1e-11, atol=1e-9,
+                                       err_msg=f"stiffness, batch entry {k}, active={active}")
+
+    @pytest.mark.parametrize("active", [True, False])
+    def test_apply_compliance_batch_matches_single(self, batch_rot, singles, L_batch, active):
+        got = np.asarray(batch_rot.apply_compliance(L_batch, active))
+        for k, r in enumerate(singles):
+            want = np.asarray(r.apply_compliance(np.ascontiguousarray(L_batch[:, :, k]), active))
+            np.testing.assert_allclose(got[:, :, k], want, rtol=1e-11, atol=1e-9,
+                                       err_msg=f"compliance, batch entry {k}")
+
+    @pytest.mark.parametrize("active", [True, False])
+    def test_apply_strain_concentration_batch_matches_single(self, batch_rot, singles,
+                                                             L_batch, active):
+        got = np.asarray(batch_rot.apply_strain_concentration(L_batch, active))
+        for k, r in enumerate(singles):
+            want = np.asarray(
+                r.apply_strain_concentration(np.ascontiguousarray(L_batch[:, :, k]), active))
+            np.testing.assert_allclose(got[:, :, k], want, rtol=1e-11, atol=1e-9,
+                                       err_msg=f"strain concentration, batch entry {k}")
+
+    @pytest.mark.parametrize("active", [True, False])
+    def test_apply_stress_concentration_batch_matches_single(self, batch_rot, singles,
+                                                             L_batch, active):
+        got = np.asarray(batch_rot.apply_stress_concentration(L_batch, active))
+        for k, r in enumerate(singles):
+            want = np.asarray(
+                r.apply_stress_concentration(np.ascontiguousarray(L_batch[:, :, k]), active))
+            np.testing.assert_allclose(got[:, :, k], want, rtol=1e-11, atol=1e-9,
+                                       err_msg=f"stress concentration, batch entry {k}")
+
+    def test_identity_batch_leaves_stiffness_untouched(self, L_batch):
+        ident = sim.Rotation.from_euler("zxz", np.zeros((self.N, 3)))
+        got = np.asarray(ident.apply_stiffness(L_batch))
+        np.testing.assert_allclose(got, L_batch, rtol=1e-12, atol=1e-10)
+
+    def test_isotropic_stiffness_is_rotation_invariant(self, batch_rot):
+        """An isotropic L must come back unchanged under any rotation of the batch."""
+        L_iso = sim.L_iso([70000.0, 0.3], "Enu")
+        L_in = np.asfortranarray(np.repeat(np.asarray(L_iso)[:, :, None], self.N, axis=2))
+        got = np.asarray(batch_rot.apply_stiffness(L_in))
+        np.testing.assert_allclose(got, L_in, rtol=1e-9,
+                                   atol=1e-9 * np.abs(np.asarray(L_iso)).max())

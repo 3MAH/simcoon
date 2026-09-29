@@ -118,12 +118,8 @@ void umat_neo_hookean_incomp(const string &umat_name, const vec &etot, const vec
     mat tau_t = PKII2Kirchoff(S, F1, J);
     sigma = t2v_stress(tau_t);
 	
-    // Tangent. The previous hand-built dyadic material tangent did NOT match dS/dE
-    // (FD ~100% off) -- a pre-existing bug. Rebuild it from the same Neo-Hookean
-    // potential W = C_10*(I1_bar-3) + (1/D_1)*(J-1)^2 using the verified invariant
-    // hyperelastic machinery (Cauchy/Oldroyd-Lie spatial elasticity), then standardize
-    // to the canonical box convention Lt = d(tau_hat)/d(De) (Kirchhoff log-rate, XBM),
-    // identical to generic_hyper_invariants / saint_venant.
+    // Tangent from the invariant machinery (spatial Lie tangent of the same potential),
+    // converted to the box tangent of corate_type, as generic_hyper_invariants.
     mat b = L_Cauchy_Green(F1);
     double dWdI_1_bar = C_10;       // dW/dI1_bar; dW/dI2_bar = 0 (no I2 term), all 2nd deviatoric derivs = 0
     double dUdJ   = (2./D_1)*(J-1.);

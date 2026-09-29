@@ -120,8 +120,8 @@ Small-strain mechanical models
      - Generalized Maxwell (Prony series), N branches
      - legacy (kept)
      - E0, nu0, alpha, N, then per branch: E_i, nu_i, etaB_i, etaS_i
-     - Pedagogical reference; the modular Viscoelasticity mechanism is its
-       proven twin (< 0.1%)
+     - Pedagogical reference; the modular Viscoelasticity mechanism takes the
+       same closed-form step and is identical to it (round-off)
    * - LLDM0
      - Ductile damage (Lemaitre-Ladeveze-Dufailly)
      - legacy (kept)
@@ -192,9 +192,13 @@ Unchanged dedicated implementations (out of the modular scope):
 
   The same potential is available as a MODUL elasticity block, and may be composed
   with any mechanism. Composed with **damage** -- anisotropic tissue with softening --
-  it is exact: damage subtracts no inelastic strain (it scales the stiffness instead),
-  so the elastic stretch is still the total one, and its driving force is built from
-  the current anisotropic tangent.
+  the kinematics are exact: damage subtracts no inelastic strain (it scales the
+  stiffness instead), so the elastic stretch is the total one and the fibres follow it.
+  Its driving force is the thermodynamic force :math:`Y = -\partial\psi/\partial D = \psi_0`, the
+  undamaged energy, evaluated as
+  :math:`\tfrac12\,\boldsymbol{\tau}_{eff} : \mathbf{M}_t : \boldsymbol{\tau}_{eff}` on the effective
+  stress :math:`\boldsymbol{\tau}/(1-D)`: exact for a linear block, an approximation of
+  :math:`\psi_0` through the tangent compliance for this nonlinear potential.
 
   .. warning::
 
@@ -255,9 +259,10 @@ modular layout.
 Stress measure and tangent rate
 ===============================
 
-Every **native** simcoon kernel is Kirchhoff-native. In the logarithmic framework the
-stored energy per *reference* volume gives
-:math:`\boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V}`, so :math:`\boldsymbol{\tau}`
+Every **native** simcoon kernel is Kirchhoff-native. In the logarithmic framework an
+isotropic stored energy per *reference* volume gives
+:math:`\boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V}` (for an anisotropic one the
+identity needs :math:`\boldsymbol{\tau}` coaxial with :math:`\mathbf{V}`), so :math:`\boldsymbol{\tau}`
 is the route stress, and the Cauchy stress is the derived output
 :math:`\boldsymbol{\sigma} = \boldsymbol{\tau}/J`, formed only at the boundaries -- the
 solver's output sinks and the Python wrapper. Nothing on the route carries Cauchy.
@@ -279,8 +284,16 @@ and is the rate counterpart of ``ELORT`` (total form
 :math:`\mathbf{L}`, isotropic or anisotropic, the two are identical on any path for corates
 0 to 3: with the material axes following the body, the transported strain and stress satisfy
 the same recursion (a ~74 % orthotropic shear gap measured before 2.1 came from lab-fixed
-axes, not from the rate form). They differ under corate 5, whose similarity transport by a
-rotation-free stretch does not commute with an anisotropic :math:`\mathbf{L}`. For an
+axes, not from the rate form). They differ under corate 4 even for an isotropic
+:math:`\mathbf{L}`: ``ELORT`` is then the total Almansi law
+:math:`\boldsymbol{\tau} = \lambda\,\mathrm{tr}(\mathbf{e}_A)\mathbf{I} + 2\mu\,\mathbf{e}_A`, ``HYPOO``
+integrates the Oldroyd rate of :math:`\boldsymbol{\tau}`, whose isochoric solution is
+:math:`\boldsymbol{\tau} = \mu(\mathbf{b} - \mathbf{I})`. In simple shear both give
+:math:`\tau_{12} = \mu\gamma`; the normal stresses differ, :math:`\tau_{11} = \mu\gamma^2`,
+:math:`\tau_{22} = \tau_{33} = 0` for ``HYPOO`` against :math:`\tau_{11} = \tau_{33} = -\lambda\gamma^2/2`,
+:math:`\tau_{22} = -(\lambda/2 + \mu)\gamma^2` for ``ELORT``. Under corate 5 they differ for an
+anisotropic :math:`\mathbf{L}` only (about 6 % measured in orthotropic shear): the similarity
+transport by a rotation-free stretch does not commute with it. For an
 anisotropic :math:`\mathbf{L}` the common law :math:`\boldsymbol{\tau} = \mathbf{L}_R :
 \ln\mathbf{V}` is Cauchy-elastic, not hyperelastic.
 
@@ -301,7 +314,11 @@ converts the spatial (Lie/Oldroyd) closed form of the potential in one step, wit
 increment is in that rate for free. Per corate: 0 Jaumann and 1 Green-Naghdi are spin/rate
 corrections, 2 (XBM) and 3 (log_R) share the exact spectral map, and 4 (Truesdell) is the
 convected box, which *is* the spatial (Lie) tangent -- an identity: the Kirchhoff stress is
-transported upper-convected and the strain lower-convected, so the strain is the Almansi strain.
+transported upper-convected and the strain lower-convected, so the strain is the Almansi strain
+:math:`\mathbf{e}_A = \tfrac12(\mathbf{I} - \mathbf{b}^{-1})` (the ``Strain`` output; see
+:doc:`output`). Logarithmic control (control type 3) still prescribes :math:`\ln\mathbf{V}`
+under corate 4: the solver rebuilds it from the stored strain,
+:math:`\ln\mathbf{V} = -\tfrac12\ln(\mathbf{I} - 2\mathbf{e}_A)`.
 5 (log_F) is the chain rule through its own increment :math:`\mathbf{D}_e = \mathbb{A}^F :
 \mathbf{D}\,\Delta t`, :math:`\mathbb{C}^J : (\mathbb{A}^F)^{-1}`, equal to the log box for
 isotropic laws (both finite-difference verified).
@@ -315,8 +332,35 @@ isotropic laws (both finite-difference verified).
    stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
    internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
    EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
-   plasticity names served by the modular engine, ``MODUL``, ``PYEXT``) is refused under
-   corates 4 and 5.
+   plasticity names served by the modular engine, ``PYEXT``) is refused under corates 4 and 5,
+   and ``MODUL`` under any corate but 3. ``EPCHA`` is also refused under corate 4: it stores
+   :math:`\mathbf{X}_i = \tfrac23 C_i\,\mathbf{a}_i`, and the Truesdell rate convects the
+   back-strain and the back-stress differently.
+
+**Mechanical work.** ``Wm`` is the work per reference volume,
+:math:`\int \mathbf{P} : \mathrm{d}\mathbf{F}`. A kernel accumulates
+:math:`\tfrac12(\hat{\boldsymbol{\tau}}_n + \boldsymbol{\tau}_{n+1}) : \Delta\mathbf{e}` on the strain
+increment it is handed, :math:`\hat{\boldsymbol{\tau}}_n` being the start stress transported to the
+end configuration. Per corate:
+
+- 0, 1 (Jaumann, Green-Naghdi): :math:`\Delta\mathbf{e} = \mathbf{D}\,\Delta t`, the kernel work
+  converges to the true work at second order.
+- 2 (XBM): the rate is conjugate, :math:`\mathbf{D} = (\ln\mathbf{V})^{\circ\log}`, so there is no
+  continuum gap.
+- 3, 5 (log_R, log_F): :math:`\boldsymbol{\tau} : \dot{\mathbf{e}} \neq \boldsymbol{\tau} : \mathbf{D}` as
+  soon as :math:`\boldsymbol{\tau}` is not coaxial with :math:`\mathbf{V}` (anisotropy, plasticity).
+- 4 (Truesdell): the kernel work is exactly the trapezoid
+  :math:`\tfrac12(\mathbf{S}_n + \mathbf{S}_{n+1}) : \Delta\mathbf{E}`.
+
+Under 2, 3 and 5 the solver replaces the kernel work by the midpoint stress power with both
+stresses in the lab frame, :math:`\tfrac12(\boldsymbol{\tau}_n + \boldsymbol{\tau}_{n+1}) :
+\mathrm{sym}\big(2(\mathbf{F}_1 - \mathbf{F}_0)(\mathbf{F}_1 + \mathbf{F}_0)^{-1}\big)`, which is the
+trapezoid of :math:`\mathbf{P} : \mathrm{d}\mathbf{F}` itself and zero under a rigid rotation (``Delta_work_conjugacy``).
+The difference is added to :math:`W_m` and :math:`W_m^r`, so :math:`W_m^r` then holds the stored
+energy plus the work the rate does not conjugate: under 3 and 5, in non-coaxial states, it is not
+a state function. :func:`simcoon.umat` does the same when it is given
+:math:`\mathbf{F}_0, \mathbf{F}_1`, recovering the lab start stress from the one it is passed
+(transported by the caller) as :math:`\mathrm{sym}(\Delta\mathbf{R}^{-1}\hat{\boldsymbol{\tau}}_n\Delta\mathbf{R})`.
 
 .. note::
 
@@ -344,7 +388,14 @@ integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
 3 = closest-point (reserved). Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
-the exact one of the hyperelastic law).
+the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
+``ZENNK``, ``PRONK`` and their thermomechanical versions) except for mode 0: their
+backward-Euler step is solved in closed form, so the tangent, and for the thermomechanical
+versions ``dSdT`` and the heat-source derivatives ``drdE``, ``drdT``, are the exact
+derivatives of the discrete update. For plasticity, the algorithmic operator is exact with a
+von Mises criterion and isotropic hardening only; with kinematic hardening or a Hill, DFA,
+Drucker or Tresca criterion the cutting-plane update is path dependent and the operator is
+approximate (see the note on the scope of the algorithmic tangent in :doc:`solver`).
 
 Validation and performance
 ==========================

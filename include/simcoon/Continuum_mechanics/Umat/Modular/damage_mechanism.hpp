@@ -23,8 +23,16 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
  * effective stress concept:
  *   sigma_eff = sigma / (1 - D)
  *
- * Damage evolution is driven by an energy-based criterion:
- *   Y = (1/2) * sigma : S : sigma  (damage driving force)
+ * Damage evolution is driven by the thermodynamic force conjugate to D, the undamaged
+ * stored energy:
+ *   Y = -dpsi/dD = psi_0 = (1/2) * sigma_eff : S : sigma_eff
+ * with S the compliance of the undamaged elasticity block (exact for a linear block; for a
+ * hyperelastic one the tangent compliance makes it an approximation of psi_0).
+ *
+ * Coupling (strain equivalence, Lemaitre): the other mechanisms work on the effective stress,
+ * the damage scales the result, sigma = (1 - D) sigma_eff. D is not an FB multiplier: it is the
+ * fixed point D = f(max(Y_max at the step start, Y(sigma_eff))), iterated until
+ * consistency_residual() vanishes; its tangent is the left factor stress_map().
  *
  * Damage evolution follows:
  *   D = f(Y_max)
@@ -98,8 +106,7 @@ private:
                                         ///< kappa, tangent_contribution.
     mutable bool M_cached_valid_;       ///< Whether the cached compliances are valid
     mutable arma::mat L_cached_;        ///< Stiffness the cached compliance was inverted from
-    mutable std::vector<tensor2> dPhi_dsigma_cache_{tensor2(Tensor2Type::strain)};
-    mutable std::vector<tensor2> kappa_cache_{tensor2(Tensor2Type::strain)};
+    std::vector<tensor2> kappa_cache_{tensor2::zeros(Tensor2Type::strain)};   ///< zero: no multiplier carried
 
 public:
     /**
@@ -134,6 +141,22 @@ public:
     /// this (1 - D) factor, matching the (1 - D) * L scaling applied in
     /// tangent_contribution.
     [[nodiscard]] double stiffness_reduction() const override;
+
+    /**
+     * @brief Linearised map from the effective to the damaged stress, \f$ d\boldsymbol{\sigma} = \mathbf{Q}\,d\boldsymbol{\sigma}_{eff} \f$.
+     *
+     * With \f$ \boldsymbol{\sigma} = (1 - D)\,\boldsymbol{\sigma}_{eff} \f$ and, while damage grows,
+     * \f$ dD = D'(Y)\,(\mathbf{S}\boldsymbol{\sigma}_{eff}) \cdot d\boldsymbol{\sigma}_{eff} \f$:
+     * \f$ \mathbf{Q} = (1 - D)\,\mathbf{I} - D'(Y)\,\boldsymbol{\sigma}_{eff} \otimes \mathbf{S}\boldsymbol{\sigma}_{eff} \f$
+     * (\f$ (1 - D)\,\mathbf{I} \f$ under unloading). Used by the orchestrator to couple damage
+     * exactly with the other mechanisms in the tangent. Call after compute_constraints.
+     * @param sigma_eff effective stress (6)
+     * @return \f$ \mathbf{Q} \f$ (6x6)
+     */
+    [[nodiscard]] arma::mat stress_map(const arma::vec& sigma_eff) const override;
+
+    /// @brief |max(Y_max at step start, Y(sigma_eff)) - Y_max used for D|, relative: D consistent with the stress
+    [[nodiscard]] double consistency_residual(const arma::vec& sigma_eff) const override;
 
     /// Explicitly integrated, energy-release-typed row — excluded from the
     /// drift-guard ARMING count (see StrainMechanism::guarded_constraints);
@@ -183,20 +206,19 @@ public:
     // Damage-specific methods
 
     /**
-     * @brief Compute damage driving force from stress
-     * @param sigma Stress (6-component Voigt)
-     * @param S Compliance tensor (6x6)
+     * @brief Damage driving force \f$ Y = \psi_0 = \tfrac12\,\boldsymbol{\sigma}_{eff} : \mathbf{S} : \boldsymbol{\sigma}_{eff} \f$
+     * @param sigma_eff Effective stress (6-component Voigt)
+     * @param S Compliance tensor (6x6, the cached one is used)
      * @return Damage driving force Y
      */
-    double compute_driving_force(const arma::vec& sigma, const arma::mat& S) const;
+    double compute_driving_force(const arma::vec& sigma_eff, const arma::mat& S) const;
 
     /**
-     * @brief Compute damage from driving force
-     * @param Y Damage driving force
-     * @param Y_max Maximum driving force in history
+     * @brief Compute damage from the history driving force
+     * @param Y_eff driving force the damage law is evaluated at (history maximum)
      * @return Damage value D
      */
-    double compute_damage(double Y, double Y_max) const;
+    double compute_damage(double Y_eff) const;
 
     /**
      * @brief Get the current damage value

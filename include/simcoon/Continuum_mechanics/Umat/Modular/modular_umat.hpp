@@ -81,6 +81,7 @@ private:
     // Modules
     ElasticityModule elasticity_;
     std::vector<std::unique_ptr<StrainMechanism>> mechanisms_;
+    arma::vec sigma_eff_;   ///< Effective (undamaged) stress of the last refresh_stress; what every mechanism works on
 
     // Constraint-row offset per mechanism; computed once in initialize() and
     // reused by every FB iteration (it only changes if mechanisms are
@@ -422,6 +423,13 @@ private:
         arma::mat& Lt,
         int tangent_mode = tangent_default
     );
+
+    /**
+     * @brief Right-multiply @p Lt by every mechanism's total_strain_map() (chain rule for
+     *        inelastic strains driven by the total strain alone).
+     */
+    void apply_total_strain_maps(arma::mat& Lt) const;
+
 
     /**
      * @brief Assemble the local multiplier Jacobian B (phases 2 and 3 of the
