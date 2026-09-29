@@ -6,7 +6,7 @@
 #include <carma>
 #include <armadillo>
 
-#include <simcoon/parallel.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -170,125 +170,54 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         }
         mat I = eye(3,3);        
 
-        // The worker loop only accesses Armadillo views and owned output buffers.
-        // Release the GIL while it runs, and use the exception-safe loop on every platform.
-        auto run_points = [&](auto&& point_kernel) {
-            py::gil_scoped_release release;
-            simcoon_parallel_for_safe(nb_points, point_kernel, 100, n_threads);
-        };
-
+        // F0: one for all points (2-D array or a single slice) or one per point
+        mat F0_one;
+        cube F0_cpp;
         if (F0.ndim() == 2) {
-            mat vec_F0 = carma::arr_to_mat_view(F0);
-            for (int pt = 0; pt < nb_points; pt++) {
+            F0_one = carma::arr_to_mat_view(F0);
+        }
+        else {
+            F0_cpp = carma::arr_to_cube_view(F0);
+            if (F0_cpp.n_slices == 1) {
+                F0_one = F0_cpp.slice(0);
+            }
+        }
+        const bool F0_per_point = F0_one.is_empty();
 
-        		switch (corate) {
-                    case 0: case 1: case 2: case 4: {
-                        corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        }
-                        break;
+        parallel_for_nogil(nb_points, [&](int pt) {
+            const mat &F0_pt = F0_per_point ? F0_cpp.slice(pt) : F0_one;
+            switch (corate) {
+                case 0: case 1: case 2: case 4: {
+                    corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                     }
-                    case 3: {
-                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            de_col = simcoon::rotate_strain(de_col, DR_N);
-                        }
-                        break;
+                    break;
+                }
+                case 3: {
+                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
+                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        de_col = simcoon::rotate_strain(de_col, DR_N);
                     }
-                    case 5: {
-                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                            mat inv_DR_N = inv(DR_N);
-                            de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                        }
-                        break;
+                    break;
+                }
+                case 5: {
+                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
+                        mat inv_DR_N = inv(DR_N);
+                        de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                     }
+                    break;
                 }
             }
-        }
-        else if (F0.ndim() == 3) {
-            cube F0_cpp = carma::arr_to_cube_view(F0); 
-            if (F0_cpp.n_slices==1) {
-                mat vec_F0 = F0_cpp.slice(0);
-
-                run_points([&](int pt) {
-                    switch (corate) {
-                        case 0: case 1: case 2: case 4: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de_col, DR_N);
-                            }
-                            break;
-                        }
-                        case 5: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                                mat inv_DR_N = inv(DR_N);
-                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                            }
-                            break;
-                        }
-                    }
-                });
-            }
-            else {
-                run_points([&](int pt) {
-                    switch (corate) {
-                        case 0: case 1: case 2: case 4: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de_col, DR_N);
-                            }
-                            break;
-                        }
-                        case 5: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                                mat inv_DR_N = inv(DR_N);
-                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                            }
-                            break;
-                        }
-                    }
-                });
-            }
-        }
+        }, n_threads);
         if (return_de){	                     
             return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
         }

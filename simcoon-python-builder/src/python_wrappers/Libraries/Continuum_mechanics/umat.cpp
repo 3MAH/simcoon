@@ -9,7 +9,7 @@
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
-#include <simcoon/parallel.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
@@ -385,10 +385,7 @@ namespace {
 				if (tnew_dt[pt] < 1.) raise_step_cut("umat", tnew_dt);
 			}
 		} else {
-			// The kernels allocate (on Windows through numpy's allocator, whose tracemalloc hook
-			// takes the GIL): release it, or a worker would wait on this thread's join.
-			py::gil_scoped_release release;
-			simcoon_parallel_for_safe(nb_points, point_kernel, 100, n_threads);
+			parallel_for_nogil(nb_points, point_kernel, n_threads);
 		}
 		// A built-in kernel asks for a smaller increment through tnew_dt (e.g. the modular
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
@@ -562,10 +559,7 @@ namespace {
 			}
 			tnew_dt[pt] = tnew_dt_pt;
 		};
-		{
-			py::gil_scoped_release release;   // see launch_umat
-			simcoon_parallel_for_safe(nb_points, thermal_point_kernel, 100, n_threads);
-		}
+		parallel_for_nogil(nb_points, thermal_point_kernel, n_threads);
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
 

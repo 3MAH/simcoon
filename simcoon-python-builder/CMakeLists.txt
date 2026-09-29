@@ -111,11 +111,11 @@ if(SIMCOON_NUMPY_ALLOC_IN_LIB)
   target_compile_definitions(_core PRIVATE SIMCOON_NUMPY_ALLOC_IN_LIB)
 endif()
 
-# Threading: GCD on macOS, OpenMP on Linux, native threads for batch UMAT on Windows.
+# Threading (parallel.hpp): GCD on macOS, OpenMP on Linux, std::thread on Windows.
 if(APPLE)
   message(STATUS "macOS: using Grand Central Dispatch for parallelism")
 elseif(WIN32)
-  message(STATUS "Windows: batch UMAT uses native threads; OpenMP remains disabled")
+  message(STATUS "Windows: parallel loops on std::thread; OpenMP not linked")
 else()
   find_package(OpenMP)
   if(OpenMP_CXX_FOUND)

@@ -4,7 +4,7 @@ The worker threads of the batch loops allocate armadillo memory; on Windows libs
 it through numpy's allocator, whose tracemalloc hook takes the GIL. If the calling thread kept
 the GIL while joining the workers, a traced process would deadlock. Run a batch past the
 parallel cutoff under ``-X tracemalloc`` in a subprocess, with a timeout, so a regression fails
-instead of hanging the suite.
+instead of hanging the suite. Windows only: elsewhere libsimcoon uses the system allocator.
 """
 
 import os
@@ -36,9 +36,10 @@ _SCRIPT = textwrap.dedent("""
 """)
 
 
-@pytest.mark.parametrize("traced", [False, True])
-def test_batch_umat_does_not_wait_on_the_gil(traced):
-    cmd = [sys.executable] + (["-X", "tracemalloc"] if traced else []) + ["-c", _SCRIPT]
+@pytest.mark.skipif(sys.platform != "win32",
+                    reason="only Windows routes libsimcoon's kernel allocations through numpy")
+def test_batch_umat_does_not_wait_on_the_gil():
+    cmd = [sys.executable, "-X", "tracemalloc", "-c", _SCRIPT]
     try:
         out = subprocess.run(cmd, capture_output=True, text=True, timeout=120, env=os.environ.copy())
     except subprocess.TimeoutExpired:

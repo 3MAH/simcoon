@@ -413,7 +413,7 @@ target_link_libraries(simcoon
 # OpenMP for batch tensor operations — NOT on Windows: libsimcoon is loaded into Python
 # processes whose numpy/scipy stack carries another OpenMP runtime, and vcomp + iomp in one
 # process deadlocks at the first parallel region (CI 6h hang in test_batch_apply_stress).
-# The Python batch UMAT uses native threads on Windows, without linking OpenMP here.
+# Windows: simcoon_parallel_for_safe (parallel.hpp) runs on std::thread; OpenMP is not linked.
 if(NOT WIN32)
   find_package(OpenMP)
   if(OpenMP_CXX_FOUND)
