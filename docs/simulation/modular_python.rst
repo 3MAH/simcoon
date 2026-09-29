@@ -244,7 +244,14 @@ Tangent operator and finite strain
 ----------------------------------
 
 ``MODUL`` honors the solver's ``tangent_mode`` (continuum or algorithmic,
-algorithmic being the 2.0 default — :doc:`solver`). Under the finite-strain
+algorithmic being the 2.0 default — :doc:`solver`). The algorithmic tangent of a
+composition is the exact derivative of its discrete update whenever the plasticity
+it contains is exact on its own (von Mises with isotropic hardening): the
+viscoelastic branches take a closed-form step and enter by the chain rule, and
+damage scales the effective response (plasticity yields on the effective stress
+:math:`\boldsymbol{\sigma}/(1-D)`). With kinematic hardening or another yield
+criterion the plastic cutting-plane update makes it approximate (see the note on
+the scope of the algorithmic tangent in :doc:`solver`). Under the finite-strain
 control types the composition acts as a Hencky hyperelastic law on the
 logarithmic strain and requires ``corate_type = 3`` (log_R) — which is the
 :func:`simcoon.solver.solve` default, so nothing needs to be passed. Any

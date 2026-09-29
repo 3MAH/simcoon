@@ -176,13 +176,29 @@ constitutive models (also exposed as named constants:
        2.0 renumbering)
    * - 2
      - algorithmic
-     - Simo–Hughes consistent (algorithmic) operator — **default**; exact
-       Jacobian of the discrete return map for J2-type flows, Q-quadratic
-       global convergence (this was mode 1 before the 2.0 renumbering)
+     - Simo–Hughes consistent (algorithmic) operator — **default**; the exact
+       Jacobian of the discrete update, hence Q-quadratic global convergence,
+       for von Mises plasticity with isotropic hardening and for the linear
+       viscoelastic and damage models and their ``MODUL`` compositions (see
+       the note below); approximate otherwise (this was mode 1 before the 2.0
+       renumbering)
    * - 3
      - closest-point
      - Reserved for the closest-point-projection exact operator (future
        release); currently raises an error
+
+.. note::
+   **Scope of the algorithmic tangent (2.1).** The plastic return mapping is a
+   cutting-plane scheme: the plastic strain accumulates along the flow direction
+   of each Newton iterate. The direction stays fixed during the step only for von
+   Mises with isotropic hardening (radial return); with kinematic hardening
+   (Prager, Armstrong–Frederick, Chaboche) or a Hill, DFA, Drucker or Tresca
+   criterion it rotates between iterates, the update depends on the iteration
+   path, and no tangent can be its exact derivative: the algorithmic operator is
+   then a close approximation (about :math:`10^{-4}` to :math:`10^{-2}` relative,
+   more for Tresca), which slows the global Newton iteration but leaves the
+   converged response unchanged. The closest-point integrator that makes it exact
+   (mode 3) is planned for the next version.
 
 .. note::
    **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and

@@ -146,7 +146,10 @@ ContinuumTangent assemble_continuum_tangent(
  * consistent tangent additionally requires
  * \f$ \partial \boldsymbol{\Lambda}_\varepsilon^j / \partial \mathbf{V} \f$ and
  * \f$ \boldsymbol{\Lambda}_V^{j,q} \f$; that extension will land as an overload once UMATs
- * expose the corresponding data (doc §7.4).
+ * expose the corresponding data (doc §7.4). Its consequence: the operator is the exact
+ * derivative of the update only when the flow direction does not rotate during the step
+ * (von Mises with isotropic hardening); with kinematic hardening or a non-radial criterion
+ * it is an approximation (see the scope note in docs/simulation/solver.rst).
  *
  * @param Bhat_continuum   **Continuum** local Jacobian
  *   \f$ \hat{B}^{lj} = \partial \Phi^l/\partial \boldsymbol{\sigma} : \boldsymbol{\kappa}^j - K^{lj} \f$,
@@ -190,9 +193,9 @@ ContinuumTangent assemble_algorithmic_tangent(
 using HessianProvider = std::function<std::vector<arma::mat>()>;
 
 // NOTE: only the iterative (plasticity/SMA/thermomechanical) kernels dispatch
-// on tangent_mode. The finite-strain hyperelastic, viscoelastic, damage and
-// elastic kernels always return their exact tangent and accept-but-ignore the
-// mode (documented in docs/simulation/umat_catalog.rst).
+// on tangent_mode. The finite-strain hyperelastic, linear viscoelastic, damage
+// and elastic kernels always return their exact tangent and accept-but-ignore
+// the mode except for tangent_none (documented in docs/simulation/umat_catalog.rst).
 
 /**
  * @brief Mode dispatch over the shared tangent assemblies — the single entry

@@ -392,7 +392,10 @@ the exact one of the hyperelastic law). So do the linear viscoelastic models (``
 ``ZENNK``, ``PRONK`` and their thermomechanical versions) except for mode 0: their
 backward-Euler step is solved in closed form, so the tangent, and for the thermomechanical
 versions ``dSdT`` and the heat-source derivatives ``drdE``, ``drdT``, are the exact
-derivatives of the discrete update.
+derivatives of the discrete update. For plasticity, the algorithmic operator is exact with a
+von Mises criterion and isotropic hardening only; with kinematic hardening or a Hill, DFA,
+Drucker or Tresca criterion the cutting-plane update is path dependent and the operator is
+approximate (see the note on the scope of the algorithmic tangent in :doc:`solver`).
 
 Validation and performance
 ==========================
