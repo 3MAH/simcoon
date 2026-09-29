@@ -1,4 +1,4 @@
-// Armadillo memory through numpy's allocator, for every translation unit of a module.
+// Armadillo memory through the allocator numpy frees with, for every translation unit of a module.
 //
 // Force-included by CMake (simcoon_use_numpy_allocator) into every translation unit of
 // _core and, on Windows, of libsimcoon: armadillo buffers are stolen into numpy arrays
@@ -27,6 +27,7 @@
 #include <numpy/arrayobject.h>
 
 #include <cstddef>
+#include <cstdlib>
 #include <stdexcept>
 
 namespace simcoon {
@@ -37,20 +38,18 @@ namespace numpy_alloc {
 // its owner translation unit (below).
 void import_api();
 
+// The C runtime's malloc/free: what numpy's default handler frees a stolen buffer with (the
+// point of this allocator: armadillo's own MSVC allocator is _aligned_malloc, which free
+// cannot release; the builds share the C runtime heap, /MD). Not PyDataMem_NEW/FREE: those
+// add a tracemalloc notification that, since CPython 3.13.2 (gh-129185), takes the GIL on
+// every call, traced or not -- every allocation of a parallel loop would queue on it. The
+// cost is that simcoon's buffers are not counted by tracemalloc. Needs no numpy C-API table.
 inline void *npy_malloc(std::size_t bytes) {
-    if (PyArray_API == nullptr) {
-        // Loud on purpose: the lazy import this replaces was the bug. Every supported
-        // build imports the table at `import simcoon`; an allocation before that is a
-        // sequencing error, not a case to paper over with a GIL-taking import.
-        throw std::logic_error("simcoon: numpy's C-API table is not imported in this module; "
-                               "import simcoon._core before allocating armadillo memory");
-    }
-    return PyDataMem_NEW(bytes);
+    return std::malloc(bytes);
 }
 
-// A buffer reaching here came from npy_malloc of the same module: the table is imported.
 inline void npy_free(void *ptr) {
-    PyDataMem_FREE(ptr);
+    std::free(ptr);
 }
 
 #ifdef SIMCOON_NUMPY_API_OWNER

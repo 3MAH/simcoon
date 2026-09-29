@@ -287,12 +287,16 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         cube F_cpp = carma::arr_to_cube_view(F);
         cube Lt_cpp = carma::arr_to_cube_view(Lt);
         mat stress_cpp = carma::arr_to_mat_view(stress);
-        int nb_points = Lt_cpp.n_slices;
-        cube Lt_converted = zeros(6,6,nb_points);
-        for (int pt = 0; pt < nb_points; pt++) {
-            mat sig_pt = simcoon::v2t_stress(stress_cpp.unsafe_col(pt));
-            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt), sig_pt);
+        const int nb_points = Lt_cpp.n_slices;
+        if (F_cpp.n_slices != Lt_cpp.n_slices || stress_cpp.n_cols != Lt_cpp.n_slices) {
+            throw std::invalid_argument("Lt_convert: Lt, F and stress must carry one entry per point");
         }
+        cube Lt_converted(6, 6, nb_points);
+        // one point per item, own output slice: parallel, GIL released (6x6 allocations)
+        parallel_for_nogil(nb_points, [&](int pt) {
+            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt),
+                                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
+        });
         return carma::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");
