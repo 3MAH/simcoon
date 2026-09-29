@@ -29,10 +29,11 @@ namespace simcoon {
 
 namespace {
 
-// B_i^-1 = (I + dt H^-1 L)^-1 and C_i = dt (H + dt L)^-1; dt = 0 gives I and 0 (inactive branch)
-void branch_operators(const mat &L, const mat &H, const double &DTime, mat &B_inv, mat &C) {
+// B_i^-1 EV = (H + dt L)^-1 H EV and C_i = dt (H + dt L)^-1; dt = 0 gives EV and 0 (inactive branch)
+void branch_operators(const mat &L, const mat &H, const vec &EV_start, const double &DTime,
+                      vec &EV_relaxed, mat &C) {
     const mat HdtL_inv = inv(H + DTime*L);
-    B_inv = HdtL_inv*H;
+    EV_relaxed = HdtL_inv*(H*EV_start);
     C = DTime*HdtL_inv;
 }
 
@@ -47,9 +48,7 @@ LinearViscoStep kelvin_series_step(const mat &L0, const vector<mat> &L_i, const 
     mat sumC = zeros(6,6);
     vec rhs = eps_e;
     for (size_t i=0; i<N; i++) {
-        mat B_inv;
-        branch_operators(L_i[i], H_i[i], DTime, B_inv, C[i]);
-        EV_relaxed[i] = B_inv*EV_i_start[i];
+        branch_operators(L_i[i], H_i[i], EV_i_start[i], DTime, EV_relaxed[i], C[i]);
         sumC += C[i];
         rhs -= EV_relaxed[i];
     }
@@ -82,10 +81,11 @@ LinearViscoStep maxwell_parallel_step(const mat &L0, const vector<mat> &L_i, con
     st.dEVdE_i.resize(N);
     st.dEVdT_i.resize(N);
     for (size_t i=0; i<N; i++) {
-        mat B_inv, C;
-        branch_operators(L_i[i], H_i[i], DTime, B_inv, C);
+        vec EV_relaxed;
+        mat C;
+        branch_operators(L_i[i], H_i[i], EV_i_start[i], DTime, EV_relaxed, C);
         const mat G = C*L_i[i];
-        st.EV_i[i] = B_inv*EV_i_start[i] + G*eps_e;
+        st.EV_i[i] = EV_relaxed + G*eps_e;
         st.dEVdE_i[i] = G;
         st.dEVdT_i[i] = -G*alpha;
         st.sigma -= L_i[i]*st.EV_i[i];
@@ -94,6 +94,24 @@ LinearViscoStep maxwell_parallel_step(const mat &L0, const vector<mat> &L_i, con
     st.dSdE = 0.5*(st.dSdE + st.dSdE.t());   // L0 - sum L C L: symmetric up to round-off
     st.dSdT = -st.dSdE*alpha;
     return st;
+}
+
+void viscous_heat_source(const double &Dgamma, const vec &dDgamma_dE, const double &dDgamma_dT,
+                         const LinearViscoStep &st, const vec &alpha, const vec &sigma,
+                         const vec &sigma_start, const double &T, const double &DT,
+                         const double &rho_cp, const double &DTime,
+                         double &r, mat &drdE, mat &drdT) {
+    if (DTime < 1.E-12) {
+        r = 0.;
+        drdE = zeros(6);
+        drdT = 0.;
+        return;
+    }
+    const double Tm = T + 0.5*DT;
+    const double alpha_Dsigma = dot(alpha, sigma - sigma_start);
+    r = (Dgamma - Tm*alpha_Dsigma - rho_cp*DT)/DTime;
+    drdE = (dDgamma_dE - Tm*(st.dSdE.t()*alpha))/DTime;
+    drdT = (dDgamma_dT - 0.5*alpha_Dsigma - Tm*dot(alpha, st.dSdT) - rho_cp)/DTime;
 }
 
 } //namespace simcoon

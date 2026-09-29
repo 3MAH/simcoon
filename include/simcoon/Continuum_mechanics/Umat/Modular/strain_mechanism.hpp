@@ -471,6 +471,22 @@ public:
     }
 
     /**
+     * @brief Left factor of the tangent for a mechanism that scales the effective stress.
+     *
+     * The mechanisms work on the effective stress \f$ \boldsymbol{\sigma}_{eff} \f$; when one maps it
+     * to the returned stress (damage, \f$ \boldsymbol{\sigma} = (1 - D)\,\boldsymbol{\sigma}_{eff} \f$) the
+     * orchestrator applies \f$ \mathbf{L}_t \leftarrow \mathbf{Q}\,\mathbf{L}_t \f$,
+     * \f$ d\boldsymbol{\sigma} = \mathbf{Q}\,d\boldsymbol{\sigma}_{eff} \f$.
+     * @param sigma_eff effective stress (6)
+     * @return \f$ \mathbf{Q} \f$ (6x6), or an empty matrix (default) when the mechanism does not
+     *         scale the stress
+     */
+    [[nodiscard]] virtual arma::mat stress_map(const arma::vec& sigma_eff) const {
+        (void)sigma_eff;
+        return arma::mat();
+    }
+
+    /**
      * @brief Closed-form part of the step, taken once before the elastic prediction.
      *
      * For a mechanism whose state is an explicit function of the total strain (the

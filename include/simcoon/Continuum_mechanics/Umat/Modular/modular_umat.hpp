@@ -55,8 +55,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace simcoon {
 
-class DamageMechanism;
-
 // Forward declarations
 class PlasticityMechanism;
 class ViscoelasticMechanism;
@@ -83,6 +81,7 @@ private:
     // Modules
     ElasticityModule elasticity_;
     std::vector<std::unique_ptr<StrainMechanism>> mechanisms_;
+    arma::vec sigma_eff_;   ///< Effective (undamaged) stress of the last refresh_stress; what every mechanism works on
 
     // Constraint-row offset per mechanism; computed once in initialize() and
     // reused by every FB iteration (it only changes if mechanisms are
@@ -431,11 +430,6 @@ private:
      */
     void apply_total_strain_maps(arma::mat& Lt) const;
 
-    /**
-     * @brief Stress a mechanism works on: the effective stress \f$ \boldsymbol{\sigma}/(1 - D) \f$ for
-     *        all but damage (strain equivalence, Lemaitre), the nominal one for damage.
-     */
-    arma::vec mechanism_stress(const StrainMechanism& mech, const arma::vec& sigma) const;
 
     /**
      * @brief Assemble the local multiplier Jacobian B (phases 2 and 3 of the

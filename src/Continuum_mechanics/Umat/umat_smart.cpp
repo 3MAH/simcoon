@@ -455,10 +455,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     if (corate_type == 4) {
         // Truesdell: the kernel's increment is the closed-form Almansi increment of DR = DF,
         // whatever the solver's control variable is (logarithmic control increments ln V).
-        mat bDF_inv;
-        if (!inv_sympd(bDF_inv, DR*DR.t()))
-            throw simcoon::exception_inv("select_umat_M_finite: DF DF^T is not invertible");
-        umat_M->Detot = t2v_strain(0.5*(eye(3,3) - bDF_inv));
+        umat_M->Detot = t2v_strain(Euler_Almansi(DR));
     }
     mat R_hat = eye(3,3);
     mat DR_kernel = DR;
@@ -575,11 +572,10 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         umat_M->PKII = t2v_stress(Kirchoff2PKII(v2t_stress(umat_M->tau), umat_M->F1));
 
         // Log corates: replace the kernel's work by the stress power, in one frame.
-        if (corate_type == 2 || corate_type == 3 || corate_type == 5) {
-            const double dW = Delta_work_conjugacy(tau_start_lab, tau_start_tr, umat_M->tau, Detot_stored, umat_M->F0, umat_M->F1);
-            umat_M->Wm(0) += dW;
-            umat_M->Wm(1) += dW;
-        }
+        const double dW = Delta_work_conjugacy(tau_start_lab, tau_start_tr, umat_M->tau, Detot_stored,
+                                               umat_M->F0, umat_M->F1, corate_type);
+        umat_M->Wm(0) += dW;
+        umat_M->Wm(1) += dW;
 
         // No tangent conversion: every kernel emits Lt in corate_type already.
         umat_M->etot = etot_stored;

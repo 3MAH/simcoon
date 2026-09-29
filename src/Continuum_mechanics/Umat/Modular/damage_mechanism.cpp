@@ -101,23 +101,14 @@ void DamageMechanism::register_variables() {
 
 // ========== Constitutive Computations ==========
 
-double DamageMechanism::compute_driving_force(const arma::vec& sigma, const arma::mat& /*S*/) const {
-    // Y = -dpsi/dD = psi_0, the UNDAMAGED energy: 1/2 sigma_0 : M : sigma_0 on the effective
-    // stress sigma_0 = sigma/(1 - D), exact for a linear block (M = the tangent compliance of
-    // the undamaged block, an approximation of psi_0 for a hyperelastic one).
-    const arma::vec sigma_0 = sigma / effective_factor();
-    return 0.5 * arma::dot(sigma_0, (M_cached_t_ * stress(sigma_0)).to_arma_voigt());
+double DamageMechanism::compute_driving_force(const arma::vec& sigma_eff, const arma::mat& /*S*/) const {
+    // Y = -dpsi/dD = psi_0, the UNDAMAGED energy, on the effective stress: exact for a linear
+    // block (M = the tangent compliance of the undamaged block, an approximation of psi_0 for a
+    // hyperelastic one).
+    return 0.5 * arma::dot(sigma_eff, (M_cached_t_ * stress(sigma_eff)).to_arma_voigt());
 }
 
-double DamageMechanism::effective_factor() const {
-    // the same D that scales the stress (stiffness_reduction)
-    return std::max(1.0 - ivc_.get("D").scalar(), simcoon::iota);
-}
-
-double DamageMechanism::compute_damage(double Y, double Y_max) const {
-    // Use maximum of current and historical driving force
-    double Y_eff = std::max(Y, Y_max);
-
+double DamageMechanism::compute_damage(double Y_eff) const {
     // No damage below threshold
     if (Y_eff <= Y_0_) {
         return 0.0;
@@ -240,26 +231,24 @@ const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
 
 const std::vector<tensor2>& DamageMechanism::kappa(
     const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
-    kappa_cache_[0] = tensor2::zeros(Tensor2Type::strain);   // no multiplier carried
-    return kappa_cache_;
+    return kappa_cache_;   // zero: no multiplier carried
 }
 
-double DamageMechanism::consistency_residual(const arma::vec& sigma) const {
+double DamageMechanism::consistency_residual(const arma::vec& sigma_eff) const {
     if (!M_cached_valid_) {
         return 0.;
     }
-    const double Y = compute_driving_force(sigma, M_cached_);
+    const double Y = compute_driving_force(sigma_eff, M_cached_);
     const double Y_used = ivc_.get("Y_max").scalar();
     const double target = std::max(ivc_.get("Y_max").scalar_start(), Y);
     return std::abs(target - Y_used) / std::max({std::abs(target), Y_0_, 1e-12});
 }
 
-arma::mat DamageMechanism::stress_map(const arma::vec& sigma) const {
-    const double f = effective_factor();
-    arma::mat Q = f * arma::eye(6, 6);
+arma::mat DamageMechanism::stress_map(const arma::vec& sigma_eff) const {
+    // sigma = (1 - D) sigma_eff with dD = D'(Y) (S sigma_eff) . d sigma_eff while damage grows
+    arma::mat Q = stiffness_reduction() * arma::eye(6, 6);
     if (dD_dY_ > simcoon::iota && ivc_.get("D").scalar() < D_c_ && M_cached_valid_) {
-        const arma::vec sigma_0 = sigma / f;
-        Q -= dD_dY_ * (sigma_0 * (M_cached_ * sigma_0).t());
+        Q -= dD_dY_ * (sigma_eff * (M_cached_ * sigma_eff).t());
     }
     return Q;
 }
@@ -285,7 +274,7 @@ void DamageMechanism::update(
     double& Y_max = ivc_.get("Y_max").scalar();
     Y_max = std::max(ivc_.get("Y_max").scalar_start(), Y_current_);
     double& D = ivc_.get("D").scalar();
-    D = compute_damage(Y_max, Y_max);
+    D = compute_damage(Y_max);
 }
 
 void DamageMechanism::tangent_contribution(

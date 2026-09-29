@@ -10,7 +10,6 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
@@ -72,102 +71,60 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     ///@brief Temperature initialization
     double T_init = statev(0);
     
-    //From the statev to the internal variables
-    vec EV = zeros(6);
-    EV(0) = statev(1);
-    EV(1) = statev(2);
-    EV(2) = statev(3);
-    EV(3) = statev(4);
-    EV(4) = statev(5);
-    EV(5) = statev(6);
-    
+    //From the statev to the internal variables (EV, statev(1..6), is an output only)
     std::vector<vec> EV_i(N_kelvin);
     vec v = zeros(N_kelvin);
-    
     for (int i=0; i<N_kelvin; i++) {
         v(i) = statev(i*7+7);
-        EV_i[i] = zeros(6);
-        EV_i[i](0) = statev(i*7+7+1);
-        EV_i[i](1) = statev(i*7+7+2);
-        EV_i[i](2) = statev(i*7+7+3);
-        EV_i[i](3) = statev(i*7+7+4);
-        EV_i[i](4) = statev(i*7+7+5);
-        EV_i[i](5) = statev(i*7+7+6);
+        EV_i[i] = rotate_strain(vec(statev.subvec(i*7+8, i*7+13)), DR);
     }
-    
-    //Rotation of internal variables (tensors)
-    EV = rotate_strain(EV, DR);
-    for (int i=0; i<N_kelvin; i++) {
-        EV_i[i] = rotate_strain(EV_i[i], DR);
-    }
-    
+
     std::vector<mat> L_i(N_kelvin);
     std::vector<mat> H_i(N_kelvin);
-    
+    for (int i=0; i<N_kelvin; i++) {
+        L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
+        H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
+    }
+
     vec stress_start = stress;
-    std::vector<vec> DEV_i(N_kelvin);
-    std::vector<vec> A_v(N_kelvin);
-    std::vector<vec> A_v_start(N_kelvin);
-    
     if(start) { //Initialization
         T_init = T;
-        EV = zeros(6);
         for (int i=0; i<N_kelvin; i++) {
             EV_i[i] = zeros(6);
         }
         stress = zeros(6);
         stress_start = zeros(6);
-        
+
         Wm = 0.;
         Wm_r = 0.;
         Wm_ir = 0.;
         Wm_d = 0.;
     }
-    
-    for (int i=0; i<N_kelvin; i++) {
-        L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
-        H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
-        
-        DEV_i[i] = zeros(6);
-        A_v[i] = zeros(6);
-        A_v_start[i] = zeros(6);
-    }
-    
-    //Variables at the start of the increment
-    const std::vector<vec> EV_i_start = EV_i;
-    for (int i=0; i<N_kelvin; i++) {
-        A_v_start[i] = stress_start - L_i[i]*EV_i[i];
-    }
 
     // Implicit (backward-Euler) step of the Kelvin branches in closed form: the exact solution of
     // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
-    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start,
-                                                  Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
-    EV = zeros(6);
+    const std::vector<vec> EV_i_start = EV_i;
+    const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
+    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
+    vec EV = zeros(6);
     for (int i=0; i<N_kelvin; i++) {
         EV_i[i] = st.EV_i[i];
-        DEV_i[i] = EV_i[i] - EV_i_start[i];
-        v(i) += norm_strain(DEV_i[i]);
+        v(i) += norm_strain(EV_i[i] - EV_i_start[i]);
         EV += EV_i[i];
     }
-    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV;
-    stress = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, eps_e - EV, ndi);
     Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
-    for (int i=0; i<N_kelvin; i++) {
-        A_v[i] = stress - L_i[i]*EV_i[i];
-    }
+    // dashpot dissipation on the viscous stresses sigma - L_i EV_i, trapezoidal
     double Dgamma_loc = 0.;
     for (int i=0; i<N_kelvin; i++) {
-        Dgamma_loc += 0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
+        Dgamma_loc += 0.5*sum(((stress_start - L_i[i]*EV_i_start[i]) + (stress - L_i[i]*EV_i[i]))
+                              %(EV_i[i] - EV_i_start[i]));
     }
-    
+
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((stress_start+stress)%DEtot);
-    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
-    for (int i=0; i<N_kelvin; i++) {
-        Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
-    }
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot) - Dgamma_loc;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     

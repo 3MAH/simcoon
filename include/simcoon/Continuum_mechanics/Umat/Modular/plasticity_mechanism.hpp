@@ -60,7 +60,7 @@ namespace simcoon {
  * path dependent and the tangent approximate (\f$ 10^{-4} \f$ to \f$ 10^{-2} \f$
  * relative, more for Tresca). The closest-point integrator (tangent_closest_point) is
  * reserved for the next version. Under damage the mechanism works on the effective
- * stress (ModularUMAT::mechanism_stress).
+ * stress (strain equivalence, see DamageMechanism).
  */
 class PlasticityMechanism final : public StrainMechanism {
 private:

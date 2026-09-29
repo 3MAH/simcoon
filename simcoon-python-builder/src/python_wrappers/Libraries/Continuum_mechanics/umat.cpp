@@ -37,6 +37,8 @@
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 
 #include <simcoon/Simulation/Maths/rotation.hpp> //for rotate_strain
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
@@ -66,61 +68,15 @@ namespace simpy {
 
 namespace {
 
-// 3x3 inverse by cofactors, plain doubles; false when singular.
-bool inv3(const double A[3][3], double Ai[3][3]) {
-	const double det = A[0][0]*(A[1][1]*A[2][2] - A[1][2]*A[2][1])
-	                 - A[0][1]*(A[1][0]*A[2][2] - A[1][2]*A[2][0])
-	                 + A[0][2]*(A[1][0]*A[2][1] - A[1][1]*A[2][0]);
-	if (!(std::abs(det) > simcoon::iota))
-		return false;
-	for (int i = 0; i < 3; i++)
-		for (int j = 0; j < 3; j++) {
-			const int a = (j+1)%3, b = (j+2)%3, c = (i+1)%3, d = (i+2)%3;
-			Ai[i][j] = (A[a][c]*A[b][d] - A[a][d]*A[b][c])/det;
-		}
-	return true;
-}
-
-// Delta_work_conjugacy (objective_rates.hpp) for one point of the parallel region: plain doubles,
-// no allocation (an armadillo temporary would go through the numpy allocator, which needs the
-// GIL) and no throw. tau_start_tr is the start stress as passed, transported by the caller; the
-// lab start stress is recovered as sym(DR^-1 tau_start_tr DR). Returns 0 on a singular matrix.
-double point_work_conjugacy(const double *tau_start_tr, const double *tau, const double *De,
-                            const arma::cube &F0, const arma::cube &F1, const arma::cube &DR,
-                            const int pt) {
-	double S[3][3], M[3][3], C[3][3], R[3][3], Ri[3][3], T[3][3];
-	for (int i = 0; i < 3; i++)
-		for (int j = 0; j < 3; j++) {
-			S[i][j] = F1(i,j,pt) + F0(i,j,pt);
-			M[i][j] = F1(i,j,pt) - F0(i,j,pt);
-			R[i][j] = DR(i,j,pt);
-		}
-	if (!inv3(S, C) || !inv3(R, Ri))
-		return 0.;
-	const int vi[6] = {0,1,2,0,0,1}, vj[6] = {0,1,2,1,2,2};
-	for (int k = 0; k < 6; k++) {
-		T[vi[k]][vj[k]] = tau_start_tr[k];
-		T[vj[k]][vi[k]] = tau_start_tr[k];
-	}
-	double L[3][3], X[3][3];
-	for (int i = 0; i < 3; i++)
-		for (int j = 0; j < 3; j++) {
-			L[i][j] = 0.;   // midpoint velocity gradient times DTime: 2 (F1 - F0)(F1 + F0)^-1
-			X[i][j] = 0.;   // DR^-1 tau_start_tr DR
-			for (int k = 0; k < 3; k++) {
-				L[i][j] += 2.*M[i][k]*C[k][j];
-				for (int l = 0; l < 3; l++)
-					X[i][j] += Ri[i][k]*T[k][l]*R[l][j];
-			}
-		}
-	double dW = 0.;
-	for (int k = 0; k < 6; k++) {
-		const int i = vi[k], j = vj[k];
-		const double Dk = (k < 3) ? L[i][i] : L[i][j] + L[j][i];   // engineering shear of sym(L)
-		const double tau_n = 0.5*(X[i][j] + X[j][i]);
-		dW += 0.5*(tau_n + tau[k])*Dk - 0.5*(tau_start_tr[k] + tau[k])*De[k];
-	}
-	return dW;
+// Lab start stress sym(DR^-1 tau_start_tr DR) from the one passed (transported by the caller),
+// for Delta_work_conjugacy. Fixed size and the bool inv(): no heap (numpy allocator, GIL), no
+// throw in the parallel region; tau_start_tr itself on a singular DR.
+arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, const arma::mat &DR) {
+	arma::mat::fixed<3,3> DR_inv;
+	if (!arma::inv(DR_inv, arma::mat::fixed<3,3>(DR)))
+		return tau_start_tr;
+	const arma::mat::fixed<3,3> X = DR_inv*simcoon::v2t_stress(tau_start_tr)*DR;
+	return simcoon::t2v_stress(0.5*(X + X.t()));
 }
 
 // Raise simcoon.StepCut for a batch whose kernels asked for a smaller increment (tnew_dt < 1),
@@ -430,9 +386,11 @@ double point_work_conjugacy(const double *tau_start_tr, const double *tau, const
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
-			if (kirchhoff_normalize && (corate_type == 2 || corate_type == 3 || corate_type == 5)) {
+			if (kirchhoff_normalize) {
 				// true work under the log corates, as select_umat_M_finite
-				const double dW = point_work_conjugacy(tau_start, sigma.memptr(), Detot.memptr(), F0, F1, DR, pt);
+				const arma::vec::fixed<6> ts(tau_start);
+				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+				                                                Detot, F0.slice(pt), F1.slice(pt), corate_type);
 				Wm(0) += dW;
 				Wm(1) += dW;
 			}

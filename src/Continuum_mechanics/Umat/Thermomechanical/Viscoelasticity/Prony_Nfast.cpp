@@ -8,7 +8,6 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
@@ -60,12 +59,6 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     //From the statev to the internal variables
     vec EV_tilde = zeros(6);
-    EV_tilde(0) = statev(1);
-    EV_tilde(1) = statev(2);
-    EV_tilde(2) = statev(3);
-    EV_tilde(3) = statev(4);
-    EV_tilde(4) = statev(5);
-    EV_tilde(5) = statev(6);
     
     std::vector<vec> EV_i(N_prony);
     vec v = zeros(N_prony);
@@ -82,7 +75,6 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     }
     
     //Rotation of internal variables (tensors)
-    EV_tilde = rotate_strain(EV_tilde, DR);
     for (int i=0; i<N_prony; i++) {
         EV_i[i] = rotate_strain(EV_i[i], DR);
     }
@@ -98,19 +90,11 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_prony; i++) {
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
-
-        //Unconditionally, as the mechanical Prony_Nfast does: a default-constructed
-        //arma::vec has size 0, so the `A_v_start[i] +=` below threw
-        //"addition: incompatible matrix dimensions: 0x1 and 6x1" on the first call.
-        DEV_i[i] = zeros(6);
-        A_v[i] = zeros(6);
-        A_v_start[i] = zeros(6);
     }
     
     
     if(start) { //Initialization
         T_init = T;
-        EV_tilde = zeros(6);
         for (int i=0; i<N_prony; i++) {
             EV_i[i] = zeros(6);
         }
@@ -134,13 +118,13 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     //Variables at the start of the increment
     const std::vector<vec> EV_i_start = EV_i;
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] += L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
+        A_v_start[i] = L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
     }
 
     // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
     // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
-    const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start,
-                                                     Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
+    const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
+    const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
     EV_tilde = zeros(6);
     for (int i=0; i<N_prony; i++) {
         EV_i[i] = st.EV_i[i];
@@ -148,8 +132,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         v(i) += norm_strain(DEV_i[i]);
         EV_tilde += (M0*L_i[i])*EV_i[i];
     }
-    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde;
-    sigma = el_pred(L0, Eel, ndi);
+    sigma = el_pred(L0, eps_e - EV_tilde, ndi);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;
@@ -179,7 +162,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     vec dDgamma_dE = zeros(6);
     double dDgamma_dT = 0.;
     for (int i=0; i<N_prony; i++) {
-        A_v[i] = L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v[i] = L_i[i]*(eps_e - EV_i[i]);
         const vec A_mid2 = A_v_start[i] + A_v[i];
         const mat &dEVdE = st.dEVdE_i[i];
         const vec &dEVdT = st.dEVdT_i[i];
@@ -188,27 +171,13 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         dDgamma_dT += 0.5*(-sum((L_i[i]*(alpha + dEVdT))%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
-    // r = (Dgamma - Tm alpha:(sigma - sigma_start) - rho c_p DT)/DTime, midpoint Tm as Wt: the heat
-    // source of the actual increments (it keeps flowing while the branches relax under a strain
-    // hold). With the closed-form step, drdE/drdT are its exact derivatives.
-    if (DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        const double Tm = T + 0.5*DT;
-        r = (Dgamma_loc - Tm*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
-        drdE = (dDgamma_dE - Tm*(st.dSdE.t()*alpha))/DTime;
-        drdT = (dDgamma_dT - 0.5*sum(alpha%(sigma - sigma_start)) - Tm*sum(alpha%st.dSdT) - rho*c_p)/DTime;
-    }
+    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
+    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
+                        rho*c_p, DTime, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
-    for (int i=0; i<N_prony; i++) {
-        Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
-    }
+    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot) - Dgamma_loc;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     

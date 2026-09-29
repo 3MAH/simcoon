@@ -22,7 +22,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Modular/damage_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/viscoelastic_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/damage_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/yield_criterion.hpp>
@@ -346,7 +345,7 @@ void ModularUMAT::run(
         reject = (mechanisms_[m]->committed_multiplier() >
                       mechanisms_[m]->multiplier_cap())
               || (drift_guard_armed_ && std::isfinite(drift_tol) &&
-                  mechanisms_[m]->state_drift(mechanism_stress(*mechanisms_[m], sigma)) > drift_tol);
+                  mechanisms_[m]->state_drift(sigma_eff_) > drift_tol);
     }
     if (reject) {
         // Ask the global solver to halve the increment and retry. statev is
@@ -412,8 +411,9 @@ void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
         E_inel += mech->inelastic_strain();
     }
     const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
-    elasticity_.evaluate(Eel, ndi, sigma, L_cur_);
-    sigma *= stiffness_reduction();
+    elasticity_.evaluate(Eel, ndi, sigma_eff_, L_cur_);
+    // strain equivalence (Lemaitre): the mechanisms work on sigma_eff_, damage scales it
+    sigma = stiffness_reduction() * sigma_eff_;
 }
 
 void ModularUMAT::return_mapping(
@@ -466,7 +466,7 @@ void ModularUMAT::return_mapping(
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
-                mechanism_stress(*mechanisms_[m], sigma), Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
+                sigma_eff_, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
@@ -489,7 +489,7 @@ void ModularUMAT::return_mapping(
 
         // states updated outside the FB rows (damage) must be consistent with this stress too
         for (const auto& mech : mechanisms_) {
-            error += mech->consistency_residual(sigma);
+            error += mech->consistency_residual(sigma_eff_);
         }
 
         ++iter;
@@ -515,10 +515,10 @@ void ModularUMAT::assemble_jacobian(
     // for the whole phase (no compute_constraints call in between).
     std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
     for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-        kappa_all[jm] = &mechanisms_[jm]->kappa(mechanism_stress(*mechanisms_[jm], sigma), DT, L_cur_);
+        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma_eff_, DT, L_cur_);
     }
     for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(mechanism_stress(*mechanisms_[lm], sigma));
+        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
         if (dPhi_l_all.empty()) continue;
         for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
             const int row = mech_offset_[lm] + static_cast<int>(l_c);
@@ -541,17 +541,8 @@ void ModularUMAT::assemble_jacobian(
     // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         mechanisms_[m]->compute_jacobian_contribution(
-            mechanism_stress(*mechanisms_[m], sigma), L_cur_, B, mech_offset_[m]);
+            sigma_eff_, L_cur_, B, mech_offset_[m]);
     }
-}
-
-arma::vec ModularUMAT::mechanism_stress(const StrainMechanism& mech, const arma::vec& sigma) const {
-    // Strain equivalence (Lemaitre): every mechanism but damage works on the effective stress
-    // sigma / (1 - D); damage takes the nominal one and divides itself.
-    if (mech.type() == MechanismType::DAMAGE) {
-        return sigma;
-    }
-    return sigma / std::max(stiffness_reduction(), simcoon::iota);
 }
 
 double ModularUMAT::stiffness_reduction() const {
@@ -586,8 +577,8 @@ void ModularUMAT::compute_tangent(
     }
 
     // The assembly below is the tangent of the effective (undamaged) composition: the
-    // mechanisms see sigma_eff; damage enters last, sigma = (1 - D) sigma_eff.
-    const arma::vec sigma_eff = sigma / std::max(stiffness_reduction(), simcoon::iota);
+    // mechanisms see sigma_eff_; damage enters last through its stress_map().
+    const arma::vec& sigma_eff = sigma_eff_;
 
     // Mechanisms opting into the algorithmic assembly: stress-dependent Phi
     // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
@@ -652,10 +643,11 @@ void ModularUMAT::compute_tangent(
             sigma_eff, L_cur_, Ds_total, mech_offset_[m], Lt);
     }
 
-    // sigma = (1 - D(Y(sigma_eff))) sigma_eff: d sigma = Q d sigma_eff (DamageMechanism::stress_map)
+    // Left and right maps: d sigma = Q d sigma_eff (damage), eps_in(eps) (viscoelastic branches)
     for (const auto& mech : mechanisms_) {
-        if (mech->type() == MechanismType::DAMAGE) {
-            Lt = dynamic_cast<const DamageMechanism&>(*mech).stress_map(sigma) * Lt;
+        const arma::mat Q = mech->stress_map(sigma_eff_);
+        if (!Q.is_empty()) {
+            Lt = Q * Lt;
         }
     }
     apply_total_strain_maps(Lt);

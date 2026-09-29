@@ -15,6 +15,8 @@ from typing import Dict
 
 import numpy as np
 
+from simcoon import _core
+
 
 #: read-only aliases of a stored history
 _ALIASES: Dict[str, str] = {}
@@ -26,19 +28,23 @@ _ARCHIVE_FORMAT = 3
 def _log_strain(F: np.ndarray, strain: np.ndarray, finite: np.ndarray) -> np.ndarray:
     """ln V = 1/2 ln(F F^T) in engineering Voigt (6, N) where ``finite``, else ``strain``.
 
-    A non-finite F (the last records of an aborted run) gives NaN, never an exception: the
-    partial history must stay readable."""
+    A non-finite or degenerate F (the last records of an aborted run) gives NaN, never an
+    exception: the partial history must stay readable."""
     out = np.array(strain, dtype=float, copy=True)
+    finite = np.asarray(finite, dtype=bool)
     ok = np.isfinite(F).all(axis=(0, 1))
-    out[:, np.asarray(finite, dtype=bool) & ~ok] = np.nan
-    idx = np.flatnonzero(np.asarray(finite, dtype=bool) & ok)
-    if idx.size:
-        Fk = F[:, :, idx].transpose(2, 0, 1)
-        w, v = np.linalg.eigh(Fk @ Fk.transpose(0, 2, 1))
-        with np.errstate(divide="ignore", invalid="ignore"):
-            lnV = np.einsum("nij,nj,nkj->nik", v, 0.5 * np.log(w), v)
-        out[:, idx] = np.stack([lnV[:, 0, 0], lnV[:, 1, 1], lnV[:, 2, 2],
-                                2. * lnV[:, 0, 1], 2. * lnV[:, 0, 2], 2. * lnV[:, 1, 2]])
+    out[:, finite & ~ok] = np.nan
+    idx = np.flatnonzero(finite & ok)
+    if idx.size == 0:
+        return out
+    try:
+        out[:, idx] = _core.Log_strain(np.asfortranarray(F[:, :, idx], dtype=float), voigt_form=True)
+    except Exception:
+        for k in idx:   # isolate the degenerate increments
+            try:
+                out[:, k] = np.ravel(_core.Log_strain(np.asfortranarray(F[:, :, k]), voigt_form=True))
+            except Exception:
+                out[:, k] = np.nan
     return out
 
 

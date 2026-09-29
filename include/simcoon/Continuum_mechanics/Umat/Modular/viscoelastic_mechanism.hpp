@@ -61,11 +61,9 @@ private:
     // Cached per-branch tensors (set in configure; constant over the step)
     std::vector<arma::mat> L_i_;        ///< Branch stiffnesses
     std::vector<arma::mat> H_i_;        ///< Branch viscosity tensors
-    std::vector<arma::mat> invH_i_;     ///< Cached inv(H_i)
     std::vector<arma::mat> M0_L_i_;     ///< Cached M_0 · L_i (for inelastic_strain)
 
     arma::mat L_0_;                     ///< Reference stiffness, set by orchestrator
-    arma::mat M_0_;                     ///< Reference compliance = inv(L_0), set by orchestrator
 
     // IVC keys, cached at register_variables (avoids string concatenation
     // inside the FB hot loop).

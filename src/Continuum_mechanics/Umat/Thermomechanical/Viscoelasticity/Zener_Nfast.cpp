@@ -9,7 +9,6 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
@@ -60,12 +59,6 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     //From the statev to the internal variables
     vec EV = zeros(6);
-    EV(0) = statev(1);
-    EV(1) = statev(2);
-    EV(2) = statev(3);
-    EV(3) = statev(4);
-    EV(4) = statev(5);
-    EV(5) = statev(6);
     
     std::vector<vec> EV_i(N_kelvin);
     vec v = zeros(N_kelvin);
@@ -82,15 +75,12 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     }
     
     //Rotation of internal variables (tensors)
-    EV = rotate_strain(EV, DR);
     for (int i=0; i<N_kelvin; i++) {
         EV_i[i] = rotate_strain(EV_i[i], DR);
     }
     
     vec sigma_start = sigma;
     std::vector<vec> DEV_i(N_kelvin);
-    std::vector<vec> A_v(N_kelvin);
-    std::vector<vec> A_v_start(N_kelvin);
 
     std::vector<mat> L_i(N_kelvin);
     std::vector<mat> H_i(N_kelvin);
@@ -98,19 +88,11 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     for (int i=0; i<N_kelvin; i++) {
         L_i[i] = L_iso(E_visco(i), nu_visco(i), "Enu");
         H_i[i] = H_iso(etaB_visco(i), etaS_visco(i));
-
-        //Unconditionally, not only on the start increment: these are locals rebuilt
-        //at every call, so a second increment found them at size 0 and the
-        //`A_v_start[i] +=` below threw "0x1 and 6x1".
-        DEV_i[i] = zeros(6);
-        A_v[i] = zeros(6);
-        A_v_start[i] = zeros(6);
     }
     
     
     if(start) { //Initialization
         T_init = T;
-        EV = zeros(6);
         for (int i=0; i<N_kelvin; i++) {
             EV_i[i] = zeros(6);
         }
@@ -135,8 +117,8 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
 
     // Implicit (backward-Euler) step of the Kelvin branches in closed form: the exact solution of
     // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
-    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start,
-                                                  Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
+    const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
+    const LinearViscoStep st = kelvin_series_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
     EV = zeros(6);
     for (int i=0; i<N_kelvin; i++) {
         EV_i[i] = st.EV_i[i];
@@ -144,8 +126,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         v(i) += norm_strain(DEV_i[i]);
         EV += EV_i[i];
     }
-    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV;
-    sigma = el_pred(L0, Eel, ndi);
+    sigma = el_pred(L0, eps_e - EV, ndi);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;
@@ -182,20 +163,9 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         dDgamma_dT += 0.5*(sum((st.dSdT - L_i[i]*dEVdT)%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
-    // r = (Dgamma - Tm alpha:(sigma - sigma_start) - rho c_p DT)/DTime, midpoint Tm as Wt: the heat
-    // source of the actual increments (it keeps flowing while the branches relax under a strain
-    // hold). With the closed-form step, drdE/drdT are its exact derivatives.
-    if (DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        const double Tm = T + 0.5*DT;
-        r = (Dgamma_loc - Tm*sum(alpha%(sigma - sigma_start)) - rho*c_p*DT)/DTime;
-        drdE = (dDgamma_dE - Tm*(st.dSdE.t()*alpha))/DTime;
-        drdT = (dDgamma_dT - 0.5*sum(alpha%(sigma - sigma_start)) - Tm*sum(alpha%st.dSdT) - rho*c_p)/DTime;
-    }
+    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
+    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
+                        rho*c_p, DTime, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

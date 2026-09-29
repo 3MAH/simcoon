@@ -98,4 +98,35 @@ LinearViscoStep maxwell_parallel_step(const arma::mat &L0, const std::vector<arm
                                       const std::vector<arma::vec> &EV_i_start, const arma::vec &eps_e,
                                       const arma::vec &alpha, const double &DTime);
 
+/**
+ * @brief Heat source of a viscous thermomechanical step and its exact derivatives.
+ *
+ * \f[ r = \frac{\Delta\gamma - T_m\,\boldsymbol{\alpha} : (\boldsymbol{\sigma} - \boldsymbol{\sigma}_n)
+ *     - \rho c_p\,\Delta T}{\Delta t}, \qquad T_m = T + \tfrac12\Delta T \f]
+ * (the midpoint temperature, as \f$ W_t \f$), with \f$ \Delta\gamma \f$ the dissipation of the branches:
+ * the heat of the actual increments, which keeps flowing while the branches relax under a strain
+ * hold. \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ and \f$ \partial r/\partial T \f$ follow
+ * from the step's consistent derivatives. A zero time increment gives \f$ r = 0 \f$.
+ *
+ * @param Dgamma dissipation of the increment, \f$ \Delta\gamma \f$
+ * @param dDgamma_dE \f$ \partial\Delta\gamma/\partial\boldsymbol{\varepsilon} \f$ (6)
+ * @param dDgamma_dT \f$ \partial\Delta\gamma/\partial T \f$
+ * @param st the step (its dSdE, dSdT)
+ * @param alpha thermal expansion tensor (6)
+ * @param sigma stress at the end of the increment (6)
+ * @param sigma_start stress at the start of the increment (6)
+ * @param T temperature at the start of the increment
+ * @param DT temperature increment
+ * @param rho_cp \f$ \rho c_p \f$
+ * @param DTime time increment
+ * @param[out] r heat source
+ * @param[out] drdE \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ (6x1, the thermomechanical UMAT layout)
+ * @param[out] drdT \f$ \partial r/\partial T \f$ (1x1)
+ */
+void viscous_heat_source(const double &Dgamma, const arma::vec &dDgamma_dE, const double &dDgamma_dT,
+                         const LinearViscoStep &st, const arma::vec &alpha, const arma::vec &sigma,
+                         const arma::vec &sigma_start, const double &T, const double &DT,
+                         const double &rho_cp, const double &DTime,
+                         double &r, arma::mat &drdE, arma::mat &drdT);
+
 } //namespace simcoon

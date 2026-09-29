@@ -10,7 +10,6 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
@@ -98,13 +97,12 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
 
     // Implicit (backward-Euler) step of the Kelvin branch in closed form: the exact solution of
     // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
-    const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start},
-                                                  Etot + DEtot - alpha*(T + DT - T_init), alpha, DTime);
+    const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
+    const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start}, eps_e, alpha, DTime);
     EV1 = st.EV_i[0];
     const vec DEV1 = EV1 - EV1_start;
     v += norm_strain(DEV1);
-    const vec Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV1;
-    stress = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, eps_e - EV1, ndi);
     Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
     vec A_v = stress-L1*EV1;
@@ -112,7 +110,7 @@ void umat_zener_fast(const string &umat_name, const vec &Etot, const vec &DEtot,
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((stress_start+stress)%DEtot);
-    Wm_r += 0.5*sum((stress_start+stress)%DEtot) - 0.5*sum((A_v_start + A_v)%DEV1);
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot) - Dgamma_loc;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     

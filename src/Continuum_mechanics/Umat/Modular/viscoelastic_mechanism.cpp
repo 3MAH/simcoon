@@ -27,7 +27,6 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 #include <stdexcept>
-#include <cmath>
 
 namespace simcoon {
 
@@ -40,9 +39,7 @@ ViscoelasticMechanism::ViscoelasticMechanism(int N_prony)
     , etaS_i_(N_prony, 0.0)
     , L_i_(N_prony)
     , H_i_(N_prony)
-    , invH_i_(N_prony)
     , M0_L_i_(N_prony)
-    , M_0_(arma::eye(6, 6))
     , ev_key_(N_prony)
     , v_key_(N_prony)
     , kappa_t_(N_prony, tensor2::zeros(Tensor2Type::stress))
@@ -65,7 +62,6 @@ void ViscoelasticMechanism::configure(const arma::vec& props, int& offset) {
 
         L_i_[i]    = L_iso(E_i_[i], nu_i_[i], "Enu");
         H_i_[i]    = H_iso(etaB_i_[i], etaS_i_[i]);
-        invH_i_[i] = arma::inv(H_i_[i]);
     }
     offset += 4 * N_prony_;
 }
@@ -83,10 +79,10 @@ void ViscoelasticMechanism::register_variables() {
 
 void ViscoelasticMechanism::set_reference_stiffness(const arma::mat& L_0) {
     L_0_ = L_0;
-    M_0_ = arma::inv(L_0);
+    const arma::mat M_0 = arma::inv(L_0);
     // Pre-multiply (M_0 · L_i) once — both factors are frozen for the step.
     for (int i = 0; i < N_prony_; ++i) {
-        M0_L_i_[i] = M_0_ * L_i_[i];
+        M0_L_i_[i] = M_0 * L_i_[i];
     }
 }
 

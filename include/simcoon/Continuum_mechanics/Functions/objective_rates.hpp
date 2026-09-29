@@ -393,9 +393,12 @@ arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, cons
  * @param[in] Detot corate strain increment handed to the kernel (engineering Voigt)
  * @param[in] F0 deformation gradient at the start of the increment
  * @param[in] F1 deformation gradient at the end of the increment
- * @return the correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$
+ * @param[in] corate_type the corate: the correction applies to 2, 3 and 5 only (0 otherwise)
+ * @return the correction, to add to \f$ W_m \f$ and \f$ W_m^r \f$; 0 for a singular
+ *         \f$ \mathbf{F}_1 + \mathbf{F}_0 \f$. Never allocates on the heap nor throws, so it is
+ *         safe in a parallel region.
  */
-double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_start_tr, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1);
+double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_start_tr, const arma::vec &tau, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, const int &corate_type);
 
 /**
  * @brief Corate spin dispatch: for the chosen objective rate, set the frame increment @p DR and the

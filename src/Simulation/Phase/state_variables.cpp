@@ -29,6 +29,7 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
@@ -388,10 +389,7 @@ void state_variables::set_start(const int &corate_type)
         if (corate_type == 4) {
             // Truesdell: the lower-convected strain IS the Almansi strain, e_A = 1/2 (I - b^-1),
             // exactly and whatever the control type (logarithmic control increments ln V).
-            mat b_inv;
-            if (!inv_sympd(b_inv, F1*F1.t()))
-                throw simcoon::exception_inv("set_start: b = F F^T is not invertible");
-            etot = t2v_strain(0.5*(eye(3,3) - b_inv));
+            etot = t2v_strain(Euler_Almansi(F1));
         }
         else {   // log_F: similarity transport, as ln V = F ln U F^-1
             mat DF_inv;

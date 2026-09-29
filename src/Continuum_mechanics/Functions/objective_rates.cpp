@@ -558,15 +558,18 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
     return Delta_log_strain(D, Omega, DTime);   // Jaumann / GN
 }
 
-double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const vec &tau, const vec &Detot, const mat &F0, const mat &F1) {
-    mat Fsum_inv;
-    if (!inv(Fsum_inv, F1 + F0))
-        throw simcoon::exception_inv("Delta_work_conjugacy: F1 + F0 is not invertible");
-    const mat LDt = 2.*(F1 - F0)*Fsum_inv;   // midpoint velocity gradient times DTime
+double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const vec &tau, const vec &Detot, const mat &F0, const mat &F1, const int &corate_type) {
+    if (corate_type != 2 && corate_type != 3 && corate_type != 5)
+        return 0.;
+    // fixed size and the bool inv(): no heap, no throw (sim.umat calls it in a parallel region)
+    mat::fixed<3,3> Fsum_inv;
+    if (!inv(Fsum_inv, mat::fixed<3,3>(F1 + F0)))
+        return 0.;
+    const mat::fixed<3,3> LDt = 2.*(F1 - F0)*Fsum_inv;   // midpoint velocity gradient times DTime
     // both stresses in the lab frame: a start stress carried to the end frame against a midpoint
     // D would leave a first-order [W, tau] : D error, even for isotropic elasticity
-    return 0.5*sum((tau_start + tau)%t2v_strain(0.5*(LDt + LDt.t())))
-         - 0.5*sum((tau_start_tr + tau)%Detot);
+    return 0.5*dot(tau_start + tau, t2v_strain(0.5*(LDt + LDt.t())))
+         - 0.5*dot(tau_start_tr + tau, Detot);
 }
 
 // ---------------------------------------------------------------------------
