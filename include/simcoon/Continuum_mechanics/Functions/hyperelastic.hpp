@@ -932,7 +932,7 @@ hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential,
  * Cauchy-Green tensor. The closed form is the spatial (Lie/Oldroyd) tangent; it is
  * converted once, by Dtau_LieDD_2_DtauDe_corate, to the box of @p corate_type.
  *
- * Kirchhoff on both outputs, deliberately: in the logarithmic framework the potential
+ * Kirchhoff on both outputs, deliberately: in the logarithmic framework an isotropic potential
  * differentiates to \f$ \boldsymbol{\tau} = \partial W / \partial \ln \mathbf{V} \f$ per
  * REFERENCE volume, so \f$ \boldsymbol{\tau} \f$ is what the whole finite route carries and
  * what the tangent is conjugate to. Cauchy is the derived output

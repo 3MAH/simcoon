@@ -345,7 +345,7 @@ void ModularUMAT::run(
         reject = (mechanisms_[m]->committed_multiplier() >
                       mechanisms_[m]->multiplier_cap())
               || (drift_guard_armed_ && std::isfinite(drift_tol) &&
-                  mechanisms_[m]->state_drift(sigma) > drift_tol);
+                  mechanisms_[m]->state_drift(sigma_eff_) > drift_tol);
     }
     if (reject) {
         // Ask the global solver to halve the increment and retry. statev is
@@ -411,8 +411,9 @@ void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
         E_inel += mech->inelastic_strain();
     }
     const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
-    elasticity_.evaluate(Eel, ndi, sigma, L_cur_);
-    sigma *= stiffness_reduction();
+    elasticity_.evaluate(Eel, ndi, sigma_eff_, L_cur_);
+    // strain equivalence (Lemaitre): the mechanisms work on sigma_eff_, damage scales it
+    sigma = stiffness_reduction() * sigma_eff_;
 }
 
 void ModularUMAT::return_mapping(
@@ -436,6 +437,9 @@ void ModularUMAT::return_mapping(
     // no damage, so this same call IS the whole elastic response — only the
     // constraint machinery below is skipped.
     const arma::vec Etot_end = Etot + DEtot;
+    for (auto& mech : mechanisms_) {
+        mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
+    }
     refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
     if (n_total == 0) {
         return;
@@ -462,7 +466,7 @@ void ModularUMAT::return_mapping(
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
-                sigma, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
+                sigma_eff_, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
@@ -482,6 +486,11 @@ void ModularUMAT::return_mapping(
         // Recompute stress (D may have evolved in update, so the reduction
         // factor is re-evaluated too)
         refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
+
+        // states updated outside the FB rows (damage) must be consistent with this stress too
+        for (const auto& mech : mechanisms_) {
+            error += mech->consistency_residual(sigma_eff_);
+        }
 
         ++iter;
     }
@@ -506,10 +515,10 @@ void ModularUMAT::assemble_jacobian(
     // for the whole phase (no compute_constraints call in between).
     std::vector<const std::vector<tensor2>*> kappa_all(mechanisms_.size());
     for (size_t jm = 0; jm < mechanisms_.size(); ++jm) {
-        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma, DT, L_cur_);
+        kappa_all[jm] = &mechanisms_[jm]->kappa(sigma_eff_, DT, L_cur_);
     }
     for (size_t lm = 0; lm < mechanisms_.size(); ++lm) {
-        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma);
+        const auto& dPhi_l_all = mechanisms_[lm]->dPhi_dsigma(sigma_eff_);
         if (dPhi_l_all.empty()) continue;
         for (size_t l_c = 0; l_c < dPhi_l_all.size(); ++l_c) {
             const int row = mech_offset_[lm] + static_cast<int>(l_c);
@@ -532,7 +541,7 @@ void ModularUMAT::assemble_jacobian(
     // Phase 3: each mechanism fills its own diagonal (self-stress + K^{ll}).
     for (size_t m = 0; m < mechanisms_.size(); ++m) {
         mechanisms_[m]->compute_jacobian_contribution(
-            sigma, L_cur_, B, mech_offset_[m]);
+            sigma_eff_, L_cur_, B, mech_offset_[m]);
     }
 }
 
@@ -567,14 +576,18 @@ void ModularUMAT::compute_tangent(
             + std::to_string(tangent_mode));
     }
 
+    // The assembly below is the tangent of the effective (undamaged) composition: the
+    // mechanisms see sigma_eff_; damage enters last through its stress_map().
+    const arma::vec& sigma_eff = sigma_eff_;
+
     // Mechanisms opting into the algorithmic assembly: stress-dependent Phi
     // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
     // criteria) keep their continuum tangent_contribution in every mode.
     std::vector<size_t> algo;
     if (tangent_mode == tangent_algorithmic) {
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            if (mechanisms_[m]->dLambda_dsigma(sigma) != nullptr &&
-                !mechanisms_[m]->dPhi_dsigma(sigma).empty()) {
+            if (mechanisms_[m]->dLambda_dsigma(sigma_eff) != nullptr &&
+                !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
                 algo.push_back(m);
             }
         }
@@ -598,9 +611,9 @@ void ModularUMAT::compute_tangent(
         std::vector<arma::vec> dPhi_l;
         std::vector<arma::mat> dLambda_l;
         for (size_t m : algo) {
-            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma);
-            const auto& kappa_all = mechanisms_[m]->kappa(sigma, 0.0, L_cur_);
-            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma);
+            const auto& dPhi_all = mechanisms_[m]->dPhi_dsigma(sigma_eff);
+            const auto& kappa_all = mechanisms_[m]->kappa(sigma_eff, 0.0, L_cur_);
+            const auto& hess_all = *mechanisms_[m]->dLambda_dsigma(sigma_eff);
             for (size_t c = 0; c < dPhi_all.size(); ++c) {
                 rows.push_back(mech_offset_[m] + static_cast<int>(c));
                 dPhi_l.emplace_back(dPhi_all[c].voigt());
@@ -627,7 +640,27 @@ void ModularUMAT::compute_tangent(
             continue;
         }
         mechanisms_[m]->tangent_contribution(
-            sigma, L_cur_, Ds_total, mech_offset_[m], Lt);
+            sigma_eff, L_cur_, Ds_total, mech_offset_[m], Lt);
+    }
+
+    // Left and right maps: d sigma = Q d sigma_eff (damage), eps_in(eps) (viscoelastic branches)
+    for (const auto& mech : mechanisms_) {
+        const arma::mat Q = mech->stress_map(sigma_eff_);
+        if (!Q.is_empty()) {
+            Lt = Q * Lt;
+        }
+    }
+    apply_total_strain_maps(Lt);
+}
+
+void ModularUMAT::apply_total_strain_maps(arma::mat& Lt) const {
+    // Inelastic strains driven by the total strain alone (viscoelastic branches): chain rule,
+    // applied last, sigma = F(eps - eps_in(eps)).
+    for (const auto& mech : mechanisms_) {
+        const arma::mat map = mech->total_strain_map();
+        if (!map.is_empty()) {
+            Lt = Lt * map;
+        }
     }
 }
 

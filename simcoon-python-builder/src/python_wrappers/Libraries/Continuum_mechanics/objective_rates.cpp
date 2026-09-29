@@ -60,9 +60,16 @@ py::array_t<double> A_F(const py::array_t<double> &F, const bool &copy) {
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de, const unsigned int &n_threads) {
-    std::map<string, int> list_corate;
-    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3},{"truesdell",4},{"logarithmic_F",5}, {"gn",1},{"log",2},{"log_R",3},{"log_F",5}};
-	int corate = list_corate[corate_name];
+    static const std::map<string, int> list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3},{"truesdell",4},{"logarithmic_F",5}, {"gn",1},{"log",2},{"log_R",3},{"log_F",5}};
+    // guarded lookup: operator[] would default-insert 0 = jaumann, silently computing
+    // a DIFFERENT objective rate for a misspelled name instead of reporting it
+    const auto it_corate = list_corate.find(corate_name);
+    if (it_corate == list_corate.end()) {
+        throw std::invalid_argument("objective_rate: unknown corate name '" + corate_name
+                                    + "'. Valid: jaumann, green_naghdi (gn), logarithmic (log), "
+                                      "logarithmic_R (log_R), truesdell, logarithmic_F (log_F)");
+    }
+    const int corate = it_corate->second;
 
     void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &);
     void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);
@@ -301,9 +308,19 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
-    std::map<string, int> list_Lt_convert;
-    list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
-	int select = list_Lt_convert [converter_key];
+    static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
+    // guarded lookup: operator[] would default-insert 0 = Dsigma_LieDD_2_DSDE, so a
+    // misspelled or renamed key silently performed a DIFFERENT conversion and returned a
+    // plausible-looking wrong tangent. fedoo selects this key from a table, where the
+    // symptom would have been poor Newton convergence rather than an error.
+    const auto it_convert = list_Lt_convert.find(converter_key);
+    if (it_convert == list_Lt_convert.end()) {
+        std::string valid;
+        for (const auto &kv : list_Lt_convert) { valid += (valid.empty() ? "" : ", ") + kv.first; }
+        throw std::invalid_argument("Lt_convert: unknown converter key '" + converter_key
+                                    + "'. Valid: " + valid);
+    }
+    const int select = it_convert->second;
 
     // The box tangent convention is Lt = d(tau_hat)/d(De): the Kirchhoff, log/Hencky-rate,
     // no-J corotational tangent that every simcoon UMAT now returns. Split by role:

@@ -691,9 +691,12 @@ class HolzapfelElasticity(_HyperInvariantsElasticity):
     Notes
     -----
     Composed with :class:`Damage` -- the classic anisotropic tissue with
-    softening -- this block is exact: damage subtracts no inelastic strain (it
-    scales the stiffness instead), so the elastic stretch is still the total
-    one, and its driving force uses the current anisotropic tangent.
+    softening -- the kinematics are exact: damage subtracts no inelastic strain
+    (it scales the stiffness instead), so the elastic stretch is the total one.
+    The damage driving force is the thermodynamic force ``-dpsi/dD = psi_0``
+    (the undamaged energy), evaluated as ``1/2 tau_eff : M_t : tau_eff`` on the
+    effective stress ``tau/(1-D)``: exact for a linear block, an approximation
+    of ``psi_0`` through the tangent compliance for this nonlinear potential.
 
     .. warning::
 
@@ -1346,6 +1349,13 @@ class Viscoelasticity:
 @dataclass(frozen=True)
 class Damage:
     """Scalar damage mechanism.
+
+    The stiffness is scaled by ``1 - D``; ``D`` grows with the history maximum of the
+    driving force ``Y = -dpsi/dD = psi_0``, the undamaged stored energy (per reference
+    volume, MPa), ``1/2 sigma_eff : S : sigma_eff`` on the effective stress
+    ``sigma / (1 - D)``. Composed with other mechanisms, strain equivalence (Lemaitre):
+    they act on the effective stress, the yield criterion of a ``Plasticity`` in
+    particular, and the damage scales the result.
 
     Parameters
     ----------

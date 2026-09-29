@@ -99,8 +99,9 @@ strain that strain is the elastic logarithmic strain, and the mechanisms act
 additively on it. Like every other law, the block defines its stored energy per
 reference volume as a function of the elastic strain,
 :math:`\psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
-returns the Kirchhoff stress
-:math:`\boldsymbol{\tau} = \partial \psi / \partial \boldsymbol{\varepsilon}^{el}`;
+returns the Kirchhoff stress of :math:`W` at :math:`\mathbf{F} := \mathbf{V}^{el}`. It equals
+:math:`\partial \psi / \partial \boldsymbol{\varepsilon}^{el}` for an isotropic potential, and for the
+anisotropic ``HolzapfelElasticity`` only while it stays coaxial with :math:`\mathbf{V}^{el}`;
 the ``Stress`` output is :math:`\boldsymbol{\tau}/J` with the total :math:`J`.
 The volumetric term only sees the elastic volume change
 :math:`J^{el} = \exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{el})`, so a free
@@ -223,14 +224,17 @@ Mechanisms
      - ``terms = ((E_i, nu_i, etaB_i, etaS_i), ...)``
      - Generalized Maxwell (Prony) branches: per branch a spring
        (:math:`E_i, \nu_i`) in series with bulk/shear dashpots
-       (:math:`\eta_B, \eta_S`) — same rheology and layout as the kept
-       ``PRONK`` kernel
+       (:math:`\eta_B, \eta_S`) — same rheology, layout and closed-form
+       backward-Euler step as the kept ``PRONK`` kernel (identical results);
+       the branches follow the total strain and enter the tangent exactly
    * - :class:`Damage`
      - ``Y_0, Y_c, damage_type, A, n``
-     - Scalar stiffness-degradation damage; ``damage_type`` selects the
-       evolution law and its extra parameters: ``LINEAR`` (none),
-       ``EXPONENTIAL`` (``A``), ``POWER_LAW`` (``n``) or ``WEIBULL``
-       (``A, n``)
+     - Scalar stiffness-degradation damage, :math:`\boldsymbol{\sigma} = (1-D)\,\boldsymbol{\sigma}_{eff}`,
+       driven by the undamaged energy :math:`Y = \psi_0`; the other mechanisms
+       (plastic yield included) act on the effective stress (strain
+       equivalence). ``damage_type`` selects the evolution law and its extra
+       parameters: ``LINEAR`` (none), ``EXPONENTIAL`` (``A``), ``POWER_LAW``
+       (``n``) or ``WEIBULL`` (``A, n``)
 
 Multiple mechanisms compose additively on the inelastic strain; the
 registration order defines the statev layout (see the
@@ -240,7 +244,14 @@ Tangent operator and finite strain
 ----------------------------------
 
 ``MODUL`` honors the solver's ``tangent_mode`` (continuum or algorithmic,
-algorithmic being the 2.0 default — :doc:`solver`). Under the finite-strain
+algorithmic being the 2.0 default — :doc:`solver`). The algorithmic tangent of a
+composition is the exact derivative of its discrete update whenever the plasticity
+it contains is exact on its own (von Mises with isotropic hardening): the
+viscoelastic branches take a closed-form step and enter by the chain rule, and
+damage scales the effective response (plasticity yields on the effective stress
+:math:`\boldsymbol{\sigma}/(1-D)`). With kinematic hardening or another yield
+criterion the plastic cutting-plane update makes it approximate (see the note on
+the scope of the algorithmic tangent in :doc:`solver`). Under the finite-strain
 control types the composition acts as a Hencky hyperelastic law on the
 logarithmic strain and requires ``corate_type = 3`` (log_R) — which is the
 :func:`simcoon.solver.solve` default, so nothing needs to be passed. Any

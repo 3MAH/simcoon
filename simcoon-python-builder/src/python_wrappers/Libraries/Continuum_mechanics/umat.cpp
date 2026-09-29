@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <vector>
 
@@ -36,6 +37,8 @@
 #include <simcoon/Continuum_mechanics/Umat/Modular/legacy_adapters.hpp>
 
 #include <simcoon/Simulation/Maths/rotation.hpp> //for rotate_strain
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
@@ -64,6 +67,17 @@ namespace py=pybind11;
 namespace simpy {
 
 namespace {
+
+// Lab start stress sym(DR^-1 tau_start_tr DR) from the one passed (transported by the caller),
+// for Delta_work_conjugacy. Fixed size and the bool inv(): no heap (numpy allocator, GIL), no
+// throw in the parallel region; tau_start_tr itself on a singular DR.
+arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, const arma::mat &DR) {
+	arma::mat::fixed<3,3> DR_inv;
+	if (!arma::inv(DR_inv, arma::mat::fixed<3,3>(DR)))
+		return tau_start_tr;
+	const arma::mat::fixed<3,3> X = DR_inv*simcoon::v2t_stress(tau_start_tr)*DR;
+	return simcoon::t2v_stress(0.5*(X + X.t()));
+}
 
 // Raise simcoon.StepCut for a batch whose kernels asked for a smaller increment (tnew_dt < 1),
 // with the smallest ratio asked for. Serial context, GIL held. The inputs are copied before the
@@ -95,7 +109,7 @@ namespace {
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type, const bool &work_correction_on){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -106,6 +120,11 @@ namespace {
 		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
 			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+		}
+		if (corate_type < 0 || corate_type > 5) {
+			throw std::invalid_argument("corate must be 0 (Jaumann), 1 (Green-Naghdi), 2 (logarithmic), "
+			                            "3 (logarithmic_R), 4 (Truesdell) or 5 (logarithmic_F); got "
+			                            + std::to_string(corate_type));
 		}
 		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): operator[] would default-insert
@@ -122,7 +141,7 @@ namespace {
 
 		// Unified small-strain function pointer: (umat_name, Etot, DEtot, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
 		void (*umat_function)(const std::string &, const arma::vec &, const arma::vec &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &);
-		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, tangent_mode)
+		// Unified finite-strain function pointer: (umat_name, etot, Detot, F0, F1, sigma, Lt, L, DR, nprops, props, nstatev, statev, T, DT, Time, DTime, Wm, Wm_r, Wm_ir, Wm_d, ndi, nshr, start, tnew_dt, corate_type, tangent_mode)
 		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
 		int nshr;
@@ -324,6 +343,9 @@ namespace {
 		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial
 		// context: no shared write, and no NumPy-backed allocation, in the parallel region.
 		std::vector<double> tnew_dt(nb_points, 1.);
+		// log-corate work correction (finite-strain calls only): decided once, not per point
+		const bool work_correction = work_correction_on && kirchhoff_normalize
+		                             && simcoon::work_correction_applies(corate_type);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
@@ -354,6 +376,8 @@ namespace {
 				const double J0 = arma::det(F0.slice(pt));
 				if (J0 > simcoon::iota) sigma *= J0;
 			}
+			double tau_start[6];
+			for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
 			switch (arguments_type) {
 				case 1: {
 					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
@@ -365,6 +389,16 @@ namespace {
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
+			if (work_correction && !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.)) {
+				// true work under the log corates, as select_umat_M_finite. Only when F0 -> F1 is the
+				// increment: identical F (small-strain use with placeholder F) carries no D, and the
+				// correction would cancel the kernel's work.
+				const arma::vec::fixed<6> ts(tau_start);
+				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+				                                                Detot, F0.slice(pt), F1.slice(pt), corate_type);
+				Wm(0) += dW;
+				Wm(1) += dW;
+			}
 			if (kirchhoff_normalize) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).
@@ -395,7 +429,7 @@ namespace {
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const float Time, const float DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
 		// Point-wise thermomechanical UMAT batch entry (small strain), mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).

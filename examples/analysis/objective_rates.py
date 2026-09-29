@@ -94,8 +94,9 @@ for i, rate_name in enumerate(rate):
     )
     time = res["Time"]
     # res["Strain"] is the strain integrated with the objective rate of the run, which is
-    # what the comparison is about; res["GreenLagrange"] is the same for every rate.
-    e11, e22, e12 = res["LogStrain"][0], res["LogStrain"][1], res["LogStrain"][3]
+    # what the comparison is about; res["LogStrain"] and res["GreenLagrange"], computed from F,
+    # are the same for every rate.
+    e11, e22, e12 = res["Strain"][0], res["Strain"][1], res["Strain"][3]
     r11 = np.minimum(res["R"][0, 0], 1.0)
     values = [e11, e12, e22, np.arccos(r11)]
     for ax_idx, (row, col, _, ylabel) in enumerate(plot_info):

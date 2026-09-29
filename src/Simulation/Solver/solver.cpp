@@ -20,6 +20,7 @@
 //	for a homogeneous loading path, allowing repeatable steps
 ///@version 1.9
 
+#include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <fstream>
@@ -83,6 +84,18 @@ inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
     } else {
         throw;
     }
+}
+
+// Control type 3 controls ln V and rebuilds F = exp(ln V) R. The stored etot is ln V for every
+// corate but 4 (Truesdell), whose lower-convected strain is exactly the Almansi strain
+// e_A = 1/2 (I - b^-1), hence ln V = -1/2 ln(I - 2 e_A).
+inline mat ct3_lnV(const vec &etot, const int &corate_type) {
+    if (corate_type != 4)
+        return simcoon::v2t_strain(etot);
+    mat log_b_inv;
+    if (!logmat_sympd(log_b_inv, eye(3,3) - 2.*simcoon::v2t_strain(etot)))
+        throw simcoon::exception_inv("control type 3: I - 2 e_A is not positive definite");
+    return -0.5*log_b_inv;
 }
 
 }  // namespace
@@ -247,7 +260,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
+                rve.set_start((blocks[i].control_type == 1) ? 0 : corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -264,8 +277,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                             sptr_meca->generate(Time, sv_M->Etot, sv_M->PKII, sv_M->T);
                         }
                         else if (blocks[i].control_type == 3) {
-                            sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
-//                            sptr_meca->generate(Time, sv_M->etot, sv_M->tau, sv_M->T);
+                            // targets in ln V: rebuilt from the Almansi strain under corate 4
+                            sptr_meca->generate(Time, t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sv_M->sigma, sv_M->T);
                         }
                         else if (blocks[i].control_type == 4) {
                             vec Biot_vec = t2v_stress(sv_M->Biot_stress());
@@ -348,8 +361,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }
                                         DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
-                                        sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                        sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(sv_M->etot, sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
+                                        sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
+                                        sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
@@ -399,6 +412,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     }
                                     rve.to_start();
                                     run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                                    if (!sv_M->tau.is_finite()) {   // non-finite answer: cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_meca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -563,8 +583,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             }
                                             DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
-                                            sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                            sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(sv_M->etot, sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
+                                            sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
+                                            sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
@@ -653,6 +673,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         }                                        
                                         compteur++;
                                         error = norm(residual, 2.);
+                                        if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+
                                         
                                         if(tnew_dt < 1.) {
                                             if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
@@ -666,6 +688,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
                                             
                                             // Give up when the carried residual is not being absorbed:
@@ -748,7 +774,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     // small strain: the logarithmic strain is the infinitesimal one
                                     sv_M->Detot = sv_M->DEtot;
                                 }
-                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
+                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, (blocks[i].control_type == 1) ? 0 : corate_type);   // small strain: additive, no corate
                                 //start variables ready for the next increment
                                 
                             }
@@ -849,7 +875,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                     sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(corate_type); //DEtot = 0 and DT = 0 so we can use it safely here
+                rve.set_start(0); //DEtot = 0 and DT = 0 so we can use it safely here (small strain only)
                 start = false;
                 
                 /// Cycle loop
@@ -898,6 +924,13 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     
                                     run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                     sv_T->Q = -1.*sv_T->r;
+                                    if (!sv_T->sigma.is_finite() || !std::isfinite(sv_T->r)) {   // cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                     
                                 }
                                 else{
@@ -1028,6 +1061,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         
                                         compteur++;
                                         error = norm(residual, 2.);
+                                        if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+
                                         
                                         if(tnew_dt < 1.) {
                                             if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
@@ -1054,6 +1089,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
                                         
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
@@ -1104,7 +1143,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
 
                                 // thermomechanical blocks are small strain: log strain = infinitesimal one
                                 sv_T->Detot = sv_T->DEtot;
-                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
+                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, 0);   // small strain only: additive, no corate
                                 //start variables ready for the next increment
                                 
                             }

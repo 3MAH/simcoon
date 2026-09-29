@@ -87,13 +87,14 @@ namespace simcoon {
  *
  * **Integration:**
  *
- * Backward Euler on the unit multipliers \f$ v_i \f$ (accumulated flow length), the flow
- * direction \f$ \boldsymbol{\Lambda}_i = \dot{\boldsymbol{\varepsilon}}^{v}_i / \| \dot{\boldsymbol{\varepsilon}}^{v}_i \| \f$
- * refreshed at every iteration: the residuals
- * \f$ \Phi_i = \| \dot{\boldsymbol{\varepsilon}}^{v}_i \| - \Delta v_i / \Delta t \f$ are solved by
- * Newton--Raphson (the units are coupled through \f$ \boldsymbol{\sigma} \f$) and the consistent
- * tangent follows.
- * When \f$ \Delta t \le \f$ `iota` the branches are **inactive** (\f$ \Phi_i = 0 \f$): the
+ * Backward Euler, solved in closed form (kelvin_series_step, linear_viscoelastic.hpp): with
+ * \f$ \mathbf{C}_i = \Delta t\,(\mathbf{H}_i + \Delta t\,\mathbf{L}_i)^{-1} \f$ the implicit step is the
+ * linear system \f$ (\mathbf{I} + \mathbf{L}_0 \sum_i \mathbf{C}_i)\,\boldsymbol{\sigma} = \mathbf{L}_0
+ * (\boldsymbol{\varepsilon}^e - \sum_i \mathbf{B}_i^{-1} \boldsymbol{\varepsilon}^v_{i,n}) \f$, and the consistent tangent is
+ * \f$ \mathbf{L}_t = (\mathbf{M}_0 + \sum_i \mathbf{C}_i)^{-1} \f$ (exact, whatever @p tangent_mode but
+ * `tangent_none`, which returns \f$ \mathbf{L}_0 \f$). The multipliers \f$ v_i \f$ accumulate
+ * \f$ \| \Delta\boldsymbol{\varepsilon}^v_i \| \f$.
+ * When \f$ \Delta t \le \f$ `iota` the branches are **inactive** (\f$ \mathbf{C}_i = \mathbf{0} \f$): the
  * solver probes the tangent with a zero time increment at every block start and commits
  * that answer, so a kernel returning its stationary condition there would relax one
  * branch per block boundary.

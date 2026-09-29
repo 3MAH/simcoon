@@ -101,17 +101,14 @@ void DamageMechanism::register_variables() {
 
 // ========== Constitutive Computations ==========
 
-double DamageMechanism::compute_driving_force(const arma::vec& sigma, const arma::mat& /*S*/) const {
-    // Y = ½ σ : M : σ — strain-energy release rate. Uses the cached
-    // compliance-typed tensor4 (set in compute_constraints alongside the
-    // arma compliance), so no per-call 6×6 ctor copy.
-    return 0.5 * arma::dot(sigma, (M_cached_t_ * stress(sigma)).to_arma_voigt());
+double DamageMechanism::compute_driving_force(const arma::vec& sigma_eff, const arma::mat& /*S*/) const {
+    // Y = -dpsi/dD = psi_0, the UNDAMAGED energy, on the effective stress: exact for a linear
+    // block (M = the tangent compliance of the undamaged block, an approximation of psi_0 for a
+    // hyperelastic one).
+    return 0.5 * arma::dot(sigma_eff, (M_cached_t_ * stress(sigma_eff)).to_arma_voigt());
 }
 
-double DamageMechanism::compute_damage(double Y, double Y_max) const {
-    // Use maximum of current and historical driving force
-    double Y_eff = std::max(Y, Y_max);
-
+double DamageMechanism::compute_damage(double Y_eff) const {
     // No damage below threshold
     if (Y_eff <= Y_0_) {
         return 0.0;
@@ -176,18 +173,17 @@ void DamageMechanism::compute_constraints(
 
     const double Y_eff = std::max(Y_current_, Y_max);
 
-    // History-type constraint: Phi = Y - Y_max. Damage is integrated
-    // EXPLICITLY (update() sets Y_max = max(Y, Y_max) and D = f(Y_max)), not
-    // through the FB multiplier — so after update() Phi self-satisfies
-    // (Y == Y_max under loading, Phi <= 0 under unloading). The FB row exists
-    // only to carry damage into the coupled convergence check.
-    Phi(0) = Y_current_ - Y_max;
+    // The row is always satisfied: D is a fixed point of update() (D = f(max(Y_max at the step
+    // start, Y))), checked by consistency_residual(), not an FB multiplier.
+    Phi(0) = -1.0;
 
     // Critical value for convergence
-    Y_crit(0) = std::max(Y_0_, 1e-6);
+    Y_crit(0) = 1.0;
 
-    // Compute derivative dD/dY for tangent
-    if (Y_eff > Y_0_ && D_current_ < D_c_) {
+    // dD/dY for the tangent, only while damage grows in this increment (Y beyond the history
+    // maximum at the start of the step): under unloading the response is (1-D) L, no softening
+    const bool loading = Y_current_ > ivc_.get("Y_max").scalar_start();
+    if (loading && Y_eff > Y_0_ && D_current_ < D_c_) {
         switch (damage_type_) {
             case DamageType::LINEAR:
                 dD_dY_ = 1.0 / (Y_c_ - Y_0_);
@@ -226,32 +222,35 @@ void DamageMechanism::compute_jacobian_contribution(
 }
 
 const std::vector<tensor2>& DamageMechanism::dPhi_dsigma(
-    const arma::vec& sigma) const {
-    // Φ = Y - Y_max with Y = 0.5 σ : M : σ → dΦ/dσ = M · σ (strain-typed).
-    // M_cached_ is populated by compute_constraints (must be called first).
-    dPhi_dsigma_cache_[0] = M_cached_valid_
-        ? strain(arma::vec(M_cached_ * sigma))
-        : tensor2::zeros(Tensor2Type::strain);
-    return dPhi_dsigma_cache_;
+    const arma::vec& /*sigma*/) const {
+    // Damage is not solved by the FB rows (fixed point, consistency_residual): no stress
+    // coupling in the local Jacobian. The other mechanisms see the effective stress.
+    static const std::vector<tensor2> none;
+    return none;
 }
 
 const std::vector<tensor2>& DamageMechanism::kappa(
-    const arma::vec& sigma, double /*DT*/, const arma::mat& /*L_ref*/) const {
-    // κ^damage = ∂M/∂D · σ. For the (1-D)·L_0 model, M(D) = (1/(1-D)) · M_0,
-    // so ∂M/∂D = (1/(1-D)²) · M_0. This enables weak coupling into other
-    // mechanisms' Jacobian rows (they see stress perturbations from damage
-    // evolution within a single FB iteration instead of only through the
-    // outer-iteration stress update).
-    // NB: strain-typed (an M·σ product) — see the header note on the
-    // deliberate convention mix in the orchestrator's B assembly.
-    if (M_cached_valid_) {
-        const double D = ivc_.get("D").scalar();
-        const double factor = 1.0 / ((1.0 - D) * (1.0 - D));
-        kappa_cache_[0] = strain(arma::vec(factor * (M_cached_ * sigma)));
-    } else {
-        kappa_cache_[0] = tensor2::zeros(Tensor2Type::strain);
+    const arma::vec& /*sigma*/, double /*DT*/, const arma::mat& /*L_ref*/) const {
+    return kappa_cache_;   // zero: no multiplier carried
+}
+
+double DamageMechanism::consistency_residual(const arma::vec& sigma_eff) const {
+    if (!M_cached_valid_) {
+        return 0.;
     }
-    return kappa_cache_;
+    const double Y = compute_driving_force(sigma_eff, M_cached_);
+    const double Y_used = ivc_.get("Y_max").scalar();
+    const double target = std::max(ivc_.get("Y_max").scalar_start(), Y);
+    return std::abs(target - Y_used) / std::max({std::abs(target), Y_0_, 1e-12});
+}
+
+arma::mat DamageMechanism::stress_map(const arma::vec& sigma_eff) const {
+    // sigma = (1 - D) sigma_eff with dD = D'(Y) (S sigma_eff) . d sigma_eff while damage grows
+    arma::mat Q = stiffness_reduction() * arma::eye(6, 6);
+    if (dD_dY_ > simcoon::iota && ivc_.get("D").scalar() < D_c_ && M_cached_valid_) {
+        Q -= dD_dY_ * (sigma_eff * (M_cached_ * sigma_eff).t());
+    }
+    return Q;
 }
 
 double DamageMechanism::stiffness_reduction() const {
@@ -268,39 +267,25 @@ void DamageMechanism::update(
     const arma::vec& /*ds*/,
     int /*offset*/
 ) {
-    // Explicit integration: the FB multiplier increment is unused here.
-    // Advance the history and recompute damage directly from Y_max.
+    // Fixed point on D (the FB multiplier increment is unused): D = f(max(Y_max at step
+    // start, Y of this iterate)). The history is the one of the START of the step, never the
+    // running maximum over iterates, whose overshooting first iterate would freeze too much
+    // damage; the orchestrator iterates until consistency_residual() vanishes.
     double& Y_max = ivc_.get("Y_max").scalar();
-    if (Y_current_ > Y_max) {
-        Y_max = Y_current_;
-    }
+    Y_max = std::max(ivc_.get("Y_max").scalar_start(), Y_current_);
     double& D = ivc_.get("D").scalar();
-    D = compute_damage(Y_current_, Y_max);
+    D = compute_damage(Y_max);
 }
 
 void DamageMechanism::tangent_contribution(
-    const arma::vec& sigma,
-    const arma::mat& L,
-    const arma::vec& Ds,
-    int offset,
-    arma::mat& Lt
+    const arma::vec& /*sigma*/,
+    const arma::mat& /*L*/,
+    const arma::vec& /*Ds*/,
+    int /*offset*/,
+    arma::mat& /*Lt*/
 ) const {
-    double D = ivc_.get("D").scalar();
-
-    // Apply damage to tangent
-    // L_damaged = (1 - D) * L
-    Lt = (1.0 - D) * Lt;
-
-    // Additional contribution from damage evolution
-    // If damage is evolving, there's a coupling term
-    if (dD_dY_ > simcoon::iota && D < D_c_) {
-        // Compute dY/dsigma = S : sigma (using cached compliance)
-        arma::vec dY_dsigma = M_cached_ * sigma;
-
-        // Contribution: -dD/dY * sigma ⊗ dY/dsigma
-        // This represents the softening due to damage evolution
-        Lt -= dD_dY_ * (sigma * dY_dsigma.t());
-    }
+    // Nothing here: sigma = (1 - D) sigma_eff, so the orchestrator left-multiplies the tangent
+    // of the effective (undamaged) composition by stress_map().
 }
 
 void DamageMechanism::compute_work(
@@ -320,8 +305,7 @@ void DamageMechanism::compute_work(
     Wm_d = 0.0;
 
     if (dD > simcoon::iota) {
-        // Energy dissipated by damage
-        // W_d = Y * dD (approximately)
+        // Energy dissipated by damage: Y dD, Y = psi_0 being the force conjugate to D
         Wm_d = Y_current_ * dD;
     }
 }

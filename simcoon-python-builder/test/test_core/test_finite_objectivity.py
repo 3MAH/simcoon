@@ -32,8 +32,8 @@ _PLASTIC = {
 }
 
 
-@pytest.mark.parametrize("umat", ["EPICP", "EPCHA"])
-@pytest.mark.parametrize("corate", [0, 2, 3, 4])
+@pytest.mark.parametrize("umat, corate", [("EPICP", c) for c in (0, 2, 3, 4)]
+                         + [("EPCHA", c) for c in (0, 2, 3)])
 def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
     """A plastic prestretch, then a rigid 90 degree rotation: the stress just rotates, and no
     plastic strain or dissipation is created."""
@@ -52,6 +52,8 @@ def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
     np.testing.assert_allclose(tau2, R @ tau1 @ R.T, atol=1e-10 * np.abs(tau1).max())
     assert abs(r["Statev"][1, -1] - r["Statev"][1, i1]) < 1e-12
     assert abs(r["Wm"][3, -1] - r["Wm"][3, i1]) < 1e-8 * r["Wm"][3, i1]
+    # a rigid rotation does no work
+    assert abs(r["Wm"][0, -1] - r["Wm"][0, i1]) < 1e-8 * r["Wm"][0, i1]
 
 
 @pytest.mark.parametrize("corate", [0, 2, 3])
@@ -81,6 +83,16 @@ def test_stress_hold_under_spin(umat, control_type, corate):
 
 
 # ----- corate 4: the genuine convected (Truesdell / Oldroyd) rate --------------------------
+
+def test_epcha_refuses_truesdell():
+    """EPCHA stores X_i = 2/3 C_i a_i: the Truesdell rate convects a (strain) and X (stress)
+    differently and would pull the pair apart, so corate 4 is refused."""
+    props, nstatev, eps = _PLASTIC["EPCHA"]
+    st = StepMeca(control="F", value=np.diag([np.exp(eps), 1., 1.]).ravel().tolist(), ninc=5)
+    with pytest.raises(Exception, match="Truesdell"):
+        sim.solver.solve(Block(steps=[st], control_type="F"), "EPCHA", props, nstatev,
+                         T_init=290., corate=4)
+
 
 def _simple_shear(umat, props, ninc, corate=4, gamma=1.0):
     st = StepMeca(control="F", value=[1., gamma, 0., 0., 1., 0., 0., 0., 1.], time=1., ninc=ninc,
@@ -205,3 +217,66 @@ def test_modul_fibres_follow_the_material_like_standalone_holza():
                    / np.abs(ref).max())
     assert err[1] < 1e-4
     assert err[1] < 0.35 * err[0], "first-order convergence to the F-pushed fibres"
+
+
+# ----- mechanical work: Wm is the true work per reference volume --------------------------------
+
+def _work_PdF(r):
+    """Trapezoid of P : dF from the undeformed, stress-free start (the history begins at the
+    first converged increment)."""
+    F = np.concatenate([np.eye(3)[:, :, None], r["F"]], axis=2)
+    tau = np.concatenate([np.zeros((6, 1)), r["Kirchhoff"]], axis=1)
+    P = [_v2t(tau[:, k]) @ np.linalg.inv(F[:, :, k]).T for k in range(F.shape[2])]
+    return sum(0.5 * np.sum((P[k - 1] + P[k]) * (F[:, :, k] - F[:, :, k - 1]))
+               for k in range(1, F.shape[2]))
+
+
+def _shear(umat, props, nstatev, corate, ninc):
+    st = StepMeca(control="F", value=[1., 1., 0., 0., 1., 0., 0., 0., 1.], ninc=ninc,
+                  Dn_init=1., Dn_mini=1e-5)
+    return sim.solver.solve(Block(steps=[st], control_type="F"), umat, np.asarray(props, float),
+                            nstatev, T_init=290., corate=corate, record_tangent=False)
+
+
+_ORTHO = [150000., 10000., 10000., 0.3, 0.3, 0.45, 5000., 5000., 3500., 0., 0., 0.]
+
+
+@pytest.mark.parametrize("corate", [0, 1, 2, 3, 5])
+def test_wm_is_the_true_work_for_a_non_coaxial_state(corate):
+    """Orthotropic ELORT in simple shear: tau is not coaxial with V. Under the log corates
+    Delta_work_conjugacy makes Wm the trapezoid of P : dF itself, to round-off; under Jaumann
+    and Green-Naghdi (De = D dt) the kernel work converges to it at second order."""
+    rel = []
+    for ninc in (100, 400):
+        r = _shear("ELORT", _ORTHO, 1, corate, ninc)
+        W = _work_PdF(r)
+        rel.append(abs(r["Wm"][0, -1] - W) / W)
+    if corate in (2, 3, 5):
+        assert max(rel) < 1e-12
+    else:
+        assert rel[1] < 1e-4
+        assert rel[1] < 0.1 * rel[0], "second order"
+
+
+def test_truesdell_work_is_the_S_E_trapezoid():
+    """Under corate 4 the kernel work 1/2 (DF tau_n DF^T + tau) : De_A is exactly
+    1/2 (S_n + S_n+1) : (E_n+1 - E_n): no correction is needed."""
+    r = _shear("ELORT", _ORTHO, 1, 4, 50)
+    S = np.concatenate([np.zeros((6, 1)), r["PKII"]], axis=1)
+    E = np.concatenate([np.zeros((6, 1)), r["GreenLagrange"]], axis=1)
+    W = sum(0.5 * np.dot(S[:, k - 1] + S[:, k], E[:, k] - E[:, k - 1]) for k in range(1, S.shape[1]))
+    np.testing.assert_allclose(r["Wm"][0, -1], W, rtol=1e-12)
+
+
+def test_xbm_work_is_the_hencky_energy():
+    """The XBM rate is conjugate, D = (ln V)^log: ELISO under corate 2 stores
+    psi = 1/2 ln V : L : ln V, and Wm = Wm_r converges to it at second order."""
+    L = np.asarray(sim.L_iso([70000., 0.3], "Enu"))
+    rel = []
+    for ninc in (100, 400):
+        r = _shear("ELISO", [70000., 0.3, 0.], 1, 2, ninc)
+        e = r["LogStrain"][:, -1]
+        psi = 0.5 * e @ L @ e
+        rel.append(abs(r["Wm"][1, -1] - psi) / psi)
+    assert rel[1] < 1e-6
+    assert rel[1] < 0.1 * rel[0], "second order"

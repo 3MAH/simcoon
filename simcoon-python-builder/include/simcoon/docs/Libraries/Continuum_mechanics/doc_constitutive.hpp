@@ -671,7 +671,15 @@ constexpr auto umat = R"pbdoc(
         1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default), 4 Truesdell,
         5 log_F. Choosing the coupler's own rate here spares it a tangent
         conversion. Kernels fed the corotated strain (the small-strain and
-        log-strain boxes, MODUL, HYPOO) are in-rate already and ignore it.
+        log-strain boxes, MODUL, HYPOO) are in-rate already: their tangent
+        ignores it (the in-memory solver runs MODUL under 3 only), but Wm
+        does not (see Notes). Any other value raises ValueError.
+    work_correction : bool
+        Apply the log-corate work correction to Wm (default True, see Notes).
+        Pass False when the stresses, the strain increment and F0/F1 are not
+        written in one basis -- e.g. a caller that runs the law in a frame
+        following the material with DR = I while F stays in a fixed basis:
+        Wm is then the kernel's own work, consistent in that frame.
 
     Returns
     -------
@@ -691,6 +699,17 @@ constexpr auto umat = R"pbdoc(
     (or with a degenerate F) no conversion is applied, which is exact at small
     strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
     through unconverted.
+
+    Wm is the work per reference volume. The kernel alone accumulates
+    1/2 (tau_start + tau_end) : Detot on the strain increment it is handed,
+    tau_start being the start stress passed in (sigma * det(F0)). Under the
+    logarithmic corates (2, 3, 5), when F0 and F1 are given and differ, that
+    is replaced by the stress power 1/2 (tau_lab + tau_end) : D dt, with
+    D dt = sym(2 (F1 - F0)(F1 + F0)^-1) and tau_lab = sym(DR^-1 tau_start DR)
+    the start stress brought back to the lab frame; the difference is added to
+    Wm and Wm_r. With identical F0 and F1 (small-strain use), or with
+    work_correction=False, there is no correction. The in-memory solver applies
+    the same rule.
 
     Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
     d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J

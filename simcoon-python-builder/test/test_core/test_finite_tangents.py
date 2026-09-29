@@ -16,7 +16,7 @@ docstrings state the relative size a J error would have.
 
 import numpy as np
 import pytest
-from scipy.linalg import expm
+from scipy.linalg import expm, polar
 
 import simcoon as sim
 
@@ -220,3 +220,98 @@ def test_log_F_box_matches_finite_difference(name, props, nstatev):
     scale = np.abs(fd).max()
     np.testing.assert_allclose(Lt5, fd, atol=1e-6 * scale)
     np.testing.assert_allclose(Lt5, Lt3, atol=1e-9 * scale)
+
+
+@pytest.mark.parametrize("corate", [-1, 6])
+def test_umat_rejects_an_unknown_corate(corate):
+    """sim.umat validates the corate up front, before the parallel region."""
+    with pytest.raises(ValueError, match="corate"):
+        _umat("NEOHC", [1000., 10000.], _F(EPS0), corate=corate)
+
+
+def _v2t(v):
+    return np.array([[v[0], v[3], v[4]], [v[3], v[1], v[5]], [v[4], v[5], v[2]]])
+
+
+_WORK_CASES = [
+    ("ELISO", [70000., 0.3, 0.], 1),
+    ("ELORT", [150000., 10000., 10000., 0.3, 0.3, 0.45, 5000., 5000., 3500., 0., 0., 0.], 1),
+    ("EPICP", [200000., 0.3, 0., 300., 1000., 0.5], 8),
+    ("HYPOO", [150000., 10000., 10000., 0.3, 0.3, 0.45, 5000., 5000., 3500., 0., 0., 0.], 1),
+    ("SNTVE", [70000., 0.3, 0.], 1),
+    ("NEOHC", [1000., 10000.], 1),
+]
+
+
+@pytest.mark.parametrize("name, props, nstatev", _WORK_CASES)
+@pytest.mark.parametrize("corate", [0, 2, 3, 5])
+def test_umat_work_is_the_stress_power_under_the_log_corates(name, props, nstatev, corate):
+    """Non-coaxial state, arbitrary strain increment: under the log corates the Wm increment of
+    sim.umat is the midpoint stress power 1/2 (tau_n + tau_n+1) : D dt with the lab start stress,
+    as in the solver; under the others it stays the kernel's 1/2 (tau_n + tau_n+1) : De."""
+    rng = np.random.default_rng(0)
+    F0 = np.eye(3) + 0.2 * rng.standard_normal((3, 3))
+    F0 = F0 if np.linalg.det(F0) > 0 else -F0
+    F1 = (np.eye(3) + 0.05 * rng.standard_normal((3, 3))) @ F0
+    R0, R1 = polar(F0)[0], polar(F1)[0]   # the polar increment; the caller has transported sig0 already
+    De = 0.03 * rng.standard_normal(6)
+    sig0 = 100. * rng.standard_normal(6)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    cube = lambda m: np.asarray(m, dtype=float).reshape(3, 3, 1).copy(order="F")
+    statev = np.zeros((nstatev, 1), order="F")
+    statev[0] = 290.
+    sig1, _, Wm, _ = sim.umat(name, col(np.zeros(6)), col(De), cube(F0), cube(F1), col(sig0),
+                              cube(R1 @ R0.T), col(props), statev, 0.5, 1.,
+                              np.zeros((4, 1), order="F"), n_threads=1, corate=corate)
+    tau0 = sig0 * np.linalg.det(F0)   # as passed: transported to the end frame by the caller
+    tau1 = sig1[:, 0] * np.linalg.det(F1)
+    if corate in (2, 3, 5):
+        # stress power with the lab start stress DR^T tau0 DR, both stresses in one frame
+        DR = R1 @ R0.T
+        t0 = DR.T @ _v2t(tau0) @ DR
+        tau0_lab = np.array([t0[0, 0], t0[1, 1], t0[2, 2], t0[0, 1], t0[0, 2], t0[1, 2]])
+        Ldt = 2. * (F1 - F0) @ np.linalg.inv(F1 + F0)
+        ref = 0.5 * np.dot(tau0_lab + tau1, np.asarray(sim.t2v_strain(0.5 * (Ldt + Ldt.T))).ravel())
+    else:
+        ref = 0.5 * np.dot(tau0 + tau1, De)
+    np.testing.assert_allclose(Wm[0, 0], ref, rtol=1e-10, atol=1e-10 * abs(ref))
+
+
+def test_umat_work_with_identity_F_is_the_kernel_work():
+    """Identical F0 and F1 (small-strain use with placeholder deformation gradients) carry no
+    increment: the log-corate work correction must not apply, Wm is the kernel's trapezoid."""
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    De = np.array([1e-3, -3e-4, -3e-4, 5e-4, 0., 0.])
+    sig0 = np.array([50., 10., 10., 5., 0., 0.])
+    statev = np.zeros((8, 1), order="F")
+    statev[0] = 290.
+    sig1, _, Wm, _ = sim.umat("EPICP", col(np.zeros(6)), col(De), eye, eye, col(sig0), eye,
+                              col([200000., 0.3, 0., 300., 1000., 0.5]), statev, 0.5, 1.,
+                              np.zeros((4, 1), order="F"), n_threads=1, corate=3)
+    np.testing.assert_allclose(Wm[0, 0], 0.5 * np.dot(sig0 + sig1[:, 0], De), rtol=1e-12)
+
+
+def test_umat_work_correction_can_be_turned_off():
+    """work_correction=False (a caller whose F is not in the basis of its stresses): Wm is the
+    kernel's own trapezoid 1/2 (tau_n + tau_n+1) : De even under a log corate with F0 != F1."""
+    rng = np.random.default_rng(0)
+    F0 = np.eye(3) + 0.2 * rng.standard_normal((3, 3))
+    F0 = F0 if np.linalg.det(F0) > 0 else -F0
+    F1 = (np.eye(3) + 0.05 * rng.standard_normal((3, 3))) @ F0
+    De = 0.03 * rng.standard_normal(6)
+    sig0 = 100. * rng.standard_normal(6)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    cube = lambda m: np.asarray(m, dtype=float).reshape(3, 3, 1).copy(order="F")
+    statev = np.zeros((1, 1), order="F")
+    statev[0] = 290.
+    common = (col(np.zeros(6)), col(De), cube(F0), cube(F1), col(sig0), cube(np.eye(3)),
+              col([70000., 0.3, 0.]), statev)
+    sig1, _, Wm_off, _ = sim.umat("ELISO", *common, 0.5, 1., np.zeros((4, 1), order="F"),
+                                  n_threads=1, corate=3, work_correction=False)
+    tau0 = sig0 * np.linalg.det(F0)
+    tau1 = sig1[:, 0] * np.linalg.det(F1)
+    np.testing.assert_allclose(Wm_off[0, 0], 0.5 * np.dot(tau0 + tau1, De), rtol=1e-12)
+    _, _, Wm_on, _ = sim.umat("ELISO", *common, 0.5, 1., np.zeros((4, 1), order="F"),
+                              n_threads=1, corate=3)
+    assert abs(Wm_on[0, 0] - Wm_off[0, 0]) > 1e-6 * abs(Wm_off[0, 0])   # default: corrected

@@ -176,13 +176,29 @@ constitutive models (also exposed as named constants:
        2.0 renumbering)
    * - 2
      - algorithmic
-     - Simo–Hughes consistent (algorithmic) operator — **default**; exact
-       Jacobian of the discrete return map for J2-type flows, Q-quadratic
-       global convergence (this was mode 1 before the 2.0 renumbering)
+     - Simo–Hughes consistent (algorithmic) operator — **default**; the exact
+       Jacobian of the discrete update, hence Q-quadratic global convergence,
+       for von Mises plasticity with isotropic hardening and for the linear
+       viscoelastic and damage models and their ``MODUL`` compositions (see
+       the note below); approximate otherwise (this was mode 1 before the 2.0
+       renumbering)
    * - 3
      - closest-point
      - Reserved for the closest-point-projection exact operator (future
        release); currently raises an error
+
+.. note::
+   **Scope of the algorithmic tangent (2.1).** The plastic return mapping is a
+   cutting-plane scheme: the plastic strain accumulates along the flow direction
+   of each Newton iterate. The direction stays fixed during the step only for von
+   Mises with isotropic hardening (radial return); with kinematic hardening
+   (Prager, Armstrong–Frederick, Chaboche) or a Hill, DFA, Drucker or Tresca
+   criterion it rotates between iterates, the update depends on the iteration
+   path, and no tangent can be its exact derivative: the algorithmic operator is
+   then a close approximation (about :math:`10^{-4}` to :math:`10^{-2}` relative,
+   more for Tresca), which slows the global Newton iteration but leaves the
+   converged response unchanged. The closest-point integrator that makes it exact
+   (mode 3) is planned for the next version.
 
 .. note::
    **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and
@@ -225,8 +241,12 @@ The ``corate`` parameter controls the corotational formulation used in finite de
      - Convected (Truesdell / Oldroyd) rate, :math:`\Delta\mathbf{F} = \mathbf{F}_1\mathbf{F}_0^{-1}`:
        Kirchhoff stress transported upper-convected, strain lower-convected, so the
        accumulated strain is the Almansi strain :math:`\frac12(\mathbf{I} - \mathbf{b}^{-1})`
-       and the box tangent is the Lie tangent. Internal variables are transported with their
-       variance for the kernels that declare them (see :doc:`umat_catalog`)
+       and the box tangent is the Lie tangent. **Under this rate the default** ``Strain``
+       **output is the Almansi strain**, not the logarithmic one: read ``LogStrain`` for
+       :math:`\ln\mathbf{V}` (see :doc:`output`). ``"logarithmic"`` control still prescribes
+       :math:`\ln\mathbf{V}`, rebuilt from the stored strain as
+       :math:`-\frac12\ln(\mathbf{I} - 2\mathbf{e}_A)`. Internal variables are transported with
+       their variance for the kernels that declare them (see :doc:`umat_catalog`)
    * - 5
      - Logarithmic_F (log_F)
      - Convected logarithmic rate (pure :math:`\mathbf{F}` transport)
@@ -234,7 +254,10 @@ The ``corate`` parameter controls the corotational formulation used in finite de
 Use ``"logarithmic_R"`` (3) for production work. The Jaumann (0), Green-Naghdi (1) and
 ``"logarithmic_F"`` (5) rates are provided for research and for comparing objective rates:
 under combined stretching and rotation they are different constitutive assumptions and give
-different responses.
+different responses. Under Jaumann and Green-Naghdi, ``Strain`` is the integral of
+:math:`\mathbf{D}` along the rate's spin, path dependent and equal to :math:`\ln\mathbf{V}` only
+when the principal axes do not rotate; ``LogStrain`` and ``GreenLagrange`` are computed from :math:`\mathbf{F}`
+and exact for every rate. At small strain (``"small_strain"`` blocks) the rate plays no role.
 
 The loading path file
 ---------------------
@@ -303,6 +326,15 @@ Path and block parameters
    * - ``"gradU"`` (6)
      - Yes
      - Finite deformation with displacement gradient :math:`\nabla\mathbf{u}` control
+
+.. important::
+
+   A run is either entirely small strain or entirely finite strain: do not mix
+   ``"small_strain"`` blocks with NLGEOM blocks. A small-strain block never updates
+   :math:`\mathbf{F}` (it stays :math:`\mathbf{I}`), so a finite-strain block that follows it
+   restarts its kinematics from :math:`\mathbf{F} = \mathbf{I}` and the strain accumulated
+   before is not carried into :math:`\mathbf{F}` (under ``"truesdell"``, rebuilt from
+   :math:`\mathbf{F}`, it is lost outright). The NLGEOM control types can be mixed freely.
 
 .. note::
 

@@ -213,7 +213,8 @@ class Block:
         thermomechanical (coupled heat equation) and all steps must be.
     control_type : str or int
         Loading control (see CONTROL_TYPES). Thermomechanical blocks only
-        support 'small_strain'.
+        support 'small_strain'. A run is either all small strain or all finite
+        strain: a finite-strain block restarts from F = I after a small-strain one.
     ncycle : int
         Number of repetitions of the step sequence.
     """
