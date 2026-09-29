@@ -129,11 +129,14 @@ def test_objective_rate_batch(deformation_pair):
 
 @pytest.mark.parametrize("broadcast_F0", [True, False])
 def test_objective_rate_parallel_batch(deformation_pair, broadcast_F0):
-    """Large batches agree between one and four workers for both F0 layouts."""
+    """Large batches agree between one and four workers for both F0 layouts, point by point
+    (distinct F per point, so a wrong slice or an index race shows)."""
     F0, F1, dtime = deformation_pair
     count = 240
-    F1_batch = np.repeat(F1[:, :, None], count, axis=2)
-    F0_batch = F0 if broadcast_F0 else np.repeat(F0[:, :, None], count, axis=2)
+    rng = np.random.default_rng(7)
+    F1_batch = np.asfortranarray(F1[:, :, None] + 0.01 * rng.standard_normal((3, 3, count)))
+    F0_batch = F0 if broadcast_F0 else np.asfortranarray(
+        F0[:, :, None] + 0.005 * rng.standard_normal((3, 3, count)))
     for rate in ("jaumann", "logarithmic_F"):
         serial = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 1)
         parallel = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 4)

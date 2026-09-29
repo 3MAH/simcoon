@@ -32,6 +32,9 @@ _SCRIPT = textwrap.dedent("""
                           0.5, 1.0, col(np.zeros(4)), col(np.zeros(3)),
                           np.full(n, 290.0), np.zeros(n), n_threads=4)[0]
     assert np.isfinite(stress_T).all()
+    quats = np.tile([0.0, 0.0, np.sin(0.3), np.cos(0.3)], (n, 1))
+    for rotate in (sim._core._batch_voigt_stress_rotation, sim._core._batch_voigt_strain_rotation):
+        assert np.isfinite(rotate(quats)).all()
     print("ok")
 """)
 

@@ -663,7 +663,10 @@ constexpr auto umat = R"pbdoc(
     ndi : int
         Number of direct stress components (3, 2 or 1).
     n_threads : int
-        Threads for the point loop.
+        Point-loop threads: 1 runs serially on every platform; otherwise it
+        caps the worker threads on Windows (0 = all hardware threads), while
+        macOS (GCD) and Linux (OpenMP) size the pool themselves. Batches of
+        100 points or fewer always run serially.
     tangent_mode : int
         0 none, 1 continuum, 2 algorithmic (default).
     corate : int

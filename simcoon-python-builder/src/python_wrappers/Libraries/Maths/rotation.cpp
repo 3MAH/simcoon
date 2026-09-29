@@ -159,7 +159,12 @@ void register_rotation(py::module_& m) {
                     q_cpp(j, n) = buf(n, j);
                 }
             }
-            cube result = simcoon::batch_voigt_stress_rotation(q_cpp, active);
+            cube result;
+            {
+                // parallel loop in libsimcoon: release the GIL (see parallel_nogil.hpp)
+                py::gil_scoped_release release;
+                result = simcoon::batch_voigt_stress_rotation(q_cpp, active);
+            }
             // (6,6,N) → (N,6,6) numpy
             py::array_t<double> out({N, 6, 6});
             auto out_buf = out.mutable_unchecked<3>();
@@ -182,7 +187,11 @@ void register_rotation(py::module_& m) {
                     q_cpp(j, n) = buf(n, j);
                 }
             }
-            cube result = simcoon::batch_voigt_strain_rotation(q_cpp, active);
+            cube result;
+            {
+                py::gil_scoped_release release;   // parallel loop in libsimcoon
+                result = simcoon::batch_voigt_strain_rotation(q_cpp, active);
+            }
             py::array_t<double> out({N, 6, 6});
             auto out_buf = out.mutable_unchecked<3>();
             for (int n = 0; n < N; n++)

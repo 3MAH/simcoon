@@ -101,7 +101,11 @@ set_target_properties(_core PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
-target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+if(WIN32)
+  # MSVC (vcpkg): BLAS/LAPACK explicitly, as for libsimcoon (root CMakeLists.txt)
+  target_link_libraries(_core PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
 
 # Armadillo memory through numpy's allocator in every TU (buffers are stolen into numpy
 # arrays); python_module.cpp owns the module's numpy C-API table. Function in the root

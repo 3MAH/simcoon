@@ -406,9 +406,14 @@ endif()
 
 target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
-    PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
     PRIVATE dylib
 )
+# MSVC (vcpkg) build: BLAS/LAPACK linked explicitly. Elsewhere Armadillo carries them, and a
+# second, un-hinted find_package(BLAS) result on the link line could load a second BLAS (and
+# OpenMP runtime) into the process.
+if(WIN32)
+  target_link_libraries(simcoon PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
 
 # OpenMP for batch tensor operations — NOT on Windows: libsimcoon is loaded into Python
 # processes whose numpy/scipy stack carries another OpenMP runtime, and vcomp + iomp in one

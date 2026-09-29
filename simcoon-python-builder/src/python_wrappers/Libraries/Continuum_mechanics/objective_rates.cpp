@@ -211,7 +211,9 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                         vec de_col = de.unsafe_col(pt);
                         mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                         mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                        mat inv_DR_N = inv(DR_N);
+                        mat inv_DR_N;
+                        if (!inv(inv_DR_N, DR_N))   // as the single-point path
+                            throw simcoon::exception_inv("Error in inv function inside objective_rate (inv_DR_N).");
                         de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
                     }
                     break;
