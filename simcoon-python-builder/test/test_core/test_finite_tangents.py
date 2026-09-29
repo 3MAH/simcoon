@@ -275,3 +275,18 @@ def test_umat_work_is_the_stress_power_under_the_log_corates(name, props, nstate
     else:
         ref = 0.5 * np.dot(tau0 + tau1, De)
     np.testing.assert_allclose(Wm[0, 0], ref, rtol=1e-10, atol=1e-10 * abs(ref))
+
+
+def test_umat_work_with_identity_F_is_the_kernel_work():
+    """Identical F0 and F1 (small-strain use with placeholder deformation gradients) carry no
+    increment: the log-corate work correction must not apply, Wm is the kernel's trapezoid."""
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    eye = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    De = np.array([1e-3, -3e-4, -3e-4, 5e-4, 0., 0.])
+    sig0 = np.array([50., 10., 10., 5., 0., 0.])
+    statev = np.zeros((8, 1), order="F")
+    statev[0] = 290.
+    sig1, _, Wm, _ = sim.umat("EPICP", col(np.zeros(6)), col(De), eye, eye, col(sig0), eye,
+                              col([200000., 0.3, 0., 300., 1000., 0.5]), statev, 0.5, 1.,
+                              np.zeros((4, 1), order="F"), n_threads=1, corate=3)
+    np.testing.assert_allclose(Wm[0, 0], 0.5 * np.dot(sig0 + sig1[:, 0], De), rtol=1e-12)

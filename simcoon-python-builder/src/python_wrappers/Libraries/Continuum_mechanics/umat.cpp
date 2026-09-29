@@ -386,8 +386,10 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
-			if (kirchhoff_normalize) {
-				// true work under the log corates, as select_umat_M_finite
+			if (kirchhoff_normalize && !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.)) {
+				// true work under the log corates, as select_umat_M_finite. Only when F0 -> F1 is the
+				// increment: identical F (small-strain use with placeholder F) carries no D, and the
+				// correction would cancel the kernel's work.
 				const arma::vec::fixed<6> ts(tau_start);
 				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
 				                                                Detot, F0.slice(pt), F1.slice(pt), corate_type);
