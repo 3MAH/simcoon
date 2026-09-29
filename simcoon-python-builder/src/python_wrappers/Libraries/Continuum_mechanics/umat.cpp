@@ -179,7 +179,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		int nb_points = list_etot.n_cols; //number of material points
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
-		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
+		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(sigma_py); // copy: the umat updates it and it is returned to python
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		cube F0, F1;
 
@@ -206,8 +206,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			}
 		}
 
-		mat list_statev = simpy::numpy_to_arma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
-		mat list_Wm = simpy::numpy_to_arma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
+		mat list_statev = simpy::numpy_to_arma::arr_to_mat(statev_py); // copy: the umat updates it and it is returned to python
+		mat list_Wm = simpy::numpy_to_arma::arr_to_mat(Wm_py); // copy: the umat updates it and it is returned to python
 		cube L(ncomp, ncomp, nb_points);
 		cube Lt(ncomp, ncomp, nb_points);
 		int nprops = list_props.n_rows;
@@ -272,36 +272,26 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 21: case 22: case 23: case 24: case 25: case 26: case 27: {
-				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
-				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 2;
 				break;
 			}
 			case 32: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
-				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
-				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;
 				arguments_type = 2;
 				break;
 			}
 			case 29: { // SNTVE (Saint-Venant-Kirchhoff, finite)
-				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
-				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_saint_venant;
 				arguments_type = 2;
 				break;
 			}
 			case 30: { // NEOHI (Neo-Hookean incompressible, finite)
-				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
-				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_neo_hookean_incomp;
 				arguments_type = 2;
 				break;
 			}
 			case 31: { // OGDEN (isochoric principal stretches, finite)
-				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
-				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_pstretch;
 				arguments_type = 2;
 				break;
@@ -326,11 +316,15 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// (rescaling Lt by 1/J here would break that consumer by exactly J).
 		// So with deformation gradients provided: stress converted on the
 		// way in (x J0) and out (/ J1), Lt passed through untouched.
-		bool kirchhoff_normalize = false;
-		if (simcoon::stress_output_is_kirchhoff(umat_name_py)
-				&& F0_py.size() > 0 && F1_py.size() > 0) {
+		const bool kirchhoff_normalize = simcoon::stress_output_is_kirchhoff(umat_name_py)
+				&& F0_py.size() > 0 && F1_py.size() > 0;
+		// F0/F1 are converted once: a strict alias of the numpy buffers (see
+		// numpy_to_arma.hpp), never re-assigned.
+		if (arguments_type == 2 || kirchhoff_normalize) {
 			F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
 			F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
+		}
+		if (kirchhoff_normalize) {
 			// loud on a shape mismatch: silently skipping would return
 			// Kirchhoff under the documented Cauchy contract
 			if (F0.n_slices != (arma::uword)nb_points
@@ -338,7 +332,6 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				throw std::invalid_argument(
 					"umat: F0/F1 must carry one 3x3 slice per material point when provided");
 			}
-			kirchhoff_normalize = true;
 		}
 
 		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial

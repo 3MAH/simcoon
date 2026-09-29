@@ -21,7 +21,7 @@ py::array_t<double> sph(const py::array_t<double> &input, const bool &copy) {
     if(input.ndim() == 1) {    
         if (input.size() == 6) {
             vec v = simpy::numpy_to_arma::arr_to_col(input);
-            vec t = simcoon::sph(v);
+            vec t = v - simcoon::dev(v); // libsimcoon has no Voigt sph; exact complement of dev
             return carma::col_to_arr(t, copy);
         }
         else
@@ -29,13 +29,13 @@ py::array_t<double> sph(const py::array_t<double> &input, const bool &copy) {
     }
     else if(input.ndim() == 2) {
         if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
-            mat m = simpy::numpy_to_arma::arr_to_col(input);
+            mat m = simpy::numpy_to_arma::arr_to_mat(input);
             mat t = simcoon::sph(m);
             return carma::mat_to_arr(t, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {    
             vec v = simpy::numpy_to_arma::arr_to_col(input);
-            vec t = simcoon::sph(v);
+            vec t = v - simcoon::dev(v); // libsimcoon has no Voigt sph; exact complement of dev
             return carma::col_to_arr(t, copy);
         }
         else {
@@ -59,7 +59,7 @@ py::array_t<double> dev(const py::array_t<double> &input, const bool &copy) {
     }
     else if(input.ndim() == 2) {
         if ((input.shape(0) == 3)&&(input.shape(1) == 3)) {
-            mat m = simpy::numpy_to_arma::arr_to_col(input);
+            mat m = simpy::numpy_to_arma::arr_to_mat(input);
             mat t = simcoon::dev(m);
             return carma::mat_to_arr(t, copy);
         }
