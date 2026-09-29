@@ -694,13 +694,15 @@ constexpr auto umat = R"pbdoc(
     strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
     through unconverted.
 
-    Wm is the work per reference volume. Under the logarithmic corates (2, 3,
-    5), with F0 and F1 given, its increment is the stress power
-    1/2 (tau_n + tau_n+1) : D dt, D dt = sym(2 (F1 - F0)(F1 + F0)^-1), with the
-    lab start stress tau_n = sym(DR^-1 sigma_passed J0 DR) recovered from the
-    transported one the caller passes: the kernel alone accumulates
-    1/2 (tau_hat_n + tau_n+1) : De on the corate strain increment. The
-    difference also goes to Wm_r. The in-memory solver does the same.
+    Wm is the work per reference volume. The kernel alone accumulates
+    1/2 (tau_start + tau_end) : Detot on the strain increment it is handed,
+    tau_start being the start stress passed in (sigma * det(F0)). Under the
+    logarithmic corates (2, 3, 5), when F0 and F1 are given and differ, that
+    is replaced by the stress power 1/2 (tau_lab + tau_end) : D dt, with
+    D dt = sym(2 (F1 - F0)(F1 + F0)^-1) and tau_lab = sym(DR^-1 tau_start DR)
+    the start stress brought back to the lab frame; the difference is added to
+    Wm and Wm_r. With identical F0 and F1 (small-strain use) there is no
+    correction. The in-memory solver applies the same rule.
 
     Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
     d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J
