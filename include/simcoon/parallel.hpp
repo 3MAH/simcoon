@@ -16,7 +16,7 @@
  */
 
 ///@file parallel.hpp
-///@brief Cross-platform parallel-for: GCD on macOS, OpenMP on Linux, serial on Windows.
+///@brief Cross-platform parallel-for: GCD on macOS, OpenMP on Linux, native threads on Windows.
 
 #pragma once
 
@@ -56,11 +56,12 @@
 #include <mutex>
 #include <thread>
 #include <algorithm>
+#include <vector>
 
 /// @brief Exception-safe parallel loop over [0,N) for batch kernels that can throw.
 ///
-/// GCD on macOS, OpenMP on Linux (both parallel only past @p cutoff items), serial fallback
-/// elsewhere. The first exception thrown by @p func is captured and rethrown AFTER the loop:
+/// GCD on macOS, OpenMP on Linux, native threads on Windows (parallel only past
+/// @p cutoff items). The first exception thrown by @p func is rethrown AFTER the loop:
 /// an exception escaping an active OpenMP parallel region (or a GCD block) is undefined
 /// behavior (std::terminate), which would kill e.g. a Python session on the first singular
 /// slice of a batch.
@@ -104,6 +105,49 @@ void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100) {
             if (!*pe) *pe = std::current_exception();
         }
     });
+    if (eptr) std::rethrow_exception(eptr);
+}
+
+#elif defined(_WIN32)
+
+template<typename F>
+void simcoon_parallel_for_safe(int N, F&& func, int cutoff = 100, unsigned int n_threads = 0) {
+    if (N <= cutoff || n_threads == 1) {
+        for (int i = 0; i < N; ++i) func(i);
+        return;
+    }
+
+    const unsigned int hw = std::max(1u, std::thread::hardware_concurrency());
+    const unsigned int workers = std::min<unsigned int>(
+        static_cast<unsigned int>(N), n_threads ? std::min(n_threads, hw) : hw);
+    if (workers == 1) {
+        for (int i = 0; i < N; ++i) func(i);
+        return;
+    }
+
+    std::exception_ptr eptr;
+    std::mutex error_mutex;
+    std::vector<std::thread> threads;
+    threads.reserve(workers - 1);
+    auto run_chunk = [&](unsigned int worker) {
+        const int begin = static_cast<int>((static_cast<long long>(N) * worker) / workers);
+        const int end = static_cast<int>((static_cast<long long>(N) * (worker + 1)) / workers);
+        try {
+            for (int i = begin; i < end; ++i) func(i);
+        } catch (...) {
+            std::lock_guard<std::mutex> lock(error_mutex);
+            if (!eptr) eptr = std::current_exception();
+        }
+    };
+    try {
+        for (unsigned int worker = 1; worker < workers; ++worker)
+            threads.emplace_back(run_chunk, worker);
+    } catch (...) {
+        for (auto& thread : threads) thread.join();
+        throw;
+    }
+    run_chunk(0);
+    for (auto& thread : threads) thread.join();
     if (eptr) std::rethrow_exception(eptr);
 }
 

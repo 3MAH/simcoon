@@ -406,13 +406,14 @@ endif()
 
 target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
+    PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
     PRIVATE dylib
 )
 
 # OpenMP for batch tensor operations — NOT on Windows: libsimcoon is loaded into Python
 # processes whose numpy/scipy stack carries another OpenMP runtime, and vcomp + iomp in one
 # process deadlocks at the first parallel region (CI 6h hang in test_batch_apply_stress).
-# Mirrors the python-builder threading policy: GCD on macOS, OpenMP on Linux, serial on Windows.
+# The Python batch UMAT uses native threads on Windows, without linking OpenMP here.
 if(NOT WIN32)
   find_package(OpenMP)
   if(OpenMP_CXX_FOUND)

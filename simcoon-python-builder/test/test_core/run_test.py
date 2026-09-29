@@ -127,6 +127,20 @@ def test_objective_rate_batch(deformation_pair):
             assert np.allclose(D_batch[:, :, i], D_single, atol=1e-12), f"{name}: batch D[{i}] mismatch"
 
 
+@pytest.mark.parametrize("broadcast_F0", [True, False])
+def test_objective_rate_parallel_batch(deformation_pair, broadcast_F0):
+    """Large batches agree between one and four workers for both F0 layouts."""
+    F0, F1, dtime = deformation_pair
+    count = 240
+    F1_batch = np.repeat(F1[:, :, None], count, axis=2)
+    F0_batch = F0 if broadcast_F0 else np.repeat(F0[:, :, None], count, axis=2)
+    for rate in ("jaumann", "logarithmic_F"):
+        serial = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 1)
+        parallel = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 4)
+        for expected, actual in zip(serial, parallel):
+            np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
 def test_objective_rate_return_de_small_increment():
     """For very small deformation, de ≈ DTime * t2v_strain(D) for all rates."""
     F0 = np.eye(3)

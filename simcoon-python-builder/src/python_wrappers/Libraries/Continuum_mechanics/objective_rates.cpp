@@ -170,6 +170,17 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         }
         mat I = eye(3,3);        
 
+        // The worker loop only accesses Armadillo views and owned output buffers.
+        // Release the GIL while it runs, and use the exception-safe loop on every platform.
+        auto run_points = [&](auto&& point_kernel) {
+            py::gil_scoped_release release;
+#ifdef _WIN32
+            simcoon_parallel_for_safe(nb_points, point_kernel, 100, n_threads);
+#else
+            simcoon_parallel_for_safe(nb_points, point_kernel);
+#endif
+        };
+
         if (F0.ndim() == 2) {
             mat vec_F0 = carma::arr_to_mat_view(F0);
             for (int pt = 0; pt < nb_points; pt++) {
@@ -212,7 +223,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             if (F0_cpp.n_slices==1) {
                 mat vec_F0 = F0_cpp.slice(0);
 
-                simcoon_parallel_for(nb_points, [&](int pt) {
+                run_points([&](int pt) {
                     switch (corate) {
                         case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
@@ -247,7 +258,7 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                 });
             }
             else {
-                simcoon_parallel_for(nb_points, [&](int pt) {
+                run_points([&](int pt) {
                     switch (corate) {
                         case 0: case 1: case 2: case 4: {
                             corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));

@@ -385,7 +385,11 @@ namespace {
 				if (tnew_dt[pt] < 1.) raise_step_cut("umat", tnew_dt);
 			}
 		} else {
+#ifdef _WIN32
+			simcoon_parallel_for_safe(nb_points, point_kernel, 100, n_threads);
+#else
 			simcoon_parallel_for_safe(nb_points, point_kernel);
+#endif
 		}
 		// A built-in kernel asks for a smaller increment through tnew_dt (e.g. the modular
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
@@ -530,7 +534,7 @@ namespace {
 			}
 		}
 
-		simcoon_parallel_for_safe(nb_points, [&](int pt) {
+		auto thermal_point_kernel = [&](int pt) {
 			// props aliased without copying: no NumPy-backed allocation in the
 			// parallel region (same GIL-safety pattern as launch_umat)
 			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
@@ -558,7 +562,12 @@ namespace {
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;
-		});
+		};
+#ifdef _WIN32
+		simcoon_parallel_for_safe(nb_points, thermal_point_kernel, 100, n_threads);
+#else
+		simcoon_parallel_for_safe(nb_points, thermal_point_kernel);
+#endif
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
 
