@@ -683,6 +683,16 @@ constexpr auto umat = R"pbdoc(
         written in one basis -- e.g. a caller that runs the law in a frame
         following the material with DR = I while F stays in a fixed basis:
         Wm is then the kernel's own work, consistent in that frame.
+    tangent_output : str
+        Which tangent Lt holds (needs F1 unless 'box'):
+        'box' (default), the Kirchhoff box d(tau_hat)/d(De) in the corate;
+        'material', dS/dE (total Lagrangian);
+        'spatial', the Cauchy Lie tangent dsigma/dD (updated Lagrangian).
+        The conversion runs per point inside the parallel loop: the corate's
+        box -> dS/dE map (the one the solver uses; for corates 0-3 it equals
+        Lt_convert with DsigmaDe_JaumannDD_2_DSDE, DsigmaDe_GreenNaghdiDD_2_DSDE
+        or DsigmaDe_2_DSDE), then DSDE_2_Dsigma_LieDD for 'spatial'. One call
+        replaces umat plus one or two Lt_convert passes.
 
     Returns
     -------
@@ -714,9 +724,10 @@ constexpr auto umat = R"pbdoc(
     work_correction=False, there is no correction. The in-memory solver applies
     the same rule.
 
-    Lt is NOT rescaled to Cauchy: it is the Kirchhoff box tangent
-    d(tau_hat)/d(De) in the requested corate, with no J. Rescaling it by 1/J
-    would break Lt_convert, which consumes exactly this object.
+    With tangent_output='box', Lt is NOT rescaled to Cauchy: it is the
+    Kirchhoff box tangent d(tau_hat)/d(De) in the requested corate, with no J.
+    Rescaling it by 1/J would break Lt_convert, which consumes exactly this
+    object.
 
     A kernel may request a step cut instead of integrating a too-large increment
     (the modular engine on a non-finite or runaway return mapping, the SMR* SMA

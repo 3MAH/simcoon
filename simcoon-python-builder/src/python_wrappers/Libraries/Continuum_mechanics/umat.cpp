@@ -109,7 +109,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type, const bool &work_correction_on){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type, const bool &work_correction_on, const std::string &tangent_output){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -126,6 +126,15 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			                            "3 (logarithmic_R), 4 (Truesdell) or 5 (logarithmic_F); got "
 			                            + std::to_string(corate_type));
 		}
+		// tangent_output: the box d(tau_hat)/dDe as the kernels return it, or the material dS/dE
+		// (TL) / spatial Lie dsigma/dD (UL) tangent, converted per point inside the parallel loop
+		enum { tangent_out_box, tangent_out_material, tangent_out_spatial };
+		static const std::map<string, int> list_tangent_output = { {"box", tangent_out_box}, {"material", tangent_out_material}, {"spatial", tangent_out_spatial} };
+		const auto it_tangent_out = list_tangent_output.find(tangent_output);
+		if (it_tangent_out == list_tangent_output.end()) {
+			throw std::invalid_argument("tangent_output must be 'box', 'material' or 'spatial'; got '" + tangent_output + "'");
+		}
+		const int tangent_out = it_tangent_out->second;
 		static const std::map<string, int> list_umat = { {"UMEXT",0},{"UMABA",1},{"ELISO",201},{"ELIST",201},{"ELORT",201},{"EPICP",5},{"EPKCP",201},{"EPCHA",7},{"EPHIL",201},{"EPTRI",201},{"EPHAC",201},{"EPANI",201},{"EPDFA",201},{"EPHIN",201},{"SMADI",13},{"SMADC",13},{"SMAAI",13},{"SMAAC",13},{"LLDM0",15},{"ZENER",16},{"ZENNK",17},{"PRONK",18},{"SMAMO",19},{"SMAMC",20},{"NEOHC",21},{"MOORI",22},{"YEOHH",23},{"ISHAH",24},{"GETHH",25},{"SWANH",26},{"HOLZA",27},{"EPCHG",201},{"SMRDI",28},{"SMRDC",28},{"SMRAI",28},{"SMRAC",28},{"SNTVE",29},{"NEOHI",30},{"OGDEN",31},{"HYPOO",32},{"MODUL",200},{"MIHEN",100},{"MIMTN",101},{"MISCN",103},{"MIPLN",104},{"PYEXT",300} };
 		// guarded lookup (serial context): operator[] would default-insert
 		// 0 = UMEXT, silently routing typos to the external-plugin path
@@ -340,6 +349,14 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			kirchhoff_normalize = true;
 		}
 
+		if (tangent_out != tangent_out_box) {
+			if (F1_py.ndim() != 3 || F1_py.shape(2) != nb_points) {
+				throw std::invalid_argument("umat: tangent_output='" + tangent_output
+				                            + "' needs F1 with one 3x3 slice per material point");
+			}
+			F1 = carma::arr_to_cube_view(F1_py);
+		}
+
 		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial
 		// context: no shared write, and no NumPy-backed allocation, in the parallel region.
 		std::vector<double> tnew_dt(nb_points, 1.);
@@ -405,6 +422,12 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				// Same degenerate-F passthrough as the input side.
 				const double J1 = arma::det(F1.slice(pt));
 				if (J1 > simcoon::iota) sigma /= J1;
+			}
+			if (tangent_out != tangent_out_box) {
+				// same maps as Lt_convert on the returned (Cauchy) stress, with the corate the law ran with
+				const mat dSdE = simcoon::DtauDe_corate_2_DSDE(Lt.slice(pt), corate_type, F1.slice(pt),
+				                                               arma::det(F1.slice(pt))*simcoon::v2t_stress(sigma));
+				Lt.slice(pt) = (tangent_out == tangent_out_material) ? dSdE : simcoon::DSDE_2_Dsigma_LieDD(dSdE, F1.slice(pt));
 			}
 		};
 		if (serial) {
