@@ -343,6 +343,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial
 		// context: no shared write, and no NumPy-backed allocation, in the parallel region.
 		std::vector<double> tnew_dt(nb_points, 1.);
+		// log-corate work correction (finite-strain calls only): decided once, not per point
+		const bool work_correction = kirchhoff_normalize && simcoon::work_correction_applies(corate_type);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying so the parallel region makes no
 			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
@@ -386,7 +388,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				}
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
-			if (kirchhoff_normalize && !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.)) {
+			if (work_correction && !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.)) {
 				// true work under the log corates, as select_umat_M_finite. Only when F0 -> F1 is the
 				// increment: identical F (small-strain use with placeholder F) carries no D, and the
 				// correction would cancel the kernel's work.

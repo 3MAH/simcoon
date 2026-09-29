@@ -370,6 +370,16 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
 /**
+ * @brief Whether the work correction applies: the logarithmic corates 2 (XBM), 3 (log_R) and
+ *        5 (log_F), whose box kernels work on a strain increment other than \f$ \mathbf{D}\,\Delta t \f$.
+ * @param corate_type the corate (see corate_kinematics)
+ * @return true for 2, 3 and 5
+ */
+inline bool work_correction_applies(const int corate_type) {
+    return corate_type == 2 || corate_type == 3 || corate_type == 5;
+}
+
+/**
  * @brief Correction that turns a box kernel's work into the stress power.
  *
  * A box kernel accumulates \f$ \tfrac12(\hat{\boldsymbol{\tau}}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{e} \f$,

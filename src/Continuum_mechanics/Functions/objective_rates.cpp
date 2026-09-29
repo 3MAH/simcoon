@@ -559,7 +559,7 @@ mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const m
 }
 
 double Delta_work_conjugacy(const vec &tau_start, const vec &tau_start_tr, const vec &tau, const vec &Detot, const mat &F0, const mat &F1, const int &corate_type) {
-    if (corate_type != 2 && corate_type != 3 && corate_type != 5)
+    if (!work_correction_applies(corate_type))
         return 0.;
     // fixed size and the bool inv(): no heap, no throw (sim.umat calls it in a parallel region)
     mat::fixed<3,3> Fsum_inv;
