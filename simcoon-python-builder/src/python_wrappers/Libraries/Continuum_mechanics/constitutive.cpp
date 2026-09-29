@@ -3,6 +3,7 @@
 
 #include <string>
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -67,7 +68,7 @@ py::array_t<double> Ir05(const bool &copy) {
 //Exhaustive list of possible third argument :
 // ‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 py::array_t<double> L_iso(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_iso(props_cpp(0),props_cpp(1),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -77,7 +78,7 @@ py::array_t<double> L_iso(const py::array_t<double> &props, const std::string &c
 //Exhaustive list of possible third argument :
 //‘Enu’,’nuE,’Kmu’,’muK’, ‘KG’, ‘GK’, ‘lambdamu’, ‘mulambda’, ‘lambdaG’, ‘Glambda’.
 py::array_t<double> M_iso(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_iso(props_cpp(0),props_cpp(1),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -85,7 +86,7 @@ py::array_t<double> M_iso(const py::array_t<double> &props, const std::string &c
 //Returns the elastic stiffness tensor for a cubic material.
 //Arguments are the stiffness coefficients C11, C12 and C44 ('Cii'), or E, nu and G ('EnuG')
 py::array_t<double> L_cubic(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);    
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_cubic(props_cpp(0),props_cpp(1),props_cpp(2),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -93,7 +94,7 @@ py::array_t<double> L_cubic(const py::array_t<double> &props, const std::string 
 //Returns the elastic compliance tensor for an isotropic material.
 //Arguments are the stiffness coefficients C11, C12 and C44 ('Cii'), or E, nu and G ('EnuG')
 py::array_t<double> M_cubic(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);    
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_cubic(props_cpp(0),props_cpp(1),props_cpp(2),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -103,7 +104,7 @@ py::array_t<double> M_cubic(const py::array_t<double> &props, const std::string 
 //C11,C12,C13,C22,C23,C13,C44,C55,C66 ('Cii')
 //E1,E2,E3,nu12,nu13,nu23,G12,G13,G23 ('EnuG')
 py::array_t<double> L_ortho(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_ortho(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),props_cpp(5),props_cpp(6),props_cpp(7),props_cpp(8),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -113,7 +114,7 @@ py::array_t<double> L_ortho(const py::array_t<double> &props, const std::string 
 //C11,C12,C13,C22,C23,C13,C44,C55,C66 ('Cii')
 //E1,E2,E3,nu12,nu13,nu23,G12,G13,G23 ('EnuG')
 py::array_t<double> M_ortho(const py::array_t<double> &props, const std::string &conv, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_ortho(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),props_cpp(5),props_cpp(6),props_cpp(7),props_cpp(8),conv);
     return carma::mat_to_arr(m, copy);
 }
@@ -121,7 +122,7 @@ py::array_t<double> M_ortho(const py::array_t<double> &props, const std::string 
 //Returns the elastic stiffness tensor for an isotropic transverse material.
 //Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 py::array_t<double> L_isotrans(const py::array_t<double> &props, const int &axis, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_isotrans(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),axis);
     return carma::mat_to_arr(m, copy);
 }
@@ -129,14 +130,14 @@ py::array_t<double> L_isotrans(const py::array_t<double> &props, const int &axis
 //Returns the elastic compliance tensor for an isotropic transverse material.
 //Arguments are longitudinal Young modulus EL, transverse young modulus, Poisson’s ratio for loading along the longitudinal axis nuTL, Poisson’s ratio for loading along the transverse axis nuTT, shear modulus GLT and the axis of symmetry.
 py::array_t<double> M_isotrans(const py::array_t<double> &props, const int &axis, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_isotrans(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),axis);
     return carma::mat_to_arr(m, copy);
 }
 //Provides the viscous tensor H an isotropic material.
 //The two first arguments are a couple of viscous coefficients (the first is bulk, the second is shear).
 py::array_t<double> H_iso(const py::array_t<double> &props, const bool &copy){
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::H_iso(props_cpp(0),props_cpp(1));
     return carma::mat_to_arr(m, copy);
 }

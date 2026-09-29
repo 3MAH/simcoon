@@ -4,6 +4,7 @@
 
 #include <string>
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -47,7 +48,7 @@ void register_rotation(py::module_& m) {
         .def_static("from_quat",
             [](py::array_t<double> quat) {
                 validate_vector_size(quat, 4, "quat");
-                vec q = carma::arr_to_col(quat);
+                vec q = simpy::numpy_to_arma::arr_to_col(quat);
                 return simcoon::Rotation::from_quat(q);
             },
             py::arg("quat"),
@@ -72,7 +73,7 @@ void register_rotation(py::module_& m) {
         .def("apply_tensor",
             [](const simcoon::Rotation& self, py::array_t<double> m, bool inverse) {
                 validate_matrix_size(m, 3, 3, "m");
-                mat m_cpp = carma::arr_to_mat(m);
+                mat m_cpp = simpy::numpy_to_arma::arr_to_mat(m);
                 mat result = self.apply_tensor(m_cpp, inverse);
                 return carma::mat_to_arr(result);
             },
@@ -82,7 +83,7 @@ void register_rotation(py::module_& m) {
         .def("apply_stress",
             [](const simcoon::Rotation& self, py::array_t<double> sigma, bool active) {
                 validate_vector_size(sigma, 6, "sigma");
-                vec sigma_cpp = carma::arr_to_col(sigma);
+                vec sigma_cpp = simpy::numpy_to_arma::arr_to_col(sigma);
                 vec result = self.apply_stress(sigma_cpp, active);
                 return carma::col_to_arr(result);
             },
@@ -92,7 +93,7 @@ void register_rotation(py::module_& m) {
         .def("apply_strain",
             [](const simcoon::Rotation& self, py::array_t<double> epsilon, bool active) {
                 validate_vector_size(epsilon, 6, "epsilon");
-                vec epsilon_cpp = carma::arr_to_col(epsilon);
+                vec epsilon_cpp = simpy::numpy_to_arma::arr_to_col(epsilon);
                 vec result = self.apply_strain(epsilon_cpp, active);
                 return carma::col_to_arr(result);
             },
@@ -102,7 +103,7 @@ void register_rotation(py::module_& m) {
         .def("apply_stiffness",
             [](const simcoon::Rotation& self, py::array_t<double> L, bool active) {
                 validate_matrix_size(L, 6, 6, "L");
-                mat L_cpp = carma::arr_to_mat(L);
+                mat L_cpp = simpy::numpy_to_arma::arr_to_mat(L);
                 mat result = self.apply_stiffness(L_cpp, active);
                 return carma::mat_to_arr(result);
             },
@@ -112,7 +113,7 @@ void register_rotation(py::module_& m) {
         .def("apply_compliance",
             [](const simcoon::Rotation& self, py::array_t<double> M, bool active) {
                 validate_matrix_size(M, 6, 6, "M");
-                mat M_cpp = carma::arr_to_mat(M);
+                mat M_cpp = simpy::numpy_to_arma::arr_to_mat(M);
                 mat result = self.apply_compliance(M_cpp, active);
                 return carma::mat_to_arr(result);
             },
@@ -122,7 +123,7 @@ void register_rotation(py::module_& m) {
         .def("apply_strain_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> A, bool active) {
                 validate_matrix_size(A, 6, 6, "A");
-                mat A_cpp = carma::arr_to_mat(A);
+                mat A_cpp = simpy::numpy_to_arma::arr_to_mat(A);
                 mat result = self.apply_strain_concentration(A_cpp, active);
                 return carma::mat_to_arr(result);
             },
@@ -132,7 +133,7 @@ void register_rotation(py::module_& m) {
         .def("apply_stress_concentration",
             [](const simcoon::Rotation& self, py::array_t<double> B, bool active) {
                 validate_matrix_size(B, 6, 6, "B");
-                mat B_cpp = carma::arr_to_mat(B);
+                mat B_cpp = simpy::numpy_to_arma::arr_to_mat(B);
                 mat result = self.apply_stress_concentration(B_cpp, active);
                 return carma::mat_to_arr(result);
             },

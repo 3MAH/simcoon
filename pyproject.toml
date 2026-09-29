@@ -60,6 +60,7 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "setuptools>=64",  # build the custom NumPy allocator used by regression tests
 ]
 identify = [
     "scikit-learn>=1.0",

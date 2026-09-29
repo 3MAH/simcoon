@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -168,18 +169,18 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		bool use_temp = false;
 		vec vec_T;
 		if (T_py.has_value()) {
-			vec_T = carma::arr_to_col_view(T_py.value());
+			vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py.value());
 			use_temp = true;
 		}
 		else {
 			use_temp = false; 
 		}
 
-		mat list_etot = carma::arr_to_mat_view(etot_py);		
+		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		int nb_points = list_etot.n_cols; //number of material points
-		mat list_Detot = carma::arr_to_mat_view(Detot_py); 
-		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
-		cube DR = carma::arr_to_cube_view(DR_py); 
+		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy data because values are changed by the umat and returned to python
+		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		cube F0, F1;
 
 		// props: (nprops, 1) or a 1-D (nprops,) vector = shared by all points; (nprops, n) = per point.
@@ -189,14 +190,14 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		mat list_props;
 		bool unique_props = false;
 		if (props_py.ndim() == 1) {
-			props = carma::arr_to_col(props_py);
+			props = simpy::numpy_to_arma::arr_to_col(props_py);
 			list_props = mat(props.memptr(), props.n_elem, 1, false, true);
 			unique_props = true;
 		} else {
 			if (props_py.ndim() != 2) {
 				throw std::invalid_argument("umat: props must be a (nprops,) vector or a (nprops, 1 | n_points) array");
 			}
-			list_props = carma::arr_to_mat_view(props_py);
+			list_props = simpy::numpy_to_arma::arr_to_mat_view(props_py);
 			if (props_py.shape(1) == 1) {
 				props = list_props.col(0);
 				unique_props = true;
@@ -205,8 +206,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			}
 		}
 
-		mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
-		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
+		mat list_statev = simpy::numpy_to_arma::arr_to_mat(std::move(statev_py)); //copy data because values are changed by the umat and returned to python
+		mat list_Wm = simpy::numpy_to_arma::arr_to_mat(std::move(Wm_py)); //copy data because values are changed by the umat and returned to python
 		cube L(ncomp, ncomp, nb_points);
 		cube Lt(ncomp, ncomp, nb_points);
 		int nprops = list_props.n_rows;
@@ -271,36 +272,36 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 21: case 22: case 23: case 24: case 25: case 26: case 27: {
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_invariants;
 				arguments_type = 2;
 				break;
 			}
 			case 32: { // HYPOO (hypoelastic orthotropic, finite): corotational Kirchhoff rate
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_hypoelasticity_ortho;
 				arguments_type = 2;
 				break;
 			}
 			case 29: { // SNTVE (Saint-Venant-Kirchhoff, finite)
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_saint_venant;
 				arguments_type = 2;
 				break;
 			}
 			case 30: { // NEOHI (Neo-Hookean incompressible, finite)
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_neo_hookean_incomp;
 				arguments_type = 2;
 				break;
 			}
 			case 31: { // OGDEN (isochoric principal stretches, finite)
-				F0 = carma::arr_to_cube_view(F0_py);
-				F1 = carma::arr_to_cube_view(F1_py);
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+				F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 				umat_function_finite = &simcoon::umat_generic_hyper_pstretch;
 				arguments_type = 2;
 				break;
@@ -328,8 +329,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		bool kirchhoff_normalize = false;
 		if (simcoon::stress_output_is_kirchhoff(umat_name_py)
 				&& F0_py.size() > 0 && F1_py.size() > 0) {
-			F0 = carma::arr_to_cube_view(F0_py);
-			F1 = carma::arr_to_cube_view(F1_py);
+			F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+			F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 			// loud on a shape mismatch: silently skipping would return
 			// Kirchhoff under the documented Cauchy contract
 			if (F0.n_slices != (arma::uword)nb_points
@@ -467,18 +468,18 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		if (Time > simcoon::limit) {
 			start = false;
 		}
-		mat list_etot = carma::arr_to_mat_view(etot_py);
+		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
 		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
-		mat list_Detot = carma::arr_to_mat_view(Detot_py);
-		mat list_sigma = carma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
-		cube DR = carma::arr_to_cube_view(DR_py);
-		vec vec_T = carma::arr_to_col_view(T_py);
-		vec vec_DT = carma::arr_to_col_view(DT_py);
+		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
+		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
+		vec vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py);
+		vec vec_DT = simpy::numpy_to_arma::arr_to_col_view(DT_py);
 
 		vec props;
 		//n_cols (not the raw numpy shape) so a 1-D (nprops,) array is a valid single-props input
-		mat list_props = carma::arr_to_mat_view(props_py);
+		mat list_props = simpy::numpy_to_arma::arr_to_mat_view(props_py);
 		bool unique_props = false;
 		if (list_props.n_cols == 1) {
 			props = list_props.col(0);
@@ -489,9 +490,9 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			                            + std::to_string(list_props.n_cols) + " columns for " + std::to_string(nb_points) + " points");
 		}
 
-		mat list_statev = carma::arr_to_mat(std::move(statev_py)); //copy: modified by the umat and returned
-		mat list_Wm = carma::arr_to_mat(std::move(Wm_py)); //copy: modified by the umat and returned
-		mat list_Wt = carma::arr_to_mat(std::move(Wt_py)); //copy: modified by the umat and returned
+		mat list_statev = simpy::numpy_to_arma::arr_to_mat(std::move(statev_py)); //copy: modified by the umat and returned
+		mat list_Wm = simpy::numpy_to_arma::arr_to_mat(std::move(Wm_py)); //copy: modified by the umat and returned
+		mat list_Wt = simpy::numpy_to_arma::arr_to_mat(std::move(Wt_py)); //copy: modified by the umat and returned
 
 		//Validate every batch dimension here, in serial context: an out-of-range
 		//access inside the non-exception-safe parallel region would terminate the process
