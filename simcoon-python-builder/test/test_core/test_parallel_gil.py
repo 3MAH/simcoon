@@ -1,10 +1,8 @@
-"""Parallel batch UMATs must not wait on the GIL.
+"""Windows batch kernels complete under tracemalloc without a GIL deadlock.
 
-The worker threads of the batch loops allocate armadillo memory; on Windows libsimcoon routes
-it through numpy's allocator, whose tracemalloc hook takes the GIL. If the calling thread kept
-the GIL while joining the workers, a traced process would deadlock. Run a batch past the
-parallel cutoff under ``-X tracemalloc`` in a subprocess, with a timeout, so a regression fails
-instead of hanging the suite. Windows only: elsewhere libsimcoon uses the system allocator.
+Run batches past the parallel cutoff in a subprocess with a timeout, so a regression
+fails instead of hanging the suite. Armadillo currently uses malloc/free on Windows;
+the test also guards against future changes to its allocator or the worker kernels.
 """
 
 import os

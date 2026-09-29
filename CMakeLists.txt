@@ -86,16 +86,28 @@ function(add_simcoon_test test_src)
 
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
+  if(WIN32)
+    # Some Armadillo packages do not propagate their BLAS/LAPACK link dependencies.
+    target_link_libraries(${testName} PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  endif()
 
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
-    add_dependencies(${testName} simcoon)
-    add_custom_command(TARGET ${testName} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory
-      ${CMAKE_BINARY_DIR}/bin
-      ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
-    )
+    # Several tests share each output folder. A POST_BUILD copy on every test
+    # races when Ninja links those executables concurrently on Windows.
+    string(MAKE_C_IDENTIFIER "${testFolder}" testFolderId)
+    set(runtimeTarget "simcoon_test_runtime_${testFolderId}")
+    if(NOT TARGET ${runtimeTarget})
+      add_custom_target(${runtimeTarget}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:simcoon> ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+        DEPENDS simcoon
+        VERBATIM
+      )
+    endif()
+    add_dependencies(${testName} ${runtimeTarget})
   endif()
 
   # Create test output directory at build time (not configure time)
@@ -471,6 +483,9 @@ if(SIMCOON_BUILD_TESTS)
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
   )
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
+  if(WIN32)
+    target_link_libraries(umat_plugin_ext PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  endif()
   if(MSVC)
     set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
     set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)

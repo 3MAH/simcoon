@@ -1,9 +1,9 @@
-// Armadillo memory through the allocator numpy frees with, for every translation unit of a module.
+// Armadillo memory through the C runtime allocator, for every translation unit of a module.
 //
 // Force-included by CMake (simcoon_use_numpy_allocator) into every translation unit of
-// _core and, on Windows, of libsimcoon: armadillo buffers are stolen into numpy arrays
-// (carma, zero-copy), so whoever allocates them must use the allocator numpy frees with,
-// and on Windows the two DLLs must agree or the heap is corrupted (carma issue #89).
+// _core and, on Windows, of libsimcoon: carma returns zero-copy numpy arrays whose
+// capsules own Armadillo objects. Their destructors must use the same allocator as the
+// code that created the buffers across DLL boundaries (carma issue #89).
 //
 // The contract, and why this is not carma's cnalloc.h: numpy's C-API table is ONE
 // variable per module (PY_ARRAY_UNIQUE_SYMBOL), defined by the module's owner translation
@@ -38,9 +38,8 @@ namespace numpy_alloc {
 // its owner translation unit (below).
 void import_api();
 
-// The C runtime's malloc/free: what numpy's default handler frees a stolen buffer with (the
-// point of this allocator: armadillo's own MSVC allocator is _aligned_malloc, which free
-// cannot release; the builds share the C runtime heap, /MD). Not PyDataMem_NEW/FREE: those
+// The C runtime's malloc/free (Armadillo's own MSVC allocator uses _aligned_malloc,
+// which free cannot release; the builds share the C runtime heap, /MD). Not PyDataMem_NEW/FREE: those
 // add a tracemalloc notification that, since CPython 3.13.2 (gh-129185), takes the GIL on
 // every call, traced or not -- every allocation of a parallel loop would queue on it. The
 // cost is that simcoon's buffers are not counted by tracemalloc. Needs no numpy C-API table.
