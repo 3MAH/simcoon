@@ -327,10 +327,19 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// way in (x J0) and out (/ J1), Lt passed through untouched.
 		const bool kirchhoff_normalize = simcoon::stress_output_is_kirchhoff(umat_name_py)
 				&& F0_py.size() > 0 && F1_py.size() > 0;
+		if (tangent_out != tangent_out_box) {
+			if (F1_py.ndim() != 3 || F1_py.shape(2) != nb_points) {
+				throw std::invalid_argument("umat: tangent_output='" + tangent_output
+				                            + "' needs F1 with one 3x3 slice per material point");
+			}
+		}
 		// F0/F1 are converted once: a strict alias of the numpy buffers (see
-		// numpy_to_arma.hpp), never re-assigned.
-		if (arguments_type == 2 || kirchhoff_normalize) {
-			F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+		// numpy_to_arma.hpp), never re-assigned. F0 is optional for tangent_output alone.
+		const bool need_F0 = arguments_type == 2 || kirchhoff_normalize;
+		if (need_F0 || tangent_out != tangent_out_box) {
+			if (need_F0 || F0_py.size() > 0) {
+				F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py);
+			}
 			F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py);
 		}
 		if (kirchhoff_normalize) {
@@ -341,14 +350,6 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				throw std::invalid_argument(
 					"umat: F0/F1 must carry one 3x3 slice per material point when provided");
 			}
-		}
-
-		if (tangent_out != tangent_out_box) {
-			if (F1_py.ndim() != 3 || F1_py.shape(2) != nb_points) {
-				throw std::invalid_argument("umat: tangent_output='" + tangent_output
-				                            + "' needs F1 with one 3x3 slice per material point");
-			}
-			F1 = carma::arr_to_cube_view(F1_py);
 		}
 
 		// Step-cut request of each point (tnew_dt < 1). One slot per point, sized here in serial

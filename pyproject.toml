@@ -148,7 +148,8 @@ skip = [
 build-verbosity = 1
 
 # Test configuration
-test-requires = ["pytest>=7.0", "numpy>=2.0"]
+# setuptools: test_numpy_allocator.py compiles a C probe in the wheel test venv.
+test-requires = ["pytest>=7.0", "numpy>=2.0", "setuptools>=64"]
 test-command = "pytest {project}/simcoon-python-builder/test -v --tb=short"
 
 # -----------------------------------------------------------------------------

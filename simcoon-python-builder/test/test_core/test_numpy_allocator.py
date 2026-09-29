@@ -16,6 +16,15 @@ import pytest
 
 @pytest.fixture(scope="module")
 def allocator_probe(tmp_path_factory):
+    # A user env may lack setuptools or a C compiler: skip there. Under cibuildwheel
+    # (CIBUILDWHEEL=1; setuptools comes from [tool.cibuildwheel] test-requires and the
+    # runner just compiled the wheel) a skip would hide the one run that matters for a
+    # release, so it fails instead.
+    in_cibuildwheel = os.environ.get("CIBUILDWHEEL") == "1"
+    if in_cibuildwheel:
+        import setuptools
+    else:
+        setuptools = pytest.importorskip("setuptools")
     from setuptools import Distribution, Extension
     from setuptools.command.build_ext import build_ext
 
@@ -28,7 +37,12 @@ def allocator_probe(tmp_path_factory):
     command.build_lib = str(build)
     command.build_temp = str(build / "temp")
     command.ensure_finalized()
-    command.run()
+    try:
+        command.run()
+    except Exception as exc:  # DistutilsPlatformError, CompileError, ...
+        if in_cibuildwheel:
+            raise
+        pytest.skip(f"cannot build the NumPy allocator probe ({setuptools.__version__}): {exc}")
     return build
 
 
@@ -68,9 +82,18 @@ def _exercise(kind):
     metadata = [(a.shape, a.strides, a.flags.owndata, a.flags.writeable)
                 for a in inputs + [wm]]
     outputs = sim.umat("EPICP", *inputs, 0.5, 1., wm, n_threads=4)
+    # tangent_output converts F1 on its own path; F0 is optional there.
+    shear = np.repeat(np.eye(3)[:, :, None], n, axis=2)
+    shear[0, 1] = 0.01
+    f1 = _layout(shear, kind)
+    finite = [inputs[:2] + [eye, f1] + inputs[4:], inputs[:2] + [np.empty(0), f1] + inputs[4:]]
+    for args in finite:
+        for mode in ("material", "spatial"):
+            outputs += sim.umat("EPICP", *args, 0.5, 1., wm, n_threads=4, tangent_output=mode)
     for a, original, meta in zip(inputs + [wm], originals, metadata):
         np.testing.assert_array_equal(a, original)
         assert (a.shape, a.strides, a.flags.owndata, a.flags.writeable) == meta
+    np.testing.assert_array_equal(f1, shear)
     # Small vector copy; matrix/cube view fallbacks; zero-copy output capsules.
     elastic = sim.L_iso(_layout([70000., 0.3], kind), "Enu")
     tangent = _layout(np.repeat(elastic[:, :, None], n, axis=2), kind)
@@ -82,7 +105,7 @@ def _exercise(kind):
 @pytest.mark.parametrize("layout", ["F", "C", "strided", "unaligned", "readonly"])
 def test_numpy_allocator_ownership(allocator_probe, layout):
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(allocator_probe) + os.pathsep + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(allocator_probe), env.get("PYTHONPATH", "")]))
     completed = subprocess.run(
         [sys.executable, "-X", "tracemalloc", str(Path(__file__).resolve()), layout],
         env=env, capture_output=True, text=True, timeout=120,
