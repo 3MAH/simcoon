@@ -24,6 +24,8 @@ jobs:
           - os: macos-latest
             sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
+            # Subprocess imports must reuse the build: pytest holds simcoon.dll open.
+            editable-install-args: -Ceditable.rebuild=false
             # Use conda-forge's prebuilt reference BLAS/LAPACK (no Fortran compiled on the
             # runner) + armadillo, mirroring ci.yml / environment_win.yml. Avoids vcpkg's
             # lapack-reference build, which LLVMFlang on the windows-2025 image cannot compile.
@@ -78,13 +80,13 @@ jobs:
           # actually builds the editable wheel (and so later direct cmake
           # rebuilds share its build tree).
           uv pip install scikit-build-core pybind11 numpy ninja
-          uv pip install -e .[dev] --no-build-isolation
+          uv pip install -e .[dev] --no-build-isolation ${{ matrix.editable-install-args }}
 
       - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Trigger the lazy scikit-build-core editable build so the extension and its
-          # install dir exist (the import itself fails on the missing BLAS DLL -- expected).
+          # Probe the installed extension before vendoring its runtime dependencies
+          # (the import can fail on missing BLAS DLLs at this point).
           uv run python -c "import simcoon" 2>&1 | Out-Null
           # Copy conda's reference BLAS/LAPACK + Fortran runtime NEXT TO _core.pyd:
           # Windows resolves an extension module's dependencies from the pyd's own
