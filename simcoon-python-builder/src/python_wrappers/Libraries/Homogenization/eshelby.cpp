@@ -4,6 +4,7 @@
 
 #include <string>
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/Continuum_mechanics/Homogenization/eshelby.hpp>
@@ -46,14 +47,14 @@ py::array_t<double> Eshelby_penny(const double &nu, const bool &copy) {
 
 //Numerical Eshelby tensor determination
 py::array_t<double> Eshelby(const py::array_t<double> &L, const double &a1, const double &a2, const double &a3, const int &mp, const int &np, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(L);
+    mat L_cpp = simpy::numpy_to_arma::arr_to_mat(L);
     mat m = simcoon::Eshelby(L_cpp, a1, a2, a3, mp, np);
     return carma::mat_to_arr(m, copy);    
 }
     
 //Numerical Hill Interaction tensor determination
 py::array_t<double> T_II(const py::array_t<double> &L, const double &a1, const double &a2, const double &a3, const int &mp, const int &np, const bool &copy) {
-    mat L_cpp = carma::arr_to_mat(L);
+    mat L_cpp = simpy::numpy_to_arma::arr_to_mat(L);
     mat m = simcoon::T_II(L_cpp, a1, a2, a3, mp, np);
     return carma::mat_to_arr(m, copy);
 }

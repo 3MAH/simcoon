@@ -107,8 +107,8 @@ if(WIN32)
   target_link_libraries(_core PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 endif()
 
-# Armadillo memory through numpy's allocator in every TU (buffers are stolen into numpy
-# arrays); python_module.cpp owns the module's numpy C-API table. Function in the root
+# Armadillo memory through malloc/free in every TU (output capsules own the Armadillo
+# objects); python_module.cpp owns the module's numpy C-API table. Function in the root
 # CMakeLists.txt, shared with libsimcoon on Windows.
 simcoon_use_numpy_allocator(_core "${CMAKE_CURRENT_SOURCE_DIR}/src/python_wrappers/python_module.cpp")
 if(SIMCOON_NUMPY_ALLOC_IN_LIB)

@@ -459,14 +459,15 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         PhihatF = build_PhihatF(stress);
         A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*(T + DT - T_init) - HfF;
         lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        double YtF = Y0t + D*Hcur*Mises_stress(stress);
+        const double DHM = D*Hcur*Mises_stress(stress);
+        double YtF = Y0t + DHM;
         Phi(0) = PhihatF + A_xiF - lambda1 - YtF;
 
         // Reverse thermodynamic force
         PhihatR = sum(stress%ETMean);
         A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%DM_sig) - sum(stress%Dalpha)*(T + DT - T_init) + HfR;
         lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        double YtR = Y0t + D*sum(stress%ETMean);
+        double YtR = Y0t + D*PhihatR;
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;
 
         // Reorientation criterion (Chatziathanasiou thesis eq 664, Form B):
@@ -606,11 +607,22 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
             }
         }
 
-        Y_crit(0) = Y0t + D*Hcur*Mises_stress(stress);
-        Y_crit(1) = Y0t + D*sum(stress%ETMean);
+        // Magnitude scales for the convergence measure |FB|/Y_crit, not the signed YtF/YtR
+        // (they cross zero when D < 0): see the convergence-measure note in unified_T.hpp.
+        Y_crit(0) = std::max(fabs(Y0t) + fabs(DHM), simcoon::iota);
+        Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
         Y_crit(2) = std::max(YReo, simcoon::iota);   // guard the FB /Y_crit normalization against a (degenerate) YReo = 0
 
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
+        // Active set: a mechanism with Phi < 0 and B(j,j) = 0 has a singular FB row and
+        // ds_j = 0 anyway (the reorientation row at zero effective stress): see the
+        // active-set note in unified_TR.hpp. The reduced solve equals the full one otherwise.
+        const arma::uvec active = arma::find((Phi >= 0.) + (arma::abs(B.diag()) >= simcoon::iota));
+        vec Ds_active = Ds_j(active);   // the helper accumulates Dp += dp in place
+        vec ds_active(active.n_elem);
+        Fischer_Burmeister_m(Phi(active), Y_crit(active), B(active, active), Ds_active, ds_active, error);
+        Ds_j(active) = Ds_active;
+        ds_j.zeros();
+        ds_j(active) = ds_active;
 
         s_j(0) += ds_j(0);
         s_j(1) += ds_j(1);

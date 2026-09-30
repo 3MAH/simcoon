@@ -60,6 +60,7 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "setuptools>=64",  # build the custom NumPy allocator used by regression tests
 ]
 identify = [
     "scikit-learn>=1.0",
@@ -147,7 +148,8 @@ skip = [
 build-verbosity = 1
 
 # Test configuration
-test-requires = ["pytest>=7.0", "numpy>=2.0"]
+# setuptools: test_numpy_allocator.py compiles a C probe in the wheel test venv.
+test-requires = ["pytest>=7.0", "numpy>=2.0", "setuptools>=64"]
 test-command = "pytest {project}/simcoon-python-builder/test -v --tb=short"
 
 # -----------------------------------------------------------------------------
@@ -203,23 +205,25 @@ repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.windows]
-# Static (-md) triplet. On a static Windows triplet vcpkg's `lapack` metapackage resolves to
-# clapack -- an f2c C translation of LAPACK, with NO Fortran compiled -- instead of
-# lapack-reference, sidestepping the LLVMFlang-22 build failure on the windows-2025 image.
-# BLAS stays OpenBLAS (native pthread threading: fast, and coexists with a user's MKL without
-# an OpenMP-runtime clash). armadillo/openblas/clapack link statically into the extension, so
-# the wheel is self-contained -- no runtime DLLs to bundle. The -md variant keeps the dynamic
-# UCRT, matching CPython. (Users who want Intel MKL kernels can install simcoon via conda.)
-before-all = "vcpkg install armadillo:x64-windows-static-md"
+# conda-forge's prebuilt reference (netlib) BLAS/LAPACK + armadillo from the runner's Miniconda:
+# the toolchain ci.yml and build.yml already test on Windows (environment_win.yml). Not vcpkg:
+# its static openblas + clapack pair returned silently wrong material points in every parallel
+# batch path (std::thread workers; wheels run 36637571501, Sep 30 2026) while the same tests
+# pass on the conda libraries, and vcpkg's lapack-reference cannot be built on the windows-2025
+# image (LLVMFlang). Conda's DLLs are vendored into the wheel by delvewheel below.
+# The wheel is built by MSVC against the dynamic UCRT, like CPython. (Users who want Intel MKL
+# kernels can install simcoon via conda.)
+before-all = '"%CONDA%\Scripts\conda.exe" install -y -c conda-forge -c set3mah "libblas=*=*netlib" "liblapack=*=*netlib" armadillo'
+before-build = "pip install delvewheel"
 
-# Point CMake to vcpkg and select the static triplet on both sides: VCPKG_DEFAULT_TRIPLET for
-# vcpkg itself, and -DVCPKG_TARGET_TRIPLET (via CMAKE_ARGS, honoured by scikit-build-core) so the
-# toolchain's find_package looks in the static install tree.
-# VCPKG_BINARY_SOURCES = x-gha: read/write the GitHub Actions binary cache so armadillo/openblas/
-# clapack build once and are restored on later runs (clapack's source download from www.netlib.org
-# is flaky; caching the built package sidesteps it). The ACTIONS_* tokens it needs are exported in
-# wheels.yml. Binary-cache errors are non-fatal warnings in vcpkg, so this never breaks the build.
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_DEFAULT_TRIPLET = "x64-windows-static-md", CMAKE_ARGS = "-DVCPKG_TARGET_TRIPLET=x64-windows-static-md", VCPKG_BINARY_SOURCES = "clear;x-gha,readwrite" }
+# CMAKE_PREFIX_PATH: find_package(Armadillo/BLAS/LAPACK) in Miniconda's Library tree, as
+# build.yml does. $CONDA is expanded by cibuildwheel (bash-style, on every platform).
+environment = { CMAKE_PREFIX_PATH = "$CONDA/Library" }
 
-# Everything is statically linked -> nothing to repair/bundle.
-repair-wheel-command = ""
+# delvewheel copies the DLLs _core.pyd and simcoon.dll import (BLAS, LAPACK and their Fortran
+# runtime, resolved transitively from the import tables) into the wheel and patches the
+# importers: Windows resolves an extension's dependencies from the pyd's own directory, PATH
+# is ignored since Python 3.8. --ignore-existing: simcoon.dll is already inside the wheel, so
+# it is neither searched for on the path (that lookup failed the first run) nor renamed, while
+# its own dependencies are still vendored as transitive dependencies of _core.pyd.
+repair-wheel-command = 'delvewheel repair --ignore-existing --add-path "%CONDA%\Library\bin" -w {dest_dir} {wheel}'

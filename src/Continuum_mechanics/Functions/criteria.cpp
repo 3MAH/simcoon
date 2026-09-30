@@ -47,7 +47,8 @@ namespace simcoon
         double temp;
         double m;
 
-        if (Mises_stress(v) > 0.)
+        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave its bounds: NaN
+        if (Mises_stress(v) > simcoon::iota)
         {
             if (n < 10.)
             {
@@ -93,7 +94,7 @@ namespace simcoon
         double m;
         vec temp;
 
-        if (Mises > 0.)
+        if (Mises > simcoon::iota)   // same floor as Drucker_stress
         {
             if (n < 10.)
             {
@@ -142,7 +143,8 @@ namespace simcoon
 
         double dfa_stress = DFA_stress(v, params);
 
-        if (dfa_stress > 0.)
+        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave [1-2b/(3 sqrt 3), 1+...]: NaN
+        if (dfa_stress > simcoon::iota)
         {
             if (n < 10.)
             {
@@ -189,7 +191,7 @@ namespace simcoon
         double m;
         vec temp;
 
-        if (Dfa_stress > 0.)
+        if (Dfa_stress > simcoon::iota)   // same floor as Drucker_ani_stress
         {
             if (n < 10.)
             {

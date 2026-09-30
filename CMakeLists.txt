@@ -438,7 +438,7 @@ if(NOT WIN32)
   endif()
 endif()
 
-# Armadillo memory through numpy's allocator (simcoon-python-builder/include/.../numpy_alloc.hpp,
+# Armadillo memory through malloc/free (simcoon-python-builder/include/.../numpy_alloc.hpp,
 # force-included ahead of every source of the target; OWNER_SRC defines the target's single
 # numpy C-API table). Applied to _core everywhere and, below, to libsimcoon on Windows, where
 # Armadillo objects cross the libsimcoon/_core boundary and mixed allocators corrupt the heap

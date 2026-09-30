@@ -24,6 +24,12 @@ jobs:
           - os: macos-latest
             sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
+            # Subprocess imports must reuse the build: pytest holds simcoon.dll open, and an
+            # import-time relink + install of it fails with "Permission denied" (run
+            # 36714828491). Applied through scikit-build-core's own SKBUILD_EDITABLE_REBUILD
+            # variable on the install step: the same setting passed as `uv pip install -C`
+            # did not reach the backend on this runner.
+            editable-rebuild: "false"
             # Use conda-forge's prebuilt reference BLAS/LAPACK (no Fortran compiled on the
             # runner) + armadillo, mirroring ci.yml / environment_win.yml. Avoids vcpkg's
             # lapack-reference build, which LLVMFlang on the windows-2025 image cannot compile.
@@ -72,6 +78,8 @@ jobs:
           "CMAKE_GENERATOR=Ninja" | Out-File $env:GITHUB_ENV -Append
 
       - name: Editable install
+        env:
+          SKBUILD_EDITABLE_REBUILD: ${{ matrix.editable-rebuild || 'true' }}
         run: |
           uv venv
           # --no-build-isolation so the backend in the venv is the one that
@@ -83,8 +91,8 @@ jobs:
       - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Trigger the lazy scikit-build-core editable build so the extension and its
-          # install dir exist (the import itself fails on the missing BLAS DLL -- expected).
+          # Probe the installed extension before vendoring its runtime dependencies
+          # (the import can fail on missing BLAS DLLs at this point).
           uv run python -c "import simcoon" 2>&1 | Out-Null
           # Copy conda's reference BLAS/LAPACK + Fortran runtime NEXT TO _core.pyd:
           # Windows resolves an extension module's dependencies from the pyd's own

@@ -460,14 +460,15 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         }
         A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sigma%DM_sig) + sum(sigma%Dalpha)*(T + DT - T_init) - HfF;
         lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        YtF = Y0t + D*Hcur*Mises_stress(sigma);
+        const double DHM = D*Hcur*Mises_stress(sigma);
+        YtF = Y0t + DHM;
         Phi(0) = PhihatF + A_xiF - lambda1 - YtF;
 
         //Reverse transformation thermodynamic force
         PhihatR = sum(sigma%ETMean);
         A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sigma%DM_sig) - sum(sigma%Dalpha)*(T + DT - T_init) + HfR;
         lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-        YtR = Y0t + D*sum(sigma%ETMean);
+        YtR = Y0t + D*PhihatR;
         Phi(1) = -1.*PhihatR + A_xiR + lambda0 - YtR;  // PhiR < 0.
 
         if ((xi > 0.) && ((1. - xi) > 0.)) {
@@ -561,8 +562,11 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         B(1,0) = -1.*sum(dPhiRdsigma%kappa_j[0]) + K(1,0);
         B(1,1) = -1.*sum(dPhiRdsigma%kappa_j[1]) + K(1,1);
 
-        Y_crit(0) = YtF;
-        Y_crit(1) = YtR;
+        // Magnitude scales for the convergence measure |FB|/Y_crit, not the signed YtF/YtR
+        // (they cross zero when D < 0): see the convergence-measure note in
+        // Mechanical/SMA/unified_T.hpp.
+        Y_crit(0) = std::max(fabs(Y0t) + fabs(DHM), simcoon::iota);
+        Y_crit(1) = std::max(fabs(Y0t) + fabs(D*PhihatR), simcoon::iota);
 
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
 

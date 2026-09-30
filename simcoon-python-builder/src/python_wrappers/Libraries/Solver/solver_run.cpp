@@ -8,6 +8,7 @@
 #include <pybind11/numpy.h>
 
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>
@@ -84,7 +85,7 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
     //Rotation rate for the mixed finite-strain control types
     if (sd.contains("BC_w")) {
         const py::array_t<double> BC_w_py = sd["BC_w"].cast<py::array_t<double>>();
-        mat BC_w = carma::arr_to_mat(BC_w_py);   //const-ref overload: a copy
+        mat BC_w = simpy::numpy_to_arma::arr_to_mat(BC_w_py);   //const-ref overload: a copy
         if ((BC_w.n_rows != 3) || (BC_w.n_cols != 3)) {
             throw std::invalid_argument("solver_run: BC_w must be a 3x3 matrix");
         }
@@ -114,7 +115,7 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
             throw std::invalid_argument("solver_run: tab_data is only valid for tabular steps (mode 3)");
         }
         const py::array_t<double> tab_py = sd["tab_data"].cast<py::array_t<double>>();
-        sptr->tab_data = carma::arr_to_mat(tab_py);   //const-ref overload: a copy
+        sptr->tab_data = simpy::numpy_to_arma::arr_to_mat(tab_py);   //const-ref overload: a copy
     }
     if ((sptr->mode == 3) && (sptr->tab_data.n_rows == 0)) {
         throw std::invalid_argument("solver_run: tabular steps (mode 3) require tab_data");
@@ -153,7 +154,7 @@ py::dict solver_run(const py::list &blocks_py, const double &T_init,
     if (nstatev < 0) {   //the library takes an unsigned: -1 would ask for 4 billion state variables
         throw std::invalid_argument("solver_run: nstatev = " + std::to_string(nstatev) + " is negative");
     }
-    vec props = carma::arr_to_col(props_py);
+    vec props = simpy::numpy_to_arma::arr_to_col(props_py);
     double psi_rve, theta_rve, phi_rve;
     angles_of(orientation, "solver_run, orientation", psi_rve, theta_rve, phi_rve);
 

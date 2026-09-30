@@ -254,8 +254,11 @@ class Rotation(ScipyRotation):
         if not self._is_batch:
             return self._to_cpp().apply_stiffness(L, active)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
-        # L_rot = QS @ L @ QS^T  for each n
-        return np.einsum("nij,jkn,nlk->iln", QS, L, QS)
+        # L_rot = QS @ L @ QS^T  for each n.
+        # optimize=True on the 3-operand contractions: without it numpy runs the
+        # naive path (measured 6.6-8.1x slower over N = 1e3..5e4). This is on
+        # fedoo's per-iteration path for every anisotropic UMAT.
+        return np.einsum("nij,jkn,nlk->iln", QS, L, QS, optimize=True)
 
     def apply_compliance(self, M, active=True):
         """Apply rotation to 6x6 compliance matrix/matrices.
@@ -277,7 +280,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_compliance(M, active)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
         # M_rot = QE @ M @ QE^T  for each n
-        return np.einsum("nij,jkn,nlk->iln", QE, M, QE)
+        return np.einsum("nij,jkn,nlk->iln", QE, M, QE, optimize=True)
 
     def apply_strain_concentration(self, A, active=True):
         """Apply rotation to 6x6 strain concentration tensor(s).
@@ -299,7 +302,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_strain_concentration(A, active)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
-        return np.einsum("nij,jkn,nlk->iln", QE, A, QS)
+        return np.einsum("nij,jkn,nlk->iln", QE, A, QS, optimize=True)
 
     def apply_stress_concentration(self, B, active=True):
         """Apply rotation to 6x6 stress concentration tensor(s).
@@ -321,7 +324,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_stress_concentration(B, active)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
-        return np.einsum("nij,jkn,nlk->iln", QS, B, QE)
+        return np.einsum("nij,jkn,nlk->iln", QS, B, QE, optimize=True)
 
     def apply_tensor(self, m, inverse=False):
         """Apply rotation to 3x3 tensor(s).
@@ -345,9 +348,9 @@ class Rotation(ScipyRotation):
         R = self.as_matrix()
         if inverse:
             # R^T @ m @ R for each n
-            return np.einsum("nji,jkn,nkl->iln", R, m, R)
+            return np.einsum("nji,jkn,nkl->iln", R, m, R, optimize=True)
         # R @ m @ R^T for each n
-        return np.einsum("nij,jkn,nlk->iln", R, m, R)
+        return np.einsum("nij,jkn,nlk->iln", R, m, R, optimize=True)
 
     def as_voigt_stress_rotation(self, active=True):
         """Get 6x6 rotation matrix for stress tensors in Voigt notation.

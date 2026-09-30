@@ -3,6 +3,7 @@
 
 #include <string>
 #include <carma>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
 
@@ -24,7 +25,7 @@ namespace simpy {
 //Return the elastic stiffness tensor of a composite material
 py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double> &props, const int &nstatev, const py::object &orientation, const py::object &phases) {
 
-    vec props_cpp = carma::arr_to_col(props);
+    vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
 
     if (nstatev < 0) {
         throw std::invalid_argument("L_eff: nstatev = " + std::to_string(nstatev) + " is negative");
