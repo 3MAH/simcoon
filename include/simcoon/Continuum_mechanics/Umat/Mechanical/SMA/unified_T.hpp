@@ -185,6 +185,19 @@ namespace simcoon{
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
  * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
+ * @note **Convergence measure.** The local Fischer-Burmeister solve reports
+ * \f$ \sum_j |FB_j| / Y^{crit}_j \f$, so each \f$ Y^{crit}_j \f$ must be a positive scale of
+ * its criterion. The signed thresholds \f$ Y^t_F = Y_0^t + D\,H^{cur}\,\bar{\sigma} \f$ and
+ * \f$ Y^t_R = Y_0^t + D\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T} \f$ are not:
+ * with a calibrated \f$ D < 0 \f$ they cross zero along a loading path (at
+ * \f$ \bar{\sigma} = Y_0^t / (-D\,H^{cur}) \f$, about 1.2 GPa for NiTi-like parameters), and a
+ * residual at the floating-point floor of \f$ \xi \f$ then reads as a non-convergence: the
+ * kernel requests step cuts no sub-increment can satisfy and the solver crawls at its minimal
+ * increment. The scales are therefore the magnitudes of the terms,
+ * \f$ Y^{crit}_F = |Y_0^t| + |D\,H^{cur}\,\bar{\sigma}| \f$ and
+ * \f$ Y^{crit}_R = |Y_0^t| + |D\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T}| \f$,
+ * identical to the thresholds wherever \f$ D \ge 0 \f$. Shared by the thermomechanical
+ * twin and by @ref umat_sma_unified_TR.
  *
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)

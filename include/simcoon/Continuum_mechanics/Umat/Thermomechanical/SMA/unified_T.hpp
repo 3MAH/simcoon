@@ -183,6 +183,8 @@ namespace simcoon{
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
  * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
+ * @note Convergence measure: same magnitude scales \f$ Y^{crit}_j \f$ as the mechanical
+ * @ref umat_sma_unified_T (see its note).
  *
  * @see umat_sma_unified_T() for the mechanical-only version (no thermal coupling)
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)

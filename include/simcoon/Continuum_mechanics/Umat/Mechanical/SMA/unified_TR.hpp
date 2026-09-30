@@ -110,6 +110,22 @@ namespace simcoon {
  *
  * @note `SMRDI`/`SMRDC`/`SMRAI`/`SMRAC` route through @ref umat_sma_unified_TR.
  * @note Internal vectorial state variables are rotated as **strain** by `DR`.
+ * @note **Active set.** The local system couples the three mechanisms in one
+ * Fischer-Burmeister solve. The reorientation row has purely kinematic hardening,
+ * \f$ B_{22} \simeq -(1+\lambda_1^{Reo})\,H^{Reo}\,\boldsymbol{\eta}^{Reo}:\boldsymbol{\eta}^{Reo} \f$,
+ * and at the apex of the Drucker cone (\f$ \boldsymbol{\sigma}_{eff} = 0 \f$: a thermal step at
+ * zero stress; or \f$ \xi = 0 \f$ with \f$ H^{Reo} = 0 \f$) the direction
+ * \f$ \boldsymbol{\eta}^{Reo} \f$ is undefined and both the stress-flow and the back-strain
+ * terms of the row vanish, so \f$ B_{22} = 0 \f$ and the row
+ * \f$ -|B_{22}|\,\Delta s^{Reo} = 0 \f$ is singular. The transformation rows keep the
+ * isotropic term \f$ \partial \Phi / \partial \xi \f$ on their diagonal and never degenerate.
+ * A mechanism with \f$ \Phi_j < 0 \f$ and \f$ B_{jj} = 0 \f$ is therefore dropped from the
+ * iteration, \f$ \Delta s_j = 0 \f$, and the reduced system is solved: the row of an
+ * inactive mechanism with a finite diagonal decouples and gives \f$ \Delta s_j = 0 \f$
+ * exactly, so the reduced solve returns the same increments as the full one wherever the
+ * full one is solvable.
+ * @note Convergence measure: same magnitude scales \f$ Y^{crit}_j \f$ as
+ * @ref umat_sma_unified_T (see its note); \f$ Y^{crit}_{Reo} = Y^{Reo} \f$.
  * @note When \f$ \Delta s^{Reo} = 0 \f$, the result is bit-identical to
  * @ref umat_sma_unified_T (same elastic mixing, same forward/reverse equations).
  *
