@@ -693,6 +693,15 @@ constexpr auto umat = R"pbdoc(
         Lt_convert with DsigmaDe_JaumannDD_2_DSDE, DsigmaDe_GreenNaghdiDD_2_DSDE
         or DsigmaDe_2_DSDE), then DSDE_2_Dsigma_LieDD for 'spatial'. One call
         replaces umat plus one or two Lt_convert passes.
+    start : bool, optional
+        Whether this call initialises the material points. True re-initialises
+        them: the reference temperature (statev[0] = temp), the stress, the
+        internal variables and the work terms Wm are reset before integrating.
+        None (default) infers it from time (time <= 1e-9),
+        which re-initialises on EVERY call at time 0, e.g. each Newton
+        correction of the first increment. A coupler that knows when a point is
+        fresh should pass it explicitly: True on its initialisation call only,
+        False otherwise. umat_T takes the same argument.
 
     Returns
     -------
