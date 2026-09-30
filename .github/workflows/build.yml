@@ -25,7 +25,7 @@ jobs:
             sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
             # Subprocess imports must reuse the build: pytest holds simcoon.dll open.
-            editable-install-args: -Ceditable.rebuild=false
+            editable-install-args: '-C "editable.rebuild=false"'
             # Use conda-forge's prebuilt reference BLAS/LAPACK (no Fortran compiled on the
             # runner) + armadillo, mirroring ci.yml / environment_win.yml. Avoids vcpkg's
             # lapack-reference build, which LLVMFlang on the windows-2025 image cannot compile.
