@@ -29,4 +29,5 @@ Below are examples illustrating Simcoon's mechanical constitutive laws library.
 
 **Shape Memory Alloys:**
 
-- **SMA_TR** - Superelastic model (transformation only)
+- **SMA_T** - Superelastic model (transformation only)
+- **SMA_TR** - Transformation + martensite reorientation on a non-proportional tension-shear path

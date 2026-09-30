@@ -1,157 +1,173 @@
 """
-Shape Memory Alloy - Superelastic Model
-=========================================
+Shape Memory Alloy - Transformation and Reorientation
+=====================================================
 """
 
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
+from simcoon.solver import Block, StepMeca
 
 plt.rcParams["figure.figsize"] = (18, 10)
 
 ###################################################################################
-# The SMA (Shape Memory Alloy) transformation constitutive law is a rate-independent
-# description of the austenite-martensite phase transformation. Both forward
-# (austenite to martensite) and reverse (martensite to austenite) transformations
-# are treated as independent mechanisms.
+# The ``SMRAI`` constitutive law adds a third rate-independent mechanism to the
+# superelastic transformation model of :ref:`SMA_T <sphx_glr_gallery_mechanical_SMA_T.py>`:
+# the reorientation of the martensite variants, which is what a non-proportional
+# stress path activates once the material has transformed. Its four variants are
 #
-# Twenty-eight parameters are required:
+# - ``SMRDI`` / ``SMRDC``: isotropic / cubic elasticity, Drucker criteria,
+# - ``SMRAI`` / ``SMRAC``: isotropic / cubic elasticity, anisotropic Drucker
+#   (Deshpande-Fleck-Ashby) criteria.
 #
-# 1. :math:`\mathrm{flagT}` : Temperature extrapolation flag (0: linear, 1: smooth)
-# 2. :math:`E_A` : Young's modulus of austenite
-# 3. :math:`E_M` : Young's modulus of martensite
-# 4. :math:`\nu_A` : Poisson's ratio of austenite
-# 5. :math:`\nu_M` : Poisson's ratio of martensite
-# 6. :math:`\alpha_A` : CTE of austenite
-# 7. :math:`\alpha_M` : CTE of martensite
-# 8. :math:`H_{\min}` : Minimal transformation strain magnitude
-# 9. :math:`H_{\max}` : Maximal transformation strain magnitude
-# 10. :math:`k_1` : Exponential evolution of transformation strain
-# 11. :math:`\sigma_{\mathrm{crit}}` : Critical stress for transformation strain change
-# 12. :math:`C_A` : Clausius-Clapeyron slope (martensite to austenite)
-# 13. :math:`C_M` : Clausius-Clapeyron slope (austenite to martensite)
-# 14. :math:`M_{s0}` : Martensite start temperature at zero stress
-# 15. :math:`M_{f0}` : Martensite finish temperature at zero stress
-# 16. :math:`A_{s0}` : Austenite start temperature at zero stress
-# 17. :math:`A_{f0}` : Austenite finish temperature at zero stress
-# 18. :math:`n_1` : Martensite start smooth exponent
-# 19. :math:`n_2` : Martensite finish smooth exponent
-# 20. :math:`n_3` : Austenite start smooth exponent
-# 21. :math:`n_4` : Austenite finish smooth exponent
-# 22. :math:`\sigma_{\mathrm{caliber}}` : Calibration stress
-# 23. :math:`b_{\mathrm{Prager}}` : Prager parameter
-# 24. :math:`n_{\mathrm{Prager}}` : Prager exponent
-# 25. :math:`c_{\lambda}` : Penalty function exponent start point
-# 26. :math:`p_{0,\lambda}` : Penalty function limit value
-# 27. :math:`n_{\lambda}` : Penalty function power law exponent
-# 28. :math:`\alpha_{\lambda}` : Penalty function power law parameter
+# The properties are those of the transformation-only law, followed by the seven
+# DFA anisotropy parameters :math:`F, G, H, L, M, N, K` for the ``SMRA*`` variants,
+# then seven reorientation parameters:
 #
-# The constitutive law uses a return mapping algorithm with a convex cutting plane
-# method (Simo and Hughes, 1998). The superelastic response exhibits a stress-induced
-# phase transformation loop.
+# 1. :math:`Y^{Reo}` : stress limit for the onset of reorientation
+# 2. :math:`H^{Reo}` : reorientation kinematic hardening modulus (MPa)
+# 3. :math:`E_T^{Reo,max}` : maximum reorientation back-strain magnitude
+# 4-7. :math:`c_{\lambda}, p_{0,\lambda}, n_{\lambda}, \alpha_{\lambda}` : penalty
+#    function of the reorientation saturation
+#
+# With :math:`F = G = H = 1/2`, :math:`L = M = N = 3/2` and :math:`K = 0` the DFA
+# operator is the von Mises one and ``SMRAI`` coincides with ``SMRDI``. Choosing
+# :math:`Y^{Reo}` far above any reachable stress switches reorientation off, which
+# recovers the transformation-only response of ``SMADI``.
+#
+# The thirty state variables hold the transformation block of ``SMADI`` (17 values),
+# the cumulative reorientation multiplier :math:`p^{TR}`, the reorientation back-strain
+# :math:`\mathbf{v}^{re}` (6) and the macroscopic reorientation strain
+# :math:`\mathbf{E}^{Reo}` (6).
 
-umat_name = "SMADI"  # 5 character code for the SMA transformation model
-nstatev = 50  # Number of internal state variables
+umat_name = "SMRAI"
+nstatev = 30
+T_init = 353.15  # K, above A_f: superelastic regime
 
-# Material parameters
-flagT = 0  # Temperature extrapolation flag
-E_A = 67538.0  # Young's modulus of austenite (MPa)
-E_M = 67538.0  # Young's modulus of martensite (MPa)
-nu_A = 0.349  # Poisson's ratio of austenite
-nu_M = 0.349  # Poisson's ratio of martensite
-alphaA = 1.0e-6  # CTE of austenite
-alphaM = 1.0e-6  # CTE of martensite
-Hmin = 0.0  # Minimal transformation strain
-Hmax = 0.0418  # Maximal transformation strain
-k1 = 0.021  # Exponential evolution parameter
-sigmacrit = 0.0  # Critical stress
-C_A = 10.0  # Clausius-Clapeyron slope (M -> A)
-C_M = 10.0  # Clausius-Clapeyron slope (A -> M)
-Ms0 = 250.0  # Martensite start temperature (K)
-Mf0 = 230.0  # Martensite finish temperature (K)
-As0 = 260.0  # Austenite start temperature (K)
-Af0 = 280.0  # Austenite finish temperature (K)
-n1 = 0.2  # Martensite start smooth exponent
-n2 = 0.2  # Martensite finish smooth exponent
-n3 = 0.2  # Austenite start smooth exponent
-n4 = 0.2  # Austenite finish smooth exponent
-sigmacaliber = 300.0  # Calibration stress (MPa)
-b_prager = 1.4  # Prager parameter
-n_prager = 2.0  # Prager exponent
-c_lambda = 1.0e-6  # Penalty function start point
-p0_lambda = 1.0e-3  # Penalty function limit value
-n_lambda = 1.0  # Penalty function power law exponent
-alpha_lambda = 1.0e8  # Penalty function power law parameter
+# Transformation block: NiTi-like parameters (same order as in SMA_T.py)
+flagT = 0
+E_A, E_M = 70000.0, 70000.0
+nu_A, nu_M = 0.3, 0.3
+alphaA, alphaM = 1.0e-6, 1.0e-6
+Hmin, Hmax, k1, sigmacrit = 0.0, 0.05, 0.021, 0.0
+C_A, C_M = 6.0, 5.0
+Ms0, Mf0, As0, Af0 = 293.15, 273.15, 313.15, 333.15
+n1 = n2 = n3 = n4 = 0.2
+sigmacaliber = 300.0
+b_prager, n_prager = 1.4, 2.0
+c_lambda, p0_lambda, n_lambda, alpha_lambda = 1.0e-6, 1.0e-3, 1.0, 1.0e8
 
-psi_rve = 0.0
-theta_rve = 0.0
-phi_rve = 0.0
-solver_type = 0
-corate_type = 3
-
-props = np.array([
+props_T = [
     flagT, E_A, E_M, nu_A, nu_M, alphaA, alphaM,
     Hmin, Hmax, k1, sigmacrit,
     C_A, C_M, Ms0, Mf0, As0, Af0,
     n1, n2, n3, n4,
     sigmacaliber, b_prager, n_prager,
     c_lambda, p0_lambda, n_lambda, alpha_lambda,
-])
+]
 
-path_data = "../data"
-pathfile = "SMADI_path.json"
+# Anisotropic Drucker (DFA) parameters: F, G, H, L, M, N, K. These values reduce the
+# criterion to the isotropic Drucker one; change them to introduce anisotropy.
+props_DFA = [0.5, 0.5, 0.5, 1.5, 1.5, 1.5, 0.0]
+
+# Reorientation block. H_Reo is a modulus in MPa, calibrated on multiaxial data: keep it
+# in the stable range of this law (H_Reo <= 5000 with these transformation parameters).
+Y_Reo = 200.0
+H_Reo = 5000.0
+ETR_max = 0.05
+props_Reo = [Y_Reo, H_Reo, ETR_max, 1.0e-6, 1.0e-3, 1.0, 1.0e8]
+
+props = np.array(props_T + props_DFA + props_Reo)
 
 ###################################################################################
-# The loading path is read in Python and the simulation runs in memory: no result
-# file is written, and the histories come back as component-first arrays.
+# Loading path
+# ------------
+#
+# Reorientation needs a change of loading direction, so the path is a square in the
+# :math:`(\varepsilon_{11}, \gamma_{12})` plane: tension first, then a full
+# counter-clockwise box at constant amplitude, back to the origin. The strain
+# components 11 and 12 are controlled, the four others are stress-free.
 
-blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, pathfile))
+eps = 0.015
+control = ["strain", "stress", "stress", "strain", "stress", "stress"]
+corners = [(eps, 0), (eps, eps), (-eps, eps), (-eps, -eps), (eps, -eps), (eps, 0), (0, 0)]
+steps = [
+    StepMeca(control=control, value=[e11, 0, 0, g12, 0, 0], time=1.0, ninc=300, Dn_mini=0.01)
+    for e11, g12 in corners
+]
+blocks = [Block(steps=steps)]
 
-res = sim.solver.solve(
-    blocks,
-    umat_name,
-    props,
-    nstatev,
-    T_init=T_init,
-    solver_type=solver_type,
-    corate=corate_type,
-    orientation=(psi_rve, theta_rve, phi_rve),
-)
+
+def run(name, props, nstatev):
+    return sim.solver.solve(blocks, name, props, nstatev, T_init=T_init, corate=3)
+
+
+res = run(umat_name, props, nstatev)
+
+###################################################################################
+# The transformation-only response on the same path is the reference to read the
+# effect of reorientation against: the same law with reorientation switched off
+# (:math:`Y^{Reo} = 10^{10}` MPa), which reproduces ``SMADI``.
+
+props_off = np.array(props_T + props_DFA + [1.0e10] + props_Reo[1:])
+res_off = run(umat_name, props_off, nstatev)
 
 ###################################################################################
 # Plotting the results
-# ----------------------
+# --------------------
 #
-# We plot the superelastic stress-strain loop which shows the stress-induced
-# austenite-martensite phase transformation and its reverse upon unloading.
+# The stress path shows the distorted square typical of the multiaxial SMA
+# experiments of Grabe and Bruhns: reorientation softens the corners where the
+# loading direction turns. The state-variable plot shows the martensite fraction
+# :math:`\xi`, the reorientation multiplier :math:`p^{TR}` and the norm of the
+# reorientation strain :math:`\mathbf{E}^{Reo}`. The energy plot checks the split
+# :math:`W_m = W_m^r + W_m^d` (:math:`W_m^{ir} = 0` for the SMA laws).
 
-e11, e22, e33, e12, e13, e23 = res["Strain"]
-s11, s22, s33, s12, s13, s23 = res["Stress"]
-time, T = res["Time"], res["Temp"]
+e11, _, _, g12, _, _ = res["Strain"]
+s11, _, _, s12, _, _ = res["Stress"]
+s11_off, _, _, s12_off, _, _ = res_off["Stress"]
+time = res["Time"]
+xi = res["Statev"][1]
+pTR = res["Statev"][17]
+EReo = np.linalg.norm(res["Statev"][24:30], axis=0)
 Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
 
 fig = plt.figure()
 
-# First subplot: Stress vs Strain (superelastic loop)
-ax1 = fig.add_subplot(1, 2, 1)
-plt.grid(True)
-plt.tick_params(axis="both", which="major", labelsize=15)
-plt.xlabel(r"Strain $\varepsilon_{11}$", size=15)
-plt.ylabel(r"Stress $\sigma_{11}$ (MPa)", size=15)
-plt.plot(e11, s11, c="blue", label="SMA superelastic model")
-plt.legend(loc="best")
+ax = fig.add_subplot(2, 2, 1)
+ax.grid(True)
+ax.set_xlabel(r"$\sigma_{11}$ (MPa)", size=15)
+ax.set_ylabel(r"$\sigma_{12}$ (MPa)", size=15)
+ax.plot(s11_off, s12_off, c="gray", ls="--", label="transformation only")
+ax.plot(s11, s12, c="blue", label="transformation + reorientation")
+ax.legend(loc="best")
 
-# Second subplot: Work terms vs Time
-ax2 = fig.add_subplot(1, 2, 2)
-plt.grid(True)
-plt.tick_params(axis="both", which="major", labelsize=15)
-plt.xlabel("time (s)", size=15)
-plt.ylabel(r"$W_m$", size=15)
-plt.plot(time, Wm, c="black", label=r"$W_m$")
-plt.plot(time, Wm_r, c="green", label=r"$W_m^r$")
-plt.plot(time, Wm_ir, c="blue", label=r"$W_m^{ir}$")
-plt.plot(time, Wm_d, c="red", label=r"$W_m^d$")
-plt.legend(loc="best")
+ax = fig.add_subplot(2, 2, 2)
+ax.grid(True)
+ax.set_xlabel(r"$\varepsilon_{11}$", size=15)
+ax.set_ylabel(r"$\sigma_{11}$ (MPa)", size=15)
+ax.plot(e11, s11_off, c="gray", ls="--", label="transformation only")
+ax.plot(e11, s11, c="blue", label="transformation + reorientation")
+ax.legend(loc="best")
+
+ax = fig.add_subplot(2, 2, 3)
+ax.grid(True)
+ax.set_xlabel("time (s)", size=15)
+ax.plot(time, xi, c="black", label=r"$\xi$")
+ax.plot(time, pTR, c="red", label=r"$p^{TR}$")
+ax.plot(time, EReo / Hmax, c="green", label=r"$\|\mathbf{E}^{Reo}\| / H_{max}$")
+for k in range(1, len(corners)):
+    ax.axvline(k, c="lightgray", lw=0.8)
+ax.legend(loc="best")
+
+ax = fig.add_subplot(2, 2, 4)
+ax.grid(True)
+ax.set_xlabel("time (s)", size=15)
+ax.set_ylabel(r"$W_m$", size=15)
+ax.plot(time, Wm, c="black", label=r"$W_m$")
+ax.plot(time, Wm_r, c="green", label=r"$W_m^r$")
+ax.plot(time, Wm_ir, c="blue", label=r"$W_m^{ir}$")
+ax.plot(time, Wm_d, c="red", label=r"$W_m^d$")
+ax.legend(loc="best")
 
 plt.show()

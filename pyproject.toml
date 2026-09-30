@@ -223,6 +223,7 @@ environment = { CMAKE_PREFIX_PATH = "$CONDA/Library" }
 # delvewheel copies the DLLs _core.pyd and simcoon.dll import (BLAS, LAPACK and their Fortran
 # runtime, resolved transitively from the import tables) into the wheel and patches the
 # importers: Windows resolves an extension's dependencies from the pyd's own directory, PATH
-# is ignored since Python 3.8. --analyze-existing: also follow the imports of simcoon.dll,
-# which is already inside the wheel.
-repair-wheel-command = 'delvewheel repair --analyze-existing --add-path "%CONDA%\Library\bin" -w {dest_dir} {wheel}'
+# is ignored since Python 3.8. --ignore-existing: simcoon.dll is already inside the wheel, so
+# it is neither searched for on the path (that lookup failed the first run) nor renamed, while
+# its own dependencies are still vendored as transitive dependencies of _core.pyd.
+repair-wheel-command = 'delvewheel repair --ignore-existing --add-path "%CONDA%\Library\bin" -w {dest_dir} {wheel}'
