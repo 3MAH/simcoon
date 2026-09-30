@@ -8,13 +8,16 @@ import matplotlib.pyplot as plt
 import simcoon as sim
 from simcoon.solver import Block, StepMeca
 
-plt.rcParams["figure.figsize"] = (18, 10)
+plt.rcParams["figure.figsize"] = (18, 8)
 
 ###################################################################################
 # The ``SMRAI`` constitutive law adds a third rate-independent mechanism to the
 # superelastic transformation model of :ref:`SMA_T <sphx_glr_gallery_mechanical_SMA_T.py>`:
-# the reorientation of the martensite variants, which is what a non-proportional
-# stress path activates once the material has transformed. Its four variants are
+# the reorientation of the martensite variants. It is what lets the model describe
+# the whole thermomechanical map of a shape memory alloy, from the superelastic loop
+# above :math:`A_f` to the shape memory effect below :math:`M_f`, where the
+# self-accommodated martensite formed on cooling is oriented by the applied stress
+# and the strain is recovered on heating. Its four variants are
 #
 # - ``SMRDI`` / ``SMRDC``: isotropic / cubic elasticity, Drucker criteria,
 # - ``SMRAI`` / ``SMRAC``: isotropic / cubic elasticity, anisotropic Drucker
@@ -31,9 +34,7 @@ plt.rcParams["figure.figsize"] = (18, 10)
 #    function of the reorientation saturation
 #
 # With :math:`F = G = H = 1/2`, :math:`L = M = N = 3/2` and :math:`K = 0` the DFA
-# operator is the von Mises one and ``SMRAI`` coincides with ``SMRDI``. Choosing
-# :math:`Y^{Reo}` far above any reachable stress switches reorientation off, which
-# recovers the transformation-only response of ``SMADI``.
+# operator is the von Mises one and ``SMRAI`` coincides with ``SMRDI``.
 #
 # The thirty state variables hold the transformation block of ``SMADI`` (17 values),
 # the cumulative reorientation multiplier :math:`p^{TR}`, the reorientation back-strain
@@ -42,7 +43,6 @@ plt.rcParams["figure.figsize"] = (18, 10)
 
 umat_name = "SMRAI"
 nstatev = 30
-T_init = 353.15  # K, above A_f: superelastic regime
 
 # Transformation block: NiTi-like parameters (same order as in SMA_T.py)
 flagT = 0
@@ -50,8 +50,8 @@ E_A, E_M = 70000.0, 70000.0
 nu_A, nu_M = 0.3, 0.3
 alphaA, alphaM = 1.0e-6, 1.0e-6
 Hmin, Hmax, k1, sigmacrit = 0.0, 0.05, 0.021, 0.0
-C_A, C_M = 6.0, 5.0
-Ms0, Mf0, As0, Af0 = 293.15, 273.15, 313.15, 333.15
+C_A, C_M = 6.0, 5.0  # Clausius-Clapeyron slopes (MPa/K)
+Ms0, Mf0, As0, Af0 = 293.15, 273.15, 313.15, 333.15  # 20, 0, 40, 60 degrees C
 n1 = n2 = n3 = n4 = 0.2
 sigmacaliber = 300.0
 b_prager, n_prager = 1.4, 2.0
@@ -80,94 +80,158 @@ props_Reo = [Y_Reo, H_Reo, ETR_max, 1.0e-6, 1.0e-3, 1.0, 1.0e8]
 props = np.array(props_T + props_DFA + props_Reo)
 
 ###################################################################################
-# Loading path
-# ------------
+# Loading protocol
+# ----------------
 #
-# Reorientation needs a change of loading direction, so the path is a square in the
-# :math:`(\varepsilon_{11}, \gamma_{12})` plane: tension first, then a full
-# counter-clockwise box at constant amplitude, back to the origin. The strain
-# components 11 and 12 are controlled, the four others are stress-free.
+# Every run starts in the austenitic state at 80 degrees C, above :math:`A_f`, and
+# reaches its test temperature by a stress-free cooling step, so that the martensite
+# present below :math:`M_s` is the self-accommodated one formed on cooling, with no
+# macroscopic strain. The thermal steps hold a bias stress of 1e-3 MPa (a strain of
+# 1e-8) rather than exactly zero: at :math:`\boldsymbol{\sigma} = 0` the reorientation
+# direction is undefined and the three-mechanism system of the law is singular.
+# Loading is uniaxial and strain-controlled, unloading is stress-controlled.
 
-eps = 0.015
-control = ["strain", "stress", "stress", "strain", "stress", "stress"]
-corners = [(eps, 0), (eps, eps), (-eps, eps), (-eps, -eps), (eps, -eps), (eps, 0), (0, 0)]
-steps = [
-    StepMeca(control=control, value=[e11, 0, 0, g12, 0, 0], time=1.0, ninc=300, Dn_mini=0.01)
-    for e11, g12 in corners
-]
-blocks = [Block(steps=steps)]
-
-
-def run(name, props, nstatev):
-    return sim.solver.solve(blocks, name, props, nstatev, T_init=T_init, corate=3)
+T_start = 273.15 + 80.0
+bias = [1.0e-3, 0.0, 0.0, 0.0, 0.0, 0.0]
+stress_free = ["stress"] * 6
+uniaxial = ["strain"] + ["stress"] * 5
+eps_max = 0.04
 
 
-res = run(umat_name, props, nstatev)
+def thermal_step(T_final, ninc=200):
+    return StepMeca(control=stress_free, value=bias, time=1.0, ninc=ninc, T_final=T_final, Dn_mini=0.01)
+
+
+def load_step(eps, ninc=200):
+    return StepMeca(control=uniaxial, value=[eps, 0, 0, 0, 0, 0], time=1.0, ninc=ninc, Dn_mini=0.01)
+
+
+def unload_step(ninc=200):
+    return StepMeca(control=stress_free, value=bias, time=1.0, ninc=ninc, Dn_mini=0.01)
+
+
+def run(steps):
+    return sim.solver.solve([Block(steps=steps)], umat_name, props, nstatev, T_init=T_start, corate=3)
+
 
 ###################################################################################
-# The transformation-only response on the same path is the reference to read the
-# effect of reorientation against: the same law with reorientation switched off
-# (:math:`Y^{Reo} = 10^{10}` MPa), which reproduces ``SMADI``.
-
-props_off = np.array(props_T + props_DFA + [1.0e10] + props_Reo[1:])
-res_off = run(umat_name, props_off, nstatev)
-
-###################################################################################
-# Plotting the results
-# --------------------
+# From shape memory to superelasticity
+# ------------------------------------
 #
-# The stress path shows the distorted square typical of the multiaxial SMA
-# experiments of Grabe and Bruhns: reorientation softens the corners where the
-# loading direction turns. The state-variable plot shows the martensite fraction
-# :math:`\xi`, the reorientation multiplier :math:`p^{TR}` and the norm of the
-# reorientation strain :math:`\mathbf{E}^{Reo}`. The energy plot checks the split
-# :math:`W_m = W_m^r + W_m^d` (:math:`W_m^{ir} = 0` for the SMA laws).
+# Five isothermal tension-unloading cycles at temperatures spanning the transformation
+# temperatures. Below :math:`M_f` the material is fully martensitic when loaded: the
+# stress orients the variants (reorientation) and the strain remains after unloading.
+# Between :math:`M_s` and :math:`A_f` the stress-induced transformation is only partly
+# reversed on unloading and a residual strain remains. Above :math:`A_f` the
+# transformation reverses completely: the superelastic loop closes.
 
-e11, _, _, g12, _, _ = res["Strain"]
-s11, _, _, s12, _, _ = res["Stress"]
-s11_off, _, _, s12_off, _, _ = res_off["Stress"]
-time = res["Time"]
-xi = res["Statev"][1]
-pTR = res["Statev"][17]
-EReo = np.linalg.norm(res["Statev"][24:30], axis=0)
-Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
+temperatures = [-20.0, 10.0, 30.0, 50.0, 80.0]  # degrees C: < Mf, Mf-Ms, Ms-As, As-Af, > Af
+sweep = {}
+for Tc in temperatures:
+    res = run([thermal_step(273.15 + Tc), load_step(eps_max), unload_step()])
+    e11 = res["Strain"][0]
+    s11 = res["Stress"][0]
+    loaded = res["Time"] >= 1.0  # drop the cooling step
+    sweep[Tc] = (e11[loaded], s11[loaded], res["Statev"][1][loaded])
+
+# One temperature colormap for the whole example: blue below Mf, red above Af
+T_cmap = plt.cm.turbo
+T_norm = plt.Normalize(-40.0, 110.0)
 
 fig = plt.figure()
+colors = [T_cmap(T_norm(Tc)) for Tc in temperatures]
 
-ax = fig.add_subplot(2, 2, 1)
+ax = fig.add_subplot(1, 2, 1)
 ax.grid(True)
-ax.set_xlabel(r"$\sigma_{11}$ (MPa)", size=15)
-ax.set_ylabel(r"$\sigma_{12}$ (MPa)", size=15)
-ax.plot(s11_off, s12_off, c="gray", ls="--", label="transformation only")
-ax.plot(s11, s12, c="blue", label="transformation + reorientation")
+ax.set_xlabel(r"Strain $\varepsilon_{11}$", size=15)
+ax.set_ylabel(r"Stress $\sigma_{11}$ (MPa)", size=15)
+for c, Tc in zip(colors, temperatures):
+    e11, s11, _ = sweep[Tc]
+    ax.plot(e11, s11, c=c, lw=2, label=f"T = {Tc:.0f} °C")
 ax.legend(loc="best")
 
-ax = fig.add_subplot(2, 2, 2)
+ax = fig.add_subplot(1, 2, 2)
 ax.grid(True)
-ax.set_xlabel(r"$\varepsilon_{11}$", size=15)
-ax.set_ylabel(r"$\sigma_{11}$ (MPa)", size=15)
-ax.plot(e11, s11_off, c="gray", ls="--", label="transformation only")
-ax.plot(e11, s11, c="blue", label="transformation + reorientation")
+ax.set_xlabel(r"Strain $\varepsilon_{11}$", size=15)
+ax.set_ylabel(r"Martensite volume fraction $\xi$", size=15)
+for c, Tc in zip(colors, temperatures):
+    e11, _, xi = sweep[Tc]
+    ax.plot(e11, xi, c=c, lw=2, label=f"T = {Tc:.0f} °C")
 ax.legend(loc="best")
+plt.show()
 
-ax = fig.add_subplot(2, 2, 3)
+###################################################################################
+# Shape memory effect in the stress-temperature-strain space
+# ----------------------------------------------------------
+#
+# One cycle: cooling from 80 to -20 degrees C under no stress (self-accommodated
+# martensite, no strain), tension to 4 % (variant reorientation), unloading (the
+# oriented martensite keeps most of the strain), then heating to 100 degrees C
+# under no stress: the reverse transformation recovers the strain.
+#
+# The path is drawn in the :math:`(T, \sigma, \varepsilon)` space. Its projection on
+# the strain-free floor is the classical Clausius-Clapeyron diagram, with the four
+# transformation lines :math:`\sigma = C_M (T - M_s)`, :math:`C_M (T - M_f)`,
+# :math:`C_A (T - A_s)` and :math:`C_A (T - A_f)` drawn for reference: the loading
+# branch crosses none of them (it is reorientation, not transformation), the heating
+# branch crosses the :math:`A_s` and :math:`A_f` lines at zero stress.
+
+res = run([thermal_step(273.15 - 20.0), load_step(eps_max), unload_step(),
+           thermal_step(273.15 + 100.0, ninc=400)])
+T = res["Temp"] - 273.15
+s11 = res["Stress"][0]
+e11 = res["Strain"][0]
+xi = res["Statev"][1]
+time = res["Time"]
+
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from matplotlib.collections import LineCollection
+
+
+def coloured_segments(*coords):
+    """Consecutive-point segments of a polyline, to colour each by its temperature."""
+    pts = np.stack(coords, axis=-1)
+    return np.stack([pts[:-1], pts[1:]], axis=1)
+
+
+fig = plt.figure(figsize=(18, 9))
+ax = fig.add_subplot(1, 2, 1, projection="3d")
+T_min, T_max, s_max = -40.0, 110.0, 450.0
+T_line = np.linspace(T_min, T_max, 100)
+for T0, C, label in [(Mf0, C_M, r"$M_f$"), (Ms0, C_M, r"$M_s$"), (As0, C_A, r"$A_s$"), (Af0, C_A, r"$A_f$")]:
+    sig_line = C * (T_line - (T0 - 273.15))
+    keep = (sig_line >= 0.0) & (sig_line <= s_max)
+    ax.plot(T_line[keep], sig_line[keep], np.zeros(keep.sum()), c="black", lw=1, ls="--")
+    ax.text(T_line[keep][-1], sig_line[keep][-1], 0.0, label, color="black", size=12)
+# projection of the cycle on the strain-free floor: the classical stress-temperature view
+ax.plot(T, s11, np.zeros_like(T), c="lightgray", lw=1)
+path = Line3DCollection(coloured_segments(T, s11, e11), cmap=T_cmap, norm=T_norm, lw=2.5)
+path.set_array(0.5 * (T[:-1] + T[1:]))
+ax.add_collection(path)
+for label, t_mid in [("cooling", 0.5), ("loading", 1.5), ("unloading", 2.5), ("heating", 3.6)]:
+    k = np.argmin(np.abs(time - t_mid))
+    ax.text(T[k], s11[k], e11[k], "  " + label, size=11)
+ax.set_xlim(T_min, T_max)
+ax.set_ylim(0.0, s_max)
+ax.set_zlim(0.0, eps_max)
+ax.set_xlabel("Temperature (°C)", size=13)
+ax.set_ylabel(r"$\sigma_{11}$ (MPa)", size=13)
+ax.set_zlabel(r"$\varepsilon_{11}$", size=13)
+ax.view_init(elev=22, azim=-60)
+fig.colorbar(path, ax=ax, shrink=0.6, pad=0.1, label="Temperature (°C)")
+
+ax = fig.add_subplot(1, 2, 2)
 ax.grid(True)
 ax.set_xlabel("time (s)", size=15)
-ax.plot(time, xi, c="black", label=r"$\xi$")
-ax.plot(time, pTR, c="red", label=r"$p^{TR}$")
-ax.plot(time, EReo / Hmax, c="green", label=r"$\|\mathbf{E}^{Reo}\| / H_{max}$")
-for k in range(1, len(corners)):
-    ax.axvline(k, c="lightgray", lw=0.8)
+strain_line = LineCollection(coloured_segments(time, e11 / eps_max), cmap=T_cmap, norm=T_norm, lw=2.5)
+strain_line.set_array(0.5 * (T[:-1] + T[1:]))
+ax.add_collection(strain_line)
+ax.plot([], [], c="black", lw=2.5, label=r"$\varepsilon_{11} / \varepsilon_{max}$ (coloured by T)")
+ax.plot(time, s11 / s11.max(), c="black", ls="--", label=r"$\sigma_{11} / \sigma_{max}$")
+ax.plot(time, xi, c="gray", label=r"$\xi$")
+for t in (1.0, 2.0, 3.0):
+    ax.axvline(t, c="lightgray", lw=0.8)
+ax.set_xlim(time[0], time[-1])
+ax.set_ylim(-0.02, 1.05)
 ax.legend(loc="best")
-
-ax = fig.add_subplot(2, 2, 4)
-ax.grid(True)
-ax.set_xlabel("time (s)", size=15)
-ax.set_ylabel(r"$W_m$", size=15)
-ax.plot(time, Wm, c="black", label=r"$W_m$")
-ax.plot(time, Wm_r, c="green", label=r"$W_m^r$")
-ax.plot(time, Wm_ir, c="blue", label=r"$W_m^{ir}$")
-ax.plot(time, Wm_d, c="red", label=r"$W_m^d$")
-ax.legend(loc="best")
-
 plt.show()
