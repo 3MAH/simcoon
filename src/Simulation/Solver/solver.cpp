@@ -74,6 +74,23 @@ inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
     return false;
 }
 
+// A step cut requested by the material (tnew_dt < 1) cannot be honoured at the minimal
+// increment: compute_inc clamps back to Dn_mini and the same trial would be replayed forever.
+// Inforce the increment instead, or report the failure when inforce is off.
+inline bool refuse_cut_at_Dn_mini(const double &Dtinc_cur, const double &Dn_mini,
+                                  const int &inforce_solver, const int &step_number,
+                                  const int &inc, const double &tinc, double &tnew_dt) {
+    if ((tnew_dt >= 1.) || (fabs(Dtinc_cur - Dn_mini) > simcoon::iota))
+        return true;
+    if (inforce_solver == 0) {
+        cout << "The material requested a step cut below the minimal increment at step:" << step_number << " inc: " << inc << " and fraction:" << tinc << "; the simulation stops.\n";
+        return false;
+    }
+    cout << "The material requested a step cut below the minimal increment at step:" << step_number << " inc: " << inc << " and fraction:" << tinc << "; the increment has been inforced.\n";
+    tnew_dt = 1.;
+    return true;
+}
+
 // Step-cut-or-rethrow policy shared by every recoverable-failure catch in the
 // solver Newton loops. Must only be called from inside a catch block.
 inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
@@ -743,6 +760,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     n_inforced = 0;   // converged: the inforce path is not stalling
                                 }
 
+                                if (!refuse_cut_at_Dn_mini(Dtinc_cur, sptr_meca->Dn_mini, inforce_solver, sptr_meca->number, inc, tinc, tnew_dt)) {
+                                    return 1;
+                                }
+
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
@@ -1119,6 +1140,10 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     else {
                                         tnew_dt = div_tnew_dt_solver;
                                     }
+                                }
+
+                                if (!refuse_cut_at_Dn_mini(Dtinc_cur, sptr_thermomeca->Dn_mini, inforce_solver, sptr_thermomeca->number, inc, tinc, tnew_dt)) {
+                                    return 1;
                                 }
 
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {

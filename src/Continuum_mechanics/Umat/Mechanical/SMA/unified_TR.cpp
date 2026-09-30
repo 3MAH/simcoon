@@ -545,7 +545,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         // Saturation argument: ||v^re||/ETRmax (intrinsic, no \xi ).
         dlambda1Reo_arg = dlagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
         const double eta_dot_X = sum(etaReo % X);                  // \eta_Reo : X (tensor double contraction)
-        const vec   eta_strain_areo = (a_eq > simcoon::iota) ? eta_strain(areo) : zeros(6);
+        // Gradient of a_eq = Mises_strain(areo): eta_strain is the strain-like direction
+        // (engineering shears), its gradient carries half shears, hence % Ir05.
+        const vec   eta_strain_areo = (a_eq > simcoon::iota) ? vec(eta_strain(areo) % Ir05()) : vec(zeros(6));
 
         // d\lambda_1Reo/dareo = d\lambda_1Reo/d(arg) \cdot (1/ETRmax) \cdot \eta_strain(areo)
         const vec dlambda1Reo_dareo = dlambda1Reo_arg * (1./ETRmax) * eta_strain_areo;
