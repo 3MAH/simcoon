@@ -175,7 +175,7 @@ endif()
 # random crashes in threaded kernels (KMP_DUPLICATE_LIB_OK only hides the guard).
 # Install it with `conda install -c conda-forge armadillo`; -DArmadillo_ROOT=... still wins.
 # Conda prefix: conda-build exposes the host prefix as PREFIX, an activated environment as
-# CONDA_PREFIX (same precedence as the carma lookup below). `conda-meta/` is what makes a
+# CONDA_PREFIX. `conda-meta/` is what makes a
 # directory a conda prefix — PREFIX alone is a common Makefile variable (/usr/local ...).
 set(SIMCOON_CONDA_PREFIX "")
 if(DEFINED ENV{PREFIX} AND EXISTS "$ENV{PREFIX}/conda-meta")
@@ -252,81 +252,8 @@ message(STATUS "Fastor include dir: ${fastor_SOURCE_DIR}")
 
 # Python dependencies (only if building Python bindings)
 if(BUILD_PYTHON_BINDINGS)
-  find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
+  find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
   find_package(pybind11 REQUIRED)
-
-  # pip/uv builds set SIMCOON_FETCH_CARMA (pyproject.toml) so every wheel and editable
-  # install uses the pinned release fetched below, never a carma that happens to be on
-  # the machine (e.g. another conda environment's). The conda recipe keeps its own.
-  option(SIMCOON_FETCH_CARMA "Always fetch the pinned carma release instead of searching for one" OFF)
-
-  # Try to find carma from conda/system first
-  if(NOT SIMCOON_FETCH_CARMA)
-    find_package(carma CONFIG QUIET)
-  endif()
-
-  if(carma_FOUND)
-    message(STATUS "Found carma package (CONFIG mode)")
-    # Get include directory from target for force-include
-    get_target_property(carma_INCLUDE_DIR carma::carma INTERFACE_INCLUDE_DIRECTORIES)
-    # Handle generator expressions - extract first real path
-    if(carma_INCLUDE_DIR MATCHES "\\$<")
-      set(carma_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
-    endif()
-    # Clear carma's INTERFACE_PRECOMPILE_HEADERS - conda packages have absolute paths
-    # from the build machine that don't exist on the user's machine
-    set_target_properties(carma::carma PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
-  else()
-    # If not found via CONFIG, try to find headers directly in conda prefix
-    if(DEFINED ENV{PREFIX})
-      set(CONDA_PREFIX $ENV{PREFIX})
-    elseif(DEFINED ENV{CONDA_PREFIX})
-      set(CONDA_PREFIX $ENV{CONDA_PREFIX})
-    endif()
-
-    if(NOT SIMCOON_FETCH_CARMA AND CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
-      message(STATUS "Found carma headers in conda environment")
-      set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
-
-      # Create carma::carma target from conda installation
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-          INTERFACE_LINK_LIBRARIES "Python3::NumPy;pybind11::headers"
-        )
-      endif()
-      set(carma_FOUND TRUE)
-    else()
-      # Fall back to fetching from GitHub
-      message(STATUS "carma: fetching the pinned release v0.8.0 from GitHub")
-      FetchContent_Declare(
-        carma
-        GIT_REPOSITORY https://github.com/RUrlus/carma.git
-        GIT_TAG        v0.8.0
-        # Headers only (no CMakeLists.txt there): carma's own project fetches a second
-        # Armadillo (12.8.x) and puts it ahead of the one simcoon is built with, so _core
-        # and libsimcoon would exchange arma objects across two Armadillo versions.
-        SOURCE_SUBDIR  include
-      )
-      FetchContent_MakeAvailable(carma)
-
-      # Get the source directory and set include path
-      FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
-      set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
-
-      # Ensure carma::carma target exists with proper include directories. carma headers
-      # include pybind11 and numpy, and on Windows libsimcoon (which has no pybind11 of its
-      # own) force-includes numpy_alloc.hpp, so both have to come with the target.
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-          INTERFACE_LINK_LIBRARIES "Python3::NumPy;pybind11::headers"
-        )
-      endif()
-    endif()
-  endif()
 
   message(STATUS "Python bindings enabled")
   message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
@@ -436,31 +363,6 @@ if(NOT WIN32)
   if(OpenMP_CXX_FOUND)
     target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
   endif()
-endif()
-
-# Armadillo memory through malloc/free (simcoon-python-builder/include/.../numpy_alloc.hpp,
-# force-included ahead of every source of the target; OWNER_SRC defines the target's single
-# numpy C-API table). Applied to _core everywhere and, below, to libsimcoon on Windows, where
-# Armadillo objects cross the libsimcoon/_core boundary and mixed allocators corrupt the heap
-# (https://github.com/RUrlus/carma/issues/89).
-set(SIMCOON_NUMPY_ALLOC_HPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/include/simcoon/python_wrappers/numpy_alloc.hpp")
-function(simcoon_use_numpy_allocator target owner_src)
-  if(MSVC)
-    target_compile_options(${target} PRIVATE "/FI${SIMCOON_NUMPY_ALLOC_HPP}")
-  else()
-    target_compile_options(${target} PRIVATE "SHELL:-include ${SIMCOON_NUMPY_ALLOC_HPP}")
-  endif()
-  # directory-scoped property: call this from the CMakeLists.txt that defines the target
-  set_source_files_properties("${owner_src}" PROPERTIES COMPILE_DEFINITIONS SIMCOON_NUMPY_API_OWNER)
-endfunction()
-
-if(WIN32 AND BUILD_PYTHON_BINDINGS)
-  target_link_libraries(simcoon PRIVATE carma::carma)   # pybind11 + numpy headers
-  set(SIMCOON_NUMPY_ALLOC_CPP "${CMAKE_CURRENT_SOURCE_DIR}/simcoon-python-builder/src/numpy_alloc.cpp")
-  target_sources(simcoon PRIVATE "${SIMCOON_NUMPY_ALLOC_CPP}")
-  simcoon_use_numpy_allocator(simcoon "${SIMCOON_NUMPY_ALLOC_CPP}")
-  # _core imports libsimcoon's table at its own import (python_module.cpp)
-  set(SIMCOON_NUMPY_ALLOC_IN_LIB TRUE)
 endif()
 
 ##Testing

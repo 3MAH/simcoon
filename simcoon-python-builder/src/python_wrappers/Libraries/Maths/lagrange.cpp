@@ -2,7 +2,6 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
 #include <armadillo>
 
 #include <simcoon/Simulation/Maths/lagrange.hpp>

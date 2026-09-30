@@ -1,10 +1,9 @@
 // NumPy -> Armadillo input conversions for the python wrappers.
 //
-// Two rules, the reason this header exists instead of carma's arr_to_*:
-//   1. Armadillo never owns NumPy memory. Armadillo allocates and frees with malloc/free
-//      (numpy_alloc.hpp); NumPy frees with the PyDataMem_Handler of the array, which may
-//      not be malloc/free. carma's input converters always end with Armadillo owning a
-//      NumPy-allocated buffer (stolen, or a copy made with PyArray_NewLikeArray).
+// Two rules (output side: arma_to_numpy.hpp):
+//   1. Armadillo never owns NumPy memory. Armadillo frees with its own allocator; NumPy
+//      frees with the PyDataMem_Handler of the array, which may differ. (carma, used until
+//      2.1, ended with Armadillo owning a NumPy-allocated buffer.)
 //   2. The NumPy array is never modified: no shape, stride or flag change, no ownership
 //      transfer.
 //

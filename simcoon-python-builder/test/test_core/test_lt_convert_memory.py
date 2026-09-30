@@ -1,9 +1,9 @@
 """Batched Lt_convert must not leak memory.
 
 Each point builds a 6x6 tangent inside libsimcoon that is freed in the _core
-extension. The two modules do not share an allocator on Windows (Armadillo's
-_aligned_malloc vs carma's numpy allocator), so a silently refused free would
-show up here as memory growth proportional to the number of points.
+extension. Both must use Armadillo's default allocator (arma_to_numpy.hpp); a
+mismatch, e.g. on Windows, would show up here as memory growth proportional to
+the number of points, or as a crash.
 """
 
 import ctypes

@@ -2,7 +2,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 #include <simcoon/exception.hpp>
@@ -23,13 +23,13 @@ py::array_t<double> isochoric_invariants(const py::array_t<double> &input, const
         if(input.size() == 3) {
             vec lambdas = simpy::numpy_to_arma::arr_to_col(input);
             vec t = simcoon::isochoric_invariants(lambdas, J);
-            return carma::col_to_arr(t, copy);            
+            return simpy::arma_to_numpy::col_to_arr(t, copy);            
         }
         else if(input.size() == 6) {
             vec vec_input = simpy::numpy_to_arma::arr_to_col(input);
             mat b = simcoon::v2t_strain(vec_input);
             vec t = simcoon::isochoric_invariants(b, J);
-            return carma::col_to_arr(t, copy);            
+            return simpy::arma_to_numpy::col_to_arr(t, copy);            
         }
         else 
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 3 (from principal stretches) or 6 (from left Cauchy-Green tensor in Voigt notation)");
@@ -38,13 +38,13 @@ py::array_t<double> isochoric_invariants(const py::array_t<double> &input, const
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             mat b = simpy::numpy_to_arma::arr_to_mat(input);
             vec t = simcoon::isochoric_invariants(b, J);
-            return carma::col_to_arr(t, copy);                         
+            return simpy::arma_to_numpy::col_to_arr(t, copy);                         
         }        
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat mat_input = simpy::numpy_to_arma::arr_to_mat(input);
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             vec t = simcoon::isochoric_invariants(sim_input, J);
-            return carma::col_to_arr(t, copy);            
+            return simpy::arma_to_numpy::col_to_arr(t, copy);            
         }
         else {
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
@@ -61,12 +61,12 @@ py::array_t<double> isochoric_pstretch(const py::array_t<double> &input, const s
             if(input_tensor == "b") {
                 mat b = simcoon::v2t_strain(vec_input);
                 vec t = simcoon::isochoric_pstretch_from_b(b);                
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }
             else if(input_tensor == "V" || input_tensor == "v") {
                 mat V = simcoon::v2t_strain(vec_input);
                 vec t = simcoon::isochoric_pstretch_from_V(V);
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }
             else {
                 throw std::invalid_argument("Invalid input string to describe the input vector: it should be *b* for left Cauchy-Green tensor or *v* or *V* for Eulerian stretch tensor");                
@@ -81,22 +81,22 @@ py::array_t<double> isochoric_pstretch(const py::array_t<double> &input, const s
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             if(input_tensor == "b") {
                 vec t = simcoon::isochoric_pstretch_from_b(mat_input);                
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }
             else if(input_tensor == "V" || input_tensor == "v") {
                 vec t = simcoon::isochoric_pstretch_from_V(mat_input);
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }            
         }        
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             if(input_tensor == "b") {
                 vec t = simcoon::isochoric_pstretch_from_b(sim_input);                
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }
             else if(input_tensor == "V" || input_tensor == "v") {
                 vec t = simcoon::isochoric_pstretch_from_V(sim_input);
-                return carma::col_to_arr(t, copy);                            
+                return simpy::arma_to_numpy::col_to_arr(t, copy);                            
             }            
         }
         else {
@@ -113,7 +113,7 @@ py::array_t<double> tau_iso_hyper_invariants(const double &dWdI_1_bar, const dou
             vec vec_input = simpy::numpy_to_arma::arr_to_col(input);
             mat b_arma = simcoon::v2t_strain(vec_input);
             mat m = simcoon::tau_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b_arma, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6 from left Cauchy-Green tensor in Voigt notation");
@@ -123,12 +123,12 @@ py::array_t<double> tau_iso_hyper_invariants(const double &dWdI_1_bar, const dou
         mat mat_input = simpy::numpy_to_arma::arr_to_mat(input);
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             vec t = simcoon::tau_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, mat_input, J);
-            return carma::mat_to_arr(t, copy);
+            return simpy::arma_to_numpy::mat_to_arr(t, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             mat m = simcoon::tau_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, sim_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
@@ -144,7 +144,7 @@ py::array_t<double> sigma_iso_hyper_invariants(const double &dWdI_1_bar, const d
             vec vec_input = simpy::numpy_to_arma::arr_to_col(input);
             mat b_arma = simcoon::v2t_strain(vec_input);
             mat m = simcoon::sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, b_arma, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6 from left Cauchy-Green tensor in Voigt notation");
@@ -154,12 +154,12 @@ py::array_t<double> sigma_iso_hyper_invariants(const double &dWdI_1_bar, const d
         mat mat_input = simpy::numpy_to_arma::arr_to_mat(input);
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             mat m = simcoon::sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, mat_input, J);                
-            return carma::mat_to_arr(m, copy);                            
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);                            
         }        
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             mat m = simcoon::sigma_iso_hyper_invariants(dWdI_1_bar, dWdI_2_bar, sim_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
@@ -175,7 +175,7 @@ py::array_t<double> tau_vol_hyper(const double &dUdJ, const py::array_t<double> 
             vec vec_input = simpy::numpy_to_arma::arr_to_col(input);
             mat b_arma = simcoon::v2t_strain(vec_input);
             mat m = simcoon::tau_vol_hyper(dUdJ, b_arma, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6 from left Cauchy-Green tensor in Voigt notation");
@@ -185,12 +185,12 @@ py::array_t<double> tau_vol_hyper(const double &dUdJ, const py::array_t<double> 
         mat mat_input = simpy::numpy_to_arma::arr_to_mat(input);
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             mat m = simcoon::tau_vol_hyper(dUdJ, mat_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             mat m = simcoon::tau_vol_hyper(dUdJ, sim_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");
@@ -206,7 +206,7 @@ py::array_t<double> sigma_vol_hyper(const double &dUdJ, const py::array_t<double
             vec vec_input = simpy::numpy_to_arma::arr_to_col(input);
             mat b_arma = simcoon::v2t_strain(vec_input);
             mat m = simcoon::sigma_vol_hyper(dUdJ, b_arma, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6 from left Cauchy-Green tensor in Voigt notation");
@@ -216,12 +216,12 @@ py::array_t<double> sigma_vol_hyper(const double &dUdJ, const py::array_t<double
         mat mat_input = simpy::numpy_to_arma::arr_to_mat(input);
         if((input.shape(0) == 3)&&(input.shape(1) == 3)) {
             mat m = simcoon::sigma_vol_hyper(dUdJ, mat_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else if((input.shape(0) == 6)&&(input.shape(1) == 1)) {
             mat sim_input = simcoon::v2t_strain(mat_input.as_col());
             mat m = simcoon::sigma_vol_hyper(dUdJ, sim_input, J);
-            return carma::mat_to_arr(m, copy);
+            return simpy::arma_to_numpy::mat_to_arr(m, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the two-dimensional array. Expected a 3x3 array or a 6x1 array considering Voigt notation");

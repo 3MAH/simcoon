@@ -1,8 +1,8 @@
-"""Windows batch kernels complete under tracemalloc without a GIL deadlock.
+"""Batch kernels complete under tracemalloc without a GIL deadlock.
 
 Run batches past the parallel cutoff in a subprocess with a timeout, so a regression
-fails instead of hanging the suite. Armadillo currently uses malloc/free on Windows;
-the test also guards against future changes to its allocator or the worker kernels.
+fails instead of hanging the suite. Guards against future changes to Armadillo's
+allocator or to the worker kernels.
 """
 
 import os
@@ -37,8 +37,6 @@ _SCRIPT = textwrap.dedent("""
 """)
 
 
-@pytest.mark.skipif(sys.platform != "win32",
-                    reason="only Windows routes libsimcoon's kernel allocations through numpy")
 def test_batch_umat_does_not_wait_on_the_gil():
     cmd = [sys.executable, "-X", "tracemalloc", "-c", _SCRIPT]
     try:

@@ -7,7 +7,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -71,7 +71,7 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
         sptr->cBC_meca(k) = flag;
     }
     if (sd.contains("BC_meca")) {
-        //vec_of copies: carma's rvalue overloads would STEAL an owning array of the caller
+        //vec_of copies: the caller's array is never borrowed nor modified
         vec BC_meca = vec_of(sd["BC_meca"], "solver_run: BC_meca");
         if (BC_meca.n_elem != size_meca) {
             throw std::invalid_argument("solver_run: BC_meca must have " + std::to_string(size_meca) + " components");
@@ -123,16 +123,14 @@ void fill_step_common(StepPtr &sptr, const py::dict &sd, const unsigned int &con
 }
 
 //one row per record, vecs/mats flattened row-major (matrices reshape to
-//(N, n_rows, n_cols) C-order on the Python side). copy=true: small histories can
-//fit armadillo's internal pre-allocated buffer, which must never be handed to
-//numpy as a zero-copy steal.
+//(N, n_rows, n_cols) C-order on the Python side).
 template <typename ArmaT>
 py::array_t<double> rows_to_arr(const std::vector<ArmaT> &v) {
     arma::mat M(v.size(), v.empty() ? 0 : v[0].n_elem);
     for (size_t i = 0; i < v.size(); i++) {
         M.row(i) = arma::vectorise(v[i].t()).t();
     }
-    return carma::mat_to_arr(M, true);
+    return simpy::arma_to_numpy::mat_to_arr(M, true);
 }
 
 template <typename T>

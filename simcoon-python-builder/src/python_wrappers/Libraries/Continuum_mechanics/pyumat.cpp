@@ -29,7 +29,6 @@
 #include <string>
 #include <vector>
 
-#include <carma>
 #include <armadillo>
 
 #include <simcoon/exception.hpp>
@@ -54,7 +53,7 @@ static py::object *g_fn = nullptr;   // touched only with the GIL held
 
 using farr = py::array_t<double, py::array::f_style | py::array::forcecast>;
 
-// (rows, cols) column-major copy — cheaper than carma::mat_to_arr(arma::mat(m)), which
+// (rows, cols) column-major copy — cheaper than simpy::arma_to_numpy::mat_to_arr(arma::mat(m)), which
 // heap-allocates an arma copy plus a capsule for the 9 doubles of DR on every call
 farr np2d(const arma::mat &m) {
     farr a({static_cast<py::ssize_t>(m.n_rows), static_cast<py::ssize_t>(m.n_cols)});
@@ -64,7 +63,7 @@ farr np2d(const arma::mat &m) {
     return a;
 }
 
-// (n,) copy — carma::col_to_arr would give (n,1)
+// (n,) copy — simpy::arma_to_numpy::col_to_arr would give (n,1)
 py::array_t<double> np1d(const arma::vec &v) {
     py::array_t<double> a(static_cast<py::ssize_t>(v.n_elem));
     if (v.n_elem > 0) {

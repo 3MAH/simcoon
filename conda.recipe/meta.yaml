@@ -38,7 +38,6 @@ requirements:
     - liblapack * *netlib # [win]
     - libblas # [not win]
     - liblapack # [not win]
-    - carma
     - pybind11
     - python
     - python_abi {{ python }} *_cp{{ python | replace(".", "") }}  # Could be removed when https://github.com/conda/conda-build/issues/5843 is solved

@@ -2,7 +2,7 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -18,49 +18,49 @@ namespace simpy {
 //Returns the fourth order identity tensor written in Voigt notation Ireal
 py::array_t<double> Ireal(const bool &copy) {
     mat m = simcoon::Ireal();
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the volumic of the identity tensor Ireal written in Voigt notation
 py::array_t<double> Ivol(const bool &copy) {
     mat m = simcoon::Ivol();
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the deviatoric of the identity tensor Ireal written in Voigt notation
 py::array_t<double> Idev(const bool &copy) {
     mat m = simcoon::Idev();
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the fourth order identity tensor Iˆ written in Voigt notation
 py::array_t<double> Ireal2(const bool &copy) {
     mat m = simcoon::Ireal2();
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the deviatoric of the identity tensor Iˆ written in Voigt notation
 py::array_t<double> Idev2(const bool &copy) {
     mat m = simcoon::Idev2();
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the expansion vector
 py::array_t<double> Ith(const bool &copy) {
     vec v = simcoon::Ith();
-    return carma::col_to_arr(v, copy);
+    return simpy::arma_to_numpy::col_to_arr(v, copy);
 }
 
 //Returns the stress 2 strain operator
 py::array_t<double> Ir2(const bool &copy) {
     vec v = simcoon::Ir2();
-    return carma::col_to_arr(v, copy);
+    return simpy::arma_to_numpy::col_to_arr(v, copy);
 }
 
 //Returns the strain 2 stress operator
 py::array_t<double> Ir05(const bool &copy) {
     vec v = simcoon::Ir05();
-    return carma::col_to_arr(v, copy);
+    return simpy::arma_to_numpy::col_to_arr(v, copy);
 }
 
 //Provides the elastic stiffness tensor for an isotropic material.
@@ -70,7 +70,7 @@ py::array_t<double> Ir05(const bool &copy) {
 py::array_t<double> L_iso(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_iso(props_cpp(0),props_cpp(1),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Provides the elastic compliance tensor for an isotropic material.
@@ -80,7 +80,7 @@ py::array_t<double> L_iso(const py::array_t<double> &props, const std::string &c
 py::array_t<double> M_iso(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_iso(props_cpp(0),props_cpp(1),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic stiffness tensor for a cubic material.
@@ -88,7 +88,7 @@ py::array_t<double> M_iso(const py::array_t<double> &props, const std::string &c
 py::array_t<double> L_cubic(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_cubic(props_cpp(0),props_cpp(1),props_cpp(2),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic compliance tensor for an isotropic material.
@@ -96,7 +96,7 @@ py::array_t<double> L_cubic(const py::array_t<double> &props, const std::string 
 py::array_t<double> M_cubic(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_cubic(props_cpp(0),props_cpp(1),props_cpp(2),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic stiffness tensor for an orthotropic material.
@@ -106,7 +106,7 @@ py::array_t<double> M_cubic(const py::array_t<double> &props, const std::string 
 py::array_t<double> L_ortho(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_ortho(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),props_cpp(5),props_cpp(6),props_cpp(7),props_cpp(8),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic compliance tensor for an orthotropic material.
@@ -116,7 +116,7 @@ py::array_t<double> L_ortho(const py::array_t<double> &props, const std::string 
 py::array_t<double> M_ortho(const py::array_t<double> &props, const std::string &conv, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_ortho(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),props_cpp(5),props_cpp(6),props_cpp(7),props_cpp(8),conv);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic stiffness tensor for an isotropic transverse material.
@@ -124,7 +124,7 @@ py::array_t<double> M_ortho(const py::array_t<double> &props, const std::string 
 py::array_t<double> L_isotrans(const py::array_t<double> &props, const int &axis, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::L_isotrans(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),axis);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 //Returns the elastic compliance tensor for an isotropic transverse material.
@@ -132,14 +132,14 @@ py::array_t<double> L_isotrans(const py::array_t<double> &props, const int &axis
 py::array_t<double> M_isotrans(const py::array_t<double> &props, const int &axis, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::M_isotrans(props_cpp(0),props_cpp(1),props_cpp(2),props_cpp(3),props_cpp(4),axis);
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 //Provides the viscous tensor H an isotropic material.
 //The two first arguments are a couple of viscous coefficients (the first is bulk, the second is shear).
 py::array_t<double> H_iso(const py::array_t<double> &props, const bool &copy){
     vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
     mat m = simcoon::H_iso(props_cpp(0),props_cpp(1));
-    return carma::mat_to_arr(m, copy);
+    return simpy::arma_to_numpy::mat_to_arr(m, copy);
 }
 
 } //namepsace simpy

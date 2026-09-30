@@ -3,7 +3,7 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 #include <assert.h>
@@ -170,7 +170,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             }
             mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F_in);
             vec stress = simcoon::t2v_stress(functor_stress_converter(sigma_cpp, F_cpp, J));
-            return carma::col_to_arr(stress, copy);
+            return simpy::arma_to_numpy::col_to_arr(stress, copy);
         }
         else {
             throw std::invalid_argument("Invalid size of the one-dimensional array. Expected 6");
@@ -192,7 +192,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             }
             mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F_in);
             mat stress = functor_stress_converter(sigma_cpp, F_cpp, J);
-            return carma::mat_to_arr(stress, copy);
+            return simpy::arma_to_numpy::mat_to_arr(stress, copy);
         }
         else if(sigma.shape(0) == 6) {
             // Batch case: accept F shaped (3,3,N) or (N,3,3). Normalize to (3,3,N)
@@ -227,7 +227,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
                 stress.col(i) = simcoon::t2v_stress(functor_stress_converter(simcoon::v2t_stress(sigma_cpp), F_cpp, J));
             }
 
-            return carma::mat_to_arr(stress, copy);
+            return simpy::arma_to_numpy::mat_to_arr(stress, copy);
         }
         else {
             throw std::invalid_argument("Invalid shape of the two-dimensional array. Expected n rows, 6 columns (1 per component of the symmetric stress tensor)");
