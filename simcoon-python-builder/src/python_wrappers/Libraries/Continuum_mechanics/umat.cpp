@@ -110,7 +110,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type, const bool &work_correction_on, const std::string &tangent_output){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const int &corate_type, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -165,11 +165,9 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
 		}
 
-		bool start = true;
-
-		if (Time > simcoon::limit) {
-			start = false;
-		}
+		// start re-initialises the point (T_init, stress, internal variables, Wm):
+		// the caller's choice when given, otherwise inferred from Time.
+		const bool start = start_py.value_or(Time <= simcoon::limit);
 
 		//bool use_temp;
 		//if (T.n_elem == 0.) use_temp = false; 
@@ -447,7 +445,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py){
 		// Point-wise thermomechanical UMAT batch entry (small strain), mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
@@ -481,10 +479,9 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
 		}
 
-		bool start = true;
-		if (Time > simcoon::limit) {
-			start = false;
-		}
+		// start re-initialises the point (T_init, stress, internal variables, Wm):
+		// the caller's choice when given, otherwise inferred from Time.
+		const bool start = start_py.value_or(Time <= simcoon::limit);
 		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
 		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
