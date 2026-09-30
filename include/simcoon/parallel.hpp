@@ -72,7 +72,7 @@ inline int chunk_size(int N) {
 /// @warning CONTRACT: @p func must not touch Python memory (numpy allocation, refcounts,
 /// anything needing the GIL). Worker threads acquiring the GIL while the calling thread
 /// blocks on the loop is the lock cycle behind the 1.11.2 macOS parallel-UMAT deadlock
-/// (carma copy -> PyDataMem_NEW -> GIL inside GCD). Do all numpy<->arma conversion BEFORE
+/// (numpy allocation -> PyDataMem_NEW -> GIL inside GCD). Do all numpy<->arma conversion BEFORE
 /// the loop, and release the GIL around the C++ call in the Python bindings.
 template<typename F>
 void simcoon_parallel_for_safe(int N, F&& func, int cutoff = simcoon_parallel_cutoff,

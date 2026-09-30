@@ -6,7 +6,7 @@
 #include <optional>
 #include <vector>
 
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -357,9 +357,8 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		const bool work_correction = work_correction_on && kirchhoff_normalize
 		                             && simcoon::work_correction_applies(corate_type);
 		auto point_kernel = [&](int pt) {
-			// Alias the props column without copying so the parallel region makes no
-			// NumPy-backed (carma) allocation: GCD/OpenMP workers then never call
-			// PyDataMem_NEW (which needs the GIL) -> no GIL deadlock, no GIL handling.
+			// Alias the props column without copying: the parallel region makes no
+			// allocation for it, and never touches Python (no GIL needed by workers).
 			// props (unique) / list_props (per-point) outlive the lambda and are read-only.
 			const double* _props_ptr = unique_props ? props.memptr() : list_props.colptr(pt);
 			const vec local_props(const_cast<double*>(_props_ptr), nprops, false, true);
@@ -441,7 +440,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat", tnew_dt);
-		return py::make_tuple(carma::mat_to_arr(list_sigma, false), carma::mat_to_arr(list_statev, false), carma::mat_to_arr(list_Wm, false), carma::cube_to_arr(Lt, false));
+		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, false), simpy::arma_to_numpy::mat_to_arr(list_statev, false), simpy::arma_to_numpy::mat_to_arr(list_Wm, false), simpy::arma_to_numpy::cube_to_arr(Lt, false));
 
 	}
 
@@ -621,8 +620,6 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			drdE_out.col(pt) = drdE.slice(pt);
 			drdT_out(pt) = drdT(0, 0, pt);
 		}
-		// copy=true throughout: with few points these arrays fit armadillo's internal
-		// (pre-allocated) buffer and a zero-copy steal would hand numpy a dangling pointer
-		return py::make_tuple(carma::mat_to_arr(list_sigma, true), carma::mat_to_arr(list_statev, true), carma::mat_to_arr(list_Wm, true), carma::mat_to_arr(list_Wt, true), carma::col_to_arr(list_r, true), carma::cube_to_arr(dSdE, true), carma::mat_to_arr(dSdT_out, true), carma::mat_to_arr(drdE_out, true), carma::col_to_arr(drdT_out, true));
+		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, true), simpy::arma_to_numpy::mat_to_arr(list_statev, true), simpy::arma_to_numpy::mat_to_arr(list_Wm, true), simpy::arma_to_numpy::mat_to_arr(list_Wt, true), simpy::arma_to_numpy::col_to_arr(list_r, true), simpy::arma_to_numpy::cube_to_arr(dSdE, true), simpy::arma_to_numpy::mat_to_arr(dSdT_out, true), simpy::arma_to_numpy::mat_to_arr(drdE_out, true), simpy::arma_to_numpy::col_to_arr(drdT_out, true));
 	}
 }

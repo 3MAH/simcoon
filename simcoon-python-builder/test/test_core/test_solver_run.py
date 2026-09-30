@@ -155,8 +155,7 @@ def test_ct3_spin():
     # The target is a LOG strain, and it is prescribed in the COROTATIONAL frame: with a
     # superimposed spin its 11 component in the lab frame drifts (0.0491 here, 1.8 % off,
     # of order theta^2/2). The invariant is the principal strain, which no rotation moves.
-    # ascontiguousarray: a column of a (6, N) history is not contiguous, and carma
-    # refuses to borrow such an array.
+    # ascontiguousarray: a column of a (6, N) history is not contiguous.
     e_end = sim.v2t_strain(np.ascontiguousarray(res["LogStrain"][:, -1]))
     # Under the spin the state is not exactly uniaxial in the lab frame — the two
     # lateral principal strains differ (-0.015001 vs -0.014784) — so no simple
@@ -417,12 +416,11 @@ def test_modul_and_adapter_match():
 
 
 def test_solver_is_safe_as_the_first_call_of_a_process():
-    """The engine runs with the GIL released, and Armadillo allocates through numpy's
-    allocator (in _core everywhere, in libsimcoon too on Windows). numpy's C-API table
-    used to be imported lazily by the first allocation of each translation unit, a
-    Python call made without the GIL: an access violation on Windows whenever the solver
-    was the first binding of the process to touch a law (Sep 2026, feature/micro CI). It
-    is now imported once at `import simcoon`. A fresh interpreter makes the solver the
+    """The engine runs with the GIL released. Until 2.1 Armadillo allocated through
+    numpy's allocator, whose C-API table was imported lazily by the first allocation of
+    each translation unit, a Python call made without the GIL: an access violation on
+    Windows whenever the solver was the first binding of the process to touch a law
+    (Sep 2026, feature/micro CI). Armadillo now uses its own allocator. A fresh interpreter makes the solver the
     first caller, on every platform, for the modular engine (MODUL, and ELISO through
     its adapter) and a dedicated kernel (EPICP)."""
     cases = [("MODUL", MODUL_ELASTIC_PROPS, 1), ("ELISO", ELISO_PROPS, 1),
@@ -602,8 +600,8 @@ def test_lambda_solver_param():
 # ---------------------------------------------------------------------------
 
 def test_solver_run_does_not_steal_the_callers_arrays():
-    """carma's rvalue overloads take ownership of an owning, F-contiguous array: BC_meca
-    came back zeroed, pointing into memory armadillo had freed."""
+    """carma's rvalue overloads (until 2.1) took ownership of an owning, F-contiguous
+    array: BC_meca came back zeroed, pointing into memory armadillo had freed."""
     import simcoon._core as core
     BC = np.array([0.01, 0.0, 0.0, 0.0, 0.0, 0.0])
     BC_w = np.asfortranarray(np.zeros((3, 3)))

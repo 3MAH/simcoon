@@ -105,7 +105,7 @@ Install required dependencies:
 conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja
 
 # Libraries
-conda install -c conda-forge armadillo pybind11 numpy gtest carma
+conda install -c conda-forge armadillo pybind11 numpy gtest
 
 # Python testing
 pip install pytest

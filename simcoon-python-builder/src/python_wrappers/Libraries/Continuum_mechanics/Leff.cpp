@@ -2,7 +2,7 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -52,7 +52,7 @@ py::array_t<double> L_eff(const std::string &umat_name, const py::array_t<double
     //Second we call a recursive method that find all the elastic moduli iof the phases
     simcoon::get_L_elastic(rve);
 
-    return carma::mat_to_arr(sv_M->Lt);
+    return simpy::arma_to_numpy::mat_to_arr(sv_M->Lt);
 }
 
 } //namepsace simpy

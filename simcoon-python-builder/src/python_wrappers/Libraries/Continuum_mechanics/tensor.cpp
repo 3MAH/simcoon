@@ -3,7 +3,7 @@
 #include <pybind11/stl.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -38,16 +38,16 @@ namespace {
                 to_string(cols) + "), got (" + to_string(shape[0]) + ", " + to_string(shape[1]) + ")");
         }
     }
-    // Helper: numpy (N,6) → arma mat (6,N)  — via carma + transpose
+    // Helper: numpy (N,6) → arma mat (6,N)  — copy + transpose
     mat np2d_to_mat6N(const py::array_t<double>& arr) {
         mat m = simpy::numpy_to_arma::arr_to_mat(arr);   // numpy (N,6) → arma (N,6)
         return m.t();                      // → arma (6,N)
     }
 
-    // Helper: arma mat (6,N) → numpy (N,6)  — via transpose + carma
+    // Helper: arma mat (6,N) → numpy (N,6)  — transpose + zero-copy output
     py::array_t<double> mat6N_to_np2d(const mat& m) {
         mat mt = m.t();                    // arma (6,N) → arma (N,6)
-        return carma::mat_to_arr(mt);      // → numpy (N,6)
+        return simpy::arma_to_numpy::mat_to_arr(mt);      // → numpy (N,6)
     }
 } // anonymous namespace
 
@@ -125,19 +125,19 @@ void register_tensor(py::module_& m) {
         // Properties
         .def_property_readonly("mat",
             [](const simcoon::tensor2& self) {
-                return carma::mat_to_arr(mat(self.mat()));
+                return simpy::arma_to_numpy::mat_to_arr(mat(self.mat()));
             },
             "3x3 matrix representation as numpy array")
 
         .def_property_readonly("voigt",
             [](const simcoon::tensor2& self) {
-                return carma::col_to_arr(vec(self.voigt()));
+                return simpy::arma_to_numpy::col_to_arr(vec(self.voigt()));
             },
             "6-element Voigt vector as numpy array")
 
         .def_property_readonly("mandel",
             [](const simcoon::tensor2& self) {
-                return carma::col_to_arr(vec(self.mandel()));
+                return simpy::arma_to_numpy::col_to_arr(vec(self.mandel()));
             },
             "Kelvin-Mandel 6-vector (sqrt2 on shear, identical for stress/strain) as numpy array")
 
@@ -249,13 +249,13 @@ void register_tensor(py::module_& m) {
         // Properties
         .def_property_readonly("mat",
             [](const simcoon::tensor4& self) {
-                return carma::mat_to_arr(mat(self.mat()));
+                return simpy::arma_to_numpy::mat_to_arr(mat(self.mat()));
             },
             "6x6 Voigt matrix as numpy array")
 
         .def_property_readonly("mandel",
             [](const simcoon::tensor4& self) {
-                return carma::mat_to_arr(mat(self.mandel()));
+                return simpy::arma_to_numpy::mat_to_arr(mat(self.mandel()));
             },
             "Kelvin-Mandel 6x6 (the internal storage; identity=eye(6) for every type) as numpy array")
 
@@ -329,7 +329,7 @@ void register_tensor(py::module_& m) {
     // ================================================================
     // Batch operations
     // Python side prepares:
-    //   voigt as (N,6) C-order → converted via np2d_to_mat6N (carma + .t())
+    //   voigt as (N,6) C-order → converted via np2d_to_mat6N (copy + .t())
     //   cubes as (R,C,N) F-order → zero-copy via simpy::numpy_to_arma::arr_to_cube
     // Each name is a pybind overload set (tensor2 + tensor4 variants), mirroring
     // the C++ batch_* overloads; dispatch is disambiguated by the enum argument.
@@ -383,7 +383,7 @@ void register_tensor(py::module_& m) {
         [](py::array_t<double> voigt, simcoon::Tensor2Type vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_mises(v_cpp, vtype);
-            return carma::col_to_arr(result);
+            return simpy::arma_to_numpy::col_to_arr(result);
         },
         py::arg("voigt"), py::arg("vtype"));
 
@@ -391,7 +391,7 @@ void register_tensor(py::module_& m) {
         [](py::array_t<double> voigt, simcoon::Tensor2Type vtype) {
             mat v_cpp = np2d_to_mat6N(voigt);
             vec result = simcoon::batch_trace(v_cpp, vtype);
-            return carma::col_to_arr(result);
+            return simpy::arma_to_numpy::col_to_arr(result);
         },
         py::arg("voigt"), py::arg("vtype"));
 
@@ -422,7 +422,7 @@ void register_tensor(py::module_& m) {
                 py::gil_scoped_release release;
                 result = simcoon::batch_rotate(t4_cpp, t4type, r_cpp, active);
             }
-            return carma::cube_to_arr(result, false);
+            return simpy::arma_to_numpy::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("rot_matrices"), py::arg("active") = true);
 
@@ -437,7 +437,7 @@ void register_tensor(py::module_& m) {
                 py::gil_scoped_release release;
                 result = simcoon::batch_push_forward(t4_cpp, t4type, f_cpp, metric);
             }
-            return carma::cube_to_arr(result, false);
+            return simpy::arma_to_numpy::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
@@ -452,7 +452,7 @@ void register_tensor(py::module_& m) {
                 py::gil_scoped_release release;
                 result = simcoon::batch_pull_back(t4_cpp, t4type, f_cpp, metric);
             }
-            return carma::cube_to_arr(result, false);
+            return simpy::arma_to_numpy::cube_to_arr(result, false);
         },
         py::arg("t4"), py::arg("t4type"), py::arg("F"), py::arg("metric") = true);
 
@@ -466,7 +466,7 @@ void register_tensor(py::module_& m) {
                 result = simcoon::batch_inverse(t4_cpp, t4type);
             }
             simcoon::Tensor4Type inv_type = simcoon::infer_inverse_type(t4type);
-            return py::make_tuple(carma::cube_to_arr(result, false), inv_type);
+            return py::make_tuple(simpy::arma_to_numpy::cube_to_arr(result, false), inv_type);
         },
         py::arg("t4"), py::arg("t4type"));
 

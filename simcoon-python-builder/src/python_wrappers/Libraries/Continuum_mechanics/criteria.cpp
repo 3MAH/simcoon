@@ -3,7 +3,7 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -31,7 +31,7 @@ namespace simpy
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
         vec t = simcoon::dDrucker_stress(v, props_cpp(0), props_cpp(1));
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
     // This function returns the Tresca equivalent stress.
@@ -46,7 +46,7 @@ namespace simpy
     {
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec t = simcoon::dTresca_stress(v);
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
     // Provides an anisotropic configurational tensor P in the Voigt format (6x6 numpy array), given its vector representation
@@ -54,7 +54,7 @@ namespace simpy
     {
         vec v = simpy::numpy_to_arma::arr_to_col(props);
         mat t = simcoon::P_Ani(v);
-        return carma::mat_to_arr(t, copy);
+        return simpy::arma_to_numpy::mat_to_arr(t, copy);
     }
 
     // Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation
@@ -62,7 +62,7 @@ namespace simpy
     {
         vec v = simpy::numpy_to_arma::arr_to_col(props);
         mat t = simcoon::P_Hill(v);
-        return carma::mat_to_arr(t, copy);
+        return simpy::arma_to_numpy::mat_to_arr(t, copy);
     }
 
     // Provides an anisotropic configurational tensor considering the quadratic Hill yield criterion in the Voigt format (6x6 numpy array), given its vector representation
@@ -70,7 +70,7 @@ namespace simpy
     {
         vec v = simpy::numpy_to_arma::arr_to_col(props);
         mat t = simcoon::P_DFA(v);
-        return carma::mat_to_arr(t, copy);
+        return simpy::arma_to_numpy::mat_to_arr(t, copy);
     }
 
     // This function returns the Hill equivalent stress.
@@ -87,7 +87,7 @@ namespace simpy
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
         vec t = simcoon::dHill_stress(v, props_cpp);
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
     // This function returns the anisotropic equivalent stress.
@@ -104,7 +104,7 @@ namespace simpy
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
         vec t = simcoon::dAni_stress(v, props_cpp);
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
     // This function returns the DFA equivalent stress.
@@ -121,7 +121,7 @@ namespace simpy
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec props_cpp = simpy::numpy_to_arma::arr_to_col(props);
         vec t = simcoon::dDFA_stress(v, props_cpp);
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
     // This function computes the selected equivalent stress function
@@ -138,7 +138,7 @@ namespace simpy
         vec v = simpy::numpy_to_arma::arr_to_col(input);
         vec param = simpy::numpy_to_arma::arr_to_col(props);
         vec t = simcoon::dEq_stress(v, criteria, param);
-        return carma::col_to_arr(t, copy);
+        return simpy::arma_to_numpy::col_to_arr(t, copy);
     }
 
 } // namepsace simpy

@@ -193,7 +193,7 @@ def _get_rotation_matrices(R, N):
         raise ValueError(
             f"Rotation batch size {mats.shape[0]} != tensor batch size {N}"
         )
-    # Transpose to (3,3,N) F-order for zero-copy carma::arr_to_cube
+    # Transpose to (3,3,N) F-order: arr_to_cube then borrows it without a copy
     return np.asfortranarray(mats.transpose(1, 2, 0))
 
 

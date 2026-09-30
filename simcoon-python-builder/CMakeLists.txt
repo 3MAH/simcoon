@@ -13,7 +13,7 @@ else()
   message(STATUS "Building Python bindings (standalone)")
 endif()
 
-# All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
+# All dependencies (Python, pybind11, Armadillo, simcoon) are already found by parent
 
 ################################################################################
 # SIMCOON PYBIND11 MODULE (_core)
@@ -94,25 +94,14 @@ else()
   set_target_properties(_core PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 
-# Disable precompiled headers for this target (causes issues with carma includes)
-set_target_properties(_core PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-
 # Add include directories for Python wrapper headers
 target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
-target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+target_link_libraries(_core PRIVATE Python3::Module simcoon)
 if(WIN32)
   # MSVC (vcpkg): BLAS/LAPACK explicitly, as for libsimcoon (root CMakeLists.txt)
   target_link_libraries(_core PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
-endif()
-
-# Armadillo memory through malloc/free in every TU (output capsules own the Armadillo
-# objects); python_module.cpp owns the module's numpy C-API table. Function in the root
-# CMakeLists.txt, shared with libsimcoon on Windows.
-simcoon_use_numpy_allocator(_core "${CMAKE_CURRENT_SOURCE_DIR}/src/python_wrappers/python_module.cpp")
-if(SIMCOON_NUMPY_ALLOC_IN_LIB)
-  target_compile_definitions(_core PRIVATE SIMCOON_NUMPY_ALLOC_IN_LIB)
 endif()
 
 # Threading (parallel.hpp): GCD on macOS, OpenMP on Linux, std::thread on Windows.

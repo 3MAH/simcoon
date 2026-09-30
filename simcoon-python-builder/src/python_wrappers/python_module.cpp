@@ -1,7 +1,3 @@
-
-// Armadillo allocates through numpy in every _core TU (numpy_alloc.hpp, force-included
-// by CMake); this file owns the module's C-API table (SIMCOON_NUMPY_API_OWNER).
-#include <carma>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <pybind11/pybind11.h>
@@ -51,16 +47,6 @@ using namespace pybind11::literals;
 
 PYBIND11_MODULE(_core, m)
 {
-    // numpy's C-API table, once per module and with the GIL held, before anything
-    // allocates (numpy_alloc.hpp): _core's here, libsimcoon's through its exported hook
-    // when it shares the allocator (SIMCOON_NUMPY_ALLOC_IN_LIB, Windows).
-    simcoon::numpy_alloc::import_api();
-#ifdef SIMCOON_NUMPY_ALLOC_IN_LIB
-    if (simcoon_numpy_alloc_import() < 0) {
-        throw pybind11::error_already_set();
-    }
-#endif
-
     m.doc() = "simcoon C++ core: constitutive laws, continuum mechanics, homogenization and the in-memory solver";
 
     // Create a Python-visible base exception for all simcoon errors.

@@ -3,7 +3,7 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
 #include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
@@ -28,7 +28,7 @@ py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &
     mat D = zeros(3,3);
     mat Omega = zeros(3,3);
     simcoon::logarithmic(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy));
+    return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, copy), simpy::arma_to_numpy::mat_to_arr(DR, copy), simpy::arma_to_numpy::mat_to_arr(Omega, copy));
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
@@ -43,19 +43,19 @@ py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double>
     // C++ signature order is (DR, N_1, N_2, D, Omega) — a positional swap
     // here silently mislabels the returned tensors (all args are mat&).
     simcoon::logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
+    return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, copy), simpy::arma_to_numpy::mat_to_arr(DR, copy), simpy::arma_to_numpy::mat_to_arr(Omega, copy), simpy::arma_to_numpy::mat_to_arr(N_1, copy), simpy::arma_to_numpy::mat_to_arr(N_2, copy));
 }
 
 //Log-strain concentration tensors A^R (rotated / log_R) and A^F (convected / log_F), 6x6 Voigt
 py::array_t<double> A_R(const py::array_t<double> &F, const bool &copy) {
     mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
     mat AR = simcoon::A_R(F_cpp);
-    return carma::mat_to_arr(AR, copy);
+    return simpy::arma_to_numpy::mat_to_arr(AR, copy);
 }
 py::array_t<double> A_F(const py::array_t<double> &F, const bool &copy) {
     mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
     mat AF = simcoon::A_F(F_cpp);
-    return carma::mat_to_arr(AF, copy);
+    return simpy::arma_to_numpy::mat_to_arr(AF, copy);
 }
 
 
@@ -157,10 +157,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     break;
                 }
             }
-            return py::make_tuple(carma::col_to_arr(de,false), carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::col_to_arr(de,false), simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         
     }
@@ -229,10 +229,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             }
         }, n_threads);
         if (return_de){	                     
-            return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(de, false), simpy::arma_to_numpy::cube_to_arr(D, false), simpy::arma_to_numpy::cube_to_arr(DR, false), simpy::arma_to_numpy::cube_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::cube_to_arr(D, false), simpy::arma_to_numpy::cube_to_arr(DR, false), simpy::arma_to_numpy::cube_to_arr(Omega, false));
         }        
     }
 }
@@ -242,7 +242,7 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
     mat D_cpp = simpy::numpy_to_arma::arr_to_mat(D);
     mat Omega_cpp = simpy::numpy_to_arma::arr_to_mat(Omega);
     mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
-    return carma::mat_to_arr(Delta_log_strain, copy);
+    return simpy::arma_to_numpy::mat_to_arr(Delta_log_strain, copy);
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
@@ -299,7 +299,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
         vec stress_v = simpy::numpy_to_arma::arr_to_col_view(stress);
         mat sig_cpp = simcoon::v2t_stress(stress_v);
         mat Lt_converted = convert_pt(Lt_cpp, F_cpp, sig_cpp);
-        return carma::mat_to_arr(Lt_converted, false);
+        return simpy::arma_to_numpy::mat_to_arr(Lt_converted, false);
     }
     else if (Lt.ndim() == 3) {
         cube F_cpp = simpy::numpy_to_arma::arr_to_cube_view(F);
@@ -315,7 +315,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt),
                                                 simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
         });
-        return carma::cube_to_arr(Lt_converted, false);
+        return simpy::arma_to_numpy::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");
 }

@@ -5,8 +5,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-//<carma> first: ARMA_ALIEN_MEM routes armadillo through numpy's allocator, in every _core TU.
-#include <carma>
 #include <armadillo>
 
 #include <simcoon/parameter.hpp>

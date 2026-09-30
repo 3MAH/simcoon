@@ -16,6 +16,5 @@ dependencies:
   - gtest
   - pybind11
   - armadillo >= 12.6
-  - carma
   - pytest
   - ninja
