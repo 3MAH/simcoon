@@ -764,42 +764,20 @@ tensor4 tensor4::push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
     // The Dtau_* corrections below operate on the ENGINEERING Voigt (solver convention).
     arma::mat Lt_v = fastor4_to_voigt(lie_full, _type);
     const arma::mat::fixed<3,3> tau_mat = tau.mat();
-    arma::mat result_v;
 
-    // Step 2: Apply the corotational rate correction. The kernel is rate-specific and
-    // MUST match the solver's per-corate dispatch (DSDE_2_DtauDe_corate / DtauDe_corate_2_DSDE
-    // in objective_rates.cpp), otherwise a tangent built through this API disagrees with the
-    // tangent the solver integrates the stress against (different objective B^(4) kernel).
+    // Step 2: Apply the corotational rate correction through the solver's own per-corate
+    // dispatch (Dtau_LieDD_2_DtauDe_corate), so a tangent built through this API is exactly the
+    // box tangent the solver integrates the stress against -- one kernel, no duplicated switch.
+    int corate_type = 2;
     switch (rate) {
-        case CoRate::jaumann:
-            result_v = Dtau_LieDD_Dtau_JaumannDD(Lt_v, tau_mat);
-            break;
-        case CoRate::green_naghdi:
-            result_v = Dtau_LieDD_Dtau_objectiveDD(Lt_v, get_BBBB_GN(F), tau_mat);
-            break;
-        case CoRate::logarithmic:    // XBM logarithmic rate (solver corate 2) -> exact spectral core
-            // Routed through the same exact box<->DSDE pair as the solver's
-            // corate-2 dispatch (the former frozen-spin get_BBBB correction
-            // was first-order and would break the parity stated above).
-            result_v = Dtau_LieDD_Dtau_logarithmicDD(Lt_v, F, tau_mat);
-            break;
-        case CoRate::logarithmic_R:  // log_R (solver corate 3) -> exact spectral core
-            // A^R:D accumulates exactly ln U in the R frame (Hoger/Miehe
-            // d(ln U)/dC in rate form): a state function of C, so log_R gets
-            // the exact map like corate 2 — and with R as the transport the
-            // composition closes with NO residual rotation (exact even for
-            // anisotropic responses). Matches the solver's corate-3 dispatch.
-            result_v = Dtau_LieDD_Dtau_logarithmicDD(Lt_v, F, tau_mat);
-            break;
-        case CoRate::logarithmic_F:  // F-transport == convected/Oldroyd (B = I) -> pure Lie
-            // Matches solver corate 5 (Dtau_LieDD_2_DSDE): the Lie-rate tangent already computed
-            // in Step 1 needs no spin correction.
-            result_v = Lt_v;
-            break;
-        case CoRate::lie:
-            // unreachable — handled at function entry
-            break;
+        case CoRate::jaumann:       corate_type = 0; break;
+        case CoRate::green_naghdi:  corate_type = 1; break;
+        case CoRate::logarithmic:   corate_type = 2; break;   // XBM
+        case CoRate::logarithmic_R: corate_type = 3; break;
+        case CoRate::logarithmic_F: corate_type = 5; break;   // Jaumann box chained through A^F
+        case CoRate::lie:           break;                    // unreachable -- handled at entry
     }
+    arma::mat result_v = Dtau_LieDD_2_DtauDe_corate(Lt_v, corate_type, arma::mat(F), arma::mat(tau_mat));
 
     // Step 3: Apply metric factor (Kirchhoff → Cauchy) for stiffness/generic.
     if (metric) {

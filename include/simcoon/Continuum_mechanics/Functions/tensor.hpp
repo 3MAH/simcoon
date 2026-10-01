@@ -121,14 +121,14 @@ inline arma::mat::fixed<6,6> mandel_to_eng(arma::mat::fixed<6,6> X, Tensor4Type 
  * - logarithmic_R:  Logarithmic, R-transport framework
  * - logarithmic_F:  Logarithmic, F-transport framework
  *
- * @note `logarithmic`, `logarithmic_R`, and `logarithmic_F` share the same
- *       algorithmic tangent here: they all reduce to the F-push-forward of the
- *       material tangent followed by the same B^(4) correction (cf. Chemisky
- *       et al. preprint, Sec. "Two integrable logarithmic frameworks": both
- *       integrable frameworks share B^(4); the difference lies in the *stress
- *       integrator*'s transport operator). Their genuinely distinct stress
- *       updates live in Continuum_mechanics/Functions/objective_rates.cpp
- *       (`logarithmic`, `logarithmic_R`, `logarithmic_F`), not here.
+ * @note The correction is the solver's own per-corate dispatch
+ *       (Dtau_LieDD_2_DtauDe_corate in objective_rates.cpp), so a tangent built
+ *       here is exactly the box tangent the solver integrates the stress against:
+ *       - `logarithmic` (corate 2) and `logarithmic_R` (corate 3) share the exact
+ *         spectral map (Dtau_LieDD_Dtau_logarithmicDD), so they give the same
+ *         tangent. Their stress updates differ only in the transport operator.
+ *       - `logarithmic_F` (corate 5) is the Jaumann box chained through
+ *         \f$ (\mathbf{A}^F)^{-1} \f$ (De = A^F:D dt), distinct from both.
  */
 enum class CoRate {
     lie,
