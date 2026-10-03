@@ -198,6 +198,391 @@ def _get_rotation_matrices(R, N):
 
 
 # ======================================================================
+# Basis — the reference system the components are written in
+# ======================================================================
+
+def _as_smc_rotation(R):
+    """simcoon or scipy Rotation -> simcoon Rotation (TypeError otherwise)."""
+    from simcoon.rotation import Rotation as SmcRotation
+    from scipy.spatial.transform import Rotation as ScipyRotation
+    if isinstance(R, SmcRotation):
+        return R
+    if isinstance(R, ScipyRotation):
+        return SmcRotation.from_scipy(R)
+    raise TypeError(f"Expected Rotation, got {type(R)}")
+
+
+class Basis:
+    r"""The basis the components of a `Tensor2` / `Tensor4` are written in.
+
+    A tensor whose ``basis`` is ``None`` is expressed in the fixed orthonormal
+    lab basis :math:`\mathbf{e}_i` (the default, at no cost). A ``Basis`` holds
+    the basis vectors :math:`\mathbf{g}_i` through the matrix
+    :math:`\mathbf{A}` whose columns are their lab components. Two kinds:
+
+    * **orthonormal** -- built from a rotation, :math:`\mathbf{g}_i =
+      \mathbf{R}\,\mathbf{e}_i`. The metric is the identity: every formula of
+      the tensor classes holds as in the lab.
+    * **natural** -- any three independent vectors, typically the convected
+      basis :math:`\mathbf{g}_i = \mathbf{F}\,\mathbf{G}_i` (`from_F`). The
+      metric :math:`g_{ij} = \mathbf{g}_i \cdot \mathbf{g}_j`, i.e.
+      :math:`\mathbf{g} = \mathbf{A}^T \mathbf{A}`, enters the trace, the
+      deviator, the norms and the invariants.
+
+    The variance of the components follows the tensor type: stress is
+    contravariant (:math:`\boldsymbol{\sigma} = \sigma^{ij}\,\mathbf{g}_i
+    \otimes \mathbf{g}_j`), strain covariant (:math:`\boldsymbol{\varepsilon} =
+    \varepsilon_{ij}\,\mathbf{g}^i \otimes \mathbf{g}^j`), stiffness and
+    compliance likewise on their four indices, concentration tensors mixed.
+    Lab components are :math:`\mathbf{A}\,\hat{\boldsymbol{\sigma}}\,
+    \mathbf{A}^T` and :math:`\mathbf{A}^{-T}\,\hat{\boldsymbol{\varepsilon}}\,
+    \mathbf{A}^{-1}`.
+
+    One basis is either single (shared by every tensor of a batch, stored
+    once) or a batch of N bases, one per tensor. A basis is immutable; tensors
+    derived from one another share it by reference.
+
+    Parameters
+    ----------
+    rotation : simcoon.Rotation or scipy.spatial.transform.Rotation, optional
+        Orthonormal basis :math:`\mathbf{g}_i = \mathbf{R}\,\mathbf{e}_i`
+        (single or batch).
+    vectors : array_like, optional
+        Natural basis: ``(3,3)`` matrix (or ``(N,3,3)`` batch) whose columns
+        are the lab components of the basis vectors. The array is kept by
+        reference, not copied: do not modify it afterwards.
+    name : str, optional
+        A label shown in ``repr`` and in error messages. It is never used to
+        compare two bases.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import simcoon as sim
+
+        material = sim.Basis(rotation=sim.Rotation.from_euler('z', 30, degrees=True),
+                             name="material")
+        sigma = sim.Tensor2.stress(np.array([100., 0., 0., 0., 0., 0.]))
+        sigma_m = sigma.to_basis(material)      # same tensor, material components
+        sigma_m.to_basis(None)                  # back to lab components
+
+        F = np.array([[1., 0.5, 0.], [0., 1., 0.], [0., 0., 1.]])
+        S = sim.Tensor2.stress(np.array([0., 80., 0., 0., 0., 0.]))   # PK2
+        tau = S.with_basis(sim.Basis.from_F(F))  # Kirchhoff: same components, convected basis
+        tau.trace()                              # uses the metric
+    """
+
+    __slots__ = ("_rotation", "_A", "_name", "_cache")
+
+    def __init__(self, rotation=None, vectors=None, name=None):
+        if (rotation is None) == (vectors is None):
+            raise ValueError("Basis needs exactly one of rotation= or vectors=")
+        if rotation is not None:
+            self._rotation = _as_smc_rotation(rotation)
+            self._A = np.ascontiguousarray(self._rotation.as_matrix(), dtype=np.float64)
+        else:
+            A = np.asarray(vectors, dtype=np.float64)
+            if A.shape != (3, 3) and not (A.ndim == 3 and A.shape[1:] == (3, 3)):
+                raise ValueError(f"Expected (3,3) or (N,3,3) basis vectors, got {A.shape}")
+            self._rotation = None
+            self._A = A
+        self._name = name
+        self._cache = {}
+
+    @classmethod
+    def from_F(cls, F, name=None):
+        r"""Convected basis :math:`\mathbf{g}_i = \mathbf{F}\,\mathbf{e}_i` of a deformation gradient.
+
+        Parameters
+        ----------
+        F : array_like
+            ``(3,3)`` deformation gradient or ``(N,3,3)`` batch, kept by
+            reference. Its metric is the right Cauchy-Green tensor
+            :math:`\mathbf{C} = \mathbf{F}^T \mathbf{F}`.
+        name : str, optional
+            Label of the basis.
+
+        Returns
+        -------
+        Basis
+            Natural basis.
+        """
+        return cls(vectors=F, name=name)
+
+    # -- description ------------------------------------------------------
+
+    @property
+    def name(self):
+        """Label of the basis (``None`` if unnamed)."""
+        return self._name
+
+    @property
+    def orthonormal(self):
+        """True for a basis built from a rotation (identity metric)."""
+        return self._rotation is not None
+
+    @property
+    def single(self):
+        """True for one basis, False for a batch of N bases."""
+        return self._A.ndim == 2
+
+    def __len__(self):
+        if self.single:
+            raise TypeError("single Basis has no len()")
+        return self._A.shape[0]
+
+    @property
+    def rotation(self):
+        """The rotation of an orthonormal basis, ``None`` for a natural basis."""
+        return self._rotation
+
+    @property
+    def matrix(self):
+        r"""Basis matrix :math:`\mathbf{A}` (columns = lab components of the basis vectors):
+        ``(3,3)`` or ``(N,3,3)``. Returns a copy."""
+        return self._A.copy()
+
+    @property
+    def metric(self):
+        r"""Covariant metric :math:`g_{ij} = \mathbf{g}_i \cdot \mathbf{g}_j`: ``(3,3)`` or ``(N,3,3)``."""
+        return self._metric().copy()
+
+    @property
+    def inverse_metric(self):
+        r"""Contravariant metric :math:`g^{ij}`: ``(3,3)`` or ``(N,3,3)``."""
+        return self._inverse_metric().copy()
+
+    @property
+    def det(self):
+        r"""Volume of the basis, :math:`\det \mathbf{A} = \sqrt{\det \mathbf{g}}`: float or ``(N,)``."""
+        return self._lazy("det", lambda: np.linalg.det(self._A))
+
+    @property
+    def reciprocal(self):
+        r"""Reciprocal (dual) basis vectors :math:`\mathbf{g}^i`, :math:`\mathbf{g}^i \cdot
+        \mathbf{g}_j = \delta^i_j`, as the columns of :math:`\mathbf{A}^{-T}`: ``(3,3)`` or
+        ``(N,3,3)``. Covariant components live on them. Returns a copy."""
+        return self._reciprocal().copy()
+
+    @property
+    def stretch(self):
+        r"""Right stretch of the basis, :math:`\mathbf{U} = \sqrt{\mathbf{g}}` (the identity for an
+        orthonormal basis): ``(3,3)`` or ``(N,3,3)``. For ``from_F`` it is the right stretch of
+        :math:`\mathbf{F}`. Returns a copy."""
+        return self._stretch().copy()
+
+    @property
+    def polar(self):
+        r"""The orthonormal basis closest to this one: the rotation :math:`\mathbf{R} =
+        \mathbf{A}\,\mathbf{U}^{-1}` of the polar decomposition :math:`\mathbf{A} = \mathbf{R}\,
+        \mathbf{U}`, as a `Basis` (``self`` when already orthonormal). For ``from_F`` it is the
+        frame turned by the rotation of :math:`\mathbf{F}`."""
+        if self.orthonormal:
+            return self
+        return self._lazy("polar", self._polar)
+
+    def equals(self, other, tol=1e-12):
+        """True if ``other`` is the same basis within ``tol`` (the name is ignored)."""
+        if other is self:
+            return True
+        if not isinstance(other, Basis) or self._A.shape != other._A.shape:
+            return False
+        return bool(np.allclose(self._A, other._A, rtol=0.0, atol=tol))
+
+    def __repr__(self):
+        parts = ["orthonormal" if self.orthonormal else "natural"]
+        if not self.single:
+            parts.append(f"N={len(self)}")
+        if self._name is not None:
+            parts.append(f"name={self._name!r}")
+        return f"Basis({', '.join(parts)})"
+
+    # -- internal ---------------------------------------------------------
+
+    def _lazy(self, key, compute):
+        value = self._cache.get(key)
+        if value is None:
+            value = self._cache[key] = compute()
+        return value
+
+    def _metric(self):
+        return self._lazy("g", lambda: np.swapaxes(self._A, -1, -2) @ self._A)
+
+    def _inverse_metric(self):
+        return self._lazy("ginv", lambda: np.linalg.inv(self._metric()))
+
+    def _reciprocal(self):
+        return self._lazy("recip", lambda: np.swapaxes(np.linalg.inv(self._A), -1, -2))
+
+    def _metric_power(self, p):
+        """g^p through the eigen-decomposition of the (symmetric positive) metric."""
+        w, Q = np.linalg.eigh(self._metric())
+        return (Q * (w ** p)[..., np.newaxis, :]) @ np.swapaxes(Q, -1, -2)
+
+    def _stretch(self):
+        if self.orthonormal:
+            return self._lazy("U", lambda: np.broadcast_to(np.eye(3), self._A.shape).copy())
+        return self._lazy("U", lambda: self._metric_power(0.5))
+
+    def _polar(self):
+        from simcoon.rotation import Rotation as SmcRotation
+        R = self._A @ self._metric_power(-0.5)          # A U^-1
+        return Basis(rotation=SmcRotation.from_matrix(R), name=self._name)
+
+    def _take(self, key):
+        """Basis of ``tensor[key]``: shared when single, indexed when per tensor."""
+        if self.single:
+            return self
+        if self._rotation is not None:
+            return Basis(rotation=self._rotation[key], name=self._name)
+        return Basis(vectors=self._A[key], name=self._name)
+
+    def _post_rotated(self, R):
+        """Basis A.Q: the frame turned by R, R being read in this basis (passive rotation)."""
+        R = _as_smc_rotation(R)
+        if self._rotation is not None:
+            return Basis(rotation=self._rotation * R)
+        return Basis(vectors=self._A @ R.as_matrix())
+
+    def _pre_rotated(self, R):
+        """Basis Q.A: the basis vectors turned by the lab rotation R (active rotation)."""
+        R = _as_smc_rotation(R)
+        if self._rotation is not None:
+            return Basis(rotation=R * self._rotation)
+        return Basis(vectors=R.as_matrix() @ self._A)
+
+    def _convected(self, F, forward):
+        """Natural basis F.A (push-forward) or F^-1.A (pull-back)."""
+        if forward:
+            return Basis(vectors=F @ self._A)
+        return Basis(vectors=np.linalg.solve(F, self._A))
+
+
+def _same_basis(a, b):
+    """True if two tensor bases (None = lab) are the same reference system."""
+    if a is b:
+        return True
+    if a is None or b is None:
+        return False
+    return a.equals(b)
+
+
+def _common_basis(a, b):
+    """The basis shared by two operands, or ValueError("Mixed basis")."""
+    if a is b or _same_basis(a, b):
+        return a
+    raise ValueError(f"Mixed basis: {a if a is not None else 'lab'} vs "
+                     f"{b if b is not None else 'lab'} (use to_basis() first)")
+
+
+def _is_orthonormal(basis):
+    """Lab (None) or an orthonormal Basis: identity metric."""
+    return basis is None or basis._rotation is not None
+
+
+def _merge_bases(bases, counts):
+    """Basis of a batch stacked from parts carrying ``bases`` (``counts`` tensors each).
+
+    The same basis everywhere is kept as one shared basis; different bases are
+    stacked into a per-tensor basis; lab and non-lab parts cannot be mixed.
+    """
+    first = bases[0]
+    if all(b is first for b in bases):
+        if first is None or first.single:
+            return first
+    if any(b is None for b in bases):
+        if all(b is None for b in bases):
+            return None
+        raise ValueError("Mixed basis: lab and non-lab tensors (use to_basis() first)")
+    if first.single and all(b.single and first.equals(b) for b in bases):
+        return first
+    mats = [np.broadcast_to(b._A, (n, 3, 3)) for b, n in zip(bases, counts)]
+    A = np.ascontiguousarray(np.concatenate(mats, axis=0))
+    if all(b.orthonormal for b in bases):
+        from simcoon.rotation import Rotation as SmcRotation
+        return Basis(rotation=SmcRotation.from_matrix(A))
+    return Basis(vectors=A)
+
+
+# Voigt index pairs: I -> (i, j)
+_VI = np.array([0, 1, 2, 0, 0, 1])
+_VJ = np.array([0, 1, 2, 1, 2, 2])
+
+
+def _voigt_operators(M):
+    r"""6x6 engineering-Voigt operators of a change of basis.
+
+    ``M`` (``(3,3)`` or ``(N,3,3)``) holds the old basis vectors in the new
+    basis. Returns ``(P_sharp, P_flat)``: contravariant components transform as
+    ``M X M^T`` (``P_sharp`` on a stress Voigt vector), covariant ones as
+    ``M^-T X M^-1`` (``P_flat`` on an engineering strain Voigt vector). They
+    are dual: ``P_sharp^T P_flat = I``.
+    """
+    def pair(B):
+        direct = B[..., _VI[:, None], _VI[None, :]] * B[..., _VJ[:, None], _VJ[None, :]]
+        cross = B[..., _VI[:, None], _VJ[None, :]] * B[..., _VJ[:, None], _VI[None, :]]
+        return direct, cross
+
+    direct, cross = pair(M)
+    P_sharp = direct.copy()
+    P_sharp[..., :, 3:] += cross[..., :, 3:]
+
+    direct, cross = pair(np.swapaxes(np.linalg.inv(M), -1, -2))
+    P_flat = direct.copy()
+    P_flat[..., :, 3:] = 0.5 * (direct[..., :, 3:] + cross[..., :, 3:])
+    P_flat[..., 3:, :] *= 2.0
+    return P_sharp, P_flat
+
+
+def _relative_matrix(old, new):
+    """Old basis vectors written in the new basis: ``A_new^-1 A_old`` (None = lab)."""
+    if new is None:
+        return old._A
+    if old is None:
+        return np.linalg.inv(new._A)
+    return np.linalg.solve(new._A, old._A)
+
+
+def _relative_rotation(old, new):
+    """Rotation taking components in ``old`` to components in ``new`` (both orthonormal or lab)."""
+    if new is None:
+        return old._rotation
+    if old is None:
+        return new._rotation.inv()
+    return new._rotation.inv() * old._rotation
+
+
+def _isotropic_in_basis(t, basis):
+    """An isotropic lab tensor (identity, projector) written in ``basis``."""
+    if basis is None:
+        return t
+    if isinstance(basis, Basis) and not basis.single:
+        t = type(t).from_tensor(t, len(basis))
+    t._check_basis(basis)
+    if basis.orthonormal:       # isotropic: same components in every orthonormal basis
+        return t.with_basis(basis)
+    return t.to_basis(basis)
+
+
+def _contraction_mats(a, b):
+    """3x3 component arrays whose elementwise sum is the double contraction a:b.
+
+    Dual variances (stress:strain) contract as they are; in a natural basis two
+    tensors of the same variance need the metric on both indices of one of them.
+    """
+    basis = _common_basis(a._basis, b._basis)
+    ma, mb = a.mat, b.mat
+    if basis is not None and basis._rotation is None:
+        G = a._metrics()[0]
+        b._require_variance()
+        if a._type_str == b._type_str:
+            ma = G @ ma @ G
+    return ma, mb
+
+
+# ======================================================================
 # _TensorBase — shared logic for Tensor2 and Tensor4
 # ======================================================================
 
@@ -208,7 +593,7 @@ class _TensorBase:
     Subclasses set this as a class variable.
     """
 
-    __slots__ = ("_data", "_type_str")
+    __slots__ = ("_data", "_type_str", "_basis")
 
     _single_ndim = None  # set by subclass
 
@@ -217,11 +602,12 @@ class _TensorBase:
     # ------------------------------------------------------------------
 
     @classmethod
-    def _create(cls, data, type_str):
-        """Internal: create from numpy array + type string."""
+    def _create(cls, data, type_str, basis=None):
+        """Internal: create from numpy array + type string (+ basis, None = lab)."""
         obj = object.__new__(cls)
         obj._data = np.ascontiguousarray(data, dtype=np.float64)
         obj._type_str = type_str
+        obj._basis = basis
         return obj
 
     def _ensure_batch(self):
@@ -231,11 +617,11 @@ class _TensorBase:
         return self._data
 
     def _rewrap(self, result, type_str=None):
-        """Wrap batch result, squeezing if original was single."""
+        """Wrap batch result, squeezing if original was single. Keeps the basis."""
         ts = type_str or self._type_str
         if self._data.ndim == self._single_ndim:
-            return type(self)._create(result[0], ts)
-        return type(self)._create(result, ts)
+            return type(self)._create(result[0], ts, self._basis)
+        return type(self)._create(result, ts, self._basis)
 
     # ------------------------------------------------------------------
     # Properties
@@ -250,6 +636,111 @@ class _TensorBase:
     def type(self):
         """Type string."""
         return self._type_str
+
+    @property
+    def basis(self):
+        """The `Basis` the components are written in; ``None`` for the lab basis."""
+        return self._basis
+
+    # ------------------------------------------------------------------
+    # Basis
+    # ------------------------------------------------------------------
+
+    def _check_basis(self, basis):
+        """Validate a basis for this tensor (kind, batch size, variance)."""
+        if basis is None:
+            return
+        if not isinstance(basis, Basis):
+            raise TypeError(f"Expected a Basis or None, got {type(basis)}")
+        if not basis.single:
+            if self.single:
+                raise ValueError("A single tensor needs a single Basis")
+            if len(basis) != self._data.shape[0]:
+                raise ValueError(
+                    f"Basis batch size {len(basis)} != tensor batch size {self._data.shape[0]}")
+        if not basis.orthonormal:
+            self._require_variance()
+
+    def with_basis(self, basis):
+        r"""The tensor with the same components and another basis (a transport).
+
+        The numbers are kept and the basis vectors replaced: the result is a
+        different tensor. Giving the convected basis of ``F`` to second
+        Piola-Kirchhoff components yields the Kirchhoff stress,
+        :math:`\tau^{ij} = S^{IJ}`; likewise :math:`e_{ij} = E_{IJ}` for the
+        Green-Lagrange / Almansi pair. No arithmetic, no copy.
+
+        Parameters
+        ----------
+        basis : Basis or None
+            The new basis (``None`` = lab).
+
+        Returns
+        -------
+        Tensor2 or Tensor4
+            Same components and type, new basis.
+        """
+        self._check_basis(basis)
+        return type(self)._create(self._data, self._type_str, basis)
+
+    def to_basis(self, basis=None):
+        r"""The same tensor, its components re-expressed in another basis.
+
+        With :math:`\mathbf{M} = \mathbf{A}_{new}^{-1} \mathbf{A}_{old}`,
+        contravariant components become :math:`\mathbf{M}\,\hat{\mathbf{T}}\,
+        \mathbf{M}^T` and covariant ones :math:`\mathbf{M}^{-T}\,
+        \hat{\mathbf{T}}\,\mathbf{M}^{-1}`, on each pair of indices.
+
+        Parameters
+        ----------
+        basis : Basis or None, optional
+            Target basis; ``None`` (default) gives the lab components.
+
+        Returns
+        -------
+        Tensor2 or Tensor4
+            Same tensor and type, components in ``basis``.
+        """
+        old = self._basis
+        if _same_basis(old, basis):
+            return self
+        self._check_basis(basis)
+        if _is_orthonormal(old) and _is_orthonormal(basis):
+            data = self._rotated_components(_relative_rotation(old, basis), True)
+        else:
+            self._require_variance()
+            data = self._changed_components(_relative_matrix(old, basis))
+        return type(self)._create(data, self._type_str, basis)
+
+    def _transported(self, F, metric, forward):
+        """Push/pull of a tensor that has its own basis: the basis is convected
+        (F.A or F^-1.A) and the components are kept, up to the Piola weight."""
+        self._require_variance()
+        basis = self._basis._convected(F, forward)
+        self._check_basis(basis)
+        data = self._data
+        exponent = self._PIOLA_EXPONENT[self._type_str]
+        if metric and exponent:
+            J = np.linalg.det(F)
+            scale = J ** (exponent if forward else -exponent)
+            if np.ndim(scale):
+                scale = scale[(Ellipsis,) + (np.newaxis,) * self._single_ndim]
+            data = data * scale
+        return type(self)._create(data, self._type_str, basis)
+
+    def _rotate(self, R, active):
+        """rotate() for Tensor2 and Tensor4 (see `Tensor2.rotate`)."""
+        basis = self._basis
+        if basis is None:
+            data = self._rotated_components(R, active)
+            return type(self)._create(data, self._type_str,
+                                      None if active else Basis(rotation=R))
+        if active:      # transport: the basis vectors turn, the components stay
+            new_basis = basis._pre_rotated(R)
+            self._check_basis(new_basis)
+            return type(self)._create(self._data, self._type_str, new_basis)
+        data = self._rotated_components(R, False)
+        return type(self)._create(data, self._type_str, basis._post_rotated(R))
 
     # ------------------------------------------------------------------
     # Sequence protocol
@@ -268,7 +759,10 @@ class _TensorBase:
                 key += len(self)
             if key < 0 or key >= len(self):
                 raise IndexError(f"index {key} out of range for batch of size {len(self)}")
-        return type(self)._create(self._data[key].copy(), self._type_str)
+        basis = self._basis
+        if basis is not None:
+            basis = basis._take(key)
+        return type(self)._create(self._data[key].copy(), self._type_str, basis)
 
     def __iter__(self):
         if self.single:
@@ -313,6 +807,7 @@ class _TensorBase:
         cls = type(self)
         raw_inputs = []
         result_ts = None
+        result_basis = self._basis
         all_single = True
         for inp in inputs:
             if isinstance(inp, cls):
@@ -323,6 +818,7 @@ class _TensorBase:
                     all_single = False
                 raw_inputs.append(d)
                 result_ts = result_ts or inp._type_str
+                result_basis = _common_basis(result_basis, inp._basis)
             else:
                 raw_inputs.append(inp)
         if result_ts is None:
@@ -335,8 +831,8 @@ class _TensorBase:
         batch_ndim = self._single_ndim + 1
         if isinstance(result, np.ndarray) and result.ndim == batch_ndim:
             if all_single and result.shape[0] == 1:
-                return cls._create(result[0], result_ts)
-            return cls._create(result, result_ts)
+                return cls._create(result[0], result_ts, result_basis)
+            return cls._create(result, result_ts, result_basis)
         return result
 
     # ------------------------------------------------------------------
@@ -346,7 +842,8 @@ class _TensorBase:
     def __add__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return type(self)._create(self._data + other._data, self._type_str)
+        return type(self)._create(self._data + other._data, self._type_str,
+                                  _common_basis(self._basis, other._basis))
 
     def __radd__(self, other):
         if isinstance(other, type(self)):
@@ -356,7 +853,8 @@ class _TensorBase:
     def __sub__(self, other):
         if not isinstance(other, type(self)):
             return NotImplemented
-        return type(self)._create(self._data - other._data, self._type_str)
+        return type(self)._create(self._data - other._data, self._type_str,
+                                  _common_basis(self._basis, other._basis))
 
     def __rsub__(self, other):
         if isinstance(other, type(self)):
@@ -364,15 +862,15 @@ class _TensorBase:
         return NotImplemented
 
     def __neg__(self):
-        return type(self)._create(-self._data, self._type_str)
+        return type(self)._create(-self._data, self._type_str, self._basis)
 
     def __mul__(self, other):
         if isinstance(other, (int, float)):
-            return type(self)._create(self._data * other, self._type_str)
+            return type(self)._create(self._data * other, self._type_str, self._basis)
         other = np.asarray(other)
         if other.ndim <= 1:
             expand = (Ellipsis,) + (np.newaxis,) * self._single_ndim
-            return type(self)._create(self._data * other[expand], self._type_str)
+            return type(self)._create(self._data * other[expand], self._type_str, self._basis)
         return NotImplemented
 
     def __rmul__(self, other):
@@ -380,15 +878,17 @@ class _TensorBase:
 
     def __truediv__(self, other):
         if isinstance(other, (int, float)):
-            return type(self)._create(self._data / other, self._type_str)
+            return type(self)._create(self._data / other, self._type_str, self._basis)
         other = np.asarray(other)
         if other.ndim <= 1:
             expand = (Ellipsis,) + (np.newaxis,) * self._single_ndim
-            return type(self)._create(self._data / other[expand], self._type_str)
+            return type(self)._create(self._data / other[expand], self._type_str, self._basis)
         return NotImplemented
 
     def __eq__(self, other):
         if isinstance(other, type(self)):
+            if not _same_basis(self._basis, other._basis):
+                return False  # components in different bases are not comparable
             sd, od = self._data, other._data
             if sd.ndim == od.ndim:
                 return np.array_equal(sd, od)
@@ -404,9 +904,10 @@ class _TensorBase:
 
     def __repr__(self):
         name = type(self).__name__
+        basis = "" if self._basis is None else f", basis={self._basis!r}"
         if self.single:
-            return f"{name}(type='{self._type_str}')"
-        return f"{name}(N={len(self)}, type='{self._type_str}')"
+            return f"{name}(type='{self._type_str}'{basis})"
+        return f"{name}(N={len(self)}, type='{self._type_str}'{basis})"
 
     # ------------------------------------------------------------------
     # Shared factory helpers
@@ -420,7 +921,7 @@ class _TensorBase:
         expand = (np.newaxis,) + (slice(None),) * t._data.ndim
         shape = (n,) + t._data.shape
         v = np.broadcast_to(t._data[expand], shape).copy()
-        return cls._create(v, t._type_str)
+        return cls._create(v, t._type_str, t._basis)
 
     @classmethod
     def from_list(cls, tensors):
@@ -429,7 +930,10 @@ class _TensorBase:
 
     @classmethod
     def concatenate(cls, batches):
-        """Join multiple batches and/or singles (all of the same type) into one batch."""
+        """Join multiple batches and/or singles (all of the same type) into one batch.
+
+        Parts sharing one basis keep it; parts in different bases give a
+        per-tensor basis; lab and non-lab parts cannot be mixed."""
         parts = list(batches)
         if not parts:
             raise ValueError("Nothing to concatenate")
@@ -441,7 +945,8 @@ class _TensorBase:
                 raise ValueError(f"Mixed type: {type_str} vs {b._type_str}")
             d = b._data
             arrays.append(d[np.newaxis] if d.ndim == sn else d)
-        return cls._create(np.concatenate(arrays, axis=0), type_str)
+        basis = _merge_bases([b._basis for b in parts], [a.shape[0] for a in arrays])
+        return cls._create(np.concatenate(arrays, axis=0), type_str, basis)
 
 
 # ======================================================================
@@ -475,6 +980,8 @@ class Tensor2(_TensorBase):
     """
 
     _single_ndim = 1
+    # power of J = det(F) applied by a push-forward with metric=True
+    _PIOLA_EXPONENT = {"stress": -1, "strain": 0}
 
     def __init__(self, data):
         if isinstance(data, list) and data and isinstance(data[0], Tensor2):
@@ -488,6 +995,7 @@ class Tensor2(_TensorBase):
                 v[i] = t._data
             self._data = v
             self._type_str = ref
+            self._basis = _merge_bases([t._basis for t in data], [1] * len(data))
         else:
             raise TypeError("Use Tensor2.stress(), Tensor2.strain(), etc.")
 
@@ -610,10 +1118,24 @@ class Tensor2(_TensorBase):
         return cls._create(np.zeros(6, dtype=np.float64), type_str)
 
     @classmethod
-    def identity(cls, type_str="stress"):
-        """Create the single identity tensor (Voigt ``[1,1,1,0,0,0]``) of the given type."""
+    def identity(cls, type_str="stress", basis=None):
+        r"""Create the identity tensor of the given type.
+
+        In the lab or an orthonormal basis its Voigt components are
+        ``[1,1,1,0,0,0]``. In a natural basis the identity is the metric:
+        :math:`g^{ij}` for a stress-typed tensor, :math:`g_{ij}` for a
+        strain-typed one.
+
+        Parameters
+        ----------
+        type_str : str, optional
+            Tensor type (default ``"stress"``).
+        basis : Basis or None, optional
+            Basis of the result (default: lab). A batch basis gives a batch.
+        """
         _check_t2_type(type_str)
-        return cls._create(np.array([1, 1, 1, 0, 0, 0], dtype=np.float64), type_str)
+        eye = cls._create(np.array([1, 1, 1, 0, 0, 0], dtype=np.float64), type_str)
+        return _isotropic_in_basis(eye, basis)
 
     @classmethod
     def from_columns(cls, arr, type_str):
@@ -700,7 +1222,7 @@ class Tensor2(_TensorBase):
         return _CppTensor2.from_voigt(self._data, _VTYPE_MAP[self._type_str])
 
     def rotate(self, R, active=True):
-        """Rotate the tensor(s) by a rotation.
+        r"""Rotate the tensor(s) (active) or the frame they are written in (passive).
 
         Parameters
         ----------
@@ -708,13 +1230,20 @@ class Tensor2(_TensorBase):
             Rotation(s) to apply. On a batch, a single rotation is broadcast
             to all N tensors; a batch of N rotations is applied slice-wise.
         active : bool, optional
-            ``True`` (default) rotates the tensor (active convention
-            ``Q A Q^T``); ``False`` rotates the frame (passive).
+            ``True`` (default) rotates the tensor: a new tensor
+            :math:`\mathbf{Q}\,\mathbf{X}\,\mathbf{Q}^T`, ``R`` being a lab
+            rotation. A lab tensor stays written in the lab; a tensor with its
+            own `basis` keeps its components and has its basis vectors turned
+            (:math:`\mathbf{A} \to \mathbf{Q}\,\mathbf{A}`).
+            ``False`` rotates the frame: the same tensor, with components
+            :math:`\mathbf{Q}^T \hat{\mathbf{X}}\,\mathbf{Q}` in the basis
+            turned by ``R`` (:math:`\mathbf{A} \to \mathbf{A}\,\mathbf{Q}`,
+            ``R`` read in the current basis). The result carries that basis.
 
         Returns
         -------
         Tensor2
-            Rotated tensor(s), same type tag.
+            Same type tag; `basis` as described above.
 
         Examples
         --------
@@ -726,33 +1255,63 @@ class Tensor2(_TensorBase):
 
             sigma = sim.Tensor2.stress(np.array([100., 0., 0., 0., 0., 0.]))
             R = Rotation.from_euler('z', 45, degrees=True)
-            sigma_rot = sigma.rotate(R)
+            sigma_rot = sigma.rotate(R)                  # another tensor, lab basis
+            sigma_45 = sigma.rotate(R, active=False)     # same tensor, basis turned by R
+            sigma_45.to_basis(None) == sigma             # True up to round-off
         """
-        from simcoon.rotation import Rotation as SmcRotation
-        from scipy.spatial.transform import Rotation as ScipyRotation
+        return self._rotate(R, active)
 
+    def _rotated_components(self, R, active):
+        """Voigt components after the orthogonal congruence Q X Q^T (active) or Q^T X Q."""
         if self.single:
             cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
-            return Tensor2._create(np.array(cpp_result.voigt).ravel(),
-                                   self._type_str)
+            return np.array(cpp_result.voigt).ravel()
+        mats = _get_rotation_matrices(R, self._data.shape[0])
+        return _batch_rotate(self._data, _VTYPE_MAP[self._type_str], mats, active)
 
-        data_2d = self._ensure_batch()
-        N = data_2d.shape[0]
+    def _changed_components(self, M):
+        """Voigt components after the change of basis of matrix M (old vectors in the new basis).
 
-        if isinstance(R, (ScipyRotation, SmcRotation)):
-            mats = _get_rotation_matrices(R, N)
-        else:
-            raise TypeError(f"Expected Rotation, got {type(R)}")
+        M X M^T (stress) and M^-T X M^-1 (strain) are what the transport kernels
+        compute with F = M and no Piola weight, so those are reused."""
+        if self.single:
+            return np.array(self._to_cpp().push_forward(M, False).voigt).ravel()
+        M_batch = M[np.newaxis] if M.ndim == 2 else M
+        return _batch_push_forward(
+            self._data, _VTYPE_MAP[self._type_str], _to_f_cube(M_batch), False)
 
-        result = _batch_rotate(data_2d, _VTYPE_MAP[self._type_str], mats, active)
-        return self._rewrap(result)
+    def _require_variance(self):
+        if self._type_str not in self._PIOLA_EXPONENT:
+            raise ValueError(
+                f"Tensor2 type '{self._type_str}' has no variance: a natural basis and "
+                "push_forward/pull_back need 'stress' (contravariant) or 'strain' (covariant)")
+
+    def _metrics(self):
+        """(metric contracting two indices of this tensor, identity of the same
+        variance) in a natural basis; None when the metric is the identity."""
+        basis = self._basis
+        if basis is None or basis._rotation is not None:
+            return None
+        self._require_variance()
+        if self._type_str == "stress":
+            return basis._metric(), basis._inverse_metric()
+        return basis._inverse_metric(), basis._metric()
 
     def push_forward(self, F, metric=True):
-        """Push-forward (reference to current configuration) via the deformation gradient.
+        r"""Push-forward (reference to current configuration) via the deformation gradient.
 
         Type-dependent transport: stress is fully contravariant
         (``F s F^T``, Piola with ``1/J``), strain fully covariant
         (``F^-T e F^-1``).
+
+        A push-forward is a transport that carries the basis along: the
+        transported tensor has, in the convected basis
+        :math:`\mathbf{g}_i = \mathbf{F}\,\mathbf{G}_i`, the components the
+        original had in :math:`\mathbf{G}_i`. A lab tensor is returned in lab
+        components (the transport is carried out); a tensor with its own
+        `basis` keeps its components and gets the convected basis
+        :math:`\mathbf{F}\,\mathbf{A}` (only the ``1/J`` weight of
+        ``metric=True`` touches the numbers).
 
         Parameters
         ----------
@@ -769,6 +1328,8 @@ class Tensor2(_TensorBase):
             Transported tensor(s), same type tag.
         """
         F = np.asarray(F, dtype=np.float64)
+        if self._basis is not None:
+            return self._transported(F, metric, True)
         if self.single:
             cpp_result = self._to_cpp().push_forward(F, metric)
             return Tensor2._create(np.array(cpp_result.voigt).ravel(),
@@ -798,6 +1359,8 @@ class Tensor2(_TensorBase):
             Transported tensor(s), same type tag.
         """
         F = np.asarray(F, dtype=np.float64)
+        if self._basis is not None:
+            return self._transported(F, metric, False)
         if self.single:
             cpp_result = self._to_cpp().pull_back(F, metric)
             return Tensor2._create(np.array(cpp_result.voigt).ravel(),
@@ -819,6 +1382,13 @@ class Tensor2(_TensorBase):
         float or numpy.ndarray
             Scalar for a single tensor, ``(N,)`` for a batch.
         """
+        metrics = self._metrics()
+        if metrics is not None:
+            # with T = G.m (mixed components): s:s = tr(T.T) - tr(T)^2 / 3
+            T = metrics[0] @ self.mat
+            tr = np.trace(T, axis1=-2, axis2=-1)
+            s2 = np.sum(T * np.swapaxes(T, -1, -2), axis=(-2, -1)) - tr * tr / 3.0
+            return np.sqrt((1.5 if self._type_str == "stress" else 2.0 / 3.0) * s2)
         d = self._data.copy()
         tr = d[..., 0] + d[..., 1] + d[..., 2]
         d[..., 0] -= tr / 3.0
@@ -840,6 +1410,9 @@ class Tensor2(_TensorBase):
         float or numpy.ndarray
             Scalar for a single tensor, ``(N,)`` for a batch.
         """
+        metrics = self._metrics()
+        if metrics is not None:
+            return np.sum(metrics[0] * self.mat, axis=(-2, -1))
         return self._data[..., 0] + self._data[..., 1] + self._data[..., 2]
 
     def dev(self):
@@ -850,12 +1423,19 @@ class Tensor2(_TensorBase):
         Tensor2
             Deviatoric tensor(s), same type tag.
         """
+        metrics = self._metrics()
+        if metrics is not None:
+            G, identity = metrics
+            m = self.mat
+            tr = np.sum(G * m, axis=(-2, -1))
+            m = m - np.asarray(tr / 3.0)[..., np.newaxis, np.newaxis] * identity
+            return Tensor2._create(_mat_to_voigt(m, self._type_str), self._type_str, self._basis)
         d = self._data.copy()
         tr = d[..., 0] + d[..., 1] + d[..., 2]
         d[..., 0] -= tr / 3.0
         d[..., 1] -= tr / 3.0
         d[..., 2] -= tr / 3.0
-        return Tensor2._create(d, self._type_str)
+        return Tensor2._create(d, self._type_str, self._basis)
 
     def norm(self):
         """Frobenius norm ``sqrt(t_ij t_ij)`` (type-aware shear factors).
@@ -865,6 +1445,10 @@ class Tensor2(_TensorBase):
         float or numpy.ndarray
             Scalar for a single tensor, ``(N,)`` for a batch.
         """
+        metrics = self._metrics()
+        if metrics is not None:
+            T = metrics[0] @ self.mat           # mixed components
+            return np.sqrt(np.sum(T * np.swapaxes(T, -1, -2), axis=(-2, -1)))
         d = self._data
         diag2 = d[..., 0]**2 + d[..., 1]**2 + d[..., 2]**2
         shear2 = d[..., 3]**2 + d[..., 4]**2 + d[..., 5]**2
@@ -872,12 +1456,50 @@ class Tensor2(_TensorBase):
             return np.sqrt(diag2 + 0.5 * shear2)
         return np.sqrt(diag2 + 2.0 * shear2)
 
+    def det(self):
+        r"""Determinant of the tensor (of its mixed components :math:`T^i{}_j`).
+
+        In a natural basis :math:`\det \mathbf{T} = \det \hat{\mathbf{T}}\,
+        \det \mathbf{g}` for contravariant components and
+        :math:`\det \hat{\mathbf{T}} / \det \mathbf{g}` for covariant ones.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Scalar for a single tensor, ``(N,)`` for a batch.
+        """
+        d = np.linalg.det(self.mat)
+        metrics = self._metrics()
+        if metrics is not None:
+            d = d * np.linalg.det(metrics[0])
+        return d
+
+    def eigvals(self):
+        r"""Eigenvalues (principal values), in ascending order.
+
+        They are those of the mixed components: in a natural basis the
+        generalized problem :math:`\det(\hat{\mathbf{T}} - \lambda\,
+        \mathbf{g}^{-1}) = 0` (contravariant) or
+        :math:`\det(\hat{\mathbf{T}} - \lambda\,\mathbf{g}) = 0` (covariant),
+        solved in symmetric form through a Cholesky factor of the metric.
+
+        Returns
+        -------
+        numpy.ndarray
+            ``(3,)`` for a single tensor, ``(N,3)`` for a batch.
+        """
+        m = self.mat
+        metrics = self._metrics()
+        if metrics is not None:
+            L = np.linalg.cholesky(metrics[0])          # G = L L^T
+            m = np.swapaxes(L, -1, -2) @ m @ L           # same spectrum as T.G
+        return np.linalg.eigvalsh(m)
+
     def __mod__(self, other):
         """Double contraction ``A_ij B_ij`` (``a % b``): float for single, ``(N,)`` for batch."""
         if not isinstance(other, Tensor2):
             return NotImplemented
-        ma = self.mat
-        mb = other.mat
+        ma, mb = _contraction_mats(self, other)
         if ma.ndim == 2 and mb.ndim == 2:
             return np.sum(ma * mb)
         if ma.ndim == 2:
@@ -951,6 +1573,14 @@ class Tensor4(_TensorBase):
     """
 
     _single_ndim = 2
+    # power of J = det(F) applied by a push-forward with metric=True
+    _PIOLA_EXPONENT = {"stiffness": -1, "generic": -1, "compliance": 1,
+                       "strain_concentration": 0, "stress_concentration": 0}
+    # variance of the (output, input) index pairs: True = contravariant
+    _SHARP = {"stiffness": (True, True), "generic": (True, True),
+              "compliance": (False, False),
+              "strain_concentration": (False, True),
+              "stress_concentration": (True, False)}
 
     def __init__(self, data):
         if isinstance(data, list) and data and isinstance(data[0], Tensor4):
@@ -964,6 +1594,7 @@ class Tensor4(_TensorBase):
                 v[i] = t._data
             self._data = v
             self._type_str = ref
+            self._basis = _merge_bases([t._basis for t in data], [1] * len(data))
         else:
             raise TypeError("Use Tensor4.stiffness(), Tensor4.compliance(), etc.")
 
@@ -974,6 +1605,34 @@ class Tensor4(_TensorBase):
     def _to_cpp(self):
         """Create a temporary _CppTensor4 for single-point C++ operations."""
         return _CppTensor4.from_mat(self._data, _T4TYPE_MAP[self._type_str])
+
+    def _rotated_components(self, R, active):
+        """6x6 components after the rotation congruence (active) or its inverse."""
+        if self.single:
+            return np.array(self._to_cpp().rotate(_to_cpp_rotation(R), active).mat)
+        mats = _get_rotation_matrices(R, self._data.shape[0])
+        return _from_f_cube(_batch_rotate(
+            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str], mats, active))
+
+    def _changed_components(self, M):
+        """6x6 components after the change of basis of matrix M (old vectors in the new basis)."""
+        out_sharp, in_sharp = self._SHARP[self._type_str]
+        if out_sharp == in_sharp:
+            # one variance on the four indices: the transport kernel with F = M, no weight
+            if self.single:
+                return np.array(self._to_cpp().push_forward(M, False).mat)
+            M_batch = M[np.newaxis] if M.ndim == 2 else M
+            return _from_f_cube(_batch_push_forward(
+                _to_f_cube(self._data), _T4TYPE_MAP[self._type_str],
+                _to_f_cube(M_batch), False))
+        # concentration tensors (mixed variance): 6x6 Voigt operators
+        P_sharp, P_flat = _voigt_operators(M)
+        left = P_sharp if out_sharp else P_flat
+        right = P_sharp if in_sharp else P_flat
+        return left @ self._data @ np.swapaxes(right, -1, -2)
+
+    def _require_variance(self):
+        pass    # every Tensor4 type has a variance ('generic' is read as a stiffness)
 
     # ------------------------------------------------------------------
     # Factory methods
@@ -1103,29 +1762,37 @@ class Tensor4(_TensorBase):
         return cls._create(eng, type_str)
 
     @classmethod
-    def identity(cls, type_str="stiffness"):
-        """Create the identity tensor of the given type (default ``"stiffness"``).
+    def identity(cls, type_str="stiffness", basis=None):
+        r"""Create the identity tensor of the given type (default ``"stiffness"``).
 
         For every type the identity contracts to the unchanged field
-        (``I : t == t``); in Kelvin-Mandel it is ``eye(6)``.
+        (``I : t == t``); in the lab or an orthonormal basis its Kelvin-Mandel
+        form is ``eye(6)``. In a natural basis (``basis=``) the stiffness-type
+        identity is :math:`\tfrac12 (g^{ik} g^{jl} + g^{il} g^{jk})` and the
+        compliance-type one the same with :math:`g_{ij}`; only the
+        concentration (mixed) types keep ``eye(6)``.
         """
         _check_t4_type(type_str)
         cpp = _CppTensor4.identity(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
+        return _isotropic_in_basis(cls._create(np.array(cpp.mat), type_str), basis)
 
     @classmethod
-    def volumetric(cls, type_str="stiffness"):
-        """Create the volumetric (spherical) projector ``J = 1/3 I⊗I`` of the given type."""
+    def volumetric(cls, type_str="stiffness", basis=None):
+        r"""Create the volumetric (spherical) projector ``J = 1/3 I⊗I`` of the given type.
+
+        In a natural basis (``basis=``) the stiffness-type projector is
+        :math:`\tfrac13 g^{ij} g^{kl}`.
+        """
         _check_t4_type(type_str)
         cpp = _CppTensor4.volumetric(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
+        return _isotropic_in_basis(cls._create(np.array(cpp.mat), type_str), basis)
 
     @classmethod
-    def deviatoric(cls, type_str="stiffness"):
-        """Create the deviatoric projector ``K = I - J`` of the given type."""
+    def deviatoric(cls, type_str="stiffness", basis=None):
+        """Create the deviatoric projector ``K = I - J`` of the given type (in ``basis``, default lab)."""
         _check_t4_type(type_str)
         cpp = _CppTensor4.deviatoric(_T4TYPE_MAP[type_str])
-        return cls._create(np.array(cpp.mat), type_str)
+        return _isotropic_in_basis(cls._create(np.array(cpp.mat), type_str), basis)
 
     @classmethod
     def zeros(cls, type_str="stiffness"):
@@ -1187,20 +1854,30 @@ class Tensor4(_TensorBase):
             Contracted tensor(s) with the inferred type.
         """
         out_ts = self._infer_contraction_vtype(self._type_str)
+        basis = _common_basis(self._basis, t._basis)
+        if basis is not None and basis._rotation is None:
+            # natural basis: the contracted indices must be dual
+            expected = "strain" if self._SHARP[self._type_str][1] else "stress"
+            if t._type_str != expected:
+                raise ValueError(
+                    f"In a natural basis a '{self._type_str}' Tensor4 contracts with a "
+                    f"'{expected}' Tensor2, got '{t._type_str}'")
 
         if self.single:
             result = (self._data @ t._data.T).T
             if t.single:
-                return Tensor2._create(result.ravel(), out_ts)
-            return Tensor2._create(result, out_ts)
+                return Tensor2._create(result.ravel(), out_ts, basis)
+            return Tensor2._create(result, out_ts, basis)
 
         t2 = t._data[np.newaxis] if t.single else t._data
         # np.matmul broadcasts (1,6,1) -> (N,6,1) natively
         result = np.matmul(self._data, t2[..., np.newaxis]).squeeze(-1)
-        return Tensor2._create(result, out_ts)
+        return Tensor2._create(result, out_ts, basis)
 
     def rotate(self, R, active=True):
-        """Rotate the tensor(s) by a rotation (type-dependent Voigt congruence).
+        """Rotate the tensor(s) (active) or the frame they are written in (passive).
+
+        Same rules as `Tensor2.rotate`, with the type-dependent Voigt congruence.
 
         Parameters
         ----------
@@ -1208,36 +1885,25 @@ class Tensor4(_TensorBase):
             Rotation(s) to apply. On a batch, a single rotation is broadcast;
             a batch of N rotations is applied slice-wise.
         active : bool, optional
-            ``True`` (default) rotates the tensor, ``False`` the frame.
+            ``True`` (default) rotates the tensor; ``False`` the frame, and the
+            result carries the turned `basis`.
 
         Returns
         -------
         Tensor4
-            Rotated tensor(s), same type tag.
+            Same type tag.
         """
-        from simcoon.rotation import Rotation as SmcRotation
-        from scipy.spatial.transform import Rotation as ScipyRotation
-
-        if self.single:
-            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
-            return Tensor4._create(np.array(cpp_result.mat),
-                                   _T4TYPE_RMAP.get(cpp_result.type, self._type_str))
-
-        N = len(self)
-        if isinstance(R, (ScipyRotation, SmcRotation)):
-            mats = _get_rotation_matrices(R, N)
-        else:
-            raise TypeError(f"Expected Rotation, got {type(R)}")
-        result = _batch_rotate(
-            _to_f_cube(self._data), _T4TYPE_MAP[self._type_str], mats, active)
-        return self._rewrap(_from_f_cube(result))
+        return self._rotate(R, active)
 
     def push_forward(self, F, metric=True):
         """Push-forward (reference to current configuration) via the deformation gradient.
 
         Type-dependent transport: stiffness is fully contravariant
         (``F⊗F : L : F^T⊗F^T`` with ``1/J``), compliance fully covariant.
-        Concentration types raise (mixed variance, no pure transport).
+        For a lab tensor, concentration types raise (mixed variance: no
+        transport implemented on lab components). A tensor with its own
+        `basis` (any type) keeps its components and gets the convected basis
+        ``F.A``, as for `Tensor2.push_forward`.
 
         Parameters
         ----------
@@ -1254,6 +1920,8 @@ class Tensor4(_TensorBase):
             Transported tensor(s), same type tag.
         """
         F = np.asarray(F, dtype=np.float64)
+        if self._basis is not None:
+            return self._transported(F, metric, True)
         if self.single:
             cpp_result = self._to_cpp().push_forward(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
@@ -1282,6 +1950,8 @@ class Tensor4(_TensorBase):
             Transported tensor(s), same type tag.
         """
         F = np.asarray(F, dtype=np.float64)
+        if self._basis is not None:
+            return self._transported(F, metric, False)
         if self.single:
             cpp_result = self._to_cpp().pull_back(F, metric)
             return Tensor4._create(np.array(cpp_result.mat), self._type_str)
@@ -1305,11 +1975,11 @@ class Tensor4(_TensorBase):
         if self.single:
             cpp_result = self._to_cpp().inverse()
             inv_ts = _T4TYPE_RMAP.get(cpp_result.type, self._type_str)
-            return Tensor4._create(np.array(cpp_result.mat), inv_ts)
+            return Tensor4._create(np.array(cpp_result.mat), inv_ts, self._basis)
         result, inv_type_enum = _batch_inverse(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str])
         inv_ts = _T4TYPE_RMAP.get(inv_type_enum, self._type_str)
-        return Tensor4._create(_from_f_cube(result), inv_ts)
+        return Tensor4._create(_from_f_cube(result), inv_ts, self._basis)
 
     # ------------------------------------------------------------------
     # Arithmetic overrides (Tensor4 * Tensor2 = contraction)
@@ -1349,7 +2019,8 @@ def dyadic(a, b):
     cpp_b = _CppTensor2.from_voigt(b._data, _VTYPE_MAP[b._type_str])
     result = _dyadic(cpp_a, cpp_b)
     return Tensor4._create(np.array(result.mat),
-                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+                           _T4TYPE_RMAP.get(result.type, "stiffness"),
+                           _common_basis(a._basis, b._basis))
 
 
 def auto_dyadic(a):
@@ -1359,7 +2030,7 @@ def auto_dyadic(a):
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
     result = _auto_dyadic(cpp_a)
     return Tensor4._create(np.array(result.mat),
-                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+                           _T4TYPE_RMAP.get(result.type, "stiffness"), a._basis)
 
 
 def sym_dyadic(a, b):
@@ -1370,7 +2041,8 @@ def sym_dyadic(a, b):
     cpp_b = _CppTensor2.from_voigt(b._data, _VTYPE_MAP[b._type_str])
     result = _sym_dyadic(cpp_a, cpp_b)
     return Tensor4._create(np.array(result.mat),
-                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+                           _T4TYPE_RMAP.get(result.type, "stiffness"),
+                           _common_basis(a._basis, b._basis))
 
 
 def auto_sym_dyadic(a):
@@ -1380,7 +2052,7 @@ def auto_sym_dyadic(a):
     cpp_a = _CppTensor2.from_voigt(a._data, _VTYPE_MAP[a._type_str])
     result = _auto_sym_dyadic(cpp_a)
     return Tensor4._create(np.array(result.mat),
-                           _T4TYPE_RMAP.get(result.type, "stiffness"))
+                           _T4TYPE_RMAP.get(result.type, "stiffness"), a._basis)
 
 
 def double_contract(a, b):
@@ -1396,8 +2068,7 @@ def double_contract(a, b):
     numpy.ndarray
         ``(N,)`` values (``(1,)`` if both are single).
     """
-    ma = a.mat
-    mb = b.mat
+    ma, mb = _contraction_mats(a, b)
     if ma.ndim == 2:
         ma = ma[np.newaxis]
     if mb.ndim == 2:
