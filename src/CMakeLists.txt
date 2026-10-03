@@ -10,7 +10,6 @@ target_sources(simcoon PRIVATE
   Continuum_mechanics/Functions/derivatives.cpp
   Continuum_mechanics/Functions/hyperelastic.cpp
   Continuum_mechanics/Functions/kinematics.cpp
-  Continuum_mechanics/Functions/natural_basis.cpp
   Continuum_mechanics/Functions/objective_rates.cpp
   Continuum_mechanics/Functions/recovery_props.cpp
   Continuum_mechanics/Functions/stress.cpp

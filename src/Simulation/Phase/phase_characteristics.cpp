@@ -507,7 +507,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                 }
                 for (int i=0; i<3; i++) {
                     for (int j=0; j<3; j++) {
-                        *sptr_out_global << sptr_sv_global->nb.g_i[i](j) << "\t";
+                        *sptr_out_global << sptr_sv_global->F1(j,i) << "\t";   // convected basis vector g_i = column i of F
                     }
                 }
                 break;

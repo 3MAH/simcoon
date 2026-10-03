@@ -11,7 +11,6 @@ set(TEST_SRCS
   test/Libraries/Continuum_mechanics/Tderivatives.cpp
   test/Libraries/Continuum_mechanics/Thyperelastic.cpp
   test/Libraries/Continuum_mechanics/Tkinematics.cpp
-  test/Libraries/Continuum_mechanics/Tnatural_basis.cpp
   test/Libraries/Continuum_mechanics/Tobjective_rates.cpp
   test/Libraries/Continuum_mechanics/Trecovery_props.cpp
   test/Libraries/Continuum_mechanics/Tstress.cpp

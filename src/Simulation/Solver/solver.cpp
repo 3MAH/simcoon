@@ -41,7 +41,6 @@
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
@@ -222,8 +221,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
@@ -842,8 +840,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {

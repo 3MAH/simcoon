@@ -24,7 +24,6 @@
 #include <iostream>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 namespace simcoon{
 
@@ -86,7 +85,6 @@ class state_variables
 
         int tangent_mode = tangent_default; // tangent_* constants (parameter.hpp): 0 = none/explicit, 1 = continuum, 2 = algorithmic/Simo-Hughes (default), 3 = closest-point (reserved).
     
-        natural_basis nb; ///< Natural basis for covariant/contravariant operations
     
         /**
          * @brief Default constructor.
@@ -124,9 +122,8 @@ class state_variables
          * @param nstatev Number of state variables
          * @param statev State variables
          * @param statev_start State variables at start
-         * @param nb Natural basis
          */
-        state_variables(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
+        state_variables(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start);
         
         /**
          * @brief Copy constructor.
@@ -169,7 +166,7 @@ class state_variables
         /**
          * @brief Update all state variables with new values.
          */
-        virtual void update(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
+        virtual void update(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start);
         
         /**
          * @brief Get the number of internal state variables.
