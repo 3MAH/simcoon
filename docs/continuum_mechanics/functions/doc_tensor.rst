@@ -153,9 +153,12 @@ lab components in the API, consumed by ``Basis.from_F`` and by the transports,
 never wrapped. The same holds for the rotation :math:`\mathbf{R}` of the polar
 decomposition, the rotation increment :math:`\Delta\mathbf{R}` and the first
 Piola-Kirchhoff stress. They can be held in a ``Tensor2`` of type ``"none"`` (no
-Voigt convention: 9 components, lab-lab), which rotates with both legs together and offers the
-trace, determinant, norm and eigenvalues, but has no Voigt vector, no variance,
-no natural basis and no transport.
+Voigt convention: 9 components, lab-lab). Such a tensor has no variance, hence no
+transport and no natural basis (re-expressing its components would need the
+variance of each leg); it does accept an orthonormal ``Basis``, both legs being
+read in that frame, since :math:`\mathbf{Q}^T \mathbf{X}\,\mathbf{Q}` is the same
+for every variance. It offers the trace, determinant, norm and eigenvalues, but
+no Voigt vector.
 
 Three operations, three meanings:
 
