@@ -30,7 +30,6 @@
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
@@ -115,7 +114,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -157,7 +156,6 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     statev = mstatev;
     statev_start = mstatev_start;
     
-    nb = mnb;
 }
 
 /*!
@@ -192,7 +190,6 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
 }
 
 /*!
@@ -240,7 +237,6 @@ state_variables& state_variables::operator = (const state_variables& sv)
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
     
 	return *this;
 }
@@ -301,7 +297,7 @@ void state_variables::resize(const int &m, const bool &init, const double &value
     
     
 //-------------------------------------------------------------
-void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb)
+void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
 //-------------------------------------------------------------
 {
     assert (mEtot.size() == 6);
@@ -347,7 +343,6 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &met
     statev = mstatev;
     statev_start = mstatev_start;
     
-    nb = mnb;
 }
     
 //-------------------------------------------------------------
@@ -378,7 +373,6 @@ void state_variables::set_start(const int &corate_type)
     //    R = R*DR;
         U0 = U1;
         R = DR*R;
-        nb.from_F(F1);
     }
     else { //corate_type 4 (Truesdell) or 5 (log_F): DR is here understood as DF (convected)
         PKII_start = PKII;
@@ -402,7 +396,6 @@ void state_variables::set_start(const int &corate_type)
         U0 = U1;
     //    R = R*DR;
         R = DR*R;
-        nb.from_F(F1);        
     }
 }
 
@@ -511,7 +504,6 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-    nb = sv.nb;     // carry the natural basis local->global (see rotate_g2l)
 
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
     if (!rot.is_identity()) {
@@ -568,10 +560,6 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-    // Carry the natural basis (anisotropy convection, e.g. log_F EPTRI fibre) global->local.
-    // For an oriented material (psi/theta/phi != 0) nb would also need rotating; the
-    // single-fibre demonstrator uses psi=0, so the plain copy is exact here.
-    nb = sv.nb;
 
     Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
     if (!rot.is_identity()) {
@@ -629,7 +617,6 @@ ostream& operator << (ostream& s, const state_variables& sv)
         s << "\n";
     }
 
-    s << "natural_basis: \n" << sv.nb << "\n";
     
 	return s;
 }

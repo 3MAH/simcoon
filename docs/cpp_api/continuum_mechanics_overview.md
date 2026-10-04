@@ -23,7 +23,6 @@ Mathematical functions and tensor operations that form the foundation of continu
 - **recovery_props.hpp** - Material property recovery from stiffness/compliance tensors
 - **transfer.hpp** - Conversions between tensor and Voigt notations
 - **derivatives.hpp** - Tensor derivatives for sensitivity analysis
-- **natural_basis.hpp** - Natural basis transformations for curvilinear coordinates
 
 ### 2. **Homogenization** - Effective Property Calculations
 
