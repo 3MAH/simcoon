@@ -39,14 +39,17 @@ class tensor4;
  *
  * - stress:  Voigt = [s11, s22, s33, s12, s13, s23] — shear as-is
  * - strain:  Voigt = [e11, e22, e33, 2*e12, 2*e13, 2*e23] — shear doubled
- * - generic: same storage as stress (symmetric tensor, no physical convention)
- * - none:    non-symmetric tensor (e.g. F), .voigt() throws
+ * - symmetric: same storage as stress (symmetric tensor, no physical convention)
+ * - none:      no Voigt convention: any 3x3 (e.g. F, R, PK1), .voigt() throws
+ *
+ * `generic` is the pre-2.2 name of `symmetric`, kept as an alias for one release.
  */
 enum class Tensor2Type {
     stress,
     strain,
-    generic,
-    none
+    symmetric,
+    none,
+    generic = symmetric   ///< deprecated alias of symmetric (pre-2.2 name)
 };
 
 /// Deprecated pre-2.0 alias — the tag was named after the Voigt encoding
@@ -121,14 +124,16 @@ inline arma::mat::fixed<6,6> mandel_to_eng(arma::mat::fixed<6,6> X, Tensor4Type 
  * - logarithmic_R:  Logarithmic, R-transport framework
  * - logarithmic_F:  Logarithmic, F-transport framework
  *
- * @note `logarithmic`, `logarithmic_R`, and `logarithmic_F` share the same
- *       algorithmic tangent here: they all reduce to the F-push-forward of the
- *       material tangent followed by the same B^(4) correction (cf. Chemisky
- *       et al. preprint, Sec. "Two integrable logarithmic frameworks": both
- *       integrable frameworks share B^(4); the difference lies in the *stress
- *       integrator*'s transport operator). Their genuinely distinct stress
- *       updates live in Continuum_mechanics/Functions/objective_rates.cpp
- *       (`logarithmic`, `logarithmic_R`, `logarithmic_F`), not here.
+ * @note The correction is the solver's own per-corate dispatch
+ *       (Dtau_LieDD_2_DtauDe_corate in objective_rates.cpp), so a tangent built
+ *       here with `metric = false` is exactly the (Kirchhoff) box tangent the solver
+ *       integrates the stress against; the default `metric = true` divides it by
+ *       \f$ J \f$ (Cauchy level):
+ *       - `logarithmic` (corate 2) and `logarithmic_R` (corate 3) share the exact
+ *         spectral map (Dtau_LieDD_Dtau_logarithmicDD), so they give the same
+ *         tangent. Their stress updates differ only in the transport operator.
+ *       - `logarithmic_F` (corate 5) is the Jaumann box chained through
+ *         \f$ (\mathbf{A}^F)^{-1} \f$ (De = A^F:D dt), distinct from both.
  */
 enum class CoRate {
     lie,
@@ -142,8 +147,36 @@ enum class CoRate {
 /**
  * @brief A 2nd-order tensor with type tag for Voigt convention and rotation dispatch.
  *
- * Storage: arma::mat::fixed<3,3> (column-major, 72 bytes).
+ * Storage: arma::mat::fixed<3,3> (column-major, 72 bytes of payload) plus the type tag.
  * The Voigt vector is computed on the fly (no cache).
+ *
+ * @details **Basis.** The components are those in the fixed orthonormal lab basis
+ * \f$ \mathbf{e}_i \f$; the class records no basis. Consequences:
+ * - `rotate(R, active = true)` returns another tensor,
+ *   \f$ \mathbf{Q}\,\mathbf{X}\,\mathbf{Q}^T \f$, in the same basis;
+ *   `active = false` returns the components \f$ \mathbf{Q}^T\,\mathbf{X}\,\mathbf{Q} \f$ of the
+ *   same tensor in the frame \f$ \mathbf{e}'_i = \mathbf{Q}\,\mathbf{e}_i \f$, and the result
+ *   does not remember that frame.
+ * - In `push_forward` / `pull_back` the type tag is the variance: stress is contravariant
+ *   (\f$ \mathbf{F}\,\mathbf{X}\,\mathbf{F}^T \f$), strain covariant
+ *   (\f$ \mathbf{F}^{-T}\,\mathbf{X}\,\mathbf{F}^{-1} \f$). This reading holds for the conjugate
+ *   pairs \f$ (\mathbf{S}, \mathbf{E}) \f$ and \f$ (\boldsymbol{\tau}, \mathbf{e}) \f$
+ *   (Green-Lagrange / Almansi), not for a logarithmic strain.
+ * - A push-forward is a transport (another tensor, in the current configuration) that carries
+ *   the basis along: the components of \f$ \boldsymbol{\tau} \f$ in the convected basis
+ *   \f$ \mathbf{g}_i = \mathbf{F}\,\mathbf{G}_i \f$ are those of \f$ \mathbf{S} \f$ in
+ *   \f$ \mathbf{G}_i \f$, \f$ \tau^{ij} = S^{IJ} \f$; `push_forward` returns them in the lab.
+ * - The `metric` flag of the transports is the Piola weight \f$ J = \det\mathbf{F} \f$
+ *   (Kirchhoff to Cauchy), not a metric tensor.
+ * - The variance is a convention of the representation, not a property of the tensor. In C++
+ *   it is read from the type tag and there is no index raising or lowering (the Python classes
+ *   carry it as a tag, `variance`, and change it with `to_variance`). Two-point tensors
+ *   (\f$ \mathbf{F} \f$, \f$ \mathbf{R} \f$, \f$ \Delta\mathbf{R} \f$, \f$ \mathbf{P} \f$) have
+ *   one index in each configuration and no single basis: they are held as lab-lab components
+ *   (type `none`) or as plain arma::mat, never transported by these functions.
+ *
+ * The Python classes `simcoon.Tensor2` / `simcoon.Tensor4` can carry a basis
+ * (`simcoon.Basis`: orthonormal, or natural with its metric); these C++ value types do not.
  */
 class tensor2 {
 private:
@@ -165,7 +198,7 @@ public:
     static tensor2 from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype);
     /// Same, from a dynamic arma::vec (must have 6 elements).
     static tensor2 from_voigt(const arma::vec &v, Tensor2Type vtype);
-    /// Same, with a string tag ("stress"/"strain"/"generic") — parses per call; prefer the enum overload in loops.
+    /// Same, with a string tag ("stress"/"strain"/"symmetric"/"none") — parses per call; prefer the enum overload in loops.
     static tensor2 from_voigt(const arma::vec &v, const std::string &type_str);
 
     /// Build from a Kelvin-Mandel vector (shear scaled by \f$\sqrt2\f$, identical for stress/strain).
@@ -245,9 +278,9 @@ public:
     /// Same, from a dynamic arma::mat (must be 3x3).
     tensor2 pull_back(const arma::mat &F, bool metric = true) const;
 
-    /// Componentwise sum (same type tag required).
+    /// Componentwise sum. The type tags are not checked: the result takes the left one.
     tensor2 operator+(const tensor2 &other) const;
-    /// Componentwise difference (same type tag required).
+    /// Componentwise difference. The type tags are not checked: the result takes the left one.
     tensor2 operator-(const tensor2 &other) const;
     /// Unary minus.
     tensor2 operator-() const;
@@ -364,6 +397,14 @@ tensor2 trans(const tensor2 &t);
  * the per-type engineering<->Mandel congruence is documented on Tensor4Type.
  * Fastor Tensor<double,3,3,3,3> (the convention-free full-index tensor) is lazily computed
  * and cached for push_forward/pull_back.
+ *
+ * @details **Basis.** As for tensor2, the components are those in the fixed orthonormal lab
+ * basis. The Kelvin-Mandel shortcuts above (identity = eye(6), projectors, rotation as an
+ * orthogonal congruence, Frobenius norm) hold only in an orthonormal basis: in a natural basis
+ * of metric \f$ g_{ij} \f$ the stiffness-type identity is
+ * \f$ \tfrac12 (g^{ik} g^{jl} + g^{il} g^{jk}) \f$. The Tensor4Type is the variance used by
+ * `push_forward` / `pull_back`: stiffness contravariant on its four indices, compliance
+ * covariant, concentration tensors mixed.
  *
  * @warning NOT thread-safe. The mutable Fastor cache is lazily populated by const
  *          methods (fastor(), push_forward(), pull_back()) without synchronization.
@@ -486,7 +527,8 @@ public:
      * @param F    Deformation gradient (3x3)
      * @param rate Corotational rate type
      * @param tau  Kirchhoff stress (needed for all rates except lie)
-     * @param metric If true, includes J factor
+     * @param metric If true (default), the corrected Kirchhoff tangent is divided by
+     *        \f$ J \f$; pass false for the box tangent the solver integrates
      */
     tensor4 push_forward(const arma::mat::fixed<3,3> &F, CoRate rate,
                          const tensor2 &tau, bool metric = true) const;
@@ -516,9 +558,9 @@ public:
     /// valid for every Tensor4Type (passive uses \f$\mathbf{Q}^T\f$).
     tensor4 rotate(const Rotation &R, bool active = true) const;
 
-    /// Componentwise sum (same type tag required).
+    /// Componentwise sum. The type tags are not checked: the result takes the left one.
     tensor4 operator+(const tensor4 &other) const;
-    /// Componentwise difference (same type tag required).
+    /// Componentwise difference. The type tags are not checked: the result takes the left one.
     tensor4 operator-(const tensor4 &other) const;
     /// Unary minus.
     tensor4 operator-() const;

@@ -307,3 +307,21 @@ sigma_check = sigma_mat.rotate(rotations)                 # rotate result
 
 print("Batch frame equivalence error:",
       np.max(np.abs(sigma_global.voigt - sigma_check.voigt)))
+
+# %%
+# 21. The basis of the components
+# ----------------------------------
+# All the components above are lab components (``basis`` is ``None``). A
+# ``simcoon.Basis`` records another reference system: an orthonormal frame, or a
+# natural (convected) basis with its metric. See the dedicated example
+# ``tensor_basis.py`` for the full tour.
+
+material = sim.Basis(rotation=rot, name="material")
+sigma_m = sigma.to_basis(material)                    # same tensor, material components
+print(sigma_m)
+print("Back to the lab:", np.allclose(sigma_m.to_basis(None).voigt, sigma.voigt))
+
+F_shear = np.array([[1.0, 0.5, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+S = sim.Tensor2.stress(np.array([0.0, 80.0, 0.0, 0.0, 0.0, 0.0]))      # PK2
+tau = S.with_basis(sim.Basis.from_F(F_shear))         # Kirchhoff: same numbers, convected basis
+print("Trace with the metric:", tau.trace(), "| lab:", tau.to_basis(None).trace())

@@ -12,3 +12,5 @@ This gallery contains examples demonstrating:
 - **Stress measures** - Converting between different stress measures (Cauchy, PK1, PK2, etc.)
 - **Rotation operations** - Rotating tensors and vectors
 - **Yield criteria** - von Mises, Tresca, Drucker, and Hill anisotropic criteria
+- **Typed tensors** - ``Tensor2`` / ``Tensor4``: type tags, batches, rotation and transport
+- **Tensor basis** - Material frames, convected (natural) bases and metric-weighted invariants with ``Basis``

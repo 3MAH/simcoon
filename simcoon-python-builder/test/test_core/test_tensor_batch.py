@@ -944,15 +944,14 @@ class TestTensor4BatchConcentration:
         assert_allclose(batch[0].voigt, single.voigt, atol=TOL)
 
     @pytest.mark.parametrize("size", [4, 150])  # exercise both serial and OpenMP (N>100) paths
-    def test_push_pull_throws_cleanly(self, size):
-        """Batch push/pull must raise a clean error for concentration types, including the
-        N>100 OpenMP path (the throw is rejected before the parallel region, not mid-loop)."""
+    def test_push_pull_is_pairwise(self, size):
+        """Batch push/pull of a concentration tensor is pair-wise (F^-T on the covariant
+        pair, F on the contravariant one): the identity map stays the identity, also past
+        the parallel cutoff."""
         A = Tensor4.strain_concentration(np.broadcast_to(np.eye(6), (size, 6, 6)).copy())
-        F = np.eye(3)
-        with pytest.raises(RuntimeError):
-            A.push_forward(F)
-        with pytest.raises(RuntimeError):
-            A.pull_back(F)
+        F = np.array([[1.1, 0.2, 0.0], [0.0, 0.9, 0.1], [0.0, 0.0, 1.0]])
+        np.testing.assert_allclose(A.push_forward(F).mat, np.broadcast_to(np.eye(6), (size, 6, 6)), atol=1e-12)
+        np.testing.assert_allclose(A.pull_back(F).mat, np.broadcast_to(np.eye(6), (size, 6, 6)), atol=1e-12)
 
 
 

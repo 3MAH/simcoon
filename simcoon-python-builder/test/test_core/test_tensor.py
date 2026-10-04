@@ -553,15 +553,17 @@ class TestTensor4Concentration:
         back = Binv.contract(Bc.contract(x))
         np.testing.assert_allclose(back.voigt, x.voigt, atol=1e-10)
 
-    def test_concentration_push_pull_throws(self, F):
-        """push/pull are undefined for concentration tensors (mixed indices)."""
+    def test_concentration_push_pull_is_pairwise(self, F):
+        """push/pull of a concentration tensor transports each pair with its own variance
+        (F^-T on the covariant pair, F on the contravariant one): the identity map stays
+        the identity, and pull undoes push."""
         A = sim.Tensor4.strain_concentration(np.eye(6))
         B = sim.Tensor4.stress_concentration(np.eye(6))
         for t in (A, B):
-            with pytest.raises(RuntimeError):
-                t.push_forward(F)
-            with pytest.raises(RuntimeError):
-                t.pull_back(F)
+            np.testing.assert_allclose(t.push_forward(F).mat, np.eye(6), atol=1e-12)
+            np.testing.assert_allclose(t.pull_back(F).mat, np.eye(6), atol=1e-12)
+        A_R = sim.Tensor4.strain_concentration(sim.A_R(F))
+        np.testing.assert_allclose(A_R.push_forward(F).pull_back(F).mat, A_R.mat, atol=1e-10)
 
     def test_rotate_accepts_scipy_rotation(self, F):
         """Single Tensor4.rotate accepts a scipy Rotation (not only simcoon.Rotation)."""
