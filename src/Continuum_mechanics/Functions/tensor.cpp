@@ -40,7 +40,7 @@ namespace simcoon {
 static Tensor2Type parse_voigt_type(const std::string &s) {
     if (s == "stress")  return Tensor2Type::stress;
     if (s == "strain")  return Tensor2Type::strain;
-    if (s == "generic") return Tensor2Type::generic;
+    if (s == "symmetric" || s == "generic") return Tensor2Type::symmetric;   // generic: pre-2.2 name
     if (s == "none")    return Tensor2Type::none;
     throw std::invalid_argument("Unknown Tensor2Type string: '" + s + "'. "
         "Expected: stress, strain, generic, none");
@@ -200,7 +200,7 @@ tensor2 tensor2::from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype) {
         m(0,1) = 0.5 * v(3); m(1,0) = 0.5 * v(3);
         m(0,2) = 0.5 * v(4); m(2,0) = 0.5 * v(4);
         m(1,2) = 0.5 * v(5); m(2,1) = 0.5 * v(5);
-    } else if (vtype == Tensor2Type::stress || vtype == Tensor2Type::generic) {
+    } else if (vtype == Tensor2Type::stress || vtype == Tensor2Type::symmetric) {
         m(0,0) = v(0); m(1,1) = v(1); m(2,2) = v(2);
         m(0,1) = v(3); m(1,0) = v(3);
         m(0,2) = v(4); m(2,0) = v(4);
@@ -274,7 +274,7 @@ void tensor2::set_voigt(const arma::vec::fixed<6> &v) {
         _mat(0,1) = 0.5 * v(3); _mat(1,0) = 0.5 * v(3);
         _mat(0,2) = 0.5 * v(4); _mat(2,0) = 0.5 * v(4);
         _mat(1,2) = 0.5 * v(5); _mat(2,1) = 0.5 * v(5);
-    } else if (_vtype == Tensor2Type::stress || _vtype == Tensor2Type::generic) {
+    } else if (_vtype == Tensor2Type::stress || _vtype == Tensor2Type::symmetric) {
         _mat(0,0) = v(0); _mat(1,1) = v(1); _mat(2,2) = v(2);
         _mat(0,1) = v(3); _mat(1,0) = v(3);
         _mat(0,2) = v(4); _mat(2,0) = v(4);
@@ -362,7 +362,7 @@ tensor2 tensor2::push_forward(const arma::mat::fixed<3,3> &F, bool metric) const
             // strain factor is 1 — no metric correction needed
             return tensor2(result, Tensor2Type::strain);
         }
-        case Tensor2Type::generic:
+        case Tensor2Type::symmetric:
         case Tensor2Type::none:
             throw std::runtime_error("push_forward requires Tensor2Type::stress or Tensor2Type::strain");
     }
@@ -387,7 +387,7 @@ tensor2 tensor2::pull_back(const arma::mat::fixed<3,3> &F, bool metric) const {
             // strain factor is 1 — no metric correction needed
             return tensor2(result, Tensor2Type::strain);
         }
-        case Tensor2Type::generic:
+        case Tensor2Type::symmetric:
         case Tensor2Type::none:
             throw std::runtime_error("pull_back requires Tensor2Type::stress or Tensor2Type::strain");
     }

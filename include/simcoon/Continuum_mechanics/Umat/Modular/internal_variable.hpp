@@ -99,7 +99,7 @@ public:
      * @param vtype  Voigt convention for this variable:
      *        Tensor2Type::strain (default) for strain-like variables (EP, EV, α, ...),
      *        Tensor2Type::stress for stress-like variables (stored generalised forces),
-     *        Tensor2Type::generic for plain 6-component vectors without Voigt semantics.
+     *        Tensor2Type::symmetric for plain 6-component vectors without Voigt semantics.
      *        Controls the rotation kernel (strain-rotation has factor-2 on shear)
      *        and is returned by default from as_tensor2().
      */
@@ -303,7 +303,7 @@ public:
      *   and pack().
      * - Tensor2Type::stress  for stress-conjugate variables stored without the
      *   factor-2.
-     * - Tensor2Type::generic when no specific physical convention applies.
+     * - Tensor2Type::symmetric when no specific physical convention applies.
      *
      * @throws std::runtime_error if type() != VECTOR_6
      */

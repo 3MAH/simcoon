@@ -395,14 +395,28 @@ clone = pickle.loads(pickle.dumps(sigma_m))
 print("pickled:", clone, "| equal:", clone == sigma_m, "| deepcopy equal:",
       copy.deepcopy(sigma_m) == sigma_m)
 
-generic = sim.Tensor2.from_voigt(sigma.voigt, "generic")
-print("a generic tensor in an orthonormal basis is fine:", generic.to_basis(material).basis)
-for label, operation in [("generic in a natural basis", lambda: generic.with_basis(convected)),
+symmetric = sim.Tensor2.from_voigt(sigma.voigt, "symmetric")
+print("a symmetric tensor in an orthonormal basis is fine:", symmetric.to_basis(material).basis)
+for label, operation in [("symmetric in a natural basis", lambda: symmetric.with_basis(convected)),
                          ("a name instead of a basis", lambda: sigma.with_basis("material"))]:
     try:
         operation()
     except (ValueError, TypeError) as err:
         print(f"{label}: {type(err).__name__}")
+
+# A two-point or non-symmetric tensor (F, R, PK1) takes the type "none" -- no
+# Voigt convention, 9 components: lab-lab components, rotation of both legs,
+# invariants, but no Voigt vector, no variance and no transport.
+F_t = sim.Tensor2.from_mat(F_gen, "none")
+print(F_t, "| stored exactly:", np.array_equal(F_t.mat, F_gen), "| det J =", round(F_t.det(), 6))
+print("rotated with both legs:", np.allclose(F_t.rotate(Q).mat, Q.as_matrix() @ F_gen @ Q.as_matrix().T))
+for label, operation in [("a symmetric type refuses F", lambda: sim.Tensor2.stress(F_gen)),
+                         ("F has no convected basis", lambda: F_t.with_basis(convected)),
+                         ("F is not transported", lambda: F_t.push_forward(F_gen))]:
+    try:
+        operation()
+    except ValueError as err:
+        print(f"{label}: ValueError")
 
 # %%
 # 19. Bases that come from elsewhere: ply frames, shells, successive transports
@@ -451,3 +465,49 @@ print("membrane stress: trace", round(N_shell.trace(), 4), "| Mises", round(N_sh
       "| lab Mises", round(N_shell.to_basis(None).mises(), 4))
 lamina = sim.Basis(rotation=sim.Rotation.from_matrix(np.linalg.qr(shell.matrix)[0]), name="lamina")
 print("the same stress in the orthonormal lamina frame:", N_shell.to_basis(lamina).voigt)
+
+# %%
+# 20. The variance tag: raising and lowering indices
+# -----------------------------------------------------
+# The variance of the components is a tag defaulted from the type (stress
+# contravariant, strain covariant, stiffness (contra, contra), compliance (co, co),
+# concentration tensors mixed). ``to_variance`` gives the same tensor with the
+# other variance: nothing changes in the lab, the metric acts in a natural basis.
+
+print("defaults:", sigma.variance, "|", eps.variance, "|", L_iso.variance, "|",
+      sim.Tensor4.strain_concentration(np.eye(6)).variance)
+
+tau_low = tau.to_variance("covariant")                  # tau_ij = g_ik tau^kl g_lj
+print(tau_low)
+print("lowered with the metric:", np.allclose(tau_low.mat, convected.metric @ tau.mat @ convected.metric))
+print("same tensor: same Mises", np.isclose(tau_low.mises(), tau.mises()),
+      "| same lab components", np.allclose(tau_low.to_basis(None).voigt, tau.to_basis(None).voigt))
+print("raised back:", np.allclose(tau_low.to_variance("contravariant").mat, tau.mat))
+
+# Contractions read the tags: dual variances contract as they are, equal ones
+# through the metric; the value is the lab one whatever the tags
+s_conv, e_conv = sigma.to_basis(convected), eps.to_basis(convected)
+print("sigma : eps, lab:", round(sigma % eps, 6),
+      "| sigma^sharp : eps_flat:", round(s_conv % e_conv, 6),
+      "| sigma_flat : eps^sharp:", round(s_conv.to_variance("covariant") % e_conv.to_variance("contravariant"), 6),
+      "| sigma_flat : eps_flat (metric):", round(s_conv.to_variance("covariant") % e_conv, 6))
+
+# A stiffness with lowered indices contracts a contravariant strain
+L_low = L_iso.to_basis(convected).to_variance(("covariant", "covariant"))
+print(L_low)
+print("L_low : e^sharp back in the lab == L : eps:",
+      np.allclose((L_low @ e_conv.to_variance("contravariant")).to_basis(None).voigt, (L_iso @ eps).voigt))
+try:
+    L_low @ e_conv
+except ValueError as err:
+    print("not dual:", str(err).split(" (")[0])
+
+# The variance is part of what a transport means: lowering the indices of a
+# lab tensor and pushing it forward is not the push-forward of the original.
+pushed = sigma.push_forward(F_gen, metric=False)
+pushed_low = sigma.to_variance("covariant").push_forward(F_gen, metric=False)
+print("F sigma F^T vs F^-T sigma F^-1 differ:", not np.allclose(pushed.mat, pushed_low.mat))
+
+# A "symmetric" tensor has no default variance: declare it first
+sym = sim.Tensor2.from_voigt(sigma.voigt, "symmetric")
+print("symmetric, undeclared:", sym.variance, "| declared:", sym.to_variance("contravariant").variance)

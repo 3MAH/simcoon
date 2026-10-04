@@ -45,19 +45,24 @@ dispatch to vectorised kernels over the ``(N, ...)`` data.
    **rejected**: it yields only ~1.1x on a single contraction and ~1.07x on
    realistic distinct-tangent batch work, and Armadillo fixed-size containers
    negate the 6-vs-9-double storage saving. The real ~20x lever is the
-   shared-tangent GEMM path above, which needs no new type; ``Tensor2`` stays
-   the general 3x3 type (it remains the only one able to hold a non-symmetric
-   tensor such as ``F``, ``L``, ``R``).
+   shared-tangent GEMM path above, which needs no new type; the C++ ``tensor2``
+   stays the general 3x3 type (the only one able to hold a non-symmetric tensor
+   such as ``F``, ``L``, ``R``). The Python ``Tensor2`` stores the 6 Voigt
+   components for the symmetric types (``"stress"``, ``"strain"``,
+   ``"symmetric"``) and the 9 components of any 3x3 for the type ``"none"`` (no
+   Voigt convention); a non-symmetric matrix given to a
+   symmetric type is refused rather than silently symmetrised.
 
 Basis: the reference system of the components
 ---------------------------------------------
 
+Objectivity implies that the physical laws are independent of the choice of reference frame. 
 The components of a tensor only mean something together with the basis they are
-written in. By default that basis is the fixed orthonormal lab basis
+written in. By default that basis is the fixed orthonormal laboratory basis
 :math:`\mathbf{e}_i`: ``t.basis`` is ``None`` and nothing is stored. A
 ``simcoon.Basis`` makes another choice explicit. It holds the basis vectors
 :math:`\mathbf{g}_i` through the matrix :math:`\mathbf{A}` whose columns are
-their lab components, and comes in two kinds:
+their laboratory frame components, and comes in two kinds:
 
 * **orthonormal**, built from a rotation, :math:`\mathbf{g}_i = \mathbf{R}\,\mathbf{e}_i`
   (a material frame, a corotational frame). Its metric is the identity, so every
@@ -66,6 +71,7 @@ their lab components, and comes in two kinds:
   :math:`\mathbf{g}_i = \mathbf{F}\,\mathbf{G}_i` (``Basis.from_F``). Its metric
   :math:`g_{ij} = \mathbf{g}_i \cdot \mathbf{g}_j`, i.e.
   :math:`\mathbf{g} = \mathbf{A}^T \mathbf{A}`, enters the invariants.
+  'Natural' definition come from the convected basis of a material point.
 
 The type tag gives the variance of the components: a stress is contravariant,
 :math:`\boldsymbol{\sigma} = \sigma^{ij}\,\mathbf{g}_i \otimes \mathbf{g}_j`, a
@@ -78,6 +84,78 @@ compliance covariant, the concentration tensors mixed. The lab components follow
    \boldsymbol{\sigma}_{lab} = \mathbf{A}\,\hat{\boldsymbol{\sigma}}\,\mathbf{A}^T,
    \qquad
    \boldsymbol{\varepsilon}_{lab} = \mathbf{A}^{-T}\,\hat{\boldsymbol{\varepsilon}}\,\mathbf{A}^{-1}.
+
+.. list-table:: Default variance of each type (``t.variance``)
+   :header-rows: 1
+   :widths: 30 22 48
+
+   * - Type
+     - Components
+     - Transport by :math:`\mathbf{F}` (``push_forward``)
+   * - ``Tensor2`` ``"stress"``
+     - :math:`\sigma^{ij}` (contravariant)
+     - :math:`\mathbf{F}\,\boldsymbol{\sigma}\,\mathbf{F}^T`, weight :math:`1/J` with ``metric=True``
+   * - ``Tensor2`` ``"strain"``
+     - :math:`\varepsilon_{ij}` (covariant)
+     - :math:`\mathbf{F}^{-T}\,\boldsymbol{\varepsilon}\,\mathbf{F}^{-1}`
+   * - ``Tensor2`` ``"symmetric"``, ``"none"`` (any 3x3, no Voigt convention)
+     - lab or orthonormal-frame components only
+     - none: no variance, hence no natural basis and no transport
+   * - ``Tensor4`` ``"stiffness"``, ``"generic"``
+     - :math:`C^{ijkl}`
+     - :math:`\mathbf{F}` on the four indices, weight :math:`1/J`
+   * - ``Tensor4`` ``"compliance"``
+     - :math:`M_{ijkl}`
+     - :math:`\mathbf{F}^{-T}` on the four indices, weight :math:`J`
+   * - ``Tensor4`` concentrations
+     - mixed, :math:`A_{ij}{}^{kl}` / :math:`B^{ij}{}_{kl}`
+     - pair-wise: :math:`\mathbf{F}^{-T}` on the covariant pair, :math:`\mathbf{F}` on the contravariant one
+
+The variance is a tag of the components, ``t.variance``, carried next to the type
+and the basis: ``"contravariant"`` or ``"covariant"`` for a ``Tensor2``, a pair
+``(output, input)`` for a ``Tensor4``. The table gives its default; it is read,
+not the type, by the transports, by ``to_basis`` and by the metric invariants.
+Two things the default is **not**:
+
+* It is not the only possible representation. Variance is a choice made for the
+  components, not a property of the tensor: with the metric any tensor can be
+  given contravariant or covariant components (``det`` and ``eigvals`` use the
+  mixed ones :math:`T^i{}_j = T^{ik} g_{kj}` internally). The default is the
+  one under which the conjugate pairs :math:`\mathbf{S} : \mathbf{E}` and
+  :math:`\boldsymbol{\tau} : \mathbf{e}` contract without a metric and the
+  convected components stay constant under transport. ``t.to_variance(v)``
+  gives the same tensor with components of the other variance: a retag in the
+  lab or an orthonormal basis (the numbers do not change), a contraction with
+  the metric in a natural basis, :math:`\sigma_{ij} = g_{ik}\,\sigma^{kl}\,g_{lj}`
+  (or its inverse), pair by pair for a ``Tensor4``. The Voigt shear factors stay
+  those of the type. Mixed components of a single pair are not representable in
+  6 components (they are not symmetric), hence a tag per pair. The variance is
+  part of what a transport means: a covariantly tagged stiffness pushes forward
+  with :math:`\mathbf{F}^{-T}` on its four indices, which is another tensor than
+  the push-forward of the contravariant one. A ``"symmetric"`` ``Tensor2`` has no
+  default variance: ``to_variance`` declares it before any transport or natural
+  basis; type ``"none"`` has none.
+* It is not a statement about every strain measure. The covariant transport is
+  that of the Green-Lagrange / Almansi pair. A logarithmic strain is a tensor
+  function of a stretch, not the transport of anything: ``push_forward`` on a
+  strain-typed :math:`\ln \mathbf{V}` is accepted by the type tag and has no
+  meaning.
+
+Two-point tensors have no basis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The deformation gradient :math:`\mathbf{F} = F^i{}_J\,\mathbf{g}_i \otimes
+\mathbf{G}^J` has one index in each configuration, so there is no single basis
+to attach it to; in the convected pair :math:`(\mathbf{G}_i, \mathbf{g}_i =
+\mathbf{F}\,\mathbf{G}_i)` its mixed components are :math:`\delta^i_J`: it *is*
+the relation between the two bases. This is why ``F`` is always a plain array of
+lab components in the API, consumed by ``Basis.from_F`` and by the transports,
+never wrapped. The same holds for the rotation :math:`\mathbf{R}` of the polar
+decomposition, the rotation increment :math:`\Delta\mathbf{R}` and the first
+Piola-Kirchhoff stress. They can be held in a ``Tensor2`` of type ``"none"`` (no
+Voigt convention: 9 components, lab-lab), which rotates with both legs together and offers the
+trace, determinant, norm and eigenvalues, but has no Voigt vector, no variance,
+no natural basis and no transport.
 
 Three operations, three meanings:
 

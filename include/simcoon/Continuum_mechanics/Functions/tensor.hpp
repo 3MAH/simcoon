@@ -39,14 +39,17 @@ class tensor4;
  *
  * - stress:  Voigt = [s11, s22, s33, s12, s13, s23] — shear as-is
  * - strain:  Voigt = [e11, e22, e33, 2*e12, 2*e13, 2*e23] — shear doubled
- * - generic: same storage as stress (symmetric tensor, no physical convention)
- * - none:    non-symmetric tensor (e.g. F), .voigt() throws
+ * - symmetric: same storage as stress (symmetric tensor, no physical convention)
+ * - none:      no Voigt convention: any 3x3 (e.g. F, R, PK1), .voigt() throws
+ *
+ * `generic` is the pre-2.2 name of `symmetric`, kept as an alias for one release.
  */
 enum class Tensor2Type {
     stress,
     strain,
-    generic,
-    none
+    symmetric,
+    none,
+    generic = symmetric   ///< deprecated alias of symmetric (pre-2.2 name)
 };
 
 /// Deprecated pre-2.0 alias — the tag was named after the Voigt encoding
@@ -165,6 +168,12 @@ enum class CoRate {
  *   \f$ \mathbf{G}_i \f$, \f$ \tau^{ij} = S^{IJ} \f$; `push_forward` returns them in the lab.
  * - The `metric` flag of the transports is the Piola weight \f$ J = \det\mathbf{F} \f$
  *   (Kirchhoff to Cauchy), not a metric tensor.
+ * - The variance is a convention of the representation, not a property of the tensor. In C++
+ *   it is read from the type tag and there is no index raising or lowering (the Python classes
+ *   carry it as a tag, `variance`, and change it with `to_variance`). Two-point tensors
+ *   (\f$ \mathbf{F} \f$, \f$ \mathbf{R} \f$, \f$ \Delta\mathbf{R} \f$, \f$ \mathbf{P} \f$) have
+ *   one index in each configuration and no single basis: they are held as lab-lab components
+ *   (type `none`) or as plain arma::mat, never transported by these functions.
  *
  * The Python classes `simcoon.Tensor2` / `simcoon.Tensor4` can carry a basis
  * (`simcoon.Basis`: orthonormal, or natural with its metric); these C++ value types do not.
@@ -189,7 +198,7 @@ public:
     static tensor2 from_voigt(const arma::vec::fixed<6> &v, Tensor2Type vtype);
     /// Same, from a dynamic arma::vec (must have 6 elements).
     static tensor2 from_voigt(const arma::vec &v, Tensor2Type vtype);
-    /// Same, with a string tag ("stress"/"strain"/"generic") — parses per call; prefer the enum overload in loops.
+    /// Same, with a string tag ("stress"/"strain"/"symmetric"/"none") — parses per call; prefer the enum overload in loops.
     static tensor2 from_voigt(const arma::vec &v, const std::string &type_str);
 
     /// Build from a Kelvin-Mandel vector (shear scaled by \f$\sqrt2\f$, identical for stress/strain).

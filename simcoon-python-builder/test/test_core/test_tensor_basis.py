@@ -319,14 +319,24 @@ def test_batched_convected_basis_aliases_F():
 
 
 def test_types_without_variance_are_refused_in_a_natural_basis():
-    generic = sim.Tensor2.from_voigt(SIG.voigt, "generic")
-    close(generic.to_basis(sim.Basis(rotation=R1)).to_basis(None).voigt, generic.voigt)   # fine
+    symmetric = sim.Tensor2.from_voigt(SIG.voigt, "symmetric")
+    close(symmetric.to_basis(sim.Basis(rotation=R1)).to_basis(None).voigt, symmetric.voigt)   # fine
     with pytest.raises(ValueError, match="no variance"):
-        generic.with_basis(sim.Basis.from_F(F_GEN))
+        symmetric.with_basis(sim.Basis.from_F(F_GEN))
     with pytest.raises(ValueError, match="no variance"):
-        generic.to_basis(sim.Basis.from_F(F_GEN))
+        symmetric.to_basis(sim.Basis.from_F(F_GEN))
     with pytest.raises(TypeError):
         SIG.with_basis("material")                             # a name is not a basis
+
+
+def test_non_symmetric_matrices_are_refused_not_symmetrised():
+    with pytest.raises(ValueError, match="symmetric tensors only"):
+        sim.Tensor2.from_mat(F_SHEAR, "stress")                # F is two-point and non-symmetric
+    assert np.array_equal(sim.Tensor2.from_mat(F_SHEAR, "none").mat, F_SHEAR)   # its home
+    with pytest.raises(ValueError, match="symmetric"):
+        sim.Tensor2.stress(np.stack([SIG.mat, F_GEN]))         # one bad slice in a batch
+    almost = SIG.mat + 1e-13 * np.array([[0, 1, 0], [-1, 0, 0], [0, 0, 0]])
+    close(sim.Tensor2.stress(almost).voigt, SIG.voigt)         # round-off asymmetry is fine
 
 
 def test_numpy_view_is_components_in_the_own_basis():

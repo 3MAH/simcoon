@@ -58,8 +58,9 @@ void register_tensor(py::module_& m) {
         "Type tag for 2nd-order tensors, determines Voigt conversion factors and rotation rules.")
         .value("stress", simcoon::Tensor2Type::stress, "Voigt = [s11, s22, s33, s12, s13, s23]")
         .value("strain", simcoon::Tensor2Type::strain, "Voigt = [e11, e22, e33, 2*e12, 2*e13, 2*e23]")
-        .value("generic", simcoon::Tensor2Type::generic, "Same storage as stress (symmetric tensor)")
-        .value("none", simcoon::Tensor2Type::none, "Non-symmetric tensor, voigt() throws")
+        .value("symmetric", simcoon::Tensor2Type::symmetric, "Same storage as stress (symmetric tensor, no physical convention)")
+        .value("generic", simcoon::Tensor2Type::generic, "Deprecated pre-2.2 name of symmetric")
+        .value("none", simcoon::Tensor2Type::none, "No Voigt convention: any 3x3, voigt() throws")
         .export_values();
 
     // Deprecated pre-2.0 alias (see tensor.hpp)
@@ -191,7 +192,7 @@ void register_tensor(py::module_& m) {
             switch (self.vtype()) {
                 case simcoon::Tensor2Type::stress: vtype_str = "stress"; break;
                 case simcoon::Tensor2Type::strain: vtype_str = "strain"; break;
-                case simcoon::Tensor2Type::generic: vtype_str = "generic"; break;
+                case simcoon::Tensor2Type::symmetric: vtype_str = "symmetric"; break;
                 case simcoon::Tensor2Type::none: vtype_str = "none"; break;
             }
             return "Tensor2(vtype=" + vtype_str + ")";
