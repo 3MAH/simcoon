@@ -1108,8 +1108,9 @@ class Tensor2(_TensorBase):
     vector (shear factors ``2*e_ij`` for strain, ``s_ij`` otherwise), or
     ``"none"`` -- no Voigt convention -- for any 3x3 (``F``, ``R``, ``L``,
     ``PK1``) stored as its 9 row-major components, with no Voigt vector, no
-    variance and no transport. The type also selects the rotation/transport
-    rules.
+    variance and no transport; it accepts an orthonormal `basis` (both legs
+    read in that frame), not a natural one. The type also selects the
+    rotation/transport rules.
 
     Construct through the typed factories (`stress`, `strain`, `from_mat`,
     `from_voigt`, `from_mandel`), never through ``Tensor2(array)``.
@@ -1482,8 +1483,8 @@ class Tensor2(_TensorBase):
                 f"Tensor2 type '{self._type_str}' has no variance: a natural basis and "
                 "push_forward/pull_back need contravariant (stress-like) or covariant "
                 "(strain-like) components. Declare it with to_variance() on a 'symmetric' "
-                "tensor; type 'none' (F, R, DR, PK1: two-point or non-symmetric) has lab-lab "
-                "components only")
+                "tensor; type 'none' (F, R, DR, PK1: two-point or non-symmetric) has no variance "
+                "and takes an orthonormal basis only (both legs read in that frame)")
 
     def _metrics(self):
         """(metric contracting two indices of this tensor, identity of the same
