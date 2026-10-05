@@ -703,16 +703,19 @@ TEST(Trotation_class, frame_rotation_matches_apply_bitwise)
 
     for (bool inverse : {false, true}) {
         const Rotation &r = inverse ? inv : rot;
-        vec e1 = frame.strain(v, inverse), e2 = r.apply_strain(v);
-        vec s1 = frame.stress(v, inverse), s2 = r.apply_stress(v);
-        mat L1 = frame.stiffness(L, inverse), L2 = r.apply_stiffness(L);
-        mat F1 = frame.tensor(F, inverse), F2 = r.apply_tensor(F);
+        vec e1 = v, s1 = v; mat L1 = L, F1 = F;
+        frame.rotate_strain(e1, inverse);   vec e2 = r.apply_strain(v);
+        frame.rotate_stress(s1, inverse);   vec s2 = r.apply_stress(v);
+        frame.rotate_stiffness(L1, inverse); mat L2 = r.apply_stiffness(L);
+        frame.rotate_tensor(F1, inverse);   mat F2 = r.apply_tensor(F);
         EXPECT_TRUE(std::equal(e1.begin(), e1.end(), e2.begin()));
         EXPECT_TRUE(std::equal(s1.begin(), s1.end(), s2.begin()));
         EXPECT_TRUE(std::equal(L1.begin(), L1.end(), L2.begin()));
         EXPECT_TRUE(std::equal(F1.begin(), F1.end(), F2.begin()));
     }
     // the inverse undoes the rotation
-    EXPECT_LT(norm(frame.strain(frame.strain(v), true) - v, 2), 1.e-12);
-    EXPECT_LT(norm(frame.stiffness(frame.stiffness(L), true) - L, 2), 1.e-9);
+    vec w = v; frame.rotate_strain(w); frame.rotate_strain(w, true);
+    EXPECT_LT(norm(w - v, 2), 1.e-12);
+    mat M = L; frame.rotate_stiffness(M); frame.rotate_stiffness(M, true);
+    EXPECT_LT(norm(M - L, 2), 1.e-9);
 }

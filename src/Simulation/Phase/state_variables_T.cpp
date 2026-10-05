@@ -304,29 +304,23 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
 
     state_variables::rotate_l2g(sv, frame);
 
+    // What the solver reads back: the thermomechanical tangents, the heat source, the works.
+    // Q is overwritten by the solver (Q = -r) before any read; dSdEt is read by nobody.
     dSdE = sv.dSdE;
-    dSdEt = sv.dSdEt;
     dSdT = sv.dSdT;
     drdE = sv.drdE;
     drdT = sv.drdT;
-    Q = sv.Q;
     r = sv.r;
-    r_in = sv.r_in;
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
     Wm = sv.Wm;
     Wt = sv.Wt;
-    Wm_start = sv.Wm_start;
-    Wt_start = sv.Wt_start;
 
     if (!frame.is_identity()) {
-        sigma_in = frame.stress(sigma_in);
-        sigma_in_start = frame.stress(sigma_in_start);
-        dSdE = frame.stiffness(dSdE);
-        dSdEt = frame.stiffness(dSdEt);
-        vec dSdT_v = frame.stress(vec(dSdT.as_col()));
+        frame.rotate_stiffness(dSdE);
+        vec dSdT_v = dSdT.as_col();
+        frame.rotate_stress(dSdT_v);
         dSdT = dSdT_v.as_row();
-        vec drdE_v = frame.strain(vec(drdE.as_col()));
+        vec drdE_v = drdE.as_col();
+        frame.rotate_strain(drdE_v);
         drdE = drdE_v.as_row();
     }
 
@@ -340,31 +334,11 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
 
     state_variables::rotate_g2l(sv, frame);
 
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
-
-    dSdE = sv.dSdE;
-    dSdEt = sv.dSdEt;
-    dSdT = sv.dSdT;
-    drdE = sv.drdE;
-    drdT = sv.drdT;
+    // Every thermomechanical kernel assigns its tangents and r before reading them; only the
+    // cumulative works and Q (printed by the local output) come in.
     Q = sv.Q;
-    r = sv.r;
     Wm = sv.Wm;
     Wt = sv.Wt;
-    Wm_start = sv.Wm_start;
-    Wt_start = sv.Wt_start;
-
-    if (!frame.is_identity()) {     // inverse operators: global -> local
-        sigma_in = frame.stress(sigma_in, true);
-        sigma_in_start = frame.stress(sigma_in_start, true);
-        dSdE = frame.stiffness(dSdE, true);
-        dSdEt = frame.stiffness(dSdEt, true);
-        vec dSdT_v = frame.stress(vec(dSdT.as_col()), true);
-        dSdT = dSdT_v.as_row();
-        vec drdE_v = frame.strain(vec(drdE.as_col()), true);
-        drdE = drdE_v.as_row();
-    }
 
 	return *this;
 }

@@ -481,6 +481,11 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const fr
 //----------------------------------------------------------------------
 {
 
+    // Only what the solver reads back from the global copy is brought over; T and DT are
+    // kernel constants and U0/U1 belong to the solver (written on the global copy, read by
+    // no kernel), so they are copied neither way. The *_start members are kept although set_start runs on both copies:
+    // the solver residual reads the global tau_start, and this round trip (g2l then l2g)
+    // is part of the reference results to the bit.
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
@@ -493,35 +498,28 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const fr
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
-    U0 = sv.U0;
-    U1 = sv.U1;
     R = sv.R;
     DR = sv.DR;
-    T = sv.T;
-    DT = sv.DT;
 
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-
     if (!frame.is_identity()) {
-        Etot = frame.strain(Etot);
-        DEtot = frame.strain(DEtot);
-        etot = frame.strain(etot);
-        Detot = frame.strain(Detot);
-        PKII = frame.stress(PKII);
-        PKII_start = frame.stress(PKII_start);
-        tau = frame.stress(tau);
-        tau_start = frame.stress(tau_start);
-        sigma = frame.stress(sigma);
-        sigma_start = frame.stress(sigma_start);
-        F0 = frame.tensor(F0);
-        F1 = frame.tensor(F1);
-        U0 = frame.tensor(U0);
-        U1 = frame.tensor(U1);
-        R = frame.tensor(R);
-        DR = frame.tensor(DR);
+        frame.rotate_strain(Etot);
+        frame.rotate_strain(DEtot);
+        frame.rotate_strain(etot);
+        frame.rotate_strain(Detot);
+        frame.rotate_stress(PKII);
+        frame.rotate_stress(PKII_start);
+        frame.rotate_stress(tau);
+        frame.rotate_stress(tau_start);
+        frame.rotate_stress(sigma);
+        frame.rotate_stress(sigma_start);
+        frame.rotate_tensor(F0);
+        frame.rotate_tensor(F1);
+        frame.rotate_tensor(R);
+        frame.rotate_tensor(DR);
     }
 
 	return *this;
@@ -536,13 +534,14 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const fr
 	// this copy the solver's tangent_mode parameter is dead (kernels always
 	// run the compile-time default).
 	tangent_mode = sv.tangent_mode;
+    // Only the kernel inputs are brought in: PKII and tau are rewritten by every dispatcher
+    // after the kernel and U0/U1 are read by no kernel. The *_start members are kept for the
+    // bitwise reason given in rotate_l2g.
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
 	Detot = sv.Detot;
-	PKII = sv.PKII;
 	PKII_start = sv.PKII_start;
-	tau = sv.tau;
 	tau_start = sv.tau_start;
 	sigma = sv.sigma;
 	sigma_start = sv.sigma_start;
@@ -550,8 +549,6 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const fr
     F1 = sv.F1;
     R = sv.R;
     DR = sv.DR;
-    U0 = sv.U0;
-    U1 = sv.U1;
     T = sv.T;
     DT = sv.DT;
 
@@ -559,24 +556,19 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const fr
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-
     if (!frame.is_identity()) {     // inverse operators: global -> local
-        Etot = frame.strain(Etot, true);
-        DEtot = frame.strain(DEtot, true);
-        etot = frame.strain(etot, true);
-        Detot = frame.strain(Detot, true);
-        PKII = frame.stress(PKII, true);
-        PKII_start = frame.stress(PKII_start, true);
-        tau = frame.stress(tau, true);
-        tau_start = frame.stress(tau_start, true);
-        sigma = frame.stress(sigma, true);
-        sigma_start = frame.stress(sigma_start, true);
-        F0 = frame.tensor(F0, true);
-        F1 = frame.tensor(F1, true);
-        U0 = frame.tensor(U0, true);
-        U1 = frame.tensor(U1, true);
-        R = frame.tensor(R, true);
-        DR = frame.tensor(DR, true);
+        frame.rotate_strain(Etot, true);
+        frame.rotate_strain(DEtot, true);
+        frame.rotate_strain(etot, true);
+        frame.rotate_strain(Detot, true);
+        frame.rotate_stress(PKII_start, true);
+        frame.rotate_stress(tau_start, true);
+        frame.rotate_stress(sigma, true);
+        frame.rotate_stress(sigma_start, true);
+        frame.rotate_tensor(F0, true);
+        frame.rotate_tensor(F1, true);
+        frame.rotate_tensor(R, true);
+        frame.rotate_tensor(DR, true);
     }
 
 	return *this;

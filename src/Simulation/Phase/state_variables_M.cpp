@@ -238,20 +238,13 @@ state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, co
 
     state_variables::rotate_l2g(sv, frame);
 
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
-
+    // L is read by nobody on the global side (the solver zeroes it); sigma_in has no writer;
+    // Wm_start is set by the global set_start itself.
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
-	L = sv.L;
 	Lt = sv.Lt;
 
     if (!frame.is_identity()) {
-        sigma_in = frame.stress(sigma_in);
-        sigma_in_start = frame.stress(sigma_in_start);
-        L = frame.stiffness(L);
-        Lt = frame.stiffness(Lt);
+        frame.rotate_stiffness(Lt);
     }
 
 	return *this;
@@ -264,20 +257,15 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
 
     state_variables::rotate_g2l(sv, frame);
 
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
-
+    // Wm accumulates in the kernel; Lt feeds the self-consistent scheme and the plugin
+    // kernels, L the plugin kernels (UMEXT/UMABA/PYEXT) as an input.
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
     L = sv.L;
     Lt = sv.Lt;
 
     if (!frame.is_identity()) {     // inverse operators: global -> local
-        sigma_in = frame.stress(sigma_in, true);
-        sigma_in_start = frame.stress(sigma_in_start, true);
-        L = frame.stiffness(L, true);
-        Lt = frame.stiffness(Lt, true);
+        frame.rotate_stiffness(L, true);
+        frame.rotate_stiffness(Lt, true);
     }
 
 	return *this;

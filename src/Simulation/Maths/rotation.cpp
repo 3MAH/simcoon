@@ -846,7 +846,7 @@ frame_rotation::frame_rotation(const Rotation &rot) : _rot(rot), _identity(rot.i
     const Rotation inv = rot.inv();
     _R = rot.as_matrix();
     _Ri = inv.as_matrix();
-    _vs = fill_voigt_stress(mat(_R), true);
+    _vs = fill_voigt_stress(mat(_R), true);     // dynamic builders, then fixed storage
     _vsi = fill_voigt_stress(mat(_Ri), true);
     _ve = fill_voigt_strain(mat(_R), true);
     _vei = fill_voigt_strain(mat(_Ri), true);
@@ -856,29 +856,34 @@ frame_rotation frame_rotation::from_euler(double psi, double theta, double phi, 
     return frame_rotation(Rotation::from_euler(psi, theta, phi, seq));
 }
 
-vec frame_rotation::strain(const vec &e, bool inverse) const {
+void frame_rotation::rotate_strain(vec &e, bool inverse) const {
     if (e.n_elem != 6) throw invalid_argument("Strain vector must have 6 elements");
-    return (inverse ? _vei : _ve) * e;
+    vec::fixed<6> ef = e;
+    vec::fixed<6> r = (inverse ? _vei : _ve) * ef;
+    e = r;
 }
 
-vec frame_rotation::stress(const vec &s, bool inverse) const {
+void frame_rotation::rotate_stress(vec &s, bool inverse) const {
     if (s.n_elem != 6) throw invalid_argument("Stress vector must have 6 elements");
-    return (inverse ? _vsi : _vs) * s;
+    vec::fixed<6> sf = s;
+    vec::fixed<6> r = (inverse ? _vsi : _vs) * sf;
+    s = r;
 }
 
-mat frame_rotation::stiffness(const mat &L, bool inverse) const {
+void frame_rotation::rotate_stiffness(mat &L, bool inverse) const {
     if (L.n_rows != 6 || L.n_cols != 6) throw invalid_argument("Stiffness matrix must be 6x6");
-    const mat &vs = inverse ? _vsi : _vs;
-    return vs * (L * trans(vs));
+    const mat::fixed<6,6> &vs = inverse ? _vsi : _vs;
+    mat::fixed<6,6> Lf = L;
+    mat::fixed<6,6> r = vs * (Lf * trans(vs));
+    L = r;
 }
 
-mat frame_rotation::tensor(const mat &X, bool inverse) const {
+void frame_rotation::rotate_tensor(mat &X, bool inverse) const {
     if (X.n_rows != 3 || X.n_cols != 3) throw invalid_argument("Tensor must be 3x3");
-    mat::fixed<3,3> m_fixed;
-    m_fixed = X;
     const mat::fixed<3,3> &R = inverse ? _Ri : _R;
-    mat::fixed<3,3> result = R * m_fixed * R.t();
-    return mat(result);
+    mat::fixed<3,3> Xf = X;
+    mat::fixed<3,3> r = R * Xf * R.t();
+    X = r;
 }
 
 double Rotation::magnitude(bool degrees) const {
