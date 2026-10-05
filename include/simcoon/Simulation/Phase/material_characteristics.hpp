@@ -55,9 +55,8 @@ namespace simcoon{
 class material_characteristics
 {
 	private:
-        mutable frame_rotation _frame;          ///< operators of the material frame (see frame())
-        mutable double _frame_angles[3] = {0., 0., 0.};
-        mutable bool _frame_valid = false;
+        frame_rotation _frame;   ///< operators of the material frame, built with the angles (see frame())
+        void build_frame();
 
 	protected:
 
@@ -66,7 +65,7 @@ class material_characteristics
 		int number; ///< Material identification number
         std::string umat_name; ///< Name of the constitutive model (UMAT)
         int save; ///< Flag indicating if results should be saved (1) or not (0)
-        double psi_mat; ///< First Euler angle for material orientation (rad)
+        double psi_mat; ///< First Euler angle for material orientation (rad); set through the constructors or update(), see frame()
         double theta_mat; ///< Second Euler angle for material orientation (rad)
         double phi_mat; ///< Third Euler angle for material orientation (rad)
         
@@ -77,11 +76,12 @@ class material_characteristics
          * @brief The material frame (psi_mat, theta_mat, phi_mat, "zxz") with its rotation
          *        operators built once.
          *
-         * The angles are fixed for a run while the state is rotated in and out of the frame at
-         * every UMAT call, so the operators are computed on the first call and reused; they are
-         * rebuilt when the angles have changed since.
+         * The state is rotated in and out of this frame at every UMAT call, so the operators
+         * are built when the angles are set -- by the constructors and update(), the only
+         * writers -- and reused for the whole run. A direct assignment to the public angles
+         * does not rebuild them.
          */
-        const frame_rotation& frame() const;
+        const frame_rotation& frame() const { return _frame; }
     
         /**
          * @brief Default constructor.

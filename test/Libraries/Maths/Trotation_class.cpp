@@ -687,7 +687,7 @@ TEST(TRotationClass, quat_matrix_quat_roundtrip)
 
 // frame_rotation applies, once built, exactly what Rotation::apply_* compute on the
 // rotation (inverse = false) and on its inverse (inverse = true).
-TEST(Trotation_class, frame_rotation_matches_apply_bitwise)
+TEST(TRotationClass, frame_rotation_matches_apply_bitwise)
 {
     Rotation rot = Rotation::from_euler(0.52, 0.35, -0.17, "zxz");
     frame_rotation frame(rot);

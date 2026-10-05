@@ -47,22 +47,22 @@ namespace simcoon{
 
 	public :
     
-        arma::vec sigma_in;
-        arma::vec sigma_in_start;
-        arma::vec Wm;
-        arma::vec Wt;
-        arma::vec Wm_start;
-        arma::vec Wt_start;
+        arma::vec sigma_in; ///< inelastic stress; no writer in-tree, never crosses the frame
+        arma::vec sigma_in_start; ///< never crosses
+        arma::vec Wm; ///< mechanical works; crosses both ways
+        arma::vec Wt; ///< thermal works; crosses both ways
+        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
+        arma::vec Wt_start; ///< set by set_start on each copy, never crosses
 		
-        arma::mat dSdE;
-        arma::mat dSdEt;
-        arma::mat dSdT;
-        double Q;
-        double r;
-        double r_in;
+        arma::mat dSdE; ///< mechanical tangent; kernel output, crosses l2g only
+        arma::mat dSdEt; ///< read by nobody, never crosses
+        arma::mat dSdT; ///< thermal stress tangent (1x6); kernel output, crosses l2g only
+        double Q; ///< heat flux, set by the solver as -r; crosses g2l only
+        double r; ///< heat source; kernel output, crosses l2g only
+        double r_in; ///< never crosses
     
-        arma::mat drdE;
-        arma::mat drdT;
+        arma::mat drdE; ///< heat source strain tangent (1x6); kernel output, crosses l2g only
+        arma::mat drdT; ///< heat source temperature tangent; kernel output, crosses l2g only
 
 		state_variables_T(); 	//default constructor
     state_variables_T(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &); //Constructor with parameters

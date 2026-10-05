@@ -48,14 +48,14 @@ class state_variables_M : public state_variables
 
 	public :
 		
-        arma::vec sigma_in;
-        arma::vec sigma_in_start;
+        arma::vec sigma_in; ///< inelastic stress; no writer in-tree, never crosses the frame
+        arma::vec sigma_in_start; ///< never crosses
     
-        arma::vec Wm;
-        arma::vec Wm_start;
+        arma::vec Wm; ///< mechanical works [total, reversible, irreversible, dissipated]; crosses both ways
+        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
     
-		arma::mat L;
-		arma::mat Lt;
+		arma::mat L; ///< elastic stiffness; plugin-kernel input, crosses g2l only (the solver zeroes the global one)
+		arma::mat Lt; ///< tangent stiffness; crosses both ways
 		
 		state_variables_M(); 	//default constructor
         state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters

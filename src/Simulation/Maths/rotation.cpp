@@ -839,50 +839,44 @@ Rotation Rotation::inv() const {
 // frame_rotation
 // ---------------------------------------------------------------------------
 
+frame_rotation::operators::operators(const Rotation &rot)
+    : R(rot.as_matrix()), vs(rot.as_voigt_stress_rotation()), ve(rot.as_voigt_strain_rotation()) {}
+
 frame_rotation::frame_rotation() : frame_rotation(Rotation()) {}
 
-frame_rotation::frame_rotation(const Rotation &rot) : _rot(rot), _identity(rot.is_identity()) {
-    // the very matrices the dynamic Rotation::apply_* overloads build, for rot and for rot.inv()
-    const Rotation inv = rot.inv();
-    _R = rot.as_matrix();
-    _Ri = inv.as_matrix();
-    _vs = fill_voigt_stress(mat(_R), true);     // dynamic builders, then fixed storage
-    _vsi = fill_voigt_stress(mat(_Ri), true);
-    _ve = fill_voigt_strain(mat(_R), true);
-    _vei = fill_voigt_strain(mat(_Ri), true);
-}
+frame_rotation::frame_rotation(const Rotation &rot)
+    : _identity(rot.is_identity()), _fwd(rot), _inv(rot.inv()) {}
 
-frame_rotation frame_rotation::from_euler(double psi, double theta, double phi, const std::string &seq) {
-    return frame_rotation(Rotation::from_euler(psi, theta, phi, seq));
-}
-
+// Fixed-size result then assignment: the aliased form `e = Q * e` goes through a dynamic temporary.
 void frame_rotation::rotate_strain(vec &e, bool inverse) const {
     if (e.n_elem != 6) throw invalid_argument("Strain vector must have 6 elements");
-    vec::fixed<6> ef = e;
-    vec::fixed<6> r = (inverse ? _vei : _ve) * ef;
+    if (_identity) return;
+    vec::fixed<6> r = pick(inverse).ve * e;
     e = r;
 }
 
 void frame_rotation::rotate_stress(vec &s, bool inverse) const {
     if (s.n_elem != 6) throw invalid_argument("Stress vector must have 6 elements");
-    vec::fixed<6> sf = s;
-    vec::fixed<6> r = (inverse ? _vsi : _vs) * sf;
+    if (_identity) return;
+    vec::fixed<6> r = pick(inverse).vs * s;
     s = r;
 }
 
+// Two products, left to right: the right-associated `vs * (L * trans(vs))` of the dynamic
+// overload allocates its inner product on the heap.
 void frame_rotation::rotate_stiffness(mat &L, bool inverse) const {
     if (L.n_rows != 6 || L.n_cols != 6) throw invalid_argument("Stiffness matrix must be 6x6");
-    const mat::fixed<6,6> &vs = inverse ? _vsi : _vs;
-    mat::fixed<6,6> Lf = L;
-    mat::fixed<6,6> r = vs * (Lf * trans(vs));
-    L = r;
+    if (_identity) return;
+    const mat::fixed<6,6> &vs = pick(inverse).vs;
+    mat::fixed<6,6> tmp = L * trans(vs);
+    L = vs * tmp;
 }
 
 void frame_rotation::rotate_tensor(mat &X, bool inverse) const {
     if (X.n_rows != 3 || X.n_cols != 3) throw invalid_argument("Tensor must be 3x3");
-    const mat::fixed<3,3> &R = inverse ? _Ri : _R;
-    mat::fixed<3,3> Xf = X;
-    mat::fixed<3,3> r = R * Xf * R.t();
+    if (_identity) return;
+    const mat::fixed<3,3> &R = pick(inverse).R;
+    mat::fixed<3,3> r = R * X * R.t();
     X = r;
 }
 

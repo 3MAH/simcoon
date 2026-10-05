@@ -106,6 +106,7 @@ material_characteristics::material_characteristics(const int &mnumber, const str
     psi_mat = mpsi_mat;
 	theta_mat = mtheta_mat;
 	phi_mat = mphi_mat;
+    build_frame();
     
 	nprops = mnprops;
 	props = mprops;
@@ -127,6 +128,7 @@ material_characteristics::material_characteristics(const material_characteristic
     psi_mat = sv.psi_mat;
 	theta_mat = sv.theta_mat;
 	phi_mat = sv.phi_mat;
+    _frame = sv._frame;
     
 	nprops = sv.nprops;
 	props = sv.props;
@@ -182,6 +184,7 @@ void material_characteristics::update(const int &mnumber, const string &mumat_na
     psi_mat = mpsi_mat;
     theta_mat = mtheta_mat;
     phi_mat = mphi_mat;
+    build_frame();
     
     nprops = mnprops;
     props = mprops;
@@ -200,6 +203,7 @@ material_characteristics& material_characteristics::operator = (const material_c
     psi_mat = sv.psi_mat;
 	theta_mat = sv.theta_mat;
 	phi_mat = sv.phi_mat;
+    _frame = sv._frame;
 		
 	nprops = sv.nprops;
 	props = sv.props;
@@ -208,17 +212,10 @@ material_characteristics& material_characteristics::operator = (const material_c
 }
 
 //-------------------------------------------------------------
-const frame_rotation& material_characteristics::frame() const
+void material_characteristics::build_frame()
 //-------------------------------------------------------------
 {
-    if (!_frame_valid || _frame_angles[0] != psi_mat || _frame_angles[1] != theta_mat || _frame_angles[2] != phi_mat) {
-        _frame = frame_rotation::from_euler(psi_mat, theta_mat, phi_mat, "zxz");
-        _frame_angles[0] = psi_mat;
-        _frame_angles[1] = theta_mat;
-        _frame_angles[2] = phi_mat;
-        _frame_valid = true;
-    }
-    return _frame;
+    _frame = frame_rotation(Rotation::from_euler(psi_mat, theta_mat, phi_mat, "zxz"));
 }
 
 //--------------------------------------------------------------------------

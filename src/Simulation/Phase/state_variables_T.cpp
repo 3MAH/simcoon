@@ -304,8 +304,6 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
 
     state_variables::rotate_l2g(sv, frame);
 
-    // What the solver reads back: the thermomechanical tangents, the heat source, the works.
-    // Q is overwritten by the solver (Q = -r) before any read; dSdEt is read by nobody.
     dSdE = sv.dSdE;
     dSdT = sv.dSdT;
     drdE = sv.drdE;
@@ -314,15 +312,15 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wm = sv.Wm;
     Wt = sv.Wt;
 
-    if (!frame.is_identity()) {
-        frame.rotate_stiffness(dSdE);
-        vec dSdT_v = dSdT.as_col();
-        frame.rotate_stress(dSdT_v);
-        dSdT = dSdT_v.as_row();
-        vec drdE_v = drdE.as_col();
-        frame.rotate_strain(drdE_v);
-        drdE = drdE_v.as_row();
-    }
+    frame.rotate_stiffness(dSdE);
+    // dSdT and drdE are Voigt vectors stored as a mat (1x6 by the constructors, 6x1 by the
+    // solver): rotated as vectors, returned in the shape they came with.
+    vec dSdT_v = vectorise(dSdT);
+    frame.rotate_stress(dSdT_v);
+    dSdT = reshape(dSdT_v, size(dSdT));
+    vec drdE_v = vectorise(drdE);
+    frame.rotate_strain(drdE_v);
+    drdE = reshape(drdE_v, size(drdE));
 
 	return *this;
 }
@@ -334,8 +332,6 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
 
     state_variables::rotate_g2l(sv, frame);
 
-    // Every thermomechanical kernel assigns its tangents and r before reading them; only the
-    // cumulative works and Q (printed by the local output) come in.
     Q = sv.Q;
     Wm = sv.Wm;
     Wt = sv.Wt;

@@ -238,14 +238,10 @@ state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, co
 
     state_variables::rotate_l2g(sv, frame);
 
-    // L is read by nobody on the global side (the solver zeroes it); sigma_in has no writer;
-    // Wm_start is set by the global set_start itself.
     Wm = sv.Wm;
 	Lt = sv.Lt;
 
-    if (!frame.is_identity()) {
-        frame.rotate_stiffness(Lt);
-    }
+    frame.rotate_stiffness(Lt);
 
 	return *this;
 }
@@ -257,16 +253,13 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
 
     state_variables::rotate_g2l(sv, frame);
 
-    // Wm accumulates in the kernel; Lt feeds the self-consistent scheme and the plugin
-    // kernels, L the plugin kernels (UMEXT/UMABA/PYEXT) as an input.
     Wm = sv.Wm;
     L = sv.L;
     Lt = sv.Lt;
 
-    if (!frame.is_identity()) {     // inverse operators: global -> local
-        frame.rotate_stiffness(L, true);
-        frame.rotate_stiffness(Lt, true);
-    }
+    // inverse operators: global -> local
+    frame.rotate_stiffness(L, true);
+    frame.rotate_stiffness(Lt, true);
 
 	return *this;
 }
