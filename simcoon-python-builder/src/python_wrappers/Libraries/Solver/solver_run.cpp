@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <utility>
 #include <cstring>
 #include <stdexcept>
 
@@ -130,7 +131,7 @@ py::array_t<double> rows_to_arr(const std::vector<ArmaT> &v) {
     for (size_t i = 0; i < v.size(); i++) {
         M.row(i) = arma::vectorise(v[i].t()).t();
     }
-    return simpy::arma_to_numpy::mat_to_arr(M, true);
+    return simpy::arma_to_numpy::mat_to_arr(std::move(M));   // the heap matrix is handed over, not copied
 }
 
 template <typename T>

@@ -67,7 +67,7 @@ class SolverResults:
         'Kirchhoff', 'PKII', 'Strain' (the strain integrated with the objective rate, (6, N):
         ln V for the logarithmic rates, the Almansi strain for 'truesdell'),
         'LogStrain' (ln V computed from F whatever the rate; the small strain on small-strain
-        blocks), 'GreenLagrange' ((6, N), computed from F),
+        blocks -- derived on first access and then kept), 'GreenLagrange' ((6, N), computed from F),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
         runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
@@ -104,12 +104,11 @@ class SolverResults:
             "R": raw["R"].reshape(n, 3, 3).transpose(1, 2, 0),
             "DR": raw["DR"].reshape(n, 3, 3).transpose(1, 2, 0),
         }
-        F = self.field_data["F"]
-        if finite_blocks is None:
-            finite = _deformed(F)
-        else:
-            finite = np.asarray(finite_blocks, dtype=bool)[np.asarray(raw["block"], dtype=int)]
-        self.field_data["LogStrain"] = _log_strain(F, self.field_data["Strain"], finite)
+        # 'LogStrain' (ln V from F, one eigen-decomposition per finite increment) is derived
+        # on first access: most readers never ask for it.
+        self._finite_blocks = None if finite_blocks is None else np.asarray(finite_blocks, dtype=bool)
+        self._block = np.asarray(raw["block"], dtype=int)
+        self._pending = {"LogStrain": self._derive_log_strain}
         if "Lt" in raw:
             self.field_data["TangentMatrix"] = raw["Lt"].reshape(n, 6, 6).transpose(1, 2, 0)
         if self.sv_type == 2:
@@ -122,9 +121,27 @@ class SolverResults:
                 self.field_data["drdE"] = raw["drdE"].T
                 self.scalar_data["drdT"] = raw["drdT"].ravel()
 
+    # -- derived fields, computed on first access ------------------------------
+    def _derive_log_strain(self) -> np.ndarray:
+        F = self.field_data["F"]
+        if self._finite_blocks is None:
+            finite = _deformed(F)
+        else:
+            finite = self._finite_blocks[self._block]
+        return _log_strain(F, self.field_data["Strain"], finite)
+
+    def _materialize(self, key: str = None) -> None:
+        """Compute the pending derived field(s) into field_data (all of them when key is None)."""
+        for name in ([key] if key is not None else list(self._pending)):
+            derive = self._pending.pop(name, None)
+            if derive is not None:
+                self.field_data[name] = derive()
+
     # -- dict-like interface -------------------------------------------------
     def __getitem__(self, key: str) -> np.ndarray:
         key = _ALIASES.get(key, key)
+        if key in self._pending:
+            self._materialize(key)
         if key in self.field_data:
             return self.field_data[key]
         if key in self.scalar_data:
@@ -135,10 +152,10 @@ class SolverResults:
 
     def __contains__(self, key: str) -> bool:
         key = _ALIASES.get(key, key)
-        return key in self.field_data or key in self.scalar_data
+        return key in self.field_data or key in self.scalar_data or key in self._pending
 
     def keys(self):
-        return list(self.scalar_data) + list(self.field_data) + list(_ALIASES)
+        return list(self.scalar_data) + list(self.field_data) + list(self._pending) + list(_ALIASES)
 
     def get_data(self, key: str) -> np.ndarray:
         """fedoo-style accessor (alias of __getitem__)."""
@@ -156,7 +173,8 @@ class SolverResults:
 
     # -- persistence ----------------------------------------------------------
     def save(self, filename: str) -> None:
-        """Save all histories to a compressed npz archive."""
+        """Save all histories to a compressed npz archive (derived fields included)."""
+        self._materialize()
         payload = {"status": np.array(self.status), "sv_type": np.array(self.sv_type),
                    "format": np.array(_ARCHIVE_FORMAT)}
         for k, v in self.scalar_data.items():
@@ -174,6 +192,8 @@ class SolverResults:
         obj.sv_type = int(data["sv_type"])
         obj.scalar_data = {}
         obj.field_data = {}
+        obj._pending = {}
+        obj._finite_blocks = None
         for k in data.files:
             if k.startswith("scalar__"):
                 obj.scalar_data[k[len("scalar__"):]] = data[k]
@@ -190,17 +210,18 @@ class SolverResults:
             log = obj.field_data.pop("LogStrain", green)
             obj.field_data["GreenLagrange"] = green
             obj.field_data["Strain"] = log if np.any(log) else green
+        obj._block = np.asarray(obj.scalar_data["Block"], dtype=int)
         fmt = int(data["format"]) if "format" in data.files else 1
         if fmt < 3:
-            # 'LogStrain' was an alias of 'Strain', not stored: rebuild it from F
-            obj.field_data["LogStrain"] = _log_strain(obj.field_data["F"], obj.field_data["Strain"],
-                                                      _deformed(obj.field_data["F"]))
+            # 'LogStrain' was an alias of 'Strain', not stored: derived from F on first access
+            obj._pending["LogStrain"] = obj._derive_log_strain
         return obj
 
     def to_dataframe(self):
         """Flatten scalar and 6-component histories to a pandas DataFrame."""
         import pandas as pd
 
+        self._materialize()
         cols = {}
         for k, v in self.scalar_data.items():
             cols[k] = v

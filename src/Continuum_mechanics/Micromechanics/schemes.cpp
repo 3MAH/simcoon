@@ -79,6 +79,8 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
     std::shared_ptr<state_variables_M> sv_r;
     
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(auto r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
@@ -89,7 +91,7 @@ void Lt_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         if (r.sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else
-            elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, &memo);
 
         //Compute the normalization interaction tensir sumT
 		sumT += elli->concentration*elli_multi->T;
@@ -122,6 +124,8 @@ void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
     std::shared_ptr<state_variables_M> sv_r;
     
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(auto r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
@@ -132,7 +136,7 @@ void Lt_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         if (r.sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else
-            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, &memo);
         
         //Compute the normalization interaction tensir sumT
         sumT += elli->concentration*elli_multi->T;
@@ -165,6 +169,8 @@ void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
     std::shared_ptr<state_variables_M> sv_r;
     
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(auto r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
@@ -174,7 +180,7 @@ void DE_Mori_Tanaka(phase_characteristics &phase, const int &n_matrix) {
         if (r.sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else
-            elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT(sv_0->Lt, sv_r->Lt, *elli, &memo);
 
         //Compute the normalization interaction tensir sumT
         sumT += elli->concentration*elli_multi->T;
@@ -210,6 +216,8 @@ void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
     std::shared_ptr<state_variables_M> sv_r;
     
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(auto r : phase.sub_phases) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(r.sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(r.sptr_shape);
@@ -219,7 +227,7 @@ void DE_Mori_Tanaka_iso(phase_characteristics &phase, const int &n_matrix) {
         if (r.sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else
-            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT_iso(sv_0->Lt, sv_r->Lt, *elli, &memo);
         
         //Compute the normalization interaction tensir sumT
         sumT += elli->concentration*elli_multi->T;
@@ -274,6 +282,8 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
     
     mat sumA = zeros(6,6);
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(unsigned int i=0; i<phase.sub_phases.size(); i++) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(phase.sub_phases[i].sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(phase.sub_phases[i].sptr_shape);
@@ -283,7 +293,7 @@ void Lt_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         if (phase.sub_phases[i].sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else {
-            elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli, &memo);
             sumA += elli->concentration*elli_multi->T;
         }
 
@@ -332,6 +342,8 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
     
     mat sumA = zeros(6,6);
     //Compute the Eshelby tensor and the interaction tensor for each phase
+    //(one Eshelby integration per distinct inclusion geometry in this pass: eshelby_memo)
+    eshelby_memo memo;
     for(unsigned int i=0; i<phase.sub_phases.size(); i++) {
         elli_multi = std::dynamic_pointer_cast<ellipsoid_multi>(phase.sub_phases[i].sptr_multi);
         elli = std::dynamic_pointer_cast<ellipsoid>(phase.sub_phases[i].sptr_shape);
@@ -341,7 +353,7 @@ void DE_Self_Consistent(phase_characteristics &phase, const int &n_matrix, const
         if (phase.sub_phases[i].sptr_matprops->number == n_matrix)
             elli_multi->T = eye(6,6);
         else {
-            elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli);
+            elli_multi->fillT(sv_eff->Lt, sv_r->Lt, *elli, &memo);
             sumA += elli->concentration*elli_multi->T;
         }
         
