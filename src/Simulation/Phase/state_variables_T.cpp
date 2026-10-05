@@ -314,12 +314,13 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
 
     frame.rotate_stiffness(dSdE);
     // dSdT and drdE are Voigt vectors stored as a mat (1x6 by the constructors, 6x1 by the
-    // solver): rotated as vectors, returned in the shape they came with.
+    // solver): rotated as vectors, returned in the shape they came with. Both take the
+    // stress operator: drdE is a gradient w.r.t. the engineering strain (see the header).
     vec dSdT_v = vectorise(dSdT);
     frame.rotate_stress(dSdT_v);
     dSdT = reshape(dSdT_v, size(dSdT));
     vec drdE_v = vectorise(drdE);
-    frame.rotate_strain(drdE_v);
+    frame.rotate_stress(drdE_v);
     drdE = reshape(drdE_v, size(drdE));
 
 	return *this;

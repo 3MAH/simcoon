@@ -353,7 +353,6 @@ void state_variables::to_start()
     tau = tau_start;
     sigma = sigma_start;
     statev = statev_start;
-//    F1 = F0;
 }
     
 //-------------------------------------------------------------
@@ -370,7 +369,6 @@ void state_variables::set_start(const int &corate_type)
         etot = rotate_strain(etot,DR) + Detot;
         T += DT;
         F0 = F1;
-    //    R = R*DR;
         U0 = U1;
         R = DR*R;
     }
@@ -394,59 +392,9 @@ void state_variables::set_start(const int &corate_type)
         T += DT;
         F0 = F1;
         U0 = U1;
-    //    R = R*DR;
         R = DR*R;
     }
 }
-
-/*
-//----------------------------------------------------------------------
-state_variables& state_variables::rotate_fix2natural(const state_variables& sv, const int &corate_type)
-//----------------------------------------------------------------------
-{
-	Etot = sv.Etot;
-	DEtot = sv.DEtot;
-	etot = sv.etot;
-	Detot = sv.Detot;
-	PKII = sv.PKII;
-	PKII_start = sv.PKII_start;
-	tau = sv.tau;
-	tau_start = sv.tau_start;
-	sigma = sv.sigma;
-	sigma_start = sv.sigma_start;
-    F0 = sv.F0;
-    F1 = sv.F1;
-    U0 = sv.U0;
-    U1 = sv.U1;
-    R = sv.R;
-    DR = sv.DR;
-    T = sv.T;
-    DT = sv.DT;
-    
-    nstatev = sv.nstatev;
-    statev = sv.statev;
-    statev_start = sv.statev_start;
-
-    if (corate_type < 4) {
-        etot = rotate_strain(etot, R, true);
-        Detot = rotate_strain(Detot, R, true);
-        tau = rotate_stress(tau, R, true);
-        tau_start = rotate_stress(tau_start, R, true);
-        sigma = rotate_stress(sigma, R, true);
-        sigma_start = rotate_stress(sigma_start, R, true);
-    }
-    else if (corate_type > 4){
-        etot = rotate_strain(etot, F1, true);
-        Detot = rotate_strain(Detot, R, true);
-        tau = rotate_stress(tau, R, true);
-        tau_start = rotate_stress(tau_start, R, true);
-        sigma = rotate_stress(sigma, R, true);
-        sigma_start = rotate_stress(sigma_start, R, true);
-    }
-
-	return *this;    
-}
-*/
 
 //----------------------------------------------------------------------
 arma::mat state_variables::PKI_stress()
@@ -548,18 +496,18 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const fr
     statev_start = sv.statev_start;
 
     // inverse operators: global -> local
-    frame.rotate_strain(Etot, true);
-    frame.rotate_strain(DEtot, true);
-    frame.rotate_strain(etot, true);
-    frame.rotate_strain(Detot, true);
-    frame.rotate_stress(PKII_start, true);
-    frame.rotate_stress(tau_start, true);
-    frame.rotate_stress(sigma, true);
-    frame.rotate_stress(sigma_start, true);
-    frame.rotate_tensor(F0, true);
-    frame.rotate_tensor(F1, true);
-    frame.rotate_tensor(R, true);
-    frame.rotate_tensor(DR, true);
+    frame.rotate_strain(Etot, frame_rotation::inverse);
+    frame.rotate_strain(DEtot, frame_rotation::inverse);
+    frame.rotate_strain(etot, frame_rotation::inverse);
+    frame.rotate_strain(Detot, frame_rotation::inverse);
+    frame.rotate_stress(PKII_start, frame_rotation::inverse);
+    frame.rotate_stress(tau_start, frame_rotation::inverse);
+    frame.rotate_stress(sigma, frame_rotation::inverse);
+    frame.rotate_stress(sigma_start, frame_rotation::inverse);
+    frame.rotate_tensor(F0, frame_rotation::inverse);
+    frame.rotate_tensor(F1, frame_rotation::inverse);
+    frame.rotate_tensor(R, frame_rotation::inverse);
+    frame.rotate_tensor(DR, frame_rotation::inverse);
 
 	return *this;
 }

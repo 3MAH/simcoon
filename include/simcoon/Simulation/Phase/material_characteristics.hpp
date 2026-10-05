@@ -56,6 +56,7 @@ class material_characteristics
 {
 	private:
         frame_rotation _frame;   ///< operators of the material frame, built with the angles (see frame())
+        double _frame_angles[3] = {0., 0., 0.};   ///< the angles _frame was built from
         void build_frame();
 
 	protected:
@@ -73,15 +74,19 @@ class material_characteristics
 		arma::vec props; ///< Vector of material properties
 
         /**
-         * @brief The material frame (psi_mat, theta_mat, phi_mat, "zxz") with its rotation
-         *        operators built once.
+         * @brief The material frame with its rotation operators built once.
          *
-         * The state is rotated in and out of this frame at every UMAT call, so the operators
-         * are built when the angles are set -- by the constructors and update(), the only
-         * writers -- and reused for the whole run. A direct assignment to the public angles
-         * does not rebuild them.
+         * `Rotation::from_euler(psi_mat, theta_mat, phi_mat, "zxz")` with that function's
+         * defaults: intrinsic rotations, angles in radians. The state is rotated in and out
+         * of this frame at every UMAT call, so the operators are built when the angles are
+         * set -- by the constructors and update(), the only writers -- and reused for the
+         * whole run.
+         *
+         * @throws std::logic_error if the public angles were assigned directly since the
+         *         frame was built (three comparisons; the frame is never rebuilt here, so
+         *         concurrent readers of a shared material are safe).
          */
-        const frame_rotation& frame() const { return _frame; }
+        const frame_rotation& frame() const;
     
         /**
          * @brief Default constructor.

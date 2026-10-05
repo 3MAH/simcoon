@@ -258,8 +258,8 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
     Lt = sv.Lt;
 
     // inverse operators: global -> local
-    frame.rotate_stiffness(L, true);
-    frame.rotate_stiffness(Lt, true);
+    frame.rotate_stiffness(L, frame_rotation::inverse);
+    frame.rotate_stiffness(Lt, frame_rotation::inverse);
 
 	return *this;
 }

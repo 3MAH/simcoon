@@ -701,21 +701,31 @@ TEST(TRotationClass, frame_rotation_matches_apply_bitwise)
     L(0, 3) = L(3, 0) = 7.;     // anisotropic: the congruence must act on every block
     mat F = {{1.2, 0.15, -0.05}, {0.1, 0.9, 0.2}, {0.0, -0.1, 1.1}};
 
-    for (bool inverse : {false, true}) {
-        const Rotation &r = inverse ? inv : rot;
+    for (frame_rotation::direction d : {frame_rotation::forward, frame_rotation::inverse}) {
+        const Rotation &r = (d == frame_rotation::inverse) ? inv : rot;
         vec e1 = v, s1 = v; mat L1 = L, F1 = F;
-        frame.rotate_strain(e1, inverse);   vec e2 = r.apply_strain(v);
-        frame.rotate_stress(s1, inverse);   vec s2 = r.apply_stress(v);
-        frame.rotate_stiffness(L1, inverse); mat L2 = r.apply_stiffness(L);
-        frame.rotate_tensor(F1, inverse);   mat F2 = r.apply_tensor(F);
+        frame.rotate_strain(e1, d);   vec e2 = r.apply_strain(v);
+        frame.rotate_stress(s1, d);   vec s2 = r.apply_stress(v);
+        frame.rotate_stiffness(L1, d); mat L2 = r.apply_stiffness(L);
+        frame.rotate_tensor(F1, d);   mat F2 = r.apply_tensor(F);
         EXPECT_TRUE(std::equal(e1.begin(), e1.end(), e2.begin()));
         EXPECT_TRUE(std::equal(s1.begin(), s1.end(), s2.begin()));
         EXPECT_TRUE(std::equal(L1.begin(), L1.end(), L2.begin()));
         EXPECT_TRUE(std::equal(F1.begin(), F1.end(), F2.begin()));
     }
     // the inverse undoes the rotation
-    vec w = v; frame.rotate_strain(w); frame.rotate_strain(w, true);
+    vec w = v; frame.rotate_strain(w); frame.rotate_strain(w, frame_rotation::inverse);
     EXPECT_LT(norm(w - v, 2), 1.e-12);
-    mat M = L; frame.rotate_stiffness(M); frame.rotate_stiffness(M, true);
+    mat M = L; frame.rotate_stiffness(M); frame.rotate_stiffness(M, frame_rotation::inverse);
     EXPECT_LT(norm(M - L, 2), 1.e-9);
+
+    // the identity frame is a no-op, whatever the operand (not even a size check)
+    frame_rotation id;
+    vec w5 = {1., 2., 3., 4., 5.};
+    id.rotate_strain(w5);
+    EXPECT_EQ(w5.n_elem, 5u);
+    vec u = v; id.rotate_stress(u);
+    EXPECT_TRUE(std::equal(u.begin(), u.end(), v.begin()));
+    // a wrong size on a real frame throws
+    EXPECT_THROW(frame.rotate_strain(w5), std::invalid_argument);
 }

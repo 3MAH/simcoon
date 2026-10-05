@@ -48,7 +48,7 @@ class state_variables_M : public state_variables
 
 	public :
 		
-        arma::vec sigma_in; ///< inelastic stress; no writer in-tree, never crosses the frame
+        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
         arma::vec sigma_in_start; ///< never crosses
     
         arma::vec Wm; ///< mechanical works [total, reversible, irreversible, dissipated]; crosses both ways
@@ -73,8 +73,10 @@ class state_variables_M : public state_variables
         virtual void set_start(const int &); //accept: Wm goes to Wm_start
     
         using state_variables::rotate_l2g;
+        /// state_variables::rotate_l2g plus Wm and the rotated tangent Lt (ownership on the declarations).
         virtual state_variables_M& rotate_l2g(const state_variables_M&, const frame_rotation&);
         using state_variables::rotate_g2l;
+        /// state_variables::rotate_g2l plus Wm, L and Lt.
         virtual state_variables_M& rotate_g2l(const state_variables_M&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_M&);

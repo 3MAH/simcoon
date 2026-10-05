@@ -47,7 +47,7 @@ namespace simcoon{
 
 	public :
     
-        arma::vec sigma_in; ///< inelastic stress; no writer in-tree, never crosses the frame
+        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
         arma::vec sigma_in_start; ///< never crosses
         arma::vec Wm; ///< mechanical works; crosses both ways
         arma::vec Wt; ///< thermal works; crosses both ways
@@ -56,12 +56,20 @@ namespace simcoon{
 		
         arma::mat dSdE; ///< mechanical tangent; kernel output, crosses l2g only
         arma::mat dSdEt; ///< read by nobody, never crosses
-        arma::mat dSdT; ///< thermal stress tangent (1x6); kernel output, crosses l2g only
+        arma::mat dSdT; ///< thermal stress tangent, a Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel output, crosses l2g only
         double Q; ///< heat flux, set by the solver as -r; crosses g2l only
         double r; ///< heat source; kernel output, crosses l2g only
         double r_in; ///< never crosses
     
-        arma::mat drdE; ///< heat source strain tangent (1x6); kernel output, crosses l2g only
+        /**
+         * Heat source strain tangent \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$, a
+         * Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel
+         * output, crosses l2g only. Dual to the engineering strain, it rotates with the STRESS
+         * operator \f$ \mathbf{Q}_S = \mathbf{Q}_E^{-T} \f$: \f$ \partial r/\partial \boldsymbol{\varepsilon}'
+         * = \mathbf{Q}_E^{-T} \, \partial r/\partial \boldsymbol{\varepsilon} \f$ for
+         * \f$ \boldsymbol{\varepsilon}' = \mathbf{Q}_E \boldsymbol{\varepsilon} \f$.
+         */
+        arma::mat drdE;
         arma::mat drdT; ///< heat source temperature tangent; kernel output, crosses l2g only
 
 		state_variables_T(); 	//default constructor
@@ -79,8 +87,10 @@ namespace simcoon{
         virtual void set_start(const int &); //accept: Wm & Wt go to Wm_start & Wt_start, respectively
     
         using state_variables::rotate_l2g;
+        /// state_variables::rotate_l2g plus the thermomechanical members (ownership on their declarations).
         virtual state_variables_T& rotate_l2g(const state_variables_T&, const frame_rotation&);
         using state_variables::rotate_g2l;
+        /// state_variables::rotate_g2l plus the thermomechanical members.
         virtual state_variables_T& rotate_g2l(const state_variables_T&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_T&);

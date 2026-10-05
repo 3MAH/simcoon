@@ -20,6 +20,9 @@ set(TEST_SRCS
   # Libraries - Homogenization
   test/Libraries/Homogenization/Teshelby.cpp
 
+  # Libraries - Phase
+  test/Libraries/Phase/Tmaterial_characteristics.cpp
+
   # Libraries - Maths
   test/Libraries/Maths/Tlagrange.cpp
   test/Libraries/Maths/Tnum_solve.cpp

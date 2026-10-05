@@ -847,35 +847,33 @@ frame_rotation::frame_rotation() : frame_rotation(Rotation()) {}
 frame_rotation::frame_rotation(const Rotation &rot)
     : _identity(rot.is_identity()), _fwd(rot), _inv(rot.inv()) {}
 
-// Fixed-size result then assignment: the aliased form `e = Q * e` goes through a dynamic temporary.
-void frame_rotation::rotate_strain(vec &e, bool inverse) const {
-    if (e.n_elem != 6) throw invalid_argument("Strain vector must have 6 elements");
+// Identity first: the no-op keeps the old "skip the whole block" semantics, checks included.
+// Fixed-size result then assignment: the aliased form `v = Q * v` goes through a dynamic temporary.
+void frame_rotation::apply6(const mat::fixed<6,6> &Q, vec &v, const char *what) const {
     if (_identity) return;
-    vec::fixed<6> r = pick(inverse).ve * e;
-    e = r;
+    if (v.n_elem != 6) throw invalid_argument(string(what) + " vector must have 6 elements");
+    vec::fixed<6> r = Q * v;
+    v = r;
 }
 
-void frame_rotation::rotate_stress(vec &s, bool inverse) const {
-    if (s.n_elem != 6) throw invalid_argument("Stress vector must have 6 elements");
-    if (_identity) return;
-    vec::fixed<6> r = pick(inverse).vs * s;
-    s = r;
-}
+void frame_rotation::rotate_strain(vec &e, direction d) const { apply6(pick(d).ve, e, "Strain"); }
+
+void frame_rotation::rotate_stress(vec &s, direction d) const { apply6(pick(d).vs, s, "Stress"); }
 
 // Two products, left to right: the right-associated `vs * (L * trans(vs))` of the dynamic
 // overload allocates its inner product on the heap.
-void frame_rotation::rotate_stiffness(mat &L, bool inverse) const {
-    if (L.n_rows != 6 || L.n_cols != 6) throw invalid_argument("Stiffness matrix must be 6x6");
+void frame_rotation::rotate_stiffness(mat &L, direction d) const {
     if (_identity) return;
-    const mat::fixed<6,6> &vs = pick(inverse).vs;
+    if (L.n_rows != 6 || L.n_cols != 6) throw invalid_argument("Stiffness matrix must be 6x6");
+    const mat::fixed<6,6> &vs = pick(d).vs;
     mat::fixed<6,6> tmp = L * trans(vs);
     L = vs * tmp;
 }
 
-void frame_rotation::rotate_tensor(mat &X, bool inverse) const {
-    if (X.n_rows != 3 || X.n_cols != 3) throw invalid_argument("Tensor must be 3x3");
+void frame_rotation::rotate_tensor(mat &X, direction d) const {
     if (_identity) return;
-    const mat::fixed<3,3> &R = pick(inverse).R;
+    if (X.n_rows != 3 || X.n_cols != 3) throw invalid_argument("Tensor must be 3x3");
+    const mat::fixed<3,3> &R = pick(d).R;
     mat::fixed<3,3> r = R * X * R.t();
     X = r;
 }

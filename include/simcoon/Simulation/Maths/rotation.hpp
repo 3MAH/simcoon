@@ -482,14 +482,19 @@ public:
     /// True when the rotation is the identity: every apply is then a no-op.
     bool is_identity() const { return _identity; }
 
+    /// Which operators an apply uses: those of the rotation, or of its inverse. A named
+    /// value rather than a bool, so that it cannot be confused with the `active` flag of
+    /// `Rotation::apply_*`.
+    enum direction { forward, inverse };
+
     /// Strain Voigt vector (engineering shear), in place: `Rotation::apply_strain` of rot, or of rot.inv().
-    void rotate_strain(arma::vec &e, bool inverse = false) const;
+    void rotate_strain(arma::vec &e, direction d = forward) const;
     /// Stress Voigt vector, in place: `Rotation::apply_stress` of rot, or of rot.inv().
-    void rotate_stress(arma::vec &s, bool inverse = false) const;
+    void rotate_stress(arma::vec &s, direction d = forward) const;
     /// Stiffness \f$ \mathbf{Q}_S \mathbf{L} \mathbf{Q}_S^T \f$, in place: `Rotation::apply_stiffness` of rot, or of rot.inv().
-    void rotate_stiffness(arma::mat &L, bool inverse = false) const;
+    void rotate_stiffness(arma::mat &L, direction d = forward) const;
     /// Second-order tensor \f$ \mathbf{R}\,\mathbf{X}\,\mathbf{R}^T \f$, in place: `Rotation::apply_tensor` of rot, or of rot.inv().
-    void rotate_tensor(arma::mat &X, bool inverse = false) const;
+    void rotate_tensor(arma::mat &X, direction d = forward) const;
 
 private:
     /// The operators of one rotation: matrix, active stress and strain Voigt operators.
@@ -498,7 +503,8 @@ private:
         arma::mat::fixed<6,6> vs, ve;
         explicit operators(const Rotation &rot);
     };
-    const operators& pick(bool inverse) const { return inverse ? _inv : _fwd; }
+    const operators& pick(direction d) const { return d == inverse ? _inv : _fwd; }
+    void apply6(const arma::mat::fixed<6,6> &Q, arma::vec &v, const char *what) const;
 
     bool _identity;
     operators _fwd, _inv;   ///< of rot and of rot.inv()
