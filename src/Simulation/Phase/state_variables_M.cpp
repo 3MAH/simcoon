@@ -232,11 +232,11 @@ void state_variables_M::set_start(const int &corate_type)
 }
         
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_l2g(sv, psi, theta, phi);
+    state_variables::rotate_l2g(sv, frame);
 
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
@@ -247,23 +247,22 @@ state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, co
 	L = sv.L;
 	Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
+    if (!frame.is_identity()) {
+        sigma_in = frame.stress(sigma_in);
+        sigma_in_start = frame.stress(sigma_in_start);
+        L = frame.stiffness(L);
+        Lt = frame.stiffness(Lt);
     }
 
 	return *this;
 }
 
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_g2l(sv, psi, theta, phi);
+    state_variables::rotate_g2l(sv, frame);
 
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
@@ -274,12 +273,11 @@ state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, co
     L = sv.L;
     Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
+    if (!frame.is_identity()) {     // inverse operators: global -> local
+        sigma_in = frame.stress(sigma_in, true);
+        sigma_in_start = frame.stress(sigma_in_start, true);
+        L = frame.stiffness(L, true);
+        Lt = frame.stiffness(Lt, true);
     }
 
 	return *this;

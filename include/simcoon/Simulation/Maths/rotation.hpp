@@ -458,6 +458,49 @@ public:
 };
 
 /**
+ * @brief A rotation with its operators built once: the frame of an oriented phase.
+ *
+ * `Rotation::apply_*` rebuilds the \f$ 3\times3 \f$ matrix and the \f$ 6\times6 \f$ Voigt
+ * operators at every call. A phase frame is fixed for a whole run while its state is rotated
+ * in and out of the local frame at every UMAT call (about twenty operators per call), so this
+ * class stores the operators of the rotation and of its inverse once and applies them with a
+ * single product each. The results are those of `Rotation::apply_*` on the rotation
+ * (`inverse = false`) or on `Rotation::inv()` (`inverse = true`), exactly: the same operator
+ * matrices are built, once instead of per call.
+ *
+ * Immutable after construction, hence safe to read from several threads.
+ */
+class frame_rotation {
+public:
+    /// The identity frame.
+    frame_rotation();
+    /// The operators of @p rot and of its inverse.
+    explicit frame_rotation(const Rotation &rot);
+    /// Same, from Euler angles (radians) in the given sequence.
+    static frame_rotation from_euler(double psi, double theta, double phi, const std::string &seq = "zxz");
+
+    const Rotation& rotation() const { return _rot; }
+    /// True when the rotation is the identity: every apply is then a copy.
+    bool is_identity() const { return _identity; }
+
+    /// Strain Voigt vector (engineering shear): `Rotation::apply_strain` of rot, or of rot.inv().
+    arma::vec strain(const arma::vec &e, bool inverse = false) const;
+    /// Stress Voigt vector: `Rotation::apply_stress` of rot, or of rot.inv().
+    arma::vec stress(const arma::vec &s, bool inverse = false) const;
+    /// Stiffness \f$ \mathbf{Q}_S \mathbf{L} \mathbf{Q}_S^T \f$: `Rotation::apply_stiffness` of rot, or of rot.inv().
+    arma::mat stiffness(const arma::mat &L, bool inverse = false) const;
+    /// Second-order tensor \f$ \mathbf{R}\,\mathbf{X}\,\mathbf{R}^T \f$: `Rotation::apply_tensor` of rot, or of rot.inv().
+    arma::mat tensor(const arma::mat &X, bool inverse = false) const;
+
+private:
+    Rotation _rot;
+    bool _identity;
+    arma::mat::fixed<3,3> _R, _Ri;   ///< rotation matrix of rot and of rot.inv()
+    arma::mat _vs, _vsi;             ///< stress Voigt operators (active) of rot and of rot.inv()
+    arma::mat _ve, _vei;             ///< strain Voigt operators (active) of rot and of rot.inv()
+};
+
+/**
  * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
  *
  * Given a rotation vector omega (axis * angle), computes the three 3x3

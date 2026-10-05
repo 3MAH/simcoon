@@ -477,7 +477,7 @@ arma::mat state_variables::Biot_stress_start()
 }
 
 //----------------------------------------------------------------------
-state_variables& state_variables::rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi)
+state_variables& state_variables::rotate_l2g(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
@@ -505,31 +505,30 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
     statev_start = sv.statev_start;
 
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        Etot = rot.apply_strain(Etot);
-        DEtot = rot.apply_strain(DEtot);
-        etot = rot.apply_strain(etot);
-        Detot = rot.apply_strain(Detot);
-        PKII = rot.apply_stress(PKII);
-        PKII_start = rot.apply_stress(PKII_start);
-        tau = rot.apply_stress(tau);
-        tau_start = rot.apply_stress(tau_start);
-        sigma = rot.apply_stress(sigma);
-        sigma_start = rot.apply_stress(sigma_start);
-        F0 = rot.apply_tensor(F0);
-        F1 = rot.apply_tensor(F1);
-        U0 = rot.apply_tensor(U0);
-        U1 = rot.apply_tensor(U1);
-        R = rot.apply_tensor(R);
-        DR = rot.apply_tensor(DR);
+    if (!frame.is_identity()) {
+        Etot = frame.strain(Etot);
+        DEtot = frame.strain(DEtot);
+        etot = frame.strain(etot);
+        Detot = frame.strain(Detot);
+        PKII = frame.stress(PKII);
+        PKII_start = frame.stress(PKII_start);
+        tau = frame.stress(tau);
+        tau_start = frame.stress(tau_start);
+        sigma = frame.stress(sigma);
+        sigma_start = frame.stress(sigma_start);
+        F0 = frame.tensor(F0);
+        F1 = frame.tensor(F1);
+        U0 = frame.tensor(U0);
+        U1 = frame.tensor(U1);
+        R = frame.tensor(R);
+        DR = frame.tensor(DR);
     }
 
 	return *this;
 }
     
 //----------------------------------------------------------------------
-state_variables& state_variables::rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi)
+state_variables& state_variables::rotate_g2l(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 	// Configuration travels with the g->l transfer: the solver sets
@@ -561,24 +560,23 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev_start = sv.statev_start;
 
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        Etot = rot.apply_strain(Etot);
-        DEtot = rot.apply_strain(DEtot);
-        etot = rot.apply_strain(etot);
-        Detot = rot.apply_strain(Detot);
-        PKII = rot.apply_stress(PKII);
-        PKII_start = rot.apply_stress(PKII_start);
-        tau = rot.apply_stress(tau);
-        tau_start = rot.apply_stress(tau_start);
-        sigma = rot.apply_stress(sigma);
-        sigma_start = rot.apply_stress(sigma_start);
-        F0 = rot.apply_tensor(F0);
-        F1 = rot.apply_tensor(F1);
-        U0 = rot.apply_tensor(U0);
-        U1 = rot.apply_tensor(U1);
-        R = rot.apply_tensor(R);
-        DR = rot.apply_tensor(DR);
+    if (!frame.is_identity()) {     // inverse operators: global -> local
+        Etot = frame.strain(Etot, true);
+        DEtot = frame.strain(DEtot, true);
+        etot = frame.strain(etot, true);
+        Detot = frame.strain(Detot, true);
+        PKII = frame.stress(PKII, true);
+        PKII_start = frame.stress(PKII_start, true);
+        tau = frame.stress(tau, true);
+        tau_start = frame.stress(tau_start, true);
+        sigma = frame.stress(sigma, true);
+        sigma_start = frame.stress(sigma_start, true);
+        F0 = frame.tensor(F0, true);
+        F1 = frame.tensor(F1, true);
+        U0 = frame.tensor(U0, true);
+        U1 = frame.tensor(U1, true);
+        R = frame.tensor(R, true);
+        DR = frame.tensor(DR, true);
     }
 
 	return *this;

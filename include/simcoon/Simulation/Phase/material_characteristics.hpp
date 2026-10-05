@@ -27,6 +27,7 @@
 #include <iostream>
 #include <string>
 #include <armadillo>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 
 namespace simcoon{
 
@@ -54,6 +55,9 @@ namespace simcoon{
 class material_characteristics
 {
 	private:
+        mutable frame_rotation _frame;          ///< operators of the material frame (see frame())
+        mutable double _frame_angles[3] = {0., 0., 0.};
+        mutable bool _frame_valid = false;
 
 	protected:
 
@@ -68,6 +72,16 @@ class material_characteristics
         
 		int nprops; ///< Number of material properties
 		arma::vec props; ///< Vector of material properties
+
+        /**
+         * @brief The material frame (psi_mat, theta_mat, phi_mat, "zxz") with its rotation
+         *        operators built once.
+         *
+         * The angles are fixed for a run while the state is rotated in and out of the frame at
+         * every UMAT call, so the operators are computed on the first call and reused; they are
+         * rebuilt when the angles have changed since.
+         */
+        const frame_rotation& frame() const;
     
         /**
          * @brief Default constructor.

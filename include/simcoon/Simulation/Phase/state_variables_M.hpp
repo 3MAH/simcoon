@@ -73,9 +73,9 @@ class state_variables_M : public state_variables
         virtual void set_start(const int &); //accept: Wm goes to Wm_start
     
         using state_variables::rotate_l2g;
-        virtual state_variables_M& rotate_l2g(const state_variables_M&, const double&, const double&, const double&);
+        virtual state_variables_M& rotate_l2g(const state_variables_M&, const frame_rotation&);
         using state_variables::rotate_g2l;
-        virtual state_variables_M& rotate_g2l(const state_variables_M&, const double&, const double&, const double&);
+        virtual state_variables_M& rotate_g2l(const state_variables_M&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_M&);
 };

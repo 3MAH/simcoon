@@ -23,6 +23,7 @@
 
 #include <iostream>
 #include <armadillo>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/parameter.hpp>
 
 namespace simcoon{
@@ -220,23 +221,20 @@ class state_variables
 
         /**
          * @brief Rotate state variables from local to global frame.
-         * @param sv Source state variables
-         * @param psi First Euler angle (rad)
-         * @param theta Second Euler angle (rad)
-         * @param phi Third Euler angle (rad)
+         * @param sv Source state variables (local frame)
+         * @param frame Material frame of the phase (material_characteristics::frame()):
+         *        its operators are built once and applied to every rotated member
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi);
+        virtual state_variables& rotate_l2g(const state_variables& sv, const frame_rotation &frame);
         
         /**
          * @brief Rotate state variables from global to local frame.
-         * @param sv Source state variables
-         * @param psi First Euler angle (rad)
-         * @param theta Second Euler angle (rad)
-         * @param phi Third Euler angle (rad)
+         * @param sv Source state variables (global frame)
+         * @param frame Material frame of the phase; the inverse operators are applied
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi);
+        virtual state_variables& rotate_g2l(const state_variables& sv, const frame_rotation &frame);
     
         /**
          * @brief Stream output operator.

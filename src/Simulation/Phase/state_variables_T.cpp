@@ -298,11 +298,11 @@ void state_variables_T::set_start(const int &corate_type)
 }
     
 //----------------------------------------------------------------------
-state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_l2g(sv, psi, theta, phi);
+    state_variables::rotate_l2g(sv, frame);
 
     dSdE = sv.dSdE;
     dSdEt = sv.dSdEt;
@@ -319,15 +319,14 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        dSdE = rot.apply_stiffness(dSdE);
-        dSdEt = rot.apply_stiffness(dSdEt);
-        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
+    if (!frame.is_identity()) {
+        sigma_in = frame.stress(sigma_in);
+        sigma_in_start = frame.stress(sigma_in_start);
+        dSdE = frame.stiffness(dSdE);
+        dSdEt = frame.stiffness(dSdEt);
+        vec dSdT_v = frame.stress(vec(dSdT.as_col()));
         dSdT = dSdT_v.as_row();
-        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
+        vec drdE_v = frame.strain(vec(drdE.as_col()));
         drdE = drdE_v.as_row();
     }
 
@@ -335,11 +334,11 @@ state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, co
 }
 
 //----------------------------------------------------------------------
-state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_g2l(sv, psi, theta, phi);
+    state_variables::rotate_g2l(sv, frame);
 
     sigma_in = sv.sigma_in;
     sigma_in_start = sv.sigma_in_start;
@@ -356,15 +355,14 @@ state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, co
     Wm_start = sv.Wm_start;
     Wt_start = sv.Wt_start;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        dSdE = rot.apply_stiffness(dSdE);
-        dSdEt = rot.apply_stiffness(dSdEt);
-        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
+    if (!frame.is_identity()) {     // inverse operators: global -> local
+        sigma_in = frame.stress(sigma_in, true);
+        sigma_in_start = frame.stress(sigma_in_start, true);
+        dSdE = frame.stiffness(dSdE, true);
+        dSdEt = frame.stiffness(dSdEt, true);
+        vec dSdT_v = frame.stress(vec(dSdT.as_col()), true);
         dSdT = dSdT_v.as_row();
-        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
+        vec drdE_v = frame.strain(vec(drdE.as_col()), true);
         drdE = drdE_v.as_row();
     }
 

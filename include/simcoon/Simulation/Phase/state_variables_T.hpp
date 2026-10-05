@@ -79,9 +79,9 @@ namespace simcoon{
         virtual void set_start(const int &); //accept: Wm & Wt go to Wm_start & Wt_start, respectively
     
         using state_variables::rotate_l2g;
-        virtual state_variables_T& rotate_l2g(const state_variables_T&, const double&, const double&, const double&);
+        virtual state_variables_T& rotate_l2g(const state_variables_T&, const frame_rotation&);
         using state_variables::rotate_g2l;
-        virtual state_variables_T& rotate_g2l(const state_variables_T&, const double&, const double&, const double&);
+        virtual state_variables_T& rotate_g2l(const state_variables_T&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_T&);
 };

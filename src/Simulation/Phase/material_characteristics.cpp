@@ -207,6 +207,20 @@ material_characteristics& material_characteristics::operator = (const material_c
 	return *this;
 }
 
+//-------------------------------------------------------------
+const frame_rotation& material_characteristics::frame() const
+//-------------------------------------------------------------
+{
+    if (!_frame_valid || _frame_angles[0] != psi_mat || _frame_angles[1] != theta_mat || _frame_angles[2] != phi_mat) {
+        _frame = frame_rotation::from_euler(psi_mat, theta_mat, phi_mat, "zxz");
+        _frame_angles[0] = psi_mat;
+        _frame_angles[1] = theta_mat;
+        _frame_angles[2] = phi_mat;
+        _frame_valid = true;
+    }
+    return _frame;
+}
+
 //--------------------------------------------------------------------------
 ostream& operator << (ostream& s, const material_characteristics& sv)
 //--------------------------------------------------------------------------
