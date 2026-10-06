@@ -76,15 +76,17 @@ enum class MechanismType {
  *   \mathbf{D} = (\mathbf{I} + \gamma \mathbf{H}\mathbf{T})^{-1}\mathbf{H},\qquad
  *   \tilde{\mathbf{n}} = (\mathbf{I} - \gamma\mathbf{T}\mathbf{D})^{T}\mathbf{n},\qquad
  *   K = -\,\mathbf{n}\cdot\mathbf{T}(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\boldsymbol{\beta} - R'(p),\qquad
- *   \mathbf{c} = -\Delta p\,\mathbf{L}(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\mathbf{H}\mathbf{T}\boldsymbol{\beta},
+ *   \frac{d\mathbf{n}}{d\Delta p}\Big|_{\sigma} = -(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\mathbf{H}\mathbf{T}\boldsymbol{\beta},
  * \f]
- * see PlasticityMechanism for \f$ \gamma, \boldsymbol{\beta} \f$. All in engineering Voigt.
+ * see PlasticityMechanism for \f$ \gamma, \boldsymbol{\beta} \f$. The orchestrator forms the
+ * flux chain \f$ \mathbf{c} = \Delta s\,\mathbf{L}\,d\boldsymbol{\Lambda}/d\Delta s \f$ with its
+ * elastic operator. All in engineering Voigt.
  */
 struct ClosestPointIngredients {
     arma::vec dPhi_dsigma;      ///< \f$ \tilde{\mathbf{n}} = d\Phi/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6, strain-typed)
     arma::vec Lambda;           ///< flow direction \f$ \boldsymbol{\Lambda} \f$ at the refreshed state (6, strain-typed)
     arma::mat dLambda_dsigma;   ///< \f$ \mathbf{D} = d\boldsymbol{\Lambda}/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6x6, compliance-like)
-    arma::vec flow_state_coupling; ///< \f$ \mathbf{c} = \Delta s\,\mathbf{L}\,d\boldsymbol{\Lambda}/d\Delta s|_{\sigma} \f$ (6, stress-typed); zeros when the flow carries no state
+    arma::vec dLambda_dDs;      ///< \f$ d\boldsymbol{\Lambda}/d\Delta s|_{\sigma} \f$ (6, strain-typed); zeros when the flow carries no state
     double K = 0.0;             ///< \f$ d\Phi/d\Delta s|_{\sigma} \f$ (negative for hardening: the modular B = -dPhi.kappa + K convention)
 };
 
