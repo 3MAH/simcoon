@@ -429,6 +429,14 @@ class Basis:
             return False
         return bool(np.allclose(self._A, other._A, rtol=0.0, atol=tol))
 
+    def __getstate__(self):
+        # the cache is derived data and may hold C++ handles: rebuilt on first use
+        return (self._rotation, self._A, self._name)
+
+    def __setstate__(self, state):
+        self._rotation, self._A, self._name = state
+        self._cache = {}
+
     def __repr__(self):
         parts = ["orthonormal" if self.orthonormal else "natural"]
         if not self.single:
@@ -453,6 +461,16 @@ class Basis:
 
     def _reciprocal(self):
         return self._lazy("recip", lambda: np.swapaxes(np.linalg.inv(self._A), -1, -2))
+
+    # Handles of the rotation of an orthonormal basis, computed once per basis: the inverse
+    # rotation (lab -> basis), and the C++ rotations single tensors are rotated with.
+    def _inverse_rotation(self):
+        return self._lazy("Rinv", lambda: self._rotation.inv())
+
+    def _rotation_cpp(self, inverse):
+        if inverse:
+            return self._lazy("Rinv_cpp", lambda: self._inverse_rotation()._to_cpp())
+        return self._lazy("R_cpp", lambda: self._rotation._to_cpp())
 
     def _metric_power(self, p):
         """g^p through the eigen-decomposition of the (symmetric positive) metric."""
@@ -619,12 +637,13 @@ def _relative_matrix(old, new):
 
 
 def _relative_rotation(old, new):
-    """Rotation taking components in ``old`` to components in ``new`` (both orthonormal or lab)."""
+    """(Rotation, C++ handle or None) taking components in ``old`` to components in ``new``
+    (both orthonormal or lab). The handle comes from the basis cache when one basis is the lab."""
     if new is None:
-        return old._rotation
+        return old._rotation, (old._rotation_cpp(False) if old.single else None)
     if old is None:
-        return new._rotation.inv()
-    return new._rotation.inv() * old._rotation
+        return new._inverse_rotation(), (new._rotation_cpp(True) if new.single else None)
+    return new._inverse_rotation() * old._rotation, None
 
 
 def _isotropic_in_basis(t, basis):
@@ -821,7 +840,8 @@ class _TensorBase:
             return self
         self._check_basis(basis)
         if _is_orthonormal(old) and _is_orthonormal(basis):
-            data = self._rotated_components(_relative_rotation(old, basis), True)
+            R, cpp = _relative_rotation(old, basis)
+            data = self._rotated_components(R, True, cpp)
         else:
             self._require_variance()
             data = self._changed_components(_relative_matrix(old, basis))
@@ -1445,8 +1465,9 @@ class Tensor2(_TensorBase):
         """
         return self._rotate(R, active)
 
-    def _rotated_components(self, R, active):
-        """Components after the orthogonal congruence Q X Q^T (active) or Q^T X Q."""
+    def _rotated_components(self, R, active, cpp=None):
+        """Components after the orthogonal congruence Q X Q^T (active) or Q^T X Q.
+        ``cpp`` is an optional C++ handle of R (from a Basis cache) for the single path."""
         if self._type_str == "none":
             # any 3x3: plain congruence, single or batch, any rotation batch
             Q = np.asarray(_as_smc_rotation(R).as_matrix(), dtype=np.float64)
@@ -1457,7 +1478,7 @@ class Tensor2(_TensorBase):
                 raise ValueError("A single tensor takes a single rotation")
             return m.reshape(*m.shape[:-2], 9)
         if self.single:
-            cpp_result = self._to_cpp().rotate(_to_cpp_rotation(R), active)
+            cpp_result = self._to_cpp().rotate(cpp if cpp is not None else _to_cpp_rotation(R), active)
             return np.array(cpp_result.voigt).ravel()
         mats = _get_rotation_matrices(R, self._data.shape[0])
         return _batch_rotate(self._data, _VTYPE_MAP[self._type_str], mats, active)
@@ -1867,10 +1888,11 @@ class Tensor4(_TensorBase):
         """Create a temporary _CppTensor4 for single-point C++ operations."""
         return _CppTensor4.from_mat(self._data, _T4TYPE_MAP[self._type_str])
 
-    def _rotated_components(self, R, active):
-        """6x6 components after the rotation congruence (active) or its inverse."""
+    def _rotated_components(self, R, active, cpp=None):
+        """6x6 components after the rotation congruence (active) or its inverse.
+        ``cpp`` is an optional C++ handle of R (from a Basis cache) for the single path."""
         if self.single:
-            return np.array(self._to_cpp().rotate(_to_cpp_rotation(R), active).mat)
+            return np.array(self._to_cpp().rotate(cpp if cpp is not None else _to_cpp_rotation(R), active).mat)
         mats = _get_rotation_matrices(R, self._data.shape[0])
         return _from_f_cube(_batch_rotate(
             _to_f_cube(self._data), _T4TYPE_MAP[self._type_str], mats, active))

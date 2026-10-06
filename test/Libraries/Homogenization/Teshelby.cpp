@@ -89,3 +89,25 @@ TEST(Teshelby, S_TII)
     EXPECT_LT(norm(T_II_num*Lt-S_anal,2),1.E-4);
     
 }
+
+#include <simcoon/Continuum_mechanics/Homogenization/ellipsoid_multi.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
+
+// eshelby_memo: the key is the exact (medium stiffness, semi-axes); a hit returns the stored
+// tensor, any change of medium or geometry misses.
+TEST(Teshelby, memo_keys_on_exact_medium_and_geometry)
+{
+    eshelby_memo memo;
+    mat L = L_iso(70000., 0.3, "Enu");
+    EXPECT_EQ(memo.find(L, 1., 1., 1.), nullptr);
+    mat S = eye(6, 6) * 0.5;
+    memo.store(L, 1., 1., 1., S);
+    ASSERT_NE(memo.find(L, 1., 1., 1.), nullptr);
+    EXPECT_LT(norm(*memo.find(L, 1., 1., 1.) - S, 2), simcoon::iota);
+    EXPECT_EQ(memo.find(L, 2., 1., 1.), nullptr);                 // other geometry
+    mat L2 = L; L2(0, 0) += 1.e-9;
+    EXPECT_EQ(memo.find(L2, 1., 1., 1.), nullptr);                 // other medium, however close
+    EXPECT_EQ(memo.size(), 1u);
+    memo.clear();
+    EXPECT_EQ(memo.size(), 0u);
+}
