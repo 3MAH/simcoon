@@ -458,6 +458,59 @@ public:
 };
 
 /**
+ * @brief A rotation with its Voigt operators materialized once, applied in place.
+ *
+ * `Rotation::apply_*` rebuilds the \f$ 3\times3 \f$ matrix and the \f$ 6\times6 \f$ Voigt
+ * operators at every call. When one rotation is applied many times (a material frame at every
+ * UMAT call, see `material_characteristics::frame()`), this class stores the operators of the
+ * rotation and of its inverse once and applies them with a single fixed-size product each,
+ * without heap temporary. The results are those of `Rotation::apply_*` on the rotation
+ * (`inverse = false`) or on `Rotation::inv()` (`inverse = true`) to the bit: the same operator
+ * matrices are built, once instead of per call, and Armadillo's fixed-size products of this
+ * size evaluate as the dynamic ones. On the identity rotation (`Rotation::is_identity`) every
+ * apply is a no-op, as the skipped product would be.
+ *
+ * Immutable after construction, hence safe to read from several threads.
+ */
+class frame_rotation {
+public:
+    /// The identity frame.
+    frame_rotation();
+    /// The operators of @p rot and of its inverse.
+    explicit frame_rotation(const Rotation &rot);
+
+    /// True when the rotation is the identity: every apply is then a no-op.
+    bool is_identity() const { return _identity; }
+
+    /// Which operators an apply uses: those of the rotation, or of its inverse. A named
+    /// value rather than a bool, so that it cannot be confused with the `active` flag of
+    /// `Rotation::apply_*`.
+    enum direction { forward, inverse };
+
+    /// Strain Voigt vector (engineering shear), in place: `Rotation::apply_strain` of rot, or of rot.inv().
+    void rotate_strain(arma::vec &e, direction d = forward) const;
+    /// Stress Voigt vector, in place: `Rotation::apply_stress` of rot, or of rot.inv().
+    void rotate_stress(arma::vec &s, direction d = forward) const;
+    /// Stiffness \f$ \mathbf{Q}_S \mathbf{L} \mathbf{Q}_S^T \f$, in place: `Rotation::apply_stiffness` of rot, or of rot.inv().
+    void rotate_stiffness(arma::mat &L, direction d = forward) const;
+    /// Second-order tensor \f$ \mathbf{R}\,\mathbf{X}\,\mathbf{R}^T \f$, in place: `Rotation::apply_tensor` of rot, or of rot.inv().
+    void rotate_tensor(arma::mat &X, direction d = forward) const;
+
+private:
+    /// The operators of one rotation: matrix, active stress and strain Voigt operators.
+    struct operators {
+        arma::mat::fixed<3,3> R;
+        arma::mat::fixed<6,6> vs, ve;
+        explicit operators(const Rotation &rot);
+    };
+    const operators& pick(direction d) const { return d == inverse ? _inv : _fwd; }
+    void apply6(const arma::mat::fixed<6,6> &Q, arma::vec &v, const char *what) const;
+
+    bool _identity;
+    operators _fwd, _inv;   ///< of rot and of rot.inv()
+};
+
+/**
  * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
  *
  * Given a rotation vector omega (axis * angle), computes the three 3x3

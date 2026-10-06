@@ -232,55 +232,34 @@ void state_variables_M::set_start(const int &corate_type)
 }
         
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_l2g(sv, psi, theta, phi);
-
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
+    state_variables::rotate_l2g(sv, frame);
 
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
-	L = sv.L;
 	Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
-    }
+    frame.rotate_stiffness(Lt);
 
 	return *this;
 }
 
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_g2l(sv, psi, theta, phi);
-
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
+    state_variables::rotate_g2l(sv, frame);
 
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
     L = sv.L;
     Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
-    }
+    // inverse operators: global -> local
+    frame.rotate_stiffness(L, frame_rotation::inverse);
+    frame.rotate_stiffness(Lt, frame_rotation::inverse);
 
 	return *this;
 }

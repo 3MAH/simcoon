@@ -276,13 +276,13 @@ void phase_characteristics::local2global()
         case 1: {
             auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
             auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->rotate_l2g(*sv_M_l, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_M_g->rotate_l2g(*sv_M_l, sptr_matprops->frame());
             break;
         }
         case 2: {
             auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
             auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->rotate_l2g(*sv_T_l, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_T_g->rotate_l2g(*sv_T_l, sptr_matprops->frame());
             break;
         }
         default: {
@@ -302,13 +302,13 @@ void phase_characteristics::global2local()
         case 1: {
             auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
             auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_l->rotate_g2l(*sv_M_g, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_M_l->rotate_g2l(*sv_M_g, sptr_matprops->frame());
             break;
         }
         case 2: {
             auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
             auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_l->rotate_g2l(*sv_T_g, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_T_l->rotate_g2l(*sv_T_g, sptr_matprops->frame());
             break;
         }
         default: {

@@ -463,6 +463,46 @@ def test_orientation_is_given_in_degrees():
     assert abs(run(90.0) - run(0.0)) > 0.1 * abs(run(0.0))
 
 
+_ORIENTED = (30.0, 20.0, 10.0)   # degrees, a generic frame: every operator block is exercised
+
+
+@pytest.mark.parametrize("control_type", ["small_strain", "green_lagrange", "logarithmic", "biot"])
+def test_oriented_isotropic_plasticity_matches_unoriented(control_type):
+    """An isotropic material does not know its frame: the state transferred in and out of a
+    rotated material frame (rotate_g2l / rotate_l2g) must reproduce the unoriented run,
+    including the plastic internal variables, under every control type (Biot drives the
+    stretch U, owned by the solver and never transferred)."""
+    if control_type == "biot":
+        step = StepMeca(control=_UNIAXIAL, value=[1.03, 0, 0, 0, 0, 0], ninc=20,
+                        BC_w=np.zeros((3, 3)))
+    else:
+        step = StepMeca(control=_UNIAXIAL, value=[0.03, 0, 0, 0, 0, 0], ninc=20,
+                        BC_w=np.zeros((3, 3)))
+    block = Block(steps=[step], control_type=control_type)
+    ref = solve(block, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0)
+    rot = solve(block, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0, orientation=_ORIENTED)
+    assert_ran_and_responded(ref, n_expected=20)
+    assert_ran_and_responded(rot, n_expected=20)
+    assert ref["Stress"][0, -1] > EPICP_PROPS[3]   # plastic flow happened
+    np.testing.assert_allclose(rot["Stress"], ref["Stress"], rtol=1e-9, atol=1e-6)
+    np.testing.assert_allclose(rot["Strain"], ref["Strain"], rtol=1e-9, atol=1e-12)
+    np.testing.assert_allclose(rot["Wm"], ref["Wm"], rtol=1e-9, atol=1e-9)
+
+
+def test_oriented_isotropic_thermomechanical_matches_unoriented():
+    """Same invariance on the thermomechanical path: tangents dSdT and drdE cross the
+    frame as vectors in whatever shape the solver stores them (6x1), and the heat source,
+    temperature and works do not depend on the material frame."""
+    props = [1.0e-9, 1.0] + EPICP_PROPS
+    step = StepThermomeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=20,
+                          T_final=300.0)
+    ref = solve(step, "EPICP", props, EPICP_NSTATEV, T_init=290.0)
+    rot = solve(step, "EPICP", props, EPICP_NSTATEV, T_init=290.0, orientation=_ORIENTED)
+    assert ref.status == 0 and rot.status == 0
+    for key in ("Stress", "Strain", "Temp", "Q", "Wm", "Wt"):
+        np.testing.assert_allclose(rot[key], ref[key], rtol=1e-9, atol=1e-9, err_msg=key)
+
+
 def test_record_tangent_false_omits_tangent_history():
     step = StepMeca(control=_UNIAXIAL, value=[0.002, 0, 0, 0, 0, 0], ninc=2)
     res = solve(step, "ELISO", ELISO_PROPS, 1, T_init=290.0, record_tangent=False)
