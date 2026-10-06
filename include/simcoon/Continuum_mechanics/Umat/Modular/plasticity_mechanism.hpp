@@ -76,11 +76,12 @@ namespace simcoon {
  * von Mises, whose normal is scale-invariant along \f$ \mathrm{dev}\,\boldsymbol{\xi} \f$).
  * Then \f$ \mathbf{D} = \mathbf{A}^{-1}\mathbf{H} \f$, \f$ \tilde{\mathbf{n}} = \mathbf{n} -
  * \gamma\mathbf{D}^{T}\mathbf{T}\mathbf{n} \f$, \f$ K = -\mathbf{n}\cdot\mathbf{T}\mathbf{A}^{-1}
- * \boldsymbol{\beta} - R'(p) \f$, \f$ \mathbf{c} = -\Delta p\,\mathbf{L}\mathbf{A}^{-1}
+ * \boldsymbol{\beta} - R'(p) \f$, \f$ d\mathbf{n}/d\Delta p = -\mathbf{A}^{-1}
  * \mathbf{H}\mathbf{T}\boldsymbol{\beta} \f$. Limits: \f$ \gamma = 0 \f$ gives the partial
  * forms (J2 + isotropic: closest-point and cutting-plane coincide); Prager gives
- * \f$ \tilde{\mathbf{n}} = \mathbf{n} \f$, \f$ \mathbf{c} = 0 \f$, \f$ K = -(C + R') \f$ but
- * \f$ \mathbf{D} \ne \mathbf{H} \f$. The exact operator is symmetric for isotropic and Prager
+ * \f$ \tilde{\mathbf{n}} = \mathbf{n} \f$, \f$ d\mathbf{n}/d\Delta p = 0 \f$, \f$ K = -(C + R') \f$
+ * but \f$ \mathbf{D} \ne \mathbf{H} \f$ (the partial Hessian is inexact as soon as
+ * \f$ \gamma > 0 \f$). The exact operator is symmetric for isotropic and Prager
  * hardening, not for Armstrong-Frederick / Chaboche (dynamic recovery).
  */
 class PlasticityMechanism final : public StrainMechanism {
