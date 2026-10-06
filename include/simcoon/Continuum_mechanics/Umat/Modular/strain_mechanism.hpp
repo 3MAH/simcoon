@@ -60,6 +60,35 @@ enum class MechanismType {
 };
 
 /**
+ * @brief Total derivatives of one constraint row for the closest-point integrator
+ *        (tangent_mode == tangent_closest_point), evaluated at a refreshed state.
+ *
+ * With the internal state resolved by backward Euler at the iterate,
+ * \f$ \mathbf{V} = \hat{\mathbf{V}}(\boldsymbol{\sigma}, \Delta s) \f$, the Newton of
+ * closest_point_return_mapping() and the exact consistent tangent need the TOTAL derivatives
+ * of the composed map, not the partial ones the cutting-plane loop uses (StrainMechanism::
+ * dPhi_dsigma, dLambda_dsigma, compute_jacobian_contribution keep the partial forms, which the
+ * CCP loop and tangent_mode 1/2 rely on bit for bit). For a plasticity row with backstress
+ * \f$ \mathbf{X} = \mathbf{X}_0(\Delta p) + \gamma\,\mathbf{T}\,\mathbf{n} \f$ (engineering
+ * flow normal \f$ \mathbf{n} \f$, \f$ \mathbf{T} = \mathrm{diag}(1,1,1,\tfrac12,\tfrac12,\tfrac12) \f$,
+ * flow Hessian \f$ \mathbf{H} \f$ at \f$ \boldsymbol{\xi} = \boldsymbol{\sigma} - \mathbf{X} \f$):
+ * \f[
+ *   \mathbf{D} = (\mathbf{I} + \gamma \mathbf{H}\mathbf{T})^{-1}\mathbf{H},\qquad
+ *   \tilde{\mathbf{n}} = (\mathbf{I} - \gamma\mathbf{T}\mathbf{D})^{T}\mathbf{n},\qquad
+ *   K = -\,\mathbf{n}\cdot\mathbf{T}(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\boldsymbol{\beta} - R'(p),\qquad
+ *   \mathbf{c} = -\Delta p\,\mathbf{L}(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\mathbf{H}\mathbf{T}\boldsymbol{\beta},
+ * \f]
+ * see PlasticityMechanism for \f$ \gamma, \boldsymbol{\beta} \f$. All in engineering Voigt.
+ */
+struct ClosestPointIngredients {
+    arma::vec dPhi_dsigma;      ///< \f$ \tilde{\mathbf{n}} = d\Phi/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6, strain-typed)
+    arma::vec Lambda;           ///< flow direction \f$ \boldsymbol{\Lambda} \f$ at the refreshed state (6, strain-typed)
+    arma::mat dLambda_dsigma;   ///< \f$ \mathbf{D} = d\boldsymbol{\Lambda}/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6x6, compliance-like)
+    arma::vec flow_state_coupling; ///< \f$ \mathbf{c} = \Delta s\,\mathbf{L}\,d\boldsymbol{\Lambda}/d\Delta s|_{\sigma} \f$ (6, stress-typed); zeros when the flow carries no state
+    double K = 0.0;             ///< \f$ d\Phi/d\Delta s|_{\sigma} \f$ (negative for hardening: the modular B = -dPhi.kappa + K convention)
+};
+
+/**
  * @brief Base class for strain mechanisms
  *
  * This abstract class defines the interface for strain mechanisms that
@@ -309,10 +338,13 @@ public:
      * multiplier increments — NOT an incremental update; each call starts over
      * from \f$ \mathbf{V}_n \f$ so the CPP Newton can re-evaluate the state at
      * every iterate. Closed forms preferred (e.g. Armstrong–Frederick backward
-     * Euler).
+     * Euler); the n <-> X coupling of a plasticity row is a 6x6 Newton.
      *
-     * @return false if the mechanism does not support the implicit refresh
-     * (default) — the orchestrator then falls back to the CCP integrator.
+     * @return false when the implicit refresh did not converge for this row
+     * (the orchestrator then reports non-convergence and the solver cuts the
+     * step). A mechanism with no multiplier state (viscoelastic branches,
+     * damage) is never asked: the orchestrator classifies it by an empty
+     * dPhi_dsigma() and handles it after the closest-point solve.
      */
     virtual bool refresh_state(
         const arma::vec& sigma,
@@ -322,6 +354,27 @@ public:
         (void)Ds_total;
         (void)offset;
         return false;
+    }
+
+    /**
+     * @brief Total derivatives of this mechanism's constraint rows at the state
+     *        refresh_state() has just built (closest-point integrator only).
+     *
+     * One ClosestPointIngredients per constraint row, in row order. Default
+     * nullptr: the mechanism has no closest-point form (a criterion without a
+     * flow Hessian, e.g. Tresca) — under tangent_closest_point the orchestrator
+     * then keeps the cutting-plane loop and the algorithmic operator for the
+     * whole UMAT (documented degradation). Const-ref lifetime: until the next
+     * refresh_state() / compute_constraints() call.
+     */
+    [[nodiscard]] virtual const std::vector<ClosestPointIngredients>* closest_point_ingredients(
+        const arma::vec& sigma,
+        const arma::vec& Ds_total,
+        int offset) const {
+        (void)sigma;
+        (void)Ds_total;
+        (void)offset;
+        return nullptr;
     }
 
     /**

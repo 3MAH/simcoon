@@ -33,6 +33,8 @@ set(TEST_SRCS
   # Libraries - Umat
   test/Libraries/Umat/TAba2sim.cpp
   test/Libraries/Umat/Ttangent_assembly.cpp
+  test/Libraries/Umat/Treturn_mapping.cpp
+  test/Libraries/Umat/Tcpp_ccp_robustness.cpp
   test/Libraries/Umat/Ttangent_EPICP.cpp
   test/Libraries/Umat/Ttangent_EPHIL.cpp
   test/Libraries/Umat/Ttangent_EPCHA.cpp

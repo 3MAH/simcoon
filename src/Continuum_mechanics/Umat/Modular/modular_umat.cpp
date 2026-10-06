@@ -566,9 +566,9 @@ void ModularUMAT::compute_tangent(
         return;
     }
     if (tangent_mode == tangent_closest_point) {
-        throw std::invalid_argument(
-            "ModularUMAT::compute_tangent: tangent_closest_point (3) is "
-            "reserved and not implemented in this release");
+        // Until the closest-point integrator is wired into return_mapping (next PR), mode 3
+        // is the algorithmic operator on the cutting-plane state.
+        tangent_mode = tangent_algorithmic;
     }
     if (tangent_mode != tangent_continuum && tangent_mode != tangent_algorithmic) {
         throw std::invalid_argument(

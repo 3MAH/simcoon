@@ -312,6 +312,35 @@ public:
     }
 
     /**
+     * @brief Linearisation of the backward-Euler branch maps at the refreshed
+     * state (closest-point integrator).
+     *
+     * With \f$ \boldsymbol{\alpha}_i = (\boldsymbol{\alpha}_i^n + \Delta p\,\mathbf{n})
+     * / (1 + D_i \Delta p) \f$ and \f$ \mathbf{X} = \sum_i \tfrac{2}{3} C_i\,
+     * \mathbf{T}\boldsymbol{\alpha}_i \f$ (\f$ \mathbf{T} \f$: engineering to tensorial
+     * shear), the total backstress is affine in the flow normal,
+     * \f$ \mathbf{X} = \mathbf{X}_0(\Delta p) + \gamma\,\mathbf{T}\mathbf{n} \f$, with
+     * \f[ \gamma = \Delta p \sum_i \frac{\tfrac{2}{3} C_i}{1 + D_i\Delta p}, \qquad
+     *      \boldsymbol{\beta} = \sum_i \frac{\tfrac{2}{3} C_i\,(\mathbf{n} - D_i\boldsymbol{\alpha}_i)}{1 + D_i\Delta p}
+     *      = \frac{\partial \mathbf{X}}{\partial \Delta p}\Big|_{\mathbf{n}}\ (\text{before } \mathbf{T}). \f]
+     * @p alpha_i are the CURRENT (refreshed) back-strains. Default (no state):
+     * \f$ \gamma = 0 \f$, \f$ \boldsymbol{\beta} = \mathbf{0} \f$.
+     *
+     * @param dp     Total plastic multiplier of the increment
+     * @param n      Flow normal (engineering Voigt, 6)
+     * @param ivc    Collection holding the refreshed back-strains
+     * @param gamma  Output \f$ \gamma \f$ (stress / strain)
+     * @param beta   Output \f$ \boldsymbol{\beta} \f$ (6, engineering-strain-typed like n)
+     */
+    virtual void backward_euler_factors(double dp, const arma::vec& n,
+                                        const InternalVariableCollection& ivc,
+                                        double& gamma, arma::vec& beta) const {
+        (void)dp; (void)n; (void)ivc;
+        gamma = 0.0;
+        beta = arma::zeros(6);
+    }
+
+    /**
      * @brief Get the hardening type
      * @return Hardening type enum
      */
@@ -391,6 +420,8 @@ public:
                              const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
+    void backward_euler_factors(double dp, const arma::vec& n, const InternalVariableCollection& ivc,
+                                double& gamma, arma::vec& beta) const override;
     KinHardType type() const override { return KinHardType::PRAGER; }
     int num_backstresses() const override { return 1; }
 };
@@ -413,6 +444,8 @@ public:
                              const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
+    void backward_euler_factors(double dp, const arma::vec& n, const InternalVariableCollection& ivc,
+                                double& gamma, arma::vec& beta) const override;
     KinHardType type() const override { return KinHardType::ARMSTRONG_FREDERICK; }
     int num_backstresses() const override { return 1; }
 };
@@ -438,6 +471,8 @@ public:
                              const std::vector<tensor2>& X_i) const override;
     void update(double dp, const tensor2& n, InternalVariableCollection& ivc) override;
     void refresh_state(double dp, const tensor2& n, InternalVariableCollection& ivc) const override;
+    void backward_euler_factors(double dp, const arma::vec& n, const InternalVariableCollection& ivc,
+                                double& gamma, arma::vec& beta) const override;
     KinHardType type() const override { return KinHardType::CHABOCHE; }
     int num_backstresses() const override { return N_; }
 };

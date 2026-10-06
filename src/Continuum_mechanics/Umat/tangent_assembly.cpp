@@ -225,7 +225,10 @@ ContinuumTangent compute_tangent_operator(
     if (tangent_mode == simcoon::tangent_continuum) {
         return assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L);
     }
-    if (tangent_mode == simcoon::tangent_algorithmic) {
+    if (tangent_mode == simcoon::tangent_algorithmic || tangent_mode == simcoon::tangent_closest_point) {
+        // Closest-point: a kernel that integrates with closest_point_return_mapping() takes its
+        // exact operator from cpp_consistent_tangent() and does not come here; for the others
+        // mode 3 IS the algorithmic operator (documented degradation).
         if (!dLambda_dsigma) {
             // Flow independent of stress: the algorithmic operator IS the
             // continuum one.
@@ -233,11 +236,6 @@ ContinuumTangent compute_tangent_operator(
         }
         return assemble_algorithmic_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
                                             dLambda_dsigma());
-    }
-    if (tangent_mode == simcoon::tangent_closest_point) {
-        throw std::invalid_argument(
-            "compute_tangent_operator: tangent_closest_point (3) is reserved "
-            "and not implemented in this release");
     }
     throw std::invalid_argument("compute_tangent_operator: unknown tangent_mode "
                                 + std::to_string(tangent_mode));

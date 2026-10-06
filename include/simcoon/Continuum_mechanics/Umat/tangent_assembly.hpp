@@ -210,7 +210,10 @@ using HessianProvider = std::function<std::vector<arma::mat>()>;
  * - @c tangent_algorithmic: assemble_algorithmic_tangent() with
  *   @p dLambda_dsigma(); falls back to the continuum operator when no
  *   provider is given (flow independent of stress).
- * - @c tangent_closest_point: reserved — throws std::invalid_argument.
+ * - @c tangent_closest_point: for a kernel whose local loop is the cutting-plane one, the
+ *   algorithmic operator (same as @c tangent_algorithmic — the closest-point exact operator
+ *   is only available from a closest_point_return_mapping() solve, see return_mapping.hpp,
+ *   and such kernels take it from cpp_consistent_tangent() instead of calling this).
  *
  * @param tangent_mode One of the tangent_* constants (parameter.hpp)
  * @param Bhat Local Jacobian (N x N), as in assemble_continuum_tangent

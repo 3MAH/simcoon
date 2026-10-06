@@ -61,7 +61,8 @@ def solve(
         log_R under NLGEOM (the modular Hencky composition).
     tangent_mode : str or int
         Tangent operator mode: 'none', 'continuum', 'algorithmic' (default)
-        or 'closest_point' (reserved).
+        or 'closest_point' (closest-point projection integrator with its exact
+        operator where a law has one; the algorithmic operator elsewhere).
     solver_type : int
         0 = classic Newton-Raphson (default), 1 = RNL (control_type 1 only).
     orientation : simcoon.Rotation, dict or sequence of 3 floats

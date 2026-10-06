@@ -385,7 +385,7 @@ Tangent-operator mode
 All models receive the solver's ``tangent_mode`` (named constants in
 ``parameter.hpp`` / ``sim.tangent_*``): 0 = none (Lt = elastic L, explicit
 integration), 1 = continuum, 2 = algorithmic/Simo-Hughes (**default**),
-3 = closest-point (reserved). Pre-2.0 numbering was 0 = continuum,
+3 = closest-point (exact operator of the closest-point integrator where the law has one, else the algorithmic operator). Pre-2.0 numbering was 0 = continuum,
 1 = algorithmic — see :doc:`solver` for the migration note. The
 finite-strain hyperelastic models ignore the mode (their tangent is always
 the exact one of the hyperelastic law). So do the linear viscoelastic models (``ZENER``,
