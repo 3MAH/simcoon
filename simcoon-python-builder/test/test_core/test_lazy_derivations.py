@@ -87,12 +87,20 @@ def test_log_strain_is_derived_on_first_access():
         w, Q = np.linalg.eigh(V2[:, :, n])
         lnV = Q @ np.diag(0.5 * np.log(w)) @ Q.T
         np.testing.assert_allclose(sim.Tensor2.strain(log[:, n]).mat, lnV, rtol=1e-10, atol=1e-12)
-    # save/load/to_dataframe materialise it
+    # save/load materialise it
     import tempfile, os
     with tempfile.TemporaryDirectory() as d:
         path = os.path.join(d, "r.npz")
         res.save(path)
         back = sim.solver.results.SolverResults.load(path)
         np.testing.assert_array_equal(back["LogStrain"], log)
-    df = solve(blk, "ELISO", [70000.0, 0.3, 0.0], 1, T_init=290.0).to_dataframe()
+
+
+def test_to_dataframe_materialises_the_pending_log_strain():
+    pytest.importorskip("pandas")
+    blk = Block(steps=[StepMeca(control=UNI, value=[0.05, 0, 0, 0, 0, 0], ninc=10)], control_type=3)
+    res = solve(blk, "ELISO", [70000.0, 0.3, 0.0], 1, T_init=290.0)
+    assert "LogStrain" in res._pending
+    df = res.to_dataframe()
     assert "LogStrain_11" in df.columns
+    np.testing.assert_array_equal(df["LogStrain_11"].to_numpy(), res["LogStrain"][0])
