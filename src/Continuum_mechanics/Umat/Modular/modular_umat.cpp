@@ -304,9 +304,12 @@ void ModularUMAT::run(
         }
     }
 
-    // Apply rotation for objectivity
-    for (auto& mech : mechanisms_) {
-        mech->rotate(DR);
+    // Apply rotation for objectivity (DR = I under small strain: nothing to do)
+    const bool rotate = !arma::approx_equal(DR, arma::eye(3, 3), "absdiff", 0.0);
+    if (rotate) {
+        for (auto& mech : mechanisms_) {
+            mech->rotate(DR);
+        }
     }
 
     // Save start values
@@ -366,7 +369,7 @@ void ModularUMAT::run(
         // damage nor its elastic strain leaks into the committed tangent.
         for (auto& mech : mechanisms_) {
             mech->unpack(statev);
-            mech->rotate(DR);
+            if (rotate) mech->rotate(DR);
         }
         arma::vec sigma_at_start;
         refresh_stress(Etot, T - T_init_, ndi, sigma_at_start);
@@ -450,34 +453,12 @@ bool ModularUMAT::return_mapping(
         return true;
     }
 
-    if (tangent_mode == tangent_closest_point && ndi == 3 && elasticity_.has_constant_stiffness()) {
-        bool all_cpp = true;
-        for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
-            all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
-        }
-        if (all_cpp) {
-            return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, sigma, Ds_total);
-        }
-    }
-
-    // Allocate constraint arrays
+    // Constraints at the trial state (phase 1 of the first cutting-plane iterate; also what the
+    // closest-point branch starts from).
     arma::vec Phi = arma::zeros(n_total);
     arma::vec Y_crit = arma::zeros(n_total);
-    arma::mat B = arma::zeros(n_total, n_total);
-    arma::vec ds = arma::zeros(n_total);
-    Ds_total.zeros(n_total);
-
-    // Iteration loop
-    double error = 1.0;
-    int iter = 0;
-
-    // Scratch buffers for per-mechanism constraint returns (reused across FB
-    // iterations — avoid reallocating arma::vecs inside the loop).
-    arma::vec Phi_m, Y_crit_m;
-
-    while (iter < maxiter_ && error > precision_) {
-        // Phase 1: evaluate constraints per mechanism (populates mechanism
-        //          caches used by dPhi_dsigma / kappa / K_cross in phase 2).
+    arma::vec Phi_m, Y_crit_m;   // per-mechanism scratch, reused across iterations
+    auto evaluate_constraints = [&]() {
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             const int n = mechanisms_[m]->num_constraints();
             mechanisms_[m]->compute_constraints(
@@ -485,7 +466,59 @@ bool ModularUMAT::return_mapping(
             Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
             Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
         }
+    };
+    evaluate_constraints();
+    Ds_total.zeros(n_total);
 
+    // Admissible trial state: the whole answer for every integrator. The FB solve would return
+    // ds = 0 and error = 0 exactly (phi(Phi, 0) = |Phi| + Phi = 0 for Phi <= 0) and the zero
+    // update is the identity for a multiplier row; only the rows without multipliers (damage)
+    // commit their fixed point here, after which the stress is refreshed. With no closest-point
+    // solve, cpp_consistent_tangent() returns the elastic operator.
+    bool elastic_pass = false;   // the admissible-trial pass counted as the loop's first iterate
+    if (Phi.max() <= 0.0) {
+        bool inert_rows = false;
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            if (mechanisms_[m]->carries_multipliers()) continue;
+            mechanisms_[m]->update(Ds_total, mech_offset_[m]);
+            inert_rows = true;
+        }
+        if (inert_rows) {
+            refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
+        }
+        double residual = 0.0;
+        for (const auto& mech : mechanisms_) {
+            residual += mech->consistency_residual(sigma_eff_);
+        }
+        if (residual <= precision_) {
+            if (tangent_mode == tangent_closest_point) {
+                cpp_result_ = ReturnMappingResult{};   // the empty solve: the elastic operator
+                cpp_result_.converged = true;
+            }
+            return true;
+        }
+        evaluate_constraints();   // a damage row moved the state: iterate as before
+        elastic_pass = true;
+    }
+
+    if (tangent_mode == tangent_closest_point && ndi == 3 && elasticity_.has_constant_stiffness()) {
+        bool all_cpp = true;
+        for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
+            all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
+        }
+        if (all_cpp) {
+            return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, Y_crit, sigma, Ds_total);
+        }
+    }
+
+    // Cutting-plane loop. Phase 1 (the constraints) of the first iterate is the trial
+    // evaluation above; later iterates evaluate it at the end of the previous one.
+    arma::mat B = arma::zeros(n_total, n_total);
+    arma::vec ds = arma::zeros(n_total);
+    double error = 1.0;
+    int iter = elastic_pass ? 1 : 0;
+
+    while (iter < maxiter_ && error > precision_) {
         // Phases 2 and 3: local multiplier Jacobian from the mechanism caches.
         assemble_jacobian(sigma, DT, B);
 
@@ -508,6 +541,9 @@ bool ModularUMAT::return_mapping(
         }
 
         ++iter;
+        if (iter < maxiter_ && error > precision_) {
+            evaluate_constraints();
+        }
     }
     return true;
 }
@@ -517,6 +553,7 @@ bool ModularUMAT::return_mapping_cpp(
     double DT_init,
     double DTime,
     int ndi,
+    const arma::vec& Y_crit_all,
     arma::vec& sigma,
     arma::vec& Ds_total
 ) {
@@ -543,30 +580,8 @@ bool ModularUMAT::return_mapping_cpp(
     arma::uvec glob(N);
     for (int k = 0; k < N; ++k) glob(k) = mech_offset_[row_mech[k]] + row_c[k];
 
-    // Trial state (mechanisms at their start state after predict): the elastic guard and
-    // Y_crit. An admissible trial is the whole answer — state and stress stay as they are,
-    // Ds = 0, and cpp_consistent_tangent() returns the elastic operator for an empty solve.
-    arma::vec Y_crit(N), Phi_scratch, Y_scratch;
-    bool elastic = true;
-    for (size_t m : active) {
-        mechanisms_[m]->compute_constraints(sigma_tr, Etot_end, L, DTime, Phi_scratch, Y_scratch);
-        for (int k = 0; k < N; ++k) {
-            if (row_mech[k] != m) continue;
-            Y_crit(k) = Y_scratch(row_c[k]);
-            elastic = elastic && Phi_scratch(row_c[k]) <= 0.0;
-        }
-    }
-    if (elastic) {
-        for (size_t m : inert) {
-            mechanisms_[m]->compute_constraints(sigma_tr, Etot_end, L, DTime, Phi_scratch, Y_scratch);
-            mechanisms_[m]->update(Ds_total, mech_offset_[m]);
-        }
-        refresh_stress(Etot_end, DT_init, ndi, sigma);
-        cpp_result_ = ReturnMappingResult{};
-        cpp_result_.converged = true;
-        cpp_result_.Dlambda = arma::zeros(N);
-        return true;
-    }
+    arma::vec Phi_scratch, Y_scratch;   // scratch for the inert rows' evaluation after the solve
+    const arma::vec Y_crit = Y_crit_all.elem(glob);
 
     // Per-row ingredients, refreshed by the state hook (Phi included); the row callbacks
     // read them.
@@ -726,7 +741,11 @@ void ModularUMAT::compute_tangent(
             if (mechanisms_[m]->carries_multipliers()) algo.push_back(m);
         }
         Lt = cpp_consistent_tangent(cpp_result_, L_cur_).Lt;
-    } else if (tangent_mode == tangent_algorithmic) {
+    } else if (tangent_mode == tangent_algorithmic && arma::any(Ds_total > simcoon::iota)) {
+        // With no active multiplier the assembly masks every mechanism (same Ds > iota
+        // threshold, tangent_assembly.cpp) and returns L: skip the Hessians, which the
+        // opt-in predicate below would evaluate before the assembly could; the continuum
+        // contributions are no-ops at Ds <= iota.
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             if (mechanisms_[m]->dLambda_dsigma(sigma_eff) != nullptr &&
                 !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {

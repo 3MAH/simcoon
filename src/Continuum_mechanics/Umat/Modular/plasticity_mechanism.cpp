@@ -363,6 +363,9 @@ void PlasticityMechanism::update(
     // e.g. power-law R = k p^m with m < 1 at first yield (p < 0, Phi -> +100
     // MPa, mechanism inert).
     double dp = ds(offset);
+    if (dp == 0.0) {
+        return;   // the update below is exactly the identity for dp = 0
+    }
 
     // Update accumulated plastic strain (projected: p never below p_start)
     double& p = ivc_.get("p").scalar();
@@ -417,6 +420,10 @@ void PlasticityMechanism::compute_work(
     // Get increments
     double Dp = ivc_.get("p").delta_scalar();
     arma::vec DEP = ivc_.get("EP").delta_vec();
+    if (Dp == 0.0 && DEP.is_zero()) {
+        Wm_r = Wm_ir = Wm_d = 0.0;   // both dots below would be (signed) zeros
+        return;
+    }
 
     // Average stress during increment
     arma::vec sigma_avg = 0.5 * (sigma_start + sigma);

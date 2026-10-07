@@ -337,6 +337,9 @@ private:
      * The algorithm:
      * 1. Computes elastic prediction (trial stress)
      * 2. Evaluates constraint functions (Phi) from all mechanisms
+     * 2'. An admissible trial state (Phi <= 0 on every row) is committed at
+     *    once — Ds = 0, the rows without multipliers (damage) updated, the
+     *    stress refreshed — the same elastic guard for every integrator
      * 3. Solves for multiplier increments via Fischer-Burmeister
      * 4. Updates internal variables (incremental CCP update) and recomputes
      *    the stress
@@ -407,7 +410,10 @@ private:
      *
      * Precondition: the elastic prediction has run (sigma_eff_ is the trial
      * effective stress, L_cur_ the elastic operator, every mechanism at its
-     * start state).
+     * start state) and @p Y_crit holds the rows' normalisations from that
+     * evaluation. return_mapping's elastic guard normally keeps an admissible
+     * trial away from here; one that still arrives (damage fixed point not
+     * settled on the first pass) is caught by the helper's own guard.
      *
      * @return false when the solve did not converge (nothing committed; the
      *         caller restores the start state and cuts the step)
@@ -417,6 +423,7 @@ private:
         double DT_init,
         double DTime,
         int ndi,
+        const arma::vec& Y_crit,
         arma::vec& sigma,
         arma::vec& Ds_total
     );
@@ -455,7 +462,10 @@ private:
      * local Jacobian \f$ \hat{B} = -B \f$ and the mechanism caches. The
      * remaining mechanisms (Prony viscoelasticity, scalar damage — flows
      * independent of stress) keep their continuum contribution, applied on
-     * top in composition order, exactly as in the continuum mode.
+     * top in composition order, exactly as in the continuum mode. With no
+     * active multiplier (Ds <= iota on every row) the assembly would mask
+     * every mechanism and return L: it is skipped, Lt is the elastic operator
+     * with the damage / total-strain maps.
      *
      * tangent_closest_point (3): when return_mapping_cpp() produced the state,
      * cpp_consistent_tangent() on its converged ingredients — the exact

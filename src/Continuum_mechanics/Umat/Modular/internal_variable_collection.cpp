@@ -128,6 +128,11 @@ void InternalVariableCollection::unpack_all(const arma::vec& statev) {
 }
 
 void InternalVariableCollection::rotate_all(const arma::mat& DR) {
+    // DR = I (small strain, every increment): the rotation is exactly the identity
+    // quaternion and Q M Q^T reproduces M bit for bit — skip the pass.
+    if (arma::approx_equal(DR, arma::eye(3, 3), "absdiff", 0.0)) {
+        return;
+    }
     // Build the Rotation once — each variable would otherwise re-extract the
     // quaternion from the same 3x3 matrix.
     const Rotation R = Rotation::from_matrix(DR);
