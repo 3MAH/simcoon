@@ -19,6 +19,7 @@
 ///@brief Closest-point projection return mapping. Contract and algorithm in the .hpp.
 
 #include <cmath>
+#include <stdexcept>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -29,20 +30,6 @@ using namespace std;
 using namespace arma;
 
 namespace simcoon {
-
-namespace {
-
-// Fischer-Burmeister residual of (Phi, Dl) with the |diag(B)| scaling of Fischer_Burmeister_m:
-// the function returns the residual of the ENTERING iterate before stepping, so copies are
-// handed in and the step discarded (N <= 3: one tiny solve).
-double fb_merit(const vec &Phi, const vec &Y_crit, const mat &B, const vec &Dl) {
-    vec Dl_copy = Dl, dDl;
-    double err = 0.;
-    Fischer_Burmeister_m(Phi, Y_crit, B, Dl_copy, dDl, err);
-    return err;
-}
-
-} // namespace
 
 ReturnMappingResult closest_point_return_mapping(
     const vec &sigma_tr,
@@ -87,25 +74,14 @@ ReturnMappingResult closest_point_return_mapping(
     if (!refresh(r.sigma, r.Dlambda)) return r;
     eval_basic(r.sigma, r.Dlambda);
 
-    // full=false skips the state callbacks (hooks.K, flow_state_coupling, dLambda_dsigma): with
-    // Dlambda = 0 the tangent assembly masks every mechanism (Ds_j > iota gate), so their values
-    // cannot reach the returned operator.
-    auto fill_tangent_pieces = [&](const vec &sig, const vec &Dl, bool full) {
-        mat K = (full && hooks.K) ? hooks.K(sig, Dl) : zeros(N, N);
-        r.Bhat_continuum = zeros(N, N);
-        // kappa_eff = kappa + c: the multiplier-side state chain enters the tangent through the flux.
+    // Tangent ingredients at the converged iterate from the pieces the Newton just built
+    // (kappa_eff = kappa + c: the multiplier-side state chain enters through the flux).
+    auto fill_tangent_pieces = [&](const mat &K, const std::vector<mat> &D, const std::vector<vec> &c) {
+        r.Bhat_continuum.set_size(N, N);
         r.kappa_j.assign(kappa.begin(), kappa.end());
-        if (full && hooks.flow_state_coupling) {
-            const std::vector<vec> c = hooks.flow_state_coupling(sig, Dl);
-            for (int j = 0; j < N && j < int(c.size()); j++) r.kappa_j[j] += c[j];
-        }
+        for (int j = 0; j < N; j++) r.kappa_j[j] += c[j];
         r.dPhidsigma_l.assign(n_l.begin(), n_l.end());
-        r.dLambda_dsigma_l.resize(N);
-        for (int j = 0; j < N; j++) {
-            r.dLambda_dsigma_l[j] = (full && mechanisms[j].dLambda_dsigma)
-                                        ? mechanisms[j].dLambda_dsigma(sig)
-                                        : zeros(6, 6);
-        }
+        r.dLambda_dsigma_l = D;
         for (int l = 0; l < N; l++) {
             for (int j = 0; j < N; j++) {
                 r.Bhat_continuum(l, j) = sum(n_l[l] % r.kappa_j[j]) - K(l, j);
@@ -113,9 +89,11 @@ ReturnMappingResult closest_point_return_mapping(
         }
     };
 
-    // Elastic guard: admissible trial state -> return it (bit-identical elasticity across modes).
+    // Elastic guard: admissible trial state -> return it (bit-identical elasticity across
+    // modes). With Dlambda = 0 the tangent assembly masks every mechanism, so the state
+    // callbacks are not needed.
     if (Phi.max() <= 0.) {
-        fill_tangent_pieces(r.sigma, r.Dlambda, false);
+        fill_tangent_pieces(zeros(N, N), std::vector<mat>(N, zeros(6, 6)), std::vector<vec>(N, zeros(6)));
         r.converged = true;
         return r;
     }
@@ -136,25 +114,28 @@ ReturnMappingResult closest_point_return_mapping(
         mat Minv;
         if (!inv(Minv, M)) return r;   // condensation breakdown: caller step-cuts
 
-        std::vector<vec> c(N, zeros(6));
-        if (hooks.flow_state_coupling) c = hooks.flow_state_coupling(r.sigma, r.Dlambda);
+        std::vector<vec> c = hooks.flow_state_coupling ? hooks.flow_state_coupling(r.sigma, r.Dlambda)
+                                                       : std::vector<vec>(N, zeros(6));
 
         const vec MinvR = Minv * R_sigma;
+        std::vector<vec> Minv_kc(N);   // M^-1 (kappa_j + c_j), for B_red and the stress step
+        for (int j = 0; j < N; j++) Minv_kc[j] = Minv * (kappa[j] + c[j]);
         vec Phi_red(N);
         mat B_red(N, N);
         for (int l = 0; l < N; l++) {
             Phi_red(l) = Phi(l) - sum(n_l[l] % MinvR);
             for (int j = 0; j < N; j++) {
-                B_red(l, j) = -sum(n_l[l] % (Minv * (kappa[j] + c[j]))) + K(l, j);
+                B_red(l, j) = -sum(n_l[l] % Minv_kc[j]) + K(l, j);
             }
         }
 
         // Merit on the TRUE residuals (Phi, R_sigma) at the current iterate.
-        const double err = fb_merit(Phi, Y_crit, B_red, r.Dlambda) + norm(R_sigma, 2) / sigma_ref;
+        if (!B_red.is_finite()) return r;
+        const double err = Fischer_Burmeister_residual(Phi, Y_crit, B_red, r.Dlambda) + norm(R_sigma, 2) / sigma_ref;
         r.error_history.push_back(err);
         r.error = err;
         if (err < precision) {
-            fill_tangent_pieces(r.sigma, r.Dlambda, true);
+            fill_tangent_pieces(K, D_j, c);
             r.converged = true;
             return r;
         }
@@ -163,10 +144,14 @@ ReturnMappingResult closest_point_return_mapping(
         vec Dl_fb = r.Dlambda;
         vec dDl = zeros(N);
         double err_fb_unused = 0.;
-        Fischer_Burmeister_m(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
+        try {
+            Fischer_Burmeister_m(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
+        } catch (const std::exception &) {
+            return r;   // LAPACK failure on the reduced system: non-convergence, the caller step-cuts
+        }
 
-        vec dsigma = -Minv * R_sigma;
-        for (int j = 0; j < N; j++) dsigma -= dDl(j) * (Minv * (kappa[j] + c[j]));
+        vec dsigma = -MinvR;
+        for (int j = 0; j < N; j++) dsigma -= dDl(j) * Minv_kc[j];
 
         // Backtracking on the merit: semi-smooth iterations are locally non-monotone, so the
         // step is halved only when the merit grows by more than x2.
@@ -186,11 +171,22 @@ ReturnMappingResult closest_point_return_mapping(
                     }
                 }
             }
-            if (!refresh(r.sigma, r.Dlambda)) return r;   // inner state solve failed
-            eval_basic(r.sigma, r.Dlambda);
-            if (r.sigma.has_nan() || Phi.has_nan()) return r;
-            const double err_new = fb_merit(Phi, Y_crit, B_red, r.Dlambda) + norm(R_sigma, 2) / sigma_ref;
-            if (err_new <= 2. * err || bt >= control.max_backtrack) break;
+            // A trial point whose inner state solve fails, or that is not finite, is a rejected
+            // step like a merit blow-up: halve it (the inner Newton of a backstress row has no
+            // solution past a dp where the relaxed backstress overtakes the stress).
+            bool trial_ok = refresh(r.sigma, r.Dlambda);
+            if (trial_ok) {
+                eval_basic(r.sigma, r.Dlambda);
+                trial_ok = r.sigma.is_finite() && Phi.is_finite();
+            }
+            const double err_new = trial_ok
+                ? Fischer_Burmeister_residual(Phi, Y_crit, B_red, r.Dlambda) + norm(R_sigma, 2) / sigma_ref
+                : datum::inf;
+            if (trial_ok && err_new <= 2. * err) break;
+            if (bt >= control.max_backtrack) {
+                if (!trial_ok) return r;   // no admissible step within the backtracking budget
+                break;
+            }
             scale *= 0.5;
             bt++;
         }

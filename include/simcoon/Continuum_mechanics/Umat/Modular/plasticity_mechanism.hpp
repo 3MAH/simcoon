@@ -110,9 +110,7 @@ private:
                                                 ///< compute_constraints and reused
                                                 ///< for sigma_eff + hardening_modulus
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
-    mutable std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< closest_point_ingredients() buffer
-    arma::vec cpp_normal_;                      ///< flow normal of the last refresh_state (eng Voigt)
-    double cpp_dp_{0.0};                        ///< total multiplier of the last refresh_state
+    std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
 
 public:
     /**
@@ -235,21 +233,23 @@ public:
     [[nodiscard]] const std::vector<tensor4>* dLambda_dsigma(
         const arma::vec& sigma) const override;
 
+    /// has_flow_hessian(): von Mises, Hill, DFA, anisotropic. Tresca and Drucker have
+    /// none and degrade the UMAT to the cutting-plane loop under tangent_closest_point.
+    [[nodiscard]] bool supports_closest_point() const override;
+
     /// Backward-Euler refresh from start values (CPP contract): p = p_n + dp,
-    /// EP = EP_n + dp n, back-strains via the laws' closed forms; the n <-> X
-    /// coupling is solved by a 6x6 Newton on I + gamma H T (class note). Returns
-    /// false when that Newton fails (no flow Hessian, or no convergence).
+    /// EP = EP_n + dp n, back-strains via the laws' closed forms, the n <-> X
+    /// coupling by a 6x6 Newton on A = I + gamma H T, then the total derivatives
+    /// of the class note into closest_point_ingredients(). False when the Newton
+    /// fails to converge.
     bool refresh_state(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
         int offset) override;
 
-    /// Total derivatives at the refreshed state (class note); nullptr without a
-    /// flow Hessian (Tresca). Requires refresh_state() for the same (sigma, Ds).
-    [[nodiscard]] const std::vector<ClosestPointIngredients>* closest_point_ingredients(
-        const arma::vec& sigma,
-        const arma::vec& Ds_total,
-        int offset) const override;
+    [[nodiscard]] const std::vector<ClosestPointIngredients>* closest_point_ingredients() const override {
+        return &cpp_cache_;
+    }
 
     /// Flow-rule residual of the committed state (tensorial strain norms,
     /// flow direction at the end stress shifted by the backstress); see

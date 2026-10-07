@@ -88,6 +88,7 @@ public:
     /// the commit checks themselves are no-ops here through the default
     /// multiplier_cap()/state_drift().
     [[nodiscard]] bool guarded_constraints() const override { return false; }
+    [[nodiscard]] bool carries_multipliers() const override { return false; }   // rows integrated in predict()
 
     void compute_constraints(
         const arma::vec& sigma,

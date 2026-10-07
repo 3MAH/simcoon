@@ -44,6 +44,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 #include <map>
 #include <limits>
+#include <stdexcept>
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
@@ -61,31 +62,23 @@ enum class MechanismType {
 
 /**
  * @brief Total derivatives of one constraint row for the closest-point integrator
- *        (tangent_mode == tangent_closest_point), evaluated at a refreshed state.
+ *        (tangent_mode == tangent_closest_point), at the state refresh_state() built.
  *
  * With the internal state resolved by backward Euler at the iterate,
  * \f$ \mathbf{V} = \hat{\mathbf{V}}(\boldsymbol{\sigma}, \Delta s) \f$, the Newton of
  * closest_point_return_mapping() and the exact consistent tangent need the TOTAL derivatives
- * of the composed map, not the partial ones the cutting-plane loop uses (StrainMechanism::
- * dPhi_dsigma, dLambda_dsigma, compute_jacobian_contribution keep the partial forms, which the
- * CCP loop and tangent_mode 1/2 rely on bit for bit). For a plasticity row with backstress
- * \f$ \mathbf{X} = \mathbf{X}_0(\Delta p) + \gamma\,\mathbf{T}\,\mathbf{n} \f$ (engineering
- * flow normal \f$ \mathbf{n} \f$, \f$ \mathbf{T} = \mathrm{diag}(1,1,1,\tfrac12,\tfrac12,\tfrac12) \f$,
- * flow Hessian \f$ \mathbf{H} \f$ at \f$ \boldsymbol{\xi} = \boldsymbol{\sigma} - \mathbf{X} \f$):
- * \f[
- *   \mathbf{D} = (\mathbf{I} + \gamma \mathbf{H}\mathbf{T})^{-1}\mathbf{H},\qquad
- *   \tilde{\mathbf{n}} = (\mathbf{I} - \gamma\mathbf{T}\mathbf{D})^{T}\mathbf{n},\qquad
- *   K = -\,\mathbf{n}\cdot\mathbf{T}(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\boldsymbol{\beta} - R'(p),\qquad
- *   \frac{d\mathbf{n}}{d\Delta p}\Big|_{\sigma} = -(\mathbf{I} + \gamma\mathbf{H}\mathbf{T})^{-1}\mathbf{H}\mathbf{T}\boldsymbol{\beta},
- * \f]
- * see PlasticityMechanism for \f$ \gamma, \boldsymbol{\beta} \f$. The orchestrator forms the
- * flux chain \f$ \mathbf{c} = \Delta s\,\mathbf{L}\,d\boldsymbol{\Lambda}/d\Delta s \f$ with its
+ * of the composed map. The partial forms the cutting-plane loop uses (dPhi_dsigma,
+ * dLambda_dsigma, compute_jacobian_contribution) are a different object — under that loop the
+ * state is accumulated, not a function of \f$ (\boldsymbol{\sigma}, \Delta s) \f$ — and stay as
+ * they are. Formulas for a plasticity row: PlasticityMechanism class note. The orchestrator forms
+ * the flux chain \f$ \mathbf{c} = \Delta s\,\mathbf{L}\,d\boldsymbol{\Lambda}/d\Delta s \f$ with its
  * elastic operator. All in engineering Voigt.
  */
 struct ClosestPointIngredients {
-    arma::vec dPhi_dsigma;      ///< \f$ \tilde{\mathbf{n}} = d\Phi/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6, strain-typed)
-    arma::vec Lambda;           ///< flow direction \f$ \boldsymbol{\Lambda} \f$ at the refreshed state (6, strain-typed)
-    arma::mat dLambda_dsigma;   ///< \f$ \mathbf{D} = d\boldsymbol{\Lambda}/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6x6, compliance-like)
+    double Phi = 0.0;           ///< constraint value \f$ \Phi \f$ at the refreshed state
+    arma::vec dPhi_dsigma;      ///< \f$ d\Phi/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6, strain-typed)
+    arma::vec Lambda;           ///< flow direction \f$ \boldsymbol{\Lambda} \f$ (6, strain-typed)
+    arma::mat dLambda_dsigma;   ///< \f$ d\boldsymbol{\Lambda}/d\boldsymbol{\sigma}|_{\Delta s} \f$ (6x6, compliance-like)
     arma::vec dLambda_dDs;      ///< \f$ d\boldsymbol{\Lambda}/d\Delta s|_{\sigma} \f$ (6, strain-typed); zeros when the flow carries no state
     double K = 0.0;             ///< \f$ d\Phi/d\Delta s|_{\sigma} \f$ (negative for hardening: the modular B = -dPhi.kappa + K convention)
 };
@@ -330,23 +323,46 @@ public:
     }
 
     /**
-     * @brief Backward-Euler state refresh from the IVC start values, for the
-     * closest-point (tangent_mode == tangent_closest_point) integrator.
+     * @brief Whether this mechanism's constraint rows carry multipliers the FB
+     *        system solves for (plasticity), as opposed to rows it carries inertly
+     *        (viscoelastic branches integrated in predict(), damage: Phi = -1).
      *
-     * Contract (matches ReturnStateHooks::update_state of return_mapping.hpp):
-     * rebuild the mechanism's internal variables as
+     * Structural, read by the closest-point branch to decide which rows enter the
+     * solve and which are evaluated once after it. Default true, so a future
+     * yield-like mechanism is never silently left out of the solve (it then needs
+     * supports_closest_point(), or the whole UMAT keeps the cutting-plane loop).
+     */
+    [[nodiscard]] virtual bool carries_multipliers() const { return true; }
+
+    /**
+     * @brief Whether this mechanism has a closest-point form (a flow Hessian).
+     *
+     * Static capability, read once per increment under tangent_closest_point:
+     * the closest-point branch runs only if every multiplier-carrying mechanism
+     * answers true; otherwise the cutting-plane loop and the algorithmic operator
+     * serve the whole UMAT (documented degradation, e.g. a Tresca row). Default
+     * false. A mechanism without multiplier rows (carries_multipliers() false) is
+     * never asked.
+     */
+    [[nodiscard]] virtual bool supports_closest_point() const { return false; }
+
+    /**
+     * @brief Backward-Euler state refresh from the IVC start values AND its
+     * linearisation, for the closest-point integrator.
+     *
+     * Contract (ReturnStateHooks::update_state of return_mapping.hpp): rebuild
+     * the mechanism's internal variables as
      * \f$ \mathbf{V} = \mathbf{V}_n + \sum_j \Delta s^j\,\boldsymbol{\Lambda}_V^j \f$
-     * from the *start* values stored in the owned collection and the TOTAL
-     * multiplier increments — NOT an incremental update; each call starts over
-     * from \f$ \mathbf{V}_n \f$ so the CPP Newton can re-evaluate the state at
-     * every iterate. Closed forms preferred (e.g. Armstrong–Frederick backward
-     * Euler); the n <-> X coupling of a plasticity row is a 6x6 Newton.
+     * from the *start* values and the TOTAL multiplier increments — NOT an
+     * incremental update; each call starts over from \f$ \mathbf{V}_n \f$ so
+     * the Newton can re-evaluate the state at every iterate (closed forms, or a
+     * 6x6 Newton for the n <-> X coupling of a plasticity row) — and fill the
+     * ClosestPointIngredients that closest_point_ingredients() returns.
      *
-     * @return false when the implicit refresh did not converge for this row
-     * (the orchestrator then reports non-convergence and the solver cuts the
-     * step). A mechanism with no multiplier state (viscoelastic branches,
-     * damage) is never asked: the orchestrator classifies it by an empty
-     * dPhi_dsigma() and handles it after the closest-point solve.
+     * @return false when the refresh did not converge for this row: the
+     * orchestrator reports non-convergence and the solver cuts the step.
+     * @throws std::logic_error from the default: a mechanism that answers
+     *         supports_closest_point() true must implement it.
      */
     virtual bool refresh_state(
         const arma::vec& sigma,
@@ -355,27 +371,16 @@ public:
         (void)sigma;
         (void)Ds_total;
         (void)offset;
-        return false;
+        throw std::logic_error("StrainMechanism::refresh_state: '" + name_
+                               + "' claims closest-point support but does not implement the state refresh");
     }
 
     /**
-     * @brief Total derivatives of this mechanism's constraint rows at the state
-     *        refresh_state() has just built (closest-point integrator only).
-     *
-     * One ClosestPointIngredients per constraint row, in row order. Default
-     * nullptr: the mechanism has no closest-point form (a criterion without a
-     * flow Hessian, e.g. Tresca) — under tangent_closest_point the orchestrator
-     * then keeps the cutting-plane loop and the algorithmic operator for the
-     * whole UMAT (documented degradation). Const-ref lifetime: until the next
-     * refresh_state() / compute_constraints() call.
+     * @brief The total derivatives the last refresh_state() built, one per
+     *        constraint row in row order (same "populated by the previous call"
+     *        contract as dPhi_dsigma() after compute_constraints()).
      */
-    [[nodiscard]] virtual const std::vector<ClosestPointIngredients>* closest_point_ingredients(
-        const arma::vec& sigma,
-        const arma::vec& Ds_total,
-        int offset) const {
-        (void)sigma;
-        (void)Ds_total;
-        (void)offset;
+    [[nodiscard]] virtual const std::vector<ClosestPointIngredients>* closest_point_ingredients() const {
         return nullptr;
     }
 

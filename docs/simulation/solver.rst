@@ -206,10 +206,13 @@ constitutive models (also exposed as named constants:
 
 .. note::
    **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and
-   ``1`` meant *algorithmic*; there was no "none" mode. The converged
-   response is identical in every mode (the tangent steers the global
-   Newton iteration, not the residual) — only iteration counts and run
-   time change. Scripts passing explicit values should shift them by +1;
+   ``1`` meant *algorithmic*; there was no "none" mode. Modes 0, 1 and 2
+   share the same integrator, so their converged response is identical (the
+   tangent steers the global Newton iteration, not the residual) — only
+   iteration counts and run time change; mode 3 integrates differently and
+   its converged response differs from theirs by the increment's second
+   order wherever the flow direction rotates within the step. Scripts
+   passing explicit values should shift them by +1;
    scripts relying on the default silently upgrade from continuum to the
    (faster) algorithmic operator.
 

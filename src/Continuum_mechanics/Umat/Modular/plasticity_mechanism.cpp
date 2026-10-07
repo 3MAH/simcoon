@@ -22,6 +22,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/parameter.hpp>
 #include <algorithm>
 #include <limits>
@@ -209,38 +210,88 @@ const std::vector<tensor4>* PlasticityMechanism::dLambda_dsigma(
     return &hessian_cache_;
 }
 
+bool PlasticityMechanism::supports_closest_point() const {
+    return yield_->has_flow_hessian();
+}
+
 bool PlasticityMechanism::refresh_state(
     const arma::vec& sigma,
     const arma::vec& Ds_total,
     int offset) {
-    // dp >= 0: one-shot projection of the TOTAL row (the CPP contract
-    // re-derives the state from Ds_total). NOTE this is not identical to
-    // update()'s incremental clamping — after a clipped mid-iteration
-    // excursion the two commit different p from the same row history; the
-    // future closest-point integrator owns Ds_total and must keep it
-    // feasible itself.
+    // dp >= 0: the closest-point integrator owns Ds_total and projects it; the state is
+    // re-derived from the start values at every call (CPP contract).
     const double dp = std::max(Ds_total(offset), 0.0);
+    const arma::vec T = Ir05();   // engineering -> tensorial shear: X = X_0 + gamma T n
+    const bool has_kin = kin_hard_->num_backstresses() > 0;
 
     auto& p_var = ivc_.get("p");
     p_var.scalar() = p_var.scalar_start() + dp;
 
-    // n and the back-strains couple through X(alpha): fixed point (direct for
-    // pure isotropic hardening; contraction ~ dp C / sigma_eq per iteration).
-    const int n_fp = (kin_hard_->num_backstresses() > 0) ? 50 : 1;
-    arma::vec n = arma::zeros(6);
-    for (int it = 0; it < n_fp; ++it) {
-        const arma::vec X = kin_hard_->total_backstress(ivc_).to_arma_voigt();
-        const arma::vec n_new = yield_->flow_direction(sigma - X);
-        const double dn = arma::norm(n_new - n, 2);
-        n = n_new;
-        kin_hard_->refresh_state(dp, strain(n), ivc_);
-        if (it > 0 && dn < 1e-14) {
-            break;
+    // n <-> X coupling at fixed (sigma, dp): G(n) = n - eta(sigma - X(n)) = 0, X affine in n,
+    // Jacobian A = I + gamma H T. Zero steps for von Mises from the relaxed-backstress normal
+    // (eta is scale-invariant along dev xi), a few for Hill/DFA/Ani.
+    arma::vec n(6), xi(6);
+    double gamma = 0.0;
+    arma::vec beta = arma::zeros(6);
+    if (!has_kin) {
+        n = yield_->flow_direction(sigma);
+        xi = sigma;
+    } else {
+        // Start from the normal of the dp-relaxed start backstress: exact for von Mises, and
+        // measured better than warm-starting from the previous normal (which costs J2 real
+        // Newton steps for a 7 % gain on Hill).
+        kin_hard_->refresh_state(dp, strain(arma::vec(arma::zeros(6))), ivc_);   // alpha_i^n / (1 + D_i dp)
+        n = yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt());
+        bool converged = false;
+        for (int it = 0; it < 25; ++it) {
+            kin_hard_->refresh_state(dp, strain(n), ivc_);
+            xi = sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt();
+            const arma::vec G = n - yield_->flow_direction(xi);
+            if (arma::norm(G, 2) <= 1e-12 * std::max(1.0, arma::norm(n, 2))) {
+                converged = true;
+                break;
+            }
+            kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
+            const arma::mat H = yield_->flow_hessian(xi);
+            const arma::mat A = arma::eye(6, 6) + gamma * (H.each_row() % T.t());   // I + gamma H T
+            arma::vec dn;
+            if (!arma::solve(dn, A, -G, arma::solve_opts::fast)) {
+                return false;
+            }
+            n += dn;
         }
+        if (!converged) {
+            return false;
+        }
+        kin_hard_->backward_euler_factors(dp, n, ivc_, gamma, beta);
     }
 
     auto& EP_var = ivc_.get("EP");
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
+
+    // Total derivatives at this state (class note).
+    ClosestPointIngredients& out = cpp_cache_[0];
+    const arma::mat H = yield_->flow_hessian(xi);
+    const double dR_dp = iso_hard_->dR_dp(p_var.scalar());
+    out.Phi = yield_->equivalent_stress(xi) - iso_hard_->R(p_var.scalar()) - sigma_Y_;
+    out.Lambda = n;
+    if (!has_kin) {
+        out.dPhi_dsigma = n;
+        out.dLambda_dsigma = H;
+        out.dLambda_dDs = arma::zeros(6);
+        out.K = -dR_dp;
+        return true;
+    }
+    const arma::mat HT = H.each_row() % T.t();
+    arma::mat Ainv;
+    if (!arma::inv(Ainv, arma::eye(6, 6) + gamma * HT)) {
+        return false;
+    }
+    const arma::vec Tn = T % n;
+    out.dLambda_dsigma = Ainv * H;
+    out.dPhi_dsigma = n - gamma * (out.dLambda_dsigma.t() * Tn);
+    out.K = -arma::dot(Tn, Ainv * beta) - dR_dp;
+    out.dLambda_dDs = -(Ainv * (HT * beta));
     return true;
 }
 

@@ -1808,3 +1808,50 @@ TEST(ModularUMATTangent, RefreshStateBackwardEulerAF) {
     const vec EP_expected = ivc.get("EP").raw_voigt_start() + dp * n;
     EXPECT_LT(norm(ivc.get("EP").raw_voigt() - EP_expected, 2), 1e-12);
 }
+
+// Closest-point branch (tangent_mode 3): a local non-convergence is reported as a step cut —
+// tnew_dt = 0.5, statev untouched, sigma back to its incoming value, Lt elastic — never a
+// commit-at-maxiter and never an exception.
+TEST(ModularUMATClosestPoint, NonConvergenceRequestsStepCut) {
+    ModularUMAT m;
+    vec props_el = {0.0, 210000.0, 0.3, 0.0};
+    int off = 0;
+    m.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    vec props_pl = {300.0, 1000.0, 2000.0, 50.0};   // sigma_Y, H (linear iso), C, D (AF)
+    off = 0;
+    m.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                     KinHardType::ARMSTRONG_FREDERICK, 1, 1, props_pl, off);
+    int nstatev = 20;
+    vec statev = zeros(nstatev);
+    statev(0) = 293.0;
+    m.initialize(nstatev, statev);
+    const vec statev_in = statev;
+    m.set_return_mapping_params(1, 1e-13);   // one iterate cannot converge a plastic step
+
+    vec Etot = zeros(6), DEtot = {0.01, -0.003, -0.003, 0.0, 0.0, 0.0};
+    vec sigma = zeros(6);
+    mat Lt(6, 6), L(6, 6), DR = eye(3, 3);
+    vec props = zeros(10);
+    double T = 293.0, DT = 0.0, Wm = 0, Wm_r = 0, Wm_ir = 0, Wm_d = 0, tnew_dt = 1.0;
+    m.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev, statev,
+          T, DT, 1.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt, tangent_closest_point);
+
+    EXPECT_DOUBLE_EQ(tnew_dt, 0.5);
+    EXPECT_TRUE(approx_equal(statev, statev_in, "absdiff", 0.0));
+    EXPECT_TRUE(approx_equal(sigma, zeros(6), "absdiff", 0.0));
+    EXPECT_TRUE(approx_equal(Lt, m.elasticity().L0(), "absdiff", 1e-9));
+
+    // The same increment with the default budget converges and the state moves.
+    ModularUMAT m2;
+    off = 0; m2.set_elasticity(ElasticityType::ISOTROPIC, props_el, off);
+    off = 0; m2.add_plasticity(YieldType::VON_MISES, IsoHardType::LINEAR,
+                               KinHardType::ARMSTRONG_FREDERICK, 1, 1, props_pl, off);
+    vec statev2 = statev_in;
+    m2.initialize(nstatev, statev2);
+    tnew_dt = 1.0; sigma = zeros(6);
+    m2.run("MODUL", Etot, DEtot, sigma, Lt, L, DR, 10, props, nstatev, statev2,
+           T, DT, 1.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, tnew_dt, tangent_closest_point);
+    EXPECT_DOUBLE_EQ(tnew_dt, 1.0);
+    EXPECT_GT(sigma(0), 300.0);
+    EXPECT_GT(norm(statev2 - statev_in, 2), 1e-6);
+}

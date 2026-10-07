@@ -327,7 +327,7 @@ void ModularUMAT::run(
     // Perform return mapping (unconverged-at-maxiter commit semantics: see
     // the return_mapping doc).
     arma::vec Ds_total = arma::zeros(n_total);
-    return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total);
+    const bool converged = return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total, tangent_mode);
 
     // Reject unusable committed states with a step cut: non-finite stress
     // (true divergence), a runaway COMMITTED multiplier (multiplier_cap —
@@ -339,12 +339,14 @@ void ModularUMAT::run(
     // (Negative multipliers are handled at the source: PlasticityMechanism
     // projects the state update onto p >= p_start, and PowerLawHardening is
     // C1-regularized at onset, so no negative-Ds check is needed here.)
-    bool reject = !sigma.is_finite();
+    // The closest-point branch reports its own non-convergence (no commit-at-maxiter
+    // semantics there) and satisfies the flow rule by construction (drift guard moot).
+    bool reject = !converged || !sigma.is_finite();
     for (size_t m = 0; !reject && m < mechanisms_.size(); ++m) {
         const double drift_tol = mechanisms_[m]->drift_tolerance();
         reject = (mechanisms_[m]->committed_multiplier() >
                       mechanisms_[m]->multiplier_cap())
-              || (drift_guard_armed_ && std::isfinite(drift_tol) &&
+              || (!cpp_result_.converged && drift_guard_armed_ && std::isfinite(drift_tol) &&
                   mechanisms_[m]->state_drift(sigma_eff_) > drift_tol);
     }
     if (reject) {
@@ -416,7 +418,7 @@ void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
     sigma = stiffness_reduction() * sigma_eff_;
 }
 
-void ModularUMAT::return_mapping(
+bool ModularUMAT::return_mapping(
     const arma::vec& Etot,
     const arma::vec& DEtot,
     arma::vec& sigma,
@@ -425,8 +427,11 @@ void ModularUMAT::return_mapping(
     double DT,
     double DTime,
     int ndi,
-    arma::vec& Ds_total
+    arma::vec& Ds_total,
+    int tangent_mode
 ) {
+    cpp_result_.converged = false;   // no closest-point solve yet for this increment
+
     // Total number of constraints
     int n_total = 0;
     for (const auto& mech : mechanisms_) {
@@ -442,7 +447,17 @@ void ModularUMAT::return_mapping(
     }
     refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
     if (n_total == 0) {
-        return;
+        return true;
+    }
+
+    if (tangent_mode == tangent_closest_point && ndi == 3 && elasticity_.has_constant_stiffness()) {
+        bool all_cpp = true;
+        for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
+            all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
+        }
+        if (all_cpp) {
+            return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, sigma, Ds_total);
+        }
     }
 
     // Allocate constraint arrays
@@ -494,6 +509,128 @@ void ModularUMAT::return_mapping(
 
         ++iter;
     }
+    return true;
+}
+
+bool ModularUMAT::return_mapping_cpp(
+    const arma::vec& Etot_end,
+    double DT_init,
+    double DTime,
+    int ndi,
+    arma::vec& sigma,
+    arma::vec& Ds_total
+) {
+    const arma::vec sigma_tr = sigma_eff_;
+    const arma::mat& L = L_cur_;   // linear block: constant over the solve
+
+    // Helper rows = the multiplier-carrying mechanisms' rows in order; glob maps them into
+    // Ds_total.
+    std::vector<size_t> active, inert;
+    std::vector<size_t> row_mech;
+    std::vector<int> row_c;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        if (!mechanisms_[m]->carries_multipliers()) {
+            inert.push_back(m);
+            continue;
+        }
+        active.push_back(m);
+        for (int c = 0; c < mechanisms_[m]->num_constraints(); ++c) {
+            row_mech.push_back(m);
+            row_c.push_back(c);
+        }
+    }
+    const int N = static_cast<int>(row_mech.size());
+    arma::uvec glob(N);
+    for (int k = 0; k < N; ++k) glob(k) = mech_offset_[row_mech[k]] + row_c[k];
+
+    // Trial state (mechanisms at their start state after predict): the elastic guard and
+    // Y_crit. An admissible trial is the whole answer — state and stress stay as they are,
+    // Ds = 0, and cpp_consistent_tangent() returns the elastic operator for an empty solve.
+    arma::vec Y_crit(N), Phi_scratch, Y_scratch;
+    bool elastic = true;
+    for (size_t m : active) {
+        mechanisms_[m]->compute_constraints(sigma_tr, Etot_end, L, DTime, Phi_scratch, Y_scratch);
+        for (int k = 0; k < N; ++k) {
+            if (row_mech[k] != m) continue;
+            Y_crit(k) = Y_scratch(row_c[k]);
+            elastic = elastic && Phi_scratch(row_c[k]) <= 0.0;
+        }
+    }
+    if (elastic) {
+        for (size_t m : inert) {
+            mechanisms_[m]->compute_constraints(sigma_tr, Etot_end, L, DTime, Phi_scratch, Y_scratch);
+            mechanisms_[m]->update(Ds_total, mech_offset_[m]);
+        }
+        refresh_stress(Etot_end, DT_init, ndi, sigma);
+        cpp_result_ = ReturnMappingResult{};
+        cpp_result_.converged = true;
+        cpp_result_.Dlambda = arma::zeros(N);
+        return true;
+    }
+
+    // Per-row ingredients, refreshed by the state hook (Phi included); the row callbacks
+    // read them.
+    std::vector<const ClosestPointIngredients*> ing(N, nullptr);
+    arma::vec Ds_local = arma::zeros(Ds_total.n_elem);
+
+    ReturnStateHooks hooks;
+    hooks.update_state = [&](const arma::vec& sig, const arma::vec& Dl) -> bool {
+        Ds_local.elem(glob) = Dl;
+        for (size_t m : active) {
+            auto& mech = *mechanisms_[m];
+            if (!mech.refresh_state(sig, Ds_local, mech_offset_[m])) return false;
+            const auto& ing_m = *mech.closest_point_ingredients();
+            for (int k = 0; k < N; ++k) {
+                if (row_mech[k] == m) ing[k] = &ing_m[row_c[k]];
+            }
+        }
+        return true;
+    };
+    hooks.K = [&](const arma::vec&, const arma::vec&) {
+        arma::mat K(N, N);
+        for (int l = 0; l < N; ++l) {
+            for (int j = 0; j < N; ++j) {
+                K(l, j) = (l == j) ? ing[l]->K
+                                   : mechanisms_[row_mech[l]]->K_cross(row_c[l], *mechanisms_[row_mech[j]], row_c[j]);
+            }
+        }
+        return K;
+    };
+    hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl) {
+        std::vector<arma::vec> c(N);
+        for (int k = 0; k < N; ++k) c[k] = Dl(k) * (L * ing[k]->dLambda_dDs);
+        return c;
+    };
+
+    std::vector<ReturnMechanism> mechs(N);
+    for (int k = 0; k < N; ++k) {
+        mechs[k].Phi = [&, k](const arma::vec&) { return ing[k]->Phi; };
+        mechs[k].dPhi_dsigma = [&, k](const arma::vec&) { return ing[k]->dPhi_dsigma; };
+        mechs[k].Lambda = [&, k](const arma::vec&) { return ing[k]->Lambda; };
+        mechs[k].dLambda_dsigma = [&, k](const arma::vec&) { return ing[k]->dLambda_dsigma; };
+    }
+
+    ReturnMappingControl control;
+    control.maxiter = maxiter_;
+    control.precision = precision_;
+    ReturnMappingResult r = closest_point_return_mapping(sigma_tr, L, mechs, hooks, Y_crit, control);
+    if (!r.converged) {
+        return false;
+    }
+    Ds_total.elem(glob) = r.Dlambda;
+
+    // Rows without multipliers: one evaluation at the converged effective stress (damage
+    // fixed point under strain equivalence, viscoelastic rows already taken in predict).
+    for (size_t m : inert) {
+        mechanisms_[m]->compute_constraints(r.sigma, Etot_end, L, DTime, Phi_scratch, Y_scratch);
+        mechanisms_[m]->update(Ds_local, mech_offset_[m]);
+    }
+
+    // Commit: the stress from the refreshed state (self-consistent with it), the solve for
+    // the tangent.
+    refresh_stress(Etot_end, DT_init, ndi, sigma);
+    cpp_result_ = std::move(r);
+    return true;
 }
 
 void ModularUMAT::assemble_jacobian(
@@ -565,12 +702,11 @@ void ModularUMAT::compute_tangent(
         // Explicit integration: elastic operator, no assembly.
         return;
     }
-    if (tangent_mode == tangent_closest_point) {
-        // Until the closest-point integrator is wired into return_mapping (next PR), mode 3
-        // is the algorithmic operator on the cutting-plane state.
-        tangent_mode = tangent_algorithmic;
+    if (tangent_mode == tangent_closest_point && !cpp_result_.converged) {
+        tangent_mode = tangent_algorithmic;   // closest-point branch did not run: documented degradation
     }
-    if (tangent_mode != tangent_continuum && tangent_mode != tangent_algorithmic) {
+    if (tangent_mode != tangent_continuum && tangent_mode != tangent_algorithmic
+        && tangent_mode != tangent_closest_point) {
         throw std::invalid_argument(
             "ModularUMAT::compute_tangent: unknown tangent_mode "
             + std::to_string(tangent_mode));
@@ -584,7 +720,13 @@ void ModularUMAT::compute_tangent(
     // AND an analytic flow Hessian. Others (viscoelastic, damage, Hessian-less
     // criteria) keep their continuum tangent_contribution in every mode.
     std::vector<size_t> algo;
-    if (tangent_mode == tangent_algorithmic) {
+    if (tangent_mode == tangent_closest_point) {
+        // Exact operator of the closest-point solve; every multiplier-carrying row is inside it.
+        for (size_t m = 0; m < mechanisms_.size(); ++m) {
+            if (mechanisms_[m]->carries_multipliers()) algo.push_back(m);
+        }
+        Lt = cpp_consistent_tangent(cpp_result_, L_cur_).Lt;
+    } else if (tangent_mode == tangent_algorithmic) {
         for (size_t m = 0; m < mechanisms_.size(); ++m) {
             if (mechanisms_[m]->dLambda_dsigma(sigma_eff) != nullptr &&
                 !mechanisms_[m]->dPhi_dsigma(sigma_eff).empty()) {
@@ -593,7 +735,7 @@ void ModularUMAT::compute_tangent(
         }
     }
 
-    if (!algo.empty()) {
+    if (tangent_mode == tangent_algorithmic && !algo.empty()) {
         // Rebuild the local Jacobian at the converged state (the mechanism
         // caches were refreshed by the last compute_constraints call) and
         // hand the opted-in sub-block to the Simo-Hughes assembly.

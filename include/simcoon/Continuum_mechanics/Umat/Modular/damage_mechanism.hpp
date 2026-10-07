@@ -163,6 +163,7 @@ public:
     /// the commit checks themselves are no-ops here through the default
     /// multiplier_cap()/state_drift().
     [[nodiscard]] bool guarded_constraints() const override { return false; }
+    [[nodiscard]] bool carries_multipliers() const override { return false; }   // Phi = -1, D by fixed point
 
     /// Both dPhi/dsigma and kappa are M·σ products here, i.e. STRAIN-typed —
     /// unlike the stress-typed kappa of plasticity/viscoelasticity. The
