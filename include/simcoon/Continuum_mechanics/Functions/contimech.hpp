@@ -132,7 +132,32 @@ double Mises_stress(const arma::vec &v);
  * @endcode
 */
 arma::vec eta_stress(const arma::vec &v);
-    
+
+/**
+ * @brief Provides the derivative of the J2 stress flow w.r.t. stress, \f$ \partial \boldsymbol{\eta}_{stress} / \partial \boldsymbol{\sigma} \f$ (6x6 Voigt)
+ * @param v The input stress tensor (arma::vec, 6)
+ * @return The 6x6 Hessian of the Mises equivalent stress (arma::mat)
+ * @details With \f$ \boldsymbol{\eta}_{stress} = \mathbf{P}_{Mises}\,\boldsymbol{\sigma} / \sigma^{Mises} \f$, the derivative is the normalized-normal Hessian
+\f[
+    \frac{\partial \boldsymbol{\eta}_{stress}}{\partial \boldsymbol{\sigma}}
+        = \frac{1}{\sigma^{Mises}} \left( \mathbf{P}_{Mises}
+          - \boldsymbol{\eta}_{stress}\otimes\boldsymbol{\eta}_{stress} \right),
+\f]
+ * where \f$ \mathbf{P}_{Mises} \f$ is the Voigt metric with shear diagonal 3 (the engineering shear
+ * factor is already embedded, consistently with eta_stress() and Mises_stress()). The result is
+ * symmetric and satisfies \f$ (\partial \boldsymbol{\eta}_{stress}/\partial \boldsymbol{\sigma})\,\boldsymbol{\sigma} = \mathbf{0} \f$
+ * (degree-0 homogeneity). Returns \f$ \mathbf{0}_{6\times6} \f$ when \f$ \sigma^{Mises} < \iota \f$.
+ * It supplies \f$ \partial \boldsymbol{\Lambda}_\varepsilon / \partial \boldsymbol{\sigma} \f$ for the
+ * Simo-Hughes algorithmic tangent of J2-associated UMATs.
+ * @note **Voigt type: compliance-like** (maps stress -> strain-flow, \f$ \partial \boldsymbol{\varepsilon} / \partial \boldsymbol{\sigma} \f$ structure).
+ * Rows are strain-like (engineering, doubled shear -- as \ref eta_stress), columns are stress-like
+ * (single shear); it transforms as \f$ \mathbf{A}' = \mathbf{Q}_\varepsilon\,\mathbf{A}\,\mathbf{Q}_\sigma^{-1} \f$
+ * (like a compliance \f$ \mathbf{M} \f$), NOT as a stiffness. This matches its use as
+ * \f$ \mathbf{L}\,(\Delta s\,\partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma}) \f$ inside
+ * assemble_algorithmic_tangent(), where the strain-like output meets the stiffness \f$ \mathbf{L} \f$.
+ */
+arma::mat deta_stress(const arma::vec &v);
+
 /**
  * @brief Provides the strain flow (direction) from a stress tensor (Euclidian norm), according to the Voigt convention for strains
  * @param v The input stress tensor (arma::vec)
@@ -357,13 +382,11 @@ double sign(const double &d);
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The normal vector (arma::vec)
  * @details Provides the normalized vector to an ellipsoid with semi-principal axes of length a1, a2, a3. The direction of the normalized vector is set by angles u and v. These 2 angles correspond to the rotations in the plan defined by the center of the ellipsoid, a1 and a2 directions for u, a1 and a3 ones for v. u = 0 corresponds to a1 direction and v = 0 correspond to a3 one. So the normal vector is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
-\f]
+\f}
  * @code 
     const double Pi = 3.14159265358979323846;
 
@@ -386,13 +409,14 @@ arma::vec normal_ellipsoid(const double &u, const double &v, const double &a1, c
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The curvature (double)
  * @details Provides the normalized curvature of an ellipsoid with semi-principal axes of length a1, a2, a3. The position of the evaluated curvature is set by angles u and v. These 2 angles correspond to the rotations in the plan defined by the center of the ellipsoid, a1 and a2 directions for u, a1 and a3 ones for v. u = 0 corresponds to a1 direction and v = 0 correspond to a3 one. So the curvature is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
-    \Xi = \frac{a_1^2\,a_2^2\,a_3^2}{\left(a_1^2\,a_2^2\,\cos^2 v + a_3^2\,\sin^2 v +  a_2^2\,\cos^2 v + a_1^2\,\sin u \right)^2 }
+\f}
+ * and the curvature is
+\f[
+    \Xi = \frac{a_1^2\,a_2^2\,a_3^2}{\left( a_1^2\,a_2^2\,\cos^2 v + a_3^2\,\sin^2 v \left( a_2^2\,\cos^2 u + a_1^2\,\sin^2 u \right) \right)^2}
 \f]
  * @code 
     const double Pi = 3.14159265358979323846;
@@ -417,13 +441,11 @@ double curvature_ellipsoid(const double &u, const double &v, const double &a1, c
  * @param a3 The length of the semi-principal axis a3 (double)
  * @return The normal and tangent components of the traction vector (arma::vec)
  * @details Provides the normal and tangent components of a stress vector σin in accordance with the normal direction n to an ellipsoid with axes a1, a2, a3. The normal vector is set at the parametrized position :
-\f[
-    \begin{align}
+\f{align}{
     x & = a_{1} \cos(u) \sin(v) \\
     y & = a_{2} \sin(u) \sin(v) \\
     z & = a_{3} \cos(v)
-    \end{align}
-\f]
+\f}
  * @code 
     const double Pi = 3.14159265358979323846;
 
@@ -604,24 +626,6 @@ arma::mat sym_dyadic_operator(const arma::mat &a, const arma::mat &b);
  * This tensor is useful in logarithmic strain computations, particularly for the derivative of the Hencky strain with respect to the Cauchy-Green tensor (see Xiao, Bruhns & Meyers, 1997).
  * The function returns a 6x6 matrix corresponding to a 4th order tensor in Voigt notation.
  * @returns The 6x6 matrix that represents the 4th-order tensor \f$ \mathbb{G}^{ij} \f$
- * @code
-    mat B = L_Cauchy_Green(F1);
-
-    vec bi = zeros(3);
-    mat Bi;
-    eig_sym(bi, Bi, B);
-    mat BBBB = zeros(6,6);
-
-    double f_z = 0.;
-    for (unsigned int i=0; i<3; i++) {
-        for (unsigned int j=0; j<3; j++) {
-            if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
-                f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                BBBB = BBBB + f_z*B_klmn(Bi.col(i),Bi.col(j));
-            }
-        }
-    }
- * @endcode
 */
 arma::mat linearop_eigsym(const arma::vec &b_i, const arma::vec &b_j);
 

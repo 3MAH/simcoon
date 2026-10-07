@@ -22,6 +22,7 @@
 #pragma once
 
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon{
 
@@ -35,14 +36,27 @@ namespace simcoon{
  */
 
 
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
-
-void umat_generic_hyper_pstretch(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm_0, double &Wm_1, double &Wm_2, double &Wm_3, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+/**
+ * @brief Generic hyperelastic UMAT for potentials expressed in isochoric principal stretches \f$ \bar{\lambda}_a \f$.
+ *
+ * The potential is selected by umat_name. Currently available:
+ * - OGDEN: \f$ W = \sum_{i=1}^N \frac{2 \mu_i}{\alpha_i^2} \left( \bar{\lambda}_1^{\alpha_i} + \bar{\lambda}_2^{\alpha_i} + \bar{\lambda}_3^{\alpha_i} - 3 \right) + \kappa \left( J \, \textrm{ln} J - J + 1 \right) \f$
+ *   with props = { N, \f$ \kappa \f$, \f$ \mu_1 \f$, \f$ \alpha_1 \f$, ..., \f$ \mu_N \f$, \f$ \alpha_N \f$ } (nprops = 2 + 2N).
+ *   Constraints (validated, throws std::invalid_argument): \f$ N \geq 1 \f$ and every \f$ \alpha_i \neq 0 \f$.
+ *   The ground-state shear modulus is \f$ \mu = \sum_i \mu_i \f$; N=1, \f$ \alpha_1 = 2 \f$ recovers the compressible neo-Hookean potential (NEOHC).
+ *
+ * The Kirchhoff stress \f$ \boldsymbol{\tau} \f$ is assembled from the isochoric
+ * principal-stretch machinery (tau_iso_hyper_pstretch) plus the volumetric part
+ * (tau_vol_hyper), and is what @p sigma carries: the kernel is Kirchhoff-native, Cauchy
+ * \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed only at the output boundaries.
+ * The spatial tangent comes from L_iso_hyper_pstretch / L_vol_hyper and is converted once,
+ * by Dtau_LieDD_2_DtauDe_corate, to the box
+ * \f$ \partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e \f$ in @p corate_type, the
+ * solver's objective rate (see generic_hyper_invariants).
+ *
+ * statev(0) stores the initial temperature; nstatev = 1.
+ */
+void umat_generic_hyper_pstretch(const std::string &umat_name, const arma::vec &etot, const arma::vec &Detot, const arma::mat &F0, const arma::mat &F1, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm_0, double &Wm_1, double &Wm_2, double &Wm_3, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode = tangent_default);
                             
 
 /** @} */ // end of umat_finite group

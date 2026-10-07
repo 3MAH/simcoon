@@ -74,6 +74,32 @@ namespace simcoon{
  */
 void umat_multi(phase_characteristics &rve, const arma::mat &DR, const double &Time, const double &DTime, const int &ndi, const int &nshr, bool &start, const unsigned int &solver_type, double &tnew_dt, const int &control);
 
+/**
+ * @brief Geometry of the sub-phases a mean-field model is built from.
+ *
+ * @param umat_name name of the model
+ * @return the code phase_characteristics::construct takes: 2 (ellipsoids) for MIHEN, MIMTN
+ * and MISCN, 1 (layers) for MIPLN, 0 for a homogeneous model, which has no sub-phases
+ */
+int sub_phase_shape(const std::string &umat_name);
+
+/**
+ * @brief Check the sub-phases and the props of a mean-field phase.
+ *
+ * The props hold the scheme's settings only: MIHEN [mp, np], MIMTN [mp, np, n_matrix],
+ * MISCN [mp, np, n_matrix, (start)], MIPLN []. Checked: at least one sub-phase, the
+ * exact props length, mp and np >= 1, n_matrix among the phases given.
+ * @param phase the mean-field phase
+ * @throws std::invalid_argument on any of the above
+ */
+void check_sub_phases(const phase_characteristics &phase);
+
+/**
+ * @brief First guess of the self-consistent scheme: props(3) when given, else 1.
+ * @return 1 Mori-Tanaka (default), 0 homogeneous strain (n_matrix < 0)
+ */
+int self_consistent_start(const phase_characteristics &phase);
+
 
 /** @} */ // end of micromechanics group
 

@@ -160,8 +160,7 @@ void phase_characteristics::construct(const int &mshape_type, const int &msv_typ
             break;
         }
         default: {
-            cout << "error: The geometry type does not correspond (0 for general, 1 for layer, 2 for ellipsoid, 3 for cylinder)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The geometry type does not correspond (0 for general, 1 for layer, 2 for ellipsoid, 3 for cylinder)");
             break;
         }
     }
@@ -183,8 +182,7 @@ void phase_characteristics::construct(const int &mshape_type, const int &msv_typ
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }
@@ -228,8 +226,7 @@ void phase_characteristics::to_start()
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }
@@ -260,8 +257,7 @@ void phase_characteristics::set_start(const int &corate_type)
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }
@@ -280,18 +276,17 @@ void phase_characteristics::local2global()
         case 1: {
             auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
             auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_g->rotate_l2g(*sv_M_l, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_M_g->rotate_l2g(*sv_M_l, sptr_matprops->frame());
             break;
         }
         case 2: {
             auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
             auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_g->rotate_l2g(*sv_T_l, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_T_g->rotate_l2g(*sv_T_l, sptr_matprops->frame());
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }
@@ -307,18 +302,17 @@ void phase_characteristics::global2local()
         case 1: {
             auto sv_M_g = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_global);
             auto sv_M_l = std::dynamic_pointer_cast<state_variables_M>(sptr_sv_local);
-            sv_M_l->rotate_g2l(*sv_M_g, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_M_l->rotate_g2l(*sv_M_g, sptr_matprops->frame());
             break;
         }
         case 2: {
             auto sv_T_g = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_global);
             auto sv_T_l = std::dynamic_pointer_cast<state_variables_T>(sptr_sv_local);
-            sv_T_l->rotate_g2l(*sv_T_g, sptr_matprops->psi_mat, sptr_matprops->theta_mat, sptr_matprops->phi_mat);
+            sv_T_l->rotate_g2l(*sv_T_g, sptr_matprops->frame());
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }
@@ -334,6 +328,7 @@ phase_characteristics& phase_characteristics::operator = (const phase_characteri
     sptr_matprops = pc.sptr_matprops;
     sptr_sv_global = pc.sptr_sv_global;
     sptr_sv_local = pc.sptr_sv_local;
+    sptr_multi = pc.sptr_multi;
     sptr_out_global = pc.sptr_out_global;
     sptr_out_local = pc.sptr_out_local;
     
@@ -401,8 +396,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 default: {
-                    cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-                    exit(0);
+                    throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
                     break;
                 }
             }
@@ -454,8 +448,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }                
                 default: {
-                    cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
-                    exit(0);
+                    throw simcoon::exception_solver(std::string("Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : ") + std::to_string(so.o_strain_type));
                 }
                 
             }
@@ -492,14 +485,16 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 4: {
+                    // Cauchy stress sigma = tau/J, formed on request from the Kirchhoff
+                    // route tau so the iterated stress field is never rescaled.
+                    const double J_out = det(sptr_sv_global->F1);
                     for (int z=0; z<so.o_nb_stress; z++) {
-                        *sptr_out_global << sptr_sv_global->sigma(so.o_stress(z)) << "\t";
+                        *sptr_out_global << sptr_sv_global->tau(so.o_stress(z)) / J_out << "\t";
                     }
                     break;
                 }
                 default: {
-                    cout << "Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : " << so.o_stress_type << endl;
-                    exit(0);
+                    throw simcoon::exception_solver(std::string("Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : ") + std::to_string(so.o_stress_type));
                 }
             }
         }
@@ -512,7 +507,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                 }
                 for (int i=0; i<3; i++) {
                     for (int j=0; j<3; j++) {
-                        *sptr_out_global << sptr_sv_global->nb.g_i[i](j) << "\t";
+                        *sptr_out_global << sptr_sv_global->F1(j,i) << "\t";   // convected basis vector g_i = column i of F
                     }
                 }
                 break;
@@ -564,8 +559,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                         break;
                     }
                     default: {
-                        cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-                        exit(0);
+                        throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
                         break;
                     }
                 }
@@ -597,8 +591,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                 break;
             }
             default: {
-                cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-                exit(0);
+                throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
                 break;
             }
         }
@@ -650,8 +643,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                         break;
                     }
                 default: {
-                    cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-                    exit(0);
+                    throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
                     break;
                 }
             }
@@ -703,8 +695,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }                
                 default: {
-                    cout << "Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : " << so.o_strain_type << endl;
-                    exit(0);
+                    throw simcoon::exception_solver(std::string("Error in phase_characteristics::output : The output strain type is not valid (0 : Green-Lagrange, 1 for logarithmic) : ") + std::to_string(so.o_strain_type));
                 }
                 
             }
@@ -741,14 +732,15 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                     break;
                 }
                 case 4: {
+                    // Cauchy stress sigma = tau/J, formed on request from the Kirchhoff route.
+                    const double J_out = det(sptr_sv_local->F1);
                     for (int z=0; z<so.o_nb_stress; z++) {
-                        *sptr_out_local << sptr_sv_local->sigma(so.o_stress(z)) << "\t";
+                        *sptr_out_local << sptr_sv_local->tau(so.o_stress(z)) / J_out << "\t";
                     }
                     break;
                 }
                 default: {
-                    cout << "Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : " << so.o_stress_type << endl;
-                    exit(0);
+                    throw simcoon::exception_solver(std::string("Error in phase_characteristics::output : The output stres type is not valid (0 : Piola-Kirchoff II, 1 for Kirchoff, 2 for Cauchy) : ") + std::to_string(so.o_stress_type));
                 }
             }
         }
@@ -806,8 +798,7 @@ void phase_characteristics::output(const solver_output &so, const int &kblock, c
                 break;
             }
             default: {
-                cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-                exit(0);
+                throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
                 break;
             }
         }
@@ -899,8 +890,7 @@ void phase_characteristics::copy(const phase_characteristics& pc)
             break;
         }
         default: {
-            cout << "error: The geometry type does not correspond (0 for general, 1 for layer, 2 for ellipsoid, 3 for cylinder)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The geometry type does not correspond (0 for general, 1 for layer, 2 for ellipsoid, 3 for cylinder)");
             break;
         }
     }
@@ -927,8 +917,7 @@ void phase_characteristics::copy(const phase_characteristics& pc)
             break;
         }
         default: {
-            cout << "error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)\n";
-            exit(0);
+            throw simcoon::exception_solver("error: The state_variable type does not correspond (1 for Mechanical, 2 for Thermomechanical)");
             break;
         }
     }

@@ -1,0 +1,14 @@
+{
+  "name": "MOORI",
+  "props": [
+    0.2588,
+    -0.0449,
+    10000.0
+  ],
+  "nstatev": 1,
+  "orientation": {
+    "psi": 0.0,
+    "theta": 0.0,
+    "phi": 0.0
+  }
+}

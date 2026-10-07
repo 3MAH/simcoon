@@ -57,6 +57,14 @@ constexpr int miniter_umat = 10;
 constexpr int maxiter_umat = 100;
 constexpr double precision_umat = 1E-9;
 
+// Tangent-operator mode (state_variables::tangent_mode, solver(), every UMAT).
+// Renumbered for 2.0 — pre-2.0 values: 0 = continuum, 1 = algorithmic.
+constexpr int tangent_none = 0;          ///< skip tangent assembly, Lt = elastic L (explicit integration)
+constexpr int tangent_continuum = 1;     ///< continuum operator (pre-2.0 mode 0)
+constexpr int tangent_algorithmic = 2;   ///< Simo-Hughes consistent operator (pre-2.0 mode 1)
+constexpr int tangent_closest_point = 3; ///< closest-point-projection exact operator (reserved)
+constexpr int tangent_default = tangent_algorithmic;
+
 constexpr double div_tnew_dt_umat = 0.2;
 constexpr double mul_tnew_dt_umat  = 2.0;
 constexpr int maxiter_micro = 100;

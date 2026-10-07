@@ -1,0 +1,14 @@
+{
+  "name": "UMABA",
+  "props": [
+    70000.0,
+    0.3,
+    0.0
+  ],
+  "nstatev": 1,
+  "orientation": {
+    "psi": 0.0,
+    "theta": 0.0,
+    "phi": 0.0
+  }
+}

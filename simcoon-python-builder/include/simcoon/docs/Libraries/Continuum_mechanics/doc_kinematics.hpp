@@ -429,12 +429,19 @@ constexpr auto finite_W = R"pbdoc(
 constexpr auto finite_Omega = R"pbdoc(
     Computes the rigid-body rotation spin tensor from the transformation gradient at two different times.
 
+    The spin is the inverse Cayley transform of the exact relative polar
+    rotation DR = R1 R0^T (Green-Naghdi corotational rate): it is exactly
+    skew-symmetric and its Hughes-Winget update recovers DR exactly.
+    Returns zero when DTime <= iota. Raises for a 180-degree rotation
+    increment or improper inputs (det F < 0): F0 and F1 must be genuine
+    transformation gradients.
+
     Parameters
     ----------
     F0 : pybind11::array_t<double>
-        Transformation gradient at time t0 (3x3 matrix).
+        Transformation gradient at time t0 (3x3 matrix, det > 0).
     F1 : pybind11::array_t<double>
-        Transformation gradient at time t1 (3x3 matrix).
+        Transformation gradient at time t1 (3x3 matrix, det > 0).
     DTime : double
         Time difference (t1 - t0).
 
@@ -450,8 +457,9 @@ constexpr auto finite_Omega = R"pbdoc(
         import numpy as np
         import simcoon as sim
 
-        F0 = np.random.rand(3, 3)
-        F1 = np.random.rand(3, 3)
+        F0 = np.eye(3)
+        c, s = np.cos(0.3), np.sin(0.3)
+        F1 = np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
         DTime = 0.1
         Omega = sim.finite_Omega(F0, F1, DTime)
         print(Omega)

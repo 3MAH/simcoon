@@ -35,6 +35,12 @@ namespace simcoon{
 
 void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props, int &maj_sym, const double &tol) {
  
+    // Frobenius, not the spectral norm: norm(X,2) on a matrix is a full SVD
+    // (LAPACK dgesdd), which reads out of bounds in the CLAPACK build shipped
+    // in the Windows wheel. These are deviation measures compared against a
+    // tolerance, and the deviations are either rounding-level or of the order
+    // of the stiffness itself, so the (bounded) change of scale between the
+    // two norms does not move any classification. See real_logmat_3x3.
     double max_tol_sim = simcoon::limit;
     if(tol > simcoon::limit) {
         max_tol_sim = tol;
@@ -43,7 +49,7 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     axis = 0; //Indicate no preferential axis
     //First thing to do is to check how symtric is the tensor:
     mat L_sym = 0.5*(L + trans(L));
-    double check_L_sym_diff = norm(L-L_sym,2);
+    double check_L_sym_diff = norm(L-L_sym,"fro");
     mat Q = zeros(3,3); //rotation/reflexion matrix
     mat L_test = zeros(6,6);
     
@@ -59,29 +65,29 @@ void check_symetries(const mat &L, std::string &umat_type, int &axis, vec &props
     //reflexion around the z axis - symmetry plane xy
     Q = { {1,0,0}, {0,1,0}, {0,0,-1} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(2,0) = norm(L_sym - L_test,2);
+    check_sym(2,0) = norm(L_sym - L_test,"fro");
     //reflexion around the y axis - symmetry plane xz
     Q = { {1,0,0}, {0,-1,0}, {0,0,1} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(1,0) = norm(L_sym - L_test,2);
+    check_sym(1,0) = norm(L_sym - L_test,"fro");
     //reflexion around the x axis - symmetry plane yz
     Q = { {-1,0,0}, {0,1,0}, {0,0,1} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(0,0) = norm(L_sym - L_test,2);
+    check_sym(0,0) = norm(L_sym - L_test,"fro");
     
     //Check 90deg rotations
     //90 rotation around the z axis
     Q = { {0,1,0}, {-1,0,0}, {0,0,1} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(2,1) = norm(L_sym - L_test,2);
+    check_sym(2,1) = norm(L_sym - L_test,"fro");
     //90 rotation around the y axis
     Q = { {0,0,1}, {0,1,0}, {-1,0,0} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(1,1) = norm(L_sym - L_test,2);
+    check_sym(1,1) = norm(L_sym - L_test,"fro");
     //90 rotation around the x axis
     Q = { {1,0,0}, {0,0,1}, {0,-1,0} };
     L_test = rotate_stiffness(L_sym, Q);
-    check_sym(0,1) = norm(L_sym - L_test,2);
+    check_sym(0,1) = norm(L_sym - L_test,"fro");
 
     //Check equality between constants
     //All rotation around the z axis

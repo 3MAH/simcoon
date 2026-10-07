@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
@@ -36,20 +37,9 @@ mat ER_to_F(const mat &E, const mat &R) {
     assert(R.n_rows == 3);
 
     //From E we compute C : E = 1/2 (C-I) --> C = U^2 = 2E+I
-    mat C = 2.*E+eye(3,3);
-
-    vec lambda2_alpha;
-    vec lambda_alpha = zeros(3);
-    mat N_alpha;
-
-    //Since C=U^2, an eigenvalue decomposition allows to find \lambda_alpha^2 (eigenvalues for U^2), therefore finding \lambda_alpha (eigenvalues for U) is straightforward.
-    /*eig_sym(lambda2_alpha, N_alpha, C);
-    mat U = zeros(3,3);
-    for(unsigned int i=0; i<3; i++) {
-        lambda_alpha(i) = sqrt(lambda2_alpha(i));
-        vec N = N_alpha.col(i);
-        U = U + (lambda_alpha(i)*(N*N.t()));
-    }*/
+    //symmatu() removes any numerical asymmetry so a mathematically-SPD C is not
+    //rejected by sqrtmat_sympd's symmetry check (the input E is symmetric by construction).
+    mat C = symmatu(2.*E+eye(3,3));
 
     try {
         return (R*sqrtmat_sympd(C));
@@ -184,6 +174,9 @@ mat Log_strain(const mat &F) {
 
 //This function computes the velocity difference
 mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
+    if (DTime <= simcoon::iota) {
+        return zeros(3,3);   // a rate is undefined at DTime = 0 (see finite_rotation)
+    }
     
     //Definition of L = dot(F)*F^-1
     try {
@@ -196,52 +189,54 @@ mat finite_L(const mat &F0, const mat &F1, const double &DTime) {
 
 //This function computes the deformation rate D
 mat finite_D(const mat &F0, const mat &F1, const double &DTime) {
-    
-    //Definition of L = dot(F)*F^-1
-    mat L;
-    try {
-        L = (1./DTime)*(F1-F0)*inv(F1);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside finite_D.");
-    }   
-    //Definition of the deformation rate D
+    const mat L = finite_L(F0, F1, DTime);
     return 0.5*(L+L.t());
-    
 }
 
 //This function computes the spin tensor W (correspond to Jaumann rate)
 mat finite_W(const mat &F0, const mat &F1, const double &DTime) {
 
-    //Definition of L = dot(F)*F^-1
-    mat L;
-    try {
-        L = (1./DTime)*(F1-F0)*inv(F1);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in inv: " << e.what() << endl;
-        throw simcoon::exception_inv("Error in inv function inside finite_W.");
-    }   
-    
-    //Definition of the rotation matrix Q
+    const mat L = finite_L(F0, F1, DTime);
     return 0.5*(L-L.t());
 
 }
     
-//This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
+//This function computes the exact relative polar rotation and its midpoint spin
 // Note : here R is the rigid body rotation in the polar decomposition of the deformation gradient F
-mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
-    
-    //Definition of Omega = dot(R)*R^-1 (or R.t() since R is a rotation matrix)
-    mat R0 = zeros(3,3);
-    mat U0 = zeros(3,3);
-    mat R1 = zeros(3,3);
-    mat U1 = zeros(3,3);
+void finite_rotation(const mat &F0, const mat &F1, const double &DTime, mat &DR, mat &Omega) {
+    mat R0, U0, R1, U1;
     RU_decomposition(R0, U0, F0);
     RU_decomposition(R1, U1, F1);
-    return (1./DTime)*(R1-R0)*R1.t();
+    // Exact and DTime-independent: DR stays the true relative rotation even
+    // when the time increment degenerates (the spin, a rate, does not).
+    DR = R1*R0.t();
+
+    if (DTime <= simcoon::iota) {
+        Omega = zeros(3,3);
+        return;
+    }
+    try {
+        // Inverse Cayley: exactly skew for an orthogonal DR, and its
+        // Hughes-Winget (Cayley) update recovers DR exactly. Singular at a
+        // 180-degree increment (Cayley chart limit) and for improper inputs
+        // (det F < 0) -> exception_inv, the solver's step-cut signal.
+        Omega = (2./DTime)*(DR-eye(3,3))*inv(DR+eye(3,3));
+    } catch (const std::runtime_error &e) {
+        cerr << "Error in inv: " << e.what() << endl;
+        throw simcoon::exception_inv("Error in inv function inside finite_rotation.");
+    }
+}
+
+//This function computes the spin tensor Omega (correspond to Green-Naghdi rate)
+mat finite_Omega(const mat &F0, const mat &F1, const double &DTime) {
+    mat DR, Omega;
+    finite_rotation(F0, F1, DTime, DR, Omega);
+    return Omega;
 }
 
 //This function computes the increment of finite rotation
+// (generalized two-spin midpoint; with Omega0 == Omega1 the two Cayley factors
+// commute and finite_DQ(W, W, dt) == Hughes_Winget(W, dt) exactly)
 mat finite_DQ(const mat &Omega0, const mat &Omega1, const double &DTime) {
     
     try {

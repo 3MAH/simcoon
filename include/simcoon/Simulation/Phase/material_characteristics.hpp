@@ -27,6 +27,7 @@
 #include <iostream>
 #include <string>
 #include <armadillo>
+#include <simcoon/Simulation/Maths/rotation.hpp>
 
 namespace simcoon{
 
@@ -54,6 +55,9 @@ namespace simcoon{
 class material_characteristics
 {
 	private:
+        frame_rotation _frame;   ///< operators of the material frame, built with the angles (see frame())
+        double _frame_angles[3] = {0., 0., 0.};   ///< the angles _frame was built from
+        void build_frame();
 
 	protected:
 
@@ -62,12 +66,27 @@ class material_characteristics
 		int number; ///< Material identification number
         std::string umat_name; ///< Name of the constitutive model (UMAT)
         int save; ///< Flag indicating if results should be saved (1) or not (0)
-        double psi_mat; ///< First Euler angle for material orientation (rad)
+        double psi_mat; ///< First Euler angle for material orientation (rad); set through the constructors or update(), see frame()
         double theta_mat; ///< Second Euler angle for material orientation (rad)
         double phi_mat; ///< Third Euler angle for material orientation (rad)
         
 		int nprops; ///< Number of material properties
 		arma::vec props; ///< Vector of material properties
+
+        /**
+         * @brief The material frame with its rotation operators built once.
+         *
+         * `Rotation::from_euler(psi_mat, theta_mat, phi_mat, "zxz")` with that function's
+         * defaults: intrinsic rotations, angles in radians. The state is rotated in and out
+         * of this frame at every UMAT call, so the operators are built when the angles are
+         * set -- by the constructors and update(), the only writers -- and reused for the
+         * whole run.
+         *
+         * @throws std::logic_error if the public angles were assigned directly since the
+         *         frame was built (three comparisons; the frame is never rebuilt here, so
+         *         concurrent readers of a shared material are safe).
+         */
+        const frame_rotation& frame() const;
     
         /**
          * @brief Default constructor.

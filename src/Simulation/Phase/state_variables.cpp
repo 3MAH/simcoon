@@ -23,12 +23,13 @@
 #include <fstream>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/exception.hpp>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 
 using namespace std;
 using namespace arma;
@@ -113,7 +114,7 @@ state_variables::state_variables(const int &m, const bool &init, const double &v
 }
     
 //-------------------------------------------------------------
-state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
+state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start) : Etot(6), DEtot(6), etot(6), Detot(6), PKII(6), PKII_start(6), tau(6), tau_start(6), sigma(6), sigma_start(6), F0(3,3), F1(3,3), U0(3,3), U1(3,3), R(3,3), DR(3,3)
 //-------------------------------------------------------------
 {	
 	assert (mEtot.size() == 6);
@@ -155,7 +156,6 @@ state_variables::state_variables(const vec &mEtot, const vec &mDEtot, const vec 
     statev = mstatev;
     statev_start = mstatev_start;
     
-    nb = mnb;
 }
 
 /*!
@@ -190,7 +190,6 @@ state_variables::state_variables(const state_variables& sv) : Etot(6), DEtot(6),
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
 }
 
 /*!
@@ -214,6 +213,7 @@ state_variables::~state_variables()
 state_variables& state_variables::operator = (const state_variables& sv)
 //----------------------------------------------------------------------
 {
+	tangent_mode = sv.tangent_mode;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
@@ -237,7 +237,6 @@ state_variables& state_variables::operator = (const state_variables& sv)
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
     
 	return *this;
 }
@@ -298,7 +297,7 @@ void state_variables::resize(const int &m, const bool &init, const double &value
     
     
 //-------------------------------------------------------------
-void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb)
+void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start)
 //-------------------------------------------------------------
 {
     assert (mEtot.size() == 6);
@@ -344,7 +343,6 @@ void state_variables::update(const vec &mEtot, const vec &mDEtot, const vec &met
     statev = mstatev;
     statev_start = mstatev_start;
     
-    nb = mnb;
 }
     
 //-------------------------------------------------------------
@@ -355,7 +353,6 @@ void state_variables::to_start()
     tau = tau_start;
     sigma = sigma_start;
     statev = statev_start;
-//    F1 = F0;
 }
     
 //-------------------------------------------------------------
@@ -363,118 +360,76 @@ void state_variables::set_start(const int &corate_type)
 //-------------------------------------------------------------
 {
 
-    if(corate_type != 4) {
+    if(corate_type != 4 && corate_type != 5) {
         PKII_start = PKII;
-        tau_start = rotate_stress(tau,DR);
-        sigma_start = rotate_stress(sigma,DR);
+        tau_start = tau;       // transported with the NEXT increment's DR, in select_umat_M_finite
+        sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
         etot = rotate_strain(etot,DR) + Detot;
         T += DT;
         F0 = F1;
-    //    R = R*DR;
         U0 = U1;
         R = DR*R;
-        nb.from_F(F1);
     }
-    else { //corate_type == 4 (Truesdell): DR is here understood as DF since the material system of coordinates is no longer orthonormal
+    else { //corate_type 4 (Truesdell) or 5 (log_F): DR is here understood as DF (convected)
         PKII_start = PKII;
-        tau_start = t2v_stress(DR*v2t_stress(tau)*inv(DR));
-        sigma_start = t2v_stress(DR*v2t_stress(sigma)*inv(DR));
+        tau_start = tau;
+        sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
-        etot = t2v_strain(DR*v2t_strain(etot)*inv(DR)) + Detot;
+        if (corate_type == 4) {
+            // Truesdell: the lower-convected strain IS the Almansi strain, e_A = 1/2 (I - b^-1),
+            // exactly and whatever the control type (logarithmic control increments ln V).
+            etot = t2v_strain(Euler_Almansi(F1));
+        }
+        else {   // log_F: similarity transport, as ln V = F ln U F^-1
+            mat DF_inv;
+            if (!inv(DF_inv, DR))
+                throw simcoon::exception_inv("set_start: DF is not invertible");
+            etot = t2v_strain(DR*v2t_strain(etot)*DF_inv) + Detot;
+        }
         T += DT;
         F0 = F1;
         U0 = U1;
-    //    R = R*DR;
         R = DR*R;
-        nb.from_F(F1);        
     }
 }
-
-/*
-//----------------------------------------------------------------------
-state_variables& state_variables::rotate_fix2natural(const state_variables& sv, const int &corate_type)
-//----------------------------------------------------------------------
-{
-	Etot = sv.Etot;
-	DEtot = sv.DEtot;
-	etot = sv.etot;
-	Detot = sv.Detot;
-	PKII = sv.PKII;
-	PKII_start = sv.PKII_start;
-	tau = sv.tau;
-	tau_start = sv.tau_start;
-	sigma = sv.sigma;
-	sigma_start = sv.sigma_start;
-    F0 = sv.F0;
-    F1 = sv.F1;
-    U0 = sv.U0;
-    U1 = sv.U1;
-    R = sv.R;
-    DR = sv.DR;
-    T = sv.T;
-    DT = sv.DT;
-    
-    nstatev = sv.nstatev;
-    statev = sv.statev;
-    statev_start = sv.statev_start;
-
-    if (corate_type < 4) {
-        etot = rotate_strain(etot, R, true);
-        Detot = rotate_strain(Detot, R, true);
-        tau = rotate_stress(tau, R, true);
-        tau_start = rotate_stress(tau_start, R, true);
-        sigma = rotate_stress(sigma, R, true);
-        sigma_start = rotate_stress(sigma_start, R, true);
-    }
-    else if (corate_type > 4){
-        etot = rotate_strain(etot, F1, true);
-        Detot = rotate_strain(Detot, R, true);
-        tau = rotate_stress(tau, R, true);
-        tau_start = rotate_stress(tau_start, R, true);
-        sigma = rotate_stress(sigma, R, true);
-        sigma_start = rotate_stress(sigma_start, R, true);
-    }
-
-	return *this;    
-}
-*/
 
 //----------------------------------------------------------------------
 arma::mat state_variables::PKI_stress()
 //----------------------------------------------------------------------
 {
-    return Cauchy2PKI(v2t_stress(sigma), F1);
+    return Kirchoff2PKI(v2t_stress(tau), F1);   // from tau, the route stress
 }
 
 //----------------------------------------------------------------------
 arma::mat state_variables::PKI_stress_start()
 //----------------------------------------------------------------------
 {
-    return Cauchy2PKI(v2t_stress(sigma_start), F0);
+    return Kirchoff2PKI(v2t_stress(tau_start), F0);
 }
 
 //----------------------------------------------------------------------
 arma::mat state_variables::Biot_stress()
 //----------------------------------------------------------------------
 {
-    return Cauchy2Biot(v2t_stress(sigma), F1);
+    return Kirchoff2Biot(v2t_stress(tau), F1);
 }
 
 //----------------------------------------------------------------------
 arma::mat state_variables::Biot_stress_start()
 //----------------------------------------------------------------------
 {
-    return Cauchy2Biot(v2t_stress(sigma_start), F0);
+    return Kirchoff2Biot(v2t_stress(tau_start), F0);
 }
 
 //----------------------------------------------------------------------
-state_variables& state_variables::rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi)
+state_variables& state_variables::rotate_l2g(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
+    // Member ownership (what crosses, which way) is documented on the declarations.
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
@@ -487,51 +442,45 @@ state_variables& state_variables::rotate_l2g(const state_variables& sv, const do
 	sigma_start = sv.sigma_start;
     F0 = sv.F0;
     F1 = sv.F1;
-    U0 = sv.U0;
-    U1 = sv.U1;
     R = sv.R;
     DR = sv.DR;
-    T = sv.T;
-    DT = sv.DT;
 
     nstatev = sv.nstatev;
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        Etot = rot.apply_strain(Etot);
-        DEtot = rot.apply_strain(DEtot);
-        etot = rot.apply_strain(etot);
-        Detot = rot.apply_strain(Detot);
-        PKII = rot.apply_stress(PKII);
-        PKII_start = rot.apply_stress(PKII_start);
-        tau = rot.apply_stress(tau);
-        tau_start = rot.apply_stress(tau_start);
-        sigma = rot.apply_stress(sigma);
-        sigma_start = rot.apply_stress(sigma_start);
-        F0 = rot.apply_tensor(F0);
-        F1 = rot.apply_tensor(F1);
-        U0 = rot.apply_tensor(U0);
-        U1 = rot.apply_tensor(U1);
-        R = rot.apply_tensor(R);
-        DR = rot.apply_tensor(DR);
-    }
+    frame.rotate_strain(Etot);
+    frame.rotate_strain(DEtot);
+    frame.rotate_strain(etot);
+    frame.rotate_strain(Detot);
+    frame.rotate_stress(PKII);
+    frame.rotate_stress(PKII_start);
+    frame.rotate_stress(tau);
+    frame.rotate_stress(tau_start);
+    frame.rotate_stress(sigma);
+    frame.rotate_stress(sigma_start);
+    frame.rotate_tensor(F0);
+    frame.rotate_tensor(F1);
+    frame.rotate_tensor(R);
+    frame.rotate_tensor(DR);
 
 	return *this;
 }
     
 //----------------------------------------------------------------------
-state_variables& state_variables::rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi)
+state_variables& state_variables::rotate_g2l(const state_variables& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
+	// Configuration travels with the g->l transfer: the solver sets
+	// tangent_mode on the GLOBAL sv, the kernels read the LOCAL one — without
+	// this copy the solver's tangent_mode parameter is dead (kernels always
+	// run the compile-time default).
+	tangent_mode = sv.tangent_mode;
 	Etot = sv.Etot;
 	DEtot = sv.DEtot;
 	etot = sv.etot;
 	Detot = sv.Detot;
-	PKII = sv.PKII;
 	PKII_start = sv.PKII_start;
-	tau = sv.tau;
 	tau_start = sv.tau_start;
 	sigma = sv.sigma;
 	sigma_start = sv.sigma_start;
@@ -539,8 +488,6 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     F1 = sv.F1;
     R = sv.R;
     DR = sv.DR;
-    U0 = sv.U0;
-    U1 = sv.U1;
     T = sv.T;
     DT = sv.DT;
 
@@ -548,25 +495,19 @@ state_variables& state_variables::rotate_g2l(const state_variables& sv, const do
     statev = sv.statev;
     statev_start = sv.statev_start;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        Etot = rot.apply_strain(Etot);
-        DEtot = rot.apply_strain(DEtot);
-        etot = rot.apply_strain(etot);
-        Detot = rot.apply_strain(Detot);
-        PKII = rot.apply_stress(PKII);
-        PKII_start = rot.apply_stress(PKII_start);
-        tau = rot.apply_stress(tau);
-        tau_start = rot.apply_stress(tau_start);
-        sigma = rot.apply_stress(sigma);
-        sigma_start = rot.apply_stress(sigma_start);
-        F0 = rot.apply_tensor(F0);
-        F1 = rot.apply_tensor(F1);
-        U0 = rot.apply_tensor(U0);
-        U1 = rot.apply_tensor(U1);
-        R = rot.apply_tensor(R);
-        DR = rot.apply_tensor(DR);
-    }
+    // inverse operators: global -> local
+    frame.rotate_strain(Etot, frame_rotation::inverse);
+    frame.rotate_strain(DEtot, frame_rotation::inverse);
+    frame.rotate_strain(etot, frame_rotation::inverse);
+    frame.rotate_strain(Detot, frame_rotation::inverse);
+    frame.rotate_stress(PKII_start, frame_rotation::inverse);
+    frame.rotate_stress(tau_start, frame_rotation::inverse);
+    frame.rotate_stress(sigma, frame_rotation::inverse);
+    frame.rotate_stress(sigma_start, frame_rotation::inverse);
+    frame.rotate_tensor(F0, frame_rotation::inverse);
+    frame.rotate_tensor(F1, frame_rotation::inverse);
+    frame.rotate_tensor(R, frame_rotation::inverse);
+    frame.rotate_tensor(DR, frame_rotation::inverse);
 
 	return *this;
 }
@@ -604,7 +545,6 @@ ostream& operator << (ostream& s, const state_variables& sv)
         s << "\n";
     }
 
-    s << "natural_basis: \n" << sv.nb << "\n";
     
 	return s;
 }

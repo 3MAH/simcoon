@@ -23,6 +23,7 @@
 #include <stdexcept>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/parallel.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 
@@ -492,7 +493,7 @@ Rotation Rotation::from_rotvec(const vec::fixed<3>& rotvec, bool degrees) {
         return identity();
     }
 
-    vec::fixed<3> axis = rotvec / (degrees ? norm(rotvec) * 180.0 / simcoon::pi : norm(rotvec));
+    vec::fixed<3> axis = rotvec / norm(rotvec);   // unit axis (degrees handled on angle above)
     double half_angle = angle / 2.0;
     double s = sin(half_angle);
     double c = cos(half_angle);
@@ -834,6 +835,49 @@ Rotation Rotation::inv() const {
     return Rotation(quat_conjugate(_quat));
 }
 
+// ---------------------------------------------------------------------------
+// frame_rotation
+// ---------------------------------------------------------------------------
+
+frame_rotation::operators::operators(const Rotation &rot)
+    : R(rot.as_matrix()), vs(rot.as_voigt_stress_rotation()), ve(rot.as_voigt_strain_rotation()) {}
+
+frame_rotation::frame_rotation() : frame_rotation(Rotation()) {}
+
+frame_rotation::frame_rotation(const Rotation &rot)
+    : _identity(rot.is_identity()), _fwd(rot), _inv(rot.inv()) {}
+
+// Identity first: the no-op keeps the old "skip the whole block" semantics, checks included.
+// Fixed-size result then assignment: the aliased form `v = Q * v` goes through a dynamic temporary.
+void frame_rotation::apply6(const mat::fixed<6,6> &Q, vec &v, const char *what) const {
+    if (_identity) return;
+    if (v.n_elem != 6) throw invalid_argument(string(what) + " vector must have 6 elements");
+    vec::fixed<6> r = Q * v;
+    v = r;
+}
+
+void frame_rotation::rotate_strain(vec &e, direction d) const { apply6(pick(d).ve, e, "Strain"); }
+
+void frame_rotation::rotate_stress(vec &s, direction d) const { apply6(pick(d).vs, s, "Stress"); }
+
+// Two products, left to right: the right-associated `vs * (L * trans(vs))` of the dynamic
+// overload allocates its inner product on the heap.
+void frame_rotation::rotate_stiffness(mat &L, direction d) const {
+    if (_identity) return;
+    if (L.n_rows != 6 || L.n_cols != 6) throw invalid_argument("Stiffness matrix must be 6x6");
+    const mat::fixed<6,6> &vs = pick(d).vs;
+    mat::fixed<6,6> tmp = L * trans(vs);
+    L = vs * tmp;
+}
+
+void frame_rotation::rotate_tensor(mat &X, direction d) const {
+    if (_identity) return;
+    if (X.n_rows != 3 || X.n_cols != 3) throw invalid_argument("Tensor must be 3x3");
+    const mat::fixed<3,3> &R = pick(d).R;
+    mat::fixed<3,3> r = R * X * R.t();
+    X = r;
+}
+
 double Rotation::magnitude(bool degrees) const {
     double angle = 2.0 * acos(min(abs(_quat(3)), 1.0));
 
@@ -970,6 +1014,86 @@ mat rotate_stress_concentration(const mat &B, const mat &DR, const bool &active)
     mat ve = fill_voigt_strain(DR, active);
     mat vs = fill_voigt_stress(DR, active);
     return vs*(B*trans(ve));
+}
+
+// =============================================================================
+// Batch Free Functions (quaternion arrays)
+// =============================================================================
+
+cube batch_voigt_stress_rotation(const mat &quats, const bool &active) {
+    int N = quats.n_cols;
+    cube result(6, 6, N);
+    // exception-safe parallel loop: a bad quaternion raises instead of terminating the process
+    simcoon_parallel_for_safe(N, [&](int n) {
+        Rotation r = Rotation::from_quat(vec(quats.col(n)));
+        result.slice(n) = r.as_voigt_stress_rotation(active);
+    });
+    return result;
+}
+
+cube batch_voigt_strain_rotation(const mat &quats, const bool &active) {
+    int N = quats.n_cols;
+    cube result(6, 6, N);
+    simcoon_parallel_for_safe(N, [&](int n) {
+        Rotation r = Rotation::from_quat(vec(quats.col(n)));
+        result.slice(n) = r.as_voigt_strain_rotation(active);
+    });
+    return result;
+}
+
+cube Rotation::dR_drotvec() const {
+    return simcoon::dR_drotvec(as_rotvec());
+}
+
+namespace {
+    // Cross-product matrix [v]x such that [v]x * u = v x u.
+    inline mat::fixed<3,3> skew(const vec::fixed<3>& v) {
+        mat::fixed<3,3> S;
+        S.zeros();
+        S(0,1) = -v(2);  S(0,2) =  v(1);
+        S(1,0) =  v(2);  S(1,2) = -v(0);
+        S(2,0) = -v(1);  S(2,1) =  v(0);
+        return S;
+    }
+
+    inline mat::fixed<3,3> skew_basis(int k) {
+        vec::fixed<3> e;
+        e.zeros();
+        e(k) = 1.0;
+        return skew(e);
+    }
+}
+
+cube dR_drotvec(const vec::fixed<3>& omega) {
+    double theta = norm(omega);
+    cube result(3, 3, 3);
+
+    if (theta < simcoon::iota) {
+        // d/d(omega_k) [ exp([omega]x) ] at omega=0 is [e_k]x.
+        for (int k = 0; k < 3; ++k) {
+            result.slice(k) = skew_basis(k);
+        }
+        return result;
+    }
+
+    mat::fixed<3,3> W  = skew(omega);
+    mat::fixed<3,3> W2 = W * W;
+
+    double s = sin(theta), c = cos(theta);
+    double t2 = theta * theta;
+    double a  = s / theta;
+    double b  = (1.0 - c) / t2;
+    double da = (c * theta - s) / t2;
+    double db = (s * theta - 2.0 * (1.0 - c)) / (t2 * theta);
+
+    for (int k = 0; k < 3; ++k) {
+        mat::fixed<3,3> dW  = skew_basis(k);
+        mat::fixed<3,3> dW2 = dW * W + W * dW;
+        double dtk = omega(k) / theta;
+        result.slice(k) = da * dtk * W + a * dW + db * dtk * W2 + b * dW2;
+    }
+
+    return result;
 }
 
 } //namespace simcoon

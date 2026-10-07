@@ -7,10 +7,16 @@ giving users access to all scipy rotation features (batch operations, ``mean()``
 methods (``apply_stress``, ``apply_stiffness``, etc.).
 """
 
+import warnings
+from typing import Dict, Sequence, Union
+
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
-from simcoon._core import _CppRotation
+from simcoon._core import (_CppRotation,
+                           _batch_voigt_stress_rotation,
+                           _batch_voigt_strain_rotation,
+                           dR_drotvec as _dR_drotvec)
 
 
 class Rotation(ScipyRotation):
@@ -165,20 +171,14 @@ class Rotation(ScipyRotation):
         q = self.as_quat()
         if q.ndim == 1:
             return _CppRotation.from_quat(q).as_voigt_stress_rotation(active)
-        return np.array([
-            _CppRotation.from_quat(q[i]).as_voigt_stress_rotation(active)
-            for i in range(len(q))
-        ])
+        return _batch_voigt_stress_rotation(q, active)
 
     def _voigt_strain_matrices(self, active=True):
         """Return QE matrices: (6,6) for single, (N,6,6) for batch."""
         q = self.as_quat()
         if q.ndim == 1:
             return _CppRotation.from_quat(q).as_voigt_strain_rotation(active)
-        return np.array([
-            _CppRotation.from_quat(q[i]).as_voigt_strain_rotation(active)
-            for i in range(len(q))
-        ])
+        return _batch_voigt_strain_rotation(q, active)
 
     # ------------------------------------------------------------------
     # Mechanics methods — support single and batch (Gauss-point) operations
@@ -254,8 +254,11 @@ class Rotation(ScipyRotation):
         if not self._is_batch:
             return self._to_cpp().apply_stiffness(L, active)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
-        # L_rot = QS @ L @ QS^T  for each n
-        return np.einsum("nij,jkn,nlk->iln", QS, L, QS)
+        # L_rot = QS @ L @ QS^T  for each n.
+        # optimize=True on the 3-operand contractions: without it numpy runs the
+        # naive path (measured 6.6-8.1x slower over N = 1e3..5e4). This is on
+        # fedoo's per-iteration path for every anisotropic UMAT.
+        return np.einsum("nij,jkn,nlk->iln", QS, L, QS, optimize=True)
 
     def apply_compliance(self, M, active=True):
         """Apply rotation to 6x6 compliance matrix/matrices.
@@ -277,7 +280,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_compliance(M, active)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
         # M_rot = QE @ M @ QE^T  for each n
-        return np.einsum("nij,jkn,nlk->iln", QE, M, QE)
+        return np.einsum("nij,jkn,nlk->iln", QE, M, QE, optimize=True)
 
     def apply_strain_concentration(self, A, active=True):
         """Apply rotation to 6x6 strain concentration tensor(s).
@@ -299,7 +302,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_strain_concentration(A, active)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
-        return np.einsum("nij,jkn,nlk->iln", QE, A, QS)
+        return np.einsum("nij,jkn,nlk->iln", QE, A, QS, optimize=True)
 
     def apply_stress_concentration(self, B, active=True):
         """Apply rotation to 6x6 stress concentration tensor(s).
@@ -321,7 +324,7 @@ class Rotation(ScipyRotation):
             return self._to_cpp().apply_stress_concentration(B, active)
         QS = self._voigt_stress_matrices(active)  # (N, 6, 6)
         QE = self._voigt_strain_matrices(active)  # (N, 6, 6)
-        return np.einsum("nij,jkn,nlk->iln", QS, B, QE)
+        return np.einsum("nij,jkn,nlk->iln", QS, B, QE, optimize=True)
 
     def apply_tensor(self, m, inverse=False):
         """Apply rotation to 3x3 tensor(s).
@@ -345,9 +348,9 @@ class Rotation(ScipyRotation):
         R = self.as_matrix()
         if inverse:
             # R^T @ m @ R for each n
-            return np.einsum("nji,jkn,nkl->iln", R, m, R)
+            return np.einsum("nji,jkn,nkl->iln", R, m, R, optimize=True)
         # R @ m @ R^T for each n
-        return np.einsum("nij,jkn,nlk->iln", R, m, R)
+        return np.einsum("nij,jkn,nlk->iln", R, m, R, optimize=True)
 
     def as_voigt_stress_rotation(self, active=True):
         """Get 6x6 rotation matrix for stress tensors in Voigt notation.
@@ -378,6 +381,30 @@ class Rotation(ScipyRotation):
             Single (6, 6) or batch (N, 6, 6) strain rotation matrix (QE).
         """
         return self._voigt_strain_matrices(active)
+
+    # ------------------------------------------------------------------
+    # Rotation vector derivatives
+    # ------------------------------------------------------------------
+
+    def dR_drotvec(self):
+        """Derivatives of the rotation matrix w.r.t. rotation vector components.
+
+        Uses the exact differentiation of the Rodrigues formula
+        (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+
+        Returns
+        -------
+        numpy.ndarray
+            Single: (3, 3, 3) where ``result[:, :, k]`` is dR/d(omega_k).
+            Batch:  (3, 3, 3, N) where ``result[:, :, k, n]`` is dR_n/d(omega_k).
+
+            The slice axis is last, matching simcoon's project-wide cube
+            convention ((3,3,N), (6,6,N), ...).
+        """
+        rotvec = self.as_rotvec()
+        if rotvec.ndim == 1:
+            return _dR_drotvec(rotvec)
+        return np.stack([_dR_drotvec(r) for r in rotvec], axis=-1)
 
     # ------------------------------------------------------------------
     # Compatibility helpers
@@ -440,3 +467,105 @@ class Rotation(ScipyRotation):
         key_rots = type(self).concatenate([self, other])
         interp = Slerp([0.0, 1.0], key_rots)
         return interp(t)
+
+
+# ---------------------------------------------------------------------
+# Orientations: the coercion every simcoon API that takes an orientation
+# (phases, fibre directions) funnels through
+# ---------------------------------------------------------------------
+
+_ANGLES = ('psi', 'theta', 'phi')
+
+#: The Euler convention of the C++ side. ``Rotation::from_euler(psi, theta, phi, "zxz")``
+#: composes the three axis rotations as scipy's *extrinsic* ``'zxz'`` does, and the
+#: solver applies it actively (material frame -> global frame): a phase at
+#: ``(psi, theta, phi)`` responds with ``R.apply_stiffness(L_local)``,
+#: ``R = Rotation.from_euler('zxz', [psi, theta, phi], degrees=True)``. Pinned by
+#: test_micromechanics.py::TestOrientationConvention against the solver and L_eff.
+EULER_SEQ = 'zxz'
+
+Orientation = Union[Rotation, Dict[str, float], Sequence[float], None]
+
+
+def as_rotation(value: Orientation) -> Rotation:
+    """An orientation as a :class:`simcoon.Rotation`.
+
+    ``value`` is a ``Rotation`` (returned as is), the Euler angles ``(psi, theta, phi)``
+    in degrees as a 3-sequence or as the ``{"psi", "theta", "phi"}`` dict of the JSON
+    files (missing angles are 0), or ``None`` for the identity. The angles are the
+    ``'zxz'`` Euler angles the C++ side reads (see ``EULER_SEQ``).
+    """
+    if value is None:
+        return Rotation.identity()
+    if isinstance(value, Rotation):
+        return value
+    if isinstance(value, ScipyRotation):
+        return Rotation.from_scipy(value)
+    if isinstance(value, dict):
+        unknown = set(value) - set(_ANGLES)
+        if unknown:
+            raise ValueError(f"orientation: unknown keys {sorted(unknown)}; expected {_ANGLES}")
+        angles = [float(value.get(k, 0.0)) for k in _ANGLES]
+    else:
+        angles = np.asarray(value, dtype=float).ravel()
+        if angles.size != 3:
+            raise ValueError(f"orientation: 3 Euler angles (psi, theta, phi) in degrees "
+                             f"expected, got {angles.size} values")
+    return Rotation.from_euler(EULER_SEQ, angles, degrees=True)
+
+
+def euler_angles(rotation: Orientation) -> Dict[str, float]:
+    """The ``{"psi", "theta", "phi"}`` dict (degrees, ``EULER_SEQ``) of an orientation:
+    the form of the JSON files and of the dicts the C++ binding reads.
+
+    The decomposition is not unique when ``theta`` is 0 or 180 degrees (gimbal lock):
+    scipy then puts the whole z rotation in ``psi`` and sets ``phi`` to 0, which is the
+    same rotation as the angles that were given, written differently.
+    """
+    if not isinstance(rotation, ScipyRotation) and rotation is not None:
+        # angles given as angles are written as given: no detour through a quaternion
+        # (float noise, and a gimbal-locked triplet rewritten) for a no-op
+        as_rotation(rotation)   # validates the dict keys / the 3 values
+        values = ([float(rotation.get(k, 0.0)) for k in _ANGLES] if isinstance(rotation, dict)
+                  else [float(a) for a in np.asarray(rotation, dtype=float).ravel()])
+        return dict(zip(_ANGLES, values))
+    rot = as_rotation(rotation)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')   # scipy's "Gimbal lock detected" - see above
+        psi, theta, phi = rot.as_euler(EULER_SEQ, degrees=True)
+    return {'psi': float(psi) + 0.0, 'theta': float(theta) + 0.0, 'phi': float(phi) + 0.0}
+
+
+def as_direction(value, reference=(1.0, 0.0, 0.0)) -> np.ndarray:
+    """A fibre direction, or a stack of them, as unit column vectors.
+
+    ``value`` is either a rotation -- a (possibly batched) ``Rotation``, the
+    ``{"psi", "theta", "phi"}`` dict, or ``None`` for the identity -- in which case the
+    directions are that rotation applied to ``reference``; or an ``(n, 3)`` array-like of
+    components, which is merely normalised.
+
+    A bare 3-sequence is **rejected**: ``[0, 0, 40]`` could be Euler angles in degrees or
+    a direction, and guessing from the argument's type silently produced the wrong fibre
+    orientation. Pass ``Rotation.from_euler(...)`` or ``[[x, y, z]]``.
+
+    Returns a ``(3, n)`` array, one unit direction per column, which is the layout
+    the props of an anisotropic hyperelastic potential carry.
+    """
+    # Dispatch on WHAT the value is, never on its type. Deciding "Euler angles vs
+    # components" from `isinstance(..., np.ndarray)` silently misread both forms: the list
+    # [1, 0, 0] became a 1-degree rotation, and np.array([0, 0, 40]) -- a triplet
+    # as_rotation accepts -- became the unit vector e3 instead of a 40-degree direction.
+    if value is None or isinstance(value, (ScipyRotation, dict)):
+        a = np.atleast_2d(as_rotation(value).apply(np.asarray(reference, dtype=float)))
+    else:
+        a = np.asarray(value, dtype=float)
+        if a.ndim != 2 or a.shape[1] != 3:
+            raise ValueError(
+                f"direction: expected a Rotation (one entry per direction) or an (n, 3) "
+                f"array of components, got shape {a.shape}. A bare 3-sequence is ambiguous "
+                f"-- it could be Euler angles or one direction -- so pass either "
+                f"Rotation.from_euler(...) or [[x, y, z]].")
+    norms = np.linalg.norm(a, axis=1)
+    if np.any(norms < 1e-12):
+        raise ValueError("direction: a fibre direction has a zero norm")
+    return (a / norms[:, None]).T

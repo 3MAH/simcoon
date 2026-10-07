@@ -25,6 +25,7 @@
 #pragma once
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon{
 
@@ -54,9 +55,18 @@ namespace simcoon{
  * where:
  * - \f$ \sigma_{eq}(\boldsymbol{\eta}) = \sqrt{\frac{3}{2} \boldsymbol{\eta}_{dev} : \boldsymbol{\eta}_{dev}} \f$ is the von Mises equivalent stress
  * - \f$ \boldsymbol{\eta} = \boldsymbol{\sigma} - \mathbf{X} \f$ is the shifted (effective) stress tensor
- * - \f$ \mathbf{X} = \sum_{i=1}^{N_{kin}} \mathbf{X}_i \f$ is the total backstress (sum of individual backstresses)
+ * - \f$ \mathbf{X} = \mathbf{X}_1 + \mathbf{X}_2 \f$ is the total backstress (two AF terms in this implementation)
  * - \f$ R \f$ is the isotropic hardening stress
  * - \f$ \sigma_Y \f$ is the initial yield stress
+ *
+ * @note **Stress measure.** The stress returned by this model (the `stress` argument,
+ * written \f$ \boldsymbol{\sigma} \f$ in the relations above) is the Cauchy stress under
+ * infinitesimal strain; under finite strain the update runs in a corotational frame, so it
+ * is the rotated Kirchhoff stress
+ * \f$ \hat{\boldsymbol{\tau}} = \boldsymbol{Q}^{T}\boldsymbol{\tau}\,\boldsymbol{Q} \f$ on the
+ * frame fixed by the chosen objective rate (\f$ \boldsymbol{Q} = \boldsymbol{R} \f$ for
+ * Green--Naghdi and \f$ \log_R \f$, the logarithmic frame for the XBM/log rate,
+ * \f$ \boldsymbol{F} \f$ for \f$ \log_F \f$).
  *
  * **Armstrong-Frederick Backstress Evolution:**
  *
@@ -78,13 +88,12 @@ namespace simcoon{
  *
  * **Isotropic Hardening (Optional):**
  *
- * The isotropic hardening follows the Voce law:
- * \f[
- * R(p) = \sum_{j=1}^{N_{iso}} Q_j \left( 1 - e^{-b_j p} \right)
- * \f]
+ * The isotropic hardening follows the Voce law, integrated in rate form
+ * \f$ \dot{H}_p = b \left( Q - H_p \right) \dot{p} \f$ (a single term, so
+ * \f$ R(p) = Q \left( 1 - e^{-b p} \right) \f$ exactly under monotonic flow):
  * where:
- * - \f$ Q_j \f$ is the saturation value of the j-th isotropic hardening component
- * - \f$ b_j \f$ is the hardening rate parameter
+ * - \f$ Q \f$ is the saturation value of the isotropic hardening stress
+ * - \f$ b \f$ is the hardening rate parameter
  * - \f$ p \f$ is the accumulated plastic strain
  *
  * **Plastic Flow Rule:**
@@ -122,13 +131,16 @@ namespace simcoon{
  * \f]
  * where:
  * \f[
- * H_{tot} = \sum_{i=1}^{N_{kin}} \frac{C_i}{1 + D_i \Delta p} + \sum_{j=1}^{N_{iso}} Q_j b_j e^{-b_j p}
+ * H_{tot} = \sum_{i=1}^{2} \left( \tfrac{2}{3} C_i - D_i\, \mathbf{X}_i : \mathbf{n} \right) + b\,(Q - H_p)
  * \f]
- * is the total hardening modulus combining kinematic and isotropic contributions.
+ * is the total hardening modulus combining the two kinematic contributions and
+ * the Voce isotropic term (integrated in rate form \f$ \dot{H}_p = b (Q - H_p) \dot{p} \f$).
  *
  * **Material Parameters (props):**
  *
- * For \f$ N_{iso} \f$ isotropic hardening terms and \f$ N_{kin} \f$ kinematic hardening terms:
+ * Fixed layout — exactly ONE Voce isotropic term and TWO Armstrong–Frederick
+ * backstresses (nprops = 10). For a variable number of terms use the modular
+ * UMAT (MODUL) with ChabocheHardening / CombinedVoceHardening.
  *
  * | Index | Symbol | Description | Units | Typical Range |
  * |-------|--------|-------------|-------|---------------|
@@ -136,50 +148,42 @@ namespace simcoon{
  * | props[1] | \f$ \nu \f$ | Poisson's ratio | - | 0.2-0.45 |
  * | props[2] | \f$ \alpha \f$ | Coefficient of thermal expansion | 1/Temperature | 1e-6 to 1e-4 /K |
  * | props[3] | \f$ \sigma_Y \f$ | Initial yield stress | Stress | 100-1000 MPa |
- * | props[4] | \f$ N_{iso} \f$ | Number of isotropic hardening terms | - | 0-3 |
- * | props[5] | \f$ N_{kin} \f$ | Number of kinematic hardening terms | - | 1-3 |
- * | props[6+2j] | \f$ Q_j \f$ | Saturation stress of j-th isotropic term | Stress | 0-500 MPa |
- * | props[7+2j] | \f$ b_j \f$ | Hardening rate of j-th isotropic term | 1/Strain | 1-100 |
- * | props[6+2N_{iso}+2i] | \f$ C_i \f$ | Kinematic modulus of i-th backstress | Stress | 10-500 GPa |
- * | props[7+2N_{iso}+2i] | \f$ D_i \f$ | Dynamic recovery parameter of i-th backstress | - | 0-100 |
+ * | props[4] | \f$ Q \f$ | Voce saturation stress | Stress | 0-500 MPa |
+ * | props[5] | \f$ b \f$ | Voce hardening rate | 1/Strain | 1-100 |
+ * | props[6] | \f$ C_1 \f$ | Kinematic modulus of backstress 1 | Stress | 10-500 GPa |
+ * | props[7] | \f$ D_1 \f$ | Dynamic recovery of backstress 1 | - | 0-3000 |
+ * | props[8] | \f$ C_2 \f$ | Kinematic modulus of backstress 2 | Stress | 10-500 GPa |
+ * | props[9] | \f$ D_2 \f$ | Dynamic recovery of backstress 2 | - | 0-3000 |
  *
  * **Notes on Parameter Selection:**
- * - For pure kinematic hardening, set \f$ N_{iso} = 0 \f$
- * - For pure isotropic hardening, set \f$ N_{kin} = 0 \f$ (not typical for Chaboche)
- * - First backstress (i=0) typically has high \f$ C_1 \f$, low \f$ D_1 \f$ (long-range backstress)
- * - Second backstress (i=1) typically has moderate \f$ C_2 \f$, moderate \f$ D_2 \f$
- * - Third backstress (i=2) typically has low \f$ C_3 \f$, high \f$ D_3 \f$ (short-range backstress)
+ * - First backstress typically has high \f$ C_1 \f$, low \f$ D_1 \f$ (long-range)
+ * - Second backstress typically has lower \f$ C_2 \f$, higher \f$ D_2 \f$ (short-range)
+ * - Set \f$ Q = b = 0 \f$ for pure kinematic hardening
  *
  * **State Variables (statev):**
  *
- * Total state variables: \f$ n_{statev} = 1 + 1 + 6 + 6 \times N_{kin} \f$
+ * Total: \f$ n_{statev} = 33 \f$
+ * (\f$ T_{init} + p + \boldsymbol{\varepsilon}^p + \boldsymbol{a}_1 +
+ * \boldsymbol{a}_2 + \mathbf{X}_1 + \mathbf{X}_2 + H_p \f$).
  *
  * | Index | Symbol | Description | Units |
  * |-------|--------|-------------|-------|
  * | statev[0] | \f$ T_{init} \f$ | Initial/reference temperature | Temperature |
  * | statev[1] | \f$ p \f$ | Accumulated plastic strain | Strain |
- * | statev[2] | \f$ \varepsilon^p_{11} \f$ | Plastic strain component 11 | Strain |
- * | statev[3] | \f$ \varepsilon^p_{22} \f$ | Plastic strain component 22 | Strain |
- * | statev[4] | \f$ \varepsilon^p_{33} \f$ | Plastic strain component 33 | Strain |
- * | statev[5] | \f$ \varepsilon^p_{12} \f$ | Plastic strain component 12 (engineering) | Strain |
- * | statev[6] | \f$ \varepsilon^p_{13} \f$ | Plastic strain component 13 (engineering) | Strain |
- * | statev[7] | \f$ \varepsilon^p_{23} \f$ | Plastic strain component 23 (engineering) | Strain |
- * | statev[8+6i] | \f$ X_{i,11} \f$ | Backstress i, component 11 | Stress |
- * | statev[9+6i] | \f$ X_{i,22} \f$ | Backstress i, component 22 | Stress |
- * | statev[10+6i] | \f$ X_{i,33} \f$ | Backstress i, component 33 | Stress |
- * | statev[11+6i] | \f$ X_{i,12} \f$ | Backstress i, component 12 | Stress |
- * | statev[12+6i] | \f$ X_{i,13} \f$ | Backstress i, component 13 | Stress |
- * | statev[13+6i] | \f$ X_{i,23} \f$ | Backstress i, component 23 | Stress |
+ * | statev[2..7] | \f$ \boldsymbol{\varepsilon}^p \f$ | Plastic strain (Voigt, engineering shear) | Strain |
+ * | statev[8..13] | \f$ \boldsymbol{a}_1 \f$ | Back-strain 1 (Voigt, engineering shear) | Strain |
+ * | statev[14..19] | \f$ \boldsymbol{a}_2 \f$ | Back-strain 2 (Voigt, engineering shear) | Strain |
+ * | statev[20..25] | \f$ \mathbf{X}_1 = \tfrac{2}{3} C_1 \boldsymbol{a}_1 \f$ | Backstress 1 (Voigt) | Stress |
+ * | statev[26..31] | \f$ \mathbf{X}_2 = \tfrac{2}{3} C_2 \boldsymbol{a}_2 \f$ | Backstress 2 (Voigt) | Stress |
+ * | statev[32] | \f$ H_p \f$ | Integrated Voce isotropic hardening stress | Stress |
  *
- * For \f$ N_{kin} = 2 \f$ backstresses: \f$ n_{statev} = 1 + 1 + 6 + 12 = 20 \f$
- *
- * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6×1 vector)
- * @param DEtot Strain increment tensor (Voigt notation: 6×1 vector)
- * @param sigma Stress tensor (Voigt notation: 6×1 vector) [output]
- * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (6×6 matrix) [output]
- * @param L Elastic stiffness tensor (6×6 matrix) [output]
- * @param sigma_in Internal stress contribution for explicit solvers (6×1 vector) [output]
- * @param DR Rotation increment matrix (3×3) for objective integration
+ * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
+ * @param stress Stress tensor (Voigt notation: \f$6 \times 1\f$ vector) [output]
+ * @param Lt Consistent tangent modulus \f$ \mathbf{L}_t \f$ (\f$6 \times 6\f$ matrix) [output]
+ * @param L Elastic stiffness tensor (\f$6 \times 6\f$ matrix) [output]
+ * @param sigma_in Internal stress contribution for explicit solvers (\f$6 \times 1\f$ vector) [output]
+ * @param DR Rotation increment matrix (\f$3 \times 3\f$) for objective integration
  * @param nprops Number of material properties
  * @param props Material properties vector (see table above)
  * @param nstatev Number of state variables
@@ -205,48 +209,44 @@ namespace simcoon{
  * @note The model assumes small strains (< 10%); use updated Lagrangian for larger strains
  * @note Dynamic recovery (D > 0) prevents unbounded backstress growth under cycling
  *
- * @see Ireal() for real identity tensor (Voigt 6×6)
+ * @see Ireal() for real identity tensor (Voigt \f$6 \times 6\f$)
  * @see Idev() for deviatoric projection tensor
  * @see Fischer_Burmeister() for complementarity solver
  * @see eta_stress() for shifted stress computation
  * @see denom_FB_N_Mises() for CCP denominator
  *
  * @code
- * // Example usage: 316 stainless steel with 2 backstresses, 1 isotropic hardening
- * int N_iso = 1;
- * int N_kin = 2;
- * vec props(6 + 2*N_iso + 2*N_kin);
+ * // Example usage: 316 stainless steel (1 Voce term + 2 backstresses, fixed)
+ * vec props(10);
  * props(0) = 200000;      // E = 200 GPa
  * props(1) = 0.3;         // nu = 0.3
  * props(2) = 1.7e-5;      // alpha = 17e-6 /K
  * props(3) = 150;         // sigma_Y = 150 MPa
- * props(4) = N_iso;       // 1 isotropic hardening term
- * props(5) = N_kin;       // 2 kinematic hardening terms
  *
- * // Isotropic hardening (Voce)
- * props(6) = 100;         // Q1 = 100 MPa (saturation stress)
- * props(7) = 10;          // b1 = 10 (hardening rate)
+ * // Isotropic hardening (Voce, rate form dHp = b (Q - Hp) dp)
+ * props(4) = 100;         // Q = 100 MPa (saturation stress)
+ * props(5) = 10;          // b = 10 (hardening rate)
  *
  * // First backstress (long-range)
- * props(8) = 300000;      // C1 = 300 GPa
- * props(9) = 1000;        // D1 = 1000 (moderate recovery)
+ * props(6) = 300000;      // C1 = 300 GPa
+ * props(7) = 1000;        // D1 = 1000 (moderate recovery)
  *
  * // Second backstress (short-range)
- * props(10) = 50000;      // C2 = 50 GPa
- * props(11) = 100;        // D2 = 100 (strong recovery)
+ * props(8) = 50000;       // C2 = 50 GPa
+ * props(9) = 100;         // D2 = 100 (strong recovery)
  *
- * vec statev = zeros(1 + 1 + 6 + 6*N_kin);  // 20 state variables
+ * vec statev = zeros(33);  // see the state-variable table
  * statev(0) = 20.0;  // Reference temperature 20°C
  *
  * vec Etot = {0.002, -0.0006, -0.0006, 0.0, 0.0, 0.0};  // 0.2% axial strain
  * vec DEtot = {0.0001, -0.00003, -0.00003, 0.0, 0.0, 0.0};
- * vec sigma = zeros(6);
+ * vec stress = zeros(6);
  * mat Lt = zeros(6,6);
  * mat L = zeros(6,6);
  * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_plasticity_chaboche_CCP(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+ * umat_plasticity_chaboche_CCP(Etot, DEtot, stress, Lt, L, sigma_in, DR,
  *                              12, props, 20, statev, 20.0, 0.0, 0.0, 1.0,
  *                              Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
@@ -263,7 +263,7 @@ namespace simcoon{
  * - Lemaitre, J., & Chaboche, J. L. (1990). *Mechanics of Solid Materials*. Cambridge University Press.
  * - Ortiz, M., & Simo, J. C. (1986). "An analysis of a new class of integration algorithms for elastoplastic constitutive relations." *International Journal for Numerical Methods in Engineering*, 23(3), 353-366.
  */
-void umat_plasticity_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_plasticity_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
                                 
 
 /** @} */ // end of umat_mechanical group

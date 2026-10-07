@@ -77,7 +77,8 @@ jobs:
           - os: macos-latest
             cibw_archs: "arm64"
 
-          # Windows x64
+          # Windows x64 only. BLAS/LAPACK/armadillo come from the runner's Miniconda
+          # (pyproject [tool.cibuildwheel.windows]); ARM64 has no conda-forge netlib build.
           - os: windows-latest
             cibw_archs: "AMD64"
 
@@ -103,9 +104,10 @@ jobs:
     name: Publish to TestPyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_testpypi == 'true') ||
-      (github.event_name == 'workflow_call' && inputs.publish_testpypi)
+    # Don't gate on github.event_name: when invoked via workflow_call from
+    # release.yml, github.event_name keeps the *outer* trigger ('release'),
+    # not 'workflow_call'. inputs.publish_testpypi is set by both call paths.
+    if: ${{ inputs.publish_testpypi }}
     environment:
       name: testpypi
       url: https://test.pypi.org/p/simcoon
@@ -122,6 +124,7 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          attestations: false
 
   # =========================================================================
   # Publish to PyPI (release tags only)
@@ -130,9 +133,8 @@ jobs:
     name: Publish to PyPI
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
-    if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_pypi == 'true') ||
-      (github.event_name == 'workflow_call' && inputs.publish_pypi)
+    # See note above publish_testpypi for why we don't check github.event_name.
+    if: ${{ inputs.publish_pypi }}
     environment:
       name: pypi
       url: https://pypi.org/p/simcoon
@@ -150,3 +152,8 @@ jobs:
         run: ls -la dist/
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Disabled: with the reusable-workflow call (release.yml -> wheels.yml),
+          # the PEP 740 attestation is signed as release.yml but the PyPI Trusted
+          # Publisher is wheels.yml, so PyPI rejects the upload (HTTP 400).
+          attestations: false

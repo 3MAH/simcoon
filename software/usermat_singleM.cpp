@@ -72,12 +72,15 @@ static const std::map<int, std::string> model_code_to_name = {
     {5, "EPICP"},   // Isotropic plasticity (isotropic hardening)
     {6, "EPKCP"},   // Kinematic + isotropic hardening
     {7, "EPCHA"},   // Chaboche cyclic plasticity
-    {8, "SMAUT"},   // SMA unified model
-    {9, "SMANI"},   // SMA anisotropic model
+    {8, "SMADI"},   // SMA unified model
+    {9, "SMAAI"},   // SMA anisotropic model
     {10, "LLDM0"},  // Lemaitre-Chaboche damage
     {11, "ZENER"},  // Zener viscoelastic (single branch)
     {12, "ZENNK"},  // Zener viscoelastic (N branches)
     {13, "PRONK"},  // Prony series viscoelastic
+    {14, "EPTRI"},  // Tresca-family plasticity (Hill layout, modular adapter)
+    {15, "SMADC"},  // SMA unified model, cubic elasticity
+    {16, "SMAAC"},  // SMA anisotropic criterion, cubic elasticity
     {17, "EPHIL"},  // Hill anisotropic plasticity (iso hardening)
     {18, "EPHAC"},  // Hill + Chaboche
     {19, "EPANI"},  // Anisotropic plasticity
@@ -86,6 +89,12 @@ static const std::map<int, std::string> model_code_to_name = {
     {22, "EPHIN"},  // 
     {23, "SMAMO"},  // SMA Morin
     {24, "SMAMC"},  // SMA Morin Casciato
+    {25, "SMRDI"},  // SMA unified transformation + reorientation
+    {26, "SMRDC"},  // SMA unified T+R, cubic elasticity
+    {27, "SMRAI"},  // SMA unified T+R, anisotropic criterion
+    {28, "SMRAC"},  // SMA unified T+R, cubic + anisotropic
+    {29, "EPJCK"},  // Johnson-Cook (rate and temperature dependent J2 plasticity)
+    {200, "MODUL"}, // Modular composition (props encode the mechanisms)
     {100, "MIHEN"}, // Mori-Tanaka (Eshelby)
     {101, "MIMTN"}, // Mori-Tanaka N phases
     {103, "MISCN"}, // Self-consistent N phases
@@ -378,7 +387,7 @@ void smart2ansys_M(
 ///@param kSectPt Section point number
 ///@param ldStep Load step number
 ///@param iSubst Substep number
-///@param keycut Cutback flag (output: set to 1 to request cutback - not supported)
+///@param keycut Cutback flag (output: set to 1 when simcoon requests a smaller increment)
 ///@param nDirect Number of direct stress components (1, 2, or 3)
 ///@param nShear Number of shear stress components (0, 1, or 3)
 ///@param ncomp Total stress components (nDirect + nShear)
@@ -434,14 +443,13 @@ extern "C" void usermat_(
     UNUSED(defGrad);
     UNUSED(tsstif);
     
-    // keycut: set to 1 to request time step cutback (not supported in simcoon bridge)
-    *keycut = 0;
+    *keycut = 0;   // raised below when the kernel asks for a smaller increment
     
     bool start = false;
     double Time_smart = 0.;
     double DTime_smart = 0.;
     int solver_type = 0;
-    double pnewdt = 1.0;  // Not used by Ansys but required by select_umat_M
+    double pnewdt = 1.0;  // < 1 after the call: step-cut request, mapped to keycut
     
     // Get model code from first material property
     int model_code = static_cast<int>(prop[0]);
@@ -505,7 +513,6 @@ extern "C" void usermat_(
         rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt
     );
     
-    // Note: pnewdt from simcoon is ignored since Ansys USERMAT cannot control time step
-    // If simcoon requested a smaller time step (pnewdt < 1), we cannot honor it
-    // The user should ensure sufficiently small time increments are used
+    // simcoon asks for a smaller increment through pnewdt < 1: Ansys bisects on keycut = 1.
+    if (pnewdt < 1.) *keycut = 1;
 }

@@ -21,7 +21,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <map>
 #include <armadillo>
 #include <math.h>
 #include <simcoon/parameter.hpp>
@@ -41,17 +40,9 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief The elastic UMAT requires 2 constants:
-///@brief props[0] : Young modulus
-///@brief props[1] : Poisson ratio
-///@brief props[2] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
-
-void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, const vec &Detot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {  	
 
-    UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
@@ -64,9 +55,6 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     //definition of the Right Cauchy-Green tensor
     mat b = L_Cauchy_Green(F1);
 
-    double dUdJ = 0.;
-    double dU2dJ2 = 0.;
-
     double J;
     try {
         J = det(F1);
@@ -76,52 +64,44 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     }     
 
     vec dWdlambda_bar = zeros(3);
-    mat dW2dlambda_bar2 = eye(3,3);    
+    mat dW2dlambda_bar2 = zeros(3,3);
     vec lambda_bar = zeros(3);
-    vec n_pvectors = zeros(3);
+    mat n_pvectors = zeros(3,3);
     std::vector<mat> N_projectors(3);
     isochoric_pstretch(lambda_bar, n_pvectors, N_projectors, b, "b", J);
 
-    std::map<string, int> list_potentials;
-    list_potentials = {{"OGDEN",0}};
-
-    switch (list_potentials[umat_name]) {
-        case 0: {
-
-            int N_Ogden = int(props(0));
-            double kappa = props(1);            
-            
-            vec mu = zeros(N_Ogden);
-            vec alpha = zeros(N_Ogden);
-            
-            for (int i=0; i<N_Ogden; i++) {
-                mu(i) = props(2+i*2);
-                alpha(i) = props(2+i*2+1);
-            }
-
-            // \f$ W = \sum_i=0^N{ \frac{2 \mu_i}{\alpha_i^2} \left( \lambda_1^{\alpha_i} + \lambda_2^{\alpha_i} + \lambda_3^{\alpha_i} \right) } \f$ 
-
-            dWdlambda_bar = 2./lambda_bar;
-            for (int i=0; i<N_Ogden; i++) {
-                dWdlambda_bar = mu(i)/alpha(i)*(dWdlambda_bar%pow(lambda_bar,alpha(i)));
-            }
-            
-            for (int i=0; i<N_Ogden; i++) {
-                for(int a=0; a<3; a++) {
-                    dW2dlambda_bar2(a,a) = 2./(pow(lambda_bar(a),2.)*mu(i)*((alpha(i)-1.)/alpha(i))*pow(lambda_bar(a),alpha(i)));
-                }
-            }
-
-            dUdJ = kappa*log(J);
-            dU2dJ2 = kappa/J;
-            break;
-        }
-        default: {
-            cout << "Error: The choice of hyperelastic potential could not be found in the simcoon library :" << umat_name
-             << "\n";
-                exit(0);
-        }
+    // single principal-stretch potential so far; the potential itself is documented in the .hpp
+    if (umat_name != "OGDEN") {
+        throw std::invalid_argument("The choice of hyperelastic potential could not be found in the simcoon library: " + umat_name);
     }
+
+    if (nprops < 2) {
+        throw std::invalid_argument("OGDEN expects props = {N, kappa, mu_1, alpha_1, ...}, got nprops = " + std::to_string(nprops));
+    }
+    int N_Ogden = int(props(0));
+    double kappa = props(1);
+    if (N_Ogden < 1) {
+        throw std::invalid_argument("OGDEN expects N >= 1 as props(0) (a zero/negative N would silently yield a volumetric-only law), got N = " + std::to_string(N_Ogden));
+    }
+    if (nprops < 2 + 2*N_Ogden) {
+        throw std::invalid_argument("OGDEN expects nprops >= 2 + 2*N, got nprops = " + std::to_string(nprops) + " for N = " + std::to_string(N_Ogden));
+    }
+
+    for (int i=0; i<N_Ogden; i++) {
+        const double mu_i = props(2+i*2);
+        const double alpha_i = props(2+i*2+1);
+        if (std::abs(alpha_i) < simcoon::iota) {
+            throw std::invalid_argument("OGDEN exponent alpha_" + std::to_string(i+1) + " must be nonzero (c_i = 2 mu_i / alpha_i)");
+        }
+        const double c_i = 2.*mu_i/alpha_i;
+        const vec p = pow(lambda_bar, alpha_i-1.);
+        dWdlambda_bar += c_i*p;
+        dW2dlambda_bar2.diag() += c_i*(alpha_i-1.)*(p/lambda_bar);
+    }
+
+    // U(J): kappa (J ln J - J + 1) unless props(2 + 2N) = 1 selects kappa/2 (J - 1)^2
+    double dUdJ = 0., dU2dJ2 = 0.;
+    volumetric_derivatives(volumetric_potential_of(props, 2 + 2*N_Ogden), kappa, J, dUdJ, dU2dJ2);
     
     ///@brief Initialization
     if(start)
@@ -135,14 +115,23 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
         Wm_d = 0.;
     }
 
-    mat m_sigma_iso = sigma_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors, J);
-    mat m_sigma_vol = sigma_vol_hyper(dUdJ, b, J);    
-    mat m_sigma = m_sigma_iso + m_sigma_vol;
-    sigma = t2v_stress(m_sigma);  
+    // Kirchhoff-native: the route stress IS tau, Cauchy is tau/J formed at the output boundary.
+    // The 3-argument tau_iso_hyper_pstretch needs no J at all.
+    mat m_tau_iso = tau_iso_hyper_pstretch(dWdlambda_bar, lambda_bar, N_projectors);
+    mat m_tau_vol = tau_vol_hyper(dUdJ, b, J);
+    mat m_tau = m_tau_iso + m_tau_vol;
+    sigma = t2v_stress(m_tau);
 
-    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);  
+    // These return the spatial elasticity c = (1/J) d(L_v tau)/dD, not d(L_v sigma)/dD (they
+    // differ by sigma (x) I). The J that turns c into the Kirchhoff-Lie tangent is applied once,
+    // below. L_iso carries an explicit 1/J and L_vol is J-free by cancellation, so they must be
+    // scaled as a sum -- see the note on L_vol_hyper.
+    mat Lt_iso = L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
     mat Lt_vol = L_vol_hyper(dUdJ, dU2dJ2, b, J);
-    Lt = Lt_iso + Lt_vol;
+    mat Lt_spatial = Lt_iso + Lt_vol;
+
+    // Standardize to the canonical box convention Lt = d(tau_hat)/d(De) -- see generic_hyper_invariants.
+    Lt = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F1, m_tau);
 
     if(start) {
         L = Lt;
@@ -155,9 +144,11 @@ void umat_generic_hyper_pstretch(const std::string &umat_name, const vec &etot, 
     cout << "eig(Lt)" << eig_sym(Lt);
 */
     
-    //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%Detot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%Detot);
+    //Computation of the mechanical and thermal work quantities.
+    // Kirchhoff work per reference volume: tau:d(lnV). Both ends are ALREADY tau -- the kernel
+    // is Kirchhoff-native and the stored state is tau_n -- so no J enters here any more.
+    Wm   += 0.5*sum((sigma_start + sigma)%Detot);
+    Wm_r += 0.5*sum((sigma_start + sigma)%Detot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

@@ -15,12 +15,14 @@
  
  */
 
-///@file constitutive.hpp
+///@file solver.cpp
 ///@brief solver: solve the mechanical thermomechanical equilibrium			//
 //	for a homogeneous loading path, allowing repeatable steps
 ///@version 1.9
 
+#include <cmath>
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <string>
 #include <assert.h>
@@ -39,78 +41,144 @@
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
-#include <simcoon/Simulation/Solver/read.hpp>
+#include <simcoon/Simulation/Solver/solver_assembly.hpp>
 #include <simcoon/Simulation/Solver/block.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/step_meca.hpp>
 #include <simcoon/Simulation/Solver/step_thermomeca.hpp>
+#include <simcoon/Simulation/Solver/solver_sink.hpp>
 
 using namespace std;
 using namespace arma;
 
+namespace {
+
+// Single definition of the step-cut decision: bisect the increment unless it
+// is already at its minimal fraction. Returns whether the cut was applied —
+// call sites decide what a refusal means (throw a typed error, rethrow, ...).
+// How many increments in a row the inforce path may close before the prescribed state is
+// declared unreachable. A legitimate correction is isolated - one increment that did not quite
+// converge, whose residual the next one absorbs. A response saturated below the target stalls on
+// every increment instead. Deliberately generous, and it only bites when the error is *not*
+// decreasing, so a hard but converging problem is never interrupted.
+constexpr int inforce_stall_max = 5;
+
+inline bool try_step_cut(const double &Dtinc_cur, const double &Dn_mini,
+                         const double &div_tnew_dt, double &tnew_dt) {
+    if (fabs(Dtinc_cur - Dn_mini) > simcoon::iota) {
+        tnew_dt = div_tnew_dt;
+        return true;
+    }
+    return false;
+}
+
+// A step cut requested by the material (tnew_dt < 1) cannot be honoured at the minimal
+// increment: compute_inc clamps back to Dn_mini and the same trial would be replayed forever.
+// Inforce the increment instead, or report the failure when inforce is off.
+inline bool refuse_cut_at_Dn_mini(const double &Dtinc_cur, const double &Dn_mini,
+                                  const int &inforce_solver, const int &step_number,
+                                  const int &inc, const double &tinc, double &tnew_dt) {
+    if ((tnew_dt >= 1.) || (fabs(Dtinc_cur - Dn_mini) > simcoon::iota))
+        return true;
+    if (inforce_solver == 0) {
+        cout << "The material requested a step cut below the minimal increment at step:" << step_number << " inc: " << inc << " and fraction:" << tinc << "; the simulation stops.\n";
+        return false;
+    }
+    cout << "The material requested a step cut below the minimal increment at step:" << step_number << " inc: " << inc << " and fraction:" << tinc << "; the increment has been inforced.\n";
+    tnew_dt = 1.;
+    return true;
+}
+
+// Step-cut-or-rethrow policy shared by every recoverable-failure catch in the
+// solver Newton loops. Must only be called from inside a catch block.
+inline void step_cut_or_rethrow(const double &Dtinc_cur, const double &Dn_mini,
+                                const double &div_tnew_dt, double &tnew_dt,
+                                int &compteur) {
+    if (try_step_cut(Dtinc_cur, Dn_mini, div_tnew_dt, tnew_dt)) {
+        compteur = 0;
+    } else {
+        throw;
+    }
+}
+
+// Control type 3 controls ln V and rebuilds F = exp(ln V) R. The stored etot is ln V for every
+// corate but 4 (Truesdell), whose lower-convected strain is exactly the Almansi strain
+// e_A = 1/2 (I - b^-1), hence ln V = -1/2 ln(I - 2 e_A).
+inline mat ct3_lnV(const vec &etot, const int &corate_type) {
+    if (corate_type != 4)
+        return simcoon::v2t_strain(etot);
+    mat log_b_inv;
+    if (!logmat_sympd(log_b_inv, eye(3,3) - 2.*simcoon::v2t_strain(etot)))
+        throw simcoon::exception_inv("control type 3: I - 2 e_A is not positive definite");
+    return -0.5*log_b_inv;
+}
+
+}  // namespace
+
 namespace simcoon{
 
-void solver(const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const double &div_tnew_dt_solver, const double &mul_tnew_dt_solver, const int &miniter_solver, const int &maxiter_solver, const int &inforce_solver, const double &precision_solver, const double &lambda_solver, const std::string &path_data, const std::string &path_results, const std::string &pathfile, const std::string &outputfile) {
+int solver_run(std::vector<block> &blocks, const double &T_init, const solver_output &so, const string &umat_name, const vec &props, const unsigned int &nstatev, const double &psi_rve, const double &theta_rve, const double &phi_rve, const int &solver_type, const int &corate_type, const solver_params &ctrl, solver_results_sink &sink, const std::vector<phase_characteristics> &sub_phases) {
 
-    //Check if the required directories exist:
-    if(!filesystem::is_directory(path_data)) {
-        cout << "error: the folder for the data, " << path_data << ", is not present" << endl;
-        return;
+    if (ctrl.tangent_mode < simcoon::tangent_none || ctrl.tangent_mode > simcoon::tangent_algorithmic) {
+        throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
+                                    + std::to_string(ctrl.tangent_mode) + " (3 = closest-point is reserved)");
     }
-    if(!filesystem::is_directory(path_results)) {
-        cout << "The folder for the results, " << path_results << ", is not present and has been created" << endl;
-        filesystem::create_directory(path_results);
+    // tabular (mode 3) steps carry an ABSOLUTE time column: repeating them (ncycle > 1)
+    // is ill-defined (and generate() consumes the '2' hold flags on the first pass)
+    for (const auto &bl : blocks) {
+        if (bl.ncycle > 1) {
+            for (const auto &sptr : bl.steps) {
+                if (sptr->mode == 3) {
+                    throw simcoon::exception_solver("block " + std::to_string(bl.number) + ": tabular (mode 3) steps cannot be cycled (ncycle > 1); unroll the cycles into explicit steps");
+                }
+            }
+        }
     }
-    
-    std::string ext_filename = outputfile.substr(outputfile.length()-4,outputfile.length());
-    std::string filename = outputfile.substr(0,outputfile.length()-4); //to remove the extension
-    
-    std::string outputfile_global = filename + "_global" + ext_filename;
-    std::string outputfile_local = filename + "_local" + ext_filename;
-    
-    std::string output_info_file = "output.dat";
-    
+
+    // aliases keep the extracted historical solver() body below textually identical
+    const double &div_tnew_dt_solver = ctrl.div_tnew_dt;
+    const double &mul_tnew_dt_solver = ctrl.mul_tnew_dt;
+    const int &miniter_solver = ctrl.miniter;
+    const int &maxiter_solver = ctrl.maxiter;
+    const int &inforce_solver = ctrl.inforce;
+    const double &precision_solver = ctrl.precision;
+    const double &lambda_solver = ctrl.lambda;
+    const int &tangent_mode = ctrl.tangent_mode;
+
 	///Usefull UMAT variables
 	int ndi = 3;
-	int nshr = 3;    
-    std::vector<block> blocks;  //loading blocks
+	int nshr = 3;
     phase_characteristics rve;  // Representative volume element
-    
+
     unsigned int size_meca = 0; //6 for small perturbation, 9 for finite deformation
 	bool start = true;
 	double Time = 0.;
 	double DTime = 0.;
-    double T_init = 0.;
     double tnew_dt = 1.;
-    
+
     mat C = zeros(6,6); //Stiffness dS/dE
     mat c = zeros(6,6); //stifness dtau/deps
     mat DR = eye(3,3);
     mat R = eye(3,3);
-    
+
 //    mat dSdE = zeros(6,6);
 //    mat dSdT = zeros(1,6);
     mat dQdE = zeros(6,1);
     mat dQdT = zeros(1,1);
-    
-    //read the material properties
-    //Read the loading path
-    read_path(blocks, T_init, path_data, pathfile);
-    
-    ///Material properties reading, use "material.dat" to specify parameters values
+
+    ///Material properties
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
-    
+
+    //Attached before the block loop: construct() rebuilds the RVE's own geometry and state
+    //variables, never its sub_phases, so these survive it.
+    if (!sub_phases.empty()) {
+        rve.sub_phases = sub_phases;
+    }
+
     //Output
     int o_ncount = 0;
     double o_tcount = 0.;
-    
-    solver_output so(blocks.size());
-    read_output(so, blocks.size(), nstatev, path_data, output_info_file);
-    
-    //Check output and step files
-    check_path_output(blocks, so);
 
     double error = 0.;
     vec residual;
@@ -153,24 +221,35 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
                 else {
                     //sv_M is reassigned properly
                     sv_M = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
                 }
+                sv_M->tangent_mode = tangent_mode;
                 sv_M->L = zeros(6,6);
                 sv_M->Lt = zeros(6,6);
                 
                 //At start, the rotation increment is null
+                DR = eye(3,3);   // blocks 2+: don't leak the previous block's last rotation into set_start
                 DTime = 0.;
                 sv_M->DEtot = zeros(6);
+                sv_M->Detot = zeros(6);   // blocks 2+: don't add the previous block's last log-strain increment again
                 sv_M->DT = 0.;
-                
+
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
-                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                run_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                if (tnew_dt < 1.) {
+                    // Nothing to subdivide here (the increment is zero): the law refused the
+                    // priming call and Lt is still the zeros set a few lines above, which would
+                    // surface later as a singular Jacobian. Report the real cause.
+                    throw simcoon::exception_solver(
+                        "block " + std::to_string(i + 1) + ": the constitutive law requested a step "
+                        "cut on the zero-increment call that primes the tangent operator; no "
+                        "tangent could be obtained to start the block.");
+                }
                 
                 shared_ptr<step_meca> sptr_meca;
                 if(solver_type == 1) {
@@ -189,19 +268,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
-                    return;
+                    return 1;
                 }
-                
+
                 if(start) {
-                    //Use the number of phases saved to define the files
-                    rve.define_output(path_results, outputfile_global, "global");
-                    rve.define_output(path_results, outputfile_local, "local");
-                    //Write the initial results
-//                    rve.output(so, -1, -1, -1, -1, Time, "global");
-//                    rve.output(so, -1, -1, -1, -1, Time, "local");
+                    sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
+                rve.set_start((blocks[i].control_type == 1) ? 0 : corate_type); //DEtot = 0 and DT = 0 and DR = 0 so we can use it safely here
                 start = false;
                 
                 /// Cycle loop
@@ -218,8 +292,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             sptr_meca->generate(Time, sv_M->Etot, sv_M->PKII, sv_M->T);
                         }
                         else if (blocks[i].control_type == 3) {
-                            sptr_meca->generate(Time, sv_M->etot, sv_M->sigma, sv_M->T);
-//                            sptr_meca->generate(Time, sv_M->etot, sv_M->tau, sv_M->T);
+                            // targets in ln V: rebuilt from the Almansi strain under corate 4
+                            sptr_meca->generate(Time, t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sv_M->sigma, sv_M->T);
                         }
                         else if (blocks[i].control_type == 4) {
                             vec Biot_vec = t2v_stress(sv_M->Biot_stress());
@@ -229,11 +303,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             sptr_meca->generate_kin(Time, sv_M->F0, sv_M->T);
                         }
                         else {
-                            cout << "error in Simulation/Solver/solver.cpp: control_type should be a int value in a range of 1 to 5" << endl;
-                            exit(0);
+                            throw simcoon::exception_solver("error in Simulation/Solver/solver.cpp: control_type should be a int value in a range of 1 to 6");
                         }
                     
                         nK = sum(sptr_meca->cBC_meca);
+                        
+                        // Bookkeeping of the "inforce" path over the step: how many increments in
+                        // a row it has closed, and the error it started from.
+                        int n_inforced = 0;
+                        double error_inforced = 0.;
                         
                         inc = 0;
                         while(inc < sptr_meca->ninc) {
@@ -249,7 +327,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             while (tinc<1.) {
                                 
-                                sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
+                                try {
+                                if (!sptr_meca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver)) {
+                                    return 1; // increment below Dn_mini with inforce off
+                                }
                                                              
                                 if(nK == 0){
                                     
@@ -276,17 +357,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
-                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         //mat e_tot_log = t2v_strain(0.5*logmat_sympd(L_Cauchy_Green(sv_M->F1)));
                                         //mat E_dot2 = (1./DTime)*v2t_strain(sv_M->DEtot);
                                     }
@@ -303,20 +376,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                         DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
-                                        sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                        sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
+                                        sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
+                                        sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
                                         
@@ -345,17 +410,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                                                 
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
 
-                                        sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                     }                                    
                                     else {
                                         sv_M->F1 = v2t(sptr_meca->BC_mecas.row(inc).t());
@@ -364,64 +421,19 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                         mat D = zeros(3,3);
                                         mat Omega = zeros(3,3);
-                                        mat Omega2 = zeros(3,3);
-                                        mat Omega3 = zeros(3,3);
-                                        if(corate_type == 0) {
-                                            Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                        }
-                                        if(corate_type == 1) {
-                                            Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                        }
-                                        if(corate_type == 2) {
-                                            logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                        }
-                                        mat N_1 = zeros(3,3);
-                                        mat N_2 = zeros(3,3);
-                                        if(corate_type == 3) {
-                                            logarithmic_R(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            mat I = eye(3,3);
-                                            mat DR_N_inv;
-                                            bool inv_success = inv(DR_N_inv, I-0.5*DTime*(N_1-N_2));
-                                            if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular matrix in natural basis rotation update (corate_type=3).");
-                                            }
-                                            mat DR_N = DR_N_inv*(I+0.5*DTime*(N_1-N_2));
-
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                            sv_M->etot = rotate_strain(sv_M->etot, DR_N);
-                                            sv_M->sigma_start = rotate_stress(sv_M->sigma_start, DR_N);
-                                            sv_M->Detot = rotate_strain(sv_M->Detot, DR_N);
-                                        }
-                                        if(corate_type == 4) {
-                                            Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-    //                                            log_modified2(sv_M->DR, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                        }
-                                        if(corate_type == 5) {
-                                            mat DF = zeros(3,3);
-                                            logarithmic_F(DF, N_1, N_2, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            // Omega contains L (velocity gradient), not the log spin
-                                            // Compute the log spin: Omega_log = W + N_1
-                                            mat W = 0.5*(Omega - Omega.t());
-                                            Omega = W + N_1;
-                                            // DR = Cayley(Omega_log) — orthogonal rotation
-                                            mat I = eye(3,3);
-                                            try {
-                                                sv_M->DR = (inv(I-0.5*DTime*Omega))*(I+0.5*DTime*Omega);
-                                            } catch (const std::runtime_error &e) {
-                                                cerr << "Error in inv: " << e.what() << endl;
-                                                throw simcoon::exception_solver("Singular matrix in log_F DR computation (corate_type=5).");
-                                            }
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
-                                        }
+                                        corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
+                                        sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
-
                                     }
                                     rve.to_start();
-                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                    run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
+                                    if (!sv_M->tau.is_finite()) {   // non-finite answer: cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_meca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                 }
                                 else{
                                     /// ********************** SOLVING THE MIXED PROBLEM NRSTRUCT ***********************************
@@ -435,7 +447,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -455,12 +467,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                     }
                                     else if (blocks[i].control_type == 3) {
+                                        const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
                                         sv_M->Detot = zeros(6);
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             if (sptr_meca->cBC_meca(k)) {
-//                                                residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
                                             }
                                             else {
                                                 residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -482,8 +494,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                     }                                    
                                     else {
-                                        cout << "error , Those control types are inteded for use in strain-controlled loading only" << endl;
-                                        exit(0);
+                                        throw simcoon::exception_solver("error, control types 5 and 6 are intended for use in strain-controlled loading only");
                                     }
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
 
@@ -495,26 +506,18 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 2) {
-                                                C = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
-                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);                                             
+                                                // ct2: residual on PKII(E) -> tangent dS/dE via DtauDe_corate_2_DSDE (corate-matched
+                                                // box-tangent pull-back; see objective_rates.hpp). NOT Dsigma_LieDD_2_DSDE (spurious J + wrong spin).
+                                                C = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
+                                                Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 3) {
-
-                                                if(corate_type == 0) {
-                                                    C = Dsigma_LieDD_Dsigma_JaumannDD(sv_M->Lt, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
-                                                if(corate_type == 1) {
-                                                    C = Dsigma_LieDD_Dsigma_GreenNaghdiDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
-                                                if(corate_type == 2) {
-                                                    C = Dsigma_LieDD_Dsigma_logarithmicDD(sv_M->Lt, sv_M->F1, v2t_stress(sv_M->sigma));
-                                                    Lt_2_K(C, K, sptr_meca->cBC_meca, lambda_solver);
-                                                }
+                                                // ct3: residual on Kirchhoff tau (conjugate to ln V) -> Jacobian is the box tangent Lt directly.
+                                                Lt_2_K(sv_M->Lt, K, sptr_meca->cBC_meca, lambda_solver);
                                             }
                                             else if (blocks[i].control_type == 4) {
-                                                mat DSDE = Dsigma_LieDD_2_DSDE(sv_M->Lt, sv_M->F1);
+                                                // ct4: residual on Biot stress -> chain dS/dE (corate-matched) into d(Biot)/dU via DSDE_DBiotStressDU.
+                                                mat DSDE = DtauDe_corate_2_DSDE(sv_M->Lt, corate_type, sv_M->F1, v2t_stress(sv_M->tau));
                                                 mat R = zeros(3,3);
                                                 mat U = zeros(3,3);
                                                 RU_decomposition(R,U,sv_M->F1);
@@ -525,7 +528,16 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during Newton-Raphson iteration.");
+                                                // Degenerate tangent at the trial state (e.g. a
+                                                // branch-flip excursion under stress control): bisect
+                                                // the increment; at the minimal fraction fall through
+                                                // to the existing inforce path rather than throwing
+                                                // (a hard throw here overrides the inforce contract and
+                                                // is platform-fragile — LAPACK-backend-dependent
+                                                // singularity detection).
+                                                try_step_cut(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt);
+                                                compteur = maxiter_solver;
+                                                break;
                                             }
 
                                             /// Prediction of the component of the strain tensor
@@ -545,7 +557,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                             Delta = -invK * residual;
                                         }
-                                        
+
                                         if (blocks[i].control_type == 1) {
                                             sv_M->DR = eye(3,3);
                                             sv_M->DEtot += Delta;
@@ -570,19 +582,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 4) {
-                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }                                            
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }
                                         else if (blocks[i].control_type == 3) {
 
@@ -597,22 +598,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                             DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
 
-                                            sv_M->F0 = eR_to_F(v2t_strain(sv_M->etot), sptr_meca->BC_R);
-                                            sv_M->F1 = eR_to_F(v2t_strain(sv_M->etot + sv_M->Detot), sptr_meca->BC_R*DR);
+                                            sv_M->F0 = eR_to_F(ct3_lnV(sv_M->etot, corate_type), sptr_meca->BC_R);
+                                            sv_M->F1 = eR_to_F(v2t_strain(rotate_strain(t2v_strain(ct3_lnV(sv_M->etot, corate_type)), sptr_meca->BC_R*DR*sptr_meca->BC_R.t()) + sv_M->Detot), sptr_meca->BC_R*DR);   // ln V_n carried by the polar increment
 
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;
 
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
                                             if (DTime > simcoon::iota)
                                                 D = sv_M->Detot/DTime;
                                             else
@@ -631,26 +624,15 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                             DR = HW_inv*(eye(3,3) + 0.5*sptr_meca->BC_w*DTime);
                                             sv_M->F0 = sptr_meca->BC_R*sv_M->U0;
-                                            sv_M->F1 = (DR*sptr_meca->BC_R)*sv_M->U1;
+                                            sv_M->F1 = (sptr_meca->BC_R*DR)*sv_M->U1;   // BC_R*DR (right): consistent with the accumulator BC_R = BC_R*DR (step_meca) and the ct4 nK==0 / ct2 / ct3 sites; was DR*BC_R
                                             sv_M->DEtot = t2v_strain(Green_Lagrange(sv_M->F1)) - sv_M->Etot;;
                                             mat D = zeros(3,3);
                                             mat Omega = zeros(3,3);
-                                            if(corate_type == 0) {
-                                                Jaumann(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 1) {
-                                                Green_Naghdi(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 2) {
-                                                logarithmic(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }
-                                            if(corate_type == 4) {
-                                                Truesdell(sv_M->DR, D, Omega, DTime, sv_M->F0, sv_M->F1);
-                                            }    
-                                            sv_M->Detot = t2v_strain(Delta_log_strain(D, Omega, DTime));
+                                            corate_kinematics(corate_type, sv_M->DR, D, Omega, sv_M->F0, sv_M->F1, DTime);
+                                            sv_M->Detot = t2v_strain(Delta_log_strain_corate(sv_M->F0, sv_M->F1, sv_M->DR, D, Omega, DTime, corate_type));
                                         }      
                                         rve.to_start();
-                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
+                                        run_umat_M(rve, sv_M->DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, corate_type, tnew_dt);
 
                                         if (blocks[i].control_type == 1) {
                                         
@@ -658,7 +640,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->DEtot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -677,12 +659,12 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             }
                                         }
                                         else if (blocks[i].control_type == 3) {
+                                            const vec tau_start_tr = rotate_stress(sv_M->tau_start, sptr_meca->BC_R*DR*sptr_meca->BC_R.t());   // start stress in the polar frame F = V R rebuilds
                                             //sv_M->DEtot = zeros(6);
                                             for(int k = 0 ; k < 6 ; k++)
                                             {
                                                 if (sptr_meca->cBC_meca(k)) {
-//                                                    residual(k) = sv_M->tau(k) - sv_M->tau_start(k) - Dtinc*sptr_meca->mecas(inc,k);
-                                                    residual(k) = sv_M->sigma(k) - sv_M->sigma_start(k) - Dtinc*sptr_meca->mecas(inc,k);
+                                                    residual(k) = sv_M->tau(k) - tau_start_tr(k) - Dtinc*sptr_meca->mecas(inc,k);
                                                 }
                                                 else {
                                                     residual(k) = lambda_solver*(sv_M->Detot(k) - Dtinc*sptr_meca->mecas(inc,k));
@@ -706,6 +688,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }                                        
                                         compteur++;
                                         error = norm(residual, 2.);
+                                        if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+
                                         
                                         if(tnew_dt < 1.) {
                                             if((fabs(Dtinc_cur - sptr_meca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
@@ -716,21 +700,26 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     
                                 }
-/*                                if((fabs(Dtinc_cur - sptr_meca->Dn_mini) < simcoon::iota)&&(tnew_dt < 1.)) {
-//                                    cout << "The subroutine has required a step reduction lower than the minimal indicated at" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }
-                                
-                                if((error > 1000.*precision_solver)&&(Dtinc_cur == sptr_meca->Dn_mini)) {
-//                                    cout << "The error has exceeded 100 times the precision, the simulation has stopped at " << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << "\n";
-                                    //The solver has been inforced!
-                                    return;
-                                }*/
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_meca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_meca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
+                                            
+                                            // Give up when the carried residual is not being absorbed:
+                                            // the prescribed state is out of reach, not merely hard.
+                                            // Status protocol, never a throw (see solver_sink.hpp).
+                                            if (n_inforced == 0) {
+                                                error_inforced = error;
+                                            }
+                                            n_inforced++;
+                                            if ((n_inforced > inforce_stall_max) && (error > 0.9 * error_inforced)) {
+                                                cout << "The prescribed state cannot be reached at step:" << sptr_meca->number << " inc: " << inc << ": inforced over " << n_inforced << " consecutive increments without absorbing the residual (error " << error << ", strain increment the tangent asks for: " << norm(Delta, 2.) << "). The material response is likely saturated below the target.\n";
+                                                return 1;
+                                            }
                                             
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_meca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
 //                                            cout << "The next increment has integrated the error to avoid propagation\n";
@@ -758,20 +747,53 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
-                                        else return;
-                                        
+                                        else return 1;
+
                                     }
                                     else {
                                         tnew_dt = div_tnew_dt_solver;
                                     }
                                 }
-                                
+                                else {
+                                    n_inforced = 0;   // converged: the inforce path is not stalling
+                                }
+
+                                if (!refuse_cut_at_Dn_mini(Dtinc_cur, sptr_meca->Dn_mini, inforce_solver, sptr_meca->number, inc, tinc, tnew_dt)) {
+                                    return 1;
+                                }
+
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
                                 compteur = 0;
-                                
-                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
+                                }
+                                // Recoverable failures of the trial state — F-reconstruction
+                                // (sqrtmat/expmat), singular inverse in the kinematics or the
+                                // tangent assembly, singular return-map Jacobian (FB det) —
+                                // are bisected away; anything else propagates.
+                                catch (const simcoon::exception_sqrtmat_sympd &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_expmat_sym &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_inv &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_det &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_meca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+
+                                // Every branch above assigns this same expression, but only when it
+                                // runs: the inforce path skips them while Dtinc has shrunk to Dn_mini,
+                                // and assess_inc would then add a stale full-increment DTime once per
+                                // forced sub-iteration. Recompute from the fraction actually accepted.
+                                DTime = Dtinc*sptr_meca->times(inc);
+                                if (blocks[i].control_type == 1) {
+                                    // small strain: the logarithmic strain is the infinitesimal one
+                                    sv_M->Detot = sv_M->DEtot;
+                                }
+                                sptr_meca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, (blocks[i].control_type == 1) ? 0 : corate_type);   // small strain: additive, no corate
                                 //start variables ready for the next increment
                                 
                             }
@@ -787,9 +809,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             //Write the results
                             if (((so.o_type(i) == 1)&&(o_ncount == so.o_nfreq(i)))||(((so.o_type(i) == 2)&&(fabs(o_tcount - so.o_tfreq(i)) < 1.E-12)))) {
 
-                                rve.output(so, i, n, j, inc, Time, "global");
-                                rve.output(so, i, n, j, inc, Time, "local");
-                                
+                                sink.record(rve, so, i, n, j, inc, Time);
+
                                 if (so.o_type(i) == 1) {
                                     o_ncount = 0;
                                 }
@@ -797,13 +818,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     o_tcount = 0.;
                                 }
                             }
-                            
+
                             tinc = 0.;
                             inc++;
                          }
-                                                
+
                     }
-                        
+
                 }
                 break;
             }
@@ -819,8 +840,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 
                 if(start) {
                     rve.construct(0,blocks[i].type);
-                    natural_basis nb;
-                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+                    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
                 else {
@@ -831,6 +851,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                     //sv_M is reassigned properly
                     sv_T = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
                 }
+                sv_T->tangent_mode = tangent_mode;
                 
                 sv_T->dSdE = zeros(6,6);
                 sv_T->dSdT = zeros(6,1);
@@ -840,6 +861,7 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 DR = eye(3,3);
                 DTime = 0.;
                 sv_T->DEtot = zeros(6);
+                sv_T->Detot = zeros(6);
                 sv_T->DT = 0.;
                 
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
@@ -864,19 +886,14 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                 }
                 else if ((solver_type < 0)||(solver_type > 2)) {
                     cout << "Error, the solver type is not properly defined";
-                    return;
+                    return 1;
                 }
-                
+
                 if(start) {
-                    //Use the number of phases saved to define the files
-                    rve.define_output(path_results, outputfile_global, "global");
-                    rve.define_output(path_results, outputfile_local, "local");
-                    //Write the initial results
-//                    rve.output(so, -1, -1, -1, -1, Time, "global");
-//                    rve.output(so, -1, -1, -1, -1, Time, "local");
+                    sink.init(rve);
                 }
                 //Set the start values of sigma_start=sigma and statev_start=statev for all phases
-                rve.set_start(corate_type); //DEtot = 0 and DT = 0 so we can use it safely here
+                rve.set_start(0); //DEtot = 0 and DT = 0 so we can use it safely here (small strain only)
                 start = false;
                 
                 /// Cycle loop
@@ -911,8 +928,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             }
                             
                             while (tinc<1.) {
-                                
-                                sptr_thermomeca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver);
+
+                                try {
+                                if (!sptr_thermomeca->compute_inc(tnew_dt, inc, tinc, Dtinc, Dtinc_cur, inforce_solver)) {
+                                    return 1; // increment below Dn_mini with inforce off
+                                }
                                 
                                 if(nK + sptr_thermomeca->cBC_T == 0){
                                     
@@ -922,6 +942,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     
                                     run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                     sv_T->Q = -1.*sv_T->r;
+                                    if (!sv_T->sigma.is_finite() || !std::isfinite(sv_T->r)) {   // cut, or give up at Dn_mini
+                                        if (Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                            cout << "Non-finite stress at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
+                                        tnew_dt = div_tnew_dt_solver;
+                                    }
                                     
                                 }
                                 else{
@@ -954,9 +981,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     }
                                     else {
                                         cout << "error : The Thermal BC is not recognized\n";
-                                        return;
+                                        return 1;
                                     }
-                                    
+
                                     while((error > precision_solver)&&(compteur < maxiter_solver)) {
                                         
                                         if(solver_type != 1){
@@ -968,7 +995,11 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             ///jacobian inversion
                                             bool inv_success = inv(invK, K);
                                             if (!inv_success) {
-                                                throw simcoon::exception_solver("Singular Jacobian matrix during thermomechanical Newton-Raphson iteration.");
+                                                // Same cut-then-inforce policy as the mechanical loop
+                                                // (no throw at Dn_mini — respects the inforce contract).
+                                                try_step_cut(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt);
+                                                compteur = maxiter_solver;
+                                                break;
                                             }
 
                                             /// Prediction of the component of the strain tensor
@@ -989,7 +1020,6 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                             sigma_in_red(6) = -1.*sv_T->r_in;
                                             Delta = -invK * residual;
                                         }
-                                        
                                         for(int k = 0 ; k < 6 ; k++)
                                         {
                                             sv_T->DEtot(k) += Delta(k);
@@ -1044,11 +1074,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                         }
                                         else {
                                             cout << "error : The Thermal BC is not recognized\n";
-                                            return;
+                                            return 1;
                                         }
                                         
                                         compteur++;
                                         error = norm(residual, 2.);
+                                        if (!std::isfinite(error)) error = 1.e30;   // NaN would pass every "error > tol" test as converged
+
                                         
                                         if(tnew_dt < 1.) {
                                             if((fabs(Dtinc_cur - sptr_thermomeca->Dn_mini) > simcoon::iota)||(inforce_solver == 0)) {
@@ -1075,6 +1107,10 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                 
                                 if(error > precision_solver) {
                                     if(Dtinc_cur == sptr_thermomeca->Dn_mini) {
+                                        if (error >= 1.e30) {   // non-finite residual: never inforce a NaN state
+                                            cout << "Non-finite residual at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
+                                            return 1;
+                                        }
                                         if(inforce_solver == 1) {
                                         
                                             cout << "The solver has been inforced to proceed (Solver issue) at step:" << sptr_thermomeca->number << " inc: " << inc << " and fraction:" << tinc << ", with the error: " << error << "\n";
@@ -1095,20 +1131,41 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                                 }
                                             }
                                         }
-                                        else return;
-                                        
+                                        else return 1;
+
                                     }
                                     else {
                                         tnew_dt = div_tnew_dt_solver;
                                     }
                                 }
-                                
+
+                                if (!refuse_cut_at_Dn_mini(Dtinc_cur, sptr_thermomeca->Dn_mini, inforce_solver, sptr_thermomeca->number, inc, tinc, tnew_dt)) {
+                                    return 1;
+                                }
+
                                 if((compteur < miniter_solver)&&(tnew_dt >= 1.)) {
                                     tnew_dt = mul_tnew_dt_solver;
                                 }
                                 compteur = 0;
-                                
-                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, corate_type);
+                                }
+                                // Same recoverable-failure set and step-cut policy as the
+                                // mechanical Newton loop above.
+                                catch (const simcoon::exception_sqrtmat_sympd &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_expmat_sym &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_inv &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+                                catch (const simcoon::exception_det &) {
+                                    step_cut_or_rethrow(Dtinc_cur, sptr_thermomeca->Dn_mini, div_tnew_dt_solver, tnew_dt, compteur);
+                                }
+
+                                // thermomechanical blocks are small strain: log strain = infinitesimal one
+                                sv_T->Detot = sv_T->DEtot;
+                                sptr_thermomeca->assess_inc(tnew_dt, tinc, Dtinc, rve ,Time, DTime, DR, 0);   // small strain only: additive, no corate
                                 //start variables ready for the next increment
                                 
                             }
@@ -1123,9 +1180,9 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                             
                             //Write the results
                             if (((so.o_type(i) == 1)&&(o_ncount == so.o_nfreq(i)))||(((so.o_type(i) == 2)&&(fabs(o_tcount - so.o_tfreq(i)) < 1.E-12)))) {
-                    
-                                rve.output(so, i, n, j, inc, Time, "global");
-                                rve.output(so, i, n, j, inc, Time, "local");
+
+                                sink.record(rve, so, i, n, j, inc, Time);
+
                                 if (so.o_type(i) == 1) {
                                     o_ncount = 0;
                                 }
@@ -1133,13 +1190,13 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
                                     o_tcount = 0.;
                                 }
                             }
-                            
+
                             tinc = 0.;
                             inc++;
                         }
-                        
+
                     }
-                    
+
                 }
                 break;
             }
@@ -1150,7 +1207,8 @@ void solver(const string &umat_name, const vec &props, const unsigned int &nstat
         }
         //end of blocks loops
     }
-    
+
+    return 0;
 }
-    
+
 } //namespace simcoon

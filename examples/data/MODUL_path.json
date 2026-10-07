@@ -1,0 +1,93 @@
+{
+  "initial_temperature": 293.0,
+  "corate": "logarithmic_R",
+  "blocks": [
+    {
+      "control_type": "small_strain",
+      "ncycle": 1,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 200,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            0.02,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 293.0
+        }
+      ]
+    },
+    {
+      "control_type": "small_strain",
+      "ncycle": 2,
+      "steps": [
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 100,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            -0.02,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 293.0
+        },
+        {
+          "thermomechanical": false,
+          "mode": "linear",
+          "time": 1.0,
+          "ninc": 100,
+          "Dn_init": 1.0,
+          "Dn_mini": 1.0,
+          "control": [
+            "strain",
+            "stress",
+            "stress",
+            "stress",
+            "stress",
+            "stress"
+          ],
+          "value": [
+            0.02,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "T_final": 293.0
+        }
+      ]
+    }
+  ]
+}

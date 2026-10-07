@@ -1,0 +1,15 @@
+{
+  "name": "ISHAH",
+  "props": [
+    0.1161,
+    0.0136,
+    0.0114,
+    4000.0
+  ],
+  "nstatev": 1,
+  "orientation": {
+    "psi": 0.0,
+    "theta": 0.0,
+    "phi": 0.0
+  }
+}

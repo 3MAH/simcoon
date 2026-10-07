@@ -27,7 +27,6 @@
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_T.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
@@ -67,7 +66,7 @@ state_variables_T::state_variables_T() : state_variables(), sigma_in(6), sigma_i
 */
 
 //-------------------------------------------------------------
-state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
+state_variables_T::state_variables_T(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), sigma_in(6), sigma_in_start(6), Wm(4), Wt(3), Wm_start(4), Wt_start(3), dSdE(6,6), dSdEt(6,6), dSdT(1,6), drdE(1,6), drdT(1,1)
 //-------------------------------------------------------------
 {	
 
@@ -191,7 +190,6 @@ state_variables_T& state_variables_T::operator = (const state_variables_T& sv)
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
 
 	return *this;
 }
@@ -234,10 +232,10 @@ state_variables_T& state_variables_T::copy_fields_T (const state_variables_T& sv
 }
 
 //-------------------------------------------------------------
-void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT)
+void state_variables_T::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const double &mQ, const double &mr, const double &mr_in, const vec &mWm, const vec &mWt, const vec &mWm_start, const vec &mWt_start, const mat &mdSdE, const mat &mdSdEt, const mat &mdSdT, const mat &mdrdE, const mat &mdrdT)
 //-------------------------------------------------------------
 {
-    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb);
+    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start);
     
     assert (msigma_in.size() == 6);
     assert (msigma_in_start.size() == 6);
@@ -300,75 +298,44 @@ void state_variables_T::set_start(const int &corate_type)
 }
     
 //----------------------------------------------------------------------
-state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T& state_variables_T::rotate_l2g(const state_variables_T& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_l2g(sv, psi, theta, phi);
+    state_variables::rotate_l2g(sv, frame);
 
     dSdE = sv.dSdE;
-    dSdEt = sv.dSdEt;
     dSdT = sv.dSdT;
     drdE = sv.drdE;
     drdT = sv.drdT;
-    Q = sv.Q;
     r = sv.r;
-    r_in = sv.r_in;
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
     Wm = sv.Wm;
     Wt = sv.Wt;
-    Wm_start = sv.Wm_start;
-    Wt_start = sv.Wt_start;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        dSdE = rot.apply_stiffness(dSdE);
-        dSdEt = rot.apply_stiffness(dSdEt);
-        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
-        dSdT = dSdT_v.as_row();
-        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
-        drdE = drdE_v.as_row();
-    }
+    frame.rotate_stiffness(dSdE);
+    // dSdT and drdE are Voigt vectors stored as a mat (1x6 by the constructors, 6x1 by the
+    // solver): rotated as vectors, returned in the shape they came with. Both take the
+    // stress operator: drdE is a gradient w.r.t. the engineering strain (see the header).
+    vec dSdT_v = vectorise(dSdT);
+    frame.rotate_stress(dSdT_v);
+    dSdT = reshape(dSdT_v, size(dSdT));
+    vec drdE_v = vectorise(drdE);
+    frame.rotate_stress(drdE_v);
+    drdE = reshape(drdE_v, size(drdE));
 
 	return *this;
 }
 
 //----------------------------------------------------------------------
-state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, const double &psi, const double &theta, const double &phi)
+state_variables_T& state_variables_T::rotate_g2l(const state_variables_T& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_g2l(sv, psi, theta, phi);
+    state_variables::rotate_g2l(sv, frame);
 
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
-
-    dSdE = sv.dSdE;
-    dSdEt = sv.dSdEt;
-    dSdT = sv.dSdT;
-    drdE = sv.drdE;
-    drdT = sv.drdT;
     Q = sv.Q;
-    r = sv.r;
     Wm = sv.Wm;
     Wt = sv.Wt;
-    Wm_start = sv.Wm_start;
-    Wt_start = sv.Wt_start;
-
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        dSdE = rot.apply_stiffness(dSdE);
-        dSdEt = rot.apply_stiffness(dSdEt);
-        vec dSdT_v = rot.apply_stress(vec(dSdT.as_col()));
-        dSdT = dSdT_v.as_row();
-        vec drdE_v = rot.apply_strain(vec(drdE.as_col()));
-        drdE = drdE_v.as_row();
-    }
 
 	return *this;
 }

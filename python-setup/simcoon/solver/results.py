@@ -1,0 +1,236 @@
+"""Results container for the in-memory simcoon solver.
+
+The layout follows the fedoo DataSet conventions: data is accessed by name
+(``res["Stress"]``), arrays are components-first (a stress history is a
+``(6, N)`` array in Voigt order [11, 22, 33, 12, 13, 23], a deformation
+gradient history is ``(3, 3, N)``), and scalar histories are ``(N,)``.
+``fedoo.util.voigt_tensors.StressTensorList(res["Stress"])`` therefore works
+directly on the returned arrays.
+"""
+
+from __future__ import annotations
+
+import warnings
+from typing import Dict
+
+import numpy as np
+
+from simcoon import _core
+
+
+#: read-only aliases of a stored history
+_ALIASES: Dict[str, str] = {}
+#: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain,
+#: 3 since 'LogStrain' is ln V computed from F (no longer an alias of 'Strain')
+_ARCHIVE_FORMAT = 3
+
+
+def _log_strain(F: np.ndarray, strain: np.ndarray, finite: np.ndarray) -> np.ndarray:
+    """ln V = 1/2 ln(F F^T) in engineering Voigt (6, N) where ``finite``, else ``strain``.
+
+    A non-finite or degenerate F (the last records of an aborted run) gives NaN, never an
+    exception: the partial history must stay readable."""
+    out = np.array(strain, dtype=float, copy=True)
+    finite = np.asarray(finite, dtype=bool)
+    ok = np.isfinite(F).all(axis=(0, 1))
+    out[:, finite & ~ok] = np.nan
+    idx = np.flatnonzero(finite & ok)
+    if idx.size == 0:
+        return out
+    try:
+        out[:, idx] = _core.Log_strain(np.asfortranarray(F[:, :, idx], dtype=float), voigt_form=True)
+    except Exception:
+        for k in idx:   # isolate the degenerate increments
+            try:
+                out[:, k] = np.ravel(_core.Log_strain(np.asfortranarray(F[:, :, k]), voigt_form=True))
+            except Exception:
+                out[:, k] = np.nan
+    return out
+
+
+def _deformed(F: np.ndarray) -> np.ndarray:
+    """Increments whose F differs from the identity (fallback when the block kinds are unknown)."""
+    return np.any(np.abs(F - np.eye(3)[:, :, None]) > 0., axis=(0, 1))
+
+
+class SolverResults:
+    """Dict-like access to the solver history.
+
+    Attributes
+    ----------
+    scalar_data : dict
+        Scalar histories, shape (N,): 'Time', 'Temp', 'Block', 'Cycle',
+        'Step', 'Inc'; thermomechanical runs add 'Q' (heat flux) and 'r'
+        (heat source).
+    field_data : dict
+        Tensor histories, components-first: 'Stress' (Cauchy, (6, N)),
+        'Kirchhoff', 'PKII', 'Strain' (the strain integrated with the objective rate, (6, N):
+        ln V for the logarithmic rates, the Almansi strain for 'truesdell'),
+        'LogStrain' (ln V computed from F whatever the rate; the small strain on small-strain
+        blocks -- derived on first access and then kept), 'GreenLagrange' ((6, N), computed from F),
+        'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
+        'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
+        runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
+        'dSdT' ((6, N)), 'drdE' ((6, N)), 'drdT' ((N,)).
+    status : int
+        0 if the simulation ran to completion, 1 on early abort (the
+        recorded history is then partial).
+    """
+
+    def __init__(self, raw: Dict[str, np.ndarray], finite_blocks=None):
+        """``finite_blocks[k]`` tells whether block k runs a finite-strain control type; when
+        omitted, the increments whose F differs from the identity are taken as finite."""
+        self.status = int(raw.get("status", 0))
+        self.sv_type = int(raw.get("sv_type", 1))
+
+        n = raw["time"].shape[0]
+        self.scalar_data = {
+            "Time": raw["time"],
+            "Temp": raw["T"],
+            "Block": raw["block"],
+            "Cycle": raw["cycle"],
+            "Step": raw["step"],
+            "Inc": raw["inc"],
+        }
+        self.field_data = {
+            "Stress": raw["sigma"].T,
+            "Kirchhoff": raw["tau"].T,
+            "PKII": raw["PKII"].T,
+            "Strain": raw["etot"].T,
+            "GreenLagrange": raw["Etot"].T,
+            "Statev": raw["statev"].T,
+            "Wm": raw["Wm"].T,
+            "F": raw["F1"].reshape(n, 3, 3).transpose(1, 2, 0),
+            "R": raw["R"].reshape(n, 3, 3).transpose(1, 2, 0),
+            "DR": raw["DR"].reshape(n, 3, 3).transpose(1, 2, 0),
+        }
+        # 'LogStrain' (ln V from F, one eigen-decomposition per finite increment) is derived
+        # on first access: most readers never ask for it.
+        self._finite_blocks = None if finite_blocks is None else np.asarray(finite_blocks, dtype=bool)
+        self._block = np.asarray(raw["block"], dtype=int)
+        self._pending = {"LogStrain": self._derive_log_strain}
+        if "Lt" in raw:
+            self.field_data["TangentMatrix"] = raw["Lt"].reshape(n, 6, 6).transpose(1, 2, 0)
+        if self.sv_type == 2:
+            self.scalar_data["Q"] = raw["Q"]
+            self.scalar_data["r"] = raw["r"]
+            self.field_data["Wt"] = raw["Wt"].T
+            if "dSdE" in raw:
+                self.field_data["dSdE"] = raw["dSdE"].reshape(n, 6, 6).transpose(1, 2, 0)
+                self.field_data["dSdT"] = raw["dSdT"].T
+                self.field_data["drdE"] = raw["drdE"].T
+                self.scalar_data["drdT"] = raw["drdT"].ravel()
+
+    # -- derived fields, computed on first access ------------------------------
+    def _derive_log_strain(self) -> np.ndarray:
+        F = self.field_data["F"]
+        if self._finite_blocks is None:
+            finite = _deformed(F)
+        else:
+            finite = self._finite_blocks[self._block]
+        return _log_strain(F, self.field_data["Strain"], finite)
+
+    def _materialize(self, key: str = None) -> None:
+        """Compute the pending derived field(s) into field_data (all of them when key is None)."""
+        for name in ([key] if key is not None else list(self._pending)):
+            derive = self._pending.pop(name, None)
+            if derive is not None:
+                self.field_data[name] = derive()
+
+    # -- dict-like interface -------------------------------------------------
+    def __getitem__(self, key: str) -> np.ndarray:
+        key = _ALIASES.get(key, key)
+        if key in self._pending:
+            self._materialize(key)
+        if key in self.field_data:
+            return self.field_data[key]
+        if key in self.scalar_data:
+            return self.scalar_data[key]
+        raise KeyError(
+            f"'{key}' not in results; available: {sorted(self.keys())}"
+        )
+
+    def __contains__(self, key: str) -> bool:
+        key = _ALIASES.get(key, key)
+        return key in self.field_data or key in self.scalar_data or key in self._pending
+
+    def keys(self):
+        return list(self.scalar_data) + list(self.field_data) + list(self._pending) + list(_ALIASES)
+
+    def get_data(self, key: str) -> np.ndarray:
+        """fedoo-style accessor (alias of __getitem__)."""
+        return self[key]
+
+    def __len__(self) -> int:
+        return self.scalar_data["Time"].shape[0]
+
+    def __repr__(self) -> str:
+        kind = "thermomechanical" if self.sv_type == 2 else "mechanical"
+        return (
+            f"SolverResults({kind}, {len(self)} increments, "
+            f"status={self.status}, fields={sorted(self.keys())})"
+        )
+
+    # -- persistence ----------------------------------------------------------
+    def save(self, filename: str) -> None:
+        """Save all histories to a compressed npz archive (derived fields included)."""
+        self._materialize()
+        payload = {"status": np.array(self.status), "sv_type": np.array(self.sv_type),
+                   "format": np.array(_ARCHIVE_FORMAT)}
+        for k, v in self.scalar_data.items():
+            payload[f"scalar__{k}"] = v
+        for k, v in self.field_data.items():
+            payload[f"field__{k}"] = v
+        np.savez_compressed(filename, **payload)
+
+    @classmethod
+    def load(cls, filename: str) -> "SolverResults":
+        """Load a SolverResults previously written by save()."""
+        data = np.load(filename)
+        obj = cls.__new__(cls)
+        obj.status = int(data["status"])
+        obj.sv_type = int(data["sv_type"])
+        obj.scalar_data = {}
+        obj.field_data = {}
+        obj._pending = {}
+        obj._finite_blocks = None
+        for k in data.files:
+            if k.startswith("scalar__"):
+                obj.scalar_data[k[len("scalar__"):]] = data[k]
+            elif k.startswith("field__"):
+                obj.field_data[k[len("field__"):]] = data[k]
+        if "format" not in data.files and "GreenLagrange" not in obj.field_data:
+            # archive written before 'Strain' became the logarithmic strain: it holds the
+            # Green-Lagrange strain under 'Strain' and the log strain under 'LogStrain'
+            # (left at zero by small-strain runs, where every measure coincides)
+            warnings.warn(f"{filename}: archive of an older layout, 'Strain' held the Green-Lagrange "
+                          "strain; remapped to 'GreenLagrange' ('Strain' is the logarithmic strain)",
+                          UserWarning, stacklevel=2)
+            green = obj.field_data.pop("Strain")
+            log = obj.field_data.pop("LogStrain", green)
+            obj.field_data["GreenLagrange"] = green
+            obj.field_data["Strain"] = log if np.any(log) else green
+        obj._block = np.asarray(obj.scalar_data["Block"], dtype=int)
+        fmt = int(data["format"]) if "format" in data.files else 1
+        if fmt < 3:
+            # 'LogStrain' was an alias of 'Strain', not stored: derived from F on first access
+            obj._pending["LogStrain"] = obj._derive_log_strain
+        return obj
+
+    def to_dataframe(self):
+        """Flatten scalar and 6-component histories to a pandas DataFrame."""
+        import pandas as pd
+
+        self._materialize()
+        cols = {}
+        for k, v in self.scalar_data.items():
+            cols[k] = v
+        comp = ["11", "22", "33", "12", "13", "23"]
+        for k, v in self.field_data.items():
+            if v.ndim == 2 and v.shape[0] == 6:
+                for c in range(6):
+                    cols[f"{k}_{comp[c]}"] = v[c]
+            elif v.ndim == 2:
+                for c in range(v.shape[0]):
+                    cols[f"{k}_{c}"] = v[c]
+        return pd.DataFrame(cols)

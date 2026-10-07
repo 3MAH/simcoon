@@ -2,127 +2,223 @@
 Installation
 ============
 
-All Platforms (Linux, macOS, Windows)
+Quick install
+-------------
 
+**Conda (recommended)**
 
-The recommended way to install *simcoon* is with *conda*. You can use the Anaconda GUI or run the following commands in your terminal:
+.. code-block:: bash
 
-.. code-block:: none
-
-    conda create --name simcoon
-    conda activate simcoon
     conda install -c conda-forge -c set3mah simcoon
 
-*simcoon* is now ready to use.
+**pip**
+
+.. code-block:: bash
+
+    pip install simcoon
+
+Pre-built wheels are available for Linux (x86_64, aarch64), macOS (arm64),
+and Windows (x64) on Python 3.10--3.14.
 
 
-Developer Installation
+BLAS/LAPACK and OpenMP
 ----------------------
 
-Prerequisites (using conda)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Simcoon uses `Armadillo <http://arma.sourceforge.net>`_ for linear algebra,
+which in turn relies on a BLAS/LAPACK implementation. The threading model of
+the BLAS library matters because it can conflict with OpenMP if both are loaded
+in the same process.
 
-It is recommended to use a dedicated environment for development:
+OpenMP is enabled on **Linux and macOS** for parallel batch operations.
+On **Windows**, OpenMP is disabled in the Python bindings to avoid conflicts
+between different OpenMP runtimes (e.g. ``vcomp140.dll`` from MSVC and
+runtimes from other packages). Batch operations on Windows run sequentially
+while BLAS handles internal threading.
 
-.. code-block:: none
+.. list-table:: BLAS/OpenMP summary
+   :header-rows: 1
+   :widths: 20 25 25 30
 
-    conda create --name simcoon_build
-    conda activate simcoon_build
+   * - Platform
+     - BLAS
+     - OpenMP
+     - Conflict risk
+   * - macOS
+     - Apple Accelerate
+     - ON (libomp, bundled in wheel)
+     - Duplicate libomp when mixed with conda packages (see below)
+   * - Linux
+     - System OpenBLAS
+     - ON (libgomp)
+     - None
+   * - Windows
+     - vcpkg OpenBLAS (pip) / netlib+MKL (conda)
+     - OFF
+     - None
 
-Install the required dependencies:
+Duplicate OpenMP runtimes on macOS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: none
+**The rule: one environment = one OpenMP runtime.** In a conda environment that
+runtime is conda-forge's ``llvm-openmp`` (``libomp.dylib``), and every native
+package must share it. Two setups break the rule:
 
-    # Compilers and build tools
-    conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja uv
-    # Libraries
-    conda install -c conda-forge armadillo pybind11 numpy gtest carma
-    # Python testing and setuptools
-    pip install pytest setuptools
+- a **PyPI wheel** that bundles its own ``libomp`` (PyTorch wheels do; the
+  simcoon wheel does, via delocate) next to conda numpy/scipy/simcoon;
+- a **source build** of simcoon linked against an Armadillo that does not come
+  from the environment (a system or Homebrew copy): its OpenBLAS drags a second
+  ``libomp`` into the process.
 
-For x86 architectures, you may also need MKL:
-.. code-block:: none
+Symptoms range from the explicit abort message (``OMP: Error #15: Initializing
+libomp.dylib, but found libomp.dylib already initialized``) to silent crashes
+(``SIGSEGV`` inside ``libomp`` worker threads under threaded runs).
 
-    conda install -c conda-forge mkl
+What to do:
+
+1. **conda-forge for everything native**: simcoon, numpy, scipy, armadillo and
+   PyTorch (``conda install -c conda-forge pytorch``, not ``pip install torch``).
+   Do not mix in Homebrew or system libraries.
+2. **Source builds in a conda environment** pick the environment's Armadillo
+   automatically (CMake detects ``CONDA_PREFIX``) and warn when they do not.
+   Install it first and purge any stale build cache when switching:
+
+   .. code-block:: bash
+
+       conda install -c conda-forge armadillo
+       rm -rf build/           # a cached non-conda Armadillo path would be kept otherwise
+       pip install -e . --no-build-isolation
+
+3. **Check** which runtimes a process really loads:
+
+   .. code-block:: bash
+
+       python -m simcoon.doctor
+
+   It imports numpy, scipy, simcoon and torch (if present), lists the OpenMP
+   runtimes each one brings and exits with 1 when there are several.
+
+``KMP_DUPLICATE_LIB_OK=TRUE`` is **not** a remedy: it silences the guard and
+leaves two runtimes fighting (crashes or silently wrong results remain
+possible, this is Intel's own warning).
+
+**Using MKL with conda on Linux**
+
+If you prefer Intel MKL for performance, switch the BLAS backend and set the
+threading layer to avoid conflicts between ``libiomp5`` (Intel) and
+``libgomp`` (GCC):
+
+.. code-block:: bash
+
+    conda install libblas=*=*mkl mkl
+    export MKL_THREADING_LAYER=GNU
 
 
+Developer installation
+----------------------
 
-Prerequisites (without conda)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Prerequisites (conda)
+~~~~~~~~~~~~~~~~~~~~~
 
-Alternatively, you can install the dependencies using your system's package manager:
+.. code-block:: bash
 
-- **Debian/Ubuntu:**
+    conda create --name simcoon_dev
+    conda activate simcoon_dev
 
-    .. code-block:: none
+**Linux:**
 
-    sudo apt-get install libarmadillo-dev libgtest-dev ninja-build
+.. code-block:: bash
 
-- **macOS (Homebrew):**
+    conda env update -f environment.yml
 
-    .. code-block:: none
+**macOS (Apple Silicon):**
 
-    brew install armadillo googletest
+.. code-block:: bash
 
-- **Windows (vcpkg, PowerShell):**
-
-    .. code-block:: none
-
-    vcpkg install armadillo gtest
-
-
-Simcoon Installation
-~~~~~~~~~~~~~~~~~~~~
-
-Download the Simcoon source code from the GitHub repository:
-.. _Simcoon : https://github.com/3MAH/simcoon
-
-.. code-block:: none
-
-    git clone https://github.com/3MAH/simcoon.git
-    cd simcoon
-
-To install, you can use the provided script:
-
-.. code-block:: none
-
-    sh Install.sh
-
-Alternatively, you can build manually:
-
-**Linux/macOS:**
-
-.. code-block:: none
-
-    cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=Release
-    cmake --build build
-    pip install ./build/python-package
+    conda env update -f environment_arm64.yml
 
 **Windows:**
 
-.. code-block:: none
+.. code-block:: bash
 
-    cmake -S . -B build
-    cmake --build build --config Release
-    pip install ./build/python-package
+    conda env update -f environment_win.yml
+
+Prerequisites (system packages)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- **Debian/Ubuntu:**
+
+  .. code-block:: bash
+
+      sudo apt-get install libarmadillo-dev libopenblas-dev liblapack-dev \
+          libgtest-dev ninja-build cmake
+
+- **macOS:** use the conda environment (``environment_arm64.yml`` above:
+  conda-forge Armadillo, Accelerate BLAS, cmake, ninja). Do not install the
+  dependencies with Homebrew: a Homebrew Armadillo links Homebrew's OpenBLAS
+  and ``libomp``, i.e. a second OpenMP runtime next to the environment's (see
+  *Duplicate OpenMP runtimes on macOS* above).
+
+- **Windows (vcpkg):**
+
+  .. code-block:: powershell
+
+      vcpkg install armadillo:x64-windows openblas:x64-windows
 
 
-Running Tests (All Platforms)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Building from source
+~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: none
+.. code-block:: bash
 
-    ctest --test-dir build --output-on-failure
+    git clone https://github.com/3MAH/simcoon.git
+    cd simcoon
+    pip install -e . --no-build-isolation
 
-The build folder is created automatically in the Simcoon directory. After installation, executables are located in `build/bin`. Python wrappers are available for easier usage.
+This builds the C++ library and Python bindings in one step using
+scikit-build-core.
 
-Additional Information
-~~~~~~~~~~~~~~~~~~~~~~
+**Enabling OpenMP (optional, for conda environments):**
 
-- [Armadillo](http://arma.sourceforge.net)
+.. code-block:: bash
 
-.. image:: _static/Armadillo_logo.png
-
-Note: [FTensor](https://bitbucket.org/wlandry/ftensor) is also used by Simcoon, but it is included in the source for easier installation.
+    pip install -e . --no-build-isolation \
+        --config-settings=cmake.define.SIMCOON_USE_OPENMP=ON
 
 
+Running tests
+~~~~~~~~~~~~~
+
+**Python tests:**
+
+.. code-block:: bash
+
+    pytest
+
+**C++ tests:**
+
+.. code-block:: bash
+
+    mkdir build && cd build
+    cmake .. -DSIMCOON_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+    cmake --build .
+    ctest --output-on-failure
+
+
+Using simcoon with fedoo
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Simcoon is designed to work with `fedoo <https://github.com/3MAH/fedoo>`_
+for finite-element simulations. Both packages can be installed together:
+
+.. code-block:: bash
+
+    # conda
+    conda install -c conda-forge -c set3mah simcoon fedoo
+
+    # pip
+    pip install simcoon fedoo
+
+Keep both packages (and numpy/scipy) on the **same channel** — all-conda or
+all-PyPI — and the BLAS/OpenMP setup described above ensures they coexist
+without runtime conflicts (on macOS, mixing channels can load a second
+OpenMP runtime; see *Duplicate OpenMP runtimes on macOS*).

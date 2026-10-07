@@ -70,6 +70,38 @@ TEST(Tstress, test_Biot)
     EXPECT_LT(norm(Biot,2) - norm(Biot_test,2),1.E-9);
 }
 
+// Kirchoff2Biot is the Cauchy route without the J round trip, and it is what
+// state_variables::Biot_stress() must use: that accessor reads the KERNEL's stress field,
+// which for every kirchhoff_box law holds tau, not Cauchy. Feeding tau to Cauchy2Biot scaled
+// the control-type-4 residual by exactly J for as long as those kernels existed (11.7 % at
+// J = 1.12). This test pins both halves: the two routes agree on the same physical state, and
+// confusing them is off by exactly J.
+TEST(Tstress, Kirchoff2Biot_matches_Cauchy_route_and_the_confusion_costs_J)
+{
+    const mat F = {{1.20, 0.03, 0.00},
+                   {0.00, 0.97, 0.02},
+                   {0.01, 0.00, 0.96}};
+    const double J = det(F);
+    ASSERT_GT(std::abs(J - 1.0), 0.05) << "J must be well away from 1 or this test is blind";
+
+    const mat sigma = {{120.,   8.,  3.},
+                       {  8., -40.,  5.},
+                       {  3.,   5., 22.}};
+    const mat tau = J*sigma;
+
+    const mat biot_from_tau    = Kirchoff2Biot(tau, F);
+    const mat biot_from_cauchy = Cauchy2Biot(sigma, F);
+    EXPECT_LT(norm(biot_from_tau - biot_from_cauchy, "fro"),
+              1.E-12*norm(biot_from_cauchy, "fro")) << "the two routes must agree";
+
+    // The trap, pinned: handing tau to the Cauchy route multiplies the Biot stress by J.
+    const mat biot_confused = Cauchy2Biot(tau, F);
+    EXPECT_LT(norm(biot_confused - J*biot_from_cauchy, "fro"),
+              1.E-12*norm(biot_from_cauchy, "fro"));
+    EXPECT_GT(norm(biot_confused - biot_from_cauchy, "fro"),
+              0.05*norm(biot_from_cauchy, "fro")) << "the confusion must be detectable here";
+}
+
 TEST(Tstress, Cauchy2Kirchoff_mat)
 {
     mat sigma = {{100., 20., 10.}, {20., 200., 30.}, {10., 30., 300.}};

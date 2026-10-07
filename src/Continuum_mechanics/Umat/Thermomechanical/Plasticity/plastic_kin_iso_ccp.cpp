@@ -30,6 +30,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 
 using namespace std;
 using namespace arma;
@@ -65,7 +66,7 @@ namespace simcoon{
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
     
     UNUSED(nprops);
@@ -115,7 +116,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     
     //Rotation of internal variables (tensors)
     EP = rotate_strain(EP, DR);
-    a = rotate_stress(a, DR);
+    a = rotate_strain(a, DR);   // back-strain: engineering shear, X = kX (a % Ir05)
     
     ///@brief Initialization
     if(start)
@@ -238,40 +239,39 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     double Dp = Ds_j[0];
     vec Da = a - a_start;
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-    
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-        op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L*dPhidsigma);
+
+    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
+    // tangent_none must NOT zero P_epsilon/invBhat here: these sensitivities
+    // feed the PHYSICAL heat source r and its linearization (drdE/drdT), not
+    // just the Newton operator. Explicit-integration callers get the continuum
+    // operator in the thermomechanical kernels (the mechanical-only kernels
+    // honor tangent_none).
+    const int tangent_mode_eff = (tangent_mode == tangent_none)
+        ? tangent_continuum : tangent_mode;
+    const ContinuumTangent ct = compute_tangent_operator(
+        tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
+        [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
+            // Simo-Hughes algorithmic tangent (closest-point), J2 flow on (sigma-X).
+            // Backstress state-coupling deferred (CPP, future release).
+            // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
+            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
+            // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
+            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
+            return dLambda_dsigma_l;
+        });
+    dSdE = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
+
     std::vector<double> P_theta(1);
-    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L*alpha));
-    
-    dSdE = L - (kappa_j[0]*P_epsilon[0].t());
+    // Consistency relation: P_theta = invBhat * (dPhi/dtheta - dPhi/dsigma:L:alpha)
+    // (units 1/K; cf. the SMA thermomechanical kernel). invBhat is active-set
+    // masked, so elastic steps correctly give P_theta = 0 — the previous form
+    // omitted invBhat (units 1/MPa missing) and polluted elastic steps.
+    P_theta[0] = ct.invBhat(0, 0) * (dPhidtheta - sum(dPhidsigma%(L*alpha)));
+
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0]);
     
     //computation of the internal energy production
@@ -329,7 +329,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     
     Wt += (T+0.5*DT)*Deta;
     Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir = (T+0.5*DT)*Deta_ir;
+    Wt_ir += (T+0.5*DT)*Deta_ir;
     
     ///@brief statev evolving variables
     //statev

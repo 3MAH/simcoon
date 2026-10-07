@@ -31,7 +31,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -118,7 +118,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     std::vector<mat> H_i(N_prony);
     std::vector<mat> invH_i(N_prony);
     
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     if(start) { //Initialization
         T_init = T;
         p = 0.;
@@ -127,8 +127,8 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
         for (int i=0; i<N_prony; i++) {
             EV_i[i] = zeros(6);
         }
-        sigma = zeros(6);
-        sigma_start = zeros(6);
+        stress = zeros(6);
+        stress_start = zeros(6);
         
         
         Wm = 0.;
@@ -185,7 +185,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     
     //Determination of the initial, predicted stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV_tilde - EP;
-    sigma = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, Eel, ndi);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_mec);
@@ -197,7 +197,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = eta_stress(sigma);
+    vec Lambdap = eta_stress(stress);
     
     vec dPhidv = zeros(N_prony);
     std::vector<vec> dPhidEv(N_prony);
@@ -242,12 +242,12 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
             dHpdp = 0.;
             Hp = 0.;
         }
-        dPhidsigma = eta_stress(sigma);
+        dPhidsigma = eta_stress(stress);
         dPhidp = -1.*dHpdp;
         
         //compute Phi and the derivatives
-        Phi(0) = Mises_stress(sigma) - Hp - sigmaY;
-        Lambdap = eta_stress(sigma);
+        Phi(0) = Mises_stress(stress) - Hp - sigmaY;
+        Lambdap = eta_stress(stress);
         kappa_j[0] = L0*Lambdap;
         K(0,0) = -1.*sum(dPhidsigma%kappa_j[0]) + dPhidp;
         
@@ -262,11 +262,14 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
                 dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]))-1./DTime;
             }
             else {
-                Phi(i+1) = norm_strain(flow_visco[i]);
-                dPhidv[i] = -1.*sum((dPhi_idv_temp[i])%(L_i[i]*Lambdav[i]));
+                //No time, no flow: the branch is INACTIVE. The stationary condition
+                //Phi = ||flow|| has root EV = eps, committed as relaxed by the zero-time probe.
+                Phi(i+1) = 0.;
+                dPhidv[i] = -1.;
             }
-            kappa_j[i+1] += L_i[i]*Lambdav[i];
-            K(i+1,i+1) += dPhidv[i];
+            kappa_j[i+1] = L_i[i]*Lambdav[i];        // assign: this runs once per local
+            K(i+1,i+1) = dPhidv[i];                 // Newton iteration, and both fed
+                                                    // the tangent scaled by the count
         }
         
         B = zeros(N_mec,N_mec);
@@ -295,9 +298,9 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
             EV_tilde += (M0*L_i[i])*EV_i[i];
         }
         
-        //the stress is now computed using the relationship sigma = L0 E-sum LpEp
+        //the stress is now computed using the relationship stress = L0 E-sum LpEp
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde - EP;
-        sigma = el_pred(L0, Eel, ndi);
+        stress = el_pred(L0, Eel, ndi);
     }
     
     
@@ -361,8 +364,8 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     double Dp = Ds_j[0];
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot-DEP));
     for (int i=0; i<N_prony; i++) {
         Wm_r += -0.5*sum((A_v_start[i] + A_v[i])%DEV_i[i]);
     }

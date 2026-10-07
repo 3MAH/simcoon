@@ -26,12 +26,6 @@
 
 namespace simcoon{
 
-/**
- * @file rotation.hpp
- * @brief Rotation class and convenience free functions for rotating
- *        vectors, tensors, and Voigt-notation quantities.
- */
-
 /** @addtogroup maths
  *  @{
  */
@@ -450,7 +444,88 @@ public:
         // Identity quaternion is [0, 0, 0, 1] or [0, 0, 0, -1]
         return std::abs(std::abs(_quat(3)) - 1.0) < tol;
     }
+
+    /**
+     * @brief Compute derivatives of the rotation matrix w.r.t. rotation vector components.
+     *
+     * Uses the exact differentiation of the Rodrigues formula
+     * (Gallego & Yezzi, J. Math. Imaging Vis., 2015).
+     *
+     * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
+     *         (Python exposure: result[:, :, k]).
+     */
+    arma::cube dR_drotvec() const;
 };
+
+/**
+ * @brief A rotation with its Voigt operators materialized once, applied in place.
+ *
+ * `Rotation::apply_*` rebuilds the \f$ 3\times3 \f$ matrix and the \f$ 6\times6 \f$ Voigt
+ * operators at every call. When one rotation is applied many times (a material frame at every
+ * UMAT call, see `material_characteristics::frame()`), this class stores the operators of the
+ * rotation and of its inverse once and applies them with a single fixed-size product each,
+ * without heap temporary. The results are those of `Rotation::apply_*` on the rotation
+ * (`inverse = false`) or on `Rotation::inv()` (`inverse = true`) to the bit: the same operator
+ * matrices are built, once instead of per call, and Armadillo's fixed-size products of this
+ * size evaluate as the dynamic ones. On the identity rotation (`Rotation::is_identity`) every
+ * apply is a no-op, as the skipped product would be.
+ *
+ * Immutable after construction, hence safe to read from several threads.
+ */
+class frame_rotation {
+public:
+    /// The identity frame.
+    frame_rotation();
+    /// The operators of @p rot and of its inverse.
+    explicit frame_rotation(const Rotation &rot);
+
+    /// True when the rotation is the identity: every apply is then a no-op.
+    bool is_identity() const { return _identity; }
+
+    /// Which operators an apply uses: those of the rotation, or of its inverse. A named
+    /// value rather than a bool, so that it cannot be confused with the `active` flag of
+    /// `Rotation::apply_*`.
+    enum direction { forward, inverse };
+
+    /// Strain Voigt vector (engineering shear), in place: `Rotation::apply_strain` of rot, or of rot.inv().
+    void rotate_strain(arma::vec &e, direction d = forward) const;
+    /// Stress Voigt vector, in place: `Rotation::apply_stress` of rot, or of rot.inv().
+    void rotate_stress(arma::vec &s, direction d = forward) const;
+    /// Stiffness \f$ \mathbf{Q}_S \mathbf{L} \mathbf{Q}_S^T \f$, in place: `Rotation::apply_stiffness` of rot, or of rot.inv().
+    void rotate_stiffness(arma::mat &L, direction d = forward) const;
+    /// Second-order tensor \f$ \mathbf{R}\,\mathbf{X}\,\mathbf{R}^T \f$, in place: `Rotation::apply_tensor` of rot, or of rot.inv().
+    void rotate_tensor(arma::mat &X, direction d = forward) const;
+
+private:
+    /// The operators of one rotation: matrix, active stress and strain Voigt operators.
+    struct operators {
+        arma::mat::fixed<3,3> R;
+        arma::mat::fixed<6,6> vs, ve;
+        explicit operators(const Rotation &rot);
+    };
+    const operators& pick(direction d) const { return d == inverse ? _inv : _fwd; }
+    void apply6(const arma::mat::fixed<6,6> &Q, arma::vec &v, const char *what) const;
+
+    bool _identity;
+    operators _fwd, _inv;   ///< of rot and of rot.inv()
+};
+
+/**
+ * @brief Compute derivatives of R(omega) w.r.t. rotation vector components.
+ *
+ * Given a rotation vector omega (axis * angle), computes the three 3x3
+ * matrices dR/d(omega_k) for k = 0, 1, 2 using exact differentiation of
+ * the Rodrigues formula.
+ *
+ * @param omega Rotation vector (3 elements)
+ * @return 3x3x3 cube where slice(k) is dR/d(omega_k)
+ *         (Python exposure: result[:, :, k]).
+ *
+ * @details Reference: Gallego & Yezzi, "A Compact Formula for the
+ *          Derivative of a 3-D Rotation in Exponential Coordinates",
+ *          J. Math. Imaging Vis., 2015.
+ */
+arma::cube dR_drotvec(const arma::vec::fixed<3>& omega);
 
 // =========================================================================
 // Convenience Free Functions
@@ -603,6 +678,26 @@ arma::mat rotate_stress_concentration(const arma::mat &B, const double &angle, c
  * @return The rotated 6x6 stress concentration matrix (arma::mat)
  */
 arma::mat rotate_stress_concentration(const arma::mat &B, const arma::mat &R, const bool &active = true);
+
+// =========================================================================
+// Batch Free Functions (quaternion arrays)
+// =========================================================================
+
+/**
+ * @brief Batch-build 6x6 stress Voigt rotation matrices from N quaternions.
+ * @param quats (4, N) matrix of quaternions [qx, qy, qz, qw] (scalar-last)
+ * @param active If true (default), active rotation
+ * @return (6, 6, N) cube of stress rotation matrices
+ */
+arma::cube batch_voigt_stress_rotation(const arma::mat &quats, const bool &active = true);
+
+/**
+ * @brief Batch-build 6x6 strain Voigt rotation matrices from N quaternions.
+ * @param quats (4, N) matrix of quaternions [qx, qy, qz, qw] (scalar-last)
+ * @param active If true (default), active rotation
+ * @return (6, 6, N) cube of strain rotation matrices
+ */
+arma::cube batch_voigt_strain_rotation(const arma::mat &quats, const bool &active = true);
 
 /** @} */ // end of maths group
 

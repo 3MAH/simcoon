@@ -13,7 +13,7 @@ Simcoon integrates an easy way to handle geometrical non-linearities : Use of La
 Some of its main features are:
 
 - Built on top of **Armadillo**, a high-quality C++ linear algebra library.
-- Uses **FTensor** for complex tensor operations.
+- Uses **Fastor** for high-performance tensor operations.
 - Integrates several algorithms for heterogeneous materials analysis.
 - Provides both C++ and Python API to generate user material subroutines for Finite Element Analysis packages.
 

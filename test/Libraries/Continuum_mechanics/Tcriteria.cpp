@@ -78,6 +78,49 @@ TEST(Tcriteria, dHill_stress_numerical)
     EXPECT_LT(norm(dHill - dHill_num, 2), 1.E-4);
 }
 
+TEST(Tcriteria, ddHill_stress_numerical)
+{
+    vec P_params = {0.5, 0.6, 0.7, 1.5, 1.4, 1.6};
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    mat ddHill = ddHill_stress(sigma, P_params);
+
+    double eps = 1.E-3;
+    mat ddHill_num = zeros(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec sp = sigma, sm = sigma;
+        sp(j) += eps;
+        sm(j) -= eps;
+        ddHill_num.col(j) = (dHill_stress(sp, P_params) - dHill_stress(sm, P_params)) / (2. * eps);
+    }
+    EXPECT_LT(norm(ddHill - ddHill_num, "fro"), 1.E-4);          // analytic == finite difference
+    EXPECT_LT(norm(ddHill - ddHill.t(), "fro"), 1.E-12);         // symmetric
+    EXPECT_LT(norm(ddHill * sigma, 2), 1.E-8 * norm(sigma, 2));  // annihilates sigma
+
+    // Isotropic Hill params -> P_Hill == P_Mises -> Hessian must equal deta_stress (cross-module).
+    vec iso = {0.5, 0.5, 0.5, 1.5, 1.5, 1.5};
+    EXPECT_LT(norm(ddHill_stress(sigma, iso) - deta_stress(sigma), "fro"), 1.E-9);
+}
+
+TEST(Tcriteria, ddDFA_stress_numerical)
+{
+    vec P_params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    mat ddDFA = ddDFA_stress(sigma, P_params);
+
+    double eps = 1.E-3;
+    mat ddDFA_num = zeros(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec sp = sigma, sm = sigma;
+        sp(j) += eps;
+        sm(j) -= eps;
+        ddDFA_num.col(j) = (dDFA_stress(sp, P_params) - dDFA_stress(sm, P_params)) / (2. * eps);
+    }
+    EXPECT_LT(norm(ddDFA - ddDFA_num, "fro"), 1.E-4);
+    EXPECT_LT(norm(ddDFA - ddDFA.t(), "fro"), 1.E-12);
+}
+
 TEST(Tcriteria, DFA_stress_basic)
 {
     // DFA requires 7 parameters: {a1, a2, a3, b1, b2, b3, c}

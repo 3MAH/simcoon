@@ -23,6 +23,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/stats.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/damage.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -41,7 +42,7 @@ namespace simcoon {
 ///@param props(5) : lambdaD Damage evolution parameter lambda
 ///@param props(6) : deltaD Damage evolution parameter delta
     
-void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(umat_name);
     UNUSED(nprops);
@@ -82,7 +83,7 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     {
         T_init = T;
         Damage = simcoon::precision_umat;
-        sigma = zeros(6);
+        stress = zeros(6);
         
         Wm = 0.;
         Wm_r = 0.;
@@ -97,9 +98,9 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
 
     double A_Damage = 0.;
     double Rv = 0.;
-    if (Mises_stress(sigma) > simcoon::iota) {
-        Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(sigma)/(3.*Mises_stress(sigma)),2.);
-        A_Damage = pow(Mises_stress(sigma),2.)*Rv/(2.*E*pow(1.-Damage,2.));
+    if (Mises_stress(stress) > simcoon::iota) {
+        Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(stress)/(3.*Mises_stress(stress)),2.);
+        A_Damage = pow(Mises_stress(stress),2.)*Rv/(2.*E*pow(1.-Damage,2.));
     }
     double A_Damage_start = A_Damage;
     
@@ -107,7 +108,7 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     double dWeibulldsigma_eq = 0.;
     
     //Variables values at the start of the increment
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     
     //Variables required for the loop
     vec s_j = zeros(1);
@@ -118,7 +119,7 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
     mat L_tilde = (1.-Damage)*L;
-    sigma = el_pred(L_tilde, Eel, ndi);
+    stress = el_pred(L_tilde, Eel, ndi);
     sigma_eff = el_pred(L, Eel, ndi);
     
     //Define the Damage function and the stress
@@ -165,7 +166,7 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
         
         //Compute the explicit "damage direction" and flow direction
         dStildedDamage = 1./(pow(1.-Damage,2.))*M;
-        Lambda_Damage = dStildedDamage*sigma;
+        Lambda_Damage = dStildedDamage*stress;
         kappa_j[0] = L_tilde*Lambda_Damage;
         
         K(0,0) = dPhidDamage;
@@ -177,64 +178,40 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
         
         s_j(0) += ds_j(0);
         
-        //the stress is now computed using the relationship sigma = L(E-Ep)
+        //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init);
-        sigma = el_pred(L_tilde, Eel, ndi);
+        stress = el_pred(L_tilde, Eel, ndi);
         sigma_eff = el_pred(L, Eel, ndi);
     }
     
     //Computation of the increments of variables
-    vec Dsigma = sigma - sigma_start;
+    vec Dsigma = stress - stress_start;
     double DDamage = Ds_j[0];
     
     dPhidsigma = dWeibulldsigma_eq*(B_conc.t()*eta_stress(sigma_eff));
     dStildedDamage = 1./(pow(1.-Damage,2.))*M;
-    Lambda_Damage = dStildedDamage*sigma;
+    Lambda_Damage = dStildedDamage*stress;
     kappa_j[0] = L_tilde*Lambda_Damage;
     
-    //Computation of the tangent modulus
+    //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
     mat Bhat = zeros(1, 1);
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-    
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L_tilde*dPhidsigma);
-    
-    Lt = L_tilde - (kappa_j[0]*P_epsilon[0].t());
+
+    const std::vector<vec> dPhidsigma_l = { dPhidsigma };
+    const ContinuumTangent ct = assemble_continuum_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L_tilde);
+    Lt = ct.Lt;
+    const std::vector<vec>& P_epsilon = ct.P_epsilon;
     //Lt = L_tilde;
     
-    if (Mises_stress(sigma) > simcoon::iota) {
-        Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(sigma)/(3.*Mises_stress(sigma)),2.);
-        A_Damage = pow(Mises_stress(sigma),2.)*Rv/(2.*E*pow(1.-Damage,2.));
+    if (Mises_stress(stress) > simcoon::iota) {
+        Rv = (2./3.)*(1.+nu)+3.*(1.-2.*nu)*pow(tr(stress)/(3.*Mises_stress(stress)),2.);
+        A_Damage = pow(Mises_stress(stress),2.)*Rv/(2.*E*pow(1.-Damage,2.));
     }
     double Dgamma_loc = 0.5*(A_Damage_start + A_Damage)*DDamage;
     
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot)) - 0.5*(A_Damage_start + A_Damage)*DDamage;
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%(DEtot)) - 0.5*(A_Damage_start + A_Damage)*DDamage;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     

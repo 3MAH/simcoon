@@ -29,6 +29,7 @@
 #pragma once
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon{
 
@@ -181,7 +182,9 @@ namespace simcoon{
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
- * @note Legacy aliases SMAUT and SMANI map to SMADI and SMAAI respectively
+ * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
+ * @note Convergence measure: same magnitude scales \f$ Y^{crit}_j \f$ as the mechanical
+ * @ref umat_sma_unified_T (see its note).
  *
  * @see umat_sma_unified_T() for the mechanical-only version (no thermal coupling)
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
@@ -194,7 +197,7 @@ namespace simcoon{
  *   "A constitutive model for cyclic actuation of high-temperature shape memory alloys."
  *   *Mechanics of Materials*, 68, 120-136.
  */
-void umat_sma_unified_T_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drdE, arma::mat &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_sma_unified_T_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, double &r, arma::mat &dSdE, arma::mat &dSdT, arma::mat &drdE, arma::mat &drdT, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
 
 /** @} */ // end of umat_thermomechanical group
 

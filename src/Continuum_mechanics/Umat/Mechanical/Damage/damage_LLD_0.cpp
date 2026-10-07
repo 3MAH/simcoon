@@ -47,7 +47,7 @@ namespace simcoon {
 ///@param props(5) : lambdaD Damage evolution parameter lambda
 ///@param props(6) : deltaD Damage evolution parameter delta
 
-void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(umat_name);
     UNUSED(nprops);
@@ -117,10 +117,10 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         
         p_ts = 10.*simcoon::limit;
         EP = zeros(6);
-        sigma = zeros(6);
+        stress = zeros(6);
     }
     
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     vec EP_start = EP;
     
     double E1 = EL;
@@ -319,27 +319,27 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         //damaged modulus
         //Compute the elastic strain and the related stress
         Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-        sigma = el_pred(L_tilde, Eel, ndi);
+        stress = el_pred(L_tilde, Eel, ndi);
         
-        if (fabs(sigma(1)) < simcoon::iota )
+        if (fabs(stress(1)) < simcoon::iota )
             Yd_22 = 0.;
         else
-            Yd_22 = 0.5*(pow(Macaulay_p(sigma(1)),2.)/(E2_0*pow(1.-d_22,2.)));
+            Yd_22 = 0.5*(pow(Macaulay_p(stress(1)),2.)/(E2_0*pow(1.-d_22,2.)));
 
-        if (fabs(sigma(2)) < simcoon::iota )
+        if (fabs(stress(2)) < simcoon::iota )
             Yd_33 = 0.;
         else
-            Yd_33 = 0.5*(pow(Macaulay_p(sigma(2)),2.)/(E2_0*pow(1.-d_22,2.)));
+            Yd_33 = 0.5*(pow(Macaulay_p(stress(2)),2.)/(E2_0*pow(1.-d_22,2.)));
         
-        if (fabs(sigma(3)) < simcoon::iota )
+        if (fabs(stress(3)) < simcoon::iota )
             Yd_12 = 0.;
         else
-            Yd_12 = 0.5*(pow(sigma(3),2.)/(G12_0*pow(1.-d_12,2.)));
+            Yd_12 = 0.5*(pow(stress(3),2.)/(G12_0*pow(1.-d_12,2.)));
 
-        if (fabs(sigma(4)) < simcoon::iota )
+        if (fabs(stress(4)) < simcoon::iota )
             Yd_13 = 0.;
         else
-            Yd_13 = 0.5*(pow(sigma(4),2.)/(G12_0*pow(1.-d_12,2.)));
+            Yd_13 = 0.5*(pow(stress(4),2.)/(G12_0*pow(1.-d_12,2.)));
                 
         //Compute Y_t and Y_ts, which are used in the evolution equation of damage
         Y_ts = sqrt(Yd_12 + Yd_13 + b*(Yd_22 + Yd_33));     //transvers/shear coupling
@@ -349,25 +349,25 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         lambda_22 = lagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
         
         //Preliminaries to compute damage the derivatives of Phi
-        if (fabs(sigma(1)) < simcoon::iota )
+        if (fabs(stress(1)) < simcoon::iota )
             dYd_22dd = 0.;
         else
-            dYd_22dd = -0.25*(pow(Macaulay_p(sigma(1)),2.)/(E2_0*pow(1-d_22,3.)));
+            dYd_22dd = -0.25*(pow(Macaulay_p(stress(1)),2.)/(E2_0*pow(1-d_22,3.)));
 
-        if (fabs(sigma(2)) < simcoon::iota )
+        if (fabs(stress(2)) < simcoon::iota )
             dYd_33dd = 0.;
         else
-            dYd_33dd = -0.25*(pow(Macaulay_p(sigma(2)),2.)/(E2_0*pow(1-d_22,3.)));
+            dYd_33dd = -0.25*(pow(Macaulay_p(stress(2)),2.)/(E2_0*pow(1-d_22,3.)));
         
-        if (fabs(sigma(3)) < simcoon::iota )
+        if (fabs(stress(3)) < simcoon::iota )
             dYd_12dd = 0.;
         else
-            dYd_12dd = -0.25*(pow(sigma(3),2.)/(G12_0*pow(1-d_12,3.)));
+            dYd_12dd = -0.25*(pow(stress(3),2.)/(G12_0*pow(1-d_12,3.)));
 
-        if (fabs(sigma(4)) < simcoon::iota )
+        if (fabs(stress(4)) < simcoon::iota )
             dYd_13dd = 0.;
         else
-            dYd_13dd = -0.25*(pow(sigma(4),2.)/(G12_0*pow(1-d_12,3.)));
+            dYd_13dd = -0.25*(pow(stress(4),2.)/(G12_0*pow(1-d_12,3.)));
 
         
         
@@ -383,7 +383,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         dlambda_22 = dlagrange_pow_1(d_22, c_lambda, p0_lambda, n_lambda, alpha_lambda);
         dlambda_12 = dlagrange_pow_1(d_12, c_lambda, p0_lambda, n_lambda, alpha_lambda);
         
-        //Compute the derivatives of sigma
+        //Compute the derivatives of stress
         dPhi_d_22d_Yts = 1./Y_22_c;
         dPhi_d_12d_Yts = 1./Y_12_c;
         
@@ -399,10 +399,10 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
             dYts_d_Y13 = 1./(2.*Y_ts);
         }
         
-        dY22_d_s22 = Macaulay_p(sigma(1))/(E2_0*(1.-d_22));
-        dY33_d_s33 = Macaulay_p(sigma(2))/(E2_0*(1.-d_22));
-        dY12_d_s12 = Macaulay_p(sigma(3))/(G12_0*(1.-d_12));
-        dY13_d_s13 = Macaulay_p(sigma(4))/(G12_0*(1.-d_12));
+        dY22_d_s22 = Macaulay_p(stress(1))/(E2_0*(1.-d_22));
+        dY33_d_s33 = Macaulay_p(stress(2))/(E2_0*(1.-d_22));
+        dY12_d_s12 = Macaulay_p(stress(3))/(G12_0*(1.-d_12));
+        dY13_d_s13 = Macaulay_p(stress(4))/(G12_0*(1.-d_12));
         
         dPhi_d_22d_sigma(0) = 0.;
         dPhi_d_22d_sigma(1) = dPhi_d_22d_Yts*dYts_d_Y22*dY22_d_s22;
@@ -433,8 +433,8 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
             {0,0,0,0,G12_0/pow(G12,2.),0},
             {0,0,0,0,0,0} };
 
-        Lambdad_22 = dStildedd22*sigma;
-        Lambdad_12 = dStildedd12*sigma;
+        Lambdad_22 = dStildedd22*stress;
+        Lambdad_12 = dStildedd12*stress;
         
         //compute Phi and the derivatives
         Phi_d(0) = Macaulay_p(Y_ts - Y_22_0)/Y_22_c - lambda_22 - d_22;
@@ -480,7 +480,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     //damaged modulus
     //Compute the elastic strain and the related stress
     Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-    sigma = el_pred(L_tilde, Eel, ndi);
+    stress = el_pred(L_tilde, Eel, ndi);
     
     {
 		//Tangent modulus
@@ -502,10 +502,10 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
 			dYts_d_Y13 = 1./(2.*Y_ts);
 		}
 		
-		dY22_d_s22 = Macaulay_p(sigma(1))/(E2_0*(1.-d_22));
-		dY33_d_s33 = Macaulay_p(sigma(2))/(E2_0*(1.-d_22));
-		dY12_d_s12 = Macaulay_p(sigma(3))/(G12_0*(1.-d_12));
-		dY13_d_s13 = Macaulay_p(sigma(4))/(G12_0*(1.-d_12));
+		dY22_d_s22 = Macaulay_p(stress(1))/(E2_0*(1.-d_22));
+		dY33_d_s33 = Macaulay_p(stress(2))/(E2_0*(1.-d_22));
+		dY12_d_s12 = Macaulay_p(stress(3))/(G12_0*(1.-d_12));
+		dY13_d_s13 = Macaulay_p(stress(4))/(G12_0*(1.-d_12));
 		
 		dPhi_d_22d_sigma(0) = 0.;
 		dPhi_d_22d_sigma(1) = dPhi_d_22d_Yts*dYts_d_Y22*dY22_d_s22;
@@ -545,8 +545,8 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
 							{0,0,0,0,G12_0/pow(G12,2.),0},
 							{0,0,0,0,0,0} };
 
-		Lambdad_22 = dStildedd22*sigma;
-		Lambdad_12 = dStildedd12*sigma;    
+		Lambdad_22 = dStildedd22*stress;
+		Lambdad_12 = dStildedd12*stress;    
 		Lambdap_ts = eta_stress(sigma_eff_ts);
 
 		std::vector<vec> kappa_j(3);
@@ -635,8 +635,8 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     statev(9) = EP(5);
             
     //Computation of the mechanical and thermal work quantities
-    Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);
+    Wm += 0.5*sum((stress_start+stress)%DEtot);
+    Wm_r += 0.5*sum((stress_start+stress)%DEtot);
     Wm_ir += 0.;
     Wm_d += 0.;
     

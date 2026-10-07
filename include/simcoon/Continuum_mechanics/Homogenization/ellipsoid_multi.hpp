@@ -24,6 +24,7 @@
 #include <iostream>
 #include <string>
 #include <armadillo>
+#include <vector>
 #include <simcoon/Simulation/Geometry/ellipsoid.hpp>
 #include <simcoon/Continuum_mechanics/Homogenization/phase_multi.hpp>
 
@@ -80,6 +81,35 @@ namespace simcoon{
  * @see Eshelby, J.D. (1957). The determination of the elastic field of an ellipsoidal
  *      inclusion, and related problems. Proc. R. Soc. Lond. A 241, 376-396.
  */
+/**
+ * @brief Memo of Eshelby tensors within one homogenization pass.
+ *
+ * The numerical Eshelby tensor \f$ \mathbf{S} \f$ of an inclusion depends only on its
+ * semi-axes and on the medium stiffness written in the inclusion frame. In a
+ * self-consistent or Mori-Tanaka pass every inclusion of the same geometry embedded in the
+ * same medium therefore shares one integration (the most expensive step of the scheme,
+ * about 0.35 ms per 50x50 quadrature). A memo is created by the scheme for one pass and
+ * handed to fillT(); the key is the exact (bitwise) pair (rotated medium stiffness,
+ * semi-axes), so a hit returns exactly the tensor a fresh integration would. It is a local
+ * object, never static: no state is shared between calls or threads.
+ */
+class eshelby_memo {
+public:
+    /// The memoised tensor for this key, or nullptr.
+    const arma::mat* find(const arma::mat &Lt_local, const double &a1, const double &a2, const double &a3) const;
+    /// Store and return the tensor of this key.
+    const arma::mat& store(const arma::mat &Lt_local, const double &a1, const double &a2, const double &a3, const arma::mat &S);
+    void clear();
+    std::size_t size() const { return entries.size(); }
+private:
+    struct entry {
+        arma::mat::fixed<6,6> Lt;
+        double a1, a2, a3;
+        arma::mat S;
+    };
+    std::vector<entry> entries;
+};
+
 class ellipsoid_multi : public phase_multi
 {
 private:
@@ -129,23 +159,35 @@ protected:
      */
     arma::mat T_in;
 
+    /// Key of the memoised S_loc: the (rotated) medium stiffness and semi-axes it was
+    /// integrated for. Lets an inclusion embedded in an unchanged medium (elastic matrix,
+    /// successive increments and Newton iterations) reuse its own Eshelby tensor.
+    eshelby_memo S_loc_memo;
+
     /** @brief Number of integration points in polar direction for numerical integration */
     static int mp;
 
     /** @brief Number of integration points in azimuthal direction */
     static int np;
 
-    /** @brief Gauss points for polar integration */
-    static arma::vec x;
+    /**
+     * @brief Gauss points for polar integration
+     *
+     * The four Gauss vectors are computed once (costly) and shared by every
+     * ellipsoid. They are references to heap vectors that are never destroyed:
+     * a static armadillo object's destructor would run at DLL unload, which is
+     * unsafe on Windows.
+     */
+    static arma::vec& x;
 
     /** @brief Gauss weights for polar integration */
-    static arma::vec wx;
+    static arma::vec& wx;
 
     /** @brief Gauss points for azimuthal integration */
-    static arma::vec y;
+    static arma::vec& y;
 
     /** @brief Gauss weights for azimuthal integration */
-    static arma::vec wy;
+    static arma::vec& wy;
 
     /** @brief Default constructor */
     ellipsoid_multi();
@@ -206,8 +248,11 @@ protected:
      * @param L0 Matrix stiffness tensor (6×6)
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
+     * @param memo Optional eshelby_memo of the current homogenization pass: the Eshelby
+     *        tensor is taken from it when the same inclusion geometry has already been met
+     *        in the same (rotated) medium, and stored in it otherwise.
      */
-    virtual void fillT(const arma::mat&, const arma::mat&, const ellipsoid &);
+    virtual void fillT(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
 
     /**
      * @brief Compute the interaction tensor for isotropic matrix
@@ -219,7 +264,7 @@ protected:
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
      */
-    virtual void fillT_iso(const arma::mat&, const arma::mat&, const ellipsoid &);
+    virtual void fillT_iso(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
 
     /**
      * @brief Compute the inelastic interaction tensor
@@ -231,7 +276,12 @@ protected:
      * @param Lt Inclusion tangent stiffness tensor (6×6)
      * @param ell Ellipsoid geometry
      */
-    virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &);
+    virtual void fillT_mec_in(const arma::mat&, const arma::mat&, const ellipsoid &, eshelby_memo * = nullptr);
+
+    /// Eshelby tensor of @p ell in the medium @p Lt_local (inclusion frame): reused from this
+    /// inclusion's last integration when the medium is unchanged, else from the pass memo,
+    /// else integrated (and recorded in both).
+    arma::mat eshelby_memoized(eshelby_memo *memo, const arma::mat &Lt_local, const ellipsoid &ell);
 
     /**
      * @brief Assignment operator

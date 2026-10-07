@@ -8,7 +8,6 @@ composite material considering spherical and ellipsoidal reinforcements.
 import numpy as np
 import simcoon as sim
 import matplotlib.pyplot as plt
-import os
 
 
 ###################################################################################
@@ -21,13 +20,28 @@ import os
 
 nstatev = 0  # None here
 
-nphases = 2  # Number of phases
-num_file = 0  # Index of the file that contains the subphases
-int1 = 50  # Number of integration points along the long axis
-int2 = 50  # Number of integration points along the lat axis
-n_matrix = 0  # Phase number for the matrix
+int1 = 50  # Integration points of the Eshelby integrals, first direction
+int2 = 50  # Integration points of the Eshelby integrals, second direction
+n_matrix = 0  # Index of the matrix phase in the list of phases
 
-props = np.array([nphases, num_file, int1, int2, n_matrix], dtype="float")
+# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
+props = np.array([int1, int2, n_matrix], dtype="float")
+
+###############################################################################
+# The two phases are described in memory, as objects: a matrix and a spherical
+# reinforcement, each with its own constitutive model and properties.
+
+from simcoon.solver.micromechanics import Ellipsoid
+
+matrix = Ellipsoid(
+    number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
+    props=np.array([2250.0, 0.19, 8.8e-5]),
+)
+reinforcement = Ellipsoid(
+    number=1, umat_name="ELISO", save=1, concentration=0.2, nstatev=1,
+    props=np.array([73000.0, 0.19, 0.5e-6]),
+)
+phases = [matrix, reinforcement]
 
 ###############################################################################
 # There is a possibility to consider a misorientation between the test frame
@@ -51,7 +65,9 @@ umat_name = "MIMTN"  # Micromechanical scheme (Mori-Tanaka here)
 # Since both phases are isotropic and the reinforcements are spherical, the
 # result is also isotropic.
 
-L_eff = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+L_eff = sim.L_eff(
+    umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+)
 p = sim.L_iso_props(L_eff).flatten()
 np.set_printoptions(precision=3, suppress=True)
 

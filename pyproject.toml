@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "simcoon"
-version = "1.11.0"
+version = "2.1.0"
 description = "Simulation in Mechanics and Materials: Interactive Tools - A library for the simulation of multiphysics systems and heterogeneous materials"
 readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
@@ -60,6 +60,14 @@ Changelog = "https://github.com/3MAH/simcoon/releases"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "setuptools>=64",  # build the custom NumPy allocator used by regression tests
+]
+identify = [
+    "scikit-learn>=1.0",
+]
+ml = [
+    "torch>=2.0",
+    "scikit-learn>=1.0",
 ]
 
 # =============================================================================
@@ -103,6 +111,10 @@ addopts = "-v --tb=short"
 # uv configuration
 # =============================================================================
 
+[tool.ruff.lint.per-file-ignores]
+# the package __init__ re-exports its public names on purpose
+"__init__.py" = ["F401", "F403"]
+
 [tool.uv]
 # Disable build isolation for editable installs (enables direct cmake rebuilds)
 # Requires build dependencies to be installed first: scikit-build-core, pybind11, numpy
@@ -132,7 +144,8 @@ skip = [
 build-verbosity = 1
 
 # Test configuration
-test-requires = ["pytest>=7.0", "numpy>=2.0"]
+# setuptools: test_numpy_allocator.py compiles a C probe in the wheel test venv.
+test-requires = ["pytest>=7.0", "numpy>=2.0", "setuptools>=64"]
 test-command = "pytest {project}/simcoon-python-builder/test -v --tb=short"
 
 # -----------------------------------------------------------------------------
@@ -168,16 +181,10 @@ environment = { LD_LIBRARY_PATH = "/usr/local/lib:/usr/local/lib64" }
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.macos]
-# Build libomp from source to control MACOSX_DEPLOYMENT_TARGET
-# (Homebrew's libomp targets macOS 15+ which is too restrictive for older systems)
+# macOS uses Grand Central Dispatch (native) instead of OpenMP — no libomp needed.
 # Build Armadillo from source against Apple Accelerate (not Homebrew's OpenBLAS)
 before-all = [
     "brew install ninja",
-    "curl -sfL -o openmp-${LIBOMP_VERSION}.src.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VERSION}/openmp-${LIBOMP_VERSION}.src.tar.xz",
-    "curl -sfL -o cmake-${LIBOMP_VERSION}.src.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBOMP_VERSION}/cmake-${LIBOMP_VERSION}.src.tar.xz",
-    "tar -xf openmp-${LIBOMP_VERSION}.src.tar.xz && tar -xf cmake-${LIBOMP_VERSION}.src.tar.xz",
-    "cmake -S openmp-${LIBOMP_VERSION}.src -B openmp-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} -DCMAKE_MODULE_PATH=$(pwd)/cmake-${LIBOMP_VERSION}.src/Modules",
-    "ninja -C openmp-build && sudo ninja -C openmp-build install",
     "curl -sfL -o armadillo-code-${ARMADILLO_VERSION}.tar.gz https://gitlab.com/conradsnicta/armadillo-code/-/archive/${ARMADILLO_VERSION}/armadillo-code-${ARMADILLO_VERSION}.tar.gz",
     "tar -xf armadillo-code-${ARMADILLO_VERSION}.tar.gz",
     "cd armadillo-code-${ARMADILLO_VERSION} && cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON -DALLOW_OPENBLAS_MACOS=OFF && cmake --build build && sudo cmake --install build",
@@ -186,30 +193,33 @@ before-all = [
 # Build for arm64 only (native on Apple Silicon runners)
 archs = ["arm64"]
 
-# delocate bundles shared libraries (exclude libomp to avoid conflicts with
-# other OpenMP-using packages like fedoo/scipy at runtime).
-# --no-sanitize-rpaths preserves /usr/local/lib and /opt/homebrew/opt/libomp/lib
-# so users can provide libomp via brew or conda without bundling it.
-repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v --exclude libomp.dylib --no-sanitize-rpaths {wheel}"
-
-# Add macOS-specific env without replacing global environment (ARMADILLO_VERSION, etc.)
-[[tool.cibuildwheel.overrides]]
-select = "*-macosx*"
-inherit.environment = "append"
-environment = { OpenMP_ROOT = "/usr/local" }
+# delocate bundles shared libraries
+repair-wheel-command = "delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}"
 
 # -----------------------------------------------------------------------------
 # Windows configuration
 # -----------------------------------------------------------------------------
 
 [tool.cibuildwheel.windows]
-# Install dependencies as static libraries (x64-windows-static-md = static libs,
-# shared CRT /MD — required for Python extensions).  Static linking absorbs
-# OpenBLAS into simcoon.dll so there is no openblas.dll in the wheel, avoiding
-# the runtime conflict with numpy/scipy's own bundled OpenBLAS.
-before-all = "vcpkg install armadillo:x64-windows-static-md openblas:x64-windows-static-md"
+# conda-forge's prebuilt reference (netlib) BLAS/LAPACK + armadillo from the runner's Miniconda:
+# the toolchain ci.yml and build.yml already test on Windows (environment_win.yml). Not vcpkg:
+# its static openblas + clapack pair returned silently wrong material points in every parallel
+# batch path (std::thread workers; wheels run 36637571501, Sep 30 2026) while the same tests
+# pass on the conda libraries, and vcpkg's lapack-reference cannot be built on the windows-2025
+# image (LLVMFlang). Conda's DLLs are vendored into the wheel by delvewheel below.
+# The wheel is built by MSVC against the dynamic UCRT, like CPython. (Users who want Intel MKL
+# kernels can install simcoon via conda.)
+before-all = '"%CONDA%\Scripts\conda.exe" install -y -c conda-forge -c set3mah "libblas=*=*netlib" "liblapack=*=*netlib" armadillo'
+before-build = "pip install delvewheel"
 
-environment = { CMAKE_TOOLCHAIN_FILE = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake", VCPKG_TARGET_TRIPLET = "x64-windows-static-md" }
+# CMAKE_PREFIX_PATH: find_package(Armadillo/BLAS/LAPACK) in Miniconda's Library tree, as
+# build.yml does. $CONDA is expanded by cibuildwheel (bash-style, on every platform).
+environment = { CMAKE_PREFIX_PATH = "$CONDA/Library" }
 
-# No wheel repair needed — no external DLLs to bundle
-repair-wheel-command = ""
+# delvewheel copies the DLLs _core.pyd and simcoon.dll import (BLAS, LAPACK and their Fortran
+# runtime, resolved transitively from the import tables) into the wheel and patches the
+# importers: Windows resolves an extension's dependencies from the pyd's own directory, PATH
+# is ignored since Python 3.8. --ignore-existing: simcoon.dll is already inside the wheel, so
+# it is neither searched for on the path (that lookup failed the first run) nor renamed, while
+# its own dependencies are still vendored as transitive dependencies of _core.pyd.
+repair-wheel-command = 'delvewheel repair --ignore-existing --add-path "%CONDA%\Library\bin" -w {dest_dir} {wheel}'

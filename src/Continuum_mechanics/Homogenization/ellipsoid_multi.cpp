@@ -23,6 +23,7 @@
 #include <fstream>
 #include <string>
 #include <assert.h>
+#include <cstring>
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -39,10 +40,11 @@ namespace simcoon{
 //Definition of the static variables
 int ellipsoid_multi::mp;
 int ellipsoid_multi::np;
-vec ellipsoid_multi::x;
-vec ellipsoid_multi::wx;
-vec ellipsoid_multi::y;
-vec ellipsoid_multi::wy;
+// Never destroyed on purpose (see the header): the OS reclaims them at exit.
+vec& ellipsoid_multi::x = *new vec();
+vec& ellipsoid_multi::wx = *new vec();
+vec& ellipsoid_multi::y = *new vec();
+vec& ellipsoid_multi::wy = *new vec();
     
     
 //=====Private methods for ellipsoid_multi===================================
@@ -109,6 +111,53 @@ ellipsoid_multi::~ellipsoid_multi() {}
 */
 
 //-------------------------------------
+const mat* eshelby_memo::find(const mat &Lt_local, const double &a1, const double &a2, const double &a3) const
+//-------------------------------------
+{
+    for (const entry &e : entries) {
+        // bitwise key: same medium in the same frame, same semi-axes
+        if (e.a1 == a1 && e.a2 == a2 && e.a3 == a3
+            && std::memcmp(e.Lt.memptr(), Lt_local.memptr(), 36 * sizeof(double)) == 0)
+            return &e.S;
+    }
+    return nullptr;
+}
+
+//-------------------------------------
+const mat& eshelby_memo::store(const mat &Lt_local, const double &a1, const double &a2, const double &a3, const mat &S)
+//-------------------------------------
+{
+    entries.push_back(entry{arma::mat::fixed<6,6>(Lt_local), a1, a2, a3, S});
+    return entries.back().S;
+}
+
+//-------------------------------------
+void eshelby_memo::clear()
+//-------------------------------------
+{
+    entries.clear();
+}
+
+// Eshelby tensor of ell in the medium Lt_local (inclusion frame): the inclusion's own last
+// tensor when the medium has not changed, else the pass memo when given, else integrated.
+mat ellipsoid_multi::eshelby_memoized(eshelby_memo *memo, const mat &Lt_local, const ellipsoid &ell)
+{
+    if (const mat *own = S_loc_memo.find(Lt_local, ell.a1, ell.a2, ell.a3))
+        return *own;
+    mat S;
+    const mat *hit = (memo != nullptr) ? memo->find(Lt_local, ell.a1, ell.a2, ell.a3) : nullptr;
+    if (hit != nullptr) {
+        S = *hit;
+    } else {
+        S = Eshelby(Lt_local, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
+        if (memo != nullptr) memo->store(Lt_local, ell.a1, ell.a2, ell.a3, S);
+    }
+    S_loc_memo.clear();                                  // one entry: the current medium
+    S_loc_memo.store(Lt_local, ell.a1, ell.a2, ell.a3, S);
+    return S;
+}
+
+//-------------------------------------
 void ellipsoid_multi::fillS_loc(const mat& Lt_m, const ellipsoid &ell)
 //-------------------------------------
 {
@@ -128,13 +177,13 @@ void ellipsoid_multi::fillP_loc(const mat& Lt_m, const ellipsoid &ell)
 
 
 //-------------------------------------
-void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell)
+void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell, eshelby_memo *memo)
 //This method correspond to the classical Eshelby method
 //-------------------------------------
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat Lt_m_local_geom = rot.apply_stiffness(Lt_m, false);
-    S_loc = Eshelby(Lt_m_local_geom, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
+    S_loc = eshelby_memoized(memo, Lt_m_local_geom, ell);
     mat Lt_local_geom = rot.apply_stiffness(Lt, false);
 
     try {
@@ -147,13 +196,13 @@ void ellipsoid_multi::fillT(const mat& Lt_m, const mat& Lt, const ellipsoid &ell
 }
 
 //-------------------------------------
-void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid &ell)
+void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid &ell, eshelby_memo *memo)
 //This method corresponf to the isotropization method
 //-------------------------------------
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat Lt_m_iso = Isotropize(Lt_m);
-    S_loc = Eshelby(Lt_m_iso, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
+    S_loc = eshelby_memoized(memo, Lt_m_iso, ell);
     mat Lt_local_geom = rot.apply_stiffness(Lt, false);
 
     try {
@@ -167,14 +216,14 @@ void ellipsoid_multi::fillT_iso(const mat& Lt_m, const mat& Lt, const ellipsoid 
 }
 
 //-------------------------------------
-void ellipsoid_multi::fillT_mec_in(const mat& L_m, const mat& L, const ellipsoid &ell)
+void ellipsoid_multi::fillT_mec_in(const mat& L_m, const mat& L, const ellipsoid &ell, eshelby_memo *memo)
 //This method corresponds to the Eshelby inhomogeneous inhomogeneity - inelasticity problem. It calculates
 //the interaction tensors T for the elastic and the inelastic part.
 //-------------------------------------
 {
     Rotation rot = Rotation::from_euler(ell.psi_geom, ell.theta_geom, ell.phi_geom, "zxz");
     mat L_m_local_geom = rot.apply_stiffness(L_m, false);
-    S_loc = Eshelby(L_m_local_geom, ell.a1, ell.a2, ell.a3, x, wx, y, wy, mp, np);
+    S_loc = eshelby_memoized(memo, L_m_local_geom, ell);
     mat L_local_geom = rot.apply_stiffness(L, false);
 
     try {

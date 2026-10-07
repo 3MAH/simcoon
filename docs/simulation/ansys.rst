@@ -18,10 +18,16 @@ Overview
 The Ansys ``USERMAT`` subroutine interface differs from Abaqus in several ways:
 
 - **Voigt notation**: Ansys uses (11, 22, 33, 12, 23, 13) vs simcoon's (11, 22, 33, 12, 13, 23)
-- **Finite strain handling**: Built-in Jaumann framework for rate-form behaviours
+- **Finite strain handling**: Ansys integrates the law in its own corotated frame
+  (in practice the Green-Naghdi one), passes Cauchy stress and logarithmic strain
+  already rotated, and defines ``dsdePl`` as :math:`\partial \Delta\boldsymbol{\sigma} / \partial \Delta\boldsymbol{\varepsilon}`
+  in that frame, with no :math:`J` factor: the kernel tangent is passed as is
+  (unlike Abaqus, see :doc:`abaqus`); ``rotateM`` rotates the tensorial state variables
 - **No time step control**: Cannot request smaller time steps from within USERMAT
 - **State variable initialization**: Cannot set non-zero initial values
 - **Model selection**: Uses numeric model code in props[0] instead of material name
+  (the code maps to the same 5-character names — see :doc:`umat_catalog` for
+  the complete per-name reference)
 
 Prerequisites
 -------------
@@ -115,55 +121,83 @@ Model Codes
    * - 2
      - ELISO
      - Isotropic elasticity
-     - E, ν, α
+     - :math:`E, \nu, \alpha`
    * - 3
      - ELIST
      - Transversely isotropic elasticity
-     - E₁, E₂, ν₁₂, ν₂₃, G₁₂, α₁, α₂
+     - axis, :math:`E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT}, \alpha_L, \alpha_T`
    * - 4
      - ELORT
      - Orthotropic elasticity
-     - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
+     - :math:`E_1, E_2, E_3, \nu_{12}, \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \alpha_1, \alpha_2, \alpha_3`
    * - 5
      - EPICP
-     - Isotropic plasticity (isotropic hardening)
-     - E, ν, α, σ_y, H
+     - Von Mises plasticity, power-law isotropic hardening
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m`
    * - 6
      - EPKCP
-     - Kinematic + isotropic hardening
-     - E, ν, α, σ_y, H, C, γ
+     - Von Mises, power-law isotropic + Prager kinematic
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, k_X`
    * - 7
      - EPCHA
-     - Chaboche cyclic plasticity
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, ...
+     - Von Mises + Voce + 2× Armstrong-Frederick
+     - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
+   * - 29
+     - EPJCK
+     - Von Mises + Johnson-Cook yield stress (rate and temperature dependent)
+     - :math:`E, \nu, \alpha, A, B, n, C, \dot{\varepsilon}_0, m, T_{\mathrm{ref}}, T_{\mathrm{melt}}`
    * - 8
-     - SMAUT
+     - SMADI
      - SMA unified model
+     - See SMA documentation
+   * - 9
+     - SMAAI
+     - SMA unified model, anisotropic criterion
      - See SMA documentation
    * - 10
      - LLDM0
      - Lemaitre-Chaboche damage
-     - E, ν, α, σ_y, H, S, s, D_c
+     - :math:`E, \nu, \alpha, \sigma_y, H, S, s, D_c`
    * - 11
      - ZENER
-     - Zener viscoelastic (single branch)
-     - E₀, E₁, η
+     - Kelvin viscoelastic (single branch)
+     - :math:`E_0, \nu_0, \alpha, E_1, \nu_1, \eta_{B1}, \eta_{S1}`
    * - 12
      - ZENNK
-     - Zener viscoelastic (N branches)
-     - E₀, E₁, η₁, E₂, η₂, ...
+     - Kelvin viscoelastic (N branches)
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
    * - 13
      - PRONK
-     - Prony series viscoelastic
-     - G₀, K₀, g₁, τ₁, k₁, τ'₁, ...
+     - Prony series viscoelastic (generalized Maxwell)
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
+   * - 14
+     - EPTRI
+     - Tresca-family plasticity (Hill layout)
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
+   * - 15
+     - SMADC
+     - SMA unified model, cubic elasticity
+     - See SMA documentation
+   * - 16
+     - SMAAC
+     - SMA unified model, cubic + anisotropic criterion
+     - See SMA documentation
    * - 17
      - EPHIL
-     - Hill anisotropic plasticity
-     - E, ν, α, σ_y, H, F, G, H, L, M, N
+     - Hill yield + power-law isotropic hardening
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
    * - 18
      - EPHAC
-     - Hill + Chaboche
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, F, G, H, L, M, N
+     - Cubic elasticity + Hill + Voce + 2× AF
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N`
+   * - 25--28
+     - SMRDI / SMRDC / SMRAI / SMRAC
+     - SMA unified transformation + reorientation (iso/cubic × iso/aniso)
+     - See SMA documentation
+   * - 200
+     - MODUL
+     - Modular composition (props encode the mechanisms)
+     - See the modular UMAT documentation
 
 How It Works
 ------------
@@ -227,28 +261,28 @@ simcoon and Abaqus use the same Voigt notation, but Ansys differs in the shear c
      - Ansys
    * - 0
      - Normal 11
-     - σ₁₁, ε₁₁
-     - σ₁₁, ε₁₁
+     - :math:`\sigma_{11}, \varepsilon_{11}`
+     - :math:`\sigma_{11}, \varepsilon_{11}`
    * - 1
      - Normal 22
-     - σ₂₂, ε₂₂
-     - σ₂₂, ε₂₂
+     - :math:`\sigma_{22}, \varepsilon_{22}`
+     - :math:`\sigma_{22}, \varepsilon_{22}`
    * - 2
      - Normal 33
-     - σ₃₃, ε₃₃
-     - σ₃₃, ε₃₃
+     - :math:`\sigma_{33}, \varepsilon_{33}`
+     - :math:`\sigma_{33}, \varepsilon_{33}`
    * - 3
      - Shear 12
-     - σ₁₂, γ₁₂
-     - σ₁₂, γ₁₂
+     - :math:`\sigma_{12}, \gamma_{12}`
+     - :math:`\sigma_{12}, \gamma_{12}`
    * - 4
      - Shear 13/23
-     - σ₁₃, γ₁₃
-     - σ₂₃, γ₂₃
+     - :math:`\sigma_{13}, \gamma_{13}`
+     - :math:`\sigma_{23}, \gamma_{23}`
    * - 5
      - Shear 23/13
-     - σ₂₃, γ₂₃
-     - σ₁₃, γ₁₃
+     - :math:`\sigma_{23}, \gamma_{23}`
+     - :math:`\sigma_{13}, \gamma_{13}`
 
 The ``usermat_singleM.cpp`` bridge automatically swaps indices 4 and 5 during conversion.
 

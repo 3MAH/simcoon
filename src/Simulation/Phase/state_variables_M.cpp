@@ -27,7 +27,6 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 using namespace std;
 using namespace arma;
@@ -63,7 +62,7 @@ state_variables_M::state_variables_M() : state_variables(), sigma_in(6), sigma_i
 */
 
 //-------------------------------------------------------------
-state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec& mWm_start, const mat &mL, const mat &mLt) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
+state_variables_M::state_variables_M(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const vec &mWm, const vec& mWm_start, const mat &mL, const mat &mLt) : state_variables(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start), sigma_in(6), sigma_in_start(6), Wm(4), Wm_start(4), L(6,6), Lt(6,6)
 //-------------------------------------------------------------
 {
 
@@ -153,7 +152,6 @@ state_variables_M& state_variables_M::operator = (const state_variables_M& sv)
     statev = sv.statev;
     statev_start = sv.statev_start;
     
-    nb = sv.nb;
 
 	return *this;
 
@@ -189,10 +187,10 @@ state_variables_M& state_variables_M::copy_fields_M(const state_variables_M& sv)
 }
 
 //-------------------------------------------------------------
-void state_variables_M::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const natural_basis &mnb, const vec &mWm, const vec &mWm_start, const mat &mL, const mat &mLt)
+void state_variables_M::update(const vec &mEtot, const vec &mDEtot, const vec &metot, const vec &mDetot, const vec &mPKII, const vec &mPKII_start, const vec &mtau, const vec &mtau_start, const vec &msigma, const vec &msigma_start, const mat &mF0, const mat &mF1, const mat &mU0, const mat &mU1, const mat &mR, const mat &mDR, const vec &msigma_in, const vec &msigma_in_start, const double &mT, const double &mDT, const int &mnstatev, const vec &mstatev, const vec &mstatev_start, const vec &mWm, const vec &mWm_start, const mat &mL, const mat &mLt)
 //-------------------------------------------------------------
 {
-    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start, mnb);
+    state_variables::update(mEtot, mDEtot, metot, mDetot, mPKII, mPKII_start, mtau, mtau_start, msigma, msigma_start, mF0, mF1, mU0, mU1, mR, mDR, mT, mDT, mnstatev, mstatev, mstatev_start);
 
     assert (msigma_in.size() == 6);
     assert (msigma_in_start.size() == 6);
@@ -234,55 +232,34 @@ void state_variables_M::set_start(const int &corate_type)
 }
         
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_l2g(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_l2g(sv, psi, theta, phi);
-
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
+    state_variables::rotate_l2g(sv, frame);
 
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
-	L = sv.L;
 	Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz");
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
-    }
+    frame.rotate_stiffness(Lt);
 
 	return *this;
 }
 
 //----------------------------------------------------------------------
-state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const double &psi, const double &theta, const double &phi)
+state_variables_M& state_variables_M::rotate_g2l(const state_variables_M& sv, const frame_rotation &frame)
 //----------------------------------------------------------------------
 {
 
-    state_variables::rotate_g2l(sv, psi, theta, phi);
-
-    sigma_in = sv.sigma_in;
-    sigma_in_start = sv.sigma_in_start;
+    state_variables::rotate_g2l(sv, frame);
 
     Wm = sv.Wm;
-    Wm_start = sv.Wm_start;
-
     L = sv.L;
     Lt = sv.Lt;
 
-    Rotation rot = Rotation::from_euler(psi, theta, phi, "zxz").inv();
-    if (!rot.is_identity()) {
-        sigma_in = rot.apply_stress(sigma_in);
-        sigma_in_start = rot.apply_stress(sigma_in_start);
-        L = rot.apply_stiffness(L);
-        Lt = rot.apply_stiffness(Lt);
-    }
+    // inverse operators: global -> local
+    frame.rotate_stiffness(L, frame_rotation::inverse);
+    frame.rotate_stiffness(Lt, frame_rotation::inverse);
 
 	return *this;
 }

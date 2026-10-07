@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 #include <armadillo>
 
-#include <simcoon/FTensor.hpp>
+#include <Fastor/Fastor.h>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
@@ -30,11 +30,11 @@
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/fastor_bridge.hpp>
 
 using namespace std;
 using namespace arma;
 using namespace simcoon;
-using namespace FTensor;
 
 TEST(Tobjective_rates, get_B)
 {
@@ -57,28 +57,24 @@ TEST(Tobjective_rates, get_B)
     eig_sym(bi, Bi, B);
 
     mat Bij = zeros(3,3);
-    Tensor2<double,3,3> Bij_ = mat_FTensor2(zeros(3,3));
-    Tensor4<double,3,3,3,3> BBBB_ = mat_FTensor4(zeros(6,6));
-    
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'m', 3> m;
-    Index<'n', 3> n;
-    
+    Fastor::Tensor<double,3,3,3,3> BBBB_fastor;
+    BBBB_fastor.zeros();
+
     double f_z = 0.;
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
-                Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                //BBBB_(k,l,m,n) = b_[i](k)*b_[j](l)*b_[i](m)*b_[j](n);
-                BBBB_(k,l,m,n) = BBBB_(k,l,m,n) + f_z*Bij_(k,l)*Bij_(m,n);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_fastor += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
-    
-    mat BBBB_test = FTensor4_mat(BBBB_);
+
+    mat BBBB_test = fastor4_to_voigt(BBBB_fastor);
 
     mat BBBB = get_BBBB(F);
 
@@ -112,7 +108,10 @@ TEST(Tobjective_rates, logarithmic_functions)
 
     //Compute log rate and increment of rotation
     mat I = eye(3,3);
-    mat L = (1./DTime)*(F1-F0)*inv(F1);
+    // Reference velocity gradient must match the production rate functions: 2nd-order centered
+    // estimate L = (2/dt)(F1-F0)(F0+F1)^-1 (see objective_rates.cpp), so D_test = sym(L) lines up
+    // with what logarithmic() computes internally.
+    mat L = (2./DTime)*(F1-F0)*inv(F0+F1);
     
     //decomposition of L
     mat D_test = 0.5*(L+L.t());
@@ -125,34 +124,28 @@ TEST(Tobjective_rates, logarithmic_functions)
     eig_sym(bi, Bi, B_test);
 
     mat Bij = zeros(3,3);
-    Tensor2<double,3,3> Bij_ = mat_FTensor2(zeros(3,3));
-    Tensor2<double,3,3> N_ = mat_FTensor2(zeros(3,3));
-    Tensor2<double,3,3> D_= mat_FTensor2(zeros(3,3));
-    Tensor4<double,3,3,3,3> BBBB_ = mat_FTensor4(zeros(6,6));
-    
-    D_ = mat_FTensor2(D_test);
-    
-    Index<'k', 3> k;
-    Index<'l', 3> l;
-    Index<'m', 3> m;
-    Index<'n', 3> n;
-    
+    Fastor::Tensor<double,3,3,3,3> BBBB_f;
+    BBBB_f.zeros();
+
     double f_z = 0.;
-    BBBB_(k,l,m,n) = Bij_(k,l)*Bij_(m,n);
+    enum {k,l,m,n};
     for (unsigned int i=0; i<3; i++) {
         for (unsigned int j=0; j<3; j++) {
             if ((i!=j)&&(fabs(bi(i)-bi(j))>simcoon::iota)) {
                 Bij = Bi.col(i)*(Bi.col(j)).t();
-                Bij_ = mat_FTensor2(Bij);
                 f_z = (1.+(bi(i)/bi(j)))/(1.-(bi(i)/bi(j)))+2./log(bi(i)/bi(j));
-                //BBBB_(k,l,m,n) = b_[i](k)*b_[j](l)*b_[i](m)*b_[j](n);
-                BBBB_(k,l,m,n) = BBBB_(k,l,m,n) + f_z*Bij_(k,l)*Bij_(m,n);
+                // BBBB_klmn += f_z * Bij_kl * Bij_mn
+                auto Bij_ = arma_to_fastor2(mat::fixed<3,3>(Bij), false);
+                BBBB_f += f_z * Fastor::einsum<Fastor::Index<k,l>, Fastor::Index<m,n>>(Bij_, Bij_);
             }
         }
     }
-    N_(k,l) = N_(k,l) + BBBB_(k,l,m,n)*D_(m,n);
+    // N_kl = BBBB_klmn * D_mn
+    auto D_ = arma_to_fastor2(mat::fixed<3,3>(D_test), true);
+    Fastor::Tensor<double,3,3> N_ = Fastor::einsum<Fastor::Index<k,l,m,n>, Fastor::Index<m,n>>(BBBB_f, D_);
+    mat N_mat = fastor2_to_arma(N_);
 
-    mat Omega_test = W_test + FTensor2_mat(N_);
+    mat Omega_test = W_test + N_mat;
 
     mat BBBB = get_BBBB(F1);
     mat Omega_test2 = W_test + v2t_skewsym(BBBB*t2v_strain(D_test));
@@ -245,6 +238,37 @@ TEST(Tobjective_rates, logarithmic_R_rate)
     EXPECT_LT(norm(DR.t() * DR - eye(3,3), 2), 1.E-3);
 }
 
+TEST(Tobjective_rates, polar_rates_exact_finite_rigid_rotation)
+{
+    const double angle = datum::pi/4.;
+    const double DTime = 1.;
+    mat F0 = eye(3,3);
+    mat F1 = eye(3,3);
+    F1(0,0) = cos(angle);
+    F1(0,1) = -sin(angle);
+    F1(1,0) = sin(angle);
+    F1(1,1) = cos(angle);
+
+    mat DR = zeros(3,3);
+    mat D = zeros(3,3);
+    mat Omega = zeros(3,3);
+    Green_Naghdi(DR, D, Omega, DTime, F0, F1);
+
+    EXPECT_LT(norm(D, 2), 1.E-12);
+    EXPECT_LT(norm(Omega + Omega.t(), 2), 1.E-12);
+    EXPECT_LT(norm(DR.t()*DR - eye(3,3), 2), 1.E-12);
+    EXPECT_LT(norm(DR - F1*F0.t(), 2), 1.E-12);
+
+    mat N_1 = zeros(3,3);
+    mat N_2 = zeros(3,3);
+    logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1);
+
+    EXPECT_LT(norm(D, 2), 1.E-12);
+    EXPECT_LT(norm(Omega + Omega.t(), 2), 1.E-12);
+    EXPECT_LT(norm(DR.t()*DR - eye(3,3), 2), 1.E-12);
+    EXPECT_LT(norm(DR - F1*F0.t(), 2), 1.E-12);
+}
+
 TEST(Tobjective_rates, logarithmic_F_rate)
 {
     mat F0 = eye(3,3);
@@ -333,7 +357,7 @@ TEST(Tobjective_rates, tangent_conversions_DtauDe_DSDE)
     F(2,2) = 1.02;
     double J = det(F);
 
-    mat B = get_BBBB(F);
+
     mat sigma = zeros(3,3);
     sigma(0,0) = 100.;
     sigma(1,1) = 50.;
@@ -341,7 +365,7 @@ TEST(Tobjective_rates, tangent_conversions_DtauDe_DSDE)
     mat tau = Cauchy2Kirchoff(sigma, F, J);
 
     // DtauDe -> DSDE should be 6x6
-    mat DSDE = DtauDe_2_DSDE(Lt, B, F, tau);
+    mat DSDE = DtauDe_2_DSDE(Lt, F, tau);
     EXPECT_EQ(DSDE.n_rows, (arma::uword)6);
     EXPECT_EQ(DSDE.n_cols, (arma::uword)6);
 }
@@ -545,4 +569,52 @@ TEST(Tobjective_rates, logR_logF_same_N1)
 
     EXPECT_LT(norm(N1_lr - N1_lf, 2), 1.E-12);
     EXPECT_LT(norm(N2_lr - N2_lf, 2), 1.E-12);
+}
+
+// Dtau_LieDD_2_DtauDe_corate maps the SPATIAL (Lie/Oldroyd) tangent -- the closed form a
+// hyperelastic potential produces -- straight to the box of the requested rate, in ONE step.
+// It must agree with the established two-step route through dS/dE that it replaces, for every
+// corate. This is what licenses passing corate_type into the kernels: before it, they baked the
+// log box and select_umat_M_finite un-baked and re-baked, three maps of which two cancelled.
+//
+// Note a wrong tangent does NOT move converged solver values (Newton finds the same root), so
+// the regression baseline is structurally blind to this class of error. Only a check like this
+// one, or a finite-difference of the tangent, can see it.
+TEST(Tobjective_rates, Dtau_LieDD_2_DtauDe_corate_matches_the_two_step_route)
+{
+    mat F = {{1.17, 0.06, -0.02},
+             {0.03, 0.94,  0.05},
+             {-0.01, 0.02, 0.98}};
+    const double J = det(F);
+    ASSERT_GT(std::abs(J - 1.0), 0.05) << "J must be away from 1 or a J error would be invisible";
+
+    // a representative Kirchhoff stress and a representative spatial tangent
+    const mat tau = {{ 180.,  22., -9.},
+                     {  22., -60., 14.},
+                     {  -9.,  14., 35.}};
+    const mat C_tau = L_iso(70000., 0.3, "Enu");   // stands in for J * c, any 6x6 will do
+
+    for (int corate : {0, 1, 2, 3, 4, 5}) {
+        const mat one_step = Dtau_LieDD_2_DtauDe_corate(C_tau, corate, F, tau);
+        const mat two_step = DSDE_2_DtauDe_corate(Dtau_LieDD_2_DSDE(C_tau, F), corate, F, tau);
+        EXPECT_LT(norm(one_step - two_step, "fro"), 1.E-9*norm(two_step, "fro"))
+            << "corate " << corate;
+    }
+
+    // corate 4 (Truesdell) is the convected box: the Lie tangent itself (stress upper-, strain
+    // lower-convected, Almansi increment), FD-verified in test_finite_tangents.py.
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 4, F, tau) - C_tau, "fro"), 1.E-12);
+
+    // corate 5 (log_F): De = A^F:D dt with the stress carried by sym(DF X DF^-1), so the box is
+    // the chain rule c^J : (A^F)^-1 (FD-verified; equal to the log box for isotropic laws).
+    const mat box5 = Dtau_LieDD_Dtau_JaumannDD(C_tau, tau)*inv(A_F(F));
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 5, F, tau) - box5, "fro"), 1.E-9*norm(box5, "fro"));
+
+    // corates 2 and 3 share the exact spectral map.
+    const mat box2 = Dtau_LieDD_2_DtauDe_corate(C_tau, 2, F, tau);
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 3, F, tau) - box2, "fro"), 1.E-12);
+
+    // ...and Jaumann and Green-Naghdi genuinely differ from it, or the loop above proves nothing.
+    EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 0, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
+    EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 1, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
 }

@@ -1,0 +1,423 @@
+/* This file is part of simcoon.
+
+simcoon is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+simcoon is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
+
+*/
+
+/**
+ * @file elasticity_module.hpp
+ * @brief Elasticity module for modular UMAT.
+ *
+ * This module wraps existing elasticity functions (L_iso, L_cubic, L_ortho,
+ * L_isotrans) and the isochoric-invariant hyperelastic potentials
+ * (hyperelastic.hpp) to provide a configurable elasticity component.
+ *
+ * Elastic constants are passed as ordinal slots (C1, C2, ...) whose meaning
+ * is selected by a per-symmetry convention enum (IsoConv, CubicConv, ...).
+ * The convention codes are stable integers so they can travel in the flat
+ * props stream: every linear elasticity block starts with one convention
+ * slot, followed by the constants and the CTE values. A convention changes
+ * the INTERPRETATION of the slots, never their count — the props layout is
+ * invariant per linear ElasticityType. All parameterization conversions live
+ * in the classical builders (constitutive.cpp); this module only maps the
+ * enum to the builders' convention strings. A HYPER_INVARIANTS block instead
+ * carries its potential and parameter count (see props_count()).
+ *
+ * @version 1.0
+ */
+
+#pragma once
+
+#include <armadillo>
+#include <stdexcept>
+#include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
+
+namespace simcoon {
+
+/**
+ * @brief Types of elasticity block
+ */
+enum class ElasticityType {
+    ISOTROPIC = 0,              ///< Isotropic: conv, C1, C2, alpha
+    CUBIC = 1,                  ///< Cubic: conv, C1, C2, C3, alpha (3 independent elastic constants)
+    TRANSVERSE_ISOTROPIC = 2,   ///< Transverse isotropic: conv, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis
+    ORTHOTROPIC = 3,            ///< Orthotropic: conv, C1..C9, alpha1, alpha2, alpha3
+    HYPER_INVARIANTS = 4        ///< Hyperelastic potential in isochoric invariants: potential, n_params, params..., alpha
+};
+
+/**
+ * @brief Parameterization of the two isotropic elastic constants (C1, C2).
+ *
+ * Mirrors the convention strings of L_iso/M_iso:
+ * | code | convention | C1      | C2      |
+ * |------|------------|---------|---------|
+ * | 0    | Enu        | E       | nu      |
+ * | 1    | nuE        | nu      | E       |
+ * | 2    | Kmu        | K       | mu (=G) |
+ * | 3    | muK        | mu (=G) | K       |
+ * | 4    | lambdamu   | lambda  | mu (=G) |
+ * | 5    | mulambda   | mu (=G) | lambda  |
+ */
+enum class IsoConv : int {
+    Enu = 0,
+    nuE = 1,
+    Kmu = 2,
+    muK = 3,
+    lambdamu = 4,
+    mulambda = 5
+};
+
+/**
+ * @brief Parameterization of the three cubic elastic constants (C1, C2, C3).
+ *
+ * Mirrors the convention strings of L_cubic/M_cubic:
+ * | code | convention | C1  | C2  | C3  |
+ * |------|------------|-----|-----|-----|
+ * | 0    | EnuG       | E   | nu  | G   |
+ * | 1    | Cii        | C11 | C12 | C44 |
+ */
+enum class CubicConv : int {
+    EnuG = 0,
+    Cii = 1
+};
+
+/**
+ * @brief Parameterization of the transversely isotropic constants.
+ *
+ * L_isotrans/M_isotrans implement a single parameterization
+ * (EL, ET, nuTL, nuTT, GLT); the enum exists so the props layout keeps a
+ * convention slot uniformly across all elasticity types, and so further
+ * parameterizations remain additive.
+ */
+enum class IsotransConv : int {
+    EnuG = 0
+};
+
+/**
+ * @brief Parameterization of the nine orthotropic elastic constants (C1..C9).
+ *
+ * Mirrors the convention strings of L_ortho/M_ortho:
+ * | code | convention | C1  | C2  | C3  | C4   | C5   | C6   | C7  | C8  | C9  |
+ * |------|------------|-----|-----|-----|------|------|------|-----|-----|-----|
+ * | 0    | EnuG       | E1  | E2  | E3  | nu12 | nu13 | nu23 | G12 | G13 | G23 |
+ * | 1    | Cii        | C11 | C12 | C13 | C22  | C23  | C33  | C44 | C55 | C66 |
+ */
+enum class OrthoConv : int {
+    EnuG = 0,
+    Cii = 1
+};
+
+/**
+ * @brief Elasticity module for modular UMAT
+ *
+ * This class encapsulates the computation of the elastic stiffness tensor
+ * and coefficient of thermal expansion for different types of linear elasticity.
+ */
+class ElasticityModule {
+private:
+    ElasticityType type_;
+    arma::mat L_;           ///< 6x6 stiffness tensor
+    arma::mat M_;           ///< 6x6 compliance tensor
+    arma::vec alpha_;       ///< 6-component CTE (Voigt notation)
+    HyperPotential hyper_potential_;  ///< HYPER_INVARIANTS: the potential
+    arma::vec hyper_props_; ///< HYPER_INVARIANTS: that potential's own parameters
+    hyper_anisotropy an_;   ///< HYPER_INVARIANTS: fibre directions + dispersion, parsed once by configure_hyper_invariants
+    tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
+    tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
+    bool configured_;
+
+    /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
+    /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.
+    /// Also validates the material: L must be strictly positive definite —
+    /// a wrong parameter order or inadmissible constants (e.g. Poisson
+    /// combinations) otherwise reach the return mapping as an indefinite
+    /// stiffness and fail far from the cause.
+    void refresh_tensors() {
+        // Cholesky is the cheap positive-definiteness test (succeeds iff SPD,
+        // ~2-3x faster than a full eigendecomposition) — matters because
+        // umat_modular reconstructs the module on every integration-point call.
+        arma::mat R;
+        if (!arma::chol(R, L_)) {
+            throw std::runtime_error(
+                "ElasticityModule: stiffness is not positive definite "
+                "(check the elastic constants and their order)");
+        }
+        L_t_ = tensor4(L_, Tensor4Type::stiffness);
+        M_t_ = tensor4(M_, Tensor4Type::compliance);
+    }
+
+public:
+    /**
+     * @brief Default constructor
+     */
+    ElasticityModule();
+
+    // Default copy/move/destructor
+    ElasticityModule(const ElasticityModule&) = default;
+    ElasticityModule(ElasticityModule&&) = default;
+    ElasticityModule& operator=(const ElasticityModule&) = default;
+    ElasticityModule& operator=(ElasticityModule&&) = default;
+    ~ElasticityModule() = default;
+
+    // ========== Configuration ==========
+
+    /**
+     * @brief Configure as isotropic elasticity
+     * @param C1 First elastic constant, interpreted per @p conv (see IsoConv)
+     * @param C2 Second elastic constant, interpreted per @p conv
+     * @param alpha Coefficient of thermal expansion (scalar, isotropic)
+     * @param conv Parameterization of (C1, C2) — default Enu: C1 = E, C2 = nu
+     */
+    void configure_isotropic(double C1, double C2, double alpha,
+                             IsoConv conv = IsoConv::Enu);
+
+    /**
+     * @brief Configure as cubic elasticity
+     * @param C1 First elastic constant, interpreted per @p conv (see CubicConv)
+     * @param C2 Second elastic constant, interpreted per @p conv
+     * @param C3 Third elastic constant, interpreted per @p conv
+     * @param alpha Coefficient of thermal expansion (scalar, isotropic CTE)
+     * @param conv Parameterization of (C1, C2, C3) — default EnuG:
+     *        C1 = E, C2 = nu, C3 = G; Cii: C1 = C11, C2 = C12, C3 = C44
+     *
+     * Cubic symmetry has 3 independent elastic constants. Unlike isotropic
+     * materials where G = E/(2(1+nu)), G is an independent parameter here.
+     * The Zener anisotropy ratio A = 2*G*(1+nu)/E quantifies the deviation
+     * from isotropy (A=1 for isotropic).
+     */
+    void configure_cubic(double C1, double C2, double C3, double alpha,
+                         CubicConv conv = CubicConv::EnuG);
+
+    /**
+     * @brief Configure as transversely isotropic elasticity
+     * @param EL Longitudinal Young's modulus
+     * @param ET Transverse Young's modulus
+     * @param nuTL Poisson's ratio (transverse-longitudinal)
+     * @param nuTT Poisson's ratio (transverse-transverse)
+     * @param GLT Shear modulus
+     * @param alpha_L Longitudinal CTE
+     * @param alpha_T Transverse CTE
+     * @param axis Axis of symmetry (1=x, 2=y, 3=z)
+     * @param conv Parameterization — a single one exists (see IsotransConv)
+     */
+    void configure_transverse_isotropic(double EL, double ET, double nuTL, double nuTT,
+                                        double GLT, double alpha_L, double alpha_T, int axis = 3,
+                                        IsotransConv conv = IsotransConv::EnuG);
+
+    /**
+     * @brief Configure as orthotropic elasticity
+     * @param C1,C2,C3,C4,C5,C6,C7,C8,C9 The nine elastic constants,
+     *        interpreted per @p conv (see OrthoConv). Default EnuG:
+     *        (E1, E2, E3, nu12, nu13, nu23, G12, G13, G23);
+     *        Cii: (C11, C12, C13, C22, C23, C33, C44, C55, C66).
+     * @param alpha1 CTE in direction 1
+     * @param alpha2 CTE in direction 2
+     * @param alpha3 CTE in direction 3
+     * @param conv Parameterization of the nine constants
+     */
+    void configure_orthotropic(double C1, double C2, double C3,
+                               double C4, double C5, double C6,
+                               double C7, double C8, double C9,
+                               double alpha1, double alpha2, double alpha3,
+                               OrthoConv conv = OrthoConv::EnuG);
+
+    /**
+     * @brief Configure as a hyperelastic potential in isochoric invariants.
+     *
+     * The block stops being a constant stiffness: evaluate() then integrates
+     * the potential at the elastic strain it is handed. Under NLGEOM that
+     * strain is the elastic LOGARITHMIC strain, so the composition is the
+     * logarithmic-strain-space form of multiplicative finite strain (exact for
+     * isotropy), and the potential is bridged to it by
+     * \f$ \mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el}) \f$.
+     *
+     * L0() is the tangent of the potential at zero strain: the isotropic
+     * stiffness \f$ K = U''(1) \f$, \f$ \mu = 2 (\partial W / \partial \bar{I}_1
+     * + \partial W / \partial \bar{I}_2) \f$ built from the potential's own
+     * derivatives, which is what evaluate() returns at zero strain. It is
+     * validated as positive definite by refresh_tensors(), a genuine
+     * admissibility check on the parameters.
+     *
+     * @param potential the potential (see HyperPotential for its parameters)
+     * @param params the potential's parameters
+     * @param alpha_scalar isotropic CTE
+     */
+    void configure_hyper_invariants(HyperPotential potential, const arma::vec& params,
+                                    double alpha_scalar);
+
+    /**
+     * @brief Configure from props array
+     * @param type Elasticity type
+     * @param props Material properties vector
+     * @param offset Current offset in props (will be updated)
+     *
+     * Linear block layout: [conv, constants..., alphas...] (+ axis for
+     * TRANSVERSE_ISOTROPIC). The conv slot is validated against the type's
+     * convention enum and selects the interpretation of the constant slots.
+     * HYPER_INVARIANTS layout: [potential, n_params, params..., alpha]. See
+     * props_count() for per-type totals.
+     */
+    void configure(ElasticityType type, const arma::vec& props, int& offset);
+
+    // ========== Accessors ==========
+
+    /**
+     * @brief Get the elasticity type
+     * @return The configured type
+     */
+    [[nodiscard]] ElasticityType type() const noexcept { return type_; }
+
+    /**
+     * @brief Check if the module is configured
+     * @return True if configure has been called
+     */
+    [[nodiscard]] bool is_configured() const noexcept { return configured_; }
+
+    /**
+     * @brief Ground-state (zero elastic strain) 6x6 stiffness.
+     *
+     * Named L0, not L, because it is the stiffness of the undeformed state and
+     * not necessarily the current tangent: a state-dependent elastic block has
+     * a tangent that moves with the strain (see evaluate()). It is what the
+     * mechanisms take as their reference — ViscoelasticMechanism inverts it
+     * once into the long-term compliance M_0, which must NOT follow the state.
+     *
+     * @return Const reference to the ground-state stiffness
+     */
+    [[nodiscard]] const arma::mat& L0() const noexcept { return L_; }
+
+    /**
+     * @brief Get the 6x6 ground-state compliance tensor, inv(L0).
+     * @return Const reference to M
+     */
+    [[nodiscard]] const arma::mat& M() const noexcept { return M_; }
+
+    /**
+     * @brief Get the CTE tensor
+     * @return Const reference to alpha (6 components)
+     */
+    [[nodiscard]] const arma::vec& alpha() const noexcept { return alpha_; }
+
+    // ========== Tensor-typed accessors (Tensor2/Tensor4 API) ==========
+
+    /**
+     * @brief Ground-state stiffness as a typed Tensor4 (cached — built once
+     * per configure), the L0() counterpart. Like M(), it mirrors the
+     * undeformed state, not the current tangent of evaluate().
+     *
+     * Use `.contract(strain_tensor)` to obtain the elastic stress tensor2 with
+     * the correct Tensor2Type automatically inferred. Returned by const-ref so
+     * hot loops can contract without paying the eng→Mandel congruence per call.
+     */
+    [[nodiscard]] const tensor4& L_tensor() const noexcept { return L_t_; }
+
+    [[nodiscard]] const tensor4& M_tensor() const noexcept { return M_t_; }
+
+    [[nodiscard]] tensor2 alpha_tensor() const {
+        return strain(alpha_);
+    }
+
+    // ========== Constitutive response ==========
+
+    /**
+     * @brief Elastic response at @p eps_el: stress and its tangent, in one pass.
+     *
+     * One entry point rather than a stress() and a tangent(), for two reasons:
+     * the return mapping always wants the pair, and a state-dependent block
+     * shares the expensive part between them — a hyperelastic potential builds
+     * \f$ \mathbf{b} \f$, \f$ J \f$ and the invariant derivatives once and
+     * produces both from those, exactly as the Finite/ kernels already do.
+     * Splitting them would either double that work per Newton iteration or
+     * force a mutable cache behind a const method.
+     *
+     * For the linear symmetries the response is the elastic predictor
+     * \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$ and the tangent is
+     * \f$ \mathbf{L} \f$ itself. Under NLGEOM the caller feeds the elastic
+     * LOGARITHMIC strain and the stress is Kirchhoff.
+     *
+     * @note A hyperelastic block evaluates its potential at the ELASTIC state only:
+     *       \f$ \mathbf{V}^{el} = \exp(\boldsymbol{\varepsilon}^{el}) \f$,
+     *       \f$ \mathbf{b}^{el} = (\mathbf{V}^{el})^2 \f$ and
+     *       \f$ J^{el} = \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{el}) \f$. Two consequences:
+     *       - The block defines a stored energy per REFERENCE volume,
+     *         \f$ \psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el}) \f$, and
+     *         returns the Kirchhoff stress of \f$ W \f$ at \f$ \mathbf{F} := \mathbf{V}^{el} \f$
+     *         -- the route's Kirchhoff stress. It equals \f$ \partial \psi / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$ for an isotropic \f$ W \f$, and for an
+     *         anisotropic one (HOLZA) only while it stays coaxial with \f$ \mathbf{V}^{el} \f$, exactly as ELISO
+     *         returns \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$; the Cauchy output is
+     *         \f$ \boldsymbol{\tau}/J \f$ with the total \f$ J \f$. \f$ J^{el} \f$ is only the
+     *         argument of \f$ U \f$, so a stress-free volumetric inelastic strain (free thermal
+     *         expansion) stays stress-free. A multiplicative model with the energy per
+     *         INTERMEDIATE volume would instead scale this stress by
+     *         \f$ \exp(\textrm{tr}\,\boldsymbol{\varepsilon}^{in}) \f$; that is a different
+     *         modelling choice, which no simcoon law makes.
+     *       - The tangent is requested in corate 3 (log_R) whatever the solver's corate: in the
+     *         corotated frame (\f$ \mathbf{R} = \mathbf{I} \f$) the log box with respect to
+     *         \f$ \ln \mathbf{V}^{el} \f$ IS \f$ \partial \boldsymbol{\tau} / \partial
+     *         \boldsymbol{\varepsilon}^{el} \f$. MODUL under finite strain refuses any other
+     *         corate (select_umat_M_finite), and that guard is what makes this exact.
+     *
+     *       The linear blocks carry no \f$ J \f$ and build no rate, so neither applies to them.
+     *
+     * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
+     * @param[in]  ndi number of direct stress components. ndi < 3 statically
+     *             condenses the STRESS only — the tangent is always the full
+     *             6x6, which is the pre-existing contract (the mechanisms have
+     *             always received an uncondensed stiffness). The condensation
+     *             is a property of a linear operator: a nonlinear block cannot
+     *             honour it, plane stress there being the constraint
+     *             \f$ \sigma_{33} = 0 \f$ solved by iterating on
+     *             \f$ \varepsilon_{33} \f$ one level up.
+     * @param[out] sigma stress (6-Voigt)
+     * @param[out] Lt tangent \f$ \partial \boldsymbol{\sigma} / \partial
+     *             \boldsymbol{\varepsilon}^{el} \f$ (6x6, never condensed)
+     */
+    void evaluate(const arma::vec& eps_el, int ndi,
+                  arma::vec& sigma, arma::mat& Lt) const;
+
+    // ========== Derived Quantities ==========
+
+    /**
+     * @brief Get thermal strain
+     * @param DT Temperature increment
+     * @return Thermal strain vector (alpha * DT)
+     */
+    [[nodiscard]] arma::vec thermal_strain(double DT) const;
+
+    [[nodiscard]] tensor2 thermal_strain_tensor(double DT) const {
+        return strain(thermal_strain(DT));
+    }
+
+    /**
+     * @brief Get number of props consumed by this elasticity type
+     * @param type The elasticity type
+     * @param n_params HYPER_INVARIANTS only: number of potential parameters
+     * @return Number of properties required (including the leading convention
+     *         or potential slot)
+     */
+    [[nodiscard]] static constexpr int props_count(ElasticityType type, int n_params = 0) {
+        switch (type) {
+            case ElasticityType::ISOTROPIC:            return 4;   // conv, C1, C2, alpha
+            case ElasticityType::CUBIC:                return 5;   // conv, C1..C3, alpha
+            case ElasticityType::TRANSVERSE_ISOTROPIC: return 9;   // conv, EL..GLT, alpha_L, alpha_T, axis
+            case ElasticityType::ORTHOTROPIC:          return 13;  // conv, C1..C9, alpha1..3
+            case ElasticityType::HYPER_INVARIANTS:     return 3 + n_params;  // potential, n_params, params..., alpha
+        }
+        return 0;
+    }
+};
+
+} // namespace simcoon

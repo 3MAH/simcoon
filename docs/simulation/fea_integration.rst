@@ -11,13 +11,12 @@ This section explains how to use simcoon's built-in constitutive models within c
 Overview
 --------
 
-Simcoon provides ready-to-use bridge files in the ``software/`` directory that allow you to use **all simcoon constitutive models** directly in commercial FEA software:
+Simcoon provides ready-to-use bridge files in the ``software/`` directory that allow you to use simcoon's **point-level constitutive models** directly in commercial FEA software. Mean-field micromechanics models are the exception: since 2.0 their sub-phases are passed in memory, so they are driven from Python (see :doc:`python_solver`) rather than through these bridges.
 
 **For Abaqus:**
 
 - ``software/umat_singleM.cpp`` - Single mechanical model (selected by material name)
 - ``software/umat_singleT.cpp`` - Single thermo-mechanical model
-- ``software/umat_singleM_multi.cpp`` - Multiscale mechanical model
 - ``software/umat_externalM.cpp`` - Template for custom external UMAT
 
 **For Ansys:**
@@ -78,19 +77,30 @@ All simcoon constitutive models are available through the FEA bridges:
 ELISO (isotropic), ELIST (transversely isotropic), ELORT (orthotropic)
 
 **Plasticity:**
-EPICP (isotropic hardening), EPKCP (kinematic), EPCHA (Chaboche), EPHIL (Hill), EPHAC (Hill-Chaboche)
+EPICP (isotropic hardening), EPKCP (kinematic), EPCHA (Chaboche),
+EPHIL/EPTRI (Hill), EPHAC (Hill-Chaboche), EPANI (anisotropic-Chaboche),
+EPDFA (DFA-Chaboche), EPCHG (generic Chaboche), EPHIN (N Hill surfaces)
 
 **Viscoelasticity:**
-ZENER (single branch), ZENNK (N branches), PRONK (Prony series)
+ZENER (Kelvin, single branch), ZENNK (Kelvin, N branches), PRONK (Prony series)
 
 **Shape Memory Alloys:**
-SMAUT (unified), SMANI (anisotropic)
+SMADI (unified), SMAAI (anisotropic criterion)
 
 **Damage:**
-LLDM0 (Lemaitre-Chaboche)
+LLDM0 (Lemaitre-Ladeveze-Dufailly)
 
 **Micromechanics:**
 MIHEN (Mori-Tanaka), MIMTN (multi-phase), MISCN (self-consistent), MIPLN (layered)
+
+**Composable:**
+MODUL (modular UMAT — elasticity + any combination of plasticity,
+viscoelasticity and damage mechanisms; see :mod:`simcoon.modular`)
+
+Many legacy names are now served by the modular engine through
+props-translating adapters (identical calling convention and results): see
+:doc:`umat_catalog` for the complete per-name status, props layouts and
+state-variable notes.
 
 See the individual Abaqus and Ansys pages for complete property and state variable specifications.
 

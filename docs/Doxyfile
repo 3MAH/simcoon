@@ -111,9 +111,7 @@ INPUT                  = ../include/simcoon
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.hpp *.h *.cpp *.c
 RECURSIVE              = YES
-EXCLUDE                = ../include/simcoon/FTensor \
-                         ../include/simcoon/FTensor.hpp \
-                         ../include/simcoon/Continuum_mechanics/Umat/umat_smart.hpp \
+EXCLUDE                = ../include/simcoon/Continuum_mechanics/Umat/umat_smart.hpp \
                          ../include/simcoon/Continuum_mechanics/Homogenization/eshelby.hpp \
                          ../include/simcoon/Continuum_mechanics/Functions/objective_rates.hpp
 EXCLUDE_SYMLINKS       = NO

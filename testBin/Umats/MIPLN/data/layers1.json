@@ -1,0 +1,82 @@
+{
+  "layers": [
+    {
+      "number": 0,
+      "umat_name": "ELIST",
+      "save": 1,
+      "concentration": 0.5,
+      "material_orientation": {
+        "psi": 0.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 90.0,
+        "phi": -90.0
+      },
+      "nstatev": 1,
+      "props": {
+        "prop_0": 1.0,
+        "prop_1": 28191.340742,
+        "prop_2": 1977.660168,
+        "prop_3": 0.1633,
+        "prop_4": 0.265042,
+        "prop_5": 2117.302437,
+        "prop_6": 0.0,
+        "prop_7": 0.0
+      },
+      "prop_names": [
+        "prop_0",
+        "prop_1",
+        "prop_2",
+        "prop_3",
+        "prop_4",
+        "prop_5",
+        "prop_6",
+        "prop_7"
+      ],
+      "layerup": 0,
+      "layerdown": 0
+    },
+    {
+      "number": 1,
+      "umat_name": "ELIST",
+      "save": 1,
+      "concentration": 0.5,
+      "material_orientation": {
+        "psi": 90.0,
+        "theta": 0.0,
+        "phi": 0.0
+      },
+      "geometry_orientation": {
+        "psi": 0.0,
+        "theta": 90.0,
+        "phi": -90.0
+      },
+      "nstatev": 1,
+      "props": {
+        "prop_0": 1.0,
+        "prop_1": 28191.340742,
+        "prop_2": 1977.660168,
+        "prop_3": 0.1633,
+        "prop_4": 0.265042,
+        "prop_5": 2117.302437,
+        "prop_6": 0.0,
+        "prop_7": 0.0
+      },
+      "prop_names": [
+        "prop_0",
+        "prop_1",
+        "prop_2",
+        "prop_3",
+        "prop_4",
+        "prop_5",
+        "prop_6",
+        "prop_7"
+      ],
+      "layerup": 0,
+      "layerdown": 0
+    }
+  ]
+}

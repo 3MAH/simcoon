@@ -1,5 +1,5 @@
-
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -17,22 +17,15 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/kinematics.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/pyumat.hpp>
 // #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/RunUmat.hpp>
 
+#include <simcoon/python_wrappers/Libraries/Continuum_mechanics/tensor.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/rotation.hpp>
 #include <simcoon/python_wrappers/Libraries/Maths/lagrange.hpp>
-#include <simcoon/python_wrappers/Libraries/Material/ODF.hpp>
 #include <simcoon/python_wrappers/Libraries/Homogenization/eshelby.hpp>
 
-#include <simcoon/python_wrappers/Libraries/Solver/read.hpp>
-#include <simcoon/python_wrappers/Libraries/Solver/solver.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_meca.hpp>
-// #include <simcoon/python_wrappers/Libraries/Solver/step_thermomeca.hpp>
-
-#include <simcoon/python_wrappers/Libraries/Identification/identification.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/constants.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/parameters.hpp>
-#include <simcoon/python_wrappers/Libraries/Identification/optimize.hpp>
+#include <simcoon/python_wrappers/Libraries/Solver/solver_run.hpp>
 
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_constitutive.hpp>
 #include <simcoon/docs/Libraries/Continuum_mechanics/doc_contimech.hpp>
@@ -54,7 +47,7 @@ using namespace pybind11::literals;
 
 PYBIND11_MODULE(_core, m)
 {
-    m.doc() = "pybind11 example plugin"; // optional module docstring
+    m.doc() = "simcoon C++ core: constitutive laws, continuum mechanics, homogenization and the in-memory solver";
 
     // Create a Python-visible base exception for all simcoon errors.
     // Using simcoon::simcoon_error (not std::runtime_error) so that the global
@@ -71,6 +64,9 @@ PYBIND11_MODULE(_core, m)
     py::register_exception<simcoon::exception_expmat_sym>(m, "CppExceptionExpMatSym", SimcoonError.ptr());
     py::register_exception<simcoon::exception_powmat>(m, "CppExceptionPowMat", SimcoonError.ptr());
     py::register_exception<simcoon::exception_solver>(m, "CppExceptionSolver", SimcoonError.ptr());
+
+    // Python-callback UMAT ('PYEXT'): StepCut, register/unregister/has_python_umat
+    init_pyumat(m);
 
     // Register the from-python converters for constitutive.hpp
     m.def("Ireal", &Ireal, "copy"_a = true, simcoon_docs::Ireal);
@@ -159,7 +155,7 @@ PYBIND11_MODULE(_core, m)
     m.def("M_aniso_props", &M_aniso_props, "input"_a, simcoon_docs::M_aniso_props);
 
     // Register the L_eff for composites
-    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "psi_rve"_a = 0., "theta_rve"_a = 0., "phi_rve"_a = 0., "Return the elastic stiffness tensor of a composite material");
+    m.def("L_eff", &L_eff, "umat_name"_a, "props"_a, "nstatev"_a, "orientation"_a = pybind11::none(), "phases"_a = pybind11::none(), "Elastic stiffness tensor of a (composite) material in the global frame. `orientation` is the material frame as a {psi, theta, phi} dict in degrees (None: identity), `phases` the sub-phases of a mean-field model as dicts; simcoon.L_eff wraps this for Rotation objects and phase dataclasses");
 
     // Register the from-python converters for kinematics
     m.def("ER_to_F", &ER_to_F, "E"_a, "R"_a, "copy"_a = true, simcoon_docs::ER_to_F);
@@ -184,6 +180,8 @@ PYBIND11_MODULE(_core, m)
     // register the objective rates library
     m.def("logarithmic", &logarithmic, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment");
     m.def("logarithmic_R", &logarithmic_R, "F0"_a, "F1"_a, "DTime"_a, "copy"_a = true, "This function computes the logarithmic strain velocity and the Green-Naghdi spin, along with the correct rotation increment");
+    m.def("A_R", &A_R, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^R (rotated / log_R), 6x6 Voigt (De = A^R:D)");
+    m.def("A_F", &A_F, "F"_a, "copy"_a = true, "Log-strain concentration tensor A^F (convected / log_F), 6x6 Voigt (De = A^F:D)");
     m.def("Delta_log_strain", &Delta_log_strain, "D"_a, "Omega"_a, "DTime"_a, "copy"_a = true, "This function computes the gradient of displacement (Eulerian) from the deformation gradient tensor");
     m.def("objective_rate", &objective_rate, "corate_name"_a, "F0"_a, "F1"_a, "dtime"_a, "return_de"_a = false, "n_threads"_a = 4, "This function computes the strain velocity and the spin, along with the correct rotation increment for the specified objective erivative");
     m.def("Lt_convert", &Lt_convert, "Lt"_a, "F"_a, "stress"_a, "converter_key"_a);
@@ -211,6 +209,9 @@ PYBIND11_MODULE(_core, m)
     m.def("Eshelby", &Eshelby, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::Eshelby);
     m.def("T_II", &T_II, "L"_a, "a1"_a = 1., "a2"_a = 1., "a3"_a = 1., "mp"_a = 50, "np"_a = 50, "copy"_a = true, simcoon_docs::T_II);
 
+    // Register tensor2 and tensor4 classes
+    register_tensor(m);
+
     // Register the Rotation class
     register_rotation(m);
 
@@ -227,18 +228,31 @@ PYBIND11_MODULE(_core, m)
     m.def("stress_convert", &stress_convert, "sigma"_a, "F"_a, "converter_key"_a, "J"_a = 0., "copy"_a = true, simcoon_docs::stress_convert);
 
     // umat
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4);
+    // NOTE (single/direct callers): kernels may request a step cut instead of
+    // integrating a too-large increment (e.g. the modular engine rejects a
+    // non-finite or runaway return-mapping result and leaves statev untouched
+    // with an elastic Lt). The simcoon solver honors this via tnew_dt < 1 and
+    // retries with a smaller increment; couplers driving umat directly must
+    // subdivide the increment themselves in that situation.
+    // corate: the objective rate the returned Lt is expressed in (see corate_kinematics;
+    // 0 Jaumann, 1 Green-Naghdi, 2 XBM/log, 3 log_R, 4 Truesdell, 5 log_F). Default 3 = log_R,
+    // the framework's route. The small-strain/in-rate kernels ignore it, since
+    // their tangent is already in the solver's frame.
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = 3, "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), simcoon_docs::umat);
+    m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none());
 
     // Register the from-python converters for read and solver
-    m.def("read_matprops", &read_matprops);
-    m.def("read_path", &read_path);
-    m.def("solver", &solver);
+    // tangent_mode named constants (see parameter.hpp): 0 = none/explicit,
+    // 1 = continuum, 2 = algorithmic (default), 3 = closest-point (reserved)
+    m.attr("tangent_none") = simcoon::tangent_none;
+    m.attr("tangent_continuum") = simcoon::tangent_continuum;
+    m.attr("tangent_algorithmic") = simcoon::tangent_algorithmic;
+    m.attr("tangent_closest_point") = simcoon::tangent_closest_point;
+    m.attr("tangent_default") = simcoon::tangent_default;
 
-    // Register the from-python converters for ODF functions
-    m.def("get_densities_ODF", &get_densities_ODF);
-    m.def("ODF_discretization", &ODF_discretization);
+    //The file-driven entry points (solver, read_matprops, read_path) are gone: the loading
+    //programme is built in Python and handed over in memory. See simcoon.solver.solve.
+    m.def("solver_run", &solver_run, "blocks"_a, "T_init"_a, "umat_name"_a, "props"_a, "nstatev"_a, "orientation"_a = pybind11::none(), "solver_type"_a = 0, "corate_type"_a = 3, "params"_a = pybind11::dict(), "record_tangent"_a = true, "phases"_a = pybind11::none(), "In-memory solver: blocks as Block.to_dict() makes them, `orientation` a {psi, theta, phi} dict in degrees, `phases` the sub-phase dicts of a mean-field model; returns the raw history as a dict of arrays. simcoon.solver.solve is the public entry");
 
-    // Register the from-python converters for identification
-    m.def("identification", &identification);
-    m.def("calc_cost", &calc_cost, "nfiles"_a, "data_num_name"_a);
+
 }

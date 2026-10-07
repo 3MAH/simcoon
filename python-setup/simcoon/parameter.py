@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from typing import List, Optional, Tuple, Union
 
@@ -29,6 +30,14 @@ class Parameter:
 
         self._value = None
 
+    def __repr__(self) -> str:
+        val = self.value
+        return (
+            f"Parameter(number={self.number}, value={val}, "
+            f"bounds={self.bounds}, key='{self.key}', "
+            f"sim_input_files={self.sim_input_files})"
+        )
+
     @property
     def value(self) -> float:
         if self._value is not None:
@@ -43,16 +52,23 @@ class Parameter:
 
 def read_parameters(
     fname: Union[str, os.PathLike] = "data/parameters.inp",
+    skiprows: int = 1,
 ) -> List[Parameter]:
     """
-    read_parameters from a simcoon input file located in path
-    :param path: path where parameters.inp simcoon input file is located
+    Read parameters from a simcoon input file.
+
+    :param fname: path to the ``parameters.inp`` file
+    :param skiprows: number of leading lines to skip (pandas-style).
+                     Defaults to 1 (skip the ``#Number ...`` header).
+                     Use ``0`` for files without a header.
     :return: List of Parameter
     """
     if not isinstance(fname, (str, os.PathLike)):
         raise TypeError(
             f"Invalid type: {type(fname).__name__}. Expected str or os.PathLike."
         )
+    if skiprows < 0:
+        raise ValueError(f"skiprows must be >= 0, got {skiprows}")
 
     if isinstance(fname, os.PathLike):
         fname = os.fspath(fname)
@@ -61,7 +77,7 @@ def read_parameters(
     with open(fname, "r", encoding="utf-8") as paraminit:
         lines = paraminit.readlines()
 
-        for line in lines[1:]:
+        for line in lines[skiprows:]:
             values = line.split()
             nfiles = int(values[4])
             param = Parameter(
@@ -123,12 +139,21 @@ def apply_parameters(
             f"Invalid type: {type(dst_path).__name__}. Expected str or os.PathLike."
         )
 
-    for param in params:
+    # Longest keys first so e.g. ``@Et`` is replaced before ``@E`` and a
+    # shorter key cannot clobber a longer one that contains it.
+    ordered = sorted(params, key=lambda p: -len(p.key))
+
+    for param in ordered:
+        # Trailing ``(?!\w)`` lookahead prevents ``@E`` from matching ``@Et``.
+        # ``re.escape`` keeps user keys with regex metachars literal; the
+        # ``lambda`` repl avoids backref interpretation in the value.
+        pattern = re.compile(re.escape(param.key) + r"(?!\w)")
+        replacement = str(param.value)
         for ifiles in param.sim_input_files:
             mod_files = os.path.join(dst_path, ifiles)
 
             with open(mod_files, "r", encoding="utf-8") as in_files:
                 content = in_files.read()
-            modified_content = content.replace(param.key, str(param.value))
+            modified_content = pattern.sub(lambda _m: replacement, content)
             with open(mod_files, "w", encoding="utf-8") as ou_files:
                 ou_files.write(modified_content)

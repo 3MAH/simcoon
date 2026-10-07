@@ -90,7 +90,6 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	UNUSED(coords);
 	UNUSED(celent);
 	UNUSED(dfgrd0);
-	UNUSED(dfgrd1);
 	UNUSED(noel);
 	UNUSED(npt);
 	UNUSED(layer);
@@ -127,5 +126,5 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
     
-	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
+	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt, abaqus_nlgeom(dfgrd1));
 }

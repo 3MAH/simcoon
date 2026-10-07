@@ -9,7 +9,7 @@ Simcoon's C++ library provides high-performance implementations for:
 - **Continuum Mechanics**: Tensor operations, strain/stress transformations, kinematics
 - **Constitutive Models**: Hyperelastic, viscoelastic, and viscoplastic material models
 - **Homogenization**: Mean-field homogenization methods for composite materials
-- **Simulation Tools**: Solvers, identification algorithms, and utilities
+- **Simulation Tools**: Solvers and utilities
 
 .. note::
    The C++ API is designed for advanced users who need direct access to the 

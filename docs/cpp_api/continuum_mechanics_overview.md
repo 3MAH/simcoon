@@ -23,7 +23,6 @@ Mathematical functions and tensor operations that form the foundation of continu
 - **recovery_props.hpp** - Material property recovery from stiffness/compliance tensors
 - **transfer.hpp** - Conversions between tensor and Voigt notations
 - **derivatives.hpp** - Tensor derivatives for sensitivity analysis
-- **natural_basis.hpp** - Natural basis transformations for curvilinear coordinates
 
 ### 2. **Homogenization** - Effective Property Calculations
 
@@ -35,10 +34,9 @@ Methods for computing effective properties of heterogeneous materials:
 
 ### 3. **Material** - Material Characterization
 
-Functions for material property characterization and orientation distribution:
+Functions for material property characterization (orientation distributions are handled
+in Python, see `simcoon.solver.micromechanics.get_densities_ODF` and `discretize_odf`):
 
-- **ODF** (Orientation Distribution Function) - Crystallographic texture representation or fiber direction representation
-- **PDF** (Probability Density Function) - Statistical phase distributions
 - **Crystallography** - Crystal structure and slip system definitions
 - **Variant** - Crystallographic variant management for phase transformations
 
@@ -60,15 +58,13 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 - Isotropic, Orthotropic, Transversely Isotropic
 
 **Plasticity:**
-- `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening
-- `plastic_kin_iso_ccp` - Combined kinematic-isotropic hardening
-- `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model
-- `Hill_isoh` - Hill anisotropic plasticity with isotropic hardening
-- `Hill_isoh_Nfast` - Hill plasticity with multiple hardening mechanisms
-- `Hill_chaboche_ccp` - Hill plasticity with Chaboche hardening
-- `Ani_chaboche_ccp` - General anisotropic plasticity with Chaboche hardening
-- `DFA_chaboche_ccp` - Distortion-based anisotropy with Chaboche hardening
-- `Generic_chaboche_ccp` - Generic anisotropic plasticity framework
+- `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening (kept as a readable reference implementation)
+- `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model (kept as a readable reference implementation)
+- `plastic_johnson_cook_ccp` - Johnson-Cook rate- and temperature-dependent J2 plasticity (`EPJCK`, mechanical and thermomechanical kernels)
+- All other plasticity variants (kinematic-isotropic `EPKCP`, Hill `EPHIL`/`EPTRI`/`EPHIN`,
+  Hill-Chaboche `EPHAC`, anisotropic Chaboche `EPANI`/`EPDFA`/`EPCHG`) are served since 2.0
+  by the **modular UMAT engine** through `umat_legacy_modular` name adapters — legacy names
+  and props ABI preserved. See the UMAT catalog (`docs/simulation/umat_catalog.rst`).
 
 **Viscoelasticity:**
 - `Zener_fast` - Single Zener (Standard Linear Solid) element
@@ -91,7 +87,6 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 
 #### **Finite Strain Models**
 
-- `neo_hookean_comp` - Compressible Neo-Hookean hyperelasticity
 - `neo_hookean_incomp` - Incompressible Neo-Hookean hyperelasticity
 - `mooney_rivlin` - Mooney-Rivlin hyperelasticity
 - `saint_venant` - Saint-Venant Kirchhoff model

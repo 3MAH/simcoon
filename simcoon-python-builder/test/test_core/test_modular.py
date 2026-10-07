@@ -1,0 +1,939 @@
+"""Regression tests for the modular UMAT Python API.
+
+These tests exercise the end-to-end `ModularMaterial → sim.solver.solve("MODUL", ...)`
+path for the cases that would silently break if the modular C++ orchestrator
+or Python props-serialization regressed. The loading paths are the JSON path
+files of examples/data (sim.solver.load_path_json); the file-driven binding left
+with the 2.0 JSON-only migration.
+"""
+
+import os
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+import simcoon as sim
+from simcoon.modular import (
+    ArmstrongFrederickHardening,
+    IsotropicElasticity,
+    YeohElasticity,
+    LinearIsotropicHardening,
+    ModularMaterial,
+    Plasticity,
+    VoceHardening,
+    Viscoelasticity,
+)
+
+
+EXAMPLES_DIR = Path(__file__).resolve().parents[3] / "examples" / "mechanical"
+
+
+@pytest.fixture
+def work_in_examples(tmp_path, monkeypatch):
+    """sim.solver reads/writes relative paths — chdir to the examples folder
+    so `data/MODUL_path.json` resolves, but point results into a pytest tmpdir."""
+    monkeypatch.chdir(EXAMPLES_DIR)
+    results = tmp_path / "results"
+    results.mkdir()
+    # sim.solver's 'results' folder arg is relative; create a symlink for this
+    # test run so its output lands in the pytest tmp area.
+    link = EXAMPLES_DIR / f"_pytest_results_{tmp_path.name}"
+    if link.is_symlink() or link.exists():
+        link.unlink()  # stale link from an interrupted previous run
+    link.symlink_to(results, target_is_directory=True)
+    yield link.name
+    link.unlink(missing_ok=True)
+
+
+def _run_case(name, props, nstatev, path_file, cols=(8, 14), tangent_mode=None):
+    """Run one case from a JSON path file; return the requested columns.
+
+    The path file is read in Python (sim.solver.load_path_json) and the case runs in
+    memory — the file-driven binding left with the 2.0 JSON-only migration. The
+    result files these tests used to read carried the default output, strain in
+    columns 8:14 and Cauchy stress in 14:20, so a column index still names a
+    component of "Strain" or "Stress" (small-strain paths: every strain measure
+    coincides).
+    """
+    blocks, T_init = sim.solver.load_path_json(os.path.join("../data", path_file))[:2]
+    kwargs = {} if tangent_mode is None else {"tangent_mode": tangent_mode}
+    res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
+                           T_init=T_init, corate=1, **kwargs)
+    columns = []
+    for c in cols:
+        if 8 <= c < 14:
+            columns.append(res["Strain"][c - 8])
+        elif 14 <= c < 20:
+            columns.append(res["Stress"][c - 14])
+        else:
+            raise ValueError(f"column {c} is neither strain (8:14) nor stress (14:20)")
+    return np.column_stack(columns)
+
+
+def _run_solver(mat: ModularMaterial, results_dir: str, outfile: str) -> np.ndarray:
+    """Run the MODUL solver through the standard path file; return the
+    (n_steps, 2) array of (eps_11, sigma_11). `results_dir` and `outfile` are kept
+    in the signature, and ignored: nothing is written to disk any more."""
+    return _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
+
+
+def test_af_with_list_args_rejected():
+    """Regression: AF takes scalars only; lists should fail fast with a
+    helpful message pointing to ChabocheHardening."""
+    with pytest.raises(TypeError, match="ChabocheHardening"):
+        ArmstrongFrederickHardening(C=[30000.0, 195000.0], D=[172.0, 3012.0])
+
+
+def test_viscoelasticity_legacy_tuple_rejected():
+    """The old (g, tau) 2-tuple form must be rejected with a pointer to the
+    new Prony_Nfast (E, nu, etaB, etaS) 4-tuple layout."""
+    with pytest.raises(TypeError, match=r"\(E, nu, etaB, etaS\)"):
+        Viscoelasticity(terms=[(0.3, 1.0), (0.2, 10.0)])
+
+
+def test_elastic_convention_equivalence(work_in_examples):
+    """The same isotropic material given as (E, nu) and as (K, mu) must give
+    identical stress — the convention slot in props selects the
+    interpretation; all conversions live in the C++ builders (L_iso)."""
+    E, nu = 210000.0, 0.3
+    K = E / (3.0 * (1.0 - 2.0 * nu))
+    mu = E / (2.0 * (1.0 + nu))
+
+    mat_enu = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=nu))
+    mat_kmu = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=K, C2=mu, convention="Kmu"))
+
+    # The convention code travels as the first slot of the elasticity block.
+    assert mat_enu.props[1] == 0.0
+    assert mat_kmu.props[1] == 2.0
+
+    hist_enu = _run_solver(mat_enu, work_in_examples, "res_conv_enu.txt")
+    hist_kmu = _run_solver(mat_kmu, work_in_examples, "res_conv_kmu.txt")
+    np.testing.assert_allclose(hist_kmu, hist_enu, rtol=1e-10)
+
+
+def test_convention_string_rejected_if_unknown():
+    with pytest.raises(ValueError, match="IsoConvention"):
+        IsotropicElasticity(C1=1.0, C2=0.3, convention="Envy")
+
+
+def test_two_plasticity_equivalent_to_one_linear(work_in_examples):
+    """Two identical linear-hardening plasticity mechanisms with modulus 2H
+    each must give the same stress as a single mechanism with modulus H, by
+    superposition of associated flow. This exercises the cross-mechanism
+    Jacobian assembly in ModularUMAT::return_mapping — without it the FB
+    iteration diverges to nonphysical stress."""
+    E, nu, sigma_Y, H = 210000.0, 0.3, 300.0, 10000.0
+
+    mat_single = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=E, C2=nu),
+        mechanisms=[Plasticity(
+            sigma_Y=sigma_Y,
+            isotropic_hardening=LinearIsotropicHardening(H=H),
+        )],
+    )
+    mat_two = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=E, C2=nu),
+        mechanisms=[
+            Plasticity(sigma_Y=sigma_Y,
+                       isotropic_hardening=LinearIsotropicHardening(H=2 * H)),
+            Plasticity(sigma_Y=sigma_Y,
+                       isotropic_hardening=LinearIsotropicHardening(H=2 * H)),
+        ],
+    )
+
+    hist_single = _run_solver(mat_single, work_in_examples, "res_single.txt")
+    hist_two    = _run_solver(mat_two,    work_in_examples, "res_two.txt")
+
+    # Same number of increments, same loading history → stresses should match
+    # within solver tolerance at every step.
+    assert hist_single.shape == hist_two.shape
+    # Compare peak |sigma_11| — the most load-bearing quantity for plasticity.
+    peak_single = np.max(np.abs(hist_single[:, 1]))
+    peak_two    = np.max(np.abs(hist_two[:, 1]))
+    assert peak_single > 0, "sanity"
+    # Relative tolerance covers small solver-stepping differences from the
+    # doubled constraint count; coupling fix brings this from 100%+ to ~1.5%.
+    rel_err = abs(peak_two - peak_single) / peak_single
+    assert rel_err < 0.03, (
+        f"two-plasticity peak {peak_two:.2f} differs from single {peak_single:.2f} "
+        f"by {rel_err:.3%}; cross-mechanism Jacobian coupling may have regressed"
+    )
+
+
+def test_voce_plasticity_runs_end_to_end(work_in_examples):
+    """Smoke test for the baseline MODUL path — ensures the props layout and
+    statev allocation are in sync between Python and C++ after any modular
+    refactor."""
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3, alpha=1.2e-5),
+        mechanisms=[Plasticity(
+            sigma_Y=300.0,
+            isotropic_hardening=VoceHardening(Q=200.0, b=10.0),
+        )],
+    )
+    hist = _run_solver(mat, work_in_examples, "res_voce.txt")
+    peak = np.max(np.abs(hist[:, 1]))
+    # With sigma_Y + Q = 500 and b=10 at 2% strain, peak sits around 460 MPa
+    # after the cyclic path saturates hardening.
+    assert 400.0 < peak < 500.0, f"Voce peak {peak:.1f} outside expected band"
+
+
+def test_viscoelastic_matches_pronk_reference(work_in_examples):
+    """MODUL with a Viscoelasticity mechanism must reproduce the reference
+    PRONK (Prony_Nfast) UMAT through the solver on a relaxation path.
+
+    Regression for the consistent-tangent bug where tangent_contribution
+    rebuilt K(i,i) without the -1/DTime term (Lt went singular and the
+    mixed-control solver diverged)."""
+    terms = [(1500.0, 0.35, 3000.0, 1200.0),
+             (800.0, 0.35, 30000.0, 12000.0),
+             (400.0, 0.35, 300000.0, 120000.0)]
+    E0, nu0 = 3000.0, 0.35
+
+    pronk_props = np.array([E0, nu0, 0.0, len(terms)]
+                           + [x for t in terms for x in t])
+    ref = _run_case("PRONK", pronk_props, 7 + 7 * len(terms), "PRONK_path.json")
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=E0, C2=nu0),
+        mechanisms=[Viscoelasticity(terms=terms)],
+    )
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "PRONK_path.json")
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 1.0, "sanity: relaxation path produced stress"
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    # both take the same closed-form backward-Euler step: identical to round-off
+    assert max_diff / peak < 1e-10, (
+        f"MODUL viscoelastic deviates from PRONK by {max_diff/peak:.3e}"
+    )
+
+
+def test_damage_softens_end_to_end(work_in_examples):
+    """LINEAR damage through sim.solver: the damaged run must (a) develop
+    0 < D-driven softening vs the undamaged elastic run at the same strain,
+    and (b) keep stress positive. Regression for the orchestrator ignoring
+    stiffness_reduction (D evolved but stress was never softened)."""
+    from simcoon.modular import Damage, elastic_model
+
+    mat_el = elastic_model(E=210000.0, nu=0.3)
+    hist_el = _run_solver(mat_el, work_in_examples, "res_el.txt")
+
+    mat_dm = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
+        mechanisms=[Damage(Y_0=0.05, Y_c=10.0)],
+    )
+    hist_dm = _run_solver(mat_dm, work_in_examples, "res_dm.txt")
+
+    assert hist_dm.shape == hist_el.shape
+    peak_el = np.max(np.abs(hist_el[:, 1]))
+    peak_dm = np.max(np.abs(hist_dm[:, 1]))
+    assert peak_el > 0
+    assert peak_dm > 0
+    assert peak_dm < 0.95 * peak_el, (
+        f"damage peak {peak_dm:.1f} not softened vs elastic {peak_el:.1f}"
+    )
+
+
+def test_tangent_mode_1_same_converged_response(work_in_examples):
+    """The algorithmic tangent (mode 2, the default) must reproduce the
+    continuum-mode (1) converged response — the tangent steers the global
+    Newton, not the residual. Guards the algorithmic assembly (Bhat = -B sign
+    convention and the coupled sub-block extraction) at solver level.
+    2.0 renumbering: 0 = none/explicit, 1 = continuum, 2 = algorithmic."""
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.0,
+            isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
+            kinematic_hardening=ArmstrongFrederickHardening(C=30000.0, D=172.0),
+        )],
+    )
+
+    outs = {}
+    for mode in (1, 2):
+        outs[mode] = _run_case(mat.umat_name, mat.props, mat.nstatev,
+                               "MODUL_path.json", cols=(14,), tangent_mode=mode)
+
+    assert outs[1].shape == outs[2].shape
+    peak = np.max(np.abs(outs[1][:, 0]))
+    diff = np.max(np.abs(outs[1][:, 0] - outs[2][:, 0]))
+    assert peak > 100.0
+    assert diff / peak < 1e-5, (
+        f"algorithmic-mode response deviates from continuum mode by {diff/peak:.2e} "
+        "(the tangent must not change the converged solution)"
+    )
+
+
+def test_chaboche_matches_epcha_reference(work_in_examples):
+    """MODUL (Voce + 2-term Chaboche) must reproduce the reference EPCHA UMAT
+    through the solver on the cyclic path.
+
+    Regression for the FB-Jacobian hardening-sign bug: B carried +H_total
+    instead of -H_total (dPhi/dp = -H), a wrong Newton slope that made the FB
+    error metric report convergence prematurely — 4.4% peak-stress error vs
+    EPCHA on this path, invisible to every monotonic test."""
+    from simcoon.modular import ChabocheHardening
+
+    epcha_props = np.array([210000.0, 0.3, 0.0,
+                            300.0, 200.0, 20.0,
+                            30000.0, 172.0, 19500.0, 301.0])
+    ref = _run_case("EPCHA", epcha_props, 33, "MODUL_path.json")
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.0,
+            isotropic_hardening=VoceHardening(Q=200.0, b=20.0),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000.0, 172.0), (19500.0, 301.0))),
+        )],
+    )
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    assert peak > 500.0, "sanity: cyclic path reached the hardened regime"
+    assert max_diff / peak < 2e-3, (
+        f"MODUL Chaboche deviates from EPCHA by {max_diff/peak:.3%} "
+        "(FB Jacobian sign regression?)"
+    )
+
+
+def test_hill_matches_ephil_reference(work_in_examples):
+    """MODUL (Hill yield + linear hardening) must reproduce the reference
+    EPHIL UMAT bit-for-bit through the solver.
+
+    End-to-end coverage for the anisotropic-criterion path (Hill params ->
+    P_Hill dispatch -> flow direction). Linear hardening (power-law exponent
+    m = 1) is used deliberately: the general power-law tangent
+    dR/dp = m k p^(m-1) is singular at p = 0, so the two CCP loops differ by
+    a transient (~1.4%) at yield onset that re-converges — with m = 1 that
+    singularity is absent and the integrators agree to machine precision,
+    isolating the Hill criterion itself."""
+    from simcoon.modular import HillYield, PowerLawHardening
+
+    ephil_props = np.array([210000., 0.3, 0., 300., 5000., 1.0,
+                            0.5, 0.4, 0.6, 1.5, 1.5, 1.5])
+    ref = _run_case("EPHIL", ephil_props, 33, "MODUL_path.json")
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=PowerLawHardening(k=5000., m=1.0),
+        )],
+    )
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "MODUL_path.json")
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 500.0, "sanity: reached the hardened regime"
+    assert np.max(np.abs(hist[:, 1] - ref[:, 1])) < 1e-6, (
+        "MODUL Hill deviates from EPHIL (criterion params/dispatch regression?)"
+    )
+
+
+def test_chaboche_shear_matches_epcha_reference(work_in_examples):
+    """MODUL Chaboche kinematic hardening under SHEAR loading must match the
+    reference EPCHA UMAT.
+
+    Regression for the backstress convention bug: X = (2/3) C a is a
+    stress-like tensor, but it was carried in the back-strain (engineering
+    strain) Voigt convention and subtracted from sigma / contracted with the
+    flow n — doubling the shear terms. Invisible on the uniaxial path (zero
+    shear, hence the earlier uniaxial EPCHA test passed at 3.7e-4); a pure
+    shear path exposed a 24.7% stress error. Two sites: backstress_t and the
+    ChabocheHardening total_backstress accumulator."""
+    from simcoon.modular import ChabocheHardening
+    # SHEAR_path.json drives E12 with all other components stress-free.
+    ep = np.array([210000., 0.3, 0., 300., 0., 0., 30000., 300., 19500., 172.])
+    # eps12, sig12
+    ref = _run_case("EPCHA", ep, 33, "SHEAR_path.json", cols=(11, 17))
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 300.), (19500., 172.))),
+        )],
+    )
+    hist = _run_case(mat.umat_name, mat.props, mat.nstatev, "SHEAR_path.json",
+                     cols=(11, 17))
+
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 100.0, "sanity: shear path yielded"
+    assert np.max(np.abs(hist[:, 1] - ref[:, 1])) / peak < 1e-3, (
+        "MODUL Chaboche under shear deviates from EPCHA (backstress "
+        "convention regression?)"
+    )
+
+
+
+def test_armstrong_frederick_path_matches_chaboche(work_in_examples):
+    """The ArmstrongFrederickHardening dataclass routes to a DISTINCT C++
+    class (ArmstrongFrederickHardening, not ChabocheHardening). A single-term
+    Chaboche is the same physics, so the two must agree bit-for-bit — locking
+    the AF total_backstress path (which uses backstress_t directly, no
+    accumulator) under shear, where the backstress convention matters."""
+    from simcoon.modular import ArmstrongFrederickHardening, ChabocheHardening
+
+    def run(kin, out):
+        m = ModularMaterial(
+            elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+            mechanisms=[Plasticity(sigma_Y=300., kinematic_hardening=kin)],
+        )
+        return _run_case(m.umat_name, m.props, m.nstatev, "SHEAR_path.json",
+                         cols=(11, 17))
+
+    af = run(ArmstrongFrederickHardening(C=30000., D=300.), "af_af.txt")
+    ch = run(ChabocheHardening(terms=((30000., 300.),)), "af_ch.txt")
+    assert af.shape == ch.shape
+    assert np.max(np.abs(af[:, 1] - ch[:, 1])) < 1e-9, (
+        "AF class diverges from single-term Chaboche (distinct C++ path bug?)"
+    )
+    assert np.max(np.abs(af[:, 1])) > 100.0, "sanity: shear yielded"
+
+
+# ============================================================================
+# Legacy-vs-MODUL equivalence gates (rationalization PR, Phase 1)
+# Pattern: run the legacy UMAT and its MODUL twin through the solver on the
+# same path; compare stress histories. These tests are the deletion gates for
+# the name-adapter migration (and permanent validation for kept UMATs).
+# ============================================================================
+
+def _run_named(name, props, nstatev, results_dir, path_file, out, cols=(8, 14)):
+    """Run one named UMAT on a legacy path file and return (strain_11, stress_11).
+
+    The path file is parsed in Python now — the file-driven binding left with the
+    2.0 JSON-only migration — and the case runs in memory. Columns 8 and 14 of the
+    old results file were the first strain and the first stress component; that is
+    what the caller's default `cols` asks for, so the pair is returned directly.
+    `results_dir` and `out` are kept in the signature, and ignored: nothing is
+    written to disk.
+    """
+    blocks, T_init = sim.solver.load_path_json(os.path.join("../data", path_file))[:2]
+    res = sim.solver.solve(blocks, name, np.asarray(props, dtype=float), nstatev,
+                           T_init=T_init, corate=1)
+    if cols != (8, 14):
+        raise ValueError(f"_run_named only returns (strain_11, stress_11); asked for {cols}")
+    return np.column_stack([res["Strain"][0], res["Stress"][0]])
+
+
+def _assert_equiv(ref, hist, rel_tol, label):
+    assert hist.shape == ref.shape
+    peak = np.max(np.abs(ref[:, 1]))
+    assert peak > 0, f"{label}: sanity, zero response"
+    max_diff = np.max(np.abs(hist[:, 1] - ref[:, 1]))
+    assert max_diff / peak < rel_tol, (
+        f"{label}: MODUL twin deviates by {max_diff/peak:.3e} (tol {rel_tol:.0e})")
+
+
+def test_eliso_matches_modul(work_in_examples):
+    ref = _run_named("ELISO", [210000., 0.3, 1.2e-5], 1,
+                     work_in_examples, "MODUL_path.json", "eq_eliso.txt")
+    mat = ModularMaterial(elasticity=IsotropicElasticity(
+        C1=210000., C2=0.3, alpha=1.2e-5))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_meliso.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELISO")
+
+
+def test_elist_matches_modul(work_in_examples):
+    from simcoon.modular import TransverseIsotropicElasticity
+    # legacy props: [axis, EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T]
+    ref = _run_named("ELIST", [3, 230000., 15000., 0.02, 0.4, 50000., 0., 0.],
+                     1, work_in_examples, "MODUL_path.json", "eq_elist.txt")
+    mat = ModularMaterial(elasticity=TransverseIsotropicElasticity(
+        EL=230000., ET=15000., nuTL=0.02, nuTT=0.4, GLT=50000., axis=3))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_melist.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELIST")
+
+
+def test_elort_matches_modul(work_in_examples):
+    from simcoon.modular import OrthotropicElasticity
+    ref = _run_named("ELORT", [70000., 30000., 15000., 0.3, 0.3, 0.3,
+                               8000., 6000., 5000., 1e-5, 2e-5, 3e-5],
+                     1, work_in_examples, "MODUL_path.json", "eq_elort.txt")
+    mat = ModularMaterial(elasticity=OrthotropicElasticity(
+        C1=70000., C2=30000., C3=15000., C4=0.3, C5=0.3, C6=0.3,
+        C7=8000., C8=6000., C9=5000.,
+        alpha1=1e-5, alpha2=2e-5, alpha3=3e-5))
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_melort.txt")
+    _assert_equiv(ref, hist, 1e-9, "ELORT")
+
+
+def test_epkcp_matches_modul(work_in_examples):
+    """EPKCP: Prager convention differs — legacy X = kX*a (tensorial), modular
+    X = (2/3)*C*a, hence C = 1.5*kX in the twin. m = 1 avoids the power-law
+    p=0 tangent singularity (same rationale as the EPHIL test)."""
+    from simcoon.modular import PowerLawHardening, PragerHardening
+    ref = _run_named("EPKCP", [210000., 0.3, 0., 300., 1000., 1.0, 20000.],
+                     33, work_in_examples, "MODUL_path.json", "eq_epkcp.txt")
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            isotropic_hardening=PowerLawHardening(k=1000., m=1.0),
+            kinematic_hardening=PragerHardening(C=1.5 * 20000.))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mepkcp.txt")
+    _assert_equiv(ref, hist, 1e-5, "EPKCP")
+
+
+def test_ephac_matches_modul(work_in_examples):
+    """EPHAC: cubic elasticity (E, nu, G) + Hill yield + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, HillYield, ChabocheHardening
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
+    ref = _run_named("EPHAC", props, 33,
+                     work_in_examples, "MODUL_path.json", "eq_ephac.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mephac.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPHAC")
+
+
+def test_epani_matches_modul(work_in_examples):
+    """EPANI: cubic elasticity + 9-parameter anisotropic yield + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, AnisotropicYield, ChabocheHardening
+    # P must be an ADMISSIBLE quadratic form: symmetric with zero row sums
+    # on the normal block (deviatoric, PSD) — an indefinite P gives
+    # sqrt(negative) = NaN in Eq_stress_P (both legacy and modular).
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             1.2, 1.1, 1.1, -0.6, -0.6, -0.5, 1.6, 1.5, 1.4]
+    ref = _run_named("EPANI", props, 33,
+                     work_in_examples, "MODUL_path.json", "eq_epani.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=AnisotropicYield(
+                P11=1.2, P22=1.1, P33=1.1, P12=-0.6, P13=-0.6, P23=-0.5,
+                P44=1.6, P55=1.5, P66=1.4),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mepani.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPANI")
+
+
+def test_epdfa_matches_modul(work_in_examples):
+    """EPDFA: cubic elasticity + DFA yield (Hill + hydrostatic K) + Voce + 2x AF."""
+    from simcoon.modular import CubicElasticity, DFAYield, ChabocheHardening
+    props = [210000., 0.3, 85000., 0., 300., 200., 20.,
+             30000., 172., 19500., 301.,
+             0.5, 0.4, 0.6, 1.5, 1.5, 1.5, 0.1]
+    ref = _run_named("EPDFA", props, 33,
+                     work_in_examples, "MODUL_path.json", "eq_epdfa.txt")
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=DFAYield(F=0.5, G=0.4, H=0.6, L=1.5, M=1.5, N=1.5,
+                                     K=0.1),
+            isotropic_hardening=VoceHardening(Q=200., b=20.),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mepdfa.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPDFA")
+
+
+def test_epchg_matches_modul(work_in_examples):
+    """EPCHG (generic Chaboche): cubic elasticity + von Mises + N "Voce
+    terms" + N-term Chaboche.
+
+    NOTE: the legacy N-term isotropic hardening couples every term through a
+    SINGLE Hp (dHp/dp = sum_i b_i (Q_i - Hp)) — mathematically ONE effective
+    Voce with b_eff = sum(b_i), Q_eff = sum(b_i Q_i)/sum(b_i), NOT the
+    standard combined-Voce sum. The modular twin (and the name adapter) map
+    to that single effective Voce."""
+    from simcoon.modular import CubicElasticity, ChabocheHardening
+    # props: E nu G alpha | sigmaY N_iso N_kin criteria | (Q,b)xN | (C,D)xN
+    props = [210000., 0.3, 85000., 0., 300., 2, 2, 0,
+             150., 15., 50., 40.,
+             30000., 172., 19500., 301.]
+    ref = _run_named("EPCHG", props, 33,
+                     work_in_examples, "MODUL_path.json", "eq_epchg.txt")
+    b_eff = 15. + 40.
+    q_eff = (15. * 150. + 40. * 50.) / b_eff
+    mat = ModularMaterial(
+        elasticity=CubicElasticity(C1=210000., C2=0.3, C3=85000.),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            isotropic_hardening=VoceHardening(Q=q_eff, b=b_eff),
+            kinematic_hardening=ChabocheHardening(
+                terms=((30000., 172.), (19500., 301.))))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mepchg.txt")
+    _assert_equiv(ref, hist, 1e-3, "EPCHG")
+
+
+def test_ephin_matches_modul(work_in_examples):
+    """EPHIN (Hill, N yield surfaces): equivalence proven for N = 1.
+
+    The LEGACY multi-surface path (N >= 2) is defective: it returns NaN even
+    for two identical surfaces, and even when the second surface can never
+    activate (sigma_Y = 5000 on a 2% path) — probed 2026-07. The modular
+    engine handles multiple mechanisms correctly (see
+    test_two_plasticity_equivalent_to_one_linear), so the name adapter is an
+    upgrade for N >= 2; the provable gate is the N = 1 case."""
+    from simcoon.modular import HillYield, PowerLawHardening
+    # props: E nu alpha N | (sigmaY k m F G H L M N)xN
+    props = [210000., 0.3, 0., 1,
+             300., 3000., 1.0, 0.5, 0.4, 0.6, 1.5, 1.5, 1.5]
+    ref = _run_named("EPHIN", props, 33,
+                     work_in_examples, "MODUL_path.json", "eq_ephin.txt")
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000., C2=0.3),
+        mechanisms=[Plasticity(
+            sigma_Y=300.,
+            yield_criterion=HillYield(F=0.5, G=0.4, H=0.6,
+                                      L=1.5, M=1.5, N=1.5),
+            isotropic_hardening=PowerLawHardening(k=3000., m=1.0))])
+    hist = _run_named("MODUL", mat.props, mat.nstatev,
+                      work_in_examples, "MODUL_path.json", "eq_mephin.txt")
+    _assert_equiv(ref, hist, 1e-5, "EPHIN")
+
+
+def test_viscoelastic_survives_a_block_boundary():
+    """The same ramp must give the same stress however it is cut into blocks.
+
+    The solver primes its tangent at the start of every block with a zero time
+    increment (solver.cpp: ``DTime = 0.`` then ``run_umat_M``). The viscoelastic
+    kernels answered that probe with the stationary condition ``||flow|| = 0``,
+    whose root is ``EV_i = eps`` — a fully relaxed branch — and the solver
+    committed it. A loading described as two blocks therefore relaxed once per
+    boundary, for free and for any viscosity: the ramp below ended at 22.41 MPa
+    in two blocks against 29.64 in one (PRONK), and the response depended on how
+    the path happened to be written rather than on the material.
+
+    Covers both solvers of the same constraint: the legacy Newton-Raphson
+    kernels (PRONK) and the modular Fischer-Burmeister mechanism (MODUL).
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3000.0, 0.35
+    terms = ((1500.0, 0.35, 3000.0, 1200.0),)
+
+    half = sim.solver.StepMeca(control=uni, value=[0.005, 0, 0, 0, 0, 0],
+                               ninc=20, time=0.05)
+    full = sim.solver.StepMeca(control=uni, value=[0.01, 0, 0, 0, 0, 0],
+                               ninc=20, time=0.05)
+    one_shot = [sim.solver.StepMeca(control=uni, value=[0.01, 0, 0, 0, 0, 0],
+                                    ninc=40, time=0.1)]
+    two_blocks = [half, full]                                  # two blocks
+    one_block = [sim.solver.Block(steps=[half, full], ncycle=1)]  # one, two steps
+
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E0, C2=nu0),
+                          mechanisms=[Viscoelasticity(terms=terms)])
+    branch = [x for t in terms for x in t]
+    cases = {
+        # generalized Maxwell (Prony): the elasticity block is the instantaneous stiffness
+        "PRONK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
+        mat.umat_name: (mat.props, mat.nstatev),
+        # generalized Kelvin (Zener): a different rheology, same zero-time defect
+        "ZENER": (np.array([E0, nu0, 0.0] + branch), 8),
+        "ZENNK": (np.array([E0, nu0, 0.0, len(terms)] + branch), 7 + 7 * len(terms)),
+    }
+
+    for name, (props, nstatev) in cases.items():
+        end = [float(np.asarray(sim.solver.solve(b, name, props, nstatev)["Stress"])[0][-1])
+               for b in (one_shot, two_blocks, one_block)]
+        # the ramp is fast against the branch relaxation time, so the answer stays
+        # near the instantaneous response E0 * eps (how near depends on the
+        # rheology); what this test is about is that the three descriptions of
+        # the same loading agree. Measured defect: 22.41 and 19.64 against 29.64
+        # and 28.62, i.e. 24 % and 31 %, for a purely notational change.
+        assert end[0] == pytest.approx(E0 * 0.01, rel=0.1), f"{name}: {end[0]}"
+        # 1e-6 is the noise of the viscous integration across a block boundary
+        # (measured: 9e-8); the defect this guards against is 24 % on the same run
+        for got, how in zip(end[1:], ("two blocks", "one block of two steps")):
+            assert got == pytest.approx(end[0], rel=1e-6), (
+                f"{name}: {how} gives {got:.4f} against {end[0]:.4f} in one step "
+                "- a block boundary relaxed the Prony branch"
+            )
+
+
+def test_thermomechanical_viscoelastic_matches_its_mechanical_twin():
+    """At constant temperature the thermomechanical kernels must answer like the
+    mechanical ones, and stay invariant to how the path is cut into blocks.
+
+    Both were unusable before: their `A_v_start` vectors are locals rebuilt at every
+    call, and `A_v_start[i] += ...` ran on a default-constructed (size 0) arma::vec —
+    the thermomechanical PRONK initialised them nowhere and died on the first call,
+    ZENNK only under `if(start)` and died on the second increment. Nothing covered
+    them, and examples/thermomechanical/ZENER.py drives ZENER, the one of the three
+    that was correct.
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3000.0, 0.35
+    E1, nu1, etaB, etaS = 1500.0, 0.35, 3000.0, 1200.0
+    rho, c_p, alpha = 4.4, 0.656, 0.0            # no dilation: same run as the mechanical
+    T = 293.15
+
+    meca = {
+        "ZENER": (np.array([E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "PRONK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+        "ZENNK": (np.array([E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+    }
+    thermo = {
+        "ZENER": (np.array([rho, c_p, E0, nu0, alpha, E1, nu1, etaB, etaS]), 8),
+        "PRONK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+        "ZENNK": (np.array([rho, c_p, E0, nu0, alpha, 1.0, E1, nu1, etaB, etaS]), 14),
+    }
+
+    def meca_steps(ninc, halves):
+        mk = lambda v, t: sim.solver.StepMeca(control=uni, value=[v, 0, 0, 0, 0, 0],
+                                              ninc=ninc, time=t)
+        return [mk(0.005, 0.05), mk(0.01, 0.05)] if halves else [mk(0.01, 0.1)]
+
+    def thermo_steps(ninc, halves):
+        mk = lambda v, t: sim.solver.StepThermomeca(control=uni, value=[v, 0, 0, 0, 0, 0],
+                                                    ninc=ninc, time=t, T_final=T)
+        return [mk(0.005, 0.05), mk(0.01, 0.05)] if halves else [mk(0.01, 0.1)]
+
+    for name in ("ZENER", "PRONK", "ZENNK"):
+        p_m, n_m = meca[name]
+        p_t, n_t = thermo[name]
+        ref = float(np.asarray(sim.solver.solve(meca_steps(40, False), name, p_m, n_m,
+                                                T_init=T)["Stress"])[0][-1])
+        for halves, how in ((False, "one block"), (True, "two blocks")):
+            got = float(np.asarray(sim.solver.solve(thermo_steps(20 if halves else 40, halves),
+                                                    name, p_t, n_t, T_init=T)["Stress"])[0][-1])
+            assert got == pytest.approx(ref, rel=1e-6), (
+                f"thermomechanical {name} in {how}: {got:.4f} against {ref:.4f} "
+                "for the mechanical twin on the same loading"
+            )
+
+
+def test_zennk_has_no_modular_twin():
+    """ZENNK (Zener_Nfast) is a generalized KELVIN chain (branch driving
+    force sigma - L_i EV_i, branches in series), NOT a generalized Maxwell:
+    the modular Prony viscoelasticity is a different rheological model
+    (measured deviation 86% on the relaxation path). ZENNK therefore keeps
+    its dedicated implementation (no adapter) — same bucket as ZENER."""
+    pass
+
+
+def test_viscoelastic_work_split_matches_pronk():
+    """The modular Viscoelasticity mechanism must split the mechanical work
+    like its PRONK twin: dissipation is the dashpot work on the BRANCH stress
+    L_i (eps - EV_i), not on the total stress.
+
+    Regression: compute_work dotted the total stress with DEV_i, which
+    overcounts by L_0/L_i and summed over branches. Measured on a 1 % ramp
+    and hold: Wm_d = 3.8e-4 for Wm = 1.4e-4, hence a NEGATIVE recoverable work
+    (-2.5e-4 against +7.5e-5 for PRONK). The same numbers ran under a
+    hyperelastic block at ln V = 0.5 (Wm_d 1.15 for Wm 0.40, Wm_r -0.75).
+    """
+    uni = ["strain"] + ["stress"] * 5
+    E0, nu0 = 3.0, 0.499
+    terms = ((1.0, 0.49, 16.67, 0.3356), (0.5, 0.49, 83.33, 1.678))   # tau = 1 s and 10 s
+
+    def path(eps):
+        return [sim.solver.StepMeca(control=uni, value=[eps, 0, 0, 0, 0, 0], ninc=100, time=1.0),
+                sim.solver.StepMeca(control=uni, value=[eps, 0, 0, 0, 0, 0], ninc=200, time=50.0)]
+
+    def split(res):
+        Wm, Wm_r, Wm_ir, Wm_d = (np.asarray(w) for w in res["Wm"])
+        assert np.allclose(Wm, Wm_r + Wm_ir + Wm_d, atol=1e-12), "energy balance not closed"
+        return Wm, Wm_r, Wm_d
+
+    branch = [x for t in terms for x in t]
+    pronk = sim.solver.solve(path(0.01), "PRONK", np.array([E0, nu0, 0.0, 2.0] + branch), 7 + 7 * 2)
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E0, C2=nu0),
+                          mechanisms=[Viscoelasticity(terms=terms)])
+    modul = sim.solver.solve(path(0.01), mat.umat_name, mat.props, mat.nstatev)
+
+    Wm_p, Wr_p, Wd_p = split(pronk)
+    Wm_m, Wr_m, Wd_m = split(modul)
+    assert Wm_m[-1] == pytest.approx(Wm_p[-1], rel=1e-6)
+    # PRONK evaluates the end-of-increment branch stress with the START strain
+    # (Prony_Nfast.cpp, A_v at line ~274); the modular one uses the end strain.
+    # Measured 0.3 % apart on this path, 6x apart before the fix.
+    assert Wr_m[-1] == pytest.approx(Wr_p[-1], rel=1e-2)
+    assert Wd_m[-1] == pytest.approx(Wd_p[-1], rel=1e-2)
+    assert np.all(Wr_m >= -1e-12) and np.all(Wd_m >= -1e-12)
+
+    # Same mechanism over a hyperelastic block under NLGEOM (the example
+    # MODUL_hyper_visco.py): the split must stay physical at finite stretch.
+    hyper = ModularMaterial(elasticity=YeohElasticity(C10=0.5, C20=-0.02, C30=0.002, kappa=500.0),
+                            mechanisms=[Viscoelasticity(terms=terms)])
+    res = sim.solver.solve(sim.solver.Block(steps=path(0.5), control_type="logarithmic"),
+                           hyper.umat_name, hyper.props, hyper.nstatev, corate="logarithmic_R")
+    Wm_h, Wr_h, Wd_h = split(res)
+    assert Wm_h[-1] > 0.3, "sanity: the ramp to ln V = 0.5 did work"
+    assert np.all(Wr_h >= -1e-12) and np.all(Wd_h >= -1e-12)
+    assert np.all(np.diff(Wd_h) >= -1e-12), "dissipation must not decrease"
+    assert Wd_h[-1] < Wm_h[-1]
+
+
+def test_damage_driving_force_is_the_undamaged_energy():
+    """Y = -dpsi/dD = psi_0 = 1/2 E eps^2 (uniaxial strain, nu = 0), not the energy of the
+    damaged stress: the stored Y_max is psi_0, D follows the law at psi_0, sigma = (1-D) E eps,
+    and Wm_d converges to int psi_0 dD."""
+    from simcoon.modular import ModularMaterial, IsotropicElasticity, Damage
+    from simcoon.solver import StepMeca, solve
+    E, Y0, Yc, eps = 10000., 0.05, 2.0, 0.012
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=0.0, alpha=0.),
+                          mechanisms=[Damage(Y_0=Y0, Y_c=Yc)])
+    psi0 = 0.5 * E * eps ** 2
+    D = (psi0 - Y0) / (Yc - Y0)
+    wd = []
+    for ninc in (48, 192):
+        r = solve(StepMeca(control=["strain"] * 6, value=[eps, 0, 0, 0, 0, 0], ninc=ninc),
+                  "MODUL", mat.props, mat.nstatev, T_init=290.)
+        np.testing.assert_allclose(r["Statev"][2, -1], psi0, rtol=1e-12)
+        np.testing.assert_allclose(r["Statev"][1, -1], D, rtol=1e-12)
+        np.testing.assert_allclose(r["Stress"][0, -1], (1. - D) * E * eps, rtol=1e-12)
+        wd.append(r["Wm"][3, -1])
+    exact = (psi0 ** 2 - Y0 ** 2) / (2. * (Yc - Y0))
+    assert abs(wd[1] - exact) < 0.3 * abs(wd[0] - exact), "first order (explicit damage)"
+    assert abs(wd[1] - exact) < 0.01 * exact
+
+
+@pytest.mark.parametrize("umat", ["ZENER", "ZENNK", "PRONK"])
+def test_viscoelastic_step_is_exact_backward_euler(umat):
+    """The linear viscoelastic kernels take the closed-form implicit step: the stress is the
+    backward-Euler solution, and Lt its exact derivative (central differences)."""
+    E0, nu0 = 3000., 0.35
+    branches = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
+    if umat == "ZENER":
+        branches = branches[:1]
+        props, nstatev = np.array([E0, nu0, 0., *branches[0]]), 8
+    else:
+        props = np.array([E0, nu0, 0., len(branches)] + [x for b in branches for x in b])
+        nstatev = 7 + 7 * len(branches)
+    L = lambda E, n: np.asarray(sim.L_iso([E, n], "Enu"))
+    Hv = lambda b, s: np.asarray(sim.L_iso([b, s], "Kmu"))       # 3 etaB Ivol + 2 etaS Idev
+    L0 = L(E0, nu0)
+    rng = np.random.default_rng(3)
+    eps_n, De, dt = 2e-3 * rng.standard_normal(6), 1e-3 * rng.standard_normal(6), 0.3
+    EVn = [1e-3 * rng.standard_normal(6) for _ in branches]
+    sv = np.zeros(nstatev)
+    sv[0] = 290.
+    if umat == "ZENER":
+        sv[2:8] = EVn[0]
+        sig = L0 @ (eps_n - EVn[0])
+    else:
+        for i, e in enumerate(EVn):
+            sv[8 + 7 * i:14 + 7 * i] = e
+        if umat == "ZENNK":
+            sig = L0 @ (eps_n - sum(EVn))
+        else:
+            sig = L0 @ eps_n - sum(L(*b[:2]) @ e for b, e in zip(branches, EVn))
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+
+    def call(d):
+        return sim.umat(umat, col(eps_n), col(d), I3, I3, col(sig), I3, col(props), col(sv), 0.5, dt,
+                        np.zeros((4, 1), order="F"), n_threads=1)
+
+    s, _, Wm, Lt = call(De)
+    e1 = eps_n + De
+    if umat in ("ZENER", "ZENNK"):
+        C = [dt * np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) for b in branches]
+        relaxed = [np.linalg.inv(Hv(*b[2:]) + dt * L(*b[:2])) @ Hv(*b[2:]) @ e for b, e in zip(branches, EVn)]
+        ref = np.linalg.solve(np.eye(6) + L0 @ sum(C), L0 @ (e1 - sum(relaxed)))
+    else:
+        ref = L0 @ e1
+        for b, e in zip(branches, EVn):
+            Li, Hi = L(*b[:2]), Hv(*b[2:])
+            A = np.linalg.inv(Hi + dt * Li)
+            ref = ref - Li @ (A @ Hi @ e + dt * A @ Li @ e1)
+    np.testing.assert_allclose(s[:, 0], ref, rtol=1e-12, atol=1e-12 * np.abs(ref).max())
+    h = 1e-8
+    fd = np.column_stack([(call(De + h * u)[0][:, 0] - call(De - h * u)[0][:, 0]) / (2 * h) for u in np.eye(6)])
+    assert np.linalg.norm(Lt[:, :, 0] - fd) < 1e-8 * np.linalg.norm(fd)
+    assert Wm[3, 0] > 0.
+
+
+@pytest.mark.parametrize("mechs", ["visco", "visco+plast", "plast+visco", "visco+damage",
+                                   "plast+damage", "damage+plast", "visco+plast+damage"])
+@pytest.mark.parametrize("scale", [1.0, 10.0, -1.0])
+def test_modular_composite_tangent_is_exact(mechs, scale):
+    """The MODUL viscoelastic branches take their closed-form step before the elastic
+    prediction and enter the tangent by the chain rule; plasticity works on the effective
+    stress and damage scales it (strain equivalence): with the algorithmic tangent the
+    composite Lt matches central differences, loading and unloading (the damage softening
+    term only while damage grows)."""
+    from simcoon.modular import (ModularMaterial, IsotropicElasticity, Viscoelasticity,
+                                 Plasticity, VonMisesYield, VoceHardening, Damage)
+    from simcoon.solver import StepMeca, solve
+    terms = [(1500., 0.35, 3000., 1200.), (800., 0.35, 30000., 12000.)]
+    parts = {"visco": Viscoelasticity(terms=terms),
+             "plast": Plasticity(sigma_Y=20., yield_criterion=VonMisesYield(),
+                                 isotropic_hardening=VoceHardening(Q=10., b=50.)),
+             "damage": Damage(Y_0=0.001, Y_c=0.5)}
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=3000., C2=0.35),
+                          mechanisms=[parts[k] for k in mechs.split("+")])
+    r = solve(StepMeca(control=["strain"] + ["stress"] * 5, value=[0.01, 0, 0, 0, 0, 0],
+                       ninc=10, time=0.5), "MODUL", mat.props, mat.nstatev, T_init=290.)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
+    De0 = scale * np.array([4e-4, 1e-4, -1e-4, 1.5e-4, 0., 0.])
+
+    def call(d):
+        return sim.umat("MODUL", col(e), col(d), I3, I3, col(s), I3, col(mat.props), col(sv),
+                        0.5, 0.3, np.zeros((4, 1), order="F"), n_threads=1, tangent_mode=2)
+
+    Lt = call(De0)[3][:, :, 0]
+    h = 1e-8
+    fd = np.column_stack([(call(De0 + h * u)[0][:, 0] - call(De0 - h * u)[0][:, 0]) / (2 * h)
+                          for u in np.eye(6)])
+    assert np.linalg.norm(Lt - fd) < 1e-7 * np.linalg.norm(fd)
+
+
+@pytest.mark.parametrize("scale", [1.0, 3.0, 10.0])
+def test_plasticity_with_damage_uses_the_effective_stress(scale):
+    """Strain equivalence (Lemaitre): the yield condition holds on sigma / (1 - D) at the
+    converged state, and D is the damage law at the undamaged energy of that state -- the
+    nominal-stress coupling left plastic strain on states below yield once damage grew."""
+    from simcoon.modular import (ModularMaterial, IsotropicElasticity, Plasticity,
+                                 VonMisesYield, VoceHardening, Damage)
+    from simcoon.solver import StepMeca, solve
+    E, nu, sY, Q, b, Y0, Yc = 3000., 0.35, 20., 10., 50., 0.001, 0.5
+    mat = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=nu),
+                          mechanisms=[Plasticity(sigma_Y=sY, yield_criterion=VonMisesYield(),
+                                                 isotropic_hardening=VoceHardening(Q=Q, b=b)),
+                                      Damage(Y_0=Y0, Y_c=Yc)])
+    r = solve(StepMeca(control=["strain"] + ["stress"] * 5, value=[0.01, 0, 0, 0, 0, 0],
+                       ninc=10, time=0.5), "MODUL", mat.props, mat.nstatev, T_init=290.)
+    col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
+    I3 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    sv = r["Statev"][:, -1]
+    out = sim.umat("MODUL", col(r["Strain"][:, -1]),
+                   col(scale * np.array([4e-4, 1e-4, -1e-4, 1.5e-4, 0., 0.])), I3, I3,
+                   col(r["Stress"][:, -1]), I3, col(mat.props), col(sv), 0.5, 0.3,
+                   np.zeros((4, 1), order="F"), n_threads=1)
+    sig, p, D, Ymax = out[0][:, 0], out[1][1, 0], out[1][-2, 0], out[1][-1, 0]
+    s_eff = sig / (1. - D)
+    vm = np.sqrt(0.5 * ((s_eff[0] - s_eff[1]) ** 2 + (s_eff[1] - s_eff[2]) ** 2
+                        + (s_eff[2] - s_eff[0]) ** 2) + 3. * np.sum(s_eff[3:] ** 2))
+    assert p > sv[1]
+    np.testing.assert_allclose(vm, sY + Q * (1. - np.exp(-b * p)), rtol=1e-8)
+    M0 = np.linalg.inv(np.asarray(sim.L_iso([E, nu], "Enu")))
+    Y = 0.5 * s_eff @ M0 @ s_eff
+    np.testing.assert_allclose(Ymax, max(Y, sv[-1]), rtol=1e-8)
+    np.testing.assert_allclose(D, (Ymax - Y0) / (Yc - Y0), rtol=1e-8)

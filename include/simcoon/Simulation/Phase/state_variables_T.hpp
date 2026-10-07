@@ -24,7 +24,6 @@
 #include <iostream>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 namespace simcoon{
 
@@ -48,25 +47,33 @@ namespace simcoon{
 
 	public :
     
-        arma::vec sigma_in;
-        arma::vec sigma_in_start;
-        arma::vec Wm;
-        arma::vec Wt;
-        arma::vec Wm_start;
-        arma::vec Wt_start;
+        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
+        arma::vec sigma_in_start; ///< never crosses
+        arma::vec Wm; ///< mechanical works; crosses both ways
+        arma::vec Wt; ///< thermal works; crosses both ways
+        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
+        arma::vec Wt_start; ///< set by set_start on each copy, never crosses
 		
-        arma::mat dSdE;
-        arma::mat dSdEt;
-        arma::mat dSdT;
-        double Q;
-        double r;
-        double r_in;
+        arma::mat dSdE; ///< mechanical tangent; kernel output, crosses l2g only
+        arma::mat dSdEt; ///< read by nobody, never crosses
+        arma::mat dSdT; ///< thermal stress tangent, a Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel output, crosses l2g only
+        double Q; ///< heat flux, set by the solver as -r; crosses g2l only
+        double r; ///< heat source; kernel output, crosses l2g only
+        double r_in; ///< never crosses
     
+        /**
+         * Heat source strain tangent \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$, a
+         * Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel
+         * output, crosses l2g only. Dual to the engineering strain, it rotates with the STRESS
+         * operator \f$ \mathbf{Q}_S = \mathbf{Q}_E^{-T} \f$: \f$ \partial r/\partial \boldsymbol{\varepsilon}'
+         * = \mathbf{Q}_E^{-T} \, \partial r/\partial \boldsymbol{\varepsilon} \f$ for
+         * \f$ \boldsymbol{\varepsilon}' = \mathbf{Q}_E \boldsymbol{\varepsilon} \f$.
+         */
         arma::mat drdE;
-        arma::mat drdT;
+        arma::mat drdT; ///< heat source temperature tangent; kernel output, crosses l2g only
 
 		state_variables_T(); 	//default constructor
-    state_variables_T(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &); //Constructor with parameters
+    state_variables_T(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &); //Constructor with parameters
 		state_variables_T(const state_variables_T &);	//Copy constructor
 		virtual ~state_variables_T();
 		
@@ -75,14 +82,16 @@ namespace simcoon{
 		virtual state_variables_T& copy_fields_T (const state_variables_T&);
 		
 		using state_variables::update;
-		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
-        virtual void to_start(); //Wm & Wt goes to Wm_start & Wt_start, respectively
-        virtual void set_start(const int &); //Wm_start & Wt_start goes to Wm & Wt, respectively
+		virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &);
+        virtual void to_start(); //rollback: Wm_start & Wt_start go to Wm & Wt, respectively
+        virtual void set_start(const int &); //accept: Wm & Wt go to Wm_start & Wt_start, respectively
     
         using state_variables::rotate_l2g;
-        virtual state_variables_T& rotate_l2g(const state_variables_T&, const double&, const double&, const double&);
+        /// state_variables::rotate_l2g plus the thermomechanical members (ownership on their declarations).
+        virtual state_variables_T& rotate_l2g(const state_variables_T&, const frame_rotation&);
         using state_variables::rotate_g2l;
-        virtual state_variables_T& rotate_g2l(const state_variables_T&, const double&, const double&, const double&);
+        /// state_variables::rotate_g2l plus the thermomechanical members.
+        virtual state_variables_T& rotate_g2l(const state_variables_T&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_T&);
 };

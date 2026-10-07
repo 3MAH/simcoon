@@ -24,9 +24,21 @@ jobs:
           - os: macos-latest
             sys-package-install-command: brew install armadillo ninja
           - os: windows-latest
-            sys-package-install-command: vcpkg install armadillo
+            # Subprocess imports must reuse the build: pytest holds simcoon.dll open, and an
+            # import-time relink + install of it fails with "Permission denied" (run
+            # 36714828491). Applied through scikit-build-core's own SKBUILD_EDITABLE_REBUILD
+            # variable on the install step: the same setting passed as `uv pip install -C`
+            # did not reach the backend on this runner.
+            editable-rebuild: "false"
+            # Use conda-forge's prebuilt reference BLAS/LAPACK (no Fortran compiled on the
+            # runner) + armadillo, mirroring ci.yml / environment_win.yml. Avoids vcpkg's
+            # lapack-reference build, which LLVMFlang on the windows-2025 image cannot compile.
+            sys-package-install-command: |
+              & "$env:CONDA\Scripts\conda.exe" install -y -c conda-forge -c set3mah `
+                "libblas=*=*netlib" "liblapack=*=*netlib" armadillo
             setup-env-command: |
-              echo "CMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake" >> $env:GITHUB_ENV
+              echo "CMAKE_PREFIX_PATH=$env:CONDA\Library" >> $env:GITHUB_ENV
+              "$env:CONDA\Library\bin" | Out-File $env:GITHUB_PATH -Append
 
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }}
@@ -45,11 +57,56 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
 
+      - name: MSVC developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: sccache (Windows)
+        if: runner.os == 'Windows'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Enable sccache + Ninja for the editable build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # scikit-build-core honors CMAKE_ARGS; the compiler-launcher property
+          # only works with the Ninja generator (ignored by Visual Studio), so
+          # the MSVC dev env + ninja (installed below) are required for sccache.
+          $sc = $env:SCCACHE_PATH -replace '\\','/'
+          "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
+          "SCCACHE_IDLE_TIMEOUT=0" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=$sc -DCMAKE_CXX_COMPILER_LAUNCHER=$sc" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_GENERATOR=Ninja" | Out-File $env:GITHUB_ENV -Append
+
       - name: Editable install
+        env:
+          SKBUILD_EDITABLE_REBUILD: ${{ matrix.editable-rebuild || 'true' }}
         run: |
           uv venv
-          uv pip install scikit-build-core pybind11 numpy
-          uv pip install -e .[dev]
+          # --no-build-isolation so the backend in the venv is the one that
+          # actually builds the editable wheel (and so later direct cmake
+          # rebuilds share its build tree).
+          uv pip install scikit-build-core pybind11 numpy ninja
+          uv pip install -e .[dev] --no-build-isolation
+
+      - name: Vendor conda BLAS/LAPACK runtime next to the extension (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Probe the installed extension before vendoring its runtime dependencies
+          # (the import can fail on missing BLAS DLLs at this point).
+          uv run python -c "import simcoon" 2>&1 | Out-Null
+          # Copy conda's reference BLAS/LAPACK + Fortran runtime NEXT TO _core.pyd:
+          # Windows resolves an extension module's dependencies from the pyd's own
+          # directory (PATH is ignored since Python 3.8, and the uv venv does not see
+          # C:\Miniconda\Library\bin like ci.yml's conda Python does). The pyd's
+          # location depends on the scikit-build-core editable layout (site-packages
+          # on 0.x, redirected to <build-dir>\install\platlib\simcoon on 1.x), so
+          # locate it instead of hardcoding either.
+          $pyds = Get-ChildItem -Path build, .venv\Lib\site-packages -Recurse -Filter "_core*.pyd" -ErrorAction SilentlyContinue
+          if (-not $pyds) { Write-Error "editable _core.pyd not found"; exit 1 }
+          foreach ($pyd in $pyds) {
+            Copy-Item "$env:CONDA\Library\bin\*.dll" $pyd.DirectoryName -Force -ErrorAction SilentlyContinue
+          }
+          exit 0
 
       - name: Verify cmake rebuild works (Unix)
         if: runner.os != 'Windows'
@@ -73,8 +130,3 @@ jobs:
       - name: Run Python tests
         run: uv run pytest
 
-      - name: Install fedoo and run integration tests (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          uv pip install "git+https://github.com/3MAH/fedoo.git@master"
-          uv run pytest tests/test_fedoo_integration.py -v

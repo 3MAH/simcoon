@@ -68,8 +68,17 @@ protected:
     
     arma::vec times; ///< Vector of time values for the step
     double BC_Time; ///< Boundary condition application time
-    
-    std::string file; ///< Input/output file for loading path values
+
+
+    /**
+     * @brief Tabular loading data of a mode-3 step.
+     *
+     * One row per increment; columns:
+     * [time, (T if cBC_T==0, or Q if cBC_T==1 for thermomechanical steps),
+     *  controlled mechanical components with cBC_meca(k) < 2, in internal Voigt
+     *  order (6 components for control_type <= 4, 9 for 5/6)].
+     */
+    arma::mat tab_data;
     
     /**
      * @brief Default constructor.
@@ -102,7 +111,21 @@ protected:
      * @brief Generate the time discretization for the step.
      */
     virtual void generate();
-    
+
+    /**
+     * @brief Number of increments of a tabular (mode 3) step: the rows of \ref tab_data.
+     * @throws exception_solver when the step carries no table
+     */
+    int mode3_ninc() const;
+
+    /**
+     * @brief Full tabular (mode 3) loading table, one row per increment.
+     * Returns \ref tab_data, validated against size_BC.
+     * @throws exception_solver when the step carries no table or its width differs
+     * @param size_BC Expected number of columns (see \ref tab_data for the layout)
+     */
+    arma::mat mode3_rows(const unsigned int &size_BC) const;
+
     /**
      * @brief Compute the next increment parameters.
      * @param tnew_dt Suggested new time increment ratio (output)
@@ -112,7 +135,9 @@ protected:
      * @param Dn Increment fraction (output)
      * @param control Increment control flag
      */
-    virtual void compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
+    /// @return false when the increment fell below Dn_mini and inforce is off: the solver
+    ///         then aborts with status 1 (same protocol as a non-converged Newton loop).
+    virtual bool compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dn, const int &control);
     
     /**
      * @brief Assignment operator.

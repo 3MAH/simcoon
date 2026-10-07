@@ -634,4 +634,117 @@ constexpr auto H_iso = R"pbdoc(
         print(H_iso)
 )pbdoc";
 
+constexpr auto umat = R"pbdoc(
+    Integrate a constitutive law over one increment at a batch of material points.
+
+    This is the point-level entry used by finite-element couplers (fedoo).
+
+    Parameters
+    ----------
+    umat_name : str
+        5-letter model name (see the UMAT catalog).
+    etot, Detot : numpy.ndarray, shape (6, N)
+        Strain at the start of the increment and its increment (Voigt, engineering
+        shear). Under finite strain: the corotational logarithmic strain.
+    F0, F1 : numpy.ndarray, shape (3, 3, N)
+        Deformation gradient at the start and the end of the increment. May be
+        empty for a small-strain call.
+    sigma : numpy.ndarray, shape (6, N)
+        CAUCHY stress at the start of the increment.
+    DR : numpy.ndarray, shape (3, 3, N)
+        Rotation increment of the objective rate.
+    props, statev, Wm : numpy.ndarray
+        Material parameters, state variables and the accumulated work terms
+        (Wm, Wm_r, Wm_ir, Wm_d).
+    time, dtime : float
+        Time at the start of the increment and its increment.
+    temp : numpy.ndarray, optional
+        Temperature per point.
+    ndi : int
+        Number of direct stress components (3, 2 or 1).
+    n_threads : int
+        Point-loop threads: 1 runs serially on every platform; otherwise it
+        caps the worker threads on Windows (0 = all hardware threads), while
+        macOS (GCD) and Linux (OpenMP) size the pool themselves. Batches of
+        100 points or fewer always run serially.
+    tangent_mode : int
+        0 none, 1 continuum, 2 algorithmic (default).
+    corate : int
+        Objective rate the returned tangent is expressed in: 0 Jaumann,
+        1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default), 4 Truesdell,
+        5 log_F. Choosing the coupler's own rate here spares it a tangent
+        conversion. Kernels fed the corotated strain (the small-strain and
+        log-strain boxes, MODUL, HYPOO) are in-rate already: their tangent
+        ignores it (the in-memory solver runs MODUL under 3 only), but Wm
+        does not (see Notes). Any other value raises ValueError.
+    work_correction : bool
+        Apply the log-corate work correction to Wm (default True, see Notes).
+        Pass False when the stresses, the strain increment and F0/F1 are not
+        written in one basis -- e.g. a caller that runs the law in a frame
+        following the material with DR = I while F stays in a fixed basis:
+        Wm is then the kernel's own work, consistent in that frame.
+    tangent_output : str
+        Which tangent Lt holds (needs F1 unless 'box'):
+        'box' (default), the Kirchhoff box d(tau_hat)/d(De) in the corate;
+        'material', dS/dE (total Lagrangian);
+        'spatial', the Cauchy Lie tangent dsigma/dD (updated Lagrangian).
+        The conversion runs per point inside the parallel loop: the corate's
+        box -> dS/dE map (the one the solver uses; for corates 0-3 it equals
+        Lt_convert with DsigmaDe_JaumannDD_2_DSDE, DsigmaDe_GreenNaghdiDD_2_DSDE
+        or DsigmaDe_2_DSDE), then DSDE_2_Dsigma_LieDD for 'spatial'. One call
+        replaces umat plus one or two Lt_convert passes.
+    start : bool, optional
+        Whether this call initialises the material points. True re-initialises
+        them: the reference temperature (statev[0] = temp), the stress, the
+        internal variables and the work terms Wm are reset before integrating.
+        None (default) infers it from time (time <= 1e-9),
+        which re-initialises on EVERY call at time 0, e.g. each Newton
+        correction of the first increment. A coupler that knows when a point is
+        fresh should pass it explicitly: True on its initialisation call only,
+        False otherwise. umat_T takes the same argument.
+
+    Returns
+    -------
+    tuple
+        (sigma, statev, Wm, Lt): the CAUCHY stress at the end of the increment,
+        the updated state variables and work terms, and the tangent Lt, shape
+        (6, 6, N).
+
+    Notes
+    -----
+    Stress measures. Inside simcoon the finite-strain route carries the KIRCHHOFF
+    stress tau: every native kernel takes and returns tau, and Wm is accumulated
+    per reference volume on tau. The Cauchy stress is formed only at the
+    boundaries, and this function is one of them: for a Kirchhoff kernel with F0
+    and F1 given, sigma is multiplied by det(F0) on the way in and divided by
+    det(F1) on the way out, so the caller always exchanges Cauchy. Without F0/F1
+    (or with a degenerate F) no conversion is applied, which is exact at small
+    strain. Only the plugin adapters (UMEXT, UMABA) are Cauchy-native and pass
+    through unconverted.
+
+    Wm is the work per reference volume. The kernel alone accumulates
+    1/2 (tau_start + tau_end) : Detot on the strain increment it is handed,
+    tau_start being the start stress passed in (sigma * det(F0)). Under the
+    logarithmic corates (2, 3, 5), when F0 and F1 are given and differ, that
+    is replaced by the stress power 1/2 (tau_lab + tau_end) : D dt, with
+    D dt = sym(2 (F1 - F0)(F1 + F0)^-1) and tau_lab = sym(DR^-1 tau_start DR)
+    the start stress brought back to the lab frame; the difference is added to
+    Wm and Wm_r. With identical F0 and F1 (small-strain use), or with
+    work_correction=False, there is no correction. The in-memory solver applies
+    the same rule.
+
+    With tangent_output='box', Lt is NOT rescaled to Cauchy: it is the
+    Kirchhoff box tangent d(tau_hat)/d(De) in the requested corate, with no J.
+    Rescaling it by 1/J would break Lt_convert, which consumes exactly this
+    object.
+
+    A kernel may request a step cut instead of integrating a too-large increment
+    (the modular engine on a non-finite or runaway return mapping, the SMR* SMA
+    and LLDM0 damage laws on a failed local iteration, a Python law raising
+    simcoon.StepCut). The simcoon solver retries automatically; this batch entry
+    cannot subdivide, so it raises simcoon.StepCut (a RuntimeError) carrying the
+    smallest requested ``ratio``. The input arrays are untouched: discard the
+    call and retry with a smaller increment. umat_T behaves the same way.
+)pbdoc";
+
 } // namespace simcoon_docs

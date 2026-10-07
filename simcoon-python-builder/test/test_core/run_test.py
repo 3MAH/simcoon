@@ -127,6 +127,23 @@ def test_objective_rate_batch(deformation_pair):
             assert np.allclose(D_batch[:, :, i], D_single, atol=1e-12), f"{name}: batch D[{i}] mismatch"
 
 
+@pytest.mark.parametrize("broadcast_F0", [True, False])
+def test_objective_rate_parallel_batch(deformation_pair, broadcast_F0):
+    """Large batches agree between one and four workers for both F0 layouts, point by point
+    (distinct F per point, so a wrong slice or an index race shows)."""
+    F0, F1, dtime = deformation_pair
+    count = 240
+    rng = np.random.default_rng(7)
+    F1_batch = np.asfortranarray(F1[:, :, None] + 0.01 * rng.standard_normal((3, 3, count)))
+    F0_batch = F0 if broadcast_F0 else np.asfortranarray(
+        F0[:, :, None] + 0.005 * rng.standard_normal((3, 3, count)))
+    for rate in ("jaumann", "logarithmic_F"):
+        serial = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 1)
+        parallel = sim.objective_rate(rate, F0_batch, F1_batch, dtime, True, 4)
+        for expected, actual in zip(serial, parallel):
+            np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
+
+
 def test_objective_rate_return_de_small_increment():
     """For very small deformation, de ≈ DTime * t2v_strain(D) for all rates."""
     F0 = np.eye(3)
@@ -149,3 +166,70 @@ def test_objective_rate_return_de_small_increment():
             f"{name}: de not close to DTime*t2v_strain(D), "
             f"max diff = {np.max(np.abs(de - de_approx))}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Hyperelastic UMATs: principal-stretch (OGDEN) vs invariants (NEOHC)
+# ---------------------------------------------------------------------------
+def _run_finite_umat(umat_name, props, F1):
+    """Run a finite-strain umat for a single point from F0=I to F1."""
+    n = 1
+    etot = np.zeros((6, n), order="F")
+    Detot = np.zeros((6, n), order="F")
+    sigma = np.zeros((6, n), order="F")
+    statev = np.zeros((1, n), order="F")
+    Wm = np.zeros((4, n), order="F")
+    DR = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    F0 = np.eye(3).reshape(3, 3, 1).copy(order="F")
+    F1 = np.asarray(F1).reshape(3, 3, 1).copy(order="F")
+    props = np.asfortranarray(np.array(props).reshape(-1, 1))
+    stress, sv, wm, Lt = sim.umat(
+        umat_name, etot, Detot, F0, F1, sigma, DR, props, statev,
+        0.0, 1.0, Wm, n_threads=1,
+    )
+    return stress[:, 0], Lt[:, :, 0]
+
+
+# a generic (non-diagonal, compressible) deformation gradient
+HYPER_F1 = np.array([
+    [1.15, 0.08, 0.00],
+    [0.02, 0.92, 0.05],
+    [0.00, 0.03, 1.05],
+])
+
+
+def test_umat_ogden_reduces_to_neo_hookean():
+    """OGDEN with N=1, alpha=2 is exactly the compressible neo-Hookean
+    potential: W = mu/2 (I1_bar - 3) + kappa (J lnJ - J + 1). Stress and
+    tangent must match NEOHC, validating the whole principal-stretch
+    pipeline against the invariants pipeline."""
+    mu, kappa = 0.5673, 1000.0
+    sig_nh, Lt_nh = _run_finite_umat("NEOHC", [mu, kappa], HYPER_F1)
+    sig_og, Lt_og = _run_finite_umat("OGDEN", [1, kappa, mu, 2.0], HYPER_F1)
+    assert np.allclose(sig_og, sig_nh, rtol=1e-8, atol=1e-10), (
+        f"stress mismatch:\nOGDEN {sig_og}\nNEOHC {sig_nh}"
+    )
+    assert np.allclose(Lt_og, Lt_nh, rtol=1e-6, atol=1e-8), (
+        f"tangent mismatch, max diff = {np.max(np.abs(Lt_og - Lt_nh))}"
+    )
+
+
+def test_umat_ogden_terms_accumulate():
+    """Two Ogden terms with the same alpha must equal one term with the
+    summed modulus (the series is linear in mu_i)."""
+    kappa = 1000.0
+    sig_2, Lt_2 = _run_finite_umat(
+        "OGDEN", [2, kappa, 0.4, 2.0, 0.1673, 2.0], HYPER_F1)
+    sig_1, Lt_1 = _run_finite_umat("OGDEN", [1, kappa, 0.5673, 2.0], HYPER_F1)
+    assert np.allclose(sig_2, sig_1, rtol=1e-10)
+    assert np.allclose(Lt_2, Lt_1, rtol=1e-10)
+
+
+def test_umat_ogden_stress_free_reference():
+    """At F=I the Ogden law must return zero stress for any exponent set."""
+    F1 = np.eye(3)
+    sig, Lt = _run_finite_umat(
+        "OGDEN", [2, 1000.0, 0.4, 1.3, 0.1673, 4.0], F1)
+    assert np.allclose(sig, np.zeros(6), atol=1e-12)
+    # ground-state shear stiffness: Lt(3,3) = mu = sum(mu_i)
+    assert np.isclose(Lt[3, 3], 0.5673, rtol=1e-6)

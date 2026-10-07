@@ -20,6 +20,7 @@
 ///@version 1.0
 
 #include <iostream>
+#include <stdexcept>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
@@ -46,7 +47,8 @@ namespace simcoon
         double temp;
         double m;
 
-        if (Mises_stress(v) > 0.)
+        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave its bounds: NaN
+        if (Mises_stress(v) > simcoon::iota)
         {
             if (n < 10.)
             {
@@ -92,7 +94,7 @@ namespace simcoon
         double m;
         vec temp;
 
-        if (Mises > 0.)
+        if (Mises > simcoon::iota)   // same floor as Drucker_stress
         {
             if (n < 10.)
             {
@@ -141,7 +143,8 @@ namespace simcoon
 
         double dfa_stress = DFA_stress(v, params);
 
-        if (dfa_stress > 0.)
+        // Below iota the invariants are roundoff and 1 + b J3/J2^1.5 can leave [1-2b/(3 sqrt 3), 1+...]: NaN
+        if (dfa_stress > simcoon::iota)
         {
             if (n < 10.)
             {
@@ -188,7 +191,7 @@ namespace simcoon
         double m;
         vec temp;
 
-        if (Dfa_stress > 0.)
+        if (Dfa_stress > simcoon::iota)   // same floor as Drucker_ani_stress
         {
             if (n < 10.)
             {
@@ -309,6 +312,36 @@ namespace simcoon
         }
     }
 
+    mat ddEq_stress_P(const vec &v, const mat &H)
+    {
+        if (norm(v, 2) <= simcoon::iota)
+        {
+            return zeros(6, 6);
+        }
+        double sigeq = Eq_stress_P(v, H);
+        if (sigeq < simcoon::iota)
+        {
+            return zeros(6, 6);
+        }
+        vec Lambda = (H * v) / sigeq; // == dEq_stress_P(v, H)
+        return (H - Lambda * Lambda.t()) / sigeq;
+    }
+
+    mat ddHill_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_Hill(params));
+    }
+
+    mat ddDFA_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_DFA(params));
+    }
+
+    mat ddAni_stress(const vec &v, const vec &params)
+    {
+        return ddEq_stress_P(v, P_Ani(params));
+    }
+
     double Hill_stress(const vec &v, const vec &params)
     {
         mat P = P_Hill(params);
@@ -367,10 +400,17 @@ namespace simcoon
         {
             return Ani_stress(v, param);
         }
+        else if (eq_type == "DFA")
+        {
+            return DFA_stress(v, param);
+        }
         else
         {
-            cout << "Error in Eq_stress : No valid arguement is given\n";
-            exit(0);
+            // throw, do NOT exit(0): an invalid criterion string must be
+            // reportable by the caller (an exit kills the host process,
+            // e.g. the Python interpreter).
+            throw std::invalid_argument("Eq_stress: unknown criterion '"
+                                        + eq_type + "'");
         }
     }
 
@@ -396,10 +436,14 @@ namespace simcoon
         {
             return dAni_stress(v, param);
         }
+        else if (eq_type == "DFA")
+        {
+            return dDFA_stress(v, param);
+        }
         else
         {
-            cout << "Error in dEq_stress : No valid arguement is given\n";
-            exit(0);
+            throw std::invalid_argument("dEq_stress: unknown criterion '"
+                                        + eq_type + "'");
         }
     }
 

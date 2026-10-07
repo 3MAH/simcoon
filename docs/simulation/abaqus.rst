@@ -10,7 +10,6 @@ Simcoon provides ready-to-use UMAT bridge files in the ``software/`` directory t
 
 - ``software/umat_singleM.cpp`` - Single mechanical model (selected by material name)
 - ``software/umat_singleT.cpp`` - Single thermo-mechanical model
-- ``software/umat_singleM_multi.cpp`` - Multiscale mechanical model (reads from ``material.dat``)
 - ``software/umat_externalM.cpp`` - Template for adding custom external UMAT in C++
 - ``software/umat_externalT.cpp`` - Template for custom external thermo-mechanical UMAT
 
@@ -133,25 +132,42 @@ For coupled thermo-mechanical analysis with heat generation:
 
 The thermo-mechanical version provides:
 
-- Mechanical tangent ``ddsdde`` (∂σ/∂ε)
-- Thermal stress tangent ``ddsddt`` (∂σ/∂T)
-- Heat flux derivative ``drplde`` (∂r/∂ε)
-- Heat capacity ``drpldt`` (∂r/∂T)
+- Mechanical tangent ``ddsdde`` (the Abaqus material Jacobian, see below)
+- Thermal stress tangent ``ddsddt`` (:math:`\partial \boldsymbol{\sigma} / \partial T`)
+- Heat flux derivative ``drplde`` (:math:`\partial r / \partial \boldsymbol{\varepsilon}`)
+- Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
 
-Using umat_singleM_multi (Multiscale)
--------------------------------------
+Material Jacobian convention
+----------------------------
 
-For multiscale homogenization models, the material definition is read from a ``data/material.dat`` file in the working directory:
+Abaqus integrates a UMAT in its corotated frame: ``STRESS`` and ``STRAN`` are
+rotated by Abaqus before the call (``DROT`` is the rotation increment, used
+here to rotate the tensorial state variables), ``DSTRAN`` is the logarithmic
+strain increment, and ``STRESS`` is the Cauchy stress. Under ``NLGEOM``
+Abaqus defines ``DDSDDE`` through the Jaumann rate of the Kirchhoff stress
+divided by :math:`J`:
 
-.. code-block:: bash
+.. math::
 
-    g++ -shared -fPIC -std=c++17 -O2 -o libumat_simcoon_multi.so umat_singleM_multi.cpp \
-        -I$SIMCOON_DIR/include \
-        -L$SIMCOON_DIR/lib -lsimcoon \
-        -larmadillo -llapack -lblas
+   \mathbf{C}^{\text{Abaqus}} = \frac{1}{J}\frac{\partial (J\boldsymbol{\sigma})}{\partial \boldsymbol{\varepsilon}}
+   = \frac{\partial \boldsymbol{\sigma}}{\partial \boldsymbol{\varepsilon}} + \boldsymbol{\sigma} \otimes \mathbf{I}
 
-Create ``data/material.dat`` in your Abaqus working directory with the material definition. See the homogenization documentation for file format details.
+since :math:`\mathrm{d}J = J\,\mathrm{tr}(\mathrm{d}\boldsymbol{\varepsilon})`. The
+simcoon kernels return the first term, the corotational tangent
+:math:`\partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}`;
+``smart2abaqus_M`` (and the thermomechanical ``smart2abaqus_T``) add the symmetric
+part of :math:`\boldsymbol{\sigma} \otimes \mathbf{I}`, which is what the default
+symmetric solver of Abaqus keeps (``abaqus_jacobian`` in ``fea_transfer.hpp``).
+This term does not change the stress, hence not the converged solution: it
+restores the quadratic convergence of the global Newton loop when
+:math:`\sigma / E` is not small (elastomers, shape memory alloys). It is added
+only where Abaqus's definition has it: for ``NLGEOM`` steps (Abaqus hands
+``DFGRD1`` as the identity otherwise, which ``abaqus_nlgeom`` reads) and for the
+cases with three direct components (3D, plane strain, axisymmetric). Without
+``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation procedures
+(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D
+condense the kernel tangent as it is, the element owning the thickness change.
 
 Using umat_externalM (Custom Model)
 -----------------------------------
@@ -262,13 +278,15 @@ simcoon uses a specific layout for state variables (``statev`` array):
 
 .. code-block:: none
 
-    statev[0:nstatev_smart]  - Model-specific state variables
-    statev[nstatev-4]        - Wm (total mechanical work)
-    statev[nstatev-3]        - Wm_r (recoverable work)
-    statev[nstatev-2]        - Wm_ir (irrecoverable work)
-    statev[nstatev-1]        - Wm_d (dissipated work)
+    statev[0]                - Wm (total mechanical work)
+    statev[1]                - Wm_r (recoverable work)
+    statev[2]                - Wm_ir (irrecoverable work)
+    statev[3]                - Wm_d (dissipated work)
+    statev[4:nstatev]        - Model-specific state variables (nstatev_smart of them)
 
-Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``.
+Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``: the four work
+quantities come first, then the model's own variables (the same layout as the
+Ansys ``ustatev``, see :doc:`ansys`).
 
 Available Models
 ----------------
@@ -281,64 +299,92 @@ The following constitutive models are available through ``select_umat_M()``:
 
    * - Code
      - Model
-     - Properties
+     - Properties (in order)
      - State Variables
    * - ELISO
      - Isotropic elasticity
-     - E, ν, α
-     - 1 (start flag)
+     - :math:`E, \nu, \alpha`
+     - 1
    * - ELIST
      - Transversely isotropic elasticity
-     - E₁, E₂, ν₁₂, ν₂₃, G₁₂, α₁, α₂
+     - axis, :math:`E_L, E_T, \nu_{TL}, \nu_{TT}, G_{LT}, \alpha_L, \alpha_T`
      - 1
    * - ELORT
      - Orthotropic elasticity
-     - E₁, E₂, E₃, ν₁₂, ν₁₃, ν₂₃, G₁₂, G₁₃, G₂₃, α₁, α₂, α₃
+     - :math:`E_1, E_2, E_3, \nu_{12}, \nu_{13}, \nu_{23}, G_{12}, G_{13}, G_{23}, \alpha_1, \alpha_2, \alpha_3`
      - 1
    * - EPICP
-     - Isotropic plasticity (isotropic hardening)
-     - E, ν, α, σ_y, H
-     - 8 (p, Hp, ...)
+     - Von Mises plasticity, power-law isotropic hardening
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m`
+     - 8 (T_init, p, EP)
    * - EPKCP
-     - Kinematic + isotropic hardening
-     - E, ν, α, σ_y, H, C, γ
-     - 14
+     - Von Mises, power-law isotropic + Prager kinematic
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, k_X`
+     - 14 (T_init, p, EP, a)
    * - EPCHA
-     - Chaboche cyclic plasticity
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, ...
-     - 14+
-   * - EPHIL
-     - Hill anisotropic plasticity (iso hardening)
-     - E, ν, α, σ_y, H, F, G, H, L, M, N
-     - 8
+     - Von Mises + Voce + 2× Armstrong-Frederick
+     - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
+     - 33
+   * - EPJCK
+     - Von Mises + Johnson-Cook yield stress (rate and temperature dependent)
+     - :math:`E, \nu, \alpha, A, B, n, C, \dot{\varepsilon}_0, m, T_{\mathrm{ref}}, T_{\mathrm{melt}}`
+     - 9 (T_init, p, EP, edot_p)
+   * - EPHIL / EPTRI
+     - Hill yield + power-law isotropic hardening
+     - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`
+     - 8 (T_init, p, EP)
    * - EPHAC
-     - Hill + Chaboche
-     - E, ν, α, σ_y, Q, b, C₁, γ₁, F, G, H, L, M, N
-     - 14+
-   * - SMAUT
+     - Cubic elasticity + Hill + Voce + 2× AF
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N`
+     - 33
+   * - EPANI
+     - Cubic elasticity + anisotropic yield + Voce + 2× AF
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, P_{11}..P_{66}` (9)
+     - 33
+   * - EPDFA
+     - Cubic elasticity + DFA yield + Voce + 2× AF
+     - :math:`E, \nu, G, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2, F, G, H, L, M, N, K`
+     - 33
+   * - EPCHG
+     - Generic Chaboche (selectable yield, N iso/kin terms)
+     - :math:`E, \nu, G, \alpha, \sigma_Y, N_{iso}, N_{kin}`, criteria, :math:`(Q,b) \times N`, :math:`(C,D) \times N`, crit. params
+     - 33
+   * - EPHIN
+     - N Hill yield surfaces
+     - :math:`E, \nu, \alpha, N`, per surface: :math:`\sigma_Y, k, m, F, G, H, L, M, N`
+     - 1 + 7N
+   * - SMADI
      - SMA unified model
      - See SMA documentation
      - 24
-   * - SMANI
+   * - SMAAI
      - SMA anisotropic model
      - See SMA documentation
      - 24
    * - LLDM0
-     - Lemaitre-Chaboche damage
-     - E, ν, α, σ_y, H, S, s, D_c
+     - Lemaitre-Ladeveze-Dufailly damage
+     - See header documentation
      - 9
    * - ZENER
-     - Zener viscoelastic (single branch)
-     - E₀, E₁, η
-     - 7
+     - Kelvin viscoelastic (single branch)
+     - :math:`E_0, \nu_0, \alpha, E_1, \nu_1, \eta_{B1}, \eta_{S1}`
+     - 14
    * - ZENNK
-     - Zener viscoelastic (N branches)
-     - E₀, E₁, η₁, E₂, η₂, ...
-     - 1+6N
+     - Kelvin viscoelastic (N branches)
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
+     - 7 + 7N
    * - PRONK
-     - Prony series viscoelastic
-     - G₀, K₀, g₁, τ₁, k₁, τ'₁, ...
-     - 1+12N
+     - Prony series viscoelastic (generalized Maxwell)
+     - :math:`E_0, \nu_0, \alpha, N`, per branch: :math:`E_i, \nu_i, \eta_{Bi}, \eta_{Si}`
+     - 7 + 7N
+   * - MODUL
+     - Composable modular UMAT
+     - self-describing stream (see :mod:`simcoon.modular`)
+     - model-dependent
+
+Several of these names are served by the modular engine through
+props-translating adapters — identical usage and results; see
+:doc:`umat_catalog` for per-name status and state-variable layout notes.
 
 .. list-table:: Micromechanics Models
    :header-rows: 1
@@ -360,7 +406,7 @@ The following constitutive models are available through ``select_umat_M()``:
      - Periodic layered
      - Layered composite homogenization
 
-For micromechanics models, use ``umat_singleM_multi.cpp`` with a ``data/material.dat`` file.
+Mean-field micromechanics models (MIHEN, MIMTN, MISCN, MIPLN) are **not** reachable through the Abaqus wrappers. Since 2.0 their sub-phases are passed in memory rather than read from ``Nellipsoids``/``Nlayers`` files, which the Abaqus entry point cannot supply; drive them from Python instead (see :doc:`python_solver`).
 
 Troubleshooting
 ---------------

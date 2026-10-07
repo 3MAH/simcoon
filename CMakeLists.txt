@@ -86,16 +86,28 @@ function(add_simcoon_test test_src)
 
   add_executable(${testName} ${CMAKE_SOURCE_DIR}/${test_src})
   target_link_libraries(${testName} PRIVATE simcoon GTest::gtest_main)
+  if(WIN32)
+    # Some Armadillo packages do not propagate their BLAS/LAPACK link dependencies.
+    target_link_libraries(${testName} PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  endif()
 
   set_output_directory(${testName} ${CMAKE_SOURCE_DIR}/testBin/${testFolder})
 
   if(MSVC)
-    add_dependencies(${testName} simcoon)
-    add_custom_command(TARGET ${testName} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_directory
-      ${CMAKE_BINARY_DIR}/bin
-      ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
-    )
+    # Several tests share each output folder. A POST_BUILD copy on every test
+    # races when Ninja links those executables concurrently on Windows.
+    string(MAKE_C_IDENTIFIER "${testFolder}" testFolderId)
+    set(runtimeTarget "simcoon_test_runtime_${testFolderId}")
+    if(NOT TARGET ${runtimeTarget})
+      add_custom_target(${runtimeTarget}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:simcoon> ${CMAKE_SOURCE_DIR}/testBin/${testFolder}
+        DEPENDS simcoon
+        VERBATIM
+      )
+    endif()
+    add_dependencies(${testName} ${runtimeTarget})
   endif()
 
   # Create test output directory at build time (not configure time)
@@ -127,9 +139,6 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 enable_testing()
 
 # Find dependencies
-if(MSVC)
-  set(BLA_PKGCONFIG_BLAS True)
-endif()
 
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
@@ -159,7 +168,47 @@ if(WIN32 AND MSVC AND BLAS_FOUND AND LAPACK_FOUND)
   endif()
 endif()
 
+# Armadillo. Inside a conda environment, use the environment's own Armadillo (hence its
+# BLAS/LAPACK and its single OpenMP runtime, conda-forge's llvm-openmp). Linking a
+# system/Homebrew Armadillo into a conda Python process loads a second OpenMP runtime
+# next to the one numpy/openblas/pytorch already carry: "OMP: Error #15" at import or
+# random crashes in threaded kernels (KMP_DUPLICATE_LIB_OK only hides the guard).
+# Install it with `conda install -c conda-forge armadillo`; -DArmadillo_ROOT=... still wins.
+# Conda prefix: conda-build exposes the host prefix as PREFIX, an activated environment as
+# CONDA_PREFIX. `conda-meta/` is what makes a
+# directory a conda prefix — PREFIX alone is a common Makefile variable (/usr/local ...).
+set(SIMCOON_CONDA_PREFIX "")
+if(DEFINED ENV{PREFIX} AND EXISTS "$ENV{PREFIX}/conda-meta")
+  set(SIMCOON_CONDA_PREFIX "$ENV{PREFIX}")
+elseif(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/conda-meta")
+  set(SIMCOON_CONDA_PREFIX "$ENV{CONDA_PREFIX}")
+endif()
+set(_simcoon_armadillo_auto OFF)
+if(SIMCOON_CONDA_PREFIX AND NOT DEFINED Armadillo_ROOT AND NOT DEFINED ENV{Armadillo_ROOT})
+  if(EXISTS "${SIMCOON_CONDA_PREFIX}/include/armadillo")
+    set(Armadillo_ROOT "${SIMCOON_CONDA_PREFIX}")
+    set(_simcoon_armadillo_auto ON)
+    message(STATUS "Conda environment detected: Armadillo_ROOT = ${Armadillo_ROOT}")
+  else()
+    message(WARNING "Conda environment detected (${SIMCOON_CONDA_PREFIX}) but it has no Armadillo: "
+                    "run `conda install -c conda-forge armadillo` so that simcoon shares the "
+                    "environment's BLAS and OpenMP runtime (a non-conda Armadillo brings a second "
+                    "OpenMP runtime into the Python process).")
+  endif()
+endif()
 find_package(Armadillo 12.6 REQUIRED)
+message(STATUS "Armadillo library: ${ARMADILLO_LIBRARIES}")
+message(STATUS "Armadillo include: ${ARMADILLO_INCLUDE_DIRS}")
+# literal search, not MATCHES: a prefix may contain regex metacharacters (py3.11, env(new))
+string(FIND "${ARMADILLO_LIBRARIES};${ARMADILLO_INCLUDE_DIRS}" "${SIMCOON_CONDA_PREFIX}" _simcoon_arma_in_prefix)
+if(_simcoon_armadillo_auto AND _simcoon_arma_in_prefix EQUAL -1)
+  # a cached ARMADILLO_INCLUDE_DIR/ARMADILLO_LIBRARY from an earlier configure wins over the hint
+  message(WARNING "Armadillo is NOT the one of the active conda environment (${SIMCOON_CONDA_PREFIX}): "
+                  "${ARMADILLO_LIBRARIES}. Its BLAS will load a second OpenMP runtime next to the "
+                  "environment's llvm-openmp (OMP Error #15 / crashes). Delete the stale build "
+                  "cache (build/ or build/cp*) and configure again, or pass -DArmadillo_ROOT "
+                  "explicitly if this is intended.")
+endif()
 
 # GTest is only needed when building tests
 if(SIMCOON_BUILD_TESTS)
@@ -173,73 +222,38 @@ FetchContent_Declare(
     GIT_TAG        "v3.0.1"
 )
 
+FetchContent_Declare(
+    Fastor
+    GIT_REPOSITORY "https://github.com/3MAH/Fastor.git"
+    GIT_TAG        "b3499f6bea8bc49f92b5dcfc250da90e86fc5ebb"
+)
+
 #set(BUILD_SHARED_LIBS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 FetchContent_MakeAvailable(dylib)
 set_target_properties(dylib PROPERTIES UNITY_BUILD OFF)
 
+# dylib v3.0.1 relies on transitive includes that the libc++ shipped with the macOS 26.6
+# SDK no longer pulls in: free() in demangle.cpp, errno in dylib.cpp, ntohl() in symbols.cpp.
+# The runner image moved from Xcode 26.5 to 26.6 and the conda macOS build broke on it.
+# Upstream fixed only the first one (martin-olivier/dylib 0a8573a9, unreleased), so force
+# the headers here rather than moving the pin off a tagged release.
+if(APPLE)
+  # SHELL: is required: CMake de-duplicates repeated identical options, which would
+  # collapse the three flags into "-include cstdlib cerrno arpa/inet.h" and make clang
+  # treat the last two as input files ("no such file or directory: 'cerrno'").
+  target_compile_options(dylib PRIVATE
+    "SHELL:-include cstdlib" "SHELL:-include cerrno" "SHELL:-include arpa/inet.h")
+endif()
+
+# Fastor is header-only — just populate, no build step needed
+FetchContent_Populate(Fastor)
+message(STATUS "Fastor include dir: ${fastor_SOURCE_DIR}")
+
 # Python dependencies (only if building Python bindings)
 if(BUILD_PYTHON_BINDINGS)
-  find_package(Python3 COMPONENTS Interpreter Development.Module NumPy REQUIRED)
+  find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
   find_package(pybind11 REQUIRED)
-
-  # Try to find carma from conda/system first
-  find_package(carma CONFIG QUIET)
-
-  if(carma_FOUND)
-    message(STATUS "Found carma package (CONFIG mode)")
-    # Get include directory from target for force-include
-    get_target_property(carma_INCLUDE_DIR carma::carma INTERFACE_INCLUDE_DIRECTORIES)
-    # Handle generator expressions - extract first real path
-    if(carma_INCLUDE_DIR MATCHES "\\$<")
-      set(carma_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
-    endif()
-    # Clear carma's INTERFACE_PRECOMPILE_HEADERS - conda packages have absolute paths
-    # from the build machine that don't exist on the user's machine
-    set_target_properties(carma::carma PROPERTIES INTERFACE_PRECOMPILE_HEADERS "")
-  else()
-    # If not found via CONFIG, try to find headers directly in conda prefix
-    if(DEFINED ENV{PREFIX})
-      set(CONDA_PREFIX $ENV{PREFIX})
-    elseif(DEFINED ENV{CONDA_PREFIX})
-      set(CONDA_PREFIX $ENV{CONDA_PREFIX})
-    endif()
-
-    if(CONDA_PREFIX AND EXISTS "${CONDA_PREFIX}/include/carma")
-      message(STATUS "Found carma headers in conda environment")
-      set(carma_INCLUDE_DIR "${CONDA_PREFIX}/include")
-
-      # Create carma::carma target from conda installation
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-        )
-      endif()
-      set(carma_FOUND TRUE)
-    else()
-      # Fall back to fetching from GitHub
-      message(STATUS "carma not found, fetching from GitHub")
-      FetchContent_Declare(
-        carma
-        GIT_REPOSITORY https://github.com/RUrlus/carma.git
-        GIT_TAG        v0.8.0
-      )
-      FetchContent_MakeAvailable(carma)
-
-      # Get the source directory and set include path
-      FetchContent_GetProperties(carma SOURCE_DIR carma_SOURCE_DIR)
-      set(carma_INCLUDE_DIR "${carma_SOURCE_DIR}/include")
-
-      # Ensure carma::carma target exists with proper include directories
-      if(NOT TARGET carma::carma)
-        add_library(carma::carma INTERFACE IMPORTED)
-        set_target_properties(carma::carma PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES "${carma_INCLUDE_DIR}"
-        )
-      endif()
-    endif()
-  endif()
 
   message(STATUS "Python bindings enabled")
   message(STATUS "Python3_EXECUTABLE = ${Python3_EXECUTABLE}")
@@ -306,6 +320,9 @@ target_include_directories(simcoon
 # Add Armadillo as system headers to suppress warnings
 target_include_directories(simcoon SYSTEM PUBLIC ${ARMADILLO_INCLUDE_DIRS})
 
+# Add Fastor as system headers (header-only tensor library, build-time only)
+target_include_directories(simcoon SYSTEM PUBLIC $<BUILD_INTERFACE:${fastor_SOURCE_DIR}>)
+
 
 # Define restrict macro (MSVC and GCC/Clang handle restrict differently)
 target_compile_definitions(simcoon PUBLIC restrict=)
@@ -330,31 +347,23 @@ target_link_libraries(simcoon
     PUBLIC ${ARMADILLO_LIBRARIES}
     PRIVATE dylib
 )
-
-# On Windows with Python bindings, link libsimcoon to carma to use NumPy's memory allocator.
-# This prevents heap corruption when Armadillo objects cross the libsimcoon/_core boundary.
-# Only needed on Windows due to stricter heap validation.
-# See: https://github.com/RUrlus/carma/issues/89
-if(WIN32 AND BUILD_PYTHON_BINDINGS)
-  target_link_libraries(simcoon PRIVATE carma::carma)
-
-  # Force-include carma's cnalloc.h to ensure ARMA_ALIEN_MEM macros are defined
-  # BEFORE any Armadillo headers.
-  set(CARMA_CNALLOC_H "${carma_INCLUDE_DIR}/carma_bits/cnalloc.h")
-  if(EXISTS "${CARMA_CNALLOC_H}")
-    message(STATUS "Force-including carma cnalloc.h: ${CARMA_CNALLOC_H}")
-    target_compile_options(simcoon PRIVATE "/FI${CARMA_CNALLOC_H}")
-  else()
-    message(WARNING "Could not find carma cnalloc.h at ${CARMA_CNALLOC_H}")
-  endif()
+# MSVC (vcpkg) build: BLAS/LAPACK linked explicitly. Elsewhere Armadillo carries them, and a
+# second, un-hinted find_package(BLAS) result on the link line could load a second BLAS (and
+# OpenMP runtime) into the process.
+if(WIN32)
+  target_link_libraries(simcoon PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 endif()
 
-# Compile public executables (with main functions)
-set(EXECUTABLES solver identification L_eff Elastic_props ODF PDF)
-foreach(exe_name ${EXECUTABLES})
-  add_executable(${exe_name} software/${exe_name}.cpp)
-  target_link_libraries(${exe_name} PRIVATE simcoon ${CMAKE_DL_LIBS})
-endforeach()
+# OpenMP for batch tensor operations — NOT on Windows: libsimcoon is loaded into Python
+# processes whose numpy/scipy stack carries another OpenMP runtime, and vcomp + iomp in one
+# process deadlocks at the first parallel region (CI 6h hang in test_batch_apply_stress).
+# Windows: simcoon_parallel_for_safe (parallel.hpp) runs on std::thread; OpenMP is not linked.
+if(NOT WIN32)
+  find_package(OpenMP)
+  if(OpenMP_CXX_FOUND)
+    target_link_libraries(simcoon PRIVATE OpenMP::OpenMP_CXX)
+  endif()
+endif()
 
 ##Testing
 if(SIMCOON_BUILD_TESTS)
@@ -376,6 +385,9 @@ if(SIMCOON_BUILD_TESTS)
     testBin/Umats/UMEXT/external/umat_plugin_ext.cpp
   )
   target_link_libraries(umat_plugin_ext PRIVATE simcoon)
+  if(WIN32)
+    target_link_libraries(umat_plugin_ext PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+  endif()
   if(MSVC)
     set_target_properties(umat_plugin_ext PROPERTIES PREFIX "" SUFFIX ".dll")
     set_output_directory(umat_plugin_ext ${CMAKE_CURRENT_SOURCE_DIR}/testBin/Umats/UMEXT/external)
@@ -406,13 +418,7 @@ message(STATUS "CMAKE_INSTALL_INCLUDEDIR = ${CMAKE_INSTALL_INCLUDEDIR}")
 message(STATUS "CMAKE_INSTALL_BINDIR = ${CMAKE_INSTALL_BINDIR}")
 
 # Find and collect runtime dependency DLLs on Windows (before Python bindings)
-# Skip when using static vcpkg triplets (x64-windows-static-md) — all deps are
-# absorbed into simcoon.dll and no external DLLs are needed.
-set(_VCPKG_DEPS_ARE_SHARED TRUE)
-if(VCPKG_TARGET_TRIPLET MATCHES "static")
-  set(_VCPKG_DEPS_ARE_SHARED FALSE)
-endif()
-if(WIN32 AND _VCPKG_DEPS_ARE_SHARED)
+if(WIN32)
   # Find and install dependency DLLs (BLAS/LAPACK/runtime)
   set(DEPENDENCY_DLLS
       "openblas.dll"

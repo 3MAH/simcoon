@@ -7,9 +7,8 @@ channels:
 dependencies:
   - cxx-compiler
   - fortran-compiler
-  - libblas * *mkl
-  - liblapack * *mkl
-  - mkl
+  - libblas * *openblas
+  - liblapack * *openblas
   - numpy>=1.26
   - cmake
   - python
@@ -18,6 +17,5 @@ dependencies:
   - gtest
   - pybind11
   - armadillo >= 12.6
-  - carma
   - pytest
   - ninja

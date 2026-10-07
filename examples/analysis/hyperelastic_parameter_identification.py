@@ -9,6 +9,14 @@ model parameters from Treloar's classical rubber elasticity experiments.
 **Optimization**: scipy.optimize.differential_evolution (global optimizer)
 **Cost function**: Mean Squared Error on stress (sklearn.metrics.mean_squared_error)
 **Forward model**: simcoon hyperelastic stress functions
+
+.. seealso::
+
+   ``examples/hyperelasticity/hyperelastic_umat_identification.py`` solves the
+   same problem with the deployable ``MOORI`` UMAT (via ``sim.solver``) and
+   Simcoon's identification API (``sim.identification`` + ``sim.calc_cost``).
+   This analytical version is fast and exposes the physics; that one exercises
+   the production UMAT and the library cost function.
 """
 
 import numpy as np

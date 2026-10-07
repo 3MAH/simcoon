@@ -20,6 +20,7 @@
 ///@author Chemisky
 
 #include <iostream>
+#include <stdexcept>
 #include <fstream>
 #include <string>
 #include <armadillo>
@@ -50,26 +51,12 @@ namespace simcoon {
 ///@brief   nvariants : Number of martensite variants
 ///@brief   c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0 : Lagrange parameters (variant)
 ///@brief   c_lambda1, p0_lambda1, n_lambda1, alpha_lambda1 : Lagrange parameters (total)
+///@brief Then the crystallography, in props as well (nothing is read from a file):
+///@brief   for each variant i: n_i (3, habit plane normal), m_i (3, transformation direction)
+///@brief   then the interaction matrix Hnm, nvariants x nvariants, row by row
 
-/*void Amortissement(double &xi, const double &dxi, const double &xi_start)
-{
-		
-	double limit1 = 1. - limit;
-	double limit2 = limit;
 
-		
-    if (xi >= limit1)
-    {
-		xi = (xi - dxi + limit1)*0.5;
-	}
-    
-    if (xi <= limit2)
-    {
-        xi = (xi - dxi + limit2)*0.5;
-    }
-}*/
-
-void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
+void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode) {
 
     UNUSED(nprops);
     UNUSED(nstatev);
@@ -114,8 +101,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         offset = 3;
     }
     else {
-        cout << "Error: Unknown umat_name in umat_sma_mono: " << umat_name << "\n";
-        exit(0);
+        throw simcoon::exception_solver(std::string("Error: Unknown umat_name in umat_sma_mono: ") + umat_name);
     }
 
     // Extract common parameters using offset
@@ -125,6 +111,9 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     Ms = props(offset + 3);
     Af = props(offset + 4);
     nvariants = int(props(offset + 5));
+    if (nvariants < 1) {
+        throw std::invalid_argument("SMA_mono: nvariants = " + std::to_string(nvariants) + ", at least one variant is needed");
+    }
     c_lambda0 = props(offset + 6);
     p0_lambda0 = props(offset + 7);
     n_lambda0 = props(offset + 8);
@@ -140,9 +129,22 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
-    std::string data_path= std::getenv("SIMCOON_DATA_PATH") ? std::getenv("SIMCOON_DATA_PATH") : "data" ;
-	mat Hnm = zeros(nvariants, nvariants);
-	Hnm.load(data_path+"/Hnm.inp", raw_ascii);
+
+    //The variants and their interaction matrix follow the 14 common parameters
+    const int offset_variants = offset + 14;
+    const int offset_Hnm = offset_variants + 6*nvariants;
+    if (props.n_elem < static_cast<unsigned int>(offset_Hnm + nvariants*nvariants)) {
+        throw std::invalid_argument(umat_name + ": props must carry, after its " + std::to_string(offset + 14)
+                                    + " parameters, the " + std::to_string(nvariants) + " variants (n_i, m_i: 6 values each) and the "
+                                    + std::to_string(nvariants) + "x" + std::to_string(nvariants) + " interaction matrix Hnm; got "
+                                    + std::to_string(props.n_elem) + " values");
+    }
+    mat Hnm(nvariants, nvariants);
+    for (int i = 0; i < nvariants; i++) {
+        for (int j = 0; j < nvariants; j++) {
+            Hnm(i, j) = props(offset_Hnm + i*nvariants + j);
+        }
+    }
     
 	// ######################  Statev #################################
 	
@@ -150,21 +152,13 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 	double T_init = statev(0);
     
 	std::vector<variant> var(nvariants);
-	
-	///@brief Properties of the variants, use "test.dat" to specify the parameters (for now)
-	ifstream paramvariant;
-	paramvariant.open(data_path+"/variant.inp", ios::in);
-	if(paramvariant) {
-		string chaine1;
-		for(int i=0; i<nvariants; i++) {
-			paramvariant >> chaine1 >> var[i].n(0) >> var[i].n(1) >> var[i].n(2) >> var[i].m(0) >> var[i].m(1) >> var[i].m(2);
-			var[i].build(g);
-		}		
+	for(int i=0; i<nvariants; i++) {
+		for (int k = 0; k < 3; k++) {
+			var[i].n(k) = props(offset_variants + 6*i + k);
+			var[i].m(k) = props(offset_variants + 6*i + 3 + k);
+		}
+		var[i].build(g);
 	}
-	else {
-		cout << "Error: cannot open .dat file \n";
-	}
-	paramvariant.close();
     
 	vec xin(nvariants);
 	vec xin_start(nvariants);
@@ -199,7 +193,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     {
         T_init = T;
         vec vide = zeros(6);
-        sigma = vide;
+        stress = vide;
         ET = vide;
         xi = 0.;
         for(int i=0; i<nvariants; i++) {
@@ -213,7 +207,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
         Wm_d = 0.;
     }
 	
-    vec sigma_start = sigma;
+    vec stress_start = stress;
     
 	vec PhiF(nvariants);	
 	vec PhiF_start(nvariants);			
@@ -224,7 +218,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    sigma = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi);
     
     //Need to define the thermodynamic parameters:
 	vec lambda0 = zeros(nvariants);
@@ -245,21 +239,14 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 		lambda0(i) = -1.*lagrange_pow_0(xin(i), c_lambda0, p0_lambda0, n_lambda0, alpha_lambda0);
         
 		//Set the thermo forces  
-		PhiF(i) = sum(sigma%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 - Y0;
-		PhiR(i) = sum(sigma%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 + Y0;
-		PhiF_start(i) = sum(sigma_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 - Y0;
-		PhiR_start(i) = sum(sigma_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 + Y0;  
+		PhiF(i) = sum(stress%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 - Y0;
+		PhiR(i) = sum(stress%var[i].ETn) + roS0*(T+DT) - romu0 - Hnmxim(i) - lambda0(i) - lambda1 + Y0;
+		PhiF_start(i) = sum(stress_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 - Y0;
+		PhiR_start(i) = sum(stress_start%var[i].ETn) + roS0*(T) - romu0 - Hnmxim_start(i) - lambda0(i) - lambda1 + Y0;  
         
 		//Define which variant system is active 
 		transfo_actif[i] = 0;
 	
-/*
-		if((PhiF(i) > 0)&&(PhiF(i) > PhiF_start(i)))	{
-			transfo_actif[i] = 1;
-		}
-		else if((PhiR(i) < 0)&&(PhiR(i) < PhiR_start(i))) {
-			transfo_actif[i] = -1;
-		}*/
 
 		if(PhiF(i) > 0)	{
 			transfo_actif[i] = 1;
@@ -323,7 +310,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				if(tactive[i] == 1) {
 
                     Hnmxim = Hnm*xin;
-					Phi(i) = sum(sigma%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 - Y0;
+					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 - Y0;
 
                     for (int j=0; j<nactive; j++) {
                         dPhidxi(i,j) += -1.*dlambda0dxin(active[i],active[j]) - dlambda1dxin;
@@ -332,7 +319,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 				else if(tactive[i] == -1) {
 					
                     Hnmxim = Hnm*xin;
-					Phi(i) = sum(sigma%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 + Y0;
+					Phi(i) = sum(stress%var[active[i]].ETn) + roS0*(T+DT) - romu0 - Hnmxim(active[i]) - lambda0(active[i]) - lambda1 + Y0;
                   
                     for (int j=0; j<nactive; j++) {
                         dPhidxi(i,j) += -1.*dlambda0dxin(active[i],active[j]) - dlambda1dxin;
@@ -394,9 +381,9 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
                 ET += var[i].ETn*xin(i);
             }
 
-            //the stress is now computed using the relationship sigma = L(E-Ep)
+            //the stress is now computed using the relationship stress = L(E-Ep)
             Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-            sigma = el_pred(L, Eel, ndi);
+            stress = el_pred(L, Eel, ndi);
         }
                        
 		vec lambda_eff = zeros(6);
@@ -452,38 +439,12 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     }
 	else {
         Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-        sigma = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi);
         
         ///Computation of the tangent modulus
         Lt = L;
     }
     
-//	vec Dsigma = sigma - sigma_start;
-  
-/*	if (compteur < 20) {
-        tnew_dt = 2.;
-    }
-    
-	if (sum(Dsigma%DEtot) < 0.) {
-        //        This constraint is a form of the Drucker Postulate : Stability of hardening consitions
-		tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (compteur == maxitNewton) {
-        tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (Mises_stress(Dsigma) > 20.) {
-		tnew_dt = 0.2;
-        Lt = L;
-    }
-    
-	if (isnan(Mises_stress(sigma))) {
-		tnew_dt = 0.2;
-        Lt = L;
-    }*/
     
     statev(0) = T_init;
     

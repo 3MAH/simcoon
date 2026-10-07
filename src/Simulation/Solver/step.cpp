@@ -21,11 +21,11 @@
 
 #include <iostream>
 #include <sstream>
-#include <fstream>
 #include <assert.h>
 #include <math.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Solver/step.hpp>
 #include <simcoon/Simulation/Solver/output.hpp>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
@@ -55,7 +55,6 @@ step::step()
     
     BC_Time = 0.;
     
-    file = "";
 }
 
 /*!
@@ -87,7 +86,6 @@ step::step(const int &mnumber, const double &mDn_init, const double &mDn_mini, c
     times = zeros(ninc);
     BC_Time = 0.;
     
-    file = "";
 }
 
 /*!
@@ -109,8 +107,8 @@ step::step(const step& st)
     
     times = st.times;
     BC_Time = st.BC_Time;
-    
-    file = st.file;
+
+    tab_data = st.tab_data;
 }
 
 /*!
@@ -137,8 +135,31 @@ void step::generate()
     times = zeros(ninc);
 }
 
+//-------------------------------------------------------------
+int step::mode3_ninc() const
+//-------------------------------------------------------------
+{
+    if (tab_data.n_rows == 0) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): no tabular data (tab_data is empty)");
+    }
+    return static_cast<int>(tab_data.n_rows);
+}
+
+//-------------------------------------------------------------
+mat step::mode3_rows(const unsigned int &size_BC) const
+//-------------------------------------------------------------
+{
+    if (tab_data.n_rows == 0) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): no tabular data (tab_data is empty)");
+    }
+    if (tab_data.n_cols != size_BC) {
+        throw simcoon::exception_solver("step " + std::to_string(number) + " (mode 3): tab_data has " + std::to_string(tab_data.n_cols) + " columns but the control flags require " + std::to_string(size_BC));
+    }
+    return tab_data;
+}
+
 //----------------------------------------------------------------------
-void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dtinc_cur, const int &inforce_solver) {
+bool step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dtinc, double &Dtinc_cur, const int &inforce_solver) {
 //----------------------------------------------------------------------
     
     if((inc == 0)&&(Dtinc == 0.)){
@@ -155,8 +176,10 @@ void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
             Dtinc_cur = Dn_mini;
         }
         else {
-//            cout << "\nThe increment size is less than the minimum specified\n";
-            exit(0);
+            // inforce_solver == 0: the caller asked NOT to force the minimal increment.
+            // Report it (not exit(0), which used to kill the host process silently): the
+            // solver aborts with status 1, like a non-converged Newton loop.
+            return false;
         }
         
     }
@@ -170,7 +193,7 @@ void step::compute_inc(double &tnew_dt, const int &inc, double &tinc, double &Dt
     if(tinc + Dtinc > 1.) {
         Dtinc = 1.-tinc;
     }
-    
+    return true;
 }
     
 /*!
@@ -194,9 +217,9 @@ step& step::operator = (const step& st)
     
     times = st.times;
     BC_Time = st.BC_Time;
-    
-    file = st.file;
-    
+
+    tab_data = st.tab_data;
+
 	return *this;
 }
 

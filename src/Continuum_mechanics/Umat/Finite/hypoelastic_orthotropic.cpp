@@ -31,15 +31,7 @@ using namespace arma;
 
 namespace simcoon{
 
-///@brief The elastic UMAT requires 9 constants:
-///@brief props[0-2] : 3 Young modulus
-///@brief props[3-5] : 3 Poisson ratio
-///@brief props[6-8] : 3 Shear ratio ??
-///@brief props[9] : CTE
-
-///@brief No statev is required for thermoelastic constitutive law
-
-void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const vec &DEtot, const mat &F0, const mat &F1, vec &sigma, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &corate_type, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -96,8 +88,13 @@ void umat_hypoelasticity_ortho(const string &umat_name, const vec &Etot, const v
     vec DEel = DEtot - alpha*DT;
     sigma = el_pred(sigma_start, L, DEel);
     
+    // Kirchhoff rate: sigma here is tau, so L is already the box d(tau_hat)/dDe, and in-rate
+    // whatever corate_type is (the increment arrives corotated).
+    UNUSED(F0);
+    UNUSED(F1);
+    UNUSED(corate_type);
     Lt = L;
-        
+
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
     Wm_r += 0.5*sum((sigma_start+sigma)%DEtot);

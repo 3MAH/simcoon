@@ -303,27 +303,6 @@ mat Eshelby(const mat &Lt, const double &a1, const double &a2, const double &a3,
     return Eshelby(Lt, a1, a2, a3, x, wx, y, wy, mp, np);
 }
     
-/*mat T_II_sphere(const double &nu, const double &mu) {
-	
-    //Eshelby tensor for a sphere
-	mat T_II = zeros(6,6);
-    double C = 1./(30.*mu*(1.-nu));
-    
-	T_II(0,0) = (7.-10.*nu)*C;
-	T_II(0,1) = -1.*C;
-	T_II(0,2) = T_II(0,1);
-	T_II(1,0) = T_II(0,1);
-	T_II(1,1) = T_II(0,0);
-	T_II(1,2) = T_II(0,1);
-	T_II(2,0) = T_II(0,1);
-	T_II(2,1) = T_II(0,1);
-	T_II(2,2) = T_II(0,0);
-	T_II(3,3) = 2.*(4.-5.*nu)*C;
-	T_II(4,4) = T_II(3,3);
-	T_II(5,5) = T_II(3,3);
-    
-    return T_II;
-}*/
 
 mat T_II(const mat &Lt, const double &a1, const double &a2, const double &a3, const vec &x, const vec &wx, const vec &y, const vec &wy, const int &mp, const int &np)
 {   

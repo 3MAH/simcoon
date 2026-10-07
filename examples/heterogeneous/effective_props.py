@@ -9,7 +9,7 @@ composite material considering spherical reinforcement.
 import numpy as np
 import matplotlib.pyplot as plt
 import simcoon as sim
-from simcoon import parameter as par
+from simcoon.solver.micromechanics import Ellipsoid
 import os
 
 ###################################################################################
@@ -20,16 +20,33 @@ import os
 # First we define the number of state variables (if any) at the macroscopic level
 # and the material properties.
 
-dir = os.path.dirname(os.path.realpath("__file__"))
+try:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+except NameError:   # executed by the docs gallery, from the example's directory
+    script_dir = os.getcwd()
 nstatev = 0
 
-nphases = 2  # The number of phases
-num_file = 0  # The num of the file that contains the subphases
-int1 = 50
-int2 = 50
-n_matrix = 0
+int1 = 50  # Integration points of the Eshelby integrals, first direction
+int2 = 50  # Integration points of the Eshelby integrals, second direction
+n_matrix = 0  # Index of the matrix phase in the list of phases
 
-props = np.array([nphases, num_file, int1, int2, n_matrix], dtype="float")
+# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
+props = np.array([int1, int2, n_matrix], dtype="float")
+
+###################################################################################
+# The two phases are described as objects and handed to ``L_eff`` directly. They
+# used to live in ``data/Nellipsoids0.dat``, rewritten between runs by substituting
+# keys into a template; changing a volume fraction is now an assignment.
+
+matrix = Ellipsoid(
+    number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
+    props=np.array([2250.0, 0.19, 8.8e-5]),
+)
+reinforcement = Ellipsoid(
+    number=1, umat_name="ELISO", save=1, concentration=0.2, nstatev=1,
+    props=np.array([73000.0, 0.19, 0.5e-6]),
+)
+phases = [matrix, reinforcement]
 
 ###################################################################################
 # There is a possibility to consider a misorientation between the test frame
@@ -41,10 +58,7 @@ props = np.array([nphases, num_file, int1, int2, n_matrix], dtype="float")
 # - ``MIMTN`` → Mori-Tanaka scheme
 # - ``MISCN`` → Self-consistent scheme
 
-path_data = dir + "/data"
-path_keys = dir + "/keys"
-
-param_list = par.read_parameters()
+path_data = os.path.join(script_dir, "data")
 
 psi_rve = 0.0
 theta_rve = 0.0
@@ -59,13 +73,12 @@ concentration = np.arange(0.0, 0.51, 0.01)
 E_MT = np.zeros(len(concentration))
 umat_name = "MIMTN"
 for i, x in enumerate(concentration):
-    param_list[1].value = x
-    param_list[0].value = 1.0 - x
+    reinforcement.concentration = x
+    matrix.concentration = 1.0 - x
 
-    par.copy_parameters(param_list, path_keys, path_data)
-    par.apply_parameters(param_list, path_data)
-
-    L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+    L = sim.L_eff(
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+    )
     p = sim.L_iso_props(L).flatten()
     E_MT[i] = p[0]
 
@@ -73,13 +86,12 @@ for i, x in enumerate(concentration):
 E_SC = np.zeros(len(concentration))
 umat_name = "MISCN"
 for i, x in enumerate(concentration):
-    param_list[1].value = x
-    param_list[0].value = 1.0 - x
+    reinforcement.concentration = x
+    matrix.concentration = 1.0 - x
 
-    par.copy_parameters(param_list, path_keys, path_data)
-    par.apply_parameters(param_list, path_data)
-
-    L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+    L = sim.L_eff(
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+    )
     p = sim.L_iso_props(L).flatten()
     E_SC[i] = p[0]
 
@@ -126,10 +138,8 @@ plt.show()
 
 # Fixed volume fraction of 20%
 c_reinf = 0.20
-param_list[1].value = c_reinf
-param_list[0].value = 1.0 - c_reinf
-par.copy_parameters(param_list, path_keys, path_data)
-par.apply_parameters(param_list, path_data)
+reinforcement.concentration = c_reinf
+matrix.concentration = 1.0 - c_reinf
 
 # Aspect ratios from oblate (0.1) to prolate (10)
 aspect_ratios = np.logspace(-1, 1, 50)
@@ -137,34 +147,23 @@ aspect_ratios = np.logspace(-1, 1, 50)
 E_eff_ar = np.zeros(len(aspect_ratios))
 umat_name = "MIMTN"
 
-# Save original phase file
-phase_file = path_data + "/Nellipsoids0.dat"
-with open(phase_file, "r") as f:
-    original_content = f.read()
-
 print(f"\nComputing effective properties for c={c_reinf * 100:.0f}% reinforcement...")
 for i, ar in enumerate(aspect_ratios):
-    # Read and modify the phase file to set the aspect ratio
-    with open(phase_file, "r") as f:
-        lines = f.readlines()
+    # The semi-axes of the reinforcement: a1/a3 = ar, a2 = a3 = 1
+    reinforcement.a1 = ar
+    reinforcement.a2 = 1.0
+    reinforcement.a3 = 1.0
 
-    # Update semi-axes in reinforcement phase (line 2): a1/a3 = ar, a2 = a3 = 1
-    parts = lines[2].split()
-    parts[8] = str(ar)  # a1
-    parts[9] = "1"  # a2
-    parts[10] = "1"  # a3
-    lines[2] = "\t".join(parts) + "\n"
-
-    with open(phase_file, "w") as f:
-        f.writelines(lines)
-
-    L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+    L = sim.L_eff(
+        umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve), phases=phases
+    )
     p = sim.L_iso_props(L).flatten()
     E_eff_ar[i] = p[0]
 
-# Restore original phase file
-with open(phase_file, "w") as f:
-    f.write(original_content)
+# The sweep mutates the reinforcement in place; leave it as it was found, the way the
+# old version restored the Nellipsoids0.dat line it had rewritten. Anything appended
+# below would otherwise homogenise the last aspect ratio of the sweep.
+reinforcement.a1 = reinforcement.a2 = reinforcement.a3 = 1.0
 
 # Get reference value for spherical inclusion (ar=1)
 idx_sphere = np.argmin(np.abs(aspect_ratios - 1.0))

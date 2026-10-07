@@ -1,0 +1,270 @@
+==========================================
+Building materials in Python (``modular``)
+==========================================
+
+.. module:: simcoon.modular
+
+The :mod:`simcoon.modular` package is the Python builder for the composable
+``MODUL`` engine: a constitutive model is assembled from an **elasticity**
+definition plus any combination of **mechanisms** (plasticity,
+viscoelasticity, damage), and serialized into the self-describing props
+stream that the C++ engine consumes. The same object drives the in-memory
+solver, the file solver, or any FEA coupling — see the
+:doc:`UMAT catalog <umat_catalog>` for how ``MODUL`` fits among the other
+material names. Units are MPa; Voigt order is [11, 22, 33, 12, 13, 23].
+
+Quick start
+-----------
+
+.. code-block:: python
+
+    from simcoon.modular import (
+        ModularMaterial, IsotropicElasticity,
+        Plasticity, VonMisesYield, VoceHardening, ArmstrongFrederickHardening,
+    )
+    from simcoon import solver
+
+    mat = ModularMaterial(
+        elasticity=IsotropicElasticity(C1=210000.0, C2=0.3, alpha=1.2e-5,
+                                       convention="Enu"),
+        mechanisms=[
+            Plasticity(
+                sigma_Y=300.0,
+                yield_criterion=VonMisesYield(),
+                isotropic_hardening=VoceHardening(Q=200.0, b=10.0),
+                kinematic_hardening=ArmstrongFrederickHardening(C=20000.0, D=100.0),
+            ),
+        ],
+    )
+    print(mat.summary())
+
+    step = solver.StepMeca(control=['strain'] + ['stress'] * 5,
+                           value=[0.02, 0, 0, 0, 0, 0], ninc=100)
+    res = solver.solve(step, "MODUL", mat.props, mat.nstatev)
+
+``mat.props`` and ``mat.nstatev`` are all any caller needs — they work
+identically with :func:`simcoon.umat` point evaluation, mean-field
+micromechanics (whose phases are passed in memory through the ``phases``
+argument of :func:`~simcoon.solver.solve`) and FEA couplings such as fedoo.
+
+Elasticity
+----------
+
+Exactly one elasticity definition per material. The elastic constants are
+**ordinal slots** ``C1..Cn`` whose meaning is fixed by the ``convention``
+argument (enum, int, or string aliases):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 34 40
+
+   * - Class
+     - Parameters
+     - Conventions (string aliases)
+   * - :class:`IsotropicElasticity`
+     - ``C1, C2, alpha``
+     - ``"Enu"`` (C1=E, C2=nu, default), ``"nuE"``, ``"Kmu"``/``"KG"``,
+       ``"muK"``, ``"lambdamu"``, ``"mulambda"``
+   * - :class:`CubicElasticity`
+     - ``C1, C2, C3, alpha``
+     - ``"EnuG"`` (default), ``"Cii"`` (C11, C12, C44)
+   * - :class:`TransverseIsotropicElasticity`
+     - ``EL, ET, nuTL, nuTT, GLT, alpha_L, alpha_T, axis``
+     - ``"EnuG"`` only (axis = isotropy axis, default 3)
+   * - :class:`OrthotropicElasticity`
+     - ``C1..C9, alpha1..alpha3``
+     - ``"EnuG"`` (E1,E2,E3,nu12,nu13,nu23,G12,G13,G23; default), ``"Cii"``
+   * - :class:`NeoHookeanElasticity`, :class:`MooneyRivlinElasticity`,
+       :class:`YeohElasticity`, :class:`IsiharaElasticity`,
+       :class:`GentThomasElasticity`, :class:`SwansonElasticity`
+     - the potential's parameters (e.g. ``C10, C20, C30, kappa`` for Yeoh),
+       ``volumetric`` and ``alpha`` keyword-only
+     - none: the potentials of the ``NEOHC``, ``MOORI``, ``YEOHH``,
+       ``ISHAH``, ``GETHH`` and ``SWANH`` UMATs
+   * - :class:`HolzapfelElasticity`
+     - ``C10, k1, k2, kappa_d, fibres, kappa``, ``volumetric`` and ``alpha``
+       keyword-only; ``fibres`` is a :class:`simcoon.Rotation`, one entry per
+       fibre family, applied to :math:`\mathbf{e}_1`
+     - the ``HOLZA`` UMAT's potential (Gasser-Ogden-Holzapfel). The only
+       **anisotropic** block: see the caveats in :doc:`umat_catalog` before
+       composing it with plasticity or viscoelasticity
+
+``alpha`` are the thermal-expansion coefficients (per direction where
+applicable).
+
+The hyperelastic blocks are not a constant stiffness: the potential is
+evaluated at the elastic strain it is handed, bridged by
+:math:`\mathbf{b}^{el} = \exp(2\boldsymbol{\varepsilon}^{el})`. Under finite
+strain that strain is the elastic logarithmic strain, and the mechanisms act
+additively on it. Like every other law, the block defines its stored energy per
+reference volume as a function of the elastic strain,
+:math:`\psi(\boldsymbol{\varepsilon}^{el}) = W(\mathbf{b}^{el}) + U(J^{el})`, and
+returns the Kirchhoff stress of :math:`W` at :math:`\mathbf{F} := \mathbf{V}^{el}`. It equals
+:math:`\partial \psi / \partial \boldsymbol{\varepsilon}^{el}` for an isotropic potential, and for the
+anisotropic ``HolzapfelElasticity`` only while it stays coaxial with :math:`\mathbf{V}^{el}`;
+the ``Stress`` output is :math:`\boldsymbol{\tau}/J` with the total :math:`J`.
+The volumetric term only sees the elastic volume change
+:math:`J^{el} = \exp(\mathrm{tr}\,\boldsymbol{\varepsilon}^{el})`, so a free
+thermal expansion stays stress-free. Every potential shares its volumetric term :math:`U(J)`,
+chosen by the ``volumetric`` keyword: ``"log"`` (default) for
+:math:`U = \kappa (J \ln J - J + 1)`, ``"quadratic"`` for
+:math:`U = \frac{\kappa}{2} (J - 1)^2`. Both have :math:`U''(1) = \kappa`, so
+``kappa`` is the ground-state bulk modulus either way; they differ away from
+:math:`J = 1` (the quadratic one gives a pressure linear in :math:`J - 1`, the
+logarithmic one stiffens in compression and blows up as :math:`J \to 0`).
+
+Yield criteria
+--------------
+
+Used inside :class:`Plasticity`; the criterion defines the equivalent stress
+:math:`\sigma_{eq}` of the yield function
+:math:`f = \sigma_{eq}(\boldsymbol{\sigma} - \mathbf{X}) - (\sigma_Y + R(p))`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 30 42
+
+   * - Class
+     - Parameters
+     - Criterion
+   * - :class:`VonMisesYield`
+     - —
+     - :math:`\sqrt{\tfrac{3}{2}\,\mathbf{s}:\mathbf{s}}`
+   * - :class:`TrescaYield`
+     - —
+     - Maximum shear stress
+   * - :class:`DruckerYield`
+     - ``b, n``
+     - Drucker :math:`J_2`–:math:`J_3` criterion
+   * - :class:`HillYield`
+     - ``F, G, H, L, M, N``
+     - Hill 1948 quadratic anisotropy
+   * - :class:`DFAYield`
+     - ``F, G, H, L, M, N, K``
+     - Deshpande–Fleck–Ashby (pressure-sensitive)
+   * - :class:`AnisotropicYield`
+     - ``P11, P22, P33, P12, P13, P23, P44, P55, P66``
+     - Full quadratic form; P admissibility requirements: see the ``EPANI``
+       row of the :doc:`catalog <umat_catalog>`.
+
+Isotropic hardening
+-------------------
+
+The isotropic hardening law :math:`R(p)` of the accumulated plastic strain
+:math:`p`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 24 46
+
+   * - Class
+     - Parameters
+     - Law
+   * - :class:`NoIsotropicHardening`
+     - —
+     - :math:`R = 0` (perfect plasticity, default)
+   * - :class:`LinearIsotropicHardening`
+     - ``H``
+     - :math:`R = H\,p`
+   * - :class:`PowerLawHardening`
+     - ``k, m``
+     - :math:`R = k\,p^m` — for :math:`m < 1` the singular onset slope is
+       C\ :sup:`1`-regularized below :math:`p = 10^{-6}` (exact above)
+   * - :class:`VoceHardening`
+     - ``Q, b``
+     - :math:`R = Q\,(1 - e^{-b\,p})`
+   * - :class:`CombinedVoceHardening`
+     - ``terms = ((Q_1, b_1), ...)``
+     - :math:`R = \sum_i Q_i\,(1 - e^{-b_i p})` (standard independent sum —
+       note this differs from the removed legacy EPCHG coupling, see the
+       :doc:`catalog <umat_catalog>`)
+
+Kinematic hardening
+-------------------
+
+The back stress :math:`\mathbf{X}` shifting the yield surface. The stored
+internal variable is the **back-strain** :math:`\boldsymbol{\alpha}`
+(thermodynamic variable); :math:`\mathbf{X} = \tfrac{2}{3} C \boldsymbol{\alpha}`:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 26 42
+
+   * - Class
+     - Parameters
+     - Law
+   * - :class:`NoKinematicHardening`
+     - —
+     - :math:`\mathbf{X} = 0` (default)
+   * - :class:`PragerHardening`
+     - ``C``
+     - Linear: :math:`\dot{\boldsymbol{\alpha}} = \dot{p}\,\mathbf{n}`
+   * - :class:`ArmstrongFrederickHardening`
+     - ``C, D``
+     - :math:`\dot{\mathbf{X}} = \tfrac{2}{3}C\,\dot{\boldsymbol{\varepsilon}}^p - D\,\mathbf{X}\dot{p}`
+   * - :class:`ChabocheHardening`
+     - ``terms = ((C_1, D_1), ...)``
+     - :math:`\mathbf{X} = \sum_i \mathbf{X}_i`, each branch
+       Armstrong–Frederick
+
+Mechanisms
+----------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 40 34
+
+   * - Class
+     - Parameters
+     - Physics
+   * - :class:`Plasticity`
+     - ``sigma_Y, yield_criterion, isotropic_hardening, kinematic_hardening``
+     - Rate-independent plasticity (Fischer–Burmeister return mapping)
+   * - :class:`Viscoelasticity`
+     - ``terms = ((E_i, nu_i, etaB_i, etaS_i), ...)``
+     - Generalized Maxwell (Prony) branches: per branch a spring
+       (:math:`E_i, \nu_i`) in series with bulk/shear dashpots
+       (:math:`\eta_B, \eta_S`) — same rheology, layout and closed-form
+       backward-Euler step as the kept ``PRONK`` kernel (identical results);
+       the branches follow the total strain and enter the tangent exactly
+   * - :class:`Damage`
+     - ``Y_0, Y_c, damage_type, A, n``
+     - Scalar stiffness-degradation damage, :math:`\boldsymbol{\sigma} = (1-D)\,\boldsymbol{\sigma}_{eff}`,
+       driven by the undamaged energy :math:`Y = \psi_0`; the other mechanisms
+       (plastic yield included) act on the effective stress (strain
+       equivalence). ``damage_type`` selects the evolution law and its extra
+       parameters: ``LINEAR`` (none), ``EXPONENTIAL`` (``A``), ``POWER_LAW``
+       (``n``) or ``WEIBULL`` (``A, n``)
+
+Multiple mechanisms compose additively on the inelastic strain; the
+registration order defines the statev layout (see the
+:doc:`catalog <umat_catalog>` statev section).
+
+Tangent operator and finite strain
+----------------------------------
+
+``MODUL`` honors the solver's ``tangent_mode`` (continuum or algorithmic,
+algorithmic being the 2.0 default — :doc:`solver`). The algorithmic tangent of a
+composition is the exact derivative of its discrete update whenever the plasticity
+it contains is exact on its own (von Mises with isotropic hardening): the
+viscoelastic branches take a closed-form step and enter by the chain rule, and
+damage scales the effective response (plasticity yields on the effective stress
+:math:`\boldsymbol{\sigma}/(1-D)`). With kinematic hardening or another yield
+criterion the plastic cutting-plane update makes it approximate (see the note on
+the scope of the algorithmic tangent in :doc:`solver`). Under the finite-strain
+control types the composition acts as a Hencky hyperelastic law on the
+logarithmic strain and requires ``corate_type = 3`` (log_R) — which is the
+:func:`simcoon.solver.solve` default, so nothing needs to be passed. Any
+other corate (e.g. ``corate="logarithmic"``, the XBM rate, code 2) is
+rejected under NLGEOM.
+
+See also
+--------
+
+- :doc:`umat_catalog` — where ``MODUL`` and the adapter-served legacy names
+  meet, props streams and statev layouts
+- :doc:`umat_tutorial` — writing a dedicated UMAT by hand instead
+- ``examples/mechanical/MODUL.py`` — runnable gallery example (elasto-plasticity)
+- ``examples/mechanical/MODUL_finite.py`` — the same composition under NLGEOM
+- ``examples/mechanical/MODUL_hyper_visco.py`` — Yeoh block + Prony branches,
+  finite-strain viscoelasticity (rate sweep, relaxation, energy split)

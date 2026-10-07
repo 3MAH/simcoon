@@ -9,9 +9,9 @@
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
-#include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
 using namespace std;
 using namespace arma;
 
@@ -31,7 +31,7 @@ using namespace arma;
 
 namespace simcoon {
     
-void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
+void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
     {
         
     UNUSED(nprops);
@@ -77,7 +77,6 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     mat L1 = L_iso(E1, nu1, "Enu");
     
     mat H1 = H_iso(etaB1, etaS1);                  //dimension of stiffness tensor
-    mat invH1 = inv(H1);
     
     if(start) { //Initialization
         T_init = T;
@@ -99,135 +98,25 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     double c_0 = rho*c_p;
         
     //Variables at the start of the increment
-    vec DEV1 = zeros(6);
-    vec EV1_start = EV1;
-    vec A_v_start = L1*EV1;
-    
-    //Variables required for the loop
-    vec s_j = zeros(1);
-    s_j(0) = v;
-    vec Ds_j = zeros(1);
-    vec ds_j = zeros(1);        
-    
-    //Determination of the initial, predicted stress
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV1;
-    vec DEel = DEtot - alpha*(DT);
-    if (ndi == 1) {
-        sigma(0) = sigma_start(0) + E0*DEel(0);
-    }
-    else if (ndi == 2) {
-        sigma(0) = sigma_start(0) + E0/(1. - (nu0*nu0))*(DEel(0)) + nu0*(DEel(1));
-        sigma(1) = sigma_start(1) + E0/(1. - (nu0*nu0))*(DEel(1)) + nu0*(DEel(0));
-        sigma(3) = sigma_start(3) + E0/(1.+nu0)*0.5*DEel(3);
-    }
-    else
-    sigma = sigma_start + (L0*DEel);
-    
+    const vec EV1_start = EV1;
 
-    //Define the plastic function and the stress
-    vec Phi = zeros(1);
-    mat B = zeros(1,1);
-    vec Y_crit = zeros(1);
-    
-    double dPhidv=0.;
-    vec dPhidEv = zeros(6);
-    vec dPhidsigma = zeros(6);
-    double dPhidtheta = 0.;
-    
-    //Compute the explicit flow direction
-    vec sigma_tildeV1 = invH1*(sigma-L1*EV1);
-    vec Lambdav = eta_norm_strain(sigma_tildeV1);
-    std::vector<vec> kappa_j(1);
-    kappa_j[0] = L0*Lambdav;
-    mat K = zeros(1,1);
-    
-    //Loop parameters
-    int compteur = 0;
-    double error = 1.;
-    
-    //Loop
-    for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
-        
-        v = s_j(0);
+    // Implicit (backward-Euler) step of the Kelvin branch in closed form: the exact solution of
+    // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
+    const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
+    const LinearViscoStep st = kelvin_series_step(L0, {L1}, {H1}, {EV1_start}, eps_e, alpha, DTime);
+    EV1 = st.EV_i[0];
+    const vec DEV1 = EV1 - EV1_start;
+    v += norm_strain(DEV1);
+    sigma = el_pred(L0, eps_e - EV1, ndi);
+    if (tangent_mode == tangent_none) {
+        dSdE = L0;
+        dSdT = -L0*alpha;
+    }
+    else {
+        dSdE = st.dSdE;
+        dSdT = st.dSdT;
+    }
 
-        sigma_tildeV1 = (invH1*(sigma-L1*EV1))%Ir05();
-        Lambdav = eta_norm_stress(sigma_tildeV1);
-        dPhidsigma = invH1*(eta_norm_stress(sigma_tildeV1)%Ir05()); //Dimension of strain (similar to Lambda in general)
-        
-        if (DTime > simcoon::iota) {
-            Phi(0) = norm_stress(sigma_tildeV1) - Ds_j(0)/DTime;
-            dPhidv = -1.*sum((dPhidsigma%Ir2())%(L1*Lambdav))-1./DTime;
-        }
-        else {
-            Phi(0) = norm_stress(sigma_tildeV1);
-            dPhidv = -1.*sum((dPhidsigma%Ir2())%(L1*Lambdav));
-        }
-        kappa_j[0] = L0*Lambdav;
-        
-        K(0,0) = dPhidv;
-        B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
-        Y_crit(0) = norm_stress(sigma_tildeV1);
-        if (Y_crit(0) < simcoon::precision_umat) {
-            Y_crit(0) = simcoon::precision_umat;
-        }
-        
-        Newton_Raphon(Phi, Y_crit, B, Ds_j, ds_j, error);
-        
-        s_j(0) += ds_j(0);
-        EV1 = EV1 + ds_j(0)*Lambdav;
-        DEV1 = DEV1 + ds_j(0)*Lambdav;
-        
-        //the stress is now computed using the relationship sigma = L(E-Ep)
-        Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV1;
-        DEel = DEtot - alpha*(DT) - DEV1;
-        if (ndi == 1) {
-            sigma(0) = sigma_start(0) + E0*DEel(0);
-        }
-        else if (ndi == 2) {
-            sigma(0) = sigma_start(0) + E0/(1. - (nu0*nu0))*(DEel(0)) + nu0*(DEel(1));
-            sigma(1) = sigma_start(1) + E0/(1. - (nu0*nu0))*(DEel(1)) + nu0*(DEel(0));
-            sigma(3) = sigma_start(3) + E0/(1.+nu0)*0.5*DEel(3);
-        }
-        else
-        sigma = sigma_start + (L0*DEel);
-    }
-    
-    //Computation of the tangent modulus
-    mat Bhat = zeros(1, 1);
-    Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
-    
-    vec op = zeros(1);
-    mat delta = eye(1,1);
-    
-    for (int i=0; i<1; i++) {
-        if(Ds_j[i] > simcoon::iota)
-            op(i) = 1.;
-    }
-    
-    mat Bbar = zeros(1,1);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            Bbar(i, j) = op(i)*op(j)*Bhat(i, j) + delta(i,j)*(1-op(i)*op(j));
-        }
-    }
-    
-    mat invBbar = zeros(1, 1);
-    mat invBhat = zeros(1, 1);
-    invBbar = inv(Bbar);
-    for (int i = 0; i < 1; i++) {
-        for (int j = 0; j < 1; j++) {
-            invBhat(i, j) = op(i)*op(j)*invBbar(i, j);
-        }
-    }
-    
-    std::vector<vec> P_epsilon(1);
-    P_epsilon[0] = invBhat(0, 0)*(L0*dPhidsigma);
-    std::vector<double> P_theta(1);
-    P_theta[0] = dPhidtheta - sum(dPhidsigma%(L0*alpha));
-        
-    dSdE = L0 - (kappa_j[0]*P_epsilon[0].t());
-    dSdT = -1.*L0*alpha - (kappa_j[0]*P_theta[0]);
-        
     //computation of the internal energy production
     double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);
     double eta_r_start = c_0*log(T/T_init) + sum(alpha%sigma_start);
@@ -241,45 +130,28 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     double Deta = eta - eta_start;
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
-        
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-        
-    vec A_v = L1*EV1;
-    vec dA_dEv = L1;
 
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = (dSdE*DEV1)*(1./DTime) + sum((dA_dEv*Lambdav)%P_epsilon[0])*(DEV1/DTime) + sum(A_v%Lambdav)*P_epsilon[0]*(1./DTime) + sum(sigma%Lambdav)*P_epsilon[0]/DTime;
-        Gamma_theta = sum(dSdT%DEV1)*(1./DTime) + sum((dA_dEv*Lambdav)%DEV1)*P_theta[0]/DTime + sum(A_v%Lambdav)*P_theta[0]*(1./DTime) + sum(sigma%Lambdav)*P_theta[0]/DTime;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
-        
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
-        
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEV1) + 0.5*sum((A_v_start + A_v)%DEV1);
+    // Kelvin branch force sigma - L1 EV1 (the viscous stress), as in the mechanical twin
+    const vec A_mid2 = (sigma_start - L1*EV1_start) + (sigma - L1*EV1);
+    const mat &dEVdE = st.dEVdE_i[0];
+    const vec &dEVdT = st.dEVdT_i[0];
+    const double Dgamma_loc = 0.5*sum(A_mid2%DEV1);
+    const vec dDgamma_dE = 0.5*((st.dSdE - L1*dEVdE).t()*DEV1 + dEVdE.t()*A_mid2);
+    const double dDgamma_dT = 0.5*(sum((st.dSdT - L1*dEVdT)%DEV1) + sum(dEVdT%A_mid2));
+
+    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
+    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
+                        rho*c_p, DTime, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEV1)) - 0.5*sum((A_v_start + A_v)%DEV1);
+    Wm_r += 0.5*sum((sigma_start+sigma)%DEtot) - Dgamma_loc;
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
     Wt += (T+0.5*DT)*Deta;
     Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir = (T+0.5*DT)*Deta_ir;
+    Wt_ir += (T+0.5*DT)*Deta_ir;
         
     //Return the statev;
     statev(0) = T_init;

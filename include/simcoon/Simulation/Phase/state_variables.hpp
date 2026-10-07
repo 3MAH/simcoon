@@ -23,7 +23,8 @@
 
 #include <iostream>
 #include <armadillo>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon{
 
@@ -64,26 +65,27 @@ class state_variables
 		arma::vec DEtot; ///< Increment of Green-Lagrange strain
 		arma::vec etot; ///< Logarithmic (Hencky) strain tensor (Voigt notation)
 		arma::vec Detot; ///< Increment of logarithmic strain
-		arma::vec PKII; ///< 2nd Piola-Kirchhoff stress tensor (Voigt notation)
-		arma::vec PKII_start; ///< 2nd Piola-Kirchhoff stress at start of increment
-		arma::vec tau; ///< Kirchhoff stress tensor (Voigt notation)
-		arma::vec tau_start; ///< Kirchhoff stress at start of increment
+		arma::vec PKII; ///< 2nd Piola-Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
+		arma::vec PKII_start; ///< 2nd Piola-Kirchhoff stress at start of increment; crosses both ways (see rotate_l2g)
+		arma::vec tau; ///< Kirchhoff stress tensor (Voigt notation); kernel output, crosses l2g only
+		arma::vec tau_start; ///< Kirchhoff stress at start of increment; read by the solver residual, crosses both ways
 		arma::vec sigma; ///< Cauchy stress tensor (Voigt notation)
-		arma::vec sigma_start; ///< Cauchy stress at start of increment
+		arma::vec sigma_start; ///< Cauchy stress at start of increment; crosses both ways
         arma::mat F0; ///< Deformation gradient at start of increment
         arma::mat F1; ///< Deformation gradient at end of increment
-        arma::mat U0; ///< Right stretch tensor at start of increment
-        arma::mat U1; ///< Right stretch tensor at end of increment
+        arma::mat U0; ///< Right stretch tensor at start of increment; solver-owned (global copy), never crosses
+        arma::mat U1; ///< Right stretch tensor at end of increment; solver-owned (global copy), never crosses
         arma::mat R; ///< Rotation tensor
         arma::mat DR; ///< Increment of rotation tensor
-        double T; ///< Current temperature
-        double DT; ///< Temperature increment
+        double T; ///< Current temperature; kernel constant, crosses g2l only
+        double DT; ///< Temperature increment; kernel constant, crosses g2l only
     
         int nstatev; ///< Number of internal state variables
         arma::vec statev; ///< Internal state variables vector
-        arma::vec statev_start; ///< Internal state variables at start of increment
+        arma::vec statev_start; ///< Internal state variables at start of increment; crosses both ways
+
+        int tangent_mode = tangent_default; // tangent_* constants (parameter.hpp): 0 = none/explicit, 1 = continuum, 2 = algorithmic/Simo-Hughes (default), 3 = closest-point (reserved).
     
-        natural_basis nb; ///< Natural basis for covariant/contravariant operations
     
         /**
          * @brief Default constructor.
@@ -121,9 +123,8 @@ class state_variables
          * @param nstatev Number of state variables
          * @param statev State variables
          * @param statev_start State variables at start
-         * @param nb Natural basis
          */
-        state_variables(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
+        state_variables(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start);
         
         /**
          * @brief Copy constructor.
@@ -166,7 +167,7 @@ class state_variables
         /**
          * @brief Update all state variables with new values.
          */
-        virtual void update(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start, const natural_basis &nb);
+        virtual void update(const arma::vec &Etot, const arma::vec &DEtot, const arma::vec &etot, const arma::vec &Detot, const arma::vec &PKII, const arma::vec &PKII_start, const arma::vec &tau, const arma::vec &tau_start, const arma::vec &sigma, const arma::vec &sigma_start, const arma::mat &F0, const arma::mat &F1, const arma::mat &U0, const arma::mat &U1, const arma::mat &R, const arma::mat &DR, const double &T, const double &DT, const int &nstatev, const arma::vec &statev, const arma::vec &statev_start);
         
         /**
          * @brief Get the number of internal state variables.
@@ -175,13 +176,22 @@ class state_variables
 		virtual int dimstatev () const {return nstatev;}
         
         /**
-         * @brief Copy current values to start-of-increment values.
+         * @brief Reset the current values to the start-of-increment values.
+         *
+         * Rollback: sets sigma = sigma_start, statev = statev_start, ... Called before
+         * every trial evaluation of the constitutive routine and when an increment is
+         * rejected (step cut), so that a trial never moves the state of the material.
          */
         virtual void to_start();
         
         /**
-         * @brief Set current values from start-of-increment values.
-         * @param control Control flag for selective update
+         * @brief Store the current values as the start-of-increment values.
+         *
+         * Acceptance of the increment: sets sigma_start = sigma, statev_start = statev,
+         * accumulates the total strain and temperature and advances the configuration
+         * (F0 = F1). Called once the increment has converged.
+         * @param control Corotational rate type, which selects how the accepted
+         * quantities are transported (see the implementation).
          */
         virtual void set_start(const int &control);
     
@@ -210,24 +220,29 @@ class state_variables
 		virtual arma::mat Biot_stress_start();
 
         /**
-         * @brief Rotate state variables from local to global frame.
-         * @param sv Source state variables
-         * @param psi First Euler angle (rad)
-         * @param theta Second Euler angle (rad)
-         * @param phi Third Euler angle (rad)
+         * @brief Transfer the kernel outputs from the local (material) copy to the global one.
+         *
+         * Each member crosses in the direction its documentation states ("crosses l2g only",
+         * "g2l only", "both ways", "never crosses"); members with no such note cross both
+         * ways. The `*_start` members cross both ways although set_start runs on both copies:
+         * the solver residual reads the global tau_start, and its round trip through the frame
+         * at every call is part of the reference results to the bit.
+         *
+         * @param sv Source state variables (local frame)
+         * @param frame Material frame of the phase (material_characteristics::frame()):
+         *        its operators are built once and applied to every transferred tensor
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_l2g(const state_variables& sv, const double &psi, const double &theta, const double &phi);
+        virtual state_variables& rotate_l2g(const state_variables& sv, const frame_rotation &frame);
         
         /**
-         * @brief Rotate state variables from global to local frame.
-         * @param sv Source state variables
-         * @param psi First Euler angle (rad)
-         * @param theta Second Euler angle (rad)
-         * @param phi Third Euler angle (rad)
+         * @brief Transfer the kernel inputs from the global copy to the local (material) one.
+         *        Same member contract as rotate_l2g; the inverse operators are applied.
+         * @param sv Source state variables (global frame)
+         * @param frame Material frame of the phase
          * @return Reference to this object with rotated values
          */
-        virtual state_variables& rotate_g2l(const state_variables& sv, const double &psi, const double &theta, const double &phi);
+        virtual state_variables& rotate_g2l(const state_variables& sv, const frame_rotation &frame);
     
         /**
          * @brief Stream output operator.

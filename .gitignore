@@ -1,15 +1,25 @@
+# ── Build output ──────────────────────────────────────────────────────────
+build/
 
+# ── Compiled C++ unit-test executables ────────────────────────────────────
+# The standalone cmake test build (SIMCOON_BUILD_TESTS=ON) drops the extensionless
+# T*** test binaries into testBin/<group>/ (e.g. testBin/Continuum_mechanics/Tobjective_rates).
+# Re-include anything carrying an extension so the tracked test fixtures are never
+# ignored: every fixture has an extension (.txt .dat .inp .py .cpp .f) and the binaries
+# have none. The negation is required because macOS git is case-insensitive, so a bare
+# `T*` would otherwise also catch lowercase fixtures such as tab_file_1.txt.
+testBin/**/T*
+!testBin/**/*.*
+
+# ── Python / OS noise ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
 .DS_Store
 
-build/
-build_coverage/
-*.egg-info/
-**/__pycache__/
-
-*.dll
-*.pyd
-*.exp
-*.lib
-*.pdb
-*.exe
-.claude/CLAUDE.md
+# ── Documentation build artifacts ─────────────────────────────────────────
+# `make html` (docs/Makefile) writes all three: _build holds the Sphinx HTML and
+# the Doxygen XML breathe reads, while sphinx-gallery generates docs/examples/
+# from ../examples/ (gallery_dirs in conf.py) along with its timing table.
+docs/_build/
+docs/examples/
+docs/sg_execution_times.rst

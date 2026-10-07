@@ -24,7 +24,6 @@
 #include <iostream>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/state_variables.hpp>
-#include <simcoon/Continuum_mechanics/Functions/natural_basis.hpp>
 
 
 namespace simcoon{
@@ -49,17 +48,17 @@ class state_variables_M : public state_variables
 
 	public :
 		
-        arma::vec sigma_in;
-        arma::vec sigma_in_start;
+        arma::vec sigma_in; ///< inelastic stress; no in-tree writer (a plugin output in umat_plugin_api.hpp, unused), never crosses the frame
+        arma::vec sigma_in_start; ///< never crosses
     
-        arma::vec Wm;
-        arma::vec Wm_start;
+        arma::vec Wm; ///< mechanical works [total, reversible, irreversible, dissipated]; crosses both ways
+        arma::vec Wm_start; ///< set by set_start on each copy, never crosses
     
-		arma::mat L;
-		arma::mat Lt;
+		arma::mat L; ///< elastic stiffness; plugin-kernel input, crosses g2l only (the solver zeroes the global one)
+		arma::mat Lt; ///< tangent stiffness; crosses both ways
 		
 		state_variables_M(); 	//default constructor
-        state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters
+        state_variables_M(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Constructor with parameters
     
 		state_variables_M(const state_variables_M &);	//Copy constructor
 		virtual ~state_variables_M();
@@ -69,14 +68,16 @@ class state_variables_M : public state_variables
 		virtual state_variables_M& copy_fields_M (const state_variables_M&);
 		
         using state_variables::update;
-        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const natural_basis &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
-        virtual void to_start(); //Wm goes to Wm_start
-        virtual void set_start(const int &); //Wm_start goes to Wm
+        virtual void update(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &); //Initialize with parameters
+        virtual void to_start(); //rollback: Wm_start goes to Wm
+        virtual void set_start(const int &); //accept: Wm goes to Wm_start
     
         using state_variables::rotate_l2g;
-        virtual state_variables_M& rotate_l2g(const state_variables_M&, const double&, const double&, const double&);
+        /// state_variables::rotate_l2g plus Wm and the rotated tangent Lt (ownership on the declarations).
+        virtual state_variables_M& rotate_l2g(const state_variables_M&, const frame_rotation&);
         using state_variables::rotate_g2l;
-        virtual state_variables_M& rotate_g2l(const state_variables_M&, const double&, const double&, const double&);
+        /// state_variables::rotate_g2l plus Wm, L and Lt.
+        virtual state_variables_M& rotate_g2l(const state_variables_M&, const frame_rotation&);
     
         friend std::ostream& operator << (std::ostream&, const state_variables_M&);
 };

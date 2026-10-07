@@ -108,6 +108,31 @@ TEST(Tcontimech, tr_dev_Mises_eta)
     
 }
     
+TEST(Tcontimech, deta_stress_numerical)
+{
+    // deta_stress(sigma) = d(eta_stress)/dsigma : compare to a central finite difference,
+    // and assert the two structural invariants (symmetry; annihilation of sigma).
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+
+    mat deta = deta_stress(sigma);
+
+    double eps = 1.E-3;
+    mat deta_num = zeros(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec sigma_p = sigma;
+        vec sigma_m = sigma;
+        sigma_p(j) += eps;
+        sigma_m(j) -= eps;
+        deta_num.col(j) = (eta_stress(sigma_p) - eta_stress(sigma_m)) / (2. * eps);
+    }
+    EXPECT_LT(norm(deta - deta_num, "fro"), 1.E-6);   // analytic == finite difference
+    EXPECT_LT(norm(deta - deta.t(), "fro"), 1.E-12);  // symmetric (it is a Hessian)
+    EXPECT_LT(norm(deta * sigma, 2), 1.E-8 * norm(sigma, 2)); // (d eta/d sigma) . sigma = 0
+
+    // Below yield-surface degeneracy: zero stress -> zero matrix (guard).
+    EXPECT_LT(norm(deta_stress(zeros(6)), "fro"), simcoon::iota);
+}
+
 TEST(Tcontimech, J2_J3)
 {
 

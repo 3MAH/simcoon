@@ -13,7 +13,7 @@ Simcoon is developed with the aim to be a high-quality scientific library to fac
 Simcoon integrates
 - a easy way to handle geometrical non-linearities : Use of Lagrangian measures, Eulerian measures and cumulative strains considering several spins : Jaumann, Green-Naghdi, Xi-Meyers-Bruhns logarithmic. With this last measure, cumulative strain correspond to a logarithmic strain measure and is the standard measure utilized for our constitutive laws.
 
-Simcoon is a C++ library with emphasis on speed and ease-of-use, that offers a python interface to facilitate its use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, Simconnn provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver, a software to predict effective properties of composites, and a built-in identification software (using a combined genetic-gradient based algorithm)
+Simcoon is a C++ library with emphasis on speed and ease-of-use, that offers a python interface to facilitate its use. Its principle focus is to provide tools to facilitate the implementation of up-to-date constitutive model for materials in Finite Element Analysis Packages. This is done by providing a C++ API to generate user material subroutine based on a library of functions. Also, Simcoon provides tools to analyse the behavior of material, considering loading at the material point level. Such tools include a thermomechanical solver and a software to predict effective properties of composites. Parameter identification can be performed using Python with scipy.optimize (e.g. differential_evolution) and the simcoon Parameter/Constant key system
 
 Simcoon is mainly developed by faculty and researchers from University of Bordeaux and the I2M Laboratory (Institut de d'Ingénierie et de Mécanique). Fruitful contribution came from the LEM3 laboratory in Metz, France, TU Bergakademie Freiberg in Germany and the TIMC-IMAG laboratory in Grenoble, France. It is released under the GNU General Public License: GPL, version 3.
 
@@ -81,12 +81,6 @@ pip install scikit-build-core pybind11 numpy  # build dependencies
 pip install simcoon --no-binary simcoon --no-build-isolation
 ```
 
-Using Homebrew (macOS):
-```bash
-brew install armadillo
-pip install simcoon --no-binary simcoon
-```
-
 Using apt (Debian/Ubuntu):
 ```bash
 sudo apt-get install libarmadillo-dev
@@ -111,7 +105,7 @@ Install required dependencies:
 conda install -c conda-forge cxx-compiler fortran-compiler cmake ninja
 
 # Libraries
-conda install -c conda-forge armadillo pybind11 numpy gtest carma
+conda install -c conda-forge armadillo pybind11 numpy gtest
 
 # Python testing
 pip install pytest
@@ -138,11 +132,7 @@ cd simcoon
 sudo apt-get install libarmadillo-dev libgtest-dev ninja-build
 ```
 
-- On macOS with Homebrew:
-
-```bash
-brew install armadillo googletest
-```
+- On macOS: use the conda environment (`environment_arm64.yml`, conda-forge armadillo and gtest). Do not use Homebrew packages inside a conda environment: they bring a second OpenMP runtime (see the installation docs, "Duplicate OpenMP runtimes on macOS"; check with `python -m simcoon.doctor`).
 
 - On Windows with vcpkg:
 

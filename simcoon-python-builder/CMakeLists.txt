@@ -13,7 +13,7 @@ else()
   message(STATUS "Building Python bindings (standalone)")
 endif()
 
-# All dependencies (Python, pybind11, carma, Armadillo, simcoon) are already found by parent
+# All dependencies (Python, pybind11, Armadillo, simcoon) are already found by parent
 
 ################################################################################
 # SIMCOON PYBIND11 MODULE (_core)
@@ -33,28 +33,25 @@ pybind11_add_module(_core
   src/python_wrappers/Libraries/Continuum_mechanics/objective_rates.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/recovery_props.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/stress.cpp
+  src/python_wrappers/Libraries/Continuum_mechanics/tensor.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/transfer.cpp
   src/python_wrappers/Libraries/Continuum_mechanics/umat.cpp
+  src/python_wrappers/Libraries/Continuum_mechanics/pyumat.cpp
 
   # Homogenization
   src/python_wrappers/Libraries/Homogenization/eshelby.cpp
 
-  # Identification
-  src/python_wrappers/Libraries/Identification/constants.cpp
-  src/python_wrappers/Libraries/Identification/identification.cpp
-  src/python_wrappers/Libraries/Identification/optimize.cpp
-  src/python_wrappers/Libraries/Identification/parameters.cpp
-
   # Material
-  src/python_wrappers/Libraries/Material/ODF.cpp
 
   # Maths
   src/python_wrappers/Libraries/Maths/lagrange.cpp
   src/python_wrappers/Libraries/Maths/rotation.cpp
 
-  # Solver
-  src/python_wrappers/Libraries/Solver/read.cpp
-  src/python_wrappers/Libraries/Solver/solver.cpp
+  # Phase
+  src/python_wrappers/Libraries/Phase/phases.cpp
+
+  # Solver (the file-driven bindings left with the JSON-only migration: solver_run only)
+  src/python_wrappers/Libraries/Solver/solver_run.cpp
 )
 
 # Set RPATH based on build mode
@@ -97,18 +94,29 @@ else()
   set_target_properties(_core PROPERTIES PREFIX "" SUFFIX ".so")
 endif()
 
-# Disable precompiled headers for this target (causes issues with carma includes)
-set_target_properties(_core PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-
 # Add include directories for Python wrapper headers
 target_include_directories(_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # Link dependencies (simcoon provides Armadillo transitively)
-target_link_libraries(_core PRIVATE carma::carma Python3::Module simcoon)
+target_link_libraries(_core PRIVATE Python3::Module simcoon)
+if(WIN32)
+  # MSVC (vcpkg): BLAS/LAPACK explicitly, as for libsimcoon (root CMakeLists.txt)
+  target_link_libraries(_core PRIVATE ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
 
-find_package(OpenMP)
-if(OpenMP_CXX_FOUND)
-  target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+# Threading (parallel.hpp): GCD on macOS, OpenMP on Linux, std::thread on Windows.
+if(APPLE)
+  message(STATUS "macOS: using Grand Central Dispatch for parallelism")
+elseif(WIN32)
+  message(STATUS "Windows: parallel loops on std::thread; OpenMP not linked")
+else()
+  find_package(OpenMP)
+  if(OpenMP_CXX_FOUND)
+    target_link_libraries(_core PRIVATE OpenMP::OpenMP_CXX)
+    message(STATUS "Linux: using OpenMP for parallelism")
+  else()
+    message(STATUS "OpenMP not found — serial fallback")
+  endif()
 endif()
 
 ################################################################################

@@ -37,18 +37,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-#if defined(_WIN32) || defined(_WIN64)
-    #define LIB_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-    #if __GNUC__ >= 4
-        #define LIB_EXPORT __attribute__((visibility("default")))
-    #else
-        #define LIB_EXPORT
-    #endif
-#else
-    #define LIB_EXPORT
-#endif
-
+// LIB_EXPORT comes from umat_plugin_api.hpp
 ///@brief Declaration of the external Ansys USERMAT subroutine
 /// This is the standard Ansys USERMAT interface (Fortran)
 /// Reference: Ansys Mechanical APDL Programmer's Reference

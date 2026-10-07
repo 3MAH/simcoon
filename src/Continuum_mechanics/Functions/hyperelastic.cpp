@@ -25,6 +25,9 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
+#include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
+#include <stdexcept>
 
 using namespace std;
 using namespace arma;
@@ -226,7 +229,10 @@ vec beta_coefs(const vec &dWdlambda_bar, const vec &lambda_bar) {
 mat gamma_coefs(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const vec &lambda_bar) {
 
     mat gamma = zeros(3,3);
-    mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + (dWdlambda_bar*lambda_bar.t())%ones(3,3);
+    // g_ab = lambda_a lambda_b W_ab + delta_ab lambda_a W_a (the W_a term is DIAGONAL,
+    // not an outer product): gamma = P.g.P with P the deviatoric projector, i.e.
+    // gamma_ab = d beta_a / d ln(lambda_b)
+    mat factor = dW2dlambda_bar2%(lambda_bar*lambda_bar.t()) + diagmat(dWdlambda_bar%lambda_bar);
     vec factor_sum_col = ((-1./3.)*sum(factor,0)).t();  // sum along dim 0 returns row vec, transpose to col
     vec factor_sum_row = (-1./3.)*sum(factor,1);
 
@@ -472,7 +478,10 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
             c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
         }            
 
-        for(unsigned int j=i; j<3; j++) {
+        // shear term, summed over ordered pairs a!=b: the full 1/2-symmetrized dyadic
+        // 2*(abab(n_i,n_j) + abab(n_j,n_i)) collapses to the rank-1 outer product s*s^T
+        // with the symmetric dyadic of (n_i n_j^T + n_j n_i^T)
+        for(unsigned int j=i+1; j<3; j++) {
             if(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.) < 1.E-6) {
                 factor = pow(lambda_bar(i), 2.) * pow(lambda_bar(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
             }
@@ -480,10 +489,10 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
                 factor = (beta(j)*pow(lambda_bar(i),2.) - beta(i)*pow(lambda_bar(j),2.))/(pow(lambda_bar(j),2.)-pow(lambda_bar(i),2.));
             }
 
-            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
-        }            
-    }   
-    return (1./J)*c;    
+            c += factor*auto_sym_dyadic(n_pvectors.col(i)*(n_pvectors.col(j)).t() + n_pvectors.col(j)*(n_pvectors.col(i)).t());
+        }
+    }
+    return (1./J)*c;
 }
 
 mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, const mat &b, const double &mJ) {
@@ -495,46 +504,31 @@ mat L_iso_hyper_pstretch(const vec &dWdlambda_bar, const mat &dW2dlambda_bar2, c
         } catch (const std::runtime_error &e) {
             cerr << "Error in det: " << e.what() << endl;
             throw simcoon::exception_det("Error in det function inside L_iso_hyper_pstretch.");
-        }   
-    }    
-
-    vec lambda;
-    try {
-        lambda = eig_sym(b);
-    } catch (const std::runtime_error &e) {
-        cerr << "Error in eig_sym: " << e.what() << endl;
-        throw simcoon::exception_eig_sym("Failed to compute eigenvalues in L_iso_hyper_pstretch.");
-    }    
+        }
+    }
 
     vec lambda_bar = zeros(3);
     mat n_pvectors = zeros(3,3);
     isochoric_pstretch(lambda_bar, n_pvectors, b, "b", J);
+    // the shear coefficient is invariant under the J^(-1/3) bar-scaling, so the
+    // lambda_bar-based assembly is exact for b as well
+    return L_iso_hyper_pstretch(dWdlambda_bar, dW2dlambda_bar2, lambda_bar, n_pvectors, J);
+}
 
-    vec beta = beta_coefs(dWdlambda_bar, lambda_bar);
-    mat gamma = gamma_coefs(dWdlambda_bar, dW2dlambda_bar2, lambda_bar);
-    mat c = zeros(6,6);
-    mat delta = eye(3,3);
+// The two box operators of ANY symmetric A whose convected rate is
+// l*A + A*l^T - (2/3) tr(d) A, hence whose trace obeys d(tr A)/dt = 2 dev(A) : d.
+// b_bar satisfies this (tr = I_1_bar) and so does a fibre family's dispersed structure
+// tensor (tr = I*_4_bar): sharing them is what lets the anisotropic tangent reuse the
+// isotropic I_1 algebra verbatim.
+// They take the deviator and trace already held by the caller rather than A itself: both
+// call sites have them, and recomputing dev(A) here once per operator put six extra
+// allocations per call on the isotropic path that the inline form did not pay.
+static mat gamma_linear(const mat &dev_A, const double &tr_A, const mat &I_dev, const mat &Id) {
+    return (4./3.)*(tr_A*I_dev - (sym_dyadic(dev_A,Id)+sym_dyadic(Id,dev_A)));
+}
 
-    double factor = 0.;
-
-    for(unsigned int i=0; i<3; i++) {
-        for(unsigned int j=0; j<3; j++) {
-            c += (gamma(i,j) - 2*delta(i,j)*beta(i))*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "aabb") ;
-        }            
-
-        for(unsigned int j=i; j<3; j++) {
-            if(pow(lambda(j),2.)-pow(lambda(i),2.) < 1.E-6) {
-                factor = pow(lambda(i), 2.) * pow(lambda(j), -2.) * (0.5*gamma(j,j) - beta(j)) - 0.5*gamma(i,j);
-            }
-            else {
-                factor = (beta(j)*pow(lambda(i),2.) - beta(i)*pow(lambda(j),2.))/(pow(lambda(j),2.)-pow(lambda(i),2.));
-            }
-
-            c +=  factor*dyadic_4vectors_sym(n_pvectors.col(i), n_pvectors.col(j), "abab"); 
-        }            
-    }   
-    return (1./J)*c;
-
+static mat gamma_quadratic(const mat &dev_A) {
+    return 4.*auto_sym_dyadic(dev_A);
 }
 
 mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, const double &dW2dI_11_bar, const double &dW2dI_12_bar, const double &dW2dI_22_bar, const mat &b, const double &mJ) {
@@ -565,10 +559,19 @@ mat L_iso_hyper_invariants(const double &dWdI_1_bar, const double &dWdI_2_bar, c
 
     mat devdevbb2 = I_bar(0)*dev(b_bar) - dev(b_bar2);
 
-    mat gamma_1 = (4./3.)*(I_bar(0)*Idev() - (sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar)));
-    mat gamma_2 = (8./3.)*(I_bar(1)*(Ireal() - 2.*Ivol()) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
+    // Plain locals on purpose: a function-local static of an armadillo type registers a
+    // destructor that runs at DLL unload, and on Windows the unload order of the extension
+    // module, the BLAS/LAPACK DLLs and the CRT is not defined — freeing the matrix after its
+    // allocator is gone aborts the process once the tests are over. These are 6x6 identities,
+    // negligible next to the six dyadic products this function already builds per call.
+    mat I_real = Ireal();
+    mat I_vol = Ivol();
+    mat I_dev = Idev();
+
+    mat gamma_1 = gamma_linear(dev_b_bar, I_bar(0), I_dev, Id);
+    mat gamma_2 = (8./3.)*(I_bar(1)*(I_real - 2.*I_vol) - I_bar(0)*(sym_dyadic(dev_b_bar,Id)+sym_dyadic(Id,dev_b_bar))
                     + (sym_dyadic(dev_b_bar2,Id)+sym_dyadic(Id,dev_b_bar2))) + 4*(auto_sym_dyadic(b_bar)-H_bar);
-    mat gamma_11 = 4.*auto_sym_dyadic(dev_b_bar);
+    mat gamma_11 = gamma_quadratic(dev_b_bar);
     mat gamma_22 = 4.*auto_sym_dyadic(devdevbb2);
     mat gamma_12 = 4.*(sym_dyadic(dev_b_bar,devdevbb2)+sym_dyadic(devdevbb2,dev_b_bar));
 
@@ -585,7 +588,304 @@ mat L_vol_hyper(const double &dUdJ, const double &dU2dJ2, const mat &b, const do
             throw simcoon::exception_det("Error in det function inside L_vol_hyper.");
         } 
     }
-    return (dUdJ+dU2dJ2*J)*3.*Ivol() - 2.*dUdJ*Ireal();
+    mat I_real = Ireal();                                // never static: see L_iso_hyper above
+    mat I_vol = Ivol();
+    return (dUdJ+dU2dJ2*J)*3.*I_vol - 2.*dUdJ*I_real;
+}
+
+namespace {
+
+// props(i) is unchecked in release builds: a short props vector would be read
+// out of bounds silently.
+void require_props(const vec &props, const uword n, const char *name) {
+    if (props.n_elem < n) {
+        throw std::invalid_argument(std::string("hyper_potential_derivatives: ") + name + " needs "
+                                    + std::to_string(n) + " parameters, got "
+                                    + std::to_string(props.n_elem));
+    }
+}
+
+}  // namespace
+
+VolumetricPotential volumetric_potential_of(const vec &props, const uword n_used) {
+    if (props.n_elem <= n_used) {
+        return VolumetricPotential::LOG_J;
+    }
+    const double code = props(n_used);
+    if (code == 0.) return VolumetricPotential::LOG_J;
+    if (code == 1.) return VolumetricPotential::QUADRATIC;
+    throw std::invalid_argument("volumetric potential: props(" + std::to_string(n_used) + ") = "
+                                + std::to_string(code) + " is neither 0 (kappa (J ln J - J + 1)) nor 1 (kappa/2 (J - 1)^2)");
+}
+
+void volumetric_derivatives(const VolumetricPotential &vol, const double &kappa, const double &J, double &dUdJ, double &dU2dJ2) {
+    switch (vol) {
+        case VolumetricPotential::LOG_J:
+            dUdJ = kappa*log(J);
+            dU2dJ2 = kappa/J;
+            break;
+        case VolumetricPotential::QUADRATIC:
+            dUdJ = kappa*(J-1.);
+            dU2dJ2 = kappa;
+            break;
+    }
+}
+
+hyper_anisotropy hyper_potential_anisotropy(const HyperPotential &potential, const vec &props) {
+
+    hyper_anisotropy an;
+    if (potential != HyperPotential::HOLZA) {
+        return an;      // isotropic potential: no fibres, no dispersion
+    }
+    require_props(props, 5, "HOLZA");
+    an.kappa_d = props(3);
+    if (an.kappa_d < 0. || an.kappa_d > 1./3.) {
+        throw std::invalid_argument("HOLZA: the dispersion kappa_d must lie in [0, 1/3], got "
+                                    + std::to_string(an.kappa_d));
+    }
+    if (props(4) < 1.) {
+        throw std::invalid_argument("HOLZA: at least one fibre family is required, got "
+                                    + std::to_string(props(4)));
+    }
+    const uword n_fam = uword(props(4));
+    require_props(props, 6 + 3*n_fam, "HOLZA");     // the a0 triplets, plus the trailing kappa
+    an.a0 = zeros(3, n_fam);
+    for (uword i = 0; i < n_fam; i++) {
+        vec a = props.subvec(5 + 3*i, 7 + 3*i);
+        const double a_norm = norm(a, 2);
+        if (a_norm < simcoon::iota) {
+            throw std::invalid_argument("HOLZA: fibre direction " + std::to_string(i)
+                                        + " has a zero norm");
+        }
+        an.a0.col(i) = a/a_norm;    // the API already sends unit cosines; normalise anyway
+    }
+    return an;
+}
+
+std::vector<mat> structure_tensors_push_forward(const mat &F, const mat &a0, const double &kappa_d, const double &mJ) {
+
+    std::vector<mat> A;
+    if (a0.n_elem == 0) {
+        return A;
+    }
+    double J=mJ;
+    if (fabs(mJ) < simcoon::iota) {
+        try {
+            J = det(F);
+        } catch (const std::runtime_error &e) {
+            cerr << "Error in det: " << e.what() << endl;
+            throw simcoon::exception_det("Error in det function inside structure_tensors_push_forward.");
+        }
+    }
+    const double Jm13 = pow(J,-1./3.);
+
+    // kappa_d = 0 (perfectly aligned fibres, the HGO 2000 model) is the common case and
+    // needs no b_bar at all -- building it there is a 3x3 product multiplied by zero.
+    mat kd_b_bar;
+    if (kappa_d > 0.) {
+        kd_b_bar = (kappa_d*Jm13*Jm13)*(F*F.t());
+    }
+
+    A.reserve(a0.n_cols);
+    for (uword i = 0; i < a0.n_cols; i++) {
+        vec a_bar = Jm13*(F*a0.col(i));
+        mat A_i = (1.-3.*kappa_d)*(a_bar*a_bar.t());
+        if (kappa_d > 0.) {
+            A_i += kd_b_bar;
+        }
+        A.push_back(A_i);
+    }
+    return A;
+}
+
+hyper_invariants_dW hyper_potential_derivatives(const HyperPotential &potential, const vec &props, const vec &I_bar, const double &J, const std::vector<mat> &A) {
+
+    hyper_invariants_dW dW;
+    double kappa = 0.;  // the volumetric term U(J) is shared: see volumetric_derivatives
+    uword n_used = 0;   // props consumed by the isochoric potential; an optional props(n_used) selects U(J)
+
+    switch (potential) {
+        case HyperPotential::NEOHC: {
+            // \f$ W = \frac{\mu}{2}*\left(\bar{I}_1 -3 \right) + U(J) \f$
+            require_props(props, 2, "NEOHC");
+            n_used = 2;
+            double mu = props(0);
+            kappa = props(1);
+            dW.dWdI_1_bar = 0.5*mu;
+            break;
+        }
+        case HyperPotential::MOORI: {
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{01} left(\bar{I}_2 -3\right) + U(J) \f$
+            require_props(props, 3, "MOORI");
+            n_used = 3;
+            double C_10 = props(0);
+            double C_01 = props(1);
+            kappa = props(2);
+            dW.dWdI_1_bar = C_10;
+            dW.dWdI_2_bar = C_01;
+            break;
+        }
+        case HyperPotential::YEOHH: {
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{30} left(\bar{I}_1 -3\right)^3 + U(J) \f$
+            require_props(props, 4, "YEOHH");
+            n_used = 4;
+            double C_10 = props(0);
+            double C_20 = props(1);
+            double C_30 = props(2);
+            kappa = props(3);
+            dW.dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.) + 3.*C_30*pow((I_bar(0)-3.),2.);
+            dW.dW2dI_11_bar = 2.*C_20 + 6.*C_30*(I_bar(0)-3.);
+            break;
+        }
+        case HyperPotential::ISHAH: {
+            // Isihara model (1951)
+            // \f$ W = C_{10} left(\bar{I}_1 -3\right) + C_{20} left(\bar{I}_1 -3\right)^2 + C_{01} left(\bar{I}_2 -3\right) + U(J) \f$
+            require_props(props, 4, "ISHAH");
+            n_used = 4;
+            double C_10 = props(0);
+            double C_20 = props(1);
+            double C_01 = props(2);
+            kappa = props(3);
+            dW.dWdI_1_bar = C_10 + 2.*C_20*(I_bar(0)-3.);
+            dW.dW2dI_11_bar = 2.*C_20;
+            dW.dWdI_2_bar = C_01;
+            break;
+        }
+        case HyperPotential::GETHH: {
+            // Gent-Thomas model (1958)
+            // \f$ W = c_1 left(\bar{I}_1 -3\right) + c_2 \textrm{ln} left( \frac{\bar{I}_2}{3}\right) + U(J) \f$
+            require_props(props, 3, "GETHH");
+            n_used = 3;
+            double c_1 = props(0);
+            double c_2 = props(1);
+            kappa = props(2);
+            dW.dWdI_1_bar = c_1;
+            if(fabs(I_bar(1)) > simcoon::iota) {
+                dW.dWdI_2_bar = c_2/I_bar(1);
+                dW.dW2dI_22_bar = -1.*c_2/pow(I_bar(1),2.);
+            }
+            break;
+        }
+        case HyperPotential::SWANH: {
+            // Swanson model (1985)
+            // \f$ W = \frac{3}{2} \sum_{i=1}^n \frac{A_i}{1+\alpha_i} left(\frac{\bar{I}_1}{3}\right)^{1+\alpha_i} + \frac{3}{2} \sum_{i=1}^n \frac{B_i}{1+\beta_i} left(\frac{\bar{I}_2}{3}\right)^{1+\beta_i} + U(J) \f$
+            require_props(props, 2, "SWANH");
+            int N_Swanson = int(props(0));
+            require_props(props, 2 + 4*std::max(N_Swanson, 0), "SWANH");
+            n_used = 2 + 4*std::max(N_Swanson, 0);
+            kappa = props(1);
+            for (int i=0; i<N_Swanson; i++) {
+                const double A = props(2+i*4);
+                const double B = props(2+i*4+1);
+                const double alpha = props(2+i*4+2);
+                const double beta = props(2+i*4+3);
+                dW.dWdI_1_bar += 1./2.*A*pow((I_bar(0)/3.),alpha);
+                dW.dW2dI_11_bar += A*alpha/6.*pow((I_bar(0)/3.),alpha-1.);
+                dW.dWdI_2_bar += 1./2.*B*pow((I_bar(1)/3.),beta);
+                dW.dW2dI_22_bar += B*beta/6.*pow((I_bar(1)/3.),beta-1.);
+            }
+            break;
+        }
+        case HyperPotential::HOLZA: {
+            // Gasser-Ogden-Holzapfel (2006); kappa_d = 0 is Holzapfel-Gasser-Ogden (2000)
+            // \f$ W = C_{10} \left(\bar{I}_1 - 3\right) + \sum_i \frac{k_1}{2 k_2} \left[ \textrm{exp}\left(k_2 \left(\bar{I}^*_{4,i} - 1\right)^2\right) - 1 \right] + U(J) \f$
+            require_props(props, 5, "HOLZA");
+            const double C_10 = props(0);
+            const double k_1 = props(1);
+            const double k_2 = props(2);
+            const uword n_fam = uword(std::lround(props(4)));
+            require_props(props, 6 + 3*n_fam, "HOLZA");
+            n_used = 6 + 3*n_fam;
+            kappa = props(5 + 3*n_fam);
+            dW.dWdI_1_bar = C_10;
+            if (A.size() != n_fam) {
+                throw std::invalid_argument("HOLZA: " + std::to_string(A.size())
+                                            + " structure tensors for " + std::to_string(n_fam)
+                                            + " fibre families (see structure_tensors_push_forward)");
+            }
+            dW.dWdI_a_bar = zeros(n_fam);
+            dW.dW2dI_aa_bar = zeros(n_fam);
+            for (uword i = 0; i < n_fam; i++) {
+                // tr(A_i) IS the fibre pseudo-invariant: no separate channel for it
+                const double E_bar = trace(A[i]) - 1.;
+                // The fibre TERM is inactive below the switch (note this is a condition on
+                // the pseudo-invariant, not on fibre compression: with kappa_d > 0 a
+                // compressed fibre can still have I*_4 > 1). The threshold is iota, not 0:
+                // psi'' jumps from 0 to k1 across it, so an exact comparison would let
+                // round-off in I*_4 decide a FINITE tangent. At I*_4 = 1 exactly (any
+                // unstretched fibre, e.g. pure dilatation) the two routes to b differ in
+                // the last bits and would otherwise disagree by k1.
+                if (E_bar <= simcoon::iota) {
+                    continue;
+                }
+                // Finite-arithmetic guard only: exp overflows to inf near arg 709, and a
+                // Newton trial iterate can overshoot the fibre stretch far past anything
+                // physical. inf here becomes NaN stress and tangent, which the solver
+                // cannot step-cut its way out of; a large finite value it can.
+                const double e = exp(std::min(k_2*E_bar*E_bar, 350.));
+                dW.dWdI_a_bar(i) = k_1*E_bar*e;
+                dW.dW2dI_aa_bar(i) = k_1*(1. + 2.*k_2*E_bar*E_bar)*e;
+            }
+            break;
+        }
+        default:
+            throw std::invalid_argument("hyper_potential_derivatives: unknown potential "
+                                        + std::to_string(static_cast<int>(potential)));
+    }
+
+    volumetric_derivatives(volumetric_potential_of(props, n_used), kappa, J, dW.dUdJ, dW.dU2dJ2);
+    return dW;
+}
+
+void hyper_invariants_response(const hyper_invariants_dW &dW, const mat &b, const double &J, const mat &F, const int &corate_type, vec &tau, mat &Lt_box, const std::vector<mat> &A) {
+
+    if (A.size() != dW.dWdI_a_bar.n_elem || A.size() != dW.dW2dI_aa_bar.n_elem) {
+        throw std::invalid_argument("hyper_invariants_response: " + std::to_string(A.size())
+                                    + " structure tensors for "
+                                    + std::to_string(dW.dWdI_a_bar.n_elem) + " fibre derivatives");
+    }
+
+    // Kirchhoff throughout: tau is what the potential differentiates to per REFERENCE volume,
+    // and it is what every consumer on the finite route wants. Cauchy is tau/J, produced at the
+    // output boundary (solver_sink, the python wrapper), never on the route.
+    mat m_tau_iso = tau_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, b, J);
+    mat m_tau_vol = tau_vol_hyper(dW.dUdJ, b, J);
+    mat m_tau = m_tau_iso + m_tau_vol;
+
+    // These two builders return the spatial elasticity c = (1/J) d(L_v tau)/dD -- NOT
+    // d(L_v sigma)/dD, which differs from it by sigma (x) I. The single J that turns c into the
+    // Kirchhoff-Lie tangent is applied once, below, where it is visible.
+    // The J is written ASYMMETRICALLY inside them (L_iso carries an explicit 1/J, L_vol carries
+    // none and is J-free by cancellation), so they must be scaled together as a sum and never
+    // "tidied" one at a time.
+    mat Lt_iso = L_iso_hyper_invariants(dW.dWdI_1_bar, dW.dWdI_2_bar, dW.dW2dI_11_bar, dW.dW2dI_12_bar, dW.dW2dI_22_bar, b, J);
+    mat Lt_vol = L_vol_hyper(dW.dUdJ, dW.dU2dJ2, b, J);
+    mat Lt_spatial = Lt_iso + Lt_vol;
+
+    // Fibre terms: the I_1 algebra with b_bar replaced by the family's structure tensor.
+    // kappa_d is already folded into A upstream, which is what keeps that substitution exact.
+    // Both derivatives are exactly 0 for a family below the tension switch -- the routine
+    // case, not an edge case -- so skip rather than assemble six 6x6 dyadics times zero.
+    if (!A.empty()) {
+        mat Id = eye(3,3);
+        mat I_dev = Idev();
+        for (uword i = 0; i < A.size(); i++) {
+            const double d1 = dW.dWdI_a_bar(i);
+            const double d2 = dW.dW2dI_aa_bar(i);
+            if (d1 == 0. && d2 == 0.) {
+                continue;
+            }
+            const mat dev_A = dev(A[i]);
+            m_tau += 2.*d1*dev_A;                                   // Kirchhoff: no 1/J
+            Lt_spatial += (1./J)*(gamma_linear(dev_A, trace(A[i]), I_dev, Id)*d1
+                                  + gamma_quadratic(dev_A)*d2);     // in c, like the two above
+        }
+    }
+    tau = t2v_stress(m_tau);
+
+    // Box tangent Lt = d(tau_hat)/d(De) in corate_type (Kirchhoff, no J). J*Lt_spatial is the
+    // Kirchhoff-Lie tangent d(L_v tau)/dD that the map consumes.
+    Lt_box = Dtau_LieDD_2_DtauDe_corate(J*Lt_spatial, corate_type, F, m_tau);
 }
 
 } //namespace simcoon

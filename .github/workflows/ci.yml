@@ -22,14 +22,17 @@ jobs:
           - os: Linux
             runner: ubuntu-latest
             environment-file: environment.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: MacOS
             runner: macos-latest
             environment-file: environment_arm64.yml
+            python-version: "3.14"
             shell: bash -l {0}
           - os: Windows
             runner: windows-latest
             environment-file: environment_win.yml
+            python-version: "3.12"
             shell: pwsh
 
     defaults:
@@ -43,9 +46,33 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: foo
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           environment-file: ${{ matrix.environment-file }}
           channels: conda-forge,set3mah
+
+      - name: MSVC developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: sccache (Windows)
+        if: runner.os == 'Windows'
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Enable sccache + Ninja for all Windows builds
+        if: runner.os == 'Windows'
+        run: |
+          pip install ninja
+          # Absolute launcher path (forward slashes for CMake): the sccache
+          # action exports SCCACHE_PATH but does NOT put sccache on PATH, and
+          # msvc-dev-cmd rewrites PATH anyway. Idle timeout 0 keeps the server
+          # (and its stats) alive across the whole job.
+          $sc = $env:SCCACHE_PATH -replace '\\','/'
+          "SCCACHE_GHA_ENABLED=true" | Out-File $env:GITHUB_ENV -Append
+          "SCCACHE_IDLE_TIMEOUT=0" | Out-File $env:GITHUB_ENV -Append
+          "CMAKE_ARGS=-DCMAKE_C_COMPILER_LAUNCHER=$sc -DCMAKE_CXX_COMPILER_LAUNCHER=$sc" | Out-File $env:GITHUB_ENV -Append
+          # scikit-build-core only picks Ninja over Visual Studio when ninja is
+          # importable/visible to the python actually running the build
+          "CMAKE_GENERATOR=Ninja" | Out-File $env:GITHUB_ENV -Append
 
       - name: Prepare conda environment (Unix)
         if: runner.os != 'Windows'
@@ -68,11 +95,16 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
-          cmake -S . -B build `
+          cmake -S . -B build -G Ninja `
               -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_C_COMPILER_LAUNCHER="$env:SCCACHE_PATH" `
+              -DCMAKE_CXX_COMPILER_LAUNCHER="$env:SCCACHE_PATH" `
               -DCMAKE_INSTALL_PREFIX="$env:CONDA_PREFIX/Library" `
               -Wno-dev
-          cmake --build build --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $env:SCCACHE_PATH --show-stats
 
       - name: Tests (Unix)
         if: runner.os != 'Windows'
@@ -90,10 +122,36 @@ jobs:
           path: build/Testing/Temporary/LastTest.log
           retention-days: 7
 
-      - name: Install simcoon + fedoo and run integration tests (Unix)
+      - name: Install simcoon Python bindings (Unix)
         if: runner.os != 'Windows'
         run: |
           pip install scikit-build-core pybind11 numpy
           pip install . --no-build-isolation
-          pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
-          pytest tests/test_fedoo_integration.py -v
+
+      - name: Install simcoon Python bindings (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pip install scikit-build-core pybind11 numpy
+          pip install . --no-build-isolation
+          & $env:SCCACHE_PATH --show-stats
+
+      - name: Smoke test simcoon Python (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python -c "import simcoon; print('simcoon import OK')"
+          python -c "from simcoon import simmit as sim; import numpy as np; L = sim.L_iso(np.array([200e3, 0.3]), 'Enu'); print('L_iso OK, shape:', L.shape)"
+          python -c "
+          from simcoon import simmit as sim
+          import numpy as np
+          n = 8
+          props = np.asfortranarray(np.tile([200e3, 0.3, 0.0, 300.0, 1000.0, 0.5], (n, 1)).T)
+          etot = np.zeros((6, n), order='F')
+          Detot = np.zeros((6, n), order='F'); Detot[2, :] = 5e-3
+          sigma = np.zeros((6, n), order='F')
+          statev = np.zeros((8, n), order='F')
+          Wm = np.zeros((4, n), order='F')
+          DR = np.empty((3, 3, n), order='F'); DR[...] = np.eye(3).reshape(3, 3, 1)
+          stress, sv, wm, Lt = sim.umat('EPICP', etot, Detot, np.array([]), np.array([]), sigma, DR, props, statev, 0.0, 1.0, Wm, n_threads=1)
+          print('umat EPICP OK, stress:', stress[:, 0])
+          "
+

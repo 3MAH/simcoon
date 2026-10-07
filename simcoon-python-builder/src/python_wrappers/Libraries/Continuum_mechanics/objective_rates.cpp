@@ -3,10 +3,11 @@
 #include <pybind11/numpy.h>
 
 #include <string>
-#include <carma>
+#include <simcoon/python_wrappers/arma_to_numpy.hpp>
+#include <simcoon/python_wrappers/numpy_to_arma.hpp>
 #include <armadillo>
 
-#include <simcoon/omp_compat.hpp>
+#include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
@@ -21,34 +22,55 @@ namespace simpy {
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple logarithmic(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
+    mat F0_cpp = simpy::numpy_to_arma::arr_to_mat(F0);
+    mat F1_cpp = simpy::numpy_to_arma::arr_to_mat(F1);
     mat DR = zeros(3,3);
     mat D = zeros(3,3);
     mat Omega = zeros(3,3);
     simcoon::logarithmic(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy));
+    return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, copy), simpy::arma_to_numpy::mat_to_arr(DR, copy), simpy::arma_to_numpy::mat_to_arr(Omega, copy));
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple logarithmic_R(const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &copy) {
-    mat F0_cpp = carma::arr_to_mat(F0);
-    mat F1_cpp = carma::arr_to_mat(F1);
+    mat F0_cpp = simpy::numpy_to_arma::arr_to_mat(F0);
+    mat F1_cpp = simpy::numpy_to_arma::arr_to_mat(F1);
     mat DR = zeros(3,3);
     mat D = zeros(3,3);
     mat N_1 = zeros(3,3);
     mat N_2 = zeros(3,3);    
     mat Omega = zeros(3,3);
-    simcoon::logarithmic_R(DR, D, N_1, N_2, Omega, DTime, F0_cpp, F1_cpp);
-    return py::make_tuple(carma::mat_to_arr(D, copy), carma::mat_to_arr(DR, copy), carma::mat_to_arr(Omega, copy), carma::mat_to_arr(N_1, copy), carma::mat_to_arr(N_2, copy));
+    // C++ signature order is (DR, N_1, N_2, D, Omega) — a positional swap
+    // here silently mislabels the returned tensors (all args are mat&).
+    simcoon::logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
+    return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, copy), simpy::arma_to_numpy::mat_to_arr(DR, copy), simpy::arma_to_numpy::mat_to_arr(Omega, copy), simpy::arma_to_numpy::mat_to_arr(N_1, copy), simpy::arma_to_numpy::mat_to_arr(N_2, copy));
+}
+
+//Log-strain concentration tensors A^R (rotated / log_R) and A^F (convected / log_F), 6x6 Voigt
+py::array_t<double> A_R(const py::array_t<double> &F, const bool &copy) {
+    mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
+    mat AR = simcoon::A_R(F_cpp);
+    return simpy::arma_to_numpy::mat_to_arr(AR, copy);
+}
+py::array_t<double> A_F(const py::array_t<double> &F, const bool &copy) {
+    mat F_cpp = simpy::numpy_to_arma::arr_to_mat(F);
+    mat AF = simcoon::A_F(F_cpp);
+    return simpy::arma_to_numpy::mat_to_arr(AF, copy);
 }
 
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::tuple objective_rate(const std::string& corate_name, const py::array_t<double> &F0, const py::array_t<double> &F1, const double &DTime, const bool &return_de, const unsigned int &n_threads) {
-    std::map<string, int> list_corate;
-    list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3},{"truesdell",4},{"logarithmic_F",5}, {"gn",1},{"log",2},{"log_R",3},{"log_F",5}};
-	int corate = list_corate[corate_name];
+    static const std::map<string, int> list_corate = { {"jaumann",0},{"green_naghdi",1},{"logarithmic",2},{"logarithmic_R",3},{"truesdell",4},{"logarithmic_F",5}, {"gn",1},{"log",2},{"log_R",3},{"log_F",5}};
+    // guarded lookup: operator[] would default-insert 0 = jaumann, silently computing
+    // a DIFFERENT objective rate for a misspelled name instead of reporting it
+    const auto it_corate = list_corate.find(corate_name);
+    if (it_corate == list_corate.end()) {
+        throw std::invalid_argument("objective_rate: unknown corate name '" + corate_name
+                                    + "'. Valid: jaumann, green_naghdi (gn), logarithmic (log), "
+                                      "logarithmic_R (log_R), truesdell, logarithmic_F (log_F)");
+    }
+    const int corate = it_corate->second;
 
     void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &);
     void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);
@@ -85,8 +107,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
             throw std::invalid_argument("the number of dim of F1 should be the same as F0");
         }
 
-        mat F0_cpp = carma::arr_to_mat_view(F0);
-        mat F1_cpp = carma::arr_to_mat_view(F1);
+        mat F0_cpp = simpy::numpy_to_arma::arr_to_mat_view(F0);
+        mat F1_cpp = simpy::numpy_to_arma::arr_to_mat_view(F1);
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
@@ -135,15 +157,15 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
                     break;
                 }
             }
-            return py::make_tuple(carma::col_to_arr(de,false), carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::col_to_arr(de,false), simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::mat_to_arr(D, false), carma::mat_to_arr(DR, false), carma::mat_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         
     }
     else if (F1.ndim() == 3) {
-        cube F1_cpp = carma::arr_to_cube_view(F1);            
+        cube F1_cpp = simpy::numpy_to_arma::arr_to_cube_view(F1);
         int nb_points = F1_cpp.n_slices;
         cube DR(3,3,nb_points);
         cube D(3,3,nb_points);            
@@ -156,287 +178,144 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         }
         mat I = eye(3,3);        
 
+        // F0: one for all points (2-D array or a single slice) or one per point
+        mat F0_one;
+        cube F0_cpp;
         if (F0.ndim() == 2) {
-            mat vec_F0 = carma::arr_to_mat_view(F0);
-            for (int pt = 0; pt < nb_points; pt++) {
-
-        		switch (corate) {
-                    case 0: case 1: case 2: case 4: {
-                        corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        }
-                        break;
-                    }
-                    case 3: {
-                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                            de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            de_col = simcoon::rotate_strain(de_col, DR_N);
-                        }
-                        break;
-                    }
-                    case 5: {
-                        corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                        if (return_de) {
-                            vec de_col = de.unsafe_col(pt);
-                            mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                            mat inv_DR_N = inv(DR_N);
-                            de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                        }
-                        break;
-                    }
-                }
+            F0_one = simpy::numpy_to_arma::arr_to_mat_view(F0);
+        }
+        else {
+            F0_cpp = simpy::numpy_to_arma::arr_to_cube_view(F0);
+            if (F0_cpp.n_slices == 1) {
+                F0_one = F0_cpp.slice(0);
             }
         }
-        else if (F0.ndim() == 3) {
-            cube F0_cpp = carma::arr_to_cube_view(F0); 
-            if (F0_cpp.n_slices==1) {
-                mat vec_F0 = F0_cpp.slice(0);
+        const bool F0_per_point = F0_one.is_empty();
 
-                #ifdef _OPENMP
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(n_threads);
-                omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F1_cpp)
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {
-                        case 0: case 1: case 2: case 4: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de_col, DR_N);
-                            }
-                            break;
-                        }
-                        case 5: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, vec_F0, F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                                mat inv_DR_N = inv(DR_N);
-                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                            }
-                            break;
-                        }
+        parallel_for_nogil(nb_points, [&](int pt) {
+            const mat &F0_pt = F0_per_point ? F0_cpp.slice(pt) : F0_one;
+            switch (corate) {
+                case 0: case 1: case 2: case 4: {
+                    corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
                     }
+                    break;
                 }
-                #ifdef _OPENMP
-                omp_set_num_threads(max_threads);
-    			#endif
-            }
-            else {
-                #ifdef _OPENMP                
-                int max_threads = omp_get_max_threads();
-                omp_set_num_threads(4);
-                omp_set_active_levels(3);
-                #pragma omp parallel for shared(DR, D, Omega, F0_cpp, F1_cpp)      
-    			#endif
-                for (int pt = 0; pt < nb_points; pt++) {
-
-            		switch (corate) {
-                        case 0: case 1: case 2: case 4: {
-                            corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                            }
-                            break;
-                        }
-                        case 3: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                                de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                de_col = simcoon::rotate_strain(de_col, DR_N);
-                            }
-                            break;
-                        }
-                        case 5: {
-                            corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_cpp.slice(pt), F1_cpp.slice(pt));
-                            if (return_de) {
-                                vec de_col = de.unsafe_col(pt);
-                                mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                                mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                                mat inv_DR_N = inv(DR_N);
-                                de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                            }
-                            break;
-                        }
+                case 3: {
+                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
+                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        de_col = simcoon::rotate_strain(de_col, DR_N);
                     }
+                    break;
                 }
-                #ifdef _OPENMP
-                omp_set_num_threads(max_threads);
-    			#endif
+                case 5: {
+                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
+                    if (return_de) {
+                        vec de_col = de.unsafe_col(pt);
+                        mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
+                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
+                        mat inv_DR_N;
+                        if (!inv(inv_DR_N, DR_N))   // as the single-point path
+                            throw simcoon::exception_inv("Error in inv function inside objective_rate (inv_DR_N).");
+                        de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
+                    }
+                    break;
+                }
             }
-        }
+        }, n_threads);
         if (return_de){	                     
-            return py::make_tuple(carma::mat_to_arr(de, false), carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(de, false), simpy::arma_to_numpy::cube_to_arr(D, false), simpy::arma_to_numpy::cube_to_arr(DR, false), simpy::arma_to_numpy::cube_to_arr(Omega, false));
         }
         else{
-            return py::make_tuple(carma::cube_to_arr(D, false), carma::cube_to_arr(DR, false), carma::cube_to_arr(Omega, false));
+            return py::make_tuple(simpy::arma_to_numpy::cube_to_arr(D, false), simpy::arma_to_numpy::cube_to_arr(DR, false), simpy::arma_to_numpy::cube_to_arr(Omega, false));
         }        
     }
 }
 
 //This function computes the gradient of displacement (Eulerian) from the deformation gradient 
 py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::array_t<double> &Omega, const double &DTime, const bool &copy) {
-    mat D_cpp = carma::arr_to_mat(D);
-    mat Omega_cpp = carma::arr_to_mat(Omega);
+    mat D_cpp = simpy::numpy_to_arma::arr_to_mat(D);
+    mat Omega_cpp = simpy::numpy_to_arma::arr_to_mat(Omega);
     mat Delta_log_strain = simcoon::Delta_log_strain(D_cpp, Omega_cpp, DTime);
-    return carma::mat_to_arr(Delta_log_strain, copy);
+    return simpy::arma_to_numpy::mat_to_arr(Delta_log_strain, copy);
 }
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
-    std::map<string, int> list_Lt_convert;
-    list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
-	int select = list_Lt_convert [converter_key];
-    mat (*convert_function)(const mat &, const mat &, const mat &);
-    mat (*convert_function2)(const mat &, const mat &);
-
-    switch (select) {
-        case 0: {
-            convert_function2 = &simcoon::Dsigma_LieDD_2_DSDE;
-            break;
-        }
-        case 1: {
-            convert_function = &simcoon::DsigmaDe_2_DSDE;
-            break;
-        }
-        case 2: {
-            convert_function = &simcoon::DsigmaDe_JaumannDD_2_DSDE;
-            break;
-        }
-        case 3: {
-            convert_function2 = &simcoon::Dsigma_LieDD_Dsigma_JaumannDD;
-            break;
-        }
-        case 4: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD;
-            break;
-        }
-        case 5: {
-            convert_function = &simcoon::Dsigma_LieDD_Dsigma_logarithmicDD;
-            break;
-        }
-        case 6: {
-            convert_function = &simcoon::DsigmaDe_GreenNaghdiDD_2_DSDE;
-            break;
-        }
-        case 7: {
-            convert_function = &simcoon::DSDE_2_Dsigma_GreenNaghdiDD;
-            break;
-        }
-        case 8: {
-            convert_function = &simcoon::DSDE_2_Dsigma_JaumannDD;
-            break;
-        }
-        case 9: {
-            convert_function2 = &simcoon::DSDE_2_Dsigma_LieDD;
-            break;
-        }
-        case 10: {
-            convert_function = &simcoon::DSDE_2_Dsigma_logarithmicDD;
-            break;
-        }
+    static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
+    // guarded lookup: operator[] would default-insert 0 = Dsigma_LieDD_2_DSDE, so a
+    // misspelled or renamed key silently performed a DIFFERENT conversion and returned a
+    // plausible-looking wrong tangent. fedoo selects this key from a table, where the
+    // symptom would have been poor Newton convergence rather than an error.
+    const auto it_convert = list_Lt_convert.find(converter_key);
+    if (it_convert == list_Lt_convert.end()) {
+        std::string valid;
+        for (const auto &kv : list_Lt_convert) { valid += (valid.empty() ? "" : ", ") + kv.first; }
+        throw std::invalid_argument("Lt_convert: unknown converter key '" + converter_key
+                                    + "'. Valid: " + valid);
     }
+    const int select = it_convert->second;
 
-    if (Lt.ndim() == 2) {            
+    // The box tangent convention is Lt = d(tau_hat)/d(De): the Kirchhoff, log/Hencky-rate,
+    // no-J corotational tangent that every simcoon UMAT now returns. Split by role:
+    //  * INVERSE keys (consume the box Lt -> material dS/dE): use the no-J Dtau_* family so
+    //    the box's Kirchhoff tangent is NOT spuriously multiplied by J (the J double-count
+    //    fix). Stress is promoted to Kirchhoff (tau = J*sigma) internally.
+    //  * FORWARD / CROSS keys (produce dsigma/dCorate, the Cauchy spatial tangent fedoo
+    //    consumes -- "dsigma_dD"): KEEP the Cauchy (1/J) Dsigma_* family, taking the Cauchy
+    //    sigma directly. (fedoo: dS/dE = DsigmaDe_2_DSDE(box_Lt); dsigma/dD = DSDE_2_Dsigma_*.)
+    auto convert_pt = [select](const mat &Lt_pt, const mat &F_pt, const mat &sig_pt) -> mat {
+        double Jdet = det(F_pt);
+        mat tau = Jdet*sig_pt;                 // Kirchhoff = J * Cauchy (both spatial)
+        switch (select) {
+            // inverse: box d(tau_hat)/d(De) (Kirchhoff, no-J) -> material dS/dE
+            case 0:  return simcoon::Dtau_LieDD_2_DSDE(Lt_pt, F_pt);
+            case 1:  return simcoon::DtauDe_2_DSDE(Lt_pt, F_pt, tau);
+            case 2:  return simcoon::DtauDe_JaumannDD_2_DSDE(Lt_pt, F_pt, tau);
+            case 6:  return simcoon::DtauDe_GreenNaghdiDD_2_DSDE(Lt_pt, F_pt, tau);
+            // Cauchy spatial-tangent menu (dsigma/dD, 1/J) -- fedoo's material Jacobian
+            case 3:  return simcoon::Dsigma_LieDD_Dsigma_JaumannDD(Lt_pt, sig_pt);
+            case 4:  return simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD(Lt_pt, F_pt, sig_pt);
+            case 5:  return simcoon::Dsigma_LieDD_Dsigma_logarithmicDD(Lt_pt, F_pt, sig_pt);
+            case 7:  return simcoon::DSDE_2_Dsigma_GreenNaghdiDD(Lt_pt, F_pt, sig_pt);
+            case 8:  return simcoon::DSDE_2_Dsigma_JaumannDD(Lt_pt, F_pt, sig_pt);
+            case 9:  return simcoon::DSDE_2_Dsigma_LieDD(Lt_pt, F_pt);
+            case 10: return simcoon::DSDE_2_Dsigma_logarithmicDD(Lt_pt, F_pt, sig_pt);
+        }
+        return Lt_pt;
+    };
+
+    if (Lt.ndim() == 2) {
         if ((F.ndim() != 2) || (stress.ndim() != 1))  {
             throw std::invalid_argument("the number of dim of Lt, F and stress are not consistent");
         }
-
-        mat F_cpp = carma::arr_to_mat_view(F);
-        mat Lt_cpp = carma::arr_to_mat_view(Lt);
-        vec stress_v = carma::arr_to_col_view(stress);
-        mat stress_cpp = simcoon::v2t_stress(stress_v);
-        mat Lt_converted(6,6);
-
-        switch (select) {
-            case 0: case 9: {
-                Lt_converted = convert_function2(Lt_cpp, F_cpp);
-                break;
-            }
-            case 1: case 2: case 4: case 5: case 6: case 7: case 8: case 10: {
-                Lt_converted = convert_function(Lt_cpp, F_cpp, stress_cpp);
-                break;
-            }
-            case 3: {
-                Lt_converted = convert_function2(Lt_cpp, stress_cpp);
-                break;
-            }
-        }
-        return carma::mat_to_arr(Lt_converted,false);
+        mat F_cpp = simpy::numpy_to_arma::arr_to_mat_view(F);
+        mat Lt_cpp = simpy::numpy_to_arma::arr_to_mat_view(Lt);
+        vec stress_v = simpy::numpy_to_arma::arr_to_col_view(stress);
+        mat sig_cpp = simcoon::v2t_stress(stress_v);
+        mat Lt_converted = convert_pt(Lt_cpp, F_cpp, sig_cpp);
+        return simpy::arma_to_numpy::mat_to_arr(Lt_converted, false);
     }
     else if (Lt.ndim() == 3) {
-        cube F_cpp = carma::arr_to_cube_view(F);
-        cube Lt_cpp = carma::arr_to_cube_view(Lt);
-        mat stress_cpp = carma::arr_to_mat_view(stress);
-        int nb_points = Lt_cpp.n_slices;
-        cube Lt_converted = zeros(6,6,nb_points);
-
-        mat stress_pt;
-
-/*        #ifdef _OPENMP
-        int max_threads = omp_get_max_threads();
-        omp_set_num_threads(4);
-            #ifndef _WIN32
-            py::gil_scoped_release release;
-            #endif
-        omp_set_max_active_levels(3);
-        #pragma omp parallel for shared(Lt_converted, Lt_cpp, F_cpp)
-        #endif
-*/
-
-        for (int pt = 0; pt < nb_points; pt++) {
-            //vec stress_pt = stress_cpp.unsafe_col(pt);
-            stress_pt = simcoon::v2t_stress(stress_cpp.unsafe_col(pt));
-            switch (select) {
-                case 0: case 9: {
-                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), F_cpp.slice(pt));
-                    break;
-                }
-                case 1: case 2: case 6: case 7: case 8: case 10: {
-                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-                    break;
-                }
-                case 3: {
-                    Lt_converted.slice(pt) = convert_function2(Lt_cpp.slice(pt), stress_pt);
-                    break;
-                }
-                case 4: case 5: {
-                    Lt_converted.slice(pt) = convert_function(Lt_cpp.slice(pt), F_cpp.slice(pt), stress_pt);
-                    break;
-                }
-            }          
+        cube F_cpp = simpy::numpy_to_arma::arr_to_cube_view(F);
+        cube Lt_cpp = simpy::numpy_to_arma::arr_to_cube_view(Lt);
+        mat stress_cpp = simpy::numpy_to_arma::arr_to_mat_view(stress);
+        const int nb_points = Lt_cpp.n_slices;
+        if (F_cpp.n_slices != Lt_cpp.n_slices || stress_cpp.n_cols != Lt_cpp.n_slices) {
+            throw std::invalid_argument("Lt_convert: Lt, F and stress must carry one entry per point");
         }
-/*        #ifdef _OPENMP
-            #ifndef _WIN32
-            py::gil_scoped_acquire acquire;					
-            #endif
-        omp_set_num_threads(max_threads);			                     
-        #endif
-*/
-        return carma::cube_to_arr(Lt_converted,false);
+        cube Lt_converted(6, 6, nb_points);
+        // one point per item, own output slice: parallel, GIL released (6x6 allocations)
+        parallel_for_nogil(nb_points, [&](int pt) {
+            Lt_converted.slice(pt) = convert_pt(Lt_cpp.slice(pt), F_cpp.slice(pt),
+                                                simcoon::v2t_stress(stress_cpp.unsafe_col(pt)));
+        });
+        return simpy::arma_to_numpy::cube_to_arr(Lt_converted, false);
     }
     throw std::invalid_argument("Lt.ndim() must be 2 or 3");
 }

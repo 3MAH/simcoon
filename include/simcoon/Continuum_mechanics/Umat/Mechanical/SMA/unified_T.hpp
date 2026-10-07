@@ -28,6 +28,7 @@
 #pragma once
 #include <string>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
 
 namespace simcoon{
 
@@ -160,7 +161,7 @@ namespace simcoon{
  * @param umat_name Model variant (SMADI, SMADC, SMAAI, SMAAC)
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: 6x1)
  * @param DEtot Strain increment tensor (Voigt notation: 6x1)
- * @param sigma Cauchy stress tensor (Voigt notation: 6x1) [output]
+ * @param stress Cauchy stress tensor (Voigt notation: 6x1) [output]
  * @param Lt Consistent tangent modulus (6x6) [output]
  * @param L Elastic stiffness tensor (6x6) [output]
  * @param DR Rotation increment matrix (3x3) for objective integration
@@ -183,7 +184,20 @@ namespace simcoon{
  *
  * @note Elastic convention: isotropic uses "Enu", cubic uses "EnuG" for L_iso / L_cubic
  * @note The flagT parameter controls temperature extrapolation: 0 for linear, 1 for smooth
- * @note Legacy aliases SMAUT and SMANI map to SMADI and SMAAI respectively
+ * @note The pre-2.0 aliases SMAUT and SMANI were removed in 2.0: use SMADI and SMAAI.
+ * @note **Convergence measure.** The local Fischer-Burmeister solve reports
+ * \f$ \sum_j |FB_j| / Y^{crit}_j \f$, so each \f$ Y^{crit}_j \f$ must be a positive scale of
+ * its criterion. The signed thresholds \f$ Y^t_F = Y_0^t + D\,H^{cur}\,\bar{\sigma} \f$ and
+ * \f$ Y^t_R = Y_0^t + D\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T} \f$ are not:
+ * with a calibrated \f$ D < 0 \f$ they cross zero along a loading path (at
+ * \f$ \bar{\sigma} = Y_0^t / (-D\,H^{cur}) \f$, about 1.2 GPa for NiTi-like parameters), and a
+ * residual at the floating-point floor of \f$ \xi \f$ then reads as a non-convergence: the
+ * kernel requests step cuts no sub-increment can satisfy and the solver crawls at its minimal
+ * increment. The scales are therefore the magnitudes of the terms,
+ * \f$ Y^{crit}_F = |Y_0^t| + |D\,H^{cur}\,\bar{\sigma}| \f$ and
+ * \f$ Y^{crit}_R = |Y_0^t| + |D\,\boldsymbol{\sigma}:\bar{\boldsymbol{\varepsilon}}^{T}| \f$,
+ * identical to the thresholds wherever \f$ D \ge 0 \f$. Shared by the thermomechanical
+ * twin and by @ref umat_sma_unified_TR.
  *
  * @see L_iso() for isotropic stiffness tensor (SMADI, SMAAI)
  * @see L_cubic() for cubic stiffness tensor (SMADC, SMAAC)
@@ -196,7 +210,7 @@ namespace simcoon{
  *   "A constitutive model for cyclic actuation of high-temperature shape memory alloys."
  *   *Mechanics of Materials*, 68, 120-136.
  */
-void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &sigma, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt);
+void umat_sma_unified_T(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
 
 /** @} */ // end of umat_mechanical group
 

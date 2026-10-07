@@ -126,13 +126,19 @@ class phase_characteristics
         virtual void sub_phases_construct(const int &shape_type, const int &sv_type, const int &n_sub);
         
         /**
-         * @brief Copy current values to start-of-increment values.
+         * @brief Reset the current values to the start-of-increment values.
+         *
+         * Rollback of a trial increment, applied to the global and local state
+         * variables of this phase and to every sub-phase.
          */
         virtual void to_start();
         
         /**
-         * @brief Set current values from start-of-increment values.
-         * @param control Control flag for selective update
+         * @brief Store the current values as the start-of-increment values.
+         *
+         * Acceptance of a converged increment, applied to the global and local state
+         * variables of this phase and to every sub-phase.
+         * @param control Corotational rate type, forwarded to the state variables.
          */
         virtual void set_start(const int &control);
         

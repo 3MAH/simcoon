@@ -1,24 +1,24 @@
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import simcoon as sim
-import os
-import itertools
-
-dir = os.path.dirname(os.path.realpath("__file__"))
+from simcoon.solver.micromechanics import Ellipsoid
 
 nstatev = 0
 
-nphases = 2  # The number of phases
-num_file = 0  # The num of the file that contains the subphases
-int1 = 50
-int2 = 50
-n_matrix = 0
+int1 = 50  # Integration points of the Eshelby integrals, first direction
+int2 = 50  # Integration points of the Eshelby integrals, second direction
+n_matrix = 0  # Index of the matrix phase in the list of phases
 
-props = np.array([nphases, num_file, int1, int2, n_matrix], dtype="float")
+# Mori-Tanaka props: [int1, int2, n_matrix]; the phases themselves are passed as objects
+props = np.array([int1, int2, n_matrix], dtype="float")
 
-NPhases_file = dir + "/keys/Nellipsoids0.dat"
-NPhases = pd.read_csv(NPhases_file, delimiter=r"\s+", index_col=False, engine="python")
+matrix = Ellipsoid(
+    number=0, umat_name="ELISO", save=1, concentration=0.8, nstatev=1,
+    props=np.array([2250.0, 0.19, 8.8e-5]),
+)
+reinforcement = Ellipsoid(
+    number=1, umat_name="ELISO", save=1, concentration=0.2, nstatev=1,
+    props=np.array([73000.0, 0.19, 0.5e-6]),
+)
 
 psi_rve = 0.0
 theta_rve = 0.0
@@ -26,6 +26,9 @@ phi_rve = 0.0
 
 umat_name = "MIMTN"
 
-L = sim.L_eff(umat_name, props, nstatev, psi_rve, theta_rve, phi_rve)
+L = sim.L_eff(
+    umat_name, props, nstatev, orientation=(psi_rve, theta_rve, phi_rve),
+    phases=[matrix, reinforcement],
+)
 p = sim.L_iso_props(L)
 print(p)

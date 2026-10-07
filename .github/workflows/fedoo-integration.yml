@@ -1,0 +1,169 @@
+name: Fedoo Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      pypi_index:
+        description: 'PyPI index for pip jobs'
+        type: choice
+        options:
+          - pypi
+          - testpypi
+        default: pypi
+  workflow_call:
+    inputs:
+      pypi_index:
+        description: 'PyPI index for pip jobs'
+        type: string
+        default: pypi
+
+permissions:
+  contents: read
+
+jobs:
+  # =========================================================================
+  # 1. Pure pip — wheel from PyPI/TestPyPI, system Python
+  # =========================================================================
+  pip:
+    name: pip · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install simcoon
+        run: |
+          if [ "${{ inputs.pypi_index }}" = "testpypi" ]; then
+            pip install --pre simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
+          else
+            pip install simcoon
+          fi
+        shell: bash
+
+      - name: Install fedoo + test deps
+        run: pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+
+      - name: Install pypardiso (Windows/Linux x86)
+        if: runner.os == 'Windows' || runner.arch == 'X64'
+        run: pip install pypardiso
+
+      - name: Verify imports
+        run: python -c "import simcoon; import fedoo; print('simcoon', simcoon.__version__); print('fedoo OK')"
+        shell: bash
+
+      - name: Run integration tests
+        run: pytest tests/test_fedoo_integration.py -v
+        shell: bash
+
+  # =========================================================================
+  # 2. pip wheel inside conda env — tests conda+pip coexistence
+  # =========================================================================
+  conda-pip:
+    name: conda+pip · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: test
+          python-version: "3.12"
+
+      - name: Install simcoon wheel in conda env
+        shell: bash -l {0}
+        run: |
+          if [ "${{ inputs.pypi_index }}" = "testpypi" ]; then
+            pip install --pre simcoon --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/
+          else
+            pip install simcoon
+          fi
+
+      - name: Install fedoo + test deps
+        shell: bash -l {0}
+        run: pip install "git+https://github.com/3MAH/fedoo.git@master" pytest
+
+      - name: Install pypardiso (Windows/Linux x86)
+        if: runner.os == 'Windows' || runner.arch == 'X64'
+        shell: bash -l {0}
+        run: pip install pypardiso
+
+      - name: Install petsc4py (macOS/Linux arm)
+        if: runner.os != 'Windows' && runner.arch != 'X64'
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge petsc4py
+
+      - name: Verify imports
+        shell: bash -l {0}
+        run: python -c "import simcoon; import fedoo; print('simcoon', simcoon.__version__); print('fedoo OK')"
+
+      - name: Run integration tests
+        shell: bash -l {0}
+        run: pytest tests/test_fedoo_integration.py -v
+
+  # =========================================================================
+  # 3. Full conda — conda simcoon + conda solvers (pypardiso / petsc4py)
+  # =========================================================================
+  conda:
+    name: conda · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: test
+          python-version: "3.12"
+
+      - name: Install simcoon from conda
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge -c set3mah simcoon pytest
+
+      - name: Install fedoo (master) + missing deps
+        shell: bash -l {0}
+        run: |
+          conda install -y -c conda-forge scipy numpy
+          pip install --no-deps "git+https://github.com/3MAH/fedoo.git@master"
+
+      - name: Install pypardiso (Windows/Linux x86)
+        if: runner.os == 'Windows' || runner.arch == 'X64'
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge pypardiso
+
+      - name: Install petsc4py (macOS/Linux arm)
+        if: runner.os != 'Windows' && runner.arch != 'X64'
+        shell: bash -l {0}
+        run: conda install -y -c conda-forge petsc4py
+
+      - name: Verify imports
+        shell: bash -l {0}
+        run: python -c "import simcoon; import fedoo; print('simcoon', simcoon.__version__); print('fedoo OK')"
+
+      - name: Run integration tests
+        shell: bash -l {0}
+        run: pytest tests/test_fedoo_integration.py -v

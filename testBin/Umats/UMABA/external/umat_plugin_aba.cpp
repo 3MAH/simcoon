@@ -31,18 +31,7 @@ using namespace std;
 using namespace arma;
 using namespace simcoon;
 
-#if defined(_WIN32) || defined(_WIN64)
-    #define LIB_EXPORT __declspec(dllexport)
-#elif defined(__GNUC__) || defined(__clang__)
-    #if __GNUC__ >= 4
-        #define LIB_EXPORT __attribute__((visibility("default")))
-    #else
-        #define LIB_EXPORT
-    #endif
-#else
-    #define LIB_EXPORT
-#endif
-
+// LIB_EXPORT comes from umat_plugin_api.hpp
 //declaration of the extern function to use
 extern "C"{
 	void umat_(double *stress, double *statev, double *ddsdde, double &sse, double &spd, double &scd, double &rpl, double *ddsddt, double *drplde, double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const double &predef, const double &dpred, char *cmname, const int &ndi, const int &nshr, const int &ntens, const int &nstatev, const double *props, const int &nprops, const double &coords, const double *drot, double &pnewdt, const double &celent, const double *dfgrd0, const double *dfgrd1, const int &noel, const int &npt, const double &layer, const int &kspt, const int &kstep, const int &kinc);

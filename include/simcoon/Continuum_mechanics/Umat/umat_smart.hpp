@@ -23,6 +23,9 @@
 */
 
 #pragma once
+#include <map>
+#include <string>
+#include <vector>
 #include <armadillo>
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
@@ -133,8 +136,7 @@ namespace simcoon{
     phase_characteristics rve;
     rve.sptr_matprops->update(0, umat_name, 1, psi_rve, theta_rve, phi_rve, props.n_elem, props);
     rve.construct(0,1);
-    natural_basis nb;
-    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev), nb);
+    rve.sptr_sv_global->update(zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(6), zeros(3,3), zeros(3,3), eye(3,3), eye(3,3), T_init, 0., nstatev, zeros(nstatev), zeros(nstatev));
     unsigned int statev_abaqus = 0;
     size_statev(rve, statev_abaqus);
     cout << "The Umat has a number of statev equal to: " << statev_abaqus << endl;	
@@ -440,20 +442,99 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
  * @endcode
 */
-void select_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
+void select_umat_T(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
+
+/**
+ * @brief What a kernel's raw @c sigma out-parameter holds.
+ *
+ * Every NATIVE simcoon kernel is @c kirchhoff: in the logarithmic framework the potential
+ * differentiates to \f$ \boldsymbol{\tau} \f$ per REFERENCE volume. It is the default route 
+ * stress, and \f$ \boldsymbol{\sigma} = \boldsymbol{\tau}/J \f$ is formed at the output
+ * boundaries only. @c cauchy is reserved for the plugin adapters (UMEXT, UMABA), whose
+ * contract belongs to the host code.
+ */
+enum class StressMeasure { kirchhoff, cauchy };
+
+// Declared in Functions/tensor.hpp (kept out of this widely included header).
+enum class Tensor2Type;
+
+/**
+ * @brief One tensorial internal variable of a kernel's @c statev: 6 engineering Voigt
+ *        components starting at @c offset, with its Tensor2Type (@c strain: engineering shear;
+ *        @c stress). The type selects the transport, through tensor2 (see umat_convention).
+ */
+struct StatevTensor {
+    int offset;
+    Tensor2Type type;
+};
+
+/**
+ * @brief The conventions a kernel's raw outputs are expressed in.
+ *
+ * The tangent rate is deliberately absent: every kernel is handed the solver's
+ * @c corate_type and must emit \f$ \mathbf{L}_t \f$ in it. Unlike the stress measure, the
+ * rate is therefore a public contract, not a per-kernel declaration.
+ *
+ * @c material_frame marks a kernel fed the logarithmic strain (a "box" kernel): on the finite
+ * route it runs in the frame that follows the material, \f$ \hat{\mathbf{R}}_{n+1} \f$ (the
+ * accumulated corate rotation for corates 0-3, the polar rotation of \f$ \mathbf{F}_1 \f$ for 4
+ * and 5), so its anisotropy axes rotate with the body and its @c statev is stored in that
+ * frame. It is then called with \f$ \Delta\mathbf{R} = \mathbf{I} \f$. Kernels built from
+ * \f$ \mathbf{F} \f$ are objective by construction and keep the lab frame.
+ *
+ * For corates 4 and 5 the frame-relative increment is a rotation-free stretch, and the
+ * dispatcher transports the tensors listed in @c statev_tensors with it, each with its variance.
+ * @c layout_declared says the list is complete (an empty list: no tensorial state); a material
+ * frame kernel that has not declared it is refused under corates 4 and 5.
+ *
+ * @see output_convention_of
+ */
+struct umat_convention {
+    StressMeasure stress;
+    bool material_frame = false;
+    bool layout_declared = false;
+    std::vector<StatevTensor> statev_tensors = {};
+};
+
+/**
+ * @brief The declared output conventions of a mechanical kernel.
+ *
+ * @param umat_name the 5-letter kernel name
+ * @throw std::invalid_argument if the kernel has not declared its conventions
+ */
+umat_convention output_convention_of(const std::string &umat_name);
+
+/**
+ * @brief The name -> dispatch id map that select_umat_M_finite switches on.
+ *
+ * Exposed so a test can assert that every kernel the finite dispatch serves has declared
+ * its conventions, without duplicating the list.
+ */
+const std::map<std::string, int> &finite_umat_names();
+
+/**
+ * @brief True when the named umat kernel's raw in/out stress is the KIRCHHOFF stress.
+ *
+ * Reads the same convention table as output_convention_of but never throws: a name with no
+ * finite convention (the small-strain-only kernels) returns false, i.e. the stress is left
+ * alone. Used by the python wrapper for every name it serves.
+ */
+bool stress_output_is_kirchhoff(const std::string &umat_name);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering non-linear kinematics
  * @param rve Reference to the phase characteristics.
- * @param DR arma::mat increment of rigid body rotation
- * @param Time value of step time at the beginning of the current increment 
+ * @param DR_global frame increment of the corate, in global coordinates (\f$ \Delta\mathbf{F} \f$ for corates 4 and 5)
+ * @param Time value of step time at the beginning of the current increment
  * @param DTime Increment of time
  * @param ndi number of direct stress components
  * @param nshr number of shear stress components
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
+ * @param corate_type objective rate (0 Jaumann, 1 Green-Naghdi, 2 logarithmic, 3 log_R, 4 Truesdell, 5 log_F)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details Under the logarithmic corates (2, 3, 5) the mechanical work is corrected to the true
+ * work per reference volume (see Delta_work_conjugacy). Example: 
  * @code 
     bool start = false;
     double Time = 0.;
@@ -482,10 +563,10 @@ void select_umat_T(phase_characteristics &rve, const arma::mat &DR,const double 
 
     abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev_macro, statev, ndi, nshr, drot, rve_sv_M->sigma, rve_sv_M->Lt, rve_sv_M->Etot, rve_sv_M->DEtot, rve_sv_M->T, rve_sv_M->DT, Time, DTime, props_macro, rve_sv_M->Wm, rve_sv_M->statev, DR, start);    
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
-    select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
+    select_umat_M_finite(rve, DR, Time, DTime, ndi, nshr, start, solver_type, corate_type, pnewdt);
  * @endcode
 */
-void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);    
+void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const int &corate_type, double &tnew_dt);
 
 /**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering small strain assumption
@@ -530,12 +611,12 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR,const 
     select_umat_M(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
  * @endcode
 */    
-void select_umat_M(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
+void select_umat_M(phase_characteristics &rve, const arma::mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt);
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
 void run_umat_T(phase_characteristics &rve, const arma::mat &DR,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, const unsigned int &control_type, double &tnew_dt);
 
-void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, double &);
+void run_umat_M(phase_characteristics &, const arma::mat &, const double &, const double &, const int &, const int &, bool &, const int &, const unsigned int &, const int &, double &);
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */    
     
 /**
@@ -596,7 +677,7 @@ void run_umat_M(phase_characteristics &, const arma::mat &, const double &, cons
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, rve_sv_M->sigma, rve_sv_M->statev, rve_sv_M->Wm, rve_sv_M->Lt);
  * @endcode
 */	
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt);
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom);
 
 /**
  * @brief Transfer variables from simcoon to Abaqus format, considering a mechanical constitutive law, returning all Abaqus variables
@@ -737,7 +818,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT);
  * @endcode
 */ 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT);
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom);
             
 
 /** @} */ // end of umat_mechanical group
