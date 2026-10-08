@@ -49,7 +49,7 @@ from simcoon.modular import (
     ChabocheHardening,
 )
 
-plt.rcParams["figure.figsize"] = (15, 5)
+plt.rcParams["figure.figsize"] = (13, 10)
 
 ###################################################################################
 # 1. The ladder of models
@@ -202,25 +202,36 @@ for name in MATERIALS:
 ###################################################################################
 # 5. Plots
 # --------
-# Left: the stress response to the strain figure-eight for Hill + AF at N_SHOW increments
-# per cycle, against the reference. Middle: error vs number of increments for the ladder
-# (line style = model, colour = mode). Right: residual history of one stress-driven Newton
-# increment for Hill + AF.
+# Top left: the imposed strain path (the figure-eight, with the N_SHOW increments marked).
+# Top right: the stress response of Hill + AF to it at N_SHOW increments per cycle, against
+# the reference. Bottom left: error vs number of increments for the ladder (line style =
+# model, colour = mode). Bottom right: residual history of one stress-driven Newton increment
+# for Hill + AF.
 
 show = "Hill + Armstrong-Frederick"
 fig = plt.figure()
 
-plt.subplot(1, 3, 1)
+plt.subplot(2, 2, 1)
+plt.grid(True)
+path_fine, path_show = figure_eight(N_FINE), figure_eight(N_SHOW)
+plt.plot(path_fine[:, 1], path_fine[:, 2], c="0.4", lw=1.2, label="imposed path")
+plt.plot(path_show[:, 1], path_show[:, 2], "o", c="k", ms=4, label=f"the {N_SHOW} increments")
+plt.xlabel(r"$\varepsilon_{11}$", size=13)
+plt.ylabel(r"$\gamma_{12}$", size=13)
+plt.title("Imposed strain path (other stresses free)", size=12)
+plt.legend(loc="best", fontsize=9)
+
+plt.subplot(2, 2, 2)
 plt.grid(True)
 plt.plot(*responses[show]["ref"], c="0.6", lw=1.0, label=f"reference ({N_FINE} inc.)")
 for mode, (label, color) in MODES.items():
     plt.plot(*responses[show][mode], "o-", c=color, lw=1.0, ms=3, label=f"{label}, {N_SHOW} inc.")
 plt.xlabel(r"$\sigma_{11}$ (MPa)", size=13)
 plt.ylabel(r"$\sigma_{12}$ (MPa)", size=13)
-plt.title(f"{show}: strain figure-eight", size=12)
+plt.title(f"{show}: stress response", size=12)
 plt.legend(loc="best", fontsize=9)
 
-plt.subplot(1, 3, 2)
+plt.subplot(2, 2, 3)
 plt.grid(True, which="both")
 styles = ["-", "--", "-.", ":"]
 for name, ls in zip(MATERIALS, styles):
@@ -233,7 +244,7 @@ plt.ylabel("relative stress error vs reference", size=13)
 plt.title("Accuracy at coarse increments", size=12)
 plt.legend(handles=handles, loc="best", fontsize=8)
 
-plt.subplot(1, 3, 3)
+plt.subplot(2, 2, 4)
 plt.grid(True, which="both")
 k = N_NEWTON // 4   # one increment on the loading branch
 for mode, (label, color) in MODES.items():
