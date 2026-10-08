@@ -54,13 +54,18 @@ struct ContinuumTangent {
  * - the criterion gradients \f$ \partial \Phi^l / \partial \boldsymbol{\sigma} \f$ (@p dPhidsigma_l),
  * - the increments \f$ \Delta s^j \f$ over the time step (@p Ds_j), which drive the active set,
  *
- * this routine computes
+ * this routine eliminates the multipliers from the linearised consistency conditions
+ * \f$ \sum_j \hat{B}^{lj}\, \mathrm{d}s^j = \frac{\partial \Phi^l}{\partial \boldsymbol{\sigma}} : \mathbf{L} : \mathrm{d}\boldsymbol{\varepsilon} \f$
+ * (criterion on the row, mechanism on the column) and computes
  * \f[
- *   \mathbf{P}_\varepsilon^l = \sum_m \bigl(\hat{B}^{-1}\bigr)_{ml}\,
+ *   \mathbf{P}_\varepsilon^l = \sum_m \bigl(\hat{B}^{-1}\bigr)_{lm}\,
  *                              \mathbf{L}\,\frac{\partial \Phi^m}{\partial \boldsymbol{\sigma}},
  *   \qquad
- *   \mathbf{L}_t = \mathbf{L} - \sum_l \boldsymbol{\kappa}^l \otimes \mathbf{P}_\varepsilon^l .
+ *   \mathbf{L}_t = \mathbf{L} - \sum_l \boldsymbol{\kappa}^l \otimes \mathbf{P}_\varepsilon^l ,
  * \f]
+ * so that \f$ \mathrm{d}s^l = \mathbf{P}_\varepsilon^l : \mathrm{d}\boldsymbol{\varepsilon} \f$.
+ * \f$ \hat{B} \f$ is not symmetric as soon as two coupled mechanisms are active together
+ * (reverse transformation and reorientation in the SMR* laws): the index order matters.
  *
  * with the standard active-set masking: a mechanism \f$ j \f$ is treated as inactive when
  * \f$ \Delta s^j \le \f$ @c simcoon::iota; the corresponding row/column of \f$ \hat{B} \f$ is

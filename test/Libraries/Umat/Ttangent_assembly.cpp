@@ -194,6 +194,40 @@ TEST(Ttangent_assembly, parity_zero_dLambda_multiMech)
     EXPECT_LT(norm(ct.invBhat - at.invBhat, "fro"), 1e-12);
 }
 
+TEST(Ttangent_assembly, multiMech_nonsymmetric_Bhat_eliminates_multipliers)
+{
+    // Two coupled mechanisms with a non-symmetric Bhat (criterion on the row, mechanism on
+    // the column), as in the SMR* laws when reverse transformation and reorientation are
+    // active together. Reference: direct elimination of ds from Bhat ds = dPhi:L:de.
+    const mat L = L_iso(70000., 0.3, "Enu");
+    std::vector<vec> kappa = {
+        L * vec({ 1., -0.5, -0.5, 0.2, 0.0, 0.0 }),
+        L * vec({ -0.3, 0.6, -0.3, 0.0, 0.4, 0.0 })
+    };
+    std::vector<vec> dPhi = {
+        { 1., -0.5, -0.5, 0.4, 0.0, 0.0 },
+        { -0.2, 0.7, -0.5, 0.0, 0.3, 0.1 }
+    };
+    mat Bhat(2, 2);
+    Bhat(0, 0) = dot(dPhi[0], kappa[0]) + 300.;
+    Bhat(0, 1) = dot(dPhi[0], kappa[1]) + 1400.;
+    Bhat(1, 0) = dot(dPhi[1], kappa[0]) - 3600.;
+    Bhat(1, 1) = dot(dPhi[1], kappa[1]) + 20000.;
+    const vec Ds = { 1e-3, 5e-4 };
+
+    mat DP(6, 2), K6(6, 2);
+    for (uword m = 0; m < 2; ++m) { DP.col(m) = dPhi[m]; K6.col(m) = kappa[m]; }
+    const mat ds_de = solve(Bhat, DP.t() * L);        // 2 x 6: ds^l = ds_de.row(l) . de
+    const mat Lt_ref = L - K6 * ds_de;
+
+    auto ct = assemble_continuum_tangent(Bhat, kappa, dPhi, Ds, L);
+
+    EXPECT_LT(norm(ct.Lt - Lt_ref, "fro"), 1e-9 * norm(L, "fro"));
+    for (uword l = 0; l < 2; ++l) {
+        EXPECT_LT(norm(ct.P_epsilon[l] - ds_de.row(l).t(), 2), 1e-9 * norm(ds_de, "fro"));
+    }
+}
+
 TEST(Ttangent_assembly, parity_inactive_mechanism_masked_out)
 {
     // Confirm the active-set mask still works in the algorithmic helper.

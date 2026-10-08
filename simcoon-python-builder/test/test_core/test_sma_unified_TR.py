@@ -83,3 +83,25 @@ def test_reorientation_off_loads_martensite_like_smadi(name, extra, smadi):
     assert res["Stress"][0].max() > 2500.0
     np.testing.assert_allclose(res["Stress"], ref["Stress"], rtol=0, atol=0.5)
     np.testing.assert_allclose(res["Statev"][I_XI], ref["Statev"][I_XI], rtol=0, atol=1e-4)
+
+
+@pytest.mark.parametrize("name, extra", TR_VARIANTS)
+@pytest.mark.parametrize("y_reo", [100.0, 70.0, 30.0])
+def test_superelastic_unloading_with_low_reorientation_limit(name, extra, y_reo):
+    """Above Af with a low Y_Reo, the reverse reorientation surface is reached while the reverse
+    transformation is running: both mechanisms are active together and their local Jacobian is
+    not symmetric. The stress-controlled unloading must follow, and the superelastic loop close
+    (regression: transposed multiplier elimination in assemble_continuum_tangent)."""
+    free = ["stress"] * 6
+    uni = ["strain"] + ["stress"] * 5
+    blocks = [Block(steps=[
+        StepMeca(control=uni, value=[EPS_MAX, 0, 0, 0, 0, 0], time=1.0, ninc=200, Dn_mini=0.01),
+        StepMeca(control=free, value=[0.0] * 6, time=1.0, ninc=200, Dn_mini=0.01),
+    ])]
+    res = sim.solver.solve(blocks, name, np.asarray(SMADI + extra + reo(y_reo), dtype=float), 30,
+                           T_init=T_START, corate=3)
+    assert res.status == 0
+    assert res["Time"][-1] == pytest.approx(2.0)
+    assert res["Statev"][I_XI].max() > 0.5       # the transformation did take place
+    assert res["Statev"][I_XI][-1] < 1e-3        # and reversed completely
+    assert abs(res["Strain"][0][-1]) < 1e-4      # the loop closes
