@@ -118,9 +118,9 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// Validate up front, in serial context: the per-point dispatch below
 		// runs inside a non-exception-safe parallel region (GCD/OpenMP) where a
 		// throw would std::terminate the host process.
-		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
-			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
-			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
+			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
+			                            + std::to_string(tangent_mode));
 		}
 		if (corate_type < 0 || corate_type > 5) {
 			throw std::invalid_argument("corate must be 0 (Jaumann), 1 (Green-Naghdi), 2 (logarithmic), "
@@ -449,9 +449,9 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
 
-		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_algorithmic) {
-			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum) or 2 (algorithmic); got "
-			                            + std::to_string(tangent_mode) + " (3 = closest-point is reserved)");
+		if (tangent_mode < simcoon::tangent_none || tangent_mode > simcoon::tangent_closest_point) {
+			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
+			                            + std::to_string(tangent_mode));
 		}
 		static const std::map<string, int> list_umat = { {"ELISO",1},{"ELIST",2},{"ELORT",3},{"EPICP",4},{"EPKCP",5},{"ZENER",6},{"ZENNK",7},{"PRONK",8},{"SMADI",9},{"SMADC",9},{"SMAAI",9},{"SMAAC",9} };
 		auto it_umat = list_umat.find(umat_name_py);

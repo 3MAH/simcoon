@@ -26,6 +26,7 @@ Below are examples illustrating Simcoon's mechanical constitutive laws library.
 - **MODUL** - Elasticity block + von Mises plasticity with Voce hardening
 - **MODUL_finite** - The same composition under finite strain (Hencky hyperelasto-plasticity)
 - **MODUL_hyper_visco** - Yeoh hyperelastic block + Prony branches (finite-strain viscoelasticity)
+- **MODUL_closest_point** - Closest-point projection (``tangent_mode=3``) vs the cutting-plane loop under a non-proportional figure-eight: accuracy, Newton convergence, cost
 
 **Shape Memory Alloys:**
 

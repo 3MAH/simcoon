@@ -243,7 +243,7 @@ PYBIND11_MODULE(_core, m)
 
     // Register the from-python converters for read and solver
     // tangent_mode named constants (see parameter.hpp): 0 = none/explicit,
-    // 1 = continuum, 2 = algorithmic (default), 3 = closest-point (reserved)
+    // 1 = continuum, 2 = algorithmic (default), 3 = closest-point
     m.attr("tangent_none") = simcoon::tangent_none;
     m.attr("tangent_continuum") = simcoon::tangent_continuum;
     m.attr("tangent_algorithmic") = simcoon::tangent_algorithmic;

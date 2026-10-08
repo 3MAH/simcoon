@@ -184,8 +184,11 @@ constitutive models (also exposed as named constants:
        renumbering)
    * - 3
      - closest-point
-     - Reserved for the closest-point-projection exact operator (future
-       release); currently raises an error
+     - Closest-point-projection integrator: the plastic strain uses the flow of
+       the converged state, so the consistent operator is the exact Jacobian
+       of the discrete update for every criterion and hardening law the
+       integrator supports (rolling out law by law in this version; a law
+       without it returns the algorithmic operator of mode 2)
 
 .. note::
    **Scope of the algorithmic tangent (2.1).** The plastic return mapping is a
@@ -197,15 +200,19 @@ constitutive models (also exposed as named constants:
    path, and no tangent can be its exact derivative: the algorithmic operator is
    then a close approximation (about :math:`10^{-4}` to :math:`10^{-2}` relative,
    more for Tresca), which slows the global Newton iteration but leaves the
-   converged response unchanged. The closest-point integrator that makes it exact
-   (mode 3) is planned for the next version.
+   converged response unchanged. Mode 3 replaces the cutting-plane scheme by a
+   closest-point projection, which makes the operator exact for the laws that
+   carry it.
 
 .. note::
    **2.0 renumbering.** Pre-2.0, ``tangent_mode 0`` meant *continuum* and
-   ``1`` meant *algorithmic*; there was no "none" mode. The converged
-   response is identical in every mode (the tangent steers the global
-   Newton iteration, not the residual) — only iteration counts and run
-   time change. Scripts passing explicit values should shift them by +1;
+   ``1`` meant *algorithmic*; there was no "none" mode. Modes 0, 1 and 2
+   share the same integrator, so their converged response is identical (the
+   tangent steers the global Newton iteration, not the residual) — only
+   iteration counts and run time change; mode 3 integrates differently and
+   its converged response differs from theirs by the increment's second
+   order wherever the flow direction rotates within the step. Scripts
+   passing explicit values should shift them by +1;
    scripts relying on the default silently upgrade from continuum to the
    (faster) algorithmic operator.
 

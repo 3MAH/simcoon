@@ -52,6 +52,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/elasticity_module.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/strain_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 namespace simcoon {
 
@@ -110,6 +111,11 @@ private:
     /// A single guarded row keeps the unguarded legacy-CCP commit semantics
     /// and commits identically to its reference kernel.
     bool drift_guard_armed_{false};
+
+    // Closest-point integrator (tangent_mode == tangent_closest_point): the converged solve
+    // of the last return_mapping (converged == false when that branch did not run), read by
+    // compute_tangent for the exact operator.
+    ReturnMappingResult cpp_result_;
 
 public:
     /**
@@ -331,6 +337,9 @@ private:
      * The algorithm:
      * 1. Computes elastic prediction (trial stress)
      * 2. Evaluates constraint functions (Phi) from all mechanisms
+     * 2'. An admissible trial state (Phi <= 0 on every row) is committed at
+     *    once — Ds = 0, the rows without multipliers (damage) updated, the
+     *    stress refreshed — the same elastic guard for every integrator
      * 3. Solves for multiplier increments via Fischer-Burmeister
      * 4. Updates internal variables (incremental CCP update) and recomputes
      *    the stress
@@ -341,14 +350,22 @@ private:
      * refresh at a lagged stress is non-contractive for curved criteria at
      * large increments (\f$ \Delta s\,\mathbf{n}:\mathbf{L}:\mathbf{n} /
      * \sigma_Y > 1 \f$ — traced as a period-2 limit cycle on DFA and
-     * divergence on Hill power-law where CCP converges); making it robust
-     * means solving state and stress simultaneously, i.e. the closest-point
-     * return map (reserved tangent_closest_point mode, future release).
+     * divergence on Hill power-law where CCP converges); solving state and
+     * stress simultaneously is what the closest-point branch does.
      *
      * By the reference CCP convention a finite unconverged-at-maxiter state
      * is still committed (the damage row in particular is integrated
      * explicitly and never drives the FB error to precision_); run() rejects
      * only unusable states with a step cut (see its reject block).
+     *
+     * Under tangent_closest_point the cutting-plane loop is replaced by
+     * return_mapping_cpp() when every multiplier-carrying mechanism
+     * (carries_multipliers()) answers supports_closest_point() and ndi == 3;
+     * otherwise (Tresca or Drucker row, condensed stress state) the
+     * cutting-plane loop runs and compute_tangent returns the algorithmic
+     * operator — the documented degradation of mode 3. A hyperelastic block
+     * is handed to the helper as its elastic response (evaluated at every
+     * iterate), so it is integrated exactly too.
      *
      * @param Etot Total strain at start of increment
      * @param DEtot Strain increment
@@ -359,10 +376,13 @@ private:
      * @param DTime Time increment
      * @param ndi Number of direct stress components
      * @param Ds_total Output: converged multiplier increments
+     * @param tangent_mode selects the closest-point branch (tangent_closest_point)
+     * @return false only when the closest-point solve did not converge (the
+     *         caller cuts the step); the cutting-plane loop always returns true
      *
      * @see Fischer_Burmeister_m() in num_solve.hpp
      */
-    void return_mapping(
+    bool return_mapping(
         const arma::vec& Etot,
         const arma::vec& DEtot,
         arma::vec& sigma,
@@ -371,6 +391,41 @@ private:
         double DT,
         double DTime,
         int ndi,
+        arma::vec& Ds_total,
+        int tangent_mode
+    );
+
+
+    /**
+     * @brief Closest-point projection of the multiplier-carrying mechanisms
+     *        (tangent_mode == tangent_closest_point).
+     *
+     * Adapter over closest_point_return_mapping() (callback <-> interface mapping
+     * in return_mapping.hpp). Mechanisms without multiplier rows (viscoelastic
+     * branches, damage) are evaluated once at the converged effective stress
+     * afterwards (compute_constraints + update): the fixed point the cutting-plane
+     * loop converges to under strain equivalence. The committed stress is
+     * recomputed from the refreshed state (refresh_stress), so the (sigma, state)
+     * pair is self-consistent; the converged solve is kept in cpp_result_ for
+     * compute_tangent().
+     *
+     * Precondition: the elastic prediction has run (sigma_eff_ is the trial
+     * effective stress, L_cur_ the elastic operator, every mechanism at its
+     * start state) and @p Y_crit holds the rows' normalisations from that
+     * evaluation. return_mapping's elastic guard normally keeps an admissible
+     * trial away from here; one that still arrives (damage fixed point not
+     * settled on the first pass) is caught by the helper's own guard.
+     *
+     * @return false when the solve did not converge (nothing committed; the
+     *         caller restores the start state and cuts the step)
+     */
+    bool return_mapping_cpp(
+        const arma::vec& Etot_end,
+        double DT_init,
+        double DTime,
+        int ndi,
+        const arma::vec& Y_crit,
+        arma::vec& sigma,
         arma::vec& Ds_total
     );
 
@@ -408,14 +463,25 @@ private:
      * local Jacobian \f$ \hat{B} = -B \f$ and the mechanism caches. The
      * remaining mechanisms (Prony viscoelasticity, scalar damage — flows
      * independent of stress) keep their continuum contribution, applied on
-     * top in composition order, exactly as in the continuum mode.
+     * top in composition order, exactly as in the continuum mode. With no
+     * active multiplier (Ds <= iota on every row) the assembly would mask
+     * every mechanism and return L: it is skipped, Lt is the elastic operator
+     * with the damage / total-strain maps.
+     *
+     * tangent_closest_point (3): when return_mapping_cpp() produced the state,
+     * cpp_consistent_tangent() on its converged ingredients — the exact
+     * Jacobian of the discrete update (symmetric for isotropic / Prager
+     * hardening, not for Armstrong-Frederick / Chaboche); the mechanisms
+     * without multiplier rows add their continuum contribution as in mode 2.
+     * When the closest-point branch did not run (see return_mapping), the
+     * algorithmic operator.
      *
      * @param sigma Current (converged) stress
      * @param Ds_total Total multiplier increments
      * @param Lt Output: tangent modulus
      * @param tangent_mode tangent_* constant (parameter.hpp): 0 = none
      *        (Lt = elastic L), 1 = continuum, 2 = algorithmic (Simo–Hughes),
-     *        3 = closest-point (reserved, throws)
+     *        3 = closest-point
      */
     void compute_tangent(
         const arma::vec& sigma,

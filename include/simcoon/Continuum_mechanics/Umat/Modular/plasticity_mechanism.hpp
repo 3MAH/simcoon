@@ -58,9 +58,31 @@ namespace simcoon {
  * (\f$ \mathbf{n} \f$ follows \f$ \boldsymbol{\sigma} - \mathbf{X} \f$) or a Hill, DFA,
  * Drucker or Tresca criterion \f$ \mathbf{n} \f$ rotates between iterates: the update is
  * path dependent and the tangent approximate (\f$ 10^{-4} \f$ to \f$ 10^{-2} \f$
- * relative, more for Tresca). The closest-point integrator (tangent_closest_point) is
- * reserved for the next version. Under damage the mechanism works on the effective
- * stress (strain equivalence, see DamageMechanism).
+ * relative, more for Tresca). Under tangent_closest_point the orchestrator integrates the
+ * row by closest-point projection instead (closest_point_return_mapping): the state is
+ * rebuilt from the start values at every iterate (refresh_state) and the Newton and tangent
+ * use the total derivatives of the composed map (closest_point_ingredients), which makes the
+ * consistent operator exact for every criterion with a flow Hessian and every hardening law.
+ * The cutting-plane members above are untouched by it. Under damage the mechanism works on
+ * the effective stress (strain equivalence, see DamageMechanism).
+ *
+ * Closest-point linearisation. With \f$ \boldsymbol{\alpha}_i = (\boldsymbol{\alpha}_i^n +
+ * \Delta p\,\mathbf{n})/(1 + D_i\Delta p) \f$ the backstress is affine in the normal,
+ * \f$ \mathbf{X} = \mathbf{X}_0 + \gamma\mathbf{T}\mathbf{n} \f$
+ * (KinematicHardening::backward_euler_factors), so at fixed \f$ (\boldsymbol{\sigma},
+ * \Delta p) \f$ the normal solves \f$ \mathbf{G}(\mathbf{n}) = \mathbf{n} -
+ * \boldsymbol{\eta}(\boldsymbol{\sigma} - \mathbf{X}_0 - \gamma\mathbf{T}\mathbf{n}) = 0 \f$,
+ * Jacobian \f$ \mathbf{A} = \mathbf{I} + \gamma\mathbf{H}\mathbf{T} \f$ (one Newton step for
+ * von Mises, whose normal is scale-invariant along \f$ \mathrm{dev}\,\boldsymbol{\xi} \f$).
+ * Then \f$ \mathbf{D} = \mathbf{A}^{-1}\mathbf{H} \f$, \f$ \tilde{\mathbf{n}} = \mathbf{n} -
+ * \gamma\mathbf{D}^{T}\mathbf{T}\mathbf{n} \f$, \f$ K = -\mathbf{n}\cdot\mathbf{T}\mathbf{A}^{-1}
+ * \boldsymbol{\beta} - R'(p) \f$, \f$ d\mathbf{n}/d\Delta p = -\mathbf{A}^{-1}
+ * \mathbf{H}\mathbf{T}\boldsymbol{\beta} \f$. Limits: \f$ \gamma = 0 \f$ gives the partial
+ * forms (J2 + isotropic: closest-point and cutting-plane coincide); Prager gives
+ * \f$ \tilde{\mathbf{n}} = \mathbf{n} \f$, \f$ d\mathbf{n}/d\Delta p = 0 \f$, \f$ K = -(C + R') \f$
+ * but \f$ \mathbf{D} \ne \mathbf{H} \f$ (the partial Hessian is inexact as soon as
+ * \f$ \gamma > 0 \f$). The exact operator is symmetric for isotropic and Prager
+ * hardening, not for Armstrong-Frederick / Chaboche (dynamic recovery).
  */
 class PlasticityMechanism final : public StrainMechanism {
 private:
@@ -88,6 +110,7 @@ private:
                                                 ///< compute_constraints and reused
                                                 ///< for sigma_eff + hardening_modulus
     mutable double H_total_{0.0};               ///< Hardening modulus (iso + kin)
+    std::vector<ClosestPointIngredients> cpp_cache_{ClosestPointIngredients{}};  ///< built by refresh_state, read by closest_point_ingredients
 
 public:
     /**
@@ -210,13 +233,23 @@ public:
     [[nodiscard]] const std::vector<tensor4>* dLambda_dsigma(
         const arma::vec& sigma) const override;
 
+    /// has_flow_hessian(): von Mises, Hill, DFA, anisotropic. Tresca and Drucker have
+    /// none and degrade the UMAT to the cutting-plane loop under tangent_closest_point.
+    [[nodiscard]] bool supports_closest_point() const override;
+
     /// Backward-Euler refresh from start values (CPP contract): p = p_n + dp,
-    /// EP = EP_n + dp n, back-strains via closed forms; short fixed point on
-    /// the n <-> X coupling when kinematic hardening is present.
+    /// EP = EP_n + dp n, back-strains via the laws' closed forms, the n <-> X
+    /// coupling by a 6x6 Newton on A = I + gamma H T, then the total derivatives
+    /// of the class note into closest_point_ingredients(). False when the Newton
+    /// fails to converge.
     bool refresh_state(
         const arma::vec& sigma,
         const arma::vec& Ds_total,
         int offset) override;
+
+    [[nodiscard]] const std::vector<ClosestPointIngredients>* closest_point_ingredients() const override {
+        return &cpp_cache_;
+    }
 
     /// Flow-rule residual of the committed state (tensorial strain norms,
     /// flow direction at the end stress shifted by the backstress); see

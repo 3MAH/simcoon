@@ -211,6 +211,13 @@ void PragerHardening::refresh_state(double dp, const tensor2& n,
     a_var.set_tensor2(a_var.as_tensor2_start() + dp * n);
 }
 
+void PragerHardening::backward_euler_factors(double dp, const arma::vec& n,
+                                             const InternalVariableCollection& /*ivc*/,
+                                             double& gamma, arma::vec& beta) const {
+    gamma = dp * (2.0 / 3.0) * C_;
+    beta = (2.0 / 3.0) * C_ * n;
+}
+
 // ArmstrongFrederickHardening
 void ArmstrongFrederickHardening::configure(const arma::vec& props, int& offset) {
     C_ = props(offset);
@@ -251,6 +258,14 @@ void ArmstrongFrederickHardening::refresh_state(double dp, const tensor2& n,
     // Backward Euler closed form: alpha = (alpha_n + dp n) / (1 + D dp).
     auto& a_var = ivc.get(a_key_);
     a_var.set_tensor2((1.0 / (1.0 + D_ * dp)) * (a_var.as_tensor2_start() + dp * n));
+}
+
+void ArmstrongFrederickHardening::backward_euler_factors(double dp, const arma::vec& n,
+                                                         const InternalVariableCollection& ivc,
+                                                         double& gamma, arma::vec& beta) const {
+    const double f = (2.0 / 3.0) * C_ / (1.0 + D_ * dp);
+    gamma = dp * f;
+    beta = f * (n - D_ * ivc.get(a_key_).raw_voigt());
 }
 
 // ChabocheHardening
@@ -312,6 +327,18 @@ void ChabocheHardening::refresh_state(double dp, const tensor2& n,
         auto& a_var = ivc.get(a_keys_[i]);
         a_var.set_tensor2((1.0 / (1.0 + D_(i) * dp))
                           * (a_var.as_tensor2_start() + dp * n));
+    }
+}
+
+void ChabocheHardening::backward_euler_factors(double dp, const arma::vec& n,
+                                               const InternalVariableCollection& ivc,
+                                               double& gamma, arma::vec& beta) const {
+    gamma = 0.0;
+    beta = arma::zeros(6);
+    for (int i = 0; i < N_; ++i) {
+        const double f = (2.0 / 3.0) * C_(i) / (1.0 + D_(i) * dp);
+        gamma += dp * f;
+        beta += f * (n - D_(i) * ivc.get(a_keys_[i]).raw_voigt());
     }
 }
 

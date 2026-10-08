@@ -62,7 +62,7 @@ constexpr double precision_umat = 1E-9;
 constexpr int tangent_none = 0;          ///< skip tangent assembly, Lt = elastic L (explicit integration)
 constexpr int tangent_continuum = 1;     ///< continuum operator (pre-2.0 mode 0)
 constexpr int tangent_algorithmic = 2;   ///< Simo-Hughes consistent operator (pre-2.0 mode 1)
-constexpr int tangent_closest_point = 3; ///< closest-point-projection exact operator (reserved)
+constexpr int tangent_closest_point = 3; ///< closest-point-projection integrator with its exact operator (return_mapping.hpp)
 constexpr int tangent_default = tangent_algorithmic;
 
 constexpr double div_tnew_dt_umat = 0.2;
