@@ -501,7 +501,7 @@ bool ModularUMAT::return_mapping(
         elastic_pass = true;
     }
 
-    if (tangent_mode == tangent_closest_point && ndi == 3 && elasticity_.has_constant_stiffness()) {
+    if (tangent_mode == tangent_closest_point && ndi == 3) {
         bool all_cpp = true;
         for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
             all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
@@ -558,7 +558,7 @@ bool ModularUMAT::return_mapping_cpp(
     arma::vec& Ds_total
 ) {
     const arma::vec sigma_tr = sigma_eff_;
-    const arma::mat& L = L_cur_;   // linear block: constant over the solve
+    const arma::mat L = L_cur_;   // elastic tangent at the trial (the block's constant L when linear)
 
     // Helper rows = the multiplier-carrying mechanisms' rows in order; glob maps them into
     // Ds_total.
@@ -613,9 +613,19 @@ bool ModularUMAT::return_mapping_cpp(
     };
     hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl) {
         std::vector<arma::vec> c(N);
-        for (int k = 0; k < N; ++k) c[k] = Dl(k) * (L * ing[k]->dLambda_dDs);
+        for (int k = 0; k < N; ++k) c[k] = Dl(k) * ing[k]->dLambda_dDs;
         return c;
     };
+    if (!elasticity_.has_constant_stiffness()) {
+        // Hyperelastic block: the helper evaluates it at every iterate; the trial elastic strain
+        // is the one of the elastic prediction (mechanisms at their start state).
+        arma::vec E_inel = arma::zeros(6);
+        for (const auto& mech : mechanisms_) E_inel += mech->inelastic_strain();
+        hooks.eps_el_tr = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
+        hooks.elastic_response = [&, ndi](const arma::vec& eps_el, arma::vec& sig, arma::mat& Lt) {
+            elasticity_.evaluate(eps_el, ndi, sig, Lt);
+        };
+    }
 
     std::vector<ReturnMechanism> mechs(N);
     for (int k = 0; k < N; ++k) {

@@ -279,9 +279,9 @@ public:
      */
     [[nodiscard]] ElasticityType type() const noexcept { return type_; }
 
-    /// Whether evaluate() is the constant operator L0() (every linear type) — the
-    /// precondition of the closest-point branch, which freezes L over its solve. False
-    /// for a hyperelastic potential, whose tangent moves with the strain.
+    /// Whether evaluate() is the constant operator L0() (every linear type). False for a
+    /// hyperelastic potential, whose tangent moves with the strain: the closest-point branch
+    /// then evaluates the block at every iterate instead of using L0().
     [[nodiscard]] bool has_constant_stiffness() const noexcept { return type_ != ElasticityType::HYPER_INVARIANTS; }
 
     /**

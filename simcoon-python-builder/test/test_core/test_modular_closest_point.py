@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 
 import simcoon as sim
-from simcoon.modular import (ModularMaterial, IsotropicElasticity, Plasticity, VonMisesYield,
-                             HillYield, TrescaYield, VoceHardening, LinearIsotropicHardening,
-                             PragerHardening, ArmstrongFrederickHardening, ChabocheHardening,
-                             Viscoelasticity, Damage)
+from simcoon.modular import (ModularMaterial, IsotropicElasticity, NeoHookeanElasticity, Plasticity,
+                             VonMisesYield, HillYield, TrescaYield, VoceHardening,
+                             LinearIsotropicHardening, PragerHardening, ArmstrongFrederickHardening,
+                             ChabocheHardening, Viscoelasticity, Damage)
 from simcoon.solver import StepMeca, solve
 
 _UNIAXIAL = ["strain"] + ["stress"] * 5
@@ -137,6 +137,19 @@ def test_closest_point_composite_tangent_is_exact(mechs):
     e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
     Lt, fd = _tangent_and_fd(mat, e, s, sv, 3)
     assert np.linalg.norm(Lt - fd) < 1e-7 * np.linalg.norm(fd)
+
+
+def test_closest_point_with_hyperelastic_block_is_exact():
+    """A hyperelastic block is handed to the helper as its elastic response and evaluated at
+    every iterate (the tangent moves with the strain): the mode-3 operator stays the exact
+    Jacobian with a rotating normal on top (J2 + AF)."""
+    mat = ModularMaterial(elasticity=NeoHookeanElasticity(mu=1100., kappa=5000.),
+                          mechanisms=[CASES["J2+AF"][0]])
+    r = _plastic_state(mat, 3)
+    e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
+    Lt3, fd3 = _tangent_and_fd(mat, e, s, sv, 3)
+    assert np.linalg.norm(Lt3 - fd3) < 1e-7 * np.linalg.norm(fd3)
+    assert sv[1] > 1e-4   # the plastic row is active (p grew)
 
 
 def test_tresca_degrades_to_the_cutting_plane_loop():

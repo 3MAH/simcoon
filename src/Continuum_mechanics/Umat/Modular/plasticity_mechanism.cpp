@@ -218,18 +218,14 @@ bool PlasticityMechanism::refresh_state(
     const arma::vec& sigma,
     const arma::vec& Ds_total,
     int offset) {
-    // dp >= 0: the closest-point integrator owns Ds_total and projects it; the state is
-    // re-derived from the start values at every call (CPP contract).
-    const double dp = std::max(Ds_total(offset), 0.0);
-    const arma::vec T = Ir05();   // engineering -> tensorial shear: X = X_0 + gamma T n
+    const double dp = std::max(Ds_total(offset), 0.0);   // the integrator projects Ds >= 0 too
+    const arma::vec T = Ir05();   // engineering -> tensorial shear
     const bool has_kin = kin_hard_->num_backstresses() > 0;
 
     auto& p_var = ivc_.get("p");
     p_var.scalar() = p_var.scalar_start() + dp;
 
-    // n <-> X coupling at fixed (sigma, dp): G(n) = n - eta(sigma - X(n)) = 0, X affine in n,
-    // Jacobian A = I + gamma H T. Zero steps for von Mises from the relaxed-backstress normal
-    // (eta is scale-invariant along dev xi), a few for Hill/DFA/Ani.
+    // Newton on the n <-> X coupling (class note in the header).
     arma::vec n(6), xi(6);
     double gamma = 0.0;
     arma::vec beta = arma::zeros(6);
@@ -237,9 +233,8 @@ bool PlasticityMechanism::refresh_state(
         n = yield_->flow_direction(sigma);
         xi = sigma;
     } else {
-        // Start from the normal of the dp-relaxed start backstress: exact for von Mises, and
-        // measured better than warm-starting from the previous normal (which costs J2 real
-        // Newton steps for a 7 % gain on Hill).
+        // Start = normal of the dp-relaxed start backstress: exact for von Mises (zero steps);
+        // warm-starting from the previous normal measured worse (J2 pays real steps).
         kin_hard_->refresh_state(dp, strain(arma::vec(arma::zeros(6))), ivc_);   // alpha_i^n / (1 + D_i dp)
         n = yield_->flow_direction(sigma - kin_hard_->total_backstress(ivc_).to_arma_voigt());
         bool converged = false;
@@ -269,7 +264,7 @@ bool PlasticityMechanism::refresh_state(
     auto& EP_var = ivc_.get("EP");
     EP_var.raw_voigt() = EP_var.raw_voigt_start() + dp * n;
 
-    // Total derivatives at this state (class note).
+    // Total derivatives at this state (class note in the header).
     ClosestPointIngredients& out = cpp_cache_[0];
     const arma::mat H = yield_->flow_hessian(xi);
     const double dR_dp = iso_hard_->dR_dp(p_var.scalar());

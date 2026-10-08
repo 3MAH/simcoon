@@ -60,14 +60,28 @@ ReturnMappingResult closest_point_return_mapping(
     std::vector<mat> D_j(N);
     vec R_sigma(6);
 
+    // Elastic block: Lc is its tangent at the iterate (the given L for a linear block).
+    mat Lc = L;
+    const bool nonlinear_block = static_cast<bool>(hooks.elastic_response);
     auto eval_basic = [&](const vec &sig, const vec &Dl) {
-        R_sigma = sig - sigma_tr;
         for (int j = 0; j < N; j++) {
             Phi(j) = mechanisms[j].Phi(sig);
             n_l[j] = mechanisms[j].dPhi_dsigma(sig);
             Lambda_j[j] = mechanisms[j].Lambda ? mechanisms[j].Lambda(sig) : n_l[j];
-            kappa[j] = L * Lambda_j[j];
-            R_sigma += Dl(j) * kappa[j];
+        }
+        if (nonlinear_block) {
+            vec eps_el = hooks.eps_el_tr;
+            for (int j = 0; j < N; j++) eps_el -= Dl(j) * Lambda_j[j];
+            vec sigma_F;
+            hooks.elastic_response(eps_el, sigma_F, Lc);
+            R_sigma = sig - sigma_F;
+            for (int j = 0; j < N; j++) kappa[j] = Lc * Lambda_j[j];
+        } else {
+            R_sigma = sig - sigma_tr;
+            for (int j = 0; j < N; j++) {
+                kappa[j] = L * Lambda_j[j];
+                R_sigma += Dl(j) * kappa[j];
+            }
         }
     };
 
@@ -109,13 +123,16 @@ ReturnMappingResult closest_point_return_mapping(
         for (int j = 0; j < N; j++) {
             D_j[j] = mechanisms[j].dLambda_dsigma ? mechanisms[j].dLambda_dsigma(r.sigma)
                                                   : zeros(6, 6);
-            M += r.Dlambda(j) * (L * D_j[j]);
+            M += r.Dlambda(j) * (Lc * D_j[j]);
         }
         mat Minv;
         if (!inv(Minv, M)) return r;   // condensation breakdown: caller step-cuts
 
-        std::vector<vec> c = hooks.flow_state_coupling ? hooks.flow_state_coupling(r.sigma, r.Dlambda)
-                                                       : std::vector<vec>(N, zeros(6));
+        std::vector<vec> c(N, zeros(6));
+        if (hooks.flow_state_coupling) {
+            const std::vector<vec> dLambda = hooks.flow_state_coupling(r.sigma, r.Dlambda);
+            for (int j = 0; j < N && j < int(dLambda.size()); j++) c[j] = Lc * dLambda[j];
+        }
 
         const vec MinvR = Minv * R_sigma;
         std::vector<vec> Minv_kc(N);   // M^-1 (kappa_j + c_j), for B_red and the stress step

@@ -22,37 +22,53 @@
  *
  * Solves the fully implicit local system
  * \f[
- *   \b{R}_\sigma = \boldsymbol{\sigma} - \boldsymbol{\sigma}^{tr}
- *     + \sum_j \Delta s^j\,\mathbf{L}:\boldsymbol{\Lambda}_\varepsilon^j(\boldsymbol{\sigma},\mathbf{V}) = \mathbf{0},
+ *   \b{R}_\sigma = \boldsymbol{\sigma} - \mathbf{F}\Big(\boldsymbol{\varepsilon}_e^{tr}
+ *     - \sum_j \Delta s^j\,\boldsymbol{\Lambda}_\varepsilon^j(\boldsymbol{\sigma},\mathbf{V})\Big) = \mathbf{0},
  *   \qquad
  *   \Delta s^j \ge 0,\; \Phi^j \le 0,\; \Delta s^j\,\Phi^j = 0,
  * \f]
  * with the internal state \f$ \mathbf{V} \f$ resolved by backward Euler at every iterate
  * (inner-consistent scheme), via a condensed semi-smooth Newton iteration on the reduced
- * \f$ N \times N \f$ multiplier system handed to Fischer_Burmeister_m(). The condensation
- * operator \f$ \mathbf{M} = \mathbf{I} + \mathbf{L}:\sum_j \Delta s^j\,
+ * \f$ N \times N \f$ multiplier system handed to Fischer_Burmeister_m(). \f$ \mathbf{F} \f$ is the
+ * elastic block: by default the linear one, \f$ \mathbf{F}(\boldsymbol{\varepsilon}_e) =
+ * \mathbf{L}\boldsymbol{\varepsilon}_e \f$, so that \f$ \b{R}_\sigma = \boldsymbol{\sigma} -
+ * \boldsymbol{\sigma}^{tr} + \sum_j \Delta s^j \mathbf{L}\boldsymbol{\Lambda}^j \f$; a nonlinear
+ * block (hyperelastic potential) is given through ReturnStateHooks::elastic_response, and
+ * \f$ \mathbf{L} \f$ is then its tangent at the iterate. The condensation operator
+ * \f$ \mathbf{M} = \mathbf{I} + \mathbf{L}:\sum_j \Delta s^j\,
  * \partial\boldsymbol{\Lambda}_\varepsilon^j/\partial\boldsymbol{\sigma} \f$ is the same
  * operator as in assemble_algorithmic_tangent(), so at convergence the exact consistent
  * tangent is available from the returned ingredients at no extra cost
  * (see cpp_consistent_tangent()).
  *
- * Unlike the legacy convex-cutting-plane (CCP) loops, the inelastic strain uses the flow at
- * the CONVERGED state: \f$ \boldsymbol{\varepsilon}^{in} = \boldsymbol{\varepsilon}^{in}_n
+ * Unlike the convex-cutting-plane (CCP) loops, the inelastic strain uses the flow at the
+ * CONVERGED state: \f$ \boldsymbol{\varepsilon}^{in} = \boldsymbol{\varepsilon}^{in}_n
  * + \sum_j \Delta s^j \boldsymbol{\Lambda}_\varepsilon^j(\boldsymbol{\sigma}_{n+1},
- * \mathbf{V}_{n+1}) \f$. For radial flows (von Mises) the two integrators coincide; for
- * anisotropic criteria the converged stresses differ by \f$ O(\|\Delta\varepsilon\|^2) \f$.
+ * \mathbf{V}_{n+1}) \f$. For radial flows (von Mises with isotropic hardening) the two
+ * integrators coincide; where the flow direction rotates within the increment the converged
+ * stresses differ by \f$ O(\|\Delta\varepsilon\|^2) \f$ on one increment.
  *
- * Robustness policy (user decision, Oct 2026): the iterate is never clamped and the tolerance is
- * never loosened. Besides the Newton itself the loop has (i) the \f$ \Delta s^j \ge 0 \f$
- * projection of the multipliers, (ii) a backtracking line search on the merit
- * \f$ e = e_{FB}(\Phi, \Delta s) + \|\mathbf{R}_\sigma\|/\sigma_{ref} \f$ (the Fischer-Burmeister
- * residual of Fischer_Burmeister_m on the TRUE constraints plus the stress residual), and (iii) the
- * deactivation snap: after 20 iterations a row with \f$ \Phi^l < 0 \f$ and
- * \f$ \Delta s^l |B_{ll}| < 10^{-2} Y^l_{crit} \f$ is set exactly inactive (\f$ \Delta s^l = 0 \f$),
- * which is the exact complementarity solution the semi-smooth iteration otherwise approaches
- * asymptotically. Non-convergence (maxiter, singular condensation, NaN) returns
- * `converged = false`; the caller requests the standard step cut (tnew_dt = 0.5) and never falls
- * back to the cutting-plane loop.
+ * Robustness. The semi-smooth Newton is globalised by (i) the \f$ \Delta s^j \ge 0 \f$
+ * projection of the multipliers, (ii) a backtracking line search (step halved, at most
+ * max_backtrack times) on the merit \f$ e = e_{FB}(\Phi, \Delta s) +
+ * \|\mathbf{R}_\sigma\|/\sigma_{ref} \f$ — the Fischer-Burmeister residual of the TRUE
+ * constraints (Fischer_Burmeister_residual) plus the stress residual — a trial whose inner
+ * state solve fails or is not finite counting as a rejected step, and (iii) the deactivation
+ * snap: after 20 iterations a row with \f$ \Phi^l < 0 \f$ and \f$ \Delta s^l |B_{ll}| <
+ * 10^{-2} Y^l_{crit} \f$ is set exactly inactive (\f$ \Delta s^l = 0 \f$), which is the
+ * complementarity solution the semi-smooth iteration otherwise approaches asymptotically
+ * (the FB function has no finite-step root on that boundary). The iterate is never clamped
+ * and the tolerance never loosened: a cap on the Newton step or an acceptance at a looser
+ * residual would commit a state that is not a solution of the system above. Non-convergence
+ * (maxiter, singular condensation, LAPACK failure, NaN) returns `converged = false`; the
+ * caller requests the standard step cut (tnew_dt = 0.5), which is the robust answer at the
+ * level where the increment can be changed, and never falls back to a cutting-plane update.
+ * Alternatives for the local loop, not implemented: a smoothed Fischer-Burmeister function
+ * with continuation \f$ \mu \to 0 \f$ (Chen-Harker-Kanzow-Smale), which trades the
+ * non-smooth boundary for an outer loop; an active-set Newton (working set from the sign of
+ * \f$ \Phi \f$, plain Newton on it, reactivation checks), which is faster per iterate but
+ * needs its own combinatorial safeguard. Both would be variants of this function, not of
+ * its callers.
  *
  * @note The callbacks map one-to-one onto the modular StrainMechanism interface —
  * compute_constraints -> Phi, closest_point_ingredients -> dPhi_dsigma / dLambda_dsigma / K /
@@ -106,12 +122,21 @@ struct ReturnStateHooks {
     /// \cdot \partial\mathbf{V}/\partial\Delta s^j \f$ (NxN) at the current iterate — the same
     /// rows the CCP loops assemble.
     std::function<arma::mat(const arma::vec &sigma, const arma::vec &Dlambda)> K;
-    /// OPTIONAL multiplier-side flow/state chain, N vectors of 6:
-    /// \f$ \mathbf{c}^j = \sum_q \Delta s^q\,\mathbf{L}:\partial\boldsymbol{\Lambda}^q/
-    /// \partial\mathbf{V}\cdot\partial\hat{\mathbf{V}}/\partial\Delta s^j \f$. Empty => omitted
-    /// (superlinear instead of quadratic for state-coupled mechanisms; converged solution
-    /// unaffected).
+    /// OPTIONAL multiplier-side flow/state chain, N vectors of 6 (strain-typed):
+    /// \f$ \Delta s^j\,\partial\boldsymbol{\Lambda}^j/\partial\Delta s^j|_\sigma \f$ — the flow's
+    /// dependence on its own multiplier through the state (backstress relaxation). The function
+    /// forms the flux chain \f$ \mathbf{c}^j = \mathbf{L}\,\cdot \f$ that with the elastic
+    /// tangent at the iterate and adds it to \f$ \boldsymbol{\kappa}^j \f$ in the Newton and in
+    /// the tangent ingredients. Empty => omitted (superlinear instead of quadratic for
+    /// state-coupled mechanisms; converged solution unaffected).
     std::function<std::vector<arma::vec>(const arma::vec &sigma, const arma::vec &Dlambda)> flow_state_coupling;
+    /// OPTIONAL nonlinear elastic block: given the elastic strain (6, engineering Voigt),
+    /// return the stress (6) and the tangent (6x6). Empty => linear block, \f$ \mathbf{F} =
+    /// \mathbf{L}\boldsymbol{\varepsilon}_e \f$ with the L of the call. When set, the caller
+    /// also provides the trial elastic strain (ReturnStateHooks::eps_el_tr), and the L argument
+    /// of closest_point_return_mapping() is the block's tangent at the trial state.
+    std::function<void(const arma::vec &eps_el, arma::vec &sigma, arma::mat &L)> elastic_response;
+    arma::vec eps_el_tr;   ///< trial elastic strain (6), required with elastic_response
 };
 
 /// Iteration controls; zero-valued members fall back to the simcoon defaults.
@@ -169,10 +194,10 @@ ReturnMappingResult closest_point_return_mapping(
  * @brief Single-mechanism convenience overload (mirrors the tangent_assembly overloads).
  *
  * @param flow_state_coupling OPTIONAL multiplier-side state chain
- * \f$ \mathbf{c} = \Delta s\,\mathbf{L}:\partial\boldsymbol{\Lambda}/\partial\mathbf{V}
- * \cdot\partial\hat{\mathbf{V}}/\partial\Delta s \f$ (6). Required for the consistent tangent
- * to be exact when the flow depends on \f$ \Delta s \f$ through the state (e.g. backstress);
- * empty otherwise.
+ * \f$ \Delta s\,\partial\boldsymbol{\Lambda}/\partial\Delta s|_\sigma \f$ (6, strain-typed;
+ * the function multiplies by the elastic tangent). Required for the consistent tangent to be
+ * exact when the flow depends on \f$ \Delta s \f$ through the state (e.g. backstress); empty
+ * otherwise.
  */
 ReturnMappingResult closest_point_return_mapping(
     const arma::vec &sigma_tr,

@@ -360,11 +360,12 @@ private:
      *
      * Under tangent_closest_point the cutting-plane loop is replaced by
      * return_mapping_cpp() when every multiplier-carrying mechanism
-     * (carries_multipliers()) answers supports_closest_point(), the elastic
-     * block has a constant stiffness and ndi == 3; otherwise (Tresca or
-     * Drucker row, hyperelastic block, condensed stress state) the
+     * (carries_multipliers()) answers supports_closest_point() and ndi == 3;
+     * otherwise (Tresca or Drucker row, condensed stress state) the
      * cutting-plane loop runs and compute_tangent returns the algorithmic
-     * operator — the documented degradation of mode 3.
+     * operator — the documented degradation of mode 3. A hyperelastic block
+     * is handed to the helper as its elastic response (evaluated at every
+     * iterate), so it is integrated exactly too.
      *
      * @param Etot Total strain at start of increment
      * @param DEtot Strain increment
