@@ -87,13 +87,10 @@ rate_configs = {
 }
 colors = {"slow": "blue", "medium": "black", "fast": "red"}
 
-fig = plt.figure()
-ax1 = fig.add_subplot(1, 2, 1)
-ax2 = fig.add_subplot(1, 2, 2)
-
+results = {}
 for key, cfg in rate_configs.items():
     blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, cfg["pathfile"]))
-    res = sim.solver.solve(
+    results[key] = sim.solver.solve(
         blocks,
         umat_name,
         props,
@@ -103,10 +100,17 @@ for key, cfg in rate_configs.items():
         corate=corate_type,
         orientation=(psi_rve, theta_rve, phi_rve),
     )
+
+fig = plt.figure()
+ax1 = fig.add_subplot(1, 2, 1)
+ax2 = fig.add_subplot(1, 2, 2)
+
+for key, cfg in rate_configs.items():
+    res = results[key]
     e11 = res["Strain"][0]
     s11 = res["Stress"][0]
     time = res["Time"]
-    Wm, Wm_r, Wm_ir, Wm_d = res["Wm"]
+    Wm_d = res["Wm"][3]
     # the medium path carries a reverse / reload cycle: plot only its first step
     n = len(e11) if key != "medium" else np.argmax(e11) + 1
     ax1.plot(e11[:n], s11[:n], c=colors[key], label=cfg["label"])
@@ -135,18 +139,7 @@ plt.show()
 # The medium-rate path continues with a compression to -10 % and a reload to +10 %. The
 # hardening is isotropic, so the flow stress keeps growing with :math:`p` on each reversal.
 
-blocks, T_init, _ = sim.solver.load_path_json(os.path.join(path_data, "EPJCK_path.json"))
-res = sim.solver.solve(
-    blocks,
-    umat_name,
-    props,
-    nstatev,
-    T_init=T_init,
-    solver_type=solver_type,
-    corate=corate_type,
-    orientation=(psi_rve, theta_rve, phi_rve),
-)
-
+res = results["medium"]
 e11 = res["Strain"][0]
 s11 = res["Stress"][0]
 time = res["Time"]

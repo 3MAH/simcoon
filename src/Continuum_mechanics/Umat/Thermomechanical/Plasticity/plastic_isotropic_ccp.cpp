@@ -31,6 +31,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 
 using namespace std;
 using namespace arma;
@@ -149,14 +150,15 @@ void umat_plasticity_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     double Hp=0.;
     double dHpdp=0.;
 
-    if (p > simcoon::iota)	{
-        dHpdp = m*k*pow(p, m-1);
-        Hp = k*pow(p, m);
-    }
-    else {
-        dHpdp = 0.;
-        Hp = 0.;
-    }
+    // Power-law hardening k p^m through the modular block: for m < 1 the exact slope m k p^(m-1)
+    // is infinite at the onset and the cutting-plane Newton cycles on the first plastic increment
+    // (committed off-surface, silently); PowerLawHardening is exact for p >= 1e-6 and a C1
+    // quadratic blend below.
+    PowerLawHardening hardening;
+    int hardening_offset = 0;
+    hardening.configure(vec{k, m}, hardening_offset);
+    Hp = hardening.R(p);
+    dHpdp = hardening.dR_dp(p);
     
     //Variables values at the start of the increment
     vec sigma_start = sigma;
@@ -196,14 +198,8 @@ void umat_plasticity_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > simcoon::iota)	{
-            dHpdp = m*k*pow(p, m-1);
-            Hp = k*pow(p, m);
-        }
-        else {
-            dHpdp = 0.;
-            Hp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(sigma);
         dPhidp = -1.*dHpdp;
         

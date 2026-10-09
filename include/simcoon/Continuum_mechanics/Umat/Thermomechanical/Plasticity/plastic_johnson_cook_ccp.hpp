@@ -52,13 +52,19 @@ namespace simcoon{
  * \f$ \partial\boldsymbol{\sigma}/\partial\theta = -\mathbf{L}:\boldsymbol{\alpha} -
  * \boldsymbol{\kappa}\,P_\theta \f$.
  *
- * **Heat source.** No Taylor-Quinney coefficient is introduced: \f$ r \f$ is the sum of the
- * thermoelastic term \f$ N \f$ of the Gibbs framework, linearized with respect to the strain
- * and temperature increments with the entropy
- * \f$ \eta = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$, and of
- * the intrinsic dissipation evaluated on the converged increment,
+ * **Entropy and heat source.** The stored hardening energy
+ * \f$ G^{ir} = f_\theta(\theta)\,B p^{n+1}/(n+1) \f$ depends on the temperature, so besides the
+ * thermoelastic entropy \f$ \eta_r = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$
+ * the kernel carries \f$ \eta_{ir} = -\partial G^{ir}/\partial\theta = -f'_\theta\, B p^{n+1}/(n+1) \geq 0 \f$
+ * (\f$ W_t^{ir} \f$ accumulates \f$ (\theta + \tfrac12\Delta\theta)\,\Delta\eta_{ir} \f$). No
+ * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the sum of the reversible couplings
+ * evaluated on the converged increment, the thermoelastic \f$ -\theta\,\boldsymbol{\alpha}:\Delta\boldsymbol{\sigma}/\Delta t \f$
+ * and the hardening-entropy coupling \f$ -\theta\,(\partial\eta_{ir}/\partial p)\,\Delta p/\Delta t \f$
+ * with \f$ \partial\eta_{ir}/\partial p = -f'_\theta B p^n \f$, of the heat-capacity and
+ * entropy-increment terms of EPICP's framework, and of the intrinsic dissipation on the
+ * converged increment,
  * \f$ \Gamma\,\Delta t = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
- * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$ with \f$ A_p = -B p^{n} \f$ (the increment
+ * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$ with \f$ A_p = -f_\theta B p^{n} \f$ (the increment
  * \f$ W_m^d \f$ accumulates, same energy split as the mechanical kernel). EPICP's
  * thermomechanical kernel reconstructs \f$ \Gamma \f$ from its linearization
  * \f$ \boldsymbol{\Gamma}_\varepsilon : \Delta\boldsymbol{\varepsilon} + \Gamma_\theta \Delta\theta \f$,
@@ -68,8 +74,11 @@ namespace simcoon{
  * \f$ \mathbf{P}_\varepsilon \to 0 \f$ under step refinement and the linearized dissipation
  * vanishes while the physical one stays finite. The linearizations
  * \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ and \f$ \partial r/\partial\theta \f$
- * keep the \f$ \boldsymbol{\Gamma}_\varepsilon \f$, \f$ \Gamma_\theta \f$ terms as the Newton
- * derivatives.
+ * keep the \f$ \boldsymbol{\Gamma}_\varepsilon \f$, \f$ \Gamma_\theta \f$ terms (first-order
+ * derivatives of the dissipation increment, \f$ O(\Delta p) \f$ relative) as the Newton
+ * derivatives: they govern the convergence rate of the coupled Newton, the residual uses \f$ r \f$.
+ * Under adiabatic loading the first law reads \f$ W_t = W_m^d \f$, which the kernel satisfies to
+ * the step error.
  *
  * **Tangent modes.** The mechanical block \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$
  * follows @p tangent_mode (continuum or algorithmic). As in the other thermomechanical kernels,

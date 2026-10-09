@@ -53,7 +53,9 @@ Small-strain mechanical models
      - Von Mises + power-law isotropic hardening
      - legacy (kept)
      - E, nu, alpha, sigmaY, k, m
-     - Pedagogical reference of the CCP return mapping
+     - Pedagogical reference of the CCP return mapping; the hardening goes
+       through the modular PowerLawHardening (C1 onset blend below p = 1e-6
+       for m < 1, exact above), as EPJCK
    * - EPKCP
      - Von Mises + power-law isotropic + Prager kinematic
      - modular (adapter)
@@ -74,7 +76,8 @@ Small-strain mechanical models
        CCP loop; the rate factor is clamped at 1 below edot0. 9 statev
        (T_init, p, EP, edot_p). Thermomechanical twin with (rho, c_p)
        prepended, dPhi/dT from the thermal softening. tangent_mode 0 returns
-       the elastic L (explicit integration).
+       the elastic L in the mechanical kernel (explicit integration); the
+       thermomechanical twin promotes it to the continuum operator, as EPICP_T.
    * - EPHIL / EPTRI
      - Hill yield + power-law isotropic hardening
      - modular (adapter)

@@ -6,6 +6,8 @@ The C++ kernel tests (Ttangent_EPJCK) check the law against its closed form; her
 are the ones a user of ``sim.solver.solve`` relies on.
 """
 
+import functools
+
 import numpy as np
 import pytest
 
@@ -18,25 +20,54 @@ NSTATEV = 9
 UNIAXIAL = ["strain"] + ["stress"] * 5
 
 
+@functools.lru_cache(maxsize=None)
 def _tension(time, eps=0.10, ninc=100, T_init=293.15):
+    # cached: several tests read the same uniaxial runs; the results are not mutated
     step = StepMeca(control=UNIAXIAL, value=[eps, 0, 0, 0, 0, 0], time=time, ninc=ninc)
     return solve(step, "EPJCK", JC, NSTATEV, T_init=T_init)
 
 
+def _power_hardening(p, B, n, p_reg=1.0e-6):
+    """B p^n, exact for p >= p_reg and the C1 quadratic onset blend of PowerLawHardening below."""
+    if n >= 1.0 or p >= p_reg:
+        return B * p**n if p > 0.0 else 0.0
+    a = B * p_reg ** (n - 1.0) * (2.0 - n)
+    b = B * p_reg ** (n - 2.0) * (n - 1.0)
+    return a * p + b * p * p if p > 0.0 else a * p
+
+
 def _jc_yield(p, pdot, T):
     A, B, n, C, edot0, m, T_ref, T_melt = JC[3:11]
-    rate = 1.0 + C * max(np.log(pdot / edot0), 0.0)
+    rate = 1.0 + C * max(np.log(pdot / edot0), 0.0) if pdot > 0.0 else 1.0
     Tstar = min(max((T - T_ref) / (T_melt - T_ref), 0.0), 1.0)
-    return (A + B * p**n) * rate * (1.0 - Tstar**m)
+    return (A + _power_hardening(p, B, n)) * rate * (1.0 - Tstar**m)
 
 
 @pytest.mark.parametrize("time, pdot_expected", [(10.0, 0.01), (1.0, 0.1), (1.0e-3, 100.0)])
 def test_uniaxial_tension_sits_on_the_johnson_cook_surface(time, pdot_expected):
     res = _tension(time)
-    s11, p, pdot = res["Stress"][0, -1], res["Statev"][1, -1], res["Statev"][8, -1]
+    s11, p, pdot = res["Stress"][0], res["Statev"][1], res["Statev"][8]
     # uniaxial: Mises = s11; the plastic strain rate is the one of the loading
-    assert pdot == pytest.approx(pdot_expected, rel=0.05)
-    assert s11 == pytest.approx(_jc_yield(p, pdot, 293.15), rel=1e-6)
+    assert pdot[-1] == pytest.approx(pdot_expected, rel=0.05)
+    # on the surface at EVERY plastic point, the onset increment included (the un-regularized
+    # power hardening used to leave it 2-3 % below the surface)
+    plastic = p > 0.0
+    sigma_Y = np.array([_jc_yield(pk, pdk, 293.15) for pk, pdk in zip(p[plastic], pdot[plastic])])
+    np.testing.assert_allclose(s11[plastic], sigma_Y, rtol=1e-6)
+
+
+def test_fine_time_steps_stay_on_the_surface_and_refine_consistently():
+    """Below DTime ~ C (A + B p^n) / (3 G edot0) (~5e-5 s for 4340) the clamped rate factor used
+    to make the cutting-plane Newton cycle between its two branches: silently off-surface states
+    and a final stress 30 % too high at 6400 increments. The branch selection at the kink keeps
+    every increment on the surface and the response independent of the step."""
+    coarse = _tension(1.0e-3, ninc=100)
+    fine = _tension(1.0e-3, ninc=3200)          # DTime = 3e-7 s
+    s11, p, pdot = fine["Stress"][0], fine["Statev"][1], fine["Statev"][8]
+    plastic = p > 0.0
+    sigma_Y = np.array([_jc_yield(pk, pdk, 293.15) for pk, pdk in zip(p[plastic], pdot[plastic])])
+    np.testing.assert_allclose(s11[plastic], sigma_Y, rtol=1e-7)
+    assert fine["Stress"][0, -1] == pytest.approx(coarse["Stress"][0, -1], rel=1e-4)
 
 
 def test_stress_increases_with_strain_rate_and_is_clamped_below_edot0():
@@ -58,10 +89,12 @@ def test_thermomechanical_twin_heats_up_adiabatically_and_softens():
     step = StepThermomeca(control=UNIAXIAL, value=[0.10, 0, 0, 0, 0, 0], time=1.0e-3, ninc=100,
                           thermal_control="heat_flux", Q=0.0)
     res = solve(step, "EPJCK", props_T, NSTATEV, T_init=293.15)
-    T_end, Wm_d = res["Temp"][-1], res["Wm"][3, -1]
+    T_end, Wm_d, Wt = res["Temp"][-1], res["Wm"][3, -1], res["Wt"][0, -1]
     assert T_end > 293.15 + 10.0, "plastic dissipation must heat the material"
-    # adiabatic energy balance: rho c_p dT ~ dissipated work (thermal expansion work is small)
-    assert rho * c_p * (T_end - 293.15) == pytest.approx(Wm_d, rel=0.05)
+    # adiabatic first law: the thermal work (heat capacity + thermoelastic + hardening-entropy
+    # couplings) equals the dissipated work, to the step error
+    assert Wt == pytest.approx(Wm_d, rel=0.02)
+    assert rho * c_p * (T_end - 293.15) == pytest.approx(Wm_d, rel=0.15)
     # the isothermal mechanical run at the same rate is stiffer than the self-heated one
     iso = _tension(1.0e-3)["Stress"][0, -1]
     assert res["Stress"][0, -1] < iso

@@ -20,8 +20,6 @@
 ///       the exact heat source of the Gibbs framework
 ///@version 1.0
 
-#include <iostream>
-#include <fstream>
 #include <cmath>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
@@ -31,14 +29,12 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
-
-///@brief props (13): rho, c_p, E, nu, alpha, A, B, n, C, edot0, m, T_ref, T_melt
-///@brief statev (9): T_init, p, EP(6), edot_p (output)
 
 void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
@@ -47,7 +43,6 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
 
     //From the props to the material properties
     double rho = props(0);
@@ -70,7 +65,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     //Elastic stiffness tensor
     mat L = L_iso(E, nu, "Enu");
 
-    ///@brief Temperature initialization
+    //Temperature initialization
     double T_init = statev(0);
     //From the statev to the internal variables
     double p = statev(1);
@@ -85,7 +80,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     //Rotation of internal variables (tensors)
     EP = rotate_strain(EP, DR);
 
-    ///@brief Initialization
+    //Initialization
     if(start)
     {
         T_init = T;
@@ -107,28 +102,48 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     //Additional parameters
     double c_0 = rho*c_p;
 
-    // Thermal softening at the end-of-increment temperature; T* clamped to [0, 1)
-    double Tstar = (T + DT - T_ref) / (T_melt - T_ref);
-    if (Tstar < 0.) Tstar = 0.;
-    if (Tstar >= 1.) Tstar = 1. - simcoon::iota;
+    // Thermal softening factor f_T = 1 - T*^m and its temperature derivative; T* clamped to
+    // [0, 1) (defined below T_ref, never at the singular melting point), the derivative is zero
+    // where the clamped factor is flat
+    auto homologous = [&](const double &theta) {
+        double Tstar = (theta - T_ref) / (T_melt - T_ref);
+        if (Tstar < 0.) Tstar = 0.;
+        if (Tstar >= 1.) Tstar = 1. - simcoon::iota;
+        return Tstar;
+    };
+    auto dthermal_dT = [&](const double &Tstar) {
+        return (Tstar > simcoon::iota && Tstar < 1. - simcoon::iota)
+            ? -m_jc * pow(Tstar, m_jc - 1.) / (T_melt - T_ref) : 0.;
+    };
+    const double Tstar_start = homologous(T);
+    const double Tstar = homologous(T + DT);
+    const double thermal_factor_start = 1. - pow(Tstar_start, m_jc);
     const double thermal_factor = 1. - pow(Tstar, m_jc);
+    const double dthermal_dT_start = dthermal_dT(Tstar_start);
+    const double dthermal_dT_end = dthermal_dT(Tstar);
 
-    // Strain hardening Hp = B p^n
-    double Hp = 0.;
-    double dHpdp = 0.;
-    if (p > simcoon::iota) {
-        dHpdp = n_jc * B_jc * pow(p, n_jc - 1.);
-        Hp = B_jc * pow(p, n_jc);
-    }
+    // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
+    // power-law block carries the blend; same law, no second implementation)
+    PowerLawHardening hardening;
+    int hardening_offset = 0;
+    hardening.configure(vec{B_jc, n_jc}, hardening_offset);
+    double Hp = hardening.R(p);
+    double dHpdp = hardening.dR_dp(p);
+    // Stored energy of the hardening, G^ir = f_T B p^(n+1)/(n+1) (the blend below p_reg
+    // contributes O(p_reg^(n+1)), neglected in the integral)
+    auto stored_hardening = [&](const double &pp) {
+        return (pp > 0.) ? B_jc * pow(pp, n_jc + 1.) / (n_jc + 1.) : 0.;
+    };
 
-    // Rate factor: evaluated in the CCP loop from the implicit Dp/DTime; 1 at the reference rate
+    // Rate factor and yield stress: evaluated in the CCP loop from the implicit Dp/DTime
     double rate_factor = 1.;
-    double sigmaY_jc = (A_jc + Hp) * rate_factor * thermal_factor;
+    double sigmaY_jc = 0.;
 
-    //Variables values at the start of the increment
+    //Variables values at the start of the increment; hardening force A_p = -f_T B p^n
     vec sigma_start = sigma;
     vec EP_start = EP;
-    double A_p_start = -Hp;
+    const double p_start = p;
+    double A_p_start = -thermal_factor_start*Hp;
 
     //Variables required for the loop
     vec s_j = zeros(1);
@@ -136,7 +151,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     vec Ds_j = zeros(1);
     vec ds_j = zeros(1);
 
-    ///Elastic prediction - Accounting for the thermal prediction
+    //Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
     sigma = el_pred(L, Eel, ndi);
 
@@ -149,11 +164,32 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     vec dPhidsigma = zeros(6);
     double dPhidtheta = 0.;
 
-    //Compute the explicit flow direction
-    vec Lambdap = eta_stress(sigma);
+    // Flow direction Lambda = dPhi/dsigma (associated J2) and kappa = L:Lambda, set in the loop
+    vec Lambdap = zeros(6);
     std::vector<vec> kappa_j(1);
-    kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
+
+    // Branch selection at the rate kink x0 = edot0*DTime, where Phi(Dp) changes from the
+    // quasi-static branch (rate factor 1) to the convex logarithmic one. A Newton started at
+    // Dp = 0 with the quasi-static slope overshoots the kink and the log branch throws it back
+    // below zero: a 2-cycle to maxiter_umat at small DTime. So the branch is decided first from
+    // Phi at the kink (radial estimate), the loop starts AT the kink on the log branch with the
+    // right derivative of the rate factor, and Newton is then monotone (convex branch).
+    bool log_branch = false;
+    if (DTime > simcoon::iota) {
+        const double x0 = edot0*DTime;
+        const vec Lambda_trial = eta_stress(sigma);
+        const double Phi_x0 = Mises_stress(sigma) - x0*sum(Lambda_trial%(L*Lambda_trial))
+                              - (A_jc + hardening.R(p + x0))*thermal_factor;
+        if (Phi_x0 > 0.) {
+            log_branch = true;
+            Ds_j(0) = x0;
+            s_j(0) += x0;
+            EP = EP + x0*Lambda_trial;
+            Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
+            sigma = el_pred(L, Eel, ndi);
+        }
+    }
 
     //Loop parameters
     int compteur = 0;
@@ -164,15 +200,8 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
 
         p = s_j(0);
 
-        // Strain hardening
-        if (p > simcoon::iota) {
-            dHpdp = n_jc * B_jc * pow(p, n_jc - 1.);
-            Hp = B_jc * pow(p, n_jc);
-        }
-        else {
-            dHpdp = 0.;
-            Hp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
 
         // Strain rate, fully implicit: pdot = Dp/DTime, clamped at edot0 (rate_factor >= 1)
         const double Dp_j = Ds_j(0);
@@ -180,7 +209,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
         if (DTime > simcoon::iota) {
             const double edot_eff = std::max(Dp_j / DTime, edot0);
             rate_factor = 1. + C_jc * log(edot_eff / edot0);
-            if (Dp_j / DTime > edot0) {
+            if (edot_eff > edot0 || log_branch) {
                 drate_dDp = C_jc / (edot_eff * DTime);
             }
         }
@@ -198,7 +227,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
         //compute Phi and the derivatives
         Phi(0) = Mises_stress(sigma) - sigmaY_jc;
 
-        Lambdap = eta_stress(sigma);
+        Lambdap = dPhidsigma;
         kappa_j[0] = L*Lambdap;
 
         K(0,0) = dPhidp;
@@ -215,6 +244,18 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
         sigma = el_pred(L, Eel, ndi);
     }
 
+    // The loop reads p at the top and corrects s_j at the bottom: bring p and the hardening to
+    // the converged iterate (EP and sigma already are)
+    p = s_j(0);
+    Hp = hardening.R(p);
+    dHpdp = hardening.dR_dp(p);
+
+    // A loop that leaves at maxiter_umat has not met the yield surface: the state would be
+    // committed off-surface, so ask the solver for a step cut instead
+    if (error > simcoon::precision_umat) {
+        tnew_dt = 0.5;
+    }
+
     //Computation of the increments of variables
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
@@ -225,10 +266,8 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
         edot_p_out = Dp / DTime;
     }
 
-    // dPhi/dT: thermal softening, (A + Hp) f_rate m T*^(m-1) / (T_melt - T_ref) > 0
-    if (Tstar > simcoon::iota) {
-        dPhidtheta = (A_jc + Hp) * rate_factor * m_jc * pow(Tstar, m_jc - 1.) / (T_melt - T_ref);
-    }
+    // dPhi/dT = -(A + Hp) f_rate df_T/dT > 0 (softening); zero where the clamped factor is flat
+    dPhidtheta = -(A_jc + Hp) * rate_factor * dthermal_dT_end;
 
     //Computation of the tangent modulus via the shared leading-mechanism helper (doc 7.4).
     mat Bhat = zeros(1, 1);
@@ -262,8 +301,12 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);
     double eta_r_start = c_0*log(T/T_init) + sum(alpha%sigma_start);
 
-    double eta_ir = 0.;
-    double eta_ir_start = 0.;
+    // Irreversible entropy of the temperature-dependent stored hardening, eta_ir = -dG^ir/dT
+    double eta_ir = -dthermal_dT_end*stored_hardening(p);
+    double eta_ir_start = -dthermal_dT_start*stored_hardening(p_start);
+    // d eta_ir / dp at the end of the increment: the reversible coupling -theta deta_ir/dp pdot
+    // enters the heat source like the thermoelastic -theta alpha:dsigma/dt
+    const double deta_ir_dp = -dthermal_dT_end*Hp;
 
     double eta = eta_r + eta_ir;
     double eta_start = eta_r_start + eta_ir_start;
@@ -278,8 +321,11 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     vec N_epsilon = zeros(6);
     double N_theta = 0.;
 
-    double A_p = -Hp;
-    double dA_pdp = -dHpdp;
+    // Hardening force A_p = -f_T B p^n (the dissipation f_T [A f_rate + B p^n (f_rate - 1)] Dp
+    // is then non-negative at every temperature and rate) and its derivatives
+    double A_p = -thermal_factor*Hp;
+    double dA_pdp = -thermal_factor*dHpdp;
+    double dA_pdtheta = -dthermal_dT_end*Hp;
 
     // Dissipation increment over the step (the quantity Wm_d accumulates)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
@@ -291,21 +337,27 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     }
     else {
         Gamma_epsilon = dA_pdp*P_epsilon[0]*(Dp/DTime) + A_p/DTime*P_epsilon[0] + (dSdE*DEP)*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
-        Gamma_theta = dA_pdp*P_theta[0]*(Dp/DTime) + A_p/DTime*P_theta[0] + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
+        Gamma_theta = (dA_pdp*P_theta[0] + dA_pdtheta)*(Dp/DTime) + A_p/DTime*P_theta[0] + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
 
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
+        // Thermoelastic coupling and the coupling of the stored hardening, -theta deta_ir/dp pdot
+        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha) - (T + DT)/DTime*deta_ir_dp*P_epsilon[0];
+        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime)
+                  - (T + DT)/DTime*deta_ir_dp*P_theta[0] - deta_ir_dp*Dp/DTime;
 
         drdE = N_epsilon + Gamma_epsilon;
         drdT = N_theta + Gamma_theta;
 
-        // The dissipation enters r through its converged increment, not its linearization
-        // Gamma_epsilon:DEtot + Gamma_theta*DT (which is what EPICP_T uses): at fixed DTime
-        // the rate-dependent Dp is a logarithmic function of DEtot, so the first-order
-        // expansion built on P_epsilon = invBhat L:dPhi/dsigma -- with the rate term
-        // C (A + Hp)/Dp in Bhat -- underestimates it and vanishes under step refinement.
-        // Gamma_epsilon / Gamma_theta remain the Newton linearizations of this term.
-        r = sum(N_epsilon%DEtot) + N_theta*DT + Dgamma_loc/DTime;
+        // The dissipation enters r through its converged increment (the form of the viscous
+        // kernels, viscous_heat_source), not its linearization Gamma_epsilon:DEtot +
+        // Gamma_theta*DT (EPICP_T): at fixed DTime the rate-dependent Dp is a logarithmic
+        // function of DEtot, so the first-order expansion built on P_epsilon = invBhat
+        // L:dPhi/dsigma -- with the rate term C (A + Hp)/Dp in Bhat -- underestimates it and
+        // vanishes under step refinement. Gamma_epsilon / Gamma_theta are its first-order
+        // derivatives, so drdE / drdT stay the Newton linearizations of this r.
+        // Thermoelastic and hardening-entropy couplings on the converged increment
+        const double N_coupling = -(T + DT)*(sum(alpha%(sigma - sigma_start)) + deta_ir_dp*Dp)/DTime
+                                  - Deta*DT/DTime - rho*c_p*DT/DTime;
+        r = N_coupling + Dgamma_loc/DTime;
     }
 
     //Computation of the mechanical and thermal work quantities
@@ -318,7 +370,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     Wt_r += (T+0.5*DT)*Deta_r;
     Wt_ir += (T+0.5*DT)*Deta_ir;
 
-    ///@brief statev evolving variables
+    //statev evolving variables
     statev(0) = T_init;
     statev(1) = p;
 

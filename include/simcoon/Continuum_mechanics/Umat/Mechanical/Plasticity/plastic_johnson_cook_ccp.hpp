@@ -56,9 +56,13 @@ namespace simcoon{
  * **Regularization of the Johnson-Cook law.** The logarithmic rate factor is clamped at its
  * reference value, \f$ \ln(\dot p/\dot\varepsilon_0) \to \max\left(\ln(\dot p/\dot\varepsilon_0), 0\right) \f$:
  * below \f$ \dot\varepsilon_0 \f$ (and in particular at the onset of yielding, \f$ \dot p = 0 \f$)
- * the material responds with its quasi-static, reference-rate yield stress. The homologous
+ * the material responds with its quasi-static, reference-rate yield stress (a \f$ C^0 \f$ kink
+ * of \f$ \Phi \f$ at \f$ \dot p = \dot\varepsilon_0 \f$, the definition of the law). The homologous
  * temperature is clamped to \f$ [0, 1) \f$ so that the law is defined below
- * \f$ \theta_{\mathrm{ref}} \f$ and never reaches the singular melting point.
+ * \f$ \theta_{\mathrm{ref}} \f$ and never reaches the singular melting point. The power-law
+ * hardening \f$ B p^{n} \f$ with \f$ n < 1 \f$ has an infinite slope at the onset, which makes the
+ * cutting-plane Newton overshoot and cycle on the first plastic increment: it is evaluated through
+ * PowerLawHardening, i.e. exact for \f$ p \geq 10^{-6} \f$ and a \f$ C^1 \f$ quadratic blend below.
  *
  * **Discrete update.** The plastic strain rate is treated fully implicitly over the increment,
  * \f$ \dot p = \Delta p / \Delta t \f$. The rate factor therefore depends on the unknown
@@ -69,7 +73,14 @@ namespace simcoon{
  *       - \left(A + B p^{n}\right) \frac{C}{\dot p\,\Delta t}\, f_\theta ,
  * \f]
  * so the iterates converge on the rate-dependent yield surface. With \f$ \Delta t = 0 \f$ the
- * law degenerates to its rate-independent form.
+ * law degenerates to its rate-independent form. \f$ \Phi(\Delta p) \f$ is not convex across the
+ * kink \f$ \Delta p = \dot\varepsilon_0 \Delta t \f$ of the clamped rate factor, and a Newton
+ * started at \f$ \Delta p = 0 \f$ cycles between the two branches once
+ * \f$ \Delta t \lesssim C (A + B p^n) / (3 G \dot\varepsilon_0) \f$ (about \f$ 5\cdot10^{-5} \f$ s
+ * for AISI 4340). The kernel therefore decides the branch first, from \f$ \Phi \f$ at the kink:
+ * when positive, the loop starts at the kink with the right derivative of the rate factor and
+ * stays on the convex logarithmic branch, where Newton is monotone; otherwise it runs on the
+ * quasi-static branch from \f$ \Delta p = 0 \f$. Neither the unknown nor the law is altered.
  *
  * **Tangent operator.** Assembled by compute_tangent_operator() from the converged
  * \f$ \hat{B} \f$, \f$ \boldsymbol{\kappa} = \mathbf{L}:\boldsymbol{\Lambda} \f$ and
@@ -80,13 +91,24 @@ namespace simcoon{
  * - `tangent_algorithmic` (2, default): the Simo-Hughes consistent operator; the flow
  *   Hessian is \f$ \partial\boldsymbol{\Lambda}/\partial\boldsymbol{\sigma} \f$ (deta_stress) and
  *   the rate term is already part of \f$ \hat{B} \f$, so the operator is the exact Jacobian of
- *   the discrete map for a fixed \f$ \Delta t \f$.
+ *   the backward-Euler (closest-point) map at fixed \f$ \Delta t \f$; the cutting-plane state
+ *   coincides with it for radial increments (J2, isotropic). It is a fixed-\f$ \Delta t \f$
+ *   derivative: at a given strain rate it tends to \f$ \mathbf{L} \f$ as \f$ \Delta t \to 0 \f$.
  *
- * **Energy split.** The hardening force is \f$ A_p = -B p^{n} \f$ (reference-rate, isothermal
- * hardening stress), as in EPICP; the rate and thermal multipliers act on the dissipation:
- * \f$ \Delta W_m^{ir} = -\tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$,
+ * **Energy split.** The stored energy of the hardening is the reference-rate work of the
+ * thermally softened hardening stress, \f$ G^{ir}(\theta, p) = f_\theta(\theta)\, B p^{n+1}/(n+1) \f$,
+ * so the hardening force is \f$ A_p = -\partial G^{ir}/\partial p = -f_\theta B p^{n} \f$ and the
+ * rate factor is a viscous overstress acting on the dissipation:
+ * \f[
+ *   \gamma = \left(\bar{\sigma} + A_p\right)\dot p
+ *          = f_\theta \left[A f_{\dot\varepsilon} + B p^{n}\left(f_{\dot\varepsilon} - 1\right)\right]\dot p \geq 0
+ * \f]
+ * at every temperature and rate (with \f$ A_p = -B p^n \f$, EPICP's isothermal form, the
+ * dissipation turns negative once \f$ f_\theta < B p^n / (A + B p^n) \f$). The increments are
+ * \f$ \Delta W_m^{ir} = -\tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$ and
  * \f$ \Delta W_m^{d} = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
- * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$.
+ * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$, \f$ A_p \f$ being evaluated at the start and end
+ * temperatures.
  *
  * **Material properties (props, 11):**
  * | Index | Symbol                      | Description                                   |
@@ -102,6 +124,11 @@ namespace simcoon{
  * | 8     | \f$ m \f$                   | Thermal-softening exponent                    |
  * | 9     | \f$ \theta_{\mathrm{ref}} \f$  | Reference temperature (K)                  |
  * | 10    | \f$ \theta_{\mathrm{melt}} \f$ | Melting temperature (K)                    |
+ *
+ * Admissible ranges, not checked by the kernel: \f$ \dot\varepsilon_0 > 0 \f$,
+ * \f$ \theta_{\mathrm{melt}} > \theta_{\mathrm{ref}} \f$, \f$ C \geq 0 \f$, \f$ n > 0 \f$,
+ * \f$ m > 0 \f$ (a zero denominator or a zero reference rate propagates NaN silently).
+ * A cutting-plane loop that reaches `maxiter_umat` off the surface sets @p tnew_dt to 0.5 (step cut).
  *
  * **State variables (statev, 9):**
  * | Index | Symbol                             | Description                                      |
