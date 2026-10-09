@@ -15,6 +15,7 @@ temperature evolution, thermal expansion, and dissipation.
 
 - **EPICP** - Plasticity with isotropic hardening and thermal dissipation
 - **EPKCP** - Plasticity with kinematic hardening and thermal dissipation
+- **EPJCK** - Johnson-Cook plasticity with adiabatic self-heating and thermal softening
 
 **Thermoviscoelastic Models:**
 

@@ -142,6 +142,10 @@ Model Codes
      - EPCHA
      - Von Mises + Voce + 2× Armstrong-Frederick
      - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
+   * - 29
+     - EPJCK
+     - Von Mises + Johnson-Cook yield stress (rate and temperature dependent)
+     - :math:`E, \nu, \alpha, A, B, n, C, \dot{\varepsilon}_0, m, T_{\mathrm{ref}}, T_{\mathrm{melt}}`
    * - 8
      - SMADI
      - SMA unified model

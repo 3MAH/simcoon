@@ -60,6 +60,7 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 **Plasticity:**
 - `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening (kept as a readable reference implementation)
 - `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model (kept as a readable reference implementation)
+- `plastic_johnson_cook_ccp` - Johnson-Cook rate- and temperature-dependent J2 plasticity (`EPJCK`, mechanical and thermomechanical kernels)
 - All other plasticity variants (kinematic-isotropic `EPKCP`, Hill `EPHIL`/`EPTRI`/`EPHIN`,
   Hill-Chaboche `EPHAC`, anisotropic Chaboche `EPANI`/`EPDFA`/`EPCHG`) are served since 2.0
   by the **modular UMAT engine** through `umat_legacy_modular` name adapters — legacy names

@@ -14,6 +14,7 @@ Below are examples illustrating Simcoon's mechanical constitutive laws library.
 - **EPICP** - Plasticity with isotropic hardening (power-law)
 - **EPKCP** - Plasticity with combined isotropic and kinematic hardening
 - **EPCHA** - Plasticity with Chaboche hardening (cyclic plasticity)
+- **EPJCK** - Johnson-Cook plasticity (strain-rate sensitivity and thermal softening)
 
 **Viscoelastic Models:**
 

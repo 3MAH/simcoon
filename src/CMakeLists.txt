@@ -54,6 +54,7 @@ target_sources(simcoon PRIVATE
   # Continuum Mechanics - UMAT Mechanical Plasticity
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.cpp
   Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp
+  Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.cpp
 
   # Continuum Mechanics - UMAT Mechanical SMA
   Continuum_mechanics/Umat/Mechanical/SMA/SMA_mono.cpp
@@ -73,6 +74,7 @@ target_sources(simcoon PRIVATE
 
   # Continuum Mechanics - UMAT Thermomechanical Plasticity
   Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic_ccp.cpp
+  Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_johnson_cook_ccp.cpp
   Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso_ccp.cpp
 
   # Continuum Mechanics - UMAT Thermomechanical SMA
