@@ -15,10 +15,10 @@
  
  */
 
-///@file plastic_kin_iso_ccp.cpp
+///@file plastic_isotropic.cpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief This subroutines uses a convex cutting plane algorithm
-///@brief Linear Kinematical hardening coupled with a power-law hardenig is considered
+///@brief Isotropic hardening with a power-law hardenig is considered
 ///@version 1.0
 
 #include <iostream>
@@ -29,15 +29,16 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 
 using namespace std;
 using namespace arma;
 
 namespace simcoon{
-    
-///@brief The thermomechanical elastic-plastic UMAT with kinematic + isotropic hardening requires 9 constants:
+
+///@brief The elastic-plastic UMAT with isotropic hardening requires 8 constants for a full thermomechanical coupling:
 
 ///@brief props[0] : density
 ///@brief props[1] : specific heat capacity
@@ -47,9 +48,8 @@ namespace simcoon{
 ///@brief props[5] : J2 equivalent yield stress limit : sigmaY
 ///@brief props[6] : hardening parameter k
 ///@brief props[7] : exponent m
-///@brief props[8] : linear kinematical hardening h
 
-///@brief The elastic-plastic UMAT with kinematic + isotropic hardening requires 14 statev:
+///@brief The elastic-plastic UMAT with isotropic hardening requires 8 statev:
 ///@brief statev[0] : T_init : Initial temperature
 ///@brief statev[1] : Accumulative plastic parameter: p
 ///@brief statev[2] : Plastic strain 11: EP(0,0)
@@ -58,40 +58,57 @@ namespace simcoon{
 ///@brief statev[5] : Plastic strain 12: EP(0,1) (*2)
 ///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
 ///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
-///@brief statev[8] : Backstress 11: X(0,0)
-///@brief statev[9] : Backstress 11: X(1,1)
-///@brief statev[10] : Backstress 11: X(2,2)
-///@brief statev[11] : Backstress 11: X(0,1)
-///@brief statev[12] : Backstress 11: X(0,2)
-///@brief statev[13] : Backstress 11: X(1,2)
-
-
-void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
-{
     
+/// The constitutive model has one lead mechanism, that contains two internal variables : p and EP
+/// The Gibbs free energy is:
+
+    /*
+
+     \begin{eqnarray}
+    G\left(\b{\sigma},\theta,\b{V}_1\right)&=& G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)+G^{\textrm{ir}} \left(\theta,p\right),
+    \EqnCont
+    G^{\textrm{r}}\left(\b{\sigma},\theta, \b{\varepsilon}^{\textrm{p}}\right)
+     
+     = - \f{1}{2} \b{\sigma} \dcon \b{\mathcal{S}} \dcon \b{\sigma} + {c_0}\left[ [\theta-\theta_0]
+     -\theta\ln\left(\f{\theta}{\theta_0}\right)\right]-\eta_0\theta+{E}_0 - \b{\sigma} : \b{\varepsilon}^{\textrm{p}} 
+     - \b\sigma : \b{\alpha} \left(\theta - \theta_0 \right),
+    \EqnCont
+    G^{\textrm{ir}}\left(\theta,p\right)&=&F(\theta,p)
+    \label{eq:elastoplastic_Gibbs_potential}
+    \end{eqnarray}
+     
+    So the following quantitites are : (A_x = \pfg{G}{x})
+    A_sigma = \varepsilon
+    A_p =
+    A_EP =
+    A_theta =
+    */
+
+void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+{
+
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
+    UNUSED(tnew_dt);    
     
-    //From the props to the material properties
+	//From the props to the material properties
     double rho = props(0);
     double c_p = props(1);
     double E = props(2);
-    double nu= props(3);
-    double alpha_iso = props(4);
-    double sigmaY = props(5);
-    double k=props(6);
-    double m=props(7);
-    double kX = props(8);
+	double nu= props(3);
+	double alpha_iso = props(4);
+	double sigmaY = props(5);
+	double k=props(6);
+	double m=props(7);
     
     //definition of the CTE tensor
     vec alpha = alpha_iso*Ith();
     
     //Elastic stiffness tensor and thermal tensor
     mat L = L_iso(E, nu, "Enu");
-    mat M = M_iso(E, nu, "Enu");
+	mat M = M_iso(E, nu, "Enu");
     
     ///@brief Temperature initialization
     double T_init = statev(0);
@@ -104,29 +121,18 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     EP(3) = statev(5);
     EP(4) = statev(6);
     EP(5) = statev(7);
-    
-    ///@brief a is the internal variable associated with kinematical hardening
-    vec a = zeros(6);
-    a(0) = statev(8);
-    a(1) = statev(9);
-    a(2) = statev(10);
-    a(3) = statev(11);
-    a(4) = statev(12);
-    a(5) = statev(13);
-    
+
     //Rotation of internal variables (tensors)
     EP = rotate_strain(EP, DR);
-    a = rotate_strain(a, DR);   // back-strain: engineering shear, X = kX (a % Ir05)
     
-    ///@brief Initialization
-    if(start)
-    {
-        T_init = T;
-        vec vide = zeros(6);
-        sigma = vide;
-        EP = vide;
-        a = vide;
-        p = 0.;
+	///@brief Initialization
+	if(start)
+	{
+		T_init = T;
+		vec vide = zeros(6);
+		sigma = vide;
+		EP = vide;
+		p = 0.;
         
         Wm = 0.;
         Wm_r = 0.;
@@ -135,16 +141,15 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
         
         Wt = 0.;
         Wt_r = 0.;
-        Wt_ir = 0.;        
-    }
+        Wt_ir = 0.;
+	}
     
-    //Additional parameters and variables
+    //Additional parameters
     double c_0 = rho*c_p;
-    vec X = kX*(a%Ir05());
     
     double Hp=0.;
     double dHpdp=0.;
-    
+
     if (p > simcoon::iota)	{
         dHpdp = m*k*pow(p, m-1);
         Hp = k*pow(p, m);
@@ -157,11 +162,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     //Variables values at the start of the increment
     vec sigma_start = sigma;
     vec EP_start = EP;
-    vec a_start = a;
-    vec X_start = X;
-    
     double A_p_start = -Hp;
-    vec A_a_start = -X_start;
     
     //Variables required for the loop
     vec s_j = zeros(1);
@@ -169,23 +170,21 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     vec Ds_j = zeros(1);
     vec ds_j = zeros(1);
     
-    ///Elastic prediction - Accounting for the thermal prediction
-    vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
+	///Elastic prediction - Accounting for the thermal prediction
+	vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
     sigma = el_pred(L, Eel, ndi);
     
-    //Define the plastic function and the stress
-    vec Phi = zeros(1);
+	//Define the plastic function and the stress
+	vec Phi = zeros(1);
     mat B = zeros(1,1);
     vec Y_crit = zeros(1);
     
-    double dPhidp=0.;
-    vec dPhida = zeros(6);
-    vec dPhidsigma = zeros(6);
+	double dPhidp=0.;
+	vec dPhidsigma = zeros(6);
     double dPhidtheta = 0.;
     
     //Compute the explicit flow direction
-    vec Lambdap = eta_stress(sigma-X);
-    vec Lambdaa = eta_stress(sigma-X);
+    vec Lambdap = eta_stress(sigma);
     std::vector<vec> kappa_j(1);
     kappa_j[0] = L*Lambdap;
     mat K = zeros(1,1);
@@ -193,7 +192,35 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     //Loop parameters
     int compteur = 0;
     double error = 1.;
-    
+
+    // Closest-point projection (tangent_closest_point): the modular von Mises + power-law row on
+    // this kernel's props and state (same branch as the mechanical kernel). Condensed states keep
+    // the loop; the thermal tail reads dPhidsigma / Lambdap / kappa_j / dHpdp.
+    ReturnMappingResult rm;
+    if (tangent_mode == simcoon::tangent_closest_point && ndi == 3) {
+        PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
+        auto &iv = mech.variables();
+        iv.get("p").scalar() = p;
+        iv.get("EP").raw_voigt() = EP;
+        mech.set_start();
+        rm = closest_point_return_mapping(sigma, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+        if (rm.converged) {
+            sigma = rm.sigma;
+            p = iv.get("p").scalar();
+            EP = iv.get("EP").raw_voigt();
+            Hp = mech.isotropic_hardening().R(p);
+            dHpdp = mech.isotropic_hardening().dR_dp(p);
+            const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
+            dPhidsigma = ing.dPhi_dsigma;
+            Lambdap = ing.Lambda;
+            kappa_j = rm.kappa_j;
+        }
+        else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
+            tnew_dt = 0.5;
+            sigma = sigma_start;
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
@@ -206,38 +233,34 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
             dHpdp = 0.;
             Hp = 0.;
         }
-        dPhidsigma = eta_stress(sigma-X);
+        dPhidsigma = eta_stress(sigma);
         dPhidp = -1.*dHpdp;
-        dPhida = -1.*kX*(eta_stress(sigma - X)%Ir05());
         
         //compute Phi and the derivatives
-        Phi(0) = Mises_stress(sigma-X) - Hp - sigmaY;
-        
-        Lambdap = eta_stress(sigma-X);
-        Lambdaa = eta_stress(sigma-X);
+        Phi(0) = Mises_stress(sigma) - Hp - sigmaY;
+
+        Lambdap = eta_stress(sigma);
         kappa_j[0] = L*Lambdap;
         
-        K(0,0) = dPhidp + sum(dPhida%Lambdaa);
+        K(0,0) = dPhidp;
         B(0, 0) = -1.*sum(dPhidsigma%kappa_j[0]) + K(0,0);
         Y_crit(0) = sigmaY;
         
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
-        
+
         s_j(0) += ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
-        a = a + ds_j(0)*Lambdaa;
-        X = kX*(a%Ir05());
         
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         sigma = el_pred(L, Eel, ndi);
+    }
     }
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;
     vec DEP = EP - EP_start;
     double Dp = Ds_j[0];
-    vec Da = a - a_start;
     
     //Computation of the tangent modulus — continuum operator via shared helper (doc §7.4).
     mat Bhat = zeros(1, 1);
@@ -251,15 +274,14 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     // honor tangent_none).
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
-    const ContinuumTangent ct = compute_tangent_operator(
+    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent (closest-point), J2 flow on (sigma-X).
-            // Backstress state-coupling deferred (CPP, future release).
+            // Simo-Hughes algorithmic tangent (J2): dLambda_eps/dsigma = deta_stress(sigma).
             // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
-            // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
-            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
+            // cross-tangents below (dSdT/drdE/drdT) are assembled from the raw kappa_j and L
+            // (continuum form) in every mode.
+            const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma) };
             return dLambda_dsigma_l;
         });
     dSdE = ct.Lt;
@@ -277,10 +299,10 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     //computation of the internal energy production
     double eta_r = c_0*log((T+DT)/T_init) + sum(alpha%sigma);
     double eta_r_start = c_0*log(T/T_init) + sum(alpha%sigma_start);
-    
+
     double eta_ir = 0.;
     double eta_ir_start = 0.;
-    
+
     double eta = eta_r + eta_ir;
     double eta_start = eta_r_start + eta_ir_start;
     
@@ -296,10 +318,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     
     double A_p = -Hp;
     double dA_pdp = -dHpdp;
-    vec A_a = -X;
-    mat dA_ada = -1.*kX*Ireal();
-    
-    //    double A_theta = 0;
+//    double A_theta = 0;
     
     if(DTime < 1.E-12) {
         r = 0.;
@@ -307,23 +326,23 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
         drdT = 0.;
     }
     else {
-        Gamma_epsilon = (dSdE*DEP)*(1./DTime) + (dA_pdp)*P_epsilon[0]*(Dp/DTime) + sum((dA_ada*Lambdaa)%P_epsilon[0])*(Da/DTime) + A_p/DTime*P_epsilon[0] + sum(A_a%Lambdaa)*P_epsilon[0]*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
-        Gamma_theta = dA_pdp*P_theta[0]*(Dp/DTime) + sum((dA_ada*Lambdaa)%Da)*P_theta[0]/DTime + A_p/DTime*P_theta[0] + sum(A_a%Lambdaa)*P_theta[0]*(1./DTime) + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
+        Gamma_epsilon = dA_pdp*P_epsilon[0]*(Dp/DTime) + A_p/DTime*P_epsilon[0] + (dSdE*DEP)*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
+        Gamma_theta = dA_pdp*P_theta[0]*(Dp/DTime) + A_p/DTime*P_theta[0] + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
         
         N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
         N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
         
         drdE = N_epsilon + Gamma_epsilon;
         drdT = N_theta + Gamma_theta;
-        
+
         r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
     }
-    
-    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a_start + A_a)%Da);
+
+    double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
-    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP)) - 0.5*sum((A_a_start + A_a)%Da);
+    Wm_r += 0.5*sum((sigma_start+sigma)%(DEtot-DEP));
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
     
@@ -342,13 +361,6 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     statev(5) = EP(3);
     statev(6) = EP(4);
     statev(7) = EP(5);
-    
-    statev(8) = a(0);
-    statev(9) = a(1);
-    statev(10) = a(2);
-    statev(11) = a(3);
-    statev(12) = a(4);
-    statev(13) = a(5);
 }
     
 } //namespace simcoon

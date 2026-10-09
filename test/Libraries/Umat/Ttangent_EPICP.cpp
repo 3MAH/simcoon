@@ -19,7 +19,7 @@
 ///@brief Tier-A acceptance test: the EPICP (J2 isotropic plasticity) algorithmic
 ///       tangent (algorithmic mode (tangent_algorithmic)) is the exact Jacobian of the discrete return map
 ///       and converges Q-quadratically, while tangent_continuum stays the continuum tangent.
-///       Drives the real umat_plasticity_iso_CCP, toggling tangent_mode.
+///       Drives the real umat_plasticity_iso, toggling tangent_mode.
 ///@version 1.0
 
 #include <gtest/gtest.h>
@@ -29,7 +29,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
 
 using namespace std;
 using namespace arma;
@@ -55,7 +55,7 @@ EpicpOut run_epicp(const vec &DEtot, int tangent_mode) {
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0.;
     double tnew_dt = 1.;
 
-    umat_plasticity_iso_CCP("EPICP", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
+    umat_plasticity_iso("EPICP", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
                             nstatev, statev, T, DT, Time, DTime,
                             Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt, tangent_mode);
     // EPICP statev layout: statev(0)=T_init, statev(1)=accumulated plastic strain p.

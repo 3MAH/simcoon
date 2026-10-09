@@ -15,7 +15,7 @@
  
  */
 
-///@file plastic_kin_iso_ccp.cpp
+///@file plastic_chaboche.cpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief This subroutines uses a convex cutting plane algorithm
 ///@brief Linear Kinematical hardening coupled with a power-law hardenig is considered
@@ -31,6 +31,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
 
 using namespace std;
 using namespace arma;
@@ -64,7 +65,7 @@ namespace simcoon {
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const vec &DEtot, vec &stress, mat &Lt, mat &L, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
 
     UNUSED(umat_name);
@@ -227,7 +228,42 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     //Loop parameters
     int compteur = 0;
     double error = 1.;
-    
+
+    // Closest-point projection (tangent_closest_point): the modular von Mises + Voce + Chaboche
+    // row on this kernel's props and state (backward-Euler state and total derivatives in
+    // PlasticityMechanism::refresh_state); Hp = R(p) exactly, the loop's explicit Hp is not read.
+    // Condensed states keep the loop; the tail reads dPhidsigma / Lambdap (Bhat and K only feed
+    // the cutting-plane tangent).
+    ReturnMappingResult rm;
+    if (tangent_mode == simcoon::tangent_closest_point && ndi == 3) {
+        PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::CHABOCHE, vec{sigmaY, Q, b, C_1, D_1, C_2, D_2}, 1, 2);
+        auto &iv = mech.variables();
+        iv.get("p").scalar() = p;
+        iv.get("EP").raw_voigt() = EP;
+        iv.get("a_0").raw_voigt() = a_1;
+        iv.get("a_1").raw_voigt() = a_2;
+        mech.set_start();
+        rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+        if (rm.converged) {
+            stress = rm.sigma;
+            p = iv.get("p").scalar();
+            EP = iv.get("EP").raw_voigt();
+            a_1 = iv.get("a_0").raw_voigt();
+            a_2 = iv.get("a_1").raw_voigt();
+            X_1 = (2./3.)*C_1*(a_1%Ir05());
+            X_2 = (2./3.)*C_2*(a_2%Ir05());
+            X = X_1 + X_2;
+            Hp = mech.isotropic_hardening().R(p);
+            const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
+            dPhidsigma = ing.dPhi_dsigma;
+            Lambdap = ing.Lambda;
+        }
+        else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
+            tnew_dt = 0.5;
+            stress = stress_start;
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
@@ -272,6 +308,7 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         stress = el_pred(L, Eel, ndi);
     }
+    }
     
     //Computation of the increments of variables
     vec Dsigma = stress - stress_start;
@@ -286,11 +323,12 @@ void umat_plasticity_chaboche_CCP(const string &umat_name, const vec &Etot, cons
     Bhat(0, 0) = sum(dPhidsigma%kappa_j[0]) - K(0,0);
 
     const std::vector<vec> dPhidsigma_l = { dPhidsigma };
-    const ContinuumTangent ct = compute_tangent_operator(
+    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
         tangent_mode, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent (closest-point). J2 flow on effective stress (sigma-X):
-            // dLambda_eps/dsigma = deta_stress(stress-X). Backstress state-coupling deferred (CPP, future).
+            // Simo-Hughes algorithmic tangent on the cutting-plane state. J2 flow on the effective
+            // stress (sigma-X): dLambda_eps/dsigma = deta_stress(stress-X); the backstress state
+            // coupling is only in the closest-point branch (tangent_closest_point).
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(stress - X) };
             return dLambda_dsigma_l;
         });

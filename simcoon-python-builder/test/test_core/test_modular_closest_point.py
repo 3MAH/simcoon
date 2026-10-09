@@ -185,3 +185,22 @@ def test_two_mechanisms_reload_converges_without_step_cut():
     ref = solve([StepMeca(control=_UNIAXIAL, value=v, ninc=200, time=1.) for v in ([0.02, 0, 0, 0, 0, 0], [-0.02, 0, 0, 0, 0, 0], [0.02, 0, 0, 0, 0, 0])],
                 "MODUL", mat.props, mat.nstatev, T_init=290., tangent_mode=2)
     assert abs(s[-1] - ref["Stress"][0, -1]) < 0.05 * abs(ref["Stress"][0, -1])
+
+
+def test_two_active_rows_closest_point_tangent_is_exact():
+    """Two plasticity rows active together: the exact Jacobian couples them through a
+    non-symmetric local Jacobian, and the multiplier elimination of the tangent assembly must
+    use its transpose (regression of the elimination fix): mode 3 vs central differences."""
+    p1 = Plasticity(sigma_Y=20., yield_criterion=VonMisesYield(),
+                    isotropic_hardening=LinearIsotropicHardening(H=300.),
+                    kinematic_hardening=ArmstrongFrederickHardening(C=1500., D=30.))
+    p2 = Plasticity(sigma_Y=35., yield_criterion=VonMisesYield(),
+                    isotropic_hardening=LinearIsotropicHardening(H=100.))
+    mat = _material(p1, p2)
+    r = solve(StepMeca(control=_UNIAXIAL, value=[0.06, 0, 0, 0, 0, 0], ninc=20, time=1.),
+              "MODUL", mat.props, mat.nstatev, T_init=290., tangent_mode=3)
+    assert r.status == 0
+    e, s, sv = r["Strain"][:, -1], r["Stress"][:, -1], r["Statev"][:, -1]
+    assert sv[1] > 1e-3 and sv[14] > 1e-3     # both rows carried multipliers
+    Lt, fd = _tangent_and_fd(mat, e, s, sv, 3)
+    assert np.linalg.norm(Lt - fd) < 1e-8 * np.linalg.norm(fd)

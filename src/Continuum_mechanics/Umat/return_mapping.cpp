@@ -20,6 +20,7 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <memory>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -157,14 +158,22 @@ ReturnMappingResult closest_point_return_mapping(
             return r;
         }
 
-        // Semi-smooth Newton step on the reduced multiplier system.
-        vec Dl_fb = r.Dlambda;
+        // Semi-smooth Newton step on the reduced multiplier system, over the active set: a row
+        // with Phi < 0, no multiplier and a vanishing diagonal (a reorientation surface at zero
+        // effective stress) has an identically zero FB row and would make the solve singular;
+        // its step is zero anyway.
+        const uvec active = find((Phi >= 0.) + (r.Dlambda > 0.) + (abs(B_red.diag()) >= simcoon::iota));
         vec dDl = zeros(N);
-        double err_fb_unused = 0.;
-        try {
-            Fischer_Burmeister_m(Phi_red, Y_crit, B_red, Dl_fb, dDl, err_fb_unused);
-        } catch (const std::exception &) {
-            return r;   // LAPACK failure on the reduced system: non-convergence, the caller step-cuts
+        if (active.n_elem > 0) {
+            vec Dl_fb = r.Dlambda(active);
+            vec dDl_a(active.n_elem);
+            double err_fb_unused = 0.;
+            try {
+                Fischer_Burmeister_m(Phi_red(active), Y_crit(active), B_red(active, active), Dl_fb, dDl_a, err_fb_unused);
+            } catch (const std::exception &) {
+                return r;   // LAPACK failure on the reduced system: non-convergence, the caller step-cuts
+            }
+            dDl(active) = dDl_a;
         }
 
         vec dsigma = -MinvR;
@@ -243,6 +252,126 @@ ReturnMappingResult closest_point_return_mapping(
     vec Y(1);
     Y(0) = Y_crit;
     return closest_point_return_mapping(sigma_tr, L, mechs, hooks, Y, control);
+}
+
+CuttingPlaneResult cutting_plane_return_mapping(
+    vec &Phi,
+    vec &Y_crit,
+    vec &Ds_total,
+    const CuttingPlaneHooks &hooks,
+    const ReturnMappingControl &control,
+    int iter0) {
+
+    const int maxiter = (control.maxiter > 0) ? control.maxiter : simcoon::maxiter_umat;
+    const double precision = (control.precision > 0.) ? control.precision : simcoon::precision_umat;
+    const uword N = Phi.n_elem;
+
+    CuttingPlaneResult r;
+    mat B = zeros(N, N);
+    vec ds = zeros(N);
+    double error = 1.0;
+    int iter = iter0;
+    while (iter < maxiter && error > precision) {
+        hooks.jacobian(B);
+        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
+        hooks.update(ds);
+        hooks.refresh();
+        if (hooks.consistency) error += hooks.consistency();
+        ++iter;
+        if (iter < maxiter && error > precision) hooks.constraints(Phi, Y_crit);
+    }
+    r.converged = error <= precision;
+    r.niter = iter;
+    r.error = error;
+    return r;
+}
+
+void finite_difference_total_derivatives(
+    std::vector<ReturnMechanism> &mechanisms,
+    ReturnStateHooks &hooks,
+    const std::function<bool(const vec &, const vec &)> &refresh,
+    const std::function<void()> &save,
+    const std::function<void()> &restore,
+    double h_sigma_rel,
+    double h_Dlambda) {
+
+    const int N = int(mechanisms.size());
+    // The multipliers of the current iterate: the stress derivatives are taken at fixed Dlambda,
+    // which the mechanism callbacks do not receive.
+    auto Dl_cur = std::make_shared<vec>(zeros(N));
+    hooks.update_state = [refresh, Dl_cur](const vec &sig, const vec &Dl) {
+        *Dl_cur = Dl;
+        return refresh(sig, Dl);
+    };
+    // Evaluate a quantity at (sig, Dl) with the state re-solved there, then put the state back.
+    auto probe = [=, &mechanisms](const vec &sig, const vec &Dl, const std::function<vec()> &quantity) {
+        save();
+        refresh(sig, Dl);
+        const vec out = quantity();
+        restore();
+        return out;
+    };
+    for (int j = 0; j < N; j++) {
+        mechanisms[j].dPhi_dsigma = [=, &mechanisms](const vec &sig) {
+            const double h = h_sigma_rel*(norm(sig, 2) + 1.);
+            vec g(6);
+            for (int c = 0; c < 6; c++) {
+                vec sp = sig, sm = sig;
+                sp(c) += h;
+                sm(c) -= h;
+                g(c) = (probe(sp, *Dl_cur, [&]{ return vec{mechanisms[j].Phi(sp)}; })(0)
+                      - probe(sm, *Dl_cur, [&]{ return vec{mechanisms[j].Phi(sm)}; })(0))/(2.*h);
+            }
+            return g;
+        };
+        mechanisms[j].dLambda_dsigma = [=, &mechanisms](const vec &sig) {
+            const double h = h_sigma_rel*(norm(sig, 2) + 1.);
+            mat D(6, 6);
+            for (int c = 0; c < 6; c++) {
+                vec sp = sig, sm = sig;
+                sp(c) += h;
+                sm(c) -= h;
+                D.col(c) = (probe(sp, *Dl_cur, [&]{ return mechanisms[j].Lambda(sp); })
+                          - probe(sm, *Dl_cur, [&]{ return mechanisms[j].Lambda(sm); }))/(2.*h);
+            }
+            return D;
+        };
+    }
+    // Multiplier derivatives: one-sided at Dlambda = 0 (the state is undefined for Dlambda < 0).
+    auto bracket = [=](const vec &Dl, int j, vec &Dp, vec &Dm, double &den) {
+        Dp = Dl; Dm = Dl;
+        Dp(j) += h_Dlambda;
+        Dm(j) = std::max(Dl(j) - h_Dlambda, 0.);
+        den = Dp(j) - Dm(j);
+    };
+    hooks.K = [=, &mechanisms](const vec &sig, const vec &Dl) {
+        mat K(N, N);
+        for (int j = 0; j < N; j++) {
+            vec Dp, Dm; double den;
+            bracket(Dl, j, Dp, Dm, den);
+            for (int l = 0; l < N; l++) {
+                K(l, j) = (probe(sig, Dp, [&]{ return vec{mechanisms[l].Phi(sig)}; })(0)
+                         - probe(sig, Dm, [&]{ return vec{mechanisms[l].Phi(sig)}; })(0))/den;
+            }
+        }
+        return K;
+    };
+    hooks.flow_state_coupling = [=, &mechanisms](const vec &sig, const vec &Dl) {
+        // Dl_j dLambda^j/dDl_j = d(flux)/dDl_j - Lambda^j, flux = sum_k Dl_k Lambda^k
+        auto flux = [&](const vec &D) {
+            vec f = zeros(6);
+            for (int k = 0; k < N; k++) f += D(k)*mechanisms[k].Lambda(sig);
+            return f;
+        };
+        std::vector<vec> c(N);
+        for (int j = 0; j < N; j++) {
+            vec Dp, Dm; double den;
+            bracket(Dl, j, Dp, Dm, den);
+            const vec dflux = (probe(sig, Dp, [&]{ return flux(Dp); }) - probe(sig, Dm, [&]{ return flux(Dm); }))/den;
+            c[j] = dflux - mechanisms[j].Lambda(sig);
+        }
+        return c;
+    };
 }
 
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const mat &L) {

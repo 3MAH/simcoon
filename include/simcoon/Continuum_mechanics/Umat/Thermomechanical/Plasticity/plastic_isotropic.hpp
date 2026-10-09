@@ -15,9 +15,9 @@
  
  */
 
-///@file plastic_isotropic_ccp.hpp
+///@file plastic_isotropic.hpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
-///@brief This subroutines uses a convex cutting plane algorithm
+///@brief Convex cutting plane return mapping (tangent_mode 0-2) or closest-point projection (tangent_mode 3)
 ///@brief Isotropic hardening with a power-law hardenig is considered
 ///@version 1.0
 
@@ -27,8 +27,14 @@
 namespace simcoon{
 
 /**
- * @file plastic_isotropic_ccp.hpp
+ * @file plastic_isotropic.hpp
  * @brief Thermomechanical plasticity model.
+ *
+ * @note **Integrator.** Under tangent_mode 0-2 the return mapping is the convex cutting plane
+ * loop; under tangent_closest_point (3, full 3D states) the kernel runs the modular
+ * PlasticityMechanism (von Mises + PowerLawHardening) on its own props and state through
+ * closest_point_return_mapping() and returns cpp_consistent_tangent() for dSdE; the thermal
+ * cross-tangents keep the continuum form in every mode. Non-convergence requests tnew_dt = 0.5.
  */
 
 /** @addtogroup umat_thermomechanical
@@ -57,7 +63,7 @@ namespace simcoon{
     ///@brief statev[6] : Plastic strain 13: EP(0,2) (*2)
     ///@brief statev[7] : Plastic strain 23: EP(1,2) (*2)
 
-void umat_plasticity_iso_CCP_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
+void umat_plasticity_iso_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int & = 0);
     
 
 /** @} */ // end of umat_thermomechanical group

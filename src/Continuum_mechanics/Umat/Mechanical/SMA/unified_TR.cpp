@@ -44,6 +44,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 using namespace std;
 using namespace arma;
@@ -391,6 +392,157 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     int compteur = 0;
     double error = 1.;
 
+    // tangent_closest_point: the closest-point projection replaces the CCP loop, with the same
+    // frozen-mixture construction as unified_T — L(xi_n), alpha(xi_n) and the effective flows
+    // Lambda_F = lambdaTF + DM sigma + Dalpha theta, Lambda_R = -ETMean - DM sigma - Dalpha theta
+    // (exact since M(xi), alpha(xi) are linear in xi), Lambda_re = xi_start lambdaReo_raw. The state
+    // (xi, ET, ETMean, areo, X, lambda1Reo, Hf, lambda0/1) is rebuilt from the start values at every
+    // iterate: back-strain and ETMean by short fixed points; every derivative is a TOTAL derivative of
+    // the composed map (central FD probes with save/restore of the state).
+    ReturnMappingResult rm;
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const mat L_cpp = L;
+    if (use_cpp) {
+        const double xi_nn = xi, xiF_n = xiF, xiR_n = xiR, pTR_n = pTR;
+        const vec ET_nn = ET, EReo_nn = EReo, areo_nn = areo;
+        const double thp = (T + DT - T_init);
+        vec lambdaReo_raw = zeros(6);
+
+        auto refresh_state = [&](const vec &sig, const vec &Dl) {
+            xi = xi_nn + Dl(0) - Dl(1);
+            // Hcur, forward flow (explicit in sigma)
+            sigmastar = (Mises_stress(sig) > sigmacrit) ? Mises_stress(sig) - sigmacrit : 0.;
+            Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sigmastar));
+            lambdaTF = build_lambdaTF(sig);
+            // Back-strain v^re and the reorientation flow: areo = areo_n + Dl_re lambdaReo_raw(sigma_eff(areo))
+            for (int it_fp = 0; it_fp < 8; it_fp++) {
+                X = HReo * (areo % Ir05());
+                a_eq = Mises_strain(areo);
+                lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
+                sigma_eff = sig - (1. + lambda1Reo) * X;
+                vec raw_new;
+                if (Mises_stress(sigma_eff) > simcoon::iota) {
+                    raw_new = aniso_criteria ? dDrucker_ani_stress(sigma_eff, DFA_params, prager_b, prager_n)
+                                             : dDrucker_stress(sigma_eff, prager_b, prager_n);
+                } else {
+                    raw_new = zeros(6);
+                }
+                const double d_fp = norm(raw_new - lambdaReo_raw, 2);
+                lambdaReo_raw = raw_new;
+                areo = areo_nn + Dl(2)*lambdaReo_raw;
+                if (d_fp < 1e-14*(norm(lambdaReo_raw, 2) + 1.)) break;
+            }
+            X = HReo * (areo % Ir05());
+            a_eq = Mises_strain(areo);
+            lambda1Reo = lagrange_pow_1(a_eq/ETRmax, c_lambdaReo, p0_lambdaReo, n_lambdaReo, alpha_lambdaReo);
+            sigma_eff = sig - (1. + lambda1Reo) * X;
+            lambdaReo   = xi_start * lambdaReo_raw;
+            etaReo      = lambdaReo_raw;
+            lambda_areo = lambdaReo_raw;
+            EReo = EReo_nn + Dl(2)*lambdaReo;
+            // ETMean fixed point (ET = ET_n + Dl_F lambdaTF - Dl_R ETMean + Dl_re lambdaReo).
+            for (int it_fp = 0; it_fp < 5; it_fp++) {
+                ET = ET_nn + Dl(0)*lambdaTF - Dl(1)*ETMean + Dl(2)*lambdaReo;
+                vec ETMean_new;
+                if ((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat)) {
+                    ETMean_new = dev(ET)/xi_safe(xi);
+                } else {
+                    ETMean_new = lambdaTF;
+                }
+                const double dm_fp = norm(ETMean_new - ETMean, 2);
+                ETMean = ETMean_new;
+                if (dm_fp < 1e-14*(norm(ETMean, 2) + 1.)) break;
+            }
+            lambdaTR = -1.*ETMean;
+            // Hardening and Lagrange penalties at a clamped xi (FD probes may step outside [0,1]).
+            const double xi_h = std::min(std::max(xi, 0.), 1.);
+            compute_Hf(xi_h, HfF, HfR);
+            const double xi_pen = std::min(std::max(xi, simcoon::limit), 1. - simcoon::limit);
+            lambda1 = lagrange_pow_1(xi_pen, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            lambda0 = -1.*lagrange_pow_0(xi_pen, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            return true;
+        };
+        auto PhiF_val = [&](const vec &sig) {
+            const vec DMsig = DM*sig;
+            const double AxF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(sig%DMsig) + sum(sig%Dalpha)*thp - HfF;
+            return build_PhihatF(sig) + AxF - lambda1 - (Y0t + D*Hcur*Mises_stress(sig));
+        };
+        auto PhiR_val = [&](const vec &sig) {
+            const vec DMsig = DM*sig;
+            const double AxR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(sig%DMsig) - sum(sig%Dalpha)*thp + HfR;
+            return -1.*sum(sig%ETMean) + AxR + lambda0 - (Y0t + D*sum(sig%ETMean));
+        };
+        auto PhiReo_val = [&](const vec &) {
+            const double Pse = aniso_criteria ? Drucker_ani_stress(sigma_eff, DFA_params, prager_b, prager_n)
+                                              : Drucker_stress(sigma_eff, prager_b, prager_n);
+            return Pse - YReo;
+        };
+        auto LamF_val   = [&](const vec &sig) { return vec(lambdaTF + DM*sig + Dalpha*thp); };
+        auto LamR_val   = [&](const vec &sig) { return vec(-1.*ETMean - DM*sig - Dalpha*thp); };
+        auto LamReo_val = [&](const vec &) { return lambdaReo; };
+        // Total derivatives by central differences of the composed map: the state is saved,
+        // re-solved at the probe and restored by the builder.
+        struct SmaState { double xi, Hcur, sstar, HfF, HfR, l0, l1, l1Reo, aeq; vec lTF, lTR, ETM, ET, EReo, areo, X, seff, lReo, lraw, eReo, lareo; } saved;
+        auto save_state = [&]() { saved = SmaState{xi, Hcur, sigmastar, HfF, HfR, lambda0, lambda1, lambda1Reo, a_eq,
+                                                   lambdaTF, lambdaTR, ETMean, ET, EReo, areo, X, sigma_eff, lambdaReo, lambdaReo_raw, etaReo, lambda_areo}; };
+        auto restore_state = [&]() {
+            const SmaState &st = saved;
+            xi = st.xi; Hcur = st.Hcur; sigmastar = st.sstar; HfF = st.HfF; HfR = st.HfR; lambda0 = st.l0; lambda1 = st.l1;
+            lambda1Reo = st.l1Reo; a_eq = st.aeq; lambdaTF = st.lTF; lambdaTR = st.lTR; ETMean = st.ETM; ET = st.ET;
+            EReo = st.EReo; areo = st.areo; X = st.X; sigma_eff = st.seff; lambdaReo = st.lReo; lambdaReo_raw = st.lraw;
+            etaReo = st.eReo; lambda_areo = st.lareo;
+        };
+        std::vector<ReturnMechanism> mechs(3);
+        mechs[0].Phi = PhiF_val;   mechs[1].Phi = PhiR_val;   mechs[2].Phi = PhiReo_val;
+        mechs[0].Lambda = LamF_val; mechs[1].Lambda = LamR_val; mechs[2].Lambda = LamReo_val;
+        ReturnStateHooks hooks;
+        finite_difference_total_derivatives(mechs, hooks, refresh_state, save_state, restore_state);
+        // FB normalisation scales, floored at an absolute material scale (see unified_T).
+        vec Ycrit_cpp(3);
+        const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);
+        Ycrit_cpp(0) = std::max(fabs(Y0t) + fabs(D*Hcur*Mises_stress(stress)), Yfloor);
+        Ycrit_cpp(1) = std::max(fabs(Y0t) + fabs(D*sum(stress%ETMean)), Yfloor);
+        Ycrit_cpp(2) = std::max(YReo, Yfloor);
+
+        rm = closest_point_return_mapping(stress, L_cpp, mechs, hooks, Ycrit_cpp);
+        if (rm.converged) {
+            error = 0.;
+            stress = rm.sigma;
+            Ds_j = rm.Dlambda;
+            s_j(0) = xiF_n + Ds_j(0); s_j(1) = xiR_n + Ds_j(1); s_j(2) = pTR_n + Ds_j(2);
+            xiF = s_j(0); xiR = s_j(1); pTR = s_j(2);
+            // xi, ET, EReo, areo, ETMean, flows, Hf, penalties are inner-consistent already.
+            DETF  = Ds_j(0)*lambdaTF;
+            DETR  = Ds_j(1)*ETMean;
+            DEReo = Ds_j(2)*lambdaReo;
+            kappa_j = rm.kappa_j;
+            dPhiFdsigma   = rm.dPhidsigma_l[0];
+            dPhiRdsigma   = rm.dPhidsigma_l[1];
+            dPhiReodsigma = rm.dPhidsigma_l[2];
+            M_eff = xi*M_M + (1. - xi)*M_A;   // output L at the converged xi (the tangent keeps L_cpp)
+            L = inv(M_eff);
+            DM_sig = DM*stress;
+            A_xiF = rhoDs0*(T + DT) - rhoDE0 + 0.5*sum(stress%DM_sig) + sum(stress%Dalpha)*thp - HfF;
+            A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%DM_sig) - sum(stress%Dalpha)*thp + HfR;
+            PhihatF = build_PhihatF(stress);
+            PhihatR = sum(stress%ETMean);
+        }
+        else {
+            tnew_dt = 0.5;   // step cut; never a cutting-plane fallback
+            stress = stress_start;
+            ET = ET_nn; EReo = EReo_nn; areo = areo_nn;
+            xi = xi_nn; xiF = xiF_n; xiR = xiR_n; pTR = pTR_n;
+            s_j(0) = xiF_n; s_j(1) = xiR_n; s_j(2) = pTR_n;
+            Ds_j = zeros(3);
+            refresh_state(stress, zeros(3));
+            DETF = zeros(6); DETR = zeros(6); DEReo = zeros(6);
+            kappa_j[0] = L_cpp*LamF_val(stress);
+            kappa_j[1] = L_cpp*LamR_val(stress);
+            kappa_j[2] = L_cpp*LamReo_val(stress);
+            dPhiFdsigma = zeros(6); dPhiRdsigma = zeros(6); dPhiReodsigma = zeros(6);
+        }
+    }
+    else {
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
 
         // Reuss mixing
@@ -654,6 +806,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
         stress = el_pred(L, Eel, ndi);
     }
+    }
 
     // If the local Newton did not converge within maxiter_umat, request a sub-step
     // (tnew_dt < 1) from the global solver rather than committing a non-converged increment.
@@ -677,9 +830,9 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // backend flags it is LAPACK-dependent — see the thermomechanical twin,
     // which crashed CI through this path). Re-enable together with the exact
     // CPP Hessian rework.
-    const int tangent_mode_eff = (tangent_mode == tangent_algorithmic)
+    const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
-    const ContinuumTangent ct = compute_tangent_operator(
+    const ContinuumTangent ct = use_cpp ? cpp_consistent_tangent(rm, L_cpp) : compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes algorithmic tangent (closest-point), 3-mechanism. dLambda/dsigma by central

@@ -29,7 +29,7 @@
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche.hpp>
 
 using namespace std;
 using namespace arma;
@@ -50,7 +50,7 @@ Out run_epcha(const vec &DEtot, int tangent_mode) {
     double T = 293.15, DT = 0., Time = 0., DTime = 1.;
     double Wm = 0., Wm_r = 0., Wm_ir = 0., Wm_d = 0., tnew_dt = 1.;
 
-    umat_plasticity_chaboche_CCP("EPCHA", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
+    umat_plasticity_chaboche("EPCHA", Etot, DEtot, sigma, Lt, L, DR, nprops, props,
                                  nstatev, statev, T, DT, Time, DTime,
                                  Wm, Wm_r, Wm_ir, Wm_d, 3, 3, true, tnew_dt, tangent_mode);
     return {sigma, Lt, statev(1) > simcoon::iota};

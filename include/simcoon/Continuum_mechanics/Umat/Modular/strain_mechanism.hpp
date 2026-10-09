@@ -48,6 +48,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <armadillo>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/internal_variable_collection.hpp>
+#include <simcoon/Continuum_mechanics/Umat/return_mapping.hpp>
 
 namespace simcoon {
 
@@ -597,5 +598,37 @@ public:
         double& Wm_d
     ) const = 0;
 };
+
+/**
+ * @brief Closest-point return mapping over StrainMechanism rows.
+ *
+ * Adapter from the typed interface to closest_point_return_mapping(): the rows of the
+ * mechanisms that carry multipliers become the helper's callbacks (compute_constraints /
+ * refresh_state / closest_point_ingredients / K_cross), the others are skipped (the caller
+ * evaluates them at the converged stress). Shared by ModularUMAT::return_mapping_cpp() and the
+ * dedicated kernels, which instantiate the matching PlasticityMechanism on their own props and
+ * state instead of re-deriving the backward-Euler algebra (defined in modular_umat.cpp).
+ *
+ * @param sigma_tr   elastic trial stress (6)
+ * @param L          elastic tangent at the trial (6x6)
+ * @param mechanisms all mechanisms, at their START state (set_start() done)
+ * @param offsets    row offset of each mechanism in @p Ds_total / @p Y_crit
+ * @param[in,out] Ds_total multipliers of every row; the solved rows are written on success
+ * @param Y_crit     row normalisations (every row), as evaluated at the trial
+ * @param hooks      caller-side members only (elastic_response / eps_el_tr for a nonlinear
+ *                   elastic block); the state hooks are built here
+ * @param control    iteration controls
+ * @return the helper's result (converged flag; the mechanisms hold the refreshed state and
+ *         their ClosestPointIngredients at the converged iterate)
+ */
+ReturnMappingResult closest_point_return_mapping(
+    const arma::vec& sigma_tr,
+    const arma::mat& L,
+    const std::vector<StrainMechanism*>& mechanisms,
+    const std::vector<int>& offsets,
+    arma::vec& Ds_total,
+    const arma::vec& Y_crit,
+    ReturnStateHooks hooks = {},
+    const ReturnMappingControl& control = {});
 
 } // namespace simcoon

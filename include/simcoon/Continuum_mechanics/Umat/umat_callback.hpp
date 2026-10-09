@@ -32,7 +32,7 @@ namespace simcoon {
 /**
  * @brief Signature of a small-strain mechanical UMAT (the 24-argument simcoon convention).
  *
- * Identical to the built-in kernels (e.g. umat_plasticity_iso_CCP): the callee receives the
+ * Identical to the built-in kernels (e.g. umat_plasticity_iso): the callee receives the
  * strain at the beginning of the increment \f$ \boldsymbol{\varepsilon}_n \f$ (@p Etot), the
  * increment \f$ \Delta\boldsymbol{\varepsilon} \f$ (@p DEtot), the stress at the beginning of
  * the increment (@p sigma, in/out), the rotation increment @p DR, the material properties,

@@ -35,7 +35,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/criteria.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
 
 #include "umat_tutorial_J2.hpp"
 
@@ -96,7 +96,7 @@ TEST(Ttutorial_umat, matches_EPICP_reference) {
     const auto path = cyclic_path(0.02, 25);
     const Out tut = run(umat_tutorial_J2, PROPS_TUTORIAL, 8, path,
                         tangent_continuum);
-    const Out ref = run(umat_plasticity_iso_CCP, PROPS_EPICP, 8, path,
+    const Out ref = run(umat_plasticity_iso, PROPS_EPICP, 8, path,
                         tangent_continuum);
     const double peak = std::max(std::abs(ref.sigma.max()),
                                  std::abs(ref.sigma.min()));

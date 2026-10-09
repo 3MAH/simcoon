@@ -48,6 +48,11 @@
  * integrators coincide; where the flow direction rotates within the increment the converged
  * stresses differ by \f$ O(\|\Delta\varepsilon\|^2) \f$ on one increment.
  *
+ * The Newton step is taken over the active set — rows with \f$ \Phi^l \ge 0 \f$, or a
+ * multiplier, or a non-vanishing diagonal \f$ B^{ll} \f$; a row failing all three (a
+ * reorientation surface at zero effective stress) has an identically zero Fischer-Burmeister
+ * row and no step, as in the cutting-plane loops of the SMA kernels.
+ *
  * Robustness. The semi-smooth Newton is globalised by (i) the \f$ \Delta s^j \ge 0 \f$
  * projection of the multipliers, (ii) a backtracking line search (step halved, at most
  * max_backtrack times) on the merit \f$ e = e_{FB}(\Phi, \Delta s) +
@@ -72,8 +77,11 @@
  *
  * @note The callbacks map one-to-one onto the modular StrainMechanism interface —
  * compute_constraints -> Phi, closest_point_ingredients -> dPhi_dsigma / dLambda_dsigma / K /
- * flow_state_coupling, refresh_state -> update_state — ModularUMAT::return_mapping_cpp is the
- * adapter; the dedicated kernels (EPCHA, SMA unified_T / unified_TR) call this function directly.
+ * flow_state_coupling, refresh_state -> update_state — the overload over StrainMechanism rows
+ * (strain_mechanism.hpp) is the adapter, used by ModularUMAT::return_mapping_cpp and by the
+ * dedicated plasticity kernels (EPICP, EPCHA, EPICP_T, EPKCP_T), which run the matching
+ * PlasticityMechanism on their own props and state; the SMA kernels (unified_T / unified_TR)
+ * call this function directly with finite_difference_total_derivatives().
  */
 
 #pragma once
@@ -208,6 +216,96 @@ ReturnMappingResult closest_point_return_mapping(
     double Y_crit,
     const std::function<arma::vec(const arma::vec &sigma, double Dlambda)> &flow_state_coupling = {},
     const ReturnMappingControl &control = {});
+
+/**
+ * @brief Hooks of the convex-cutting-plane (CCP) loop: the state lives with the caller and
+ *        is updated INCREMENTALLY along the flow of each iterate.
+ *
+ * The constraints of the first iterate are evaluated by the caller (shared with its elastic
+ * guard) and handed in; the loop then repeats
+ * jacobian -> Fischer_Burmeister_m -> update -> refresh -> consistency -> constraints
+ * until the Fischer-Burmeister error plus the consistency residual is below the precision or
+ * maxiter is reached. This is the path-dependent integrator the algorithmic tangent is only
+ * approximately consistent with (closest_point_return_mapping() for the exact one); it is kept
+ * because it is the reference of every result before mode 3 and the only one for criteria
+ * without a flow Hessian.
+ */
+struct CuttingPlaneHooks {
+    /// REQUIRED. Constraints and normalisations at the current state and stress (phase 1 of an
+    /// iterate; populates whatever caches jacobian() reads).
+    std::function<void(arma::vec &Phi, arma::vec &Y_crit)> constraints;
+    /// REQUIRED. Local multiplier Jacobian \f$ B^{lj} = -\partial\Phi^l/\partial\boldsymbol{\sigma}
+    /// \cdot\boldsymbol{\kappa}^j + K^{lj} \f$ (N x N) from those caches.
+    std::function<void(arma::mat &B)> jacobian;
+    /// REQUIRED. Incremental state update along the current flow for the multiplier step @p ds.
+    std::function<void(const arma::vec &ds)> update;
+    /// REQUIRED. Stress from the updated state.
+    std::function<void()> refresh;
+    /// OPTIONAL. Residual of the states updated outside the FB rows (damage fixed point);
+    /// added to the FB error. Empty => 0.
+    std::function<double()> consistency;
+};
+
+/// Outcome of cutting_plane_return_mapping(): the caller decides what an unconverged state is
+/// worth (the modular UMAT commits it, by the reference CCP convention).
+struct CuttingPlaneResult {
+    bool   converged = false;
+    int    niter = 0;
+    double error = 0.;
+};
+
+/**
+ * @brief Convex-cutting-plane return mapping over caller-owned state.
+ *
+ * @param[in,out] Phi      constraints at the entering state (N), updated at every iterate
+ * @param[in,out] Y_crit   their normalisations (N), updated with them
+ * @param[in,out] Ds_total total multipliers (N), accumulated by Fischer_Burmeister_m
+ * @param hooks            the caller's state operations
+ * @param control          maxiter / precision (zero => simcoon defaults)
+ * @param iter0            iterations already spent by the caller on this increment (its
+ *                         elastic pass), counted against maxiter
+ */
+CuttingPlaneResult cutting_plane_return_mapping(
+    arma::vec &Phi,
+    arma::vec &Y_crit,
+    arma::vec &Ds_total,
+    const CuttingPlaneHooks &hooks,
+    const ReturnMappingControl &control = {},
+    int iter0 = 0);
+
+/**
+ * @brief Total derivatives by central differences of the composed map, for a kernel whose state
+ *        is not an analytic function of \f$ (\boldsymbol{\sigma}, \Delta s) \f$.
+ *
+ * Fills the derivative callbacks of @p mechanisms (dPhi_dsigma, dLambda_dsigma) and the state
+ * hooks (update_state, K, flow_state_coupling) from the kernel's state refresh and its
+ * \f$ \Phi^j(\boldsymbol{\sigma}) \f$, \f$ \boldsymbol{\Lambda}^j(\boldsymbol{\sigma}) \f$ (which
+ * must already be set on @p mechanisms, evaluated at the refreshed state): every probe
+ * re-solves the state at the perturbed \f$ (\boldsymbol{\sigma}, \Delta s) \f$ between
+ * @p save and @p restore, so the differences are TOTAL derivatives — the quantities the
+ * closest-point Newton and its exact tangent need (the lesson of the state-coupled kernels:
+ * partial derivatives at frozen state leave the operator inexact). Steps: relative
+ * \f$ h_\sigma = \mathrm{h\_sigma\_rel}\,(\|\boldsymbol{\sigma}\| + 1) \f$ on the stress, absolute
+ * \f$ h_{\Delta s} \f$ on the multipliers (one-sided at \f$ \Delta s = 0 \f$).
+ *
+ * Cost: \f$ 12 N \f$ state refreshes per Newton iterate for the stress derivatives plus
+ * \f$ 2 N (N + 1) \f$ for the multiplier ones — the SMA kernels on this builder are 30-45x slower
+ * than their cutting-plane loop; analytic derivatives (PlasticityMechanism) are the remedy.
+ *
+ * @param mechanisms  N mechanisms with Phi and Lambda set; the derivatives are filled here
+ * @param hooks       filled: update_state (wrapping @p refresh), K, flow_state_coupling
+ * @param refresh     the kernel's backward-Euler state refresh at \f$ (\boldsymbol{\sigma}, \Delta s) \f$
+ * @param save        copies the kernel's state aside (a lambda capturing a local struct)
+ * @param restore     puts it back
+ */
+void finite_difference_total_derivatives(
+    std::vector<ReturnMechanism> &mechanisms,
+    ReturnStateHooks &hooks,
+    const std::function<bool(const arma::vec &sigma, const arma::vec &Dlambda)> &refresh,
+    const std::function<void()> &save,
+    const std::function<void()> &restore,
+    double h_sigma_rel = 1.e-5,
+    double h_Dlambda = 1.e-7);
 
 /**
  * @brief Exact consistent tangent of the converged CPP map.
