@@ -53,7 +53,10 @@ namespace simcoon{
  * @details This function implements an elastic-plastic material model for small and finite strain analysis.
  * The model features:
  * - J2 (von Mises) plasticity with associative flow rule
- * - Isotropic hardening following a power law: \f$ H_p = k \cdot p^m \f$
+ * - Isotropic hardening following a power law: \f$ H_p = k \cdot p^m \f$, evaluated through
+ *   PowerLawHardening: exact for \f$ p \geq 10^{-6} \f$ and a \f$ C^1 \f$ quadratic blend below,
+ *   because for \f$ m < 1 \f$ the exact slope \f$ m k p^{m-1} \f$ is infinite at the onset and the
+ *   cutting-plane Newton cycles on the first plastic increment (committed off-surface, silently)
  * - Convex Cutting Plane algorithm for return mapping
  * - Thermal expansion effects
  * - Consistent tangent modulus for implicit FE analysis

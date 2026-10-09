@@ -141,15 +141,16 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     
     double Hp=0.;
     double dHpdp=0.;
-    
-    if (p > simcoon::iota)	{
-        dHpdp = m*k*pow(p, m-1);
-        Hp = k*pow(p, m);
-    }
-    else {
-        dHpdp = 0.;
-        Hp = 0.;
-    }
+
+    // Power-law hardening k p^m through the modular block: for m < 1 the exact slope m k p^(m-1)
+    // is infinite at the onset and the cutting-plane Newton cycles on the first plastic increment
+    // (committed off-surface, silently); PowerLawHardening is exact for p >= 1e-6 and a C1
+    // quadratic blend below.
+    PowerLawHardening hardening;
+    int hardening_offset = 0;
+    hardening.configure(vec{k, m}, hardening_offset);
+    Hp = hardening.R(p);
+    dHpdp = hardening.dR_dp(p);
     
     //Variables values at the start of the increment
     vec stress_start = stress;
@@ -187,9 +188,8 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
 
     // Closest-point projection (tangent_closest_point): the modular von Mises + power-law row on
     // this kernel's props and state — radial return, the same converged state as the loop below
-    // to the local tolerance, the helper's exact operator, and the C1 onset regularisation of
-    // PowerLawHardening where k m p^(m-1) is infinite. Condensed states keep the loop. Bhat / K
-    // of the tail only feed the cutting-plane tangent.
+    // to the local tolerance, with the helper's exact operator. Condensed states keep the loop.
+    // Bhat / K of the tail only feed the cutting-plane tangent.
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
     if (use_cpp) {
@@ -198,14 +198,13 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         iv.get("p").scalar() = p;
         iv.get("EP").raw_voigt() = EP;
         mech.set_start();
-        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
         if (mech.yield_function(stress) > 0.) {   // an admissible trial is committed as is (Lt = L below)
             rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
             if (rm.converged) {
                 stress = rm.sigma;
                 p = iv.get("p").scalar();
                 EP = iv.get("EP").raw_voigt();
-                Hp = mech.isotropic_hardening().R(p);
+                Hp = hardening.R(p);
             }
             else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
                 tnew_dt = 0.5;
@@ -218,14 +217,8 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > simcoon::iota)	{
-            dHpdp = m*k*pow(p, m-1);
-            Hp = k*pow(p, m);
-        }
-        else {
-            dHpdp = 0.;
-            Hp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(stress);
         dPhidp = -1.*dHpdp;
         

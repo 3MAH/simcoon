@@ -93,6 +93,7 @@ static const std::map<int, std::string> model_code_to_name = {
     {26, "SMRDC"},  // SMA unified T+R, cubic elasticity
     {27, "SMRAI"},  // SMA unified T+R, anisotropic criterion
     {28, "SMRAC"},  // SMA unified T+R, cubic + anisotropic
+    {29, "EPJCK"},  // Johnson-Cook (rate and temperature dependent J2 plasticity)
     {200, "MODUL"}, // Modular composition (props encode the mechanisms)
     {100, "MIHEN"}, // Mori-Tanaka (Eshelby)
     {101, "MIMTN"}, // Mori-Tanaka N phases

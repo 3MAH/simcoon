@@ -325,6 +325,10 @@ The following constitutive models are available through ``select_umat_M()``:
      - Von Mises + Voce + 2× Armstrong-Frederick
      - :math:`E, \nu, \alpha, \sigma_Y, Q, b, C_1, D_1, C_2, D_2`
      - 33
+   * - EPJCK
+     - Von Mises + Johnson-Cook yield stress (rate and temperature dependent)
+     - :math:`E, \nu, \alpha, A, B, n, C, \dot{\varepsilon}_0, m, T_{\mathrm{ref}}, T_{\mathrm{melt}}`
+     - 9 (T_init, p, EP, edot_p)
    * - EPHIL / EPTRI
      - Hill yield + power-law isotropic hardening
      - :math:`E, \nu, \alpha, \sigma_Y, k, m, F, G, H, L, M, N`

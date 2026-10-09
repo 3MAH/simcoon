@@ -29,11 +29,14 @@ _PLASTIC = {
     "EPICP": (np.array([200000., 0.3, 0., 300., 1000., 0.5]), 8, 0.05),
     # EPCHA carries stress-like back-stresses X_1, X_2: they used not to be rotated at all
     "EPCHA": (np.array([210000.0, 0.3, 0.0, 300.0, 200.0, 20.0, 30000.0, 172.0, 19500.0, 301.0]), 33, 0.02),
+    # EPJCK: EPICP layout plus the plastic strain rate; declared in umat_conventions like EPICP
+    "EPJCK": (np.array([200000., 0.33, 0., 792., 510., 0.26, 0.014, 1.0, 1.03, 293., 1793.]), 9, 0.05),
 }
 
 
 @pytest.mark.parametrize("umat, corate", [("EPICP", c) for c in (0, 2, 3, 4)]
-                         + [("EPCHA", c) for c in (0, 2, 3)])
+                         + [("EPCHA", c) for c in (0, 2, 3)]
+                         + [("EPJCK", c) for c in (0, 2, 3, 4)])
 def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
     """A plastic prestretch, then a rigid 90 degree rotation: the stress just rotates, and no
     plastic strain or dissipation is created."""

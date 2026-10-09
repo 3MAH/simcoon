@@ -150,14 +150,15 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     double Hp=0.;
     double dHpdp=0.;
 
-    if (p > simcoon::iota)	{
-        dHpdp = m*k*pow(p, m-1);
-        Hp = k*pow(p, m);
-    }
-    else {
-        dHpdp = 0.;
-        Hp = 0.;
-    }
+    // Power-law hardening k p^m through the modular block: for m < 1 the exact slope m k p^(m-1)
+    // is infinite at the onset and the cutting-plane Newton cycles on the first plastic increment
+    // (committed off-surface, silently); PowerLawHardening is exact for p >= 1e-6 and a C1
+    // quadratic blend below.
+    PowerLawHardening hardening;
+    int hardening_offset = 0;
+    hardening.configure(vec{k, m}, hardening_offset);
+    Hp = hardening.R(p);
+    dHpdp = hardening.dR_dp(p);
     
     //Variables values at the start of the increment
     vec sigma_start = sigma;
@@ -204,15 +205,14 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
         iv.get("p").scalar() = p;
         iv.get("EP").raw_voigt() = EP;
         mech.set_start();
-        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
         if (mech.yield_function(sigma) > 0.) {   // an admissible trial is committed as is (Lt = L below)
             rm = closest_point_return_mapping(sigma, L, {&mech}, {0}, Ds_j, vec{sigmaY});
             if (rm.converged) {
                 sigma = rm.sigma;
                 p = iv.get("p").scalar();
                 EP = iv.get("EP").raw_voigt();
-                Hp = mech.isotropic_hardening().R(p);
-                dHpdp = mech.isotropic_hardening().dR_dp(p);
+                Hp = hardening.R(p);
+                dHpdp = hardening.dR_dp(p);
                 const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
                 dPhidsigma = ing.dPhi_dsigma;
                 Lambdap = ing.Lambda;
@@ -229,14 +229,8 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > simcoon::iota)	{
-            dHpdp = m*k*pow(p, m-1);
-            Hp = k*pow(p, m);
-        }
-        else {
-            dHpdp = 0.;
-            Hp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(sigma);
         dPhidp = -1.*dHpdp;
         

@@ -53,7 +53,9 @@ Small-strain mechanical models
      - Von Mises + power-law isotropic hardening
      - legacy (kept)
      - E, nu, alpha, sigmaY, k, m
-     - Pedagogical reference of the CCP return mapping
+     - Pedagogical reference of the CCP return mapping; the hardening goes
+       through the modular PowerLawHardening (C1 onset blend below p = 1e-6
+       for m < 1, exact above), as EPJCK
    * - EPKCP
      - Von Mises + power-law isotropic + Prager kinematic
      - modular (adapter)
@@ -65,6 +67,17 @@ Small-strain mechanical models
      - legacy (kept)
      - E, nu, alpha, sigmaY, Q, b, C1, D1, C2, D2
      - Pedagogical reference of kinematic hardening in CCP
+   * - EPJCK
+     - Von Mises + Johnson-Cook yield stress (power-law hardening x logarithmic
+       strain-rate factor x thermal softening)
+     - dedicated kernel
+     - E, nu, alpha, A, B, n, C, edot0, m, T_ref, T_melt
+     - Rate-dependent: the plastic strain rate is Dp/Dt, fully implicit in the
+       CCP loop; the rate factor is clamped at 1 below edot0. 9 statev
+       (T_init, p, EP, edot_p). Thermomechanical twin with (rho, c_p)
+       prepended, dPhi/dT from the thermal softening. tangent_mode 0 returns
+       the elastic L in the mechanical kernel (explicit integration); the
+       thermomechanical twin promotes it to the continuum operator, as EPICP_T.
    * - EPHIL / EPTRI
      - Hill yield + power-law isotropic hardening
      - modular (adapter)
@@ -331,7 +344,7 @@ isotropic laws (both finite-difference verified).
    :math:`\Delta\mathbf{R} = \mathbf{I}`); for 4, lower-convected strain-like and upper-convected
    stress-like quantities; for 5, similarity. For 4 and 5 the dispatcher applies it to the
    internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
-   EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
+   EPJCK, EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
    plasticity names served by the modular engine, ``PYEXT``) is refused under corates 4 and 5,
    and ``MODUL`` under any corate but 3. ``EPCHA`` is also refused under corate 4: it stores
    :math:`\mathbf{X}_i = \tfrac23 C_i\,\mathbf{a}_i`, and the Truesdell rate convects the

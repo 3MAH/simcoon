@@ -18,7 +18,8 @@
 ///@file plastic_isotropic.hpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief Convex cutting plane return mapping (tangent_mode 0-2) or closest-point projection (tangent_mode 3)
-///@brief Isotropic hardening with a power-law hardenig is considered
+///@brief Isotropic hardening with a power-law hardening is considered (PowerLawHardening: exact for
+///       p >= 1e-6, C1 onset blend below, see the mechanical header)
 ///@version 1.0
 
 #pragma once
