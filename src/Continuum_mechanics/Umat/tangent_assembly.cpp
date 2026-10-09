@@ -67,10 +67,12 @@ ContinuumTangent assemble_continuum_tangent(
     arma::mat invBhat = mask % invBbar;   // zero out inactive rows/cols
 
     // Stack \partial \Phi^m gradients into a 6\times Nmech matrix so the double sum over
-    // (l, m) becomes one GEMM: P = (L \cdot \partial \Phi ) \cdot invBhat.
+    // (l, m) becomes one GEMM. Bhat(l, j) has the criterion on the row and the mechanism
+    // on the column, so \Delta s = invBhat \cdot (\partial \Phi : L : \Delta \varepsilon ) and
+    // P^l = \sum_m invBhat(l, m) L \partial \Phi^m, i.e. P = (L \cdot \partial \Phi ) \cdot invBhat^T.
     arma::mat DP(6, Nmech);
     for (arma::uword m = 0; m < Nmech; ++m) DP.col(m) = dPhidsigma_l[m];
-    const arma::mat P = (L * DP) * invBhat;             // 6 \times Nmech
+    const arma::mat P = (L * DP) * invBhat.t();         // 6 \times Nmech
 
     // Stack \kappa^l into a 6\times Nmech matrix for the rank-Nmech update Lt = L - \kappa P^T.
     arma::mat K6(6, Nmech);
