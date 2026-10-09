@@ -246,14 +246,6 @@ struct CuttingPlaneHooks {
     std::function<double()> consistency;
 };
 
-/// Outcome of cutting_plane_return_mapping(): the caller decides what an unconverged state is
-/// worth (the modular UMAT commits it, by the reference CCP convention).
-struct CuttingPlaneResult {
-    bool   converged = false;
-    int    niter = 0;
-    double error = 0.;
-};
-
 /**
  * @brief Convex-cutting-plane return mapping over caller-owned state.
  *
@@ -264,8 +256,10 @@ struct CuttingPlaneResult {
  * @param control          maxiter / precision (zero => simcoon defaults)
  * @param iter0            iterations already spent by the caller on this increment (its
  *                         elastic pass), counted against maxiter
+ * @return whether the error fell below the precision (the modular UMAT commits the state either
+ *         way, by the reference cutting-plane convention)
  */
-CuttingPlaneResult cutting_plane_return_mapping(
+bool cutting_plane_return_mapping(
     arma::vec &Phi,
     arma::vec &Y_crit,
     arma::vec &Ds_total,
@@ -288,9 +282,10 @@ CuttingPlaneResult cutting_plane_return_mapping(
  * \f$ h_\sigma = \mathrm{h\_sigma\_rel}\,(\|\boldsymbol{\sigma}\| + 1) \f$ on the stress, absolute
  * \f$ h_{\Delta s} \f$ on the multipliers (one-sided at \f$ \Delta s = 0 \f$).
  *
- * Cost: \f$ 12 N \f$ state refreshes per Newton iterate for the stress derivatives plus
- * \f$ 2 N (N + 1) \f$ for the multiplier ones — the SMA kernels on this builder are 30-45x slower
- * than their cutting-plane loop; analytic derivatives (PlasticityMechanism) are the remedy.
+ * Cost: 12 state refreshes per Newton iterate for the stress derivatives of every row and
+ * quantity (one probe pass, cached per \f$ (\boldsymbol{\sigma}, \Delta s) \f$) plus
+ * \f$ 2 N \f$ for the multiplier ones — the SMA kernels on this builder stay several times
+ * slower than their cutting-plane loop; analytic derivatives (PlasticityMechanism) are the remedy.
  *
  * @param mechanisms  N mechanisms with Phi and Lambda set; the derivatives are filled here
  * @param hooks       filled: update_state (wrapping @p refresh), K, flow_state_coupling

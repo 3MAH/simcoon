@@ -32,6 +32,7 @@
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 
 using namespace std;
 using namespace arma;
@@ -91,7 +92,6 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(nshr);
-    UNUSED(tnew_dt);    
     
 	//From the props to the material properties
     double rho = props(0);
@@ -197,27 +197,31 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     // this kernel's props and state (same branch as the mechanical kernel). Condensed states keep
     // the loop; the thermal tail reads dPhidsigma / Lambdap / kappa_j / dHpdp.
     ReturnMappingResult rm;
-    if (tangent_mode == simcoon::tangent_closest_point && ndi == 3) {
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
         auto &iv = mech.variables();
         iv.get("p").scalar() = p;
         iv.get("EP").raw_voigt() = EP;
         mech.set_start();
-        rm = closest_point_return_mapping(sigma, L, {&mech}, {0}, Ds_j, vec{sigmaY});
-        if (rm.converged) {
-            sigma = rm.sigma;
-            p = iv.get("p").scalar();
-            EP = iv.get("EP").raw_voigt();
-            Hp = mech.isotropic_hardening().R(p);
-            dHpdp = mech.isotropic_hardening().dR_dp(p);
-            const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
-            dPhidsigma = ing.dPhi_dsigma;
-            Lambdap = ing.Lambda;
-            kappa_j = rm.kappa_j;
-        }
-        else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
-            tnew_dt = 0.5;
-            sigma = sigma_start;
+        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
+        if (mech.yield_function(sigma) > 0.) {   // an admissible trial is committed as is (Lt = L below)
+            rm = closest_point_return_mapping(sigma, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+            if (rm.converged) {
+                sigma = rm.sigma;
+                p = iv.get("p").scalar();
+                EP = iv.get("EP").raw_voigt();
+                Hp = mech.isotropic_hardening().R(p);
+                dHpdp = mech.isotropic_hardening().dR_dp(p);
+                const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
+                dPhidsigma = ing.dPhi_dsigma;
+                Lambdap = ing.Lambda;
+                kappa_j = rm.kappa_j;
+            }
+            else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
+                tnew_dt = 0.5;
+                sigma = sigma_start;
+            }
         }
     }
     else {

@@ -59,7 +59,6 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     UNUSED(Time);
     UNUSED(DTime);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
 
     ///@brief Determine elasticity type and criteria type from umat_name
     bool cubic_elasticity = false;
@@ -414,48 +413,38 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     // derivatives of the composed map (central FD probes with save/restore).
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
-    const mat L_cpp = L;   // frozen stiffness used consistently by the helper and the tangent
+    const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
-        const double xi_nn = xi, xiF_n = xiF, xiR_n = xiR;
-        const vec ET_nn = ET;
+        const double xi_n = xi;
         const double thp = (T + DT - T_init);
 
         // Backward-Euler state at (sig, Dl): xi, Hcur, lambdaTF, ETMean, ET, hardening, Lagrange.
         auto refresh_state = [&](const vec &sig, const vec &Dl) {
-            xi = xi_nn + Dl(0) - Dl(1);
-            double sstar = Mises_stress(sig) - sigmacrit;
-            if (sstar < 0.) sstar = 0.;
-            Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*sstar));
-            lambdaTF = aniso_criteria ? vec(Hcur*dDrucker_ani_stress(sig, DFA_params, prager_b, prager_n))
-                                      : vec(Hcur*dDrucker_stress(sig, prager_b, prager_n));
-            // ETMean fixed point (exact in <=3 sweeps; honours the CCP guard).
-            for (int it_fp = 0; it_fp < 5; it_fp++) {
-                ET = ET_nn + Dl(0)*lambdaTF - Dl(1)*ETMean;
-                vec ETMean_new;
-                if ((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat)) {
-                    ETMean_new = dev(ET)/xi;
-                }
-                else {
-                    ETMean_new = lambdaTF;
-                }
-                const double dm_fp = norm(ETMean_new - ETMean, 2);
-                ETMean = ETMean_new;
-                if (dm_fp < 1e-14*(norm(ETMean, 2) + 1.)) break;
+            xi = xi_n + Dl(0) - Dl(1);
+            Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*std::max(Mises_stress(sig) - sigmacrit, 0.)));
+            lambdaTF = sma_transformation_flow(sig, sigmacrit, Hmin, Hmax, k1, aniso_criteria, DFA_params, prager_b, prager_n);
+            // ETMean = dev(ET)/xi with ET = ET_n + Dl_F lambdaTF - Dl_R ETMean has the closed form
+            // ETMean (xi + Dl_R) = dev(ET_n) + Dl_F dev(lambdaTF) (the martensite present before
+            // the reversal); the sweep form of this fixed point diverges when Dl_R > xi. The loop's
+            // guard (no martensite, no transformation strain -> lambdaTF) is kept.
+            const double xi_before = xi + Dl(1);
+            ETMean = (xi_before > simcoon::precision_umat) ? vec((dev(ET_start) + Dl(0)*dev(lambdaTF))/xi_before) : lambdaTF;
+            ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
+            if (!((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat))) {
+                ETMean = lambdaTF;
+                ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
             }
-            lambdaTR = -1.*ETMean;
-            // Smooth hardening functions and Lagrange penalties at the updated xi.
-            const double xi_h = std::min(std::max(xi, 0.), 1.);   // continuous Hf evaluation
+            // Smooth hardening functions at xi clamped to [0,1]: FD probes step the raw xi past
+            // the bounds, where pow(xi, n) is NaN for the fractional exponents; the slope of Hf is
+            // infinite there (the loop uses 1e12), so a C1 continuation is a model change, not a
+            // numerical one. The Lagrange penalties are already C1-continued outside [0,1].
+            const double xi_h = std::min(std::max(xi, 0.), 1.);
             if ((n1 == 1.) && (n2 == 1.)) { HfF = a1*xi_h + a3; }
             else { HfF = 0.5*a1*(1. + pow(xi_h, n1) - pow(1. - xi_h, n2)) + a3; }
             if ((n3 == 1.) && (n4 == 1.)) { HfR = a2*xi_h - a3; }
             else { HfR = 0.5*a2*(1. + pow(xi_h, n3) - pow((1. - xi_h), n4)) - a3; }
-            // Penalties/hardening evaluated at a clamped xi: FD probes can push the raw xi
-            // slightly outside [0,1], where lagrange_pow_* returns NaN (pow of a negative base)
-            // and the piecewise Hf branches are discontinuous - either poisons the K row and
-            // stalls the Fischer-Burmeister update (dp = 0 grind to maxiter).
-            const double xi_pen = std::min(std::max(xi, simcoon::limit), 1. - simcoon::limit);
-            lambda1 = lagrange_pow_1(xi_pen, c_lambda, p0_lambda, n_lambda, alpha_lambda);
-            lambda0 = -1.*lagrange_pow_0(xi_pen, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            lambda0 = -1.*lagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
             return true;
         };
         // Criterion values at (sig, current state).
@@ -476,11 +465,11 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         auto LamR_val = [&](const vec &sig) { return vec(-1.*ETMean - DM*sig - Dalpha*thp); };
         // Total derivatives by central differences of the composed map: the state is saved,
         // re-solved at the probe and restored by the builder.
-        struct SmaState { double xi, Hcur, HfF, HfR, l0, l1; vec lTF, lTR, ETM, ET; } saved;
-        auto save_state = [&]() { saved = SmaState{xi, Hcur, HfF, HfR, lambda0, lambda1, lambdaTF, lambdaTR, ETMean, ET}; };
+        struct SmaState { double xi, Hcur, HfF, HfR, l0, l1; vec lTF, ETM, ET; } saved;
+        auto save_state = [&]() { saved = SmaState{xi, Hcur, HfF, HfR, lambda0, lambda1, lambdaTF, ETMean, ET}; };
         auto restore_state = [&]() {
             xi = saved.xi; Hcur = saved.Hcur; HfF = saved.HfF; HfR = saved.HfR; lambda0 = saved.l0; lambda1 = saved.l1;
-            lambdaTF = saved.lTF; lambdaTR = saved.lTR; ETMean = saved.ETM; ET = saved.ET;
+            lambdaTF = saved.lTF; ETMean = saved.ETM; ET = saved.ET;
         };
         std::vector<ReturnMechanism> mechs(2);
         mechs[0].Phi = PhiF_val;
@@ -496,23 +485,19 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         // (~1e-10 MPa) and defeats the deactivation snap. Floor both to an ABSOLUTE material
         // scale built from the calibration point.
         const double Yfloor = 0.1*std::max(Y0t + D*Hmax*sigmacaliber, 1.e-2);
-        Ycrit_cpp(0) = std::max(Y0t + D*Hcur*Mises_stress(stress), Yfloor);
-        Ycrit_cpp(1) = std::max(std::fabs(Y0t + D*sum(stress%ETMean)), Yfloor);
+        Ycrit_cpp(0) = std::max(std::fabs(Y0t) + std::fabs(D*Hcur*Mises_stress(stress)), Yfloor);
+        Ycrit_cpp(1) = std::max(std::fabs(Y0t) + std::fabs(D*sum(stress%ETMean)), Yfloor);
 
         rm = closest_point_return_mapping(stress, L_cpp, mechs, hooks, Ycrit_cpp);
         if (rm.converged) {
             stress = rm.sigma;
             Ds_j = rm.Dlambda;
-            s_j(0) = xiF_n + Ds_j(0);
-            s_j(1) = xiR_n + Ds_j(1);
+            s_j += Ds_j;
             xiF = s_j(0);
             xiR = s_j(1);
-            // xi, ET, ETMean, lambdaTF/R, HfF/R, lambda0/1, Hcur are inner-consistent already.
+            // xi, ET, ETMean, lambdaTF, HfF/R, lambda0/1, Hcur are inner-consistent already.
             DETF = Ds_j(0)*lambdaTF;
             DETR = Ds_j(1)*ETMean;
-            kappa_j = rm.kappa_j;
-            dPhiFdsigma = rm.dPhidsigma_l[0];
-            dPhiRdsigma = rm.dPhidsigma_l[1];
             // Refresh the mixture stiffness at the converged xi for the OUTPUT L (the tangent
             // uses the frozen L_cpp consistently through cpp_consistent_tangent below).
             M_eff = xi*M_M + (1. - xi)*M_A;
@@ -522,22 +507,11 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             A_xiR = -1.*rhoDs0*(T + DT) + rhoDE0 - 0.5*sum(stress%(DM*stress)) - sum(stress%Dalpha)*thp + HfR;
         }
         else {
-            tnew_dt = 0.5;                     // step-cut; never a silent CCP fallback
+            // step cut, never a silent cutting-plane fallback; the start state back (Ds_j, DETF,
+            // DETR are still zero, xiF / xiR / s_j untouched)
+            tnew_dt = 0.5;
             stress = stress_start;
-            ET = ET_nn;
-            xi = xi_nn;
-            xiF = xiF_n;
-            xiR = xiR_n;
-            s_j(0) = xiF_n;
-            s_j(1) = xiR_n;
-            Ds_j = zeros(2);
             refresh_state(stress, zeros(2));
-            DETF = zeros(6);
-            DETR = zeros(6);
-            kappa_j[0] = L_cpp*LamF_val(stress);
-            kappa_j[1] = L_cpp*LamR_val(stress);
-            dPhiFdsigma = zeros(6);
-            dPhiRdsigma = zeros(6);
         }
     }
     else {
@@ -767,7 +741,14 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     double DxiR = Ds_j[1];
 
     //Computation of the tangent modulus — continuum SMA operator
-    //assembled via the shared 2-mechanism leading-mechanism helper (doc §7.4).
+    //assembled via the shared 2-mechanism leading-mechanism helper (doc §7.4);
+    //closest-point branch: the exact operator of the converged solve, with the frozen L_cpp it
+    //was solved with (elastic placeholder on a step cut).
+    ContinuumTangent ct;
+    if (use_cpp) {
+        ct = cpp_consistent_tangent(rm, L_cpp);
+    }
+    else {
     mat Bhat = zeros(2, 2);
     Bhat(0,0) = sum(dPhiFdsigma%kappa_j[0]) - K(0,0);
     Bhat(0,1) = sum(dPhiFdsigma%kappa_j[1]) - K(0,1);
@@ -783,9 +764,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     // CPP Hessian rework.
     const int tangent_mode_eff = (tangent_mode == tangent_algorithmic || tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
-    // Closest-point branch: the exact operator of the converged solve, built with the frozen
-    // L_cpp it was solved with.
-    const ContinuumTangent ct = use_cpp ? cpp_consistent_tangent(rm, L_cpp) : compute_tangent_operator(
+    ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
             // Simo-Hughes algorithmic tangent (closest-point). The forward transformation strain-flow
@@ -813,6 +792,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             const std::vector<mat> dLambda_dsigma_l = { dLambdaF, -1. * DM };
             return dLambda_dsigma_l;
         });
+    }
     Lt = ct.Lt;
 
     //Preliminaries for the computation of mechanical work

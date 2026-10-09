@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 
 using namespace std;
 using namespace arma;
@@ -74,7 +75,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     UNUSED(Time);
     UNUSED(DTime);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
     
     //From the props to the material properties
     double E = props(0);
@@ -232,10 +232,10 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     // Closest-point projection (tangent_closest_point): the modular von Mises + Voce + Chaboche
     // row on this kernel's props and state (backward-Euler state and total derivatives in
     // PlasticityMechanism::refresh_state); Hp = R(p) exactly, the loop's explicit Hp is not read.
-    // Condensed states keep the loop; the tail reads dPhidsigma / Lambdap (Bhat and K only feed
-    // the cutting-plane tangent).
+    // Condensed states keep the loop. Bhat / K of the tail only feed the cutting-plane tangent.
     ReturnMappingResult rm;
-    if (tangent_mode == simcoon::tangent_closest_point && ndi == 3) {
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::CHABOCHE, vec{sigmaY, Q, b, C_1, D_1, C_2, D_2}, 1, 2);
         auto &iv = mech.variables();
         iv.get("p").scalar() = p;
@@ -243,24 +243,26 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         iv.get("a_0").raw_voigt() = a_1;
         iv.get("a_1").raw_voigt() = a_2;
         mech.set_start();
-        rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
-        if (rm.converged) {
-            stress = rm.sigma;
-            p = iv.get("p").scalar();
-            EP = iv.get("EP").raw_voigt();
-            a_1 = iv.get("a_0").raw_voigt();
-            a_2 = iv.get("a_1").raw_voigt();
-            X_1 = (2./3.)*C_1*(a_1%Ir05());
-            X_2 = (2./3.)*C_2*(a_2%Ir05());
-            X = X_1 + X_2;
-            Hp = mech.isotropic_hardening().R(p);
-            const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
-            dPhidsigma = ing.dPhi_dsigma;
-            Lambdap = ing.Lambda;
-        }
-        else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
-            tnew_dt = 0.5;
-            stress = stress_start;
+        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
+        if (mech.yield_function(stress) > 0.) {   // an admissible trial is committed as is (Lt = L below)
+            rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+            if (rm.converged) {
+                stress = rm.sigma;
+                p = iv.get("p").scalar();
+                EP = iv.get("EP").raw_voigt();
+                a_1 = iv.get("a_0").raw_voigt();
+                a_2 = iv.get("a_1").raw_voigt();
+                std::vector<tensor2> X_i;
+                mech.kinematic_hardening().compute_backstresses(iv, X_i);
+                X_1 = X_i[0].to_arma_voigt();
+                X_2 = X_i[1].to_arma_voigt();
+                X = X_1 + X_2;
+                Hp = mech.isotropic_hardening().R(p);
+            }
+            else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
+                tnew_dt = 0.5;
+                stress = stress_start;
+            }
         }
     }
     else {

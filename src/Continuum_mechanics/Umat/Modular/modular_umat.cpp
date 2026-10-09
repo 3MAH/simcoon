@@ -562,10 +562,11 @@ ReturnMappingResult closest_point_return_mapping(
     // Helper rows = the multiplier-carrying mechanisms' rows in order; glob maps them into
     // Ds_total.
     std::vector<size_t> active, row_mech;
-    std::vector<int> row_c;
+    std::vector<int> row_c, row0(mechanisms.size(), -1);   // row0[m] = first helper row of mechanism m
     for (size_t m = 0; m < mechanisms.size(); ++m) {
         if (!mechanisms[m]->carries_multipliers()) continue;
         active.push_back(m);
+        row0[m] = static_cast<int>(row_mech.size());
         for (int c = 0; c < mechanisms[m]->num_constraints(); ++c) {
             row_mech.push_back(m);
             row_c.push_back(c);
@@ -586,9 +587,7 @@ ReturnMappingResult closest_point_return_mapping(
             auto& mech = *mechanisms[m];
             if (!mech.refresh_state(sig, Ds_local, offsets[m])) return false;
             const auto& ing_m = *mech.closest_point_ingredients();
-            for (int k = 0; k < N; ++k) {
-                if (row_mech[k] == m) ing[k] = &ing_m[row_c[k]];
-            }
+            for (int c = 0; c < mech.num_constraints(); ++c) ing[row0[m] + c] = &ing_m[c];
         }
         return true;
     };
