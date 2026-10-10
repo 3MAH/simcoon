@@ -16,7 +16,7 @@
  */
 
 /**
- * @file plastic_chaboche_ccp.hpp
+ * @file plastic_chaboche.hpp
  * @brief Elastic-plastic material with Chaboche unified viscoplasticity using CCP algorithm
  * @author Yves Chemisky
  * @version 1.0
@@ -34,7 +34,16 @@ namespace simcoon{
  */
 
 /**
- * @brief Elastic-plastic constitutive model with Chaboche kinematic hardening solved by the Convex Cutting Plane (CCP) algorithm
+ * @brief Elastic-plastic constitutive model with Chaboche kinematic hardening (J2, two Armstrong-Frederick branches, Voce isotropic term)
+ *
+ * @note **Integrator.** Under tangent_mode 0-2 the return mapping is the convex cutting plane
+ * loop below (explicit Euler of \f$ dH_p = b (Q - H_p)\,dp \f$, flow at each iterate); under
+ * tangent_closest_point (3, full 3D states) the kernel runs the modular PlasticityMechanism
+ * (von Mises + VoceHardening + ChabocheHardening with 2 branches) on its own props and state
+ * through closest_point_return_mapping(): backward-Euler backstresses, \f$ H_p = R(p) =
+ * Q(1 - e^{-bp}) \f$ exactly, flow at the converged stress, and cpp_consistent_tangent() — the
+ * exact (non-symmetric, dynamic recovery) operator the cutting-plane algorithmic tangent only
+ * approximates. Non-convergence requests tnew_dt = 0.5.
  *
  * @details This function implements the Chaboche unified viscoplasticity model for small and finite strain analysis.
  * The model features:
@@ -246,7 +255,7 @@ namespace simcoon{
  * vec sigma_in = zeros(6);
  * mat DR = eye(3,3);
  *
- * umat_plasticity_chaboche_CCP(Etot, DEtot, stress, Lt, L, sigma_in, DR,
+ * umat_plasticity_chaboche(Etot, DEtot, stress, Lt, L, sigma_in, DR,
  *                              12, props, 20, statev, 20.0, 0.0, 0.0, 1.0,
  *                              Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
  *
@@ -263,7 +272,7 @@ namespace simcoon{
  * - Lemaitre, J., & Chaboche, J. L. (1990). *Mechanics of Solid Materials*. Cambridge University Press.
  * - Ortiz, M., & Simo, J. C. (1986). "An analysis of a new class of integration algorithms for elastoplastic constitutive relations." *International Journal for Numerical Methods in Engineering*, 23(3), 353-366.
  */
-void umat_plasticity_chaboche_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_plasticity_chaboche(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
                                 
 
 /** @} */ // end of umat_mechanical group

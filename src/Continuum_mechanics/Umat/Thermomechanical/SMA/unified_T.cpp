@@ -626,9 +626,11 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     // finite-difference flow Hessian makes the local transformation system
     // near-singular on the plateau (rcond ~ 1e-17 — approx-solved state then
     // NaN-poisons the mixture stiffness and aborts the solve; LAPACK-backend
-    // dependent). Re-enable together with the exact CPP Hessian rework.
+    // dependent). tangent_closest_point too, until this kernel gets the closest-point
+    // branch of its mechanical twin (unified_T.cpp).
     const int tangent_mode_eff = (tangent_mode == tangent_none ||
-                                  tangent_mode == tangent_algorithmic)
+                                  tangent_mode == tangent_algorithmic ||
+                                  tangent_mode == tangent_closest_point)
         ? tangent_continuum : tangent_mode;
     const ContinuumTangent ct = compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
@@ -660,9 +662,13 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     const std::vector<vec>& P_epsilon = ct.P_epsilon;
     const mat& invBhat = ct.invBhat;
 
+    // Multiplier elimination Delta s = invBhat * rhs with Bhat(l, j) = criterion l, mechanism j
+    // (row = unknown, as in assemble_continuum_tangent).
     std::vector<double> P_theta(2);
-    P_theta[0] = invBhat(0, 0)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 0)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
-    P_theta[1] = invBhat(0, 1)*(dPhiFdtheta - sum(dPhiFdsigma%(L*alpha))) + invBhat(1, 1)*(dPhiRdtheta - sum(dPhiRdsigma%(L*alpha)));
+    const double rhsF = dPhiFdtheta - sum(dPhiFdsigma%(L*alpha));
+    const double rhsR = dPhiRdtheta - sum(dPhiRdsigma%(L*alpha));
+    P_theta[0] = invBhat(0, 0)*rhsF + invBhat(0, 1)*rhsR;
+    P_theta[1] = invBhat(1, 0)*rhsF + invBhat(1, 1)*rhsR;
 
     dSdT = -1.*L*alpha - (kappa_j[0]*P_theta[0] + kappa_j[1]*P_theta[1]);
 

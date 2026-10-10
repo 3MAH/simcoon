@@ -332,20 +332,18 @@ private:
     /**
      * @brief Perform return mapping algorithm
      *
-     * Uses Newton iteration with Fischer-Burmeister complementarity
-     * to solve the coupled constraint equations from all mechanisms.
-     * The algorithm:
+     * The dispatcher of the local integration:
      * 1. Computes elastic prediction (trial stress)
      * 2. Evaluates constraint functions (Phi) from all mechanisms
-     * 2'. An admissible trial state (Phi <= 0 on every row) is committed at
+     * 3. An admissible trial state (Phi <= 0 on every row) is committed at
      *    once — Ds = 0, the rows without multipliers (damage) updated, the
      *    stress refreshed — the same elastic guard for every integrator
-     * 3. Solves for multiplier increments via Fischer-Burmeister
-     * 4. Updates internal variables (incremental CCP update) and recomputes
-     *    the stress
-     * 5. Repeats until convergence (error < precision_)
+     * 4. Otherwise hands the rows to return_mapping_cpp() (closest point,
+     *    tangent_mode == tangent_closest_point and every multiplier row has
+     *    that form) or to return_mapping_ccp() (cutting plane), both adapters
+     *    over the integrators of return_mapping.hpp
      *
-     * The per-iteration incremental update (step 4) is kept deliberately
+     * The cutting-plane loop's incremental update is kept deliberately
      * over a total-multiplier backward-Euler refresh inside the loop: the
      * refresh at a lagged stress is non-contractive for curved criteria at
      * large increments (\f$ \Delta s\,\mathbf{n}:\mathbf{L}:\mathbf{n} /
@@ -358,14 +356,13 @@ private:
      * explicitly and never drives the FB error to precision_); run() rejects
      * only unusable states with a step cut (see its reject block).
      *
-     * Under tangent_closest_point the cutting-plane loop is replaced by
-     * return_mapping_cpp() when every multiplier-carrying mechanism
-     * (carries_multipliers()) answers supports_closest_point() and ndi == 3;
-     * otherwise (Tresca or Drucker row, condensed stress state) the
-     * cutting-plane loop runs and compute_tangent returns the algorithmic
-     * operator — the documented degradation of mode 3. A hyperelastic block
-     * is handed to the helper as its elastic response (evaluated at every
-     * iterate), so it is integrated exactly too.
+     * "Every multiplier row has the closest-point form" = every mechanism
+     * with carries_multipliers() answers supports_closest_point(); otherwise
+     * (Tresca or Drucker row, condensed stress state ndi < 3) the
+     * cutting-plane loop runs under mode 3 too and compute_tangent returns
+     * the algorithmic operator — the documented degradation. A hyperelastic
+     * block is handed to the helper as its elastic response (evaluated at
+     * every iterate), so it is integrated exactly too.
      *
      * @param Etot Total strain at start of increment
      * @param DEtot Strain increment
@@ -396,12 +393,45 @@ private:
     );
 
 
+    /// Phase 1 of an iterate: every mechanism's constraints at the current effective stress,
+    /// into the row slots of @p Phi / @p Y_crit (populates the caches assemble_jacobian reads).
+    void evaluate_constraints(const arma::vec& Etot_end, double DTime,
+                              arma::vec& Phi, arma::vec& Y_crit);
+
+    /**
+     * @brief Cutting-plane integration of all rows over the mechanisms' incremental
+     *        update (modes 0/1/2, and mode 3 when a row has no closest-point form).
+     *
+     * Adapter over cutting_plane_return_mapping(): compute_constraints() ->
+     * constraints, assemble_jacobian() -> jacobian, update() -> update,
+     * refresh_stress() -> refresh, consistency_residual() -> consistency. The
+     * entering Phi / Y_crit are those of return_mapping's trial evaluation; an
+     * unconverged-at-maxiter state is committed (reference CCP convention).
+     *
+     * @param iter0 1 when the admissible-trial pass of return_mapping ran and a
+     *        damage row moved the state (it counts as the first iterate), else 0
+     */
+    void return_mapping_ccp(
+        const arma::vec& Etot_end,
+        double DT_init,
+        double DT,
+        double DTime,
+        int ndi,
+        arma::vec& Phi,
+        arma::vec& Y_crit,
+        arma::vec& sigma,
+        arma::vec& Ds_total,
+        int iter0
+    );
+
     /**
      * @brief Closest-point projection of the multiplier-carrying mechanisms
      *        (tangent_mode == tangent_closest_point).
      *
-     * Adapter over closest_point_return_mapping() (callback <-> interface mapping
-     * in return_mapping.hpp). Mechanisms without multiplier rows (viscoelastic
+     * Calls the StrainMechanism overload of closest_point_return_mapping()
+     * (declared below) on mechanisms_, with the hyperelastic block as the
+     * helper's elastic response when the stiffness is not constant. Mechanisms
+     * without multiplier rows (viscoelastic
      * branches, damage) are evaluated once at the converged effective stress
      * afterwards (compute_constraints + update): the fixed point the cutting-plane
      * loop converges to under strain equivalence. The committed stress is
@@ -548,5 +578,37 @@ void umat_modular(
     double& tnew_dt,
     const int& tangent_mode = tangent_default
 );
+
+/**
+ * @brief Closest-point return mapping over StrainMechanism rows.
+ *
+ * Adapter from the typed interface to closest_point_return_mapping(): the rows of the
+ * mechanisms that carry multipliers become the helper's callbacks (compute_constraints /
+ * refresh_state / closest_point_ingredients / K_cross), the others are skipped (the caller
+ * evaluates them at the converged stress). Shared by ModularUMAT::return_mapping_cpp() and the
+ * dedicated kernels, which instantiate the matching PlasticityMechanism on their own props and
+ * state instead of re-deriving the backward-Euler algebra.
+ *
+ * @param sigma_tr   elastic trial stress (6)
+ * @param L          elastic tangent at the trial (6x6)
+ * @param mechanisms all mechanisms, at their START state (set_start() done)
+ * @param offsets    row offset of each mechanism in @p Ds_total / @p Y_crit
+ * @param[in,out] Ds_total multipliers of every row; the solved rows are written on success
+ * @param Y_crit     row normalisations (every row), as evaluated at the trial
+ * @param hooks      caller-side members only (elastic_response / eps_el_tr for a nonlinear
+ *                   elastic block); the state hooks are built here
+ * @param control    iteration controls
+ * @return the helper's result (converged flag; the mechanisms hold the refreshed state and
+ *         their ClosestPointIngredients at the converged iterate)
+ */
+ReturnMappingResult closest_point_return_mapping(
+    const arma::vec& sigma_tr,
+    const arma::mat& L,
+    const std::vector<StrainMechanism*>& mechanisms,
+    const std::vector<int>& offsets,
+    arma::vec& Ds_total,
+    const arma::vec& Y_crit,
+    ReturnStateHooks hooks = {},
+    const ReturnMappingControl& control = {});
 
 } // namespace simcoon

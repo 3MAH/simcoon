@@ -31,7 +31,7 @@
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
@@ -47,7 +47,7 @@ const vec JC_PROPS = {200000., 0.33, 1.e-5, 792., 510., 0.26, 0.014, 1.0, 1.03, 
 
 struct Out { vec sigma; mat Lt; vec statev; double Wm_d; };
 
-// Small-strain mechanical kernel signature shared by EPICP and EPJCK (plastic_isotropic_ccp.hpp)
+// Small-strain mechanical kernel signature shared by EPICP and EPJCK (plastic_isotropic.hpp)
 using umat_M_fn = void (*)(const string &, const vec &, const vec &, vec &, mat &, mat &, const mat &,
                            const int &, const vec &, const int &, vec &, const double &, const double &,
                            const double &, const double &, double &, double &, double &, double &,
@@ -77,7 +77,7 @@ Out run_epjck(const vec &DEtot, double DTime, int tangent_mode, const vec &props
 Out run_epicp(const vec &DEtot, int tangent_mode) {
     // EPICP props = [E, nu, alpha, sigmaY, k, m] : the rate-independent, isothermal JC law
     const vec props = {JC_PROPS(0), JC_PROPS(1), JC_PROPS(2), JC_PROPS(3), JC_PROPS(4), JC_PROPS(5)};
-    return run_mech(&umat_plasticity_iso_CCP, "EPICP", props, 8, DEtot, 1., tangent_mode);
+    return run_mech(&umat_plasticity_iso, "EPICP", props, 8, DEtot, 1., tangent_mode);
 }
 
 // Stress-target outer Newton using the kernel's Lt as the Jacobian, at fixed DTime; returns

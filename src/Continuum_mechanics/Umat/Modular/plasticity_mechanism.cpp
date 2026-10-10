@@ -71,6 +71,21 @@ PlasticityMechanism::PlasticityMechanism(
     }
 }
 
+PlasticityMechanism::PlasticityMechanism(
+    YieldType yield_type,
+    IsoHardType iso_type,
+    KinHardType kin_type,
+    const arma::vec& props,
+    int N_iso,
+    int N_kin
+)
+    : PlasticityMechanism(yield_type, iso_type, kin_type, N_iso, N_kin)
+{
+    int offset = 0;
+    configure(props, offset);
+    register_variables();
+}
+
 // ========== Configuration ==========
 
 void PlasticityMechanism::configure(const arma::vec& props, int& offset) {
@@ -331,7 +346,7 @@ void PlasticityMechanism::compute_jacobian_contribution(
     int row_offset
 ) const {
     // B = -dPhi/dsigma : kappa + K with K = dPhi/dp = -H_total (hardening
-    // REDUCES Phi as Dp grows) — the plastic_isotropic_ccp convention, so the
+    // REDUCES Phi as Dp grows) — the plastic_isotropic convention, so the
     // mode-1 assembly's Bhat = -B = n:kappa + H_total holds exactly.
 
     // dPhi/dsigma * L * dPhi/dsigma (engineering Voigt dot = n : L : n)

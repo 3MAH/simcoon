@@ -24,7 +24,7 @@
  * tag or rebuilds a tensor from a raw vector.
  *
  * Compare with the built-in:
- *   ``src/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.cpp``
+ *   ``src/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.cpp``
  *
  * Material properties (6): E, nu, alpha, sigmaY, k, m
  * State variables (8): T_init, p, EP[6]

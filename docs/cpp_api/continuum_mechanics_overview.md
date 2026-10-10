@@ -58,8 +58,8 @@ User Material subroutines (UMAT) for finite element analysis, organized by strai
 - Isotropic, Orthotropic, Transversely Isotropic
 
 **Plasticity:**
-- `plastic_isotropic_ccp` - J2 plasticity with isotropic hardening (kept as a readable reference implementation)
-- `plastic_chaboche_ccp` - Chaboche multi-kinematic hardening model (kept as a readable reference implementation)
+- `plastic_isotropic` - J2 plasticity with isotropic hardening (kept as a readable reference implementation)
+- `plastic_chaboche` - Chaboche multi-kinematic hardening model (kept as a readable reference implementation)
 - `plastic_johnson_cook_ccp` - Johnson-Cook rate- and temperature-dependent J2 plasticity (`EPJCK`, mechanical and thermomechanical kernels)
 - All other plasticity variants (kinematic-isotropic `EPKCP`, Hill `EPHIL`/`EPTRI`/`EPHIN`,
   Hill-Chaboche `EPHAC`, anisotropic Chaboche `EPANI`/`EPDFA`/`EPCHG`) are served since 2.0
@@ -202,7 +202,7 @@ vec eta = eta_stress(sigma);  // Returns 3/2 * s / sigma_eq
 ### UMAT Integration
 
 ```cpp
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
 
 using namespace simcoon;
 
@@ -216,7 +216,7 @@ vec statev = zeros(8);
 vec DEtot = {0.001, 0, 0, 0, 0, 0};
 
 // Call UMAT
-umat_plasticity_iso_CCP(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
+umat_plasticity_iso(Etot, DEtot, sigma, Lt, L, sigma_in, DR,
                         6, props, 8, statev, T, DT, Time, DTime,
                         Wm, Wm_r, Wm_ir, Wm_d, 3, 3, false, 0, tnew_dt);
 ```

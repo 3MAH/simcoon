@@ -15,7 +15,7 @@
  
  */
 
-///@file plastic_isotropic_ccp.hpp
+///@file plastic_isotropic.hpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief This subroutines uses a convex cutting plane algorithm
 ///@brief Isotropic hardening with a power-law hardenig is considered
@@ -29,8 +29,8 @@
 namespace simcoon{
 
 /**
- * @file plastic_isotropic_ccp.hpp
- * @brief Elastic-plastic material model with isotropic hardening using the Convex Cutting Plane algorithm
+ * @file plastic_isotropic.hpp
+ * @brief Elastic-plastic material model with isotropic hardening (cutting-plane or closest-point return mapping)
  * @author Yves Chemisky
  * @version 1.0
  */
@@ -40,7 +40,15 @@ namespace simcoon{
  */
 
 /**
- * @brief Elastic-plastic constitutive model with isotropic hardening solved by the Convex Cutting Plane (CCP) algorithm
+ * @brief Elastic-plastic constitutive model with isotropic hardening (J2, power-law hardening)
+ *
+ * @note **Integrator.** Under tangent_mode 0-2 the return mapping is the convex cutting plane
+ * loop below; under tangent_closest_point (3, full 3D states) the kernel runs the modular
+ * PlasticityMechanism (von Mises + PowerLawHardening) on its own props and state through
+ * closest_point_return_mapping() and returns cpp_consistent_tangent(). For this radial law the
+ * two integrators converge to the same state; the closest-point branch carries the C1 onset
+ * regularisation of the power law (PowerLawHardening) and never commits an unconverged state
+ * (non-convergence requests tnew_dt = 0.5).
  *
  * @details This function implements an elastic-plastic material model for small and finite strain analysis.
  * The model features:
@@ -161,12 +169,12 @@ namespace simcoon{
  * vec props = {70000, 0.3, 1e-5, 200, 500, 0.2};
  * vec statev = zeros(8);
  *
- * umat_plasticity_iso_CCP("EPICP", Etot, DEtot, stress, Lt, L, DR, 6, props, 8, statev,
+ * umat_plasticity_iso("EPICP", Etot, DEtot, stress, Lt, L, DR, 6, props, 8, statev,
  *                         20.0, 0.0, 0.0, 1.0, Wm, Wm_r, Wm_ir, Wm_d,
  *                         3, 3, true, tnew_dt);
  * @endcode
  */
-void umat_plasticity_iso_CCP(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
+void umat_plasticity_iso(const std::string &umat_name, const arma::vec &Etot, const arma::vec &DEtot, arma::vec &stress, arma::mat &Lt, arma::mat &L, const arma::mat &DR, const int &nprops, const arma::vec &props, const int &nstatev, arma::vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode = tangent_default);
     
 
 /** @} */ // end of umat_mechanical group

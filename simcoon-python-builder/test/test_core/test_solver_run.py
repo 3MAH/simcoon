@@ -521,23 +521,24 @@ def test_tangent_modes_converge_to_same_state(mode):
 
 
 def test_closest_point_mode_is_accepted_everywhere():
-    """tangent_mode 3 is a valid mode on every entry point (solver, batched sim.umat): a law
-    whose local loop is still the cutting-plane one returns the mode-2 operator, so for EPICP
-    (radial return: closest-point already) modes 2 and 3 coincide to the bit."""
+    """tangent_mode 3 is a valid mode on every entry point (solver, batched sim.umat). On EPICP
+    with linear hardening the closest-point and cutting-plane integrators solve the same radial
+    return, so modes 2 and 3 agree to the local tolerance."""
+    lin = [70000.0, 0.3, 1.0e-5, 300.0, 1000.0, 1.0]
     step = StepMeca(control=_UNIAXIAL, value=[0.01, 0, 0, 0, 0, 0], ninc=10)
-    r2 = solve(step, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0, tangent_mode=2)
-    r3 = solve(step, "EPICP", EPICP_PROPS, EPICP_NSTATEV, T_init=290.0, tangent_mode=sim.tangent_closest_point)
+    r2 = solve(step, "EPICP", lin, EPICP_NSTATEV, T_init=290.0, tangent_mode=2)
+    r3 = solve(step, "EPICP", lin, EPICP_NSTATEV, T_init=290.0, tangent_mode=sim.tangent_closest_point)
     assert r3.status == 0
-    assert np.array_equal(r3["Stress"], r2["Stress"])
-    assert np.array_equal(r3["TangentMatrix"], r2["TangentMatrix"])
+    np.testing.assert_allclose(r3["Stress"], r2["Stress"], rtol=1e-7, atol=1e-7)
+    np.testing.assert_allclose(r3["TangentMatrix"], r2["TangentMatrix"], rtol=1e-6)
 
     col = lambda a: np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
     eye = np.asfortranarray(np.eye(3)[:, :, None])
     out = [sim.umat("EPICP", col(np.zeros(6)), col([0.01, 0, 0, 0, 0, 0]), np.empty(0), np.empty(0),
-                    col(np.zeros(6)), eye, col(EPICP_PROPS), col(np.zeros(EPICP_NSTATEV)), 0.0, 1.0,
+                    col(np.zeros(6)), eye, col(lin), col(np.zeros(EPICP_NSTATEV)), 0.0, 1.0,
                     col(np.zeros(4)), temp=np.full(1, 290.0), n_threads=1, tangent_mode=m)
            for m in (2, 3)]
-    assert np.array_equal(out[0][0], out[1][0])
+    np.testing.assert_allclose(out[1][0], out[0][0], rtol=1e-7, atol=1e-7)
 
 
 # ---------------------------------------------------------------------------

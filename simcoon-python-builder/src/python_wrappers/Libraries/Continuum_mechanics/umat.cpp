@@ -18,8 +18,8 @@
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_callback.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_chaboche.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_T.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/SMA/unified_TR.hpp>
@@ -47,8 +47,8 @@
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_isotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_transverse_isotropic.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Elasticity/elastic_orthotropic.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic_ccp.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_isotropic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_fast.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Viscoelasticity/Zener_Nfast.hpp>
@@ -231,7 +231,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 5: {
-				umat_function = &simcoon::umat_plasticity_iso_CCP;
+				umat_function = &simcoon::umat_plasticity_iso;
 				arguments_type = 1;
 				break;
 			}
@@ -241,7 +241,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 7: {
-				umat_function = &simcoon::umat_plasticity_chaboche_CCP;
+				umat_function = &simcoon::umat_plasticity_chaboche;
 				arguments_type = 1;
 				break;
 			}
@@ -551,7 +551,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 4: {
-				umat_function = &simcoon::umat_plasticity_iso_CCP_T;
+				umat_function = &simcoon::umat_plasticity_iso_T;
 				arguments_type = 1;
 				break;
 			}
@@ -561,7 +561,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 5: {
-				umat_function = &simcoon::umat_plasticity_kin_iso_CCP_T;
+				umat_function = &simcoon::umat_plasticity_kin_iso_T;
 				arguments_type = 1;
 				break;
 			}

@@ -457,17 +457,7 @@ bool ModularUMAT::return_mapping(
     // closest-point branch starts from).
     arma::vec Phi = arma::zeros(n_total);
     arma::vec Y_crit = arma::zeros(n_total);
-    arma::vec Phi_m, Y_crit_m;   // per-mechanism scratch, reused across iterations
-    auto evaluate_constraints = [&]() {
-        for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            const int n = mechanisms_[m]->num_constraints();
-            mechanisms_[m]->compute_constraints(
-                sigma_eff_, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
-            Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
-            Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
-        }
-    };
-    evaluate_constraints();
+    evaluate_constraints(Etot_end, DTime, Phi, Y_crit);
     Ds_total.zeros(n_total);
 
     // Admissible trial state: the whole answer for every integrator. The FB solve would return
@@ -497,55 +487,138 @@ bool ModularUMAT::return_mapping(
             }
             return true;
         }
-        evaluate_constraints();   // a damage row moved the state: iterate as before
+        evaluate_constraints(Etot_end, DTime, Phi, Y_crit);   // a damage row moved the state: iterate as before
         elastic_pass = true;
     }
 
-    if (tangent_mode == tangent_closest_point && ndi == 3) {
-        bool all_cpp = true;
-        for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
-            all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
-        }
-        if (all_cpp) {
-            return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, Y_crit, sigma, Ds_total);
+    // Dispatch: closest-point when every multiplier row has that form, else cutting plane.
+    bool all_cpp = (tangent_mode == tangent_closest_point && ndi == 3);
+    for (size_t m = 0; all_cpp && m < mechanisms_.size(); ++m) {
+        all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
+    }
+    if (all_cpp) {
+        return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, Y_crit, sigma, Ds_total);
+    }
+    return_mapping_ccp(Etot_end, T + DT - T_init, DT, DTime, ndi, Phi, Y_crit, sigma, Ds_total,
+                       elastic_pass ? 1 : 0);
+    return true;   // the reference CCP convention commits an unconverged-at-maxiter state
+}
+
+void ModularUMAT::evaluate_constraints(const arma::vec& Etot_end, double DTime,
+                                       arma::vec& Phi, arma::vec& Y_crit) {
+    arma::vec Phi_m, Y_crit_m;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        const int n = mechanisms_[m]->num_constraints();
+        mechanisms_[m]->compute_constraints(sigma_eff_, Etot_end, L_cur_, DTime, Phi_m, Y_crit_m);
+        Phi.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Phi_m;
+        Y_crit.subvec(mech_offset_[m], mech_offset_[m] + n - 1) = Y_crit_m;
+    }
+}
+
+void ModularUMAT::return_mapping_ccp(
+    const arma::vec& Etot_end,
+    double DT_init,
+    double DT,
+    double DTime,
+    int ndi,
+    arma::vec& Phi,
+    arma::vec& Y_crit,
+    arma::vec& sigma,
+    arma::vec& Ds_total,
+    int iter0
+) {
+    CuttingPlaneHooks hooks;
+    hooks.constraints = [&](arma::vec& Phi_all, arma::vec& Y_all) {
+        evaluate_constraints(Etot_end, DTime, Phi_all, Y_all);
+    };
+    hooks.jacobian = [&](arma::mat& B) { assemble_jacobian(sigma, DT, B); };
+    // Incremental CCP update (see the header for why this is not a total-multiplier refresh)
+    hooks.update = [&](const arma::vec& ds) {
+        for (size_t m = 0; m < mechanisms_.size(); ++m) mechanisms_[m]->update(ds, mech_offset_[m]);
+    };
+    // D may have evolved in update: the reduction factor is re-evaluated with the stress
+    hooks.refresh = [&]() { refresh_stress(Etot_end, DT_init, ndi, sigma); };
+    hooks.consistency = [&]() {
+        double res = 0.0;
+        for (const auto& mech : mechanisms_) res += mech->consistency_residual(sigma_eff_);
+        return res;
+    };
+    ReturnMappingControl control;
+    control.maxiter = maxiter_;
+    control.precision = precision_;
+    cutting_plane_return_mapping(Phi, Y_crit, Ds_total, hooks, control, iter0);
+}
+
+ReturnMappingResult closest_point_return_mapping(
+    const arma::vec& sigma_tr,
+    const arma::mat& L,
+    const std::vector<StrainMechanism*>& mechanisms,
+    const std::vector<int>& offsets,
+    arma::vec& Ds_total,
+    const arma::vec& Y_crit_all,
+    ReturnStateHooks hooks,
+    const ReturnMappingControl& control
+) {
+    // Helper rows = the multiplier-carrying mechanisms' rows in order; glob maps them into
+    // Ds_total.
+    std::vector<size_t> active, row_mech;
+    std::vector<int> row_c, row0(mechanisms.size(), -1);   // row0[m] = first helper row of mechanism m
+    for (size_t m = 0; m < mechanisms.size(); ++m) {
+        if (!mechanisms[m]->carries_multipliers()) continue;
+        active.push_back(m);
+        row0[m] = static_cast<int>(row_mech.size());
+        for (int c = 0; c < mechanisms[m]->num_constraints(); ++c) {
+            row_mech.push_back(m);
+            row_c.push_back(c);
         }
     }
+    const int N = static_cast<int>(row_mech.size());
+    arma::uvec glob(N);
+    for (int k = 0; k < N; ++k) glob(k) = offsets[row_mech[k]] + row_c[k];
 
-    // Cutting-plane loop. Phase 1 (the constraints) of the first iterate is the trial
-    // evaluation above; later iterates evaluate it at the end of the previous one.
-    arma::mat B = arma::zeros(n_total, n_total);
-    arma::vec ds = arma::zeros(n_total);
-    double error = 1.0;
-    int iter = elastic_pass ? 1 : 0;
+    // Per-row ingredients, refreshed by the state hook (Phi included); the row callbacks
+    // read them.
+    std::vector<const ClosestPointIngredients*> ing(N, nullptr);
+    arma::vec Ds_local = arma::zeros(Ds_total.n_elem);
 
-    while (iter < maxiter_ && error > precision_) {
-        // Phases 2 and 3: local multiplier Jacobian from the mechanism caches.
-        assemble_jacobian(sigma, DT, B);
-
-        // Solve using Fischer-Burmeister
-        Fischer_Burmeister_m(Phi, Y_crit, B, Ds_total, ds, error);
-
-        // Incremental CCP update (see the header for why this is not a
-        // total-multiplier refresh)
-        for (size_t m = 0; m < mechanisms_.size(); ++m) {
-            mechanisms_[m]->update(ds, mech_offset_[m]);
+    hooks.update_state = [&](const arma::vec& sig, const arma::vec& Dl) -> bool {
+        Ds_local.elem(glob) = Dl;
+        for (size_t m : active) {
+            auto& mech = *mechanisms[m];
+            if (!mech.refresh_state(sig, Ds_local, offsets[m])) return false;
+            const auto& ing_m = *mech.closest_point_ingredients();
+            for (int c = 0; c < mech.num_constraints(); ++c) ing[row0[m] + c] = &ing_m[c];
         }
-
-        // Recompute stress (D may have evolved in update, so the reduction
-        // factor is re-evaluated too)
-        refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
-
-        // states updated outside the FB rows (damage) must be consistent with this stress too
-        for (const auto& mech : mechanisms_) {
-            error += mech->consistency_residual(sigma_eff_);
+        return true;
+    };
+    hooks.K = [&](const arma::vec&, const arma::vec&) {
+        arma::mat K(N, N);
+        for (int l = 0; l < N; ++l) {
+            for (int j = 0; j < N; ++j) {
+                K(l, j) = (l == j) ? ing[l]->K
+                                   : mechanisms[row_mech[l]]->K_cross(row_c[l], *mechanisms[row_mech[j]], row_c[j]);
+            }
         }
+        return K;
+    };
+    hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl) {
+        std::vector<arma::vec> c(N);
+        for (int k = 0; k < N; ++k) c[k] = Dl(k) * ing[k]->dLambda_dDs;
+        return c;
+    };
 
-        ++iter;
-        if (iter < maxiter_ && error > precision_) {
-            evaluate_constraints();
-        }
+    std::vector<ReturnMechanism> mechs(N);
+    for (int k = 0; k < N; ++k) {
+        mechs[k].Phi = [&, k](const arma::vec&) { return ing[k]->Phi; };
+        mechs[k].dPhi_dsigma = [&, k](const arma::vec&) { return ing[k]->dPhi_dsigma; };
+        mechs[k].Lambda = [&, k](const arma::vec&) { return ing[k]->Lambda; };
+        mechs[k].dLambda_dsigma = [&, k](const arma::vec&) { return ing[k]->dLambda_dsigma; };
     }
-    return true;
+
+    ReturnMappingResult r = closest_point_return_mapping(sigma_tr, L, mechs, hooks,
+                                                         arma::vec(Y_crit_all.elem(glob)), control);
+    if (r.converged) Ds_total.elem(glob) = r.Dlambda;
+    return r;
 }
 
 bool ModularUMAT::return_mapping_cpp(
@@ -557,65 +630,7 @@ bool ModularUMAT::return_mapping_cpp(
     arma::vec& sigma,
     arma::vec& Ds_total
 ) {
-    const arma::vec sigma_tr = sigma_eff_;
-    const arma::mat L = L_cur_;   // elastic tangent at the trial (the block's constant L when linear)
-
-    // Helper rows = the multiplier-carrying mechanisms' rows in order; glob maps them into
-    // Ds_total.
-    std::vector<size_t> active, inert;
-    std::vector<size_t> row_mech;
-    std::vector<int> row_c;
-    for (size_t m = 0; m < mechanisms_.size(); ++m) {
-        if (!mechanisms_[m]->carries_multipliers()) {
-            inert.push_back(m);
-            continue;
-        }
-        active.push_back(m);
-        for (int c = 0; c < mechanisms_[m]->num_constraints(); ++c) {
-            row_mech.push_back(m);
-            row_c.push_back(c);
-        }
-    }
-    const int N = static_cast<int>(row_mech.size());
-    arma::uvec glob(N);
-    for (int k = 0; k < N; ++k) glob(k) = mech_offset_[row_mech[k]] + row_c[k];
-
-    arma::vec Phi_scratch, Y_scratch;   // scratch for the inert rows' evaluation after the solve
-    const arma::vec Y_crit = Y_crit_all.elem(glob);
-
-    // Per-row ingredients, refreshed by the state hook (Phi included); the row callbacks
-    // read them.
-    std::vector<const ClosestPointIngredients*> ing(N, nullptr);
-    arma::vec Ds_local = arma::zeros(Ds_total.n_elem);
-
     ReturnStateHooks hooks;
-    hooks.update_state = [&](const arma::vec& sig, const arma::vec& Dl) -> bool {
-        Ds_local.elem(glob) = Dl;
-        for (size_t m : active) {
-            auto& mech = *mechanisms_[m];
-            if (!mech.refresh_state(sig, Ds_local, mech_offset_[m])) return false;
-            const auto& ing_m = *mech.closest_point_ingredients();
-            for (int k = 0; k < N; ++k) {
-                if (row_mech[k] == m) ing[k] = &ing_m[row_c[k]];
-            }
-        }
-        return true;
-    };
-    hooks.K = [&](const arma::vec&, const arma::vec&) {
-        arma::mat K(N, N);
-        for (int l = 0; l < N; ++l) {
-            for (int j = 0; j < N; ++j) {
-                K(l, j) = (l == j) ? ing[l]->K
-                                   : mechanisms_[row_mech[l]]->K_cross(row_c[l], *mechanisms_[row_mech[j]], row_c[j]);
-            }
-        }
-        return K;
-    };
-    hooks.flow_state_coupling = [&](const arma::vec&, const arma::vec& Dl) {
-        std::vector<arma::vec> c(N);
-        for (int k = 0; k < N; ++k) c[k] = Dl(k) * ing[k]->dLambda_dDs;
-        return c;
-    };
     if (!elasticity_.has_constant_stiffness()) {
         // Hyperelastic block: the helper evaluates it at every iterate; the trial elastic strain
         // is the one of the elastic prediction (mechanisms at their start state).
@@ -626,29 +641,26 @@ bool ModularUMAT::return_mapping_cpp(
             elasticity_.evaluate(eps_el, ndi, sig, Lt);
         };
     }
-
-    std::vector<ReturnMechanism> mechs(N);
-    for (int k = 0; k < N; ++k) {
-        mechs[k].Phi = [&, k](const arma::vec&) { return ing[k]->Phi; };
-        mechs[k].dPhi_dsigma = [&, k](const arma::vec&) { return ing[k]->dPhi_dsigma; };
-        mechs[k].Lambda = [&, k](const arma::vec&) { return ing[k]->Lambda; };
-        mechs[k].dLambda_dsigma = [&, k](const arma::vec&) { return ing[k]->dLambda_dsigma; };
-    }
+    std::vector<StrainMechanism*> rows(mechanisms_.size());
+    for (size_t m = 0; m < mechanisms_.size(); ++m) rows[m] = mechanisms_[m].get();
 
     ReturnMappingControl control;
     control.maxiter = maxiter_;
     control.precision = precision_;
-    ReturnMappingResult r = closest_point_return_mapping(sigma_tr, L, mechs, hooks, Y_crit, control);
+    // sigma_eff_ is the trial effective stress, L_cur_ the elastic tangent there.
+    ReturnMappingResult r = closest_point_return_mapping(sigma_eff_, L_cur_, rows, mech_offset_,
+                                                         Ds_total, Y_crit_all, std::move(hooks), control);
     if (!r.converged) {
         return false;
     }
-    Ds_total.elem(glob) = r.Dlambda;
 
     // Rows without multipliers: one evaluation at the converged effective stress (damage
     // fixed point under strain equivalence, viscoelastic rows already taken in predict).
-    for (size_t m : inert) {
-        mechanisms_[m]->compute_constraints(r.sigma, Etot_end, L, DTime, Phi_scratch, Y_scratch);
-        mechanisms_[m]->update(Ds_local, mech_offset_[m]);
+    arma::vec Phi_scratch, Y_scratch;
+    for (size_t m = 0; m < mechanisms_.size(); ++m) {
+        if (mechanisms_[m]->carries_multipliers()) continue;
+        mechanisms_[m]->compute_constraints(r.sigma, Etot_end, L_cur_, DTime, Phi_scratch, Y_scratch);
+        mechanisms_[m]->update(Ds_total, mech_offset_[m]);
     }
 
     // Commit: the stress from the refreshed state (self-consistent with it), the solve for

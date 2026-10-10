@@ -15,7 +15,7 @@
  
  */
 
-///@file plastic_kin_iso_ccp.cpp
+///@file plastic_kin_iso.cpp
 ///@brief User subroutine for elastic-plastic materials in 1D-2D-3D case
 ///@brief This subroutines uses a convex cutting plane algorithm
 ///@brief Linear Kinematical hardening coupled with a power-law hardenig is considered
@@ -29,8 +29,10 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
-#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_kin_iso.hpp>
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/plasticity_mechanism.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Modular/modular_umat.hpp>
 
 using namespace std;
 using namespace arma;
@@ -66,14 +68,13 @@ namespace simcoon{
 ///@brief statev[13] : Backstress 11: X(1,2)
 
 
-void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
+void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt, const int &tangent_mode)
 {
     
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(nshr);
-    UNUSED(tnew_dt);
     
     //From the props to the material properties
     double rho = props(0);
@@ -193,7 +194,43 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     //Loop parameters
     int compteur = 0;
     double error = 1.;
-    
+
+    // Closest-point projection (tangent_closest_point): the modular von Mises + power-law +
+    // Prager row on this kernel's props and state; X = kX T a = (2/3) C a with C = 3 kX / 2.
+    // Condensed states keep the loop; the thermal tail reads dPhidsigma / Lambdap / Lambdaa /
+    // kappa_j / dHpdp.
+    ReturnMappingResult rm;
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    if (use_cpp) {
+        PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::PRAGER, vec{sigmaY, k, m, 1.5*kX});
+        auto &iv = mech.variables();
+        iv.get("p").scalar() = p;
+        iv.get("EP").raw_voigt() = EP;
+        iv.get("a").raw_voigt() = a;
+        mech.set_start();
+        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
+        if (mech.yield_function(sigma) > 0.) {   // an admissible trial is committed as is (Lt = L below)
+            rm = closest_point_return_mapping(sigma, L, {&mech}, {0}, Ds_j, vec{sigmaY});
+            if (rm.converged) {
+                sigma = rm.sigma;
+                p = iv.get("p").scalar();
+                EP = iv.get("EP").raw_voigt();
+                a = iv.get("a").raw_voigt();
+                X = mech.kinematic_hardening().total_backstress(iv).to_arma_voigt();
+                Hp = mech.isotropic_hardening().R(p);
+                dHpdp = mech.isotropic_hardening().dR_dp(p);
+                const ClosestPointIngredients &ing = (*mech.closest_point_ingredients())[0];
+                dPhidsigma = ing.dPhi_dsigma;
+                Lambdap = Lambdaa = ing.Lambda;
+                kappa_j = rm.kappa_j;
+            }
+            else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
+                tnew_dt = 0.5;
+                sigma = sigma_start;
+            }
+        }
+    }
+    else {
     //Loop
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
@@ -232,6 +269,7 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         sigma = el_pred(L, Eel, ndi);
     }
+    }
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;
@@ -251,14 +289,13 @@ void umat_plasticity_kin_iso_CCP_T(const vec &Etot, const vec &DEtot, vec &sigma
     // honor tangent_none).
     const int tangent_mode_eff = (tangent_mode == tangent_none)
         ? tangent_continuum : tangent_mode;
-    const ContinuumTangent ct = compute_tangent_operator(
+    const ContinuumTangent ct = rm.converged ? cpp_consistent_tangent(rm, L) : compute_tangent_operator(
         tangent_mode_eff, Bhat, kappa_j, dPhidsigma_l, Ds_j, L,
         [&]() -> std::vector<mat> {  // lazy: evaluated only in algorithmic mode
-            // Simo-Hughes algorithmic tangent (closest-point), J2 flow on (sigma-X).
-            // Backstress state-coupling deferred (CPP, future release).
+            // Simo-Hughes algorithmic tangent on the cutting-plane state, J2 flow on (sigma-X);
+            // the backstress state coupling is only in the closest-point branch.
             // NOTE: only the mechanical block dSdE is algorithmically corrected. The thermal
-            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L);
-            // their consistent kappa-tilde/L-tilde version is part of the CPP rework.
+            // cross-tangents below (dSdT/drdE/drdT) keep the continuum form (raw kappa_j, L).
             const std::vector<mat> dLambda_dsigma_l = { deta_stress(sigma - X) };
             return dLambda_dsigma_l;
         });

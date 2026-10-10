@@ -129,6 +129,20 @@ public:
         int N_kin = 1
     );
 
+    /**
+     * @brief Constructor configured and registered on @p props (sigma_Y, criterion,
+     * isotropic, then kinematic parameters, in configure() order) — the dedicated kernels
+     * build their closest-point row in one line with it.
+     */
+    PlasticityMechanism(
+        YieldType yield_type,
+        IsoHardType iso_type,
+        KinHardType kin_type,
+        const arma::vec& props,
+        int N_iso = 1,
+        int N_kin = 1
+    );
+
     // Default move, no copy (due to unique_ptr)
     PlasticityMechanism(const PlasticityMechanism&) = delete;
     PlasticityMechanism& operator=(const PlasticityMechanism&) = delete;
