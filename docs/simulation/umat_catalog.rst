@@ -416,9 +416,10 @@ approximate (see the note on the scope of the algorithmic tangent in :doc:`solve
 ``MODUL`` rows whose criterion has a flow Hessian (von Mises, Hill, DFA, Ani; with every
 hardening law and a hyperelastic block), for the dedicated kernels ``EPICP``, ``EPCHA``,
 ``EPICP`` / ``EPKCP`` thermomechanical, and for the SMA kernels ``SMADI`` / ``SMADC`` /
-``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC`` (total derivatives by
-finite differences there: about 5x the cost of mode 2 per increment, so mode 3 is a tangent
-check rather than a production choice on SMA until the analytic derivatives land). For
+``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC`` (analytic total
+derivatives through the mean transformation strain and the reorientation back-strain; about
+2x the cost of mode 2 per increment on a superelastic loop, 3x with the reorientation row,
+up to 5x on a non-proportional path, for an operator exact to :math:`10^{-8}`). For
 ``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
 2 by construction**: with a radial flow the cutting-plane update already is the closest-point
 projection and the algorithmic operator is the exact Jacobian of the discrete map, including

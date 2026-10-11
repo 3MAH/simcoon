@@ -121,6 +121,35 @@ TEST(Tcriteria, ddDFA_stress_numerical)
     EXPECT_LT(norm(ddDFA - ddDFA.t(), "fro"), 1.E-12);
 }
 
+TEST(Tcriteria, ddDrucker_stress_numerical)
+{
+    // Hessian against central differences of the gradient, isotropic and anisotropic (DFA) forms,
+    // at a general stress state and the SMA exponents (b = 0 must give the von Mises Hessian)
+    vec P_params = {0.5, 0.6, 0.7, 1.5, 1.5, 1.6, 1.2};
+    vec sigma = {400., 100., 200., 50., 30., 70.};
+    const double eps = 1.E-3;
+    for (double b : {0., 0.3, 1.4}) {
+        for (double n : {1., 2., 3.5}) {
+            mat dd = ddDrucker_stress(sigma, b, n);
+            mat dd_ani = ddDrucker_ani_stress(sigma, P_params, b, n);
+            mat dd_num = zeros(6, 6), dd_ani_num = zeros(6, 6);
+            for (int j = 0; j < 6; j++) {
+                vec sp = sigma, sm = sigma;
+                sp(j) += eps;
+                sm(j) -= eps;
+                dd_num.col(j) = (dDrucker_stress(sp, b, n) - dDrucker_stress(sm, b, n)) / (2. * eps);
+                dd_ani_num.col(j) = (dDrucker_ani_stress(sp, P_params, b, n) - dDrucker_ani_stress(sm, P_params, b, n)) / (2. * eps);
+            }
+            EXPECT_LT(norm(dd - dd_num, "fro"), 1.E-7 * (1. + norm(dd_num, "fro"))) << "b = " << b << ", n = " << n;
+            EXPECT_LT(norm(dd_ani - dd_ani_num, "fro"), 1.E-7 * (1. + norm(dd_ani_num, "fro"))) << "b = " << b << ", n = " << n;
+            EXPECT_LT(norm(dd - dd.t(), "fro"), 1.E-12);
+            if (b == 0.) EXPECT_LT(norm(dd - deta_stress(sigma), "fro"), 1.E-14);
+        }
+    }
+    EXPECT_LT(norm(ddDrucker_stress(zeros(6), 1.4, 2.), "fro"), 1.E-14);                       // below the floor
+    EXPECT_LT(norm(ddDrucker_stress(sigma, 1.4, 12.) - deta_stress(sigma), "fro"), 1.E-14);    // n >= 10: von Mises
+}
+
 TEST(Tcriteria, DFA_stress_basic)
 {
     // DFA requires 7 parameters: {a1, a2, a3, b1, b2, b3, c}

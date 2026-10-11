@@ -158,6 +158,39 @@ namespace simcoon
     arma::vec dDrucker_ani_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
 
     /**
+     * @brief Hessian of the Drucker equivalent stress, \f$ \partial^2 \sigma^{D} / \partial \boldsymbol{\sigma}^2 \f$ (6x6).
+     *
+     * With \f$ \sigma^{D} = \sigma^{VM}\, r^{1/n} \f$, \f$ r = 1 + b\,J_3/J_2^{3/2} \f$ and
+     * \f$ \mathbf{q} = \partial (J_3/J_2^{3/2})/\partial\boldsymbol{\sigma} \f$, \f$ m = 1/n \f$:
+     * \f[
+     * \frac{\partial^2 \sigma^{D}}{\partial \boldsymbol{\sigma}^2} = r^{m}\,\frac{\partial^2 \sigma^{VM}}{\partial \boldsymbol{\sigma}^2}
+     * + m\,b\,r^{m-1} \left( \frac{\partial \sigma^{VM}}{\partial \boldsymbol{\sigma}} \otimes \mathbf{q} + \mathbf{q} \otimes \frac{\partial \sigma^{VM}}{\partial \boldsymbol{\sigma}}
+     * + \sigma^{VM}\,\frac{\partial \mathbf{q}}{\partial \boldsymbol{\sigma}} \right)
+     * + \sigma^{VM}\,m\,(m-1)\,b^2\,r^{m-2}\,\mathbf{q} \otimes \mathbf{q}
+     * \f]
+     * Rows are strain-typed and columns are taken per stress component (Voigt 11, 22, 33, 12, 13, 23),
+     * as deta_stress(); symmetric. Zero below the floor of Drucker_stress(), the von Mises Hessian for
+     * \f$ n \ge 10 \f$, as the value and the gradient.
+     * @param v The stress vector
+     * @param b Parameter that defines the equivalent stress
+     * @param n Parameter that defines the equivalent stress
+     * @return The 6x6 Hessian (arma::mat)
+     */
+    arma::mat ddDrucker_stress(const arma::vec &v, const double &b, const double &n);
+
+    /**
+     * @brief Hessian of the anisotropic Drucker equivalent stress (DFA in place of von Mises), \f$ \partial^2 \sigma^{D,ani} / \partial \boldsymbol{\sigma}^2 \f$ (6x6).
+     *
+     * Same expression as ddDrucker_stress() with \f$ \sigma^{DFA} \f$, dDFA_stress() and ddDFA_stress() in place of the von Mises terms.
+     * @param v The stress vector
+     * @param params The DFA parameters vector (F,G,H,L,M,N,K) - see P_DFA()
+     * @param b Parameter that defines the equivalent stress
+     * @param n Parameter that defines the equivalent stress
+     * @return The 6x6 Hessian (arma::mat)
+     */
+    arma::mat ddDrucker_ani_stress(const arma::vec &v, const arma::vec &params, const double &b, const double &n);
+
+    /**
      * @brief Returns an anisotropic configurational tensor \f$ P \f$ in the Voigt format (6x6 matrix)
      * @param P_params The vector of parameters (9 components)
      * @return The anisotropic configurational tensor (arma::mat)

@@ -237,3 +237,51 @@ TEST(Treturn_mapping, hill_anisotropic_exact_consistent_tangent)
     // And the discrete map itself is symmetric (associated flow + CPP).
     EXPECT_LT(norm(J_ref - J_ref.t(), "fro"), 1e-4 * norm(J_ref, "fro"));
 }
+
+// ---------------------------------------------------------------------
+// Non-associated flow whose magnitude depends on the stress, Lambda = h(sigma_eq) dDrucker(sigma)
+// (the structure of the SMA transformation flow): dLambda/dsigma is not symmetric. The consistent
+// tangent of the helper is still the exact Jacobian of the discrete map.
+TEST(Treturn_mapping, stress_dependent_flow_exact_tangent)
+{
+    const mat L = L_iso(E_mod, nu_mod, "Enu");
+    const double b = 1.4, n = 2., a_h = 0.5;
+    double p = 0.;
+    auto h_of = [&](const vec &sig) { return 1. + a_h * Mises_stress(sig) / sigmaY; };
+    auto Phi = [&](const vec &sig) { return Mises_stress(sig) - sigmaY - Hlin * p; };
+    auto Lambda = [&](const vec &sig) { return vec(h_of(sig) * dDrucker_stress(sig, b, n)); };
+    auto dLambda = [&](const vec &sig) {
+        return mat(dDrucker_stress(sig, b, n) * ((a_h / sigmaY) * eta_stress(sig)).t() + h_of(sig) * ddDrucker_stress(sig, b, n));
+    };
+    auto refresh = [&](const vec &, const vec &Dl) { p = Dl(0); return true; };
+
+    auto solve_analytic = [&](const vec &Eps) {
+        std::vector<ReturnMechanism> m(1);
+        m[0].Phi = Phi;
+        m[0].Lambda = Lambda;
+        m[0].dPhi_dsigma = [](const vec &sig) { return eta_stress(sig); };
+        m[0].dLambda_dsigma = dLambda;
+        ReturnStateHooks hooks;
+        hooks.update_state = refresh;
+        hooks.K = [](const vec &, const vec &) { return mat(1, 1, fill::value(-Hlin)); };
+        p = 0.;
+        return closest_point_return_mapping(L * Eps, L, m, hooks, vec{sigmaY});
+    };
+
+    const vec Eps = {5.e-3, -1.e-3, 0.5e-3, 2.e-3, 0., 1.e-3};
+    auto r = solve_analytic(Eps);
+    ASSERT_TRUE(r.converged);
+    ASSERT_GT(r.Dlambda(0), 1e-4);
+    ASSERT_GT(norm(r.dLambda_dsigma_l[0] - r.dLambda_dsigma_l[0].t(), "fro"), 1e-3 * norm(r.dLambda_dsigma_l[0], "fro"));
+    const ContinuumTangent ct = cpp_consistent_tangent(r, L);
+
+    const double h = 1.e-7;
+    mat J_ref(6, 6);
+    for (int j = 0; j < 6; j++) {
+        vec Ep = Eps, Em = Eps;
+        Ep(j) += h;
+        Em(j) -= h;
+        J_ref.col(j) = (solve_analytic(Ep).sigma - solve_analytic(Em).sigma) / (2. * h);
+    }
+    EXPECT_LT(norm(ct.Lt - J_ref, "fro"), 1e-7 * norm(J_ref, "fro"));
+}

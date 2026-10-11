@@ -81,7 +81,7 @@
  * (strain_mechanism.hpp) is the adapter, used by ModularUMAT::return_mapping_cpp and by the
  * dedicated plasticity kernels (EPICP, EPCHA, EPICP_T, EPKCP_T), which run the matching
  * PlasticityMechanism on their own props and state; the SMA kernels (unified_T / unified_TR)
- * call this function directly with finite_difference_total_derivatives().
+ * call this function directly with the analytic total derivatives of their state map.
  */
 
 #pragma once
@@ -108,11 +108,12 @@ struct ReturnMechanism {
     /// Empty => associated flow (Lambda = dPhi_dsigma).
     std::function<arma::vec(const arma::vec &sigma)> Lambda;
     /// REQUIRED. TOTAL derivative \f$ \mathrm{d}\boldsymbol{\Lambda}_\varepsilon^j/
-    /// \mathrm{d}\boldsymbol{\sigma} \f$ (6x6, compliance-like Voigt type): analytic Hessian
-    /// (deta_stress / ddHill_stress / ddDFA_stress / ddAni_stress) for quadratic criteria, or a
-    /// central finite difference of the inner-consistent map
+    /// \mathrm{d}\boldsymbol{\sigma} \f$ (6x6, compliance-like Voigt type; not symmetric in
+    /// general): the Hessian of the criterion (deta_stress / ddHill_stress / ddDFA_stress /
+    /// ddAni_stress / ddDrucker_stress) for an associated flow without state, and for a
+    /// state-coupled mechanism the derivative of the inner-consistent map
     /// \f$ \boldsymbol{\sigma}' \mapsto \boldsymbol{\Lambda}(\boldsymbol{\sigma}',
-    /// \hat{\mathbf{V}}(\boldsymbol{\sigma}', \Delta s)) \f$ for state-coupled mechanisms.
+    /// \hat{\mathbf{V}}(\boldsymbol{\sigma}', \Delta s)) \f$, state chain included.
     std::function<arma::mat(const arma::vec &sigma)> dLambda_dsigma;
 };
 
@@ -131,8 +132,9 @@ struct ReturnStateHooks {
     /// rows the CCP loops assemble.
     std::function<arma::mat(const arma::vec &sigma, const arma::vec &Dlambda)> K;
     /// OPTIONAL multiplier-side flow/state chain, N vectors of 6 (strain-typed):
-    /// \f$ \Delta s^j\,\partial\boldsymbol{\Lambda}^j/\partial\Delta s^j|_\sigma \f$ — the flow's
-    /// dependence on its own multiplier through the state (backstress relaxation). The function
+    /// \f$ \sum_k \Delta s^k\,\partial\boldsymbol{\Lambda}^k/\partial\Delta s^j|_\sigma \f$ — the
+    /// dependence of the inelastic flux on multiplier j through the state (backstress relaxation
+    /// for its own flow; cross terms when the flow of another row reads that state). The function
     /// forms the flux chain \f$ \mathbf{c}^j = \mathbf{L}\,\cdot \f$ that with the elastic
     /// tangent at the iterate and adds it to \f$ \boldsymbol{\kappa}^j \f$ in the Newton and in
     /// the tangent ingredients. Empty => omitted (superlinear instead of quadratic for
@@ -266,41 +268,6 @@ bool cutting_plane_return_mapping(
     const CuttingPlaneHooks &hooks,
     const ReturnMappingControl &control = {},
     int iter0 = 0);
-
-/**
- * @brief Total derivatives by central differences of the composed map, for a kernel whose state
- *        is not an analytic function of \f$ (\boldsymbol{\sigma}, \Delta s) \f$.
- *
- * Fills the derivative callbacks of @p mechanisms (dPhi_dsigma, dLambda_dsigma) and the state
- * hooks (update_state, K, flow_state_coupling) from the kernel's state refresh and its
- * \f$ \Phi^j(\boldsymbol{\sigma}) \f$, \f$ \boldsymbol{\Lambda}^j(\boldsymbol{\sigma}) \f$ (which
- * must already be set on @p mechanisms, evaluated at the refreshed state): every probe
- * re-solves the state at the perturbed \f$ (\boldsymbol{\sigma}, \Delta s) \f$ between
- * @p save and @p restore, so the differences are TOTAL derivatives — the quantities the
- * closest-point Newton and its exact tangent need (the lesson of the state-coupled kernels:
- * partial derivatives at frozen state leave the operator inexact). Steps: relative
- * \f$ h_\sigma = \mathrm{h\_sigma\_rel}\,(\|\boldsymbol{\sigma}\| + 1) \f$ on the stress, absolute
- * \f$ h_{\Delta s} \f$ on the multipliers (one-sided at \f$ \Delta s = 0 \f$).
- *
- * Cost: 12 state refreshes per Newton iterate for the stress derivatives of every row and
- * quantity (one probe pass, cached per \f$ (\boldsymbol{\sigma}, \Delta s) \f$) plus
- * \f$ 2 N \f$ for the multiplier ones — the SMA kernels on this builder stay several times
- * slower than their cutting-plane loop; analytic derivatives (PlasticityMechanism) are the remedy.
- *
- * @param mechanisms  N mechanisms with Phi and Lambda set; the derivatives are filled here
- * @param hooks       filled: update_state (wrapping @p refresh), K, flow_state_coupling
- * @param refresh     the kernel's backward-Euler state refresh at \f$ (\boldsymbol{\sigma}, \Delta s) \f$
- * @param save        copies the kernel's state aside (a lambda capturing a local struct)
- * @param restore     puts it back
- */
-void finite_difference_total_derivatives(
-    std::vector<ReturnMechanism> &mechanisms,
-    ReturnStateHooks &hooks,
-    const std::function<bool(const arma::vec &sigma, const arma::vec &Dlambda)> &refresh,
-    const std::function<void()> &save,
-    const std::function<void()> &restore,
-    double h_sigma_rel = 1.e-5,
-    double h_Dlambda = 1.e-7);
 
 /**
  * @brief Exact consistent tangent of the converged CPP map.

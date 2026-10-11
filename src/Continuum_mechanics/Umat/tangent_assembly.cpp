@@ -29,12 +29,20 @@
 
 namespace simcoon {
 
-ContinuumTangent assemble_continuum_tangent(
+namespace {
+// Shared N-mechanism assembly. Lt_dPhi is the operator that takes dPhi to the strain
+// sensitivity, L^T: the multipliers follow Delta s = invBhat (dPhi . L Delta eps) =
+// invBhat ((L^T dPhi) . Delta eps). The continuum form passes its symmetric L itself; the
+// algorithmic form passes the transpose of L~ = M^-1 L, which is not symmetric when
+// dLambda/dsigma is not (a flow whose magnitude depends on the stress along another direction
+// than its own, e.g. the SMA transformation flow Hcur(sigma_eq) dDrucker(sigma)).
+ContinuumTangent assemble_tangent(
     const arma::mat& Bhat,
     const std::vector<arma::vec>& kappa_j,
     const std::vector<arma::vec>& dPhidsigma_l,
     const arma::vec& Ds_j,
-    const arma::mat& L)
+    const arma::mat& L,
+    const arma::mat& Lt_dPhi)
 {
     const arma::uword Nmech = Bhat.n_rows;
     assert(Bhat.n_cols == Nmech);
@@ -72,7 +80,7 @@ ContinuumTangent assemble_continuum_tangent(
     // P^l = \sum_m invBhat(l, m) L \partial \Phi^m, i.e. P = (L \cdot \partial \Phi ) \cdot invBhat^T.
     arma::mat DP(6, Nmech);
     for (arma::uword m = 0; m < Nmech; ++m) DP.col(m) = dPhidsigma_l[m];
-    const arma::mat P = (L * DP) * invBhat.t();         // 6 \times Nmech
+    const arma::mat P = (Lt_dPhi * DP) * invBhat.t();   // 6 \times Nmech
 
     // Stack \kappa^l into a 6\times Nmech matrix for the rank-Nmech update Lt = L - \kappa P^T.
     arma::mat K6(6, Nmech);
@@ -84,6 +92,17 @@ ContinuumTangent assemble_continuum_tangent(
     for (arma::uword l = 0; l < Nmech; ++l) out.P_epsilon[l] = P.col(l);
     out.invBhat = std::move(invBhat);
     return out;
+}
+} // namespace
+
+ContinuumTangent assemble_continuum_tangent(
+    const arma::mat& Bhat,
+    const std::vector<arma::vec>& kappa_j,
+    const std::vector<arma::vec>& dPhidsigma_l,
+    const arma::vec& Ds_j,
+    const arma::mat& L)
+{
+    return assemble_tangent(Bhat, kappa_j, dPhidsigma_l, Ds_j, L, L);
 }
 
 ContinuumTangent assemble_continuum_tangent(
@@ -172,10 +191,10 @@ ContinuumTangent assemble_algorithmic_tangent(
     }
 
     // With the algorithmic operators in hand, the assembly is structurally
-    // identical to the continuum case — delegate to keep the active-set
+    // identical to the continuum case — one shared assembly keeps the active-set
     // masking, Bbar regularisation, P_eps accumulation, and Lt update in
-    // exactly one place.
-    return assemble_continuum_tangent(Bhat_tilde, kappa_tilde, dPhidsigma_l, Ds_j, L_tilde);
+    // exactly one place. L~ is not symmetric in general: its transpose acts on dPhi.
+    return assemble_tangent(Bhat_tilde, kappa_tilde, dPhidsigma_l, Ds_j, L_tilde, L_tilde.t());
 }
 
 ContinuumTangent assemble_algorithmic_tangent(
@@ -201,7 +220,19 @@ ContinuumTangent assemble_algorithmic_tangent(
     const arma::mat L_tilde  = Minv * L;
     const arma::vec kappa_t  = Minv * kappa;
     const double    Bhat_t   = Bhat_scalar + arma::dot(dPhidsigma, (Minv - arma::eye(6, 6)) * kappa);
-    return assemble_continuum_tangent(Bhat_t, kappa_t, dPhidsigma, Ds, L_tilde);
+    // 1-mech form of the assembly with the transpose of L~ on dPhi (L~ is not symmetric when
+    // dLambda/dsigma is not); same masking as the continuum overload.
+    ContinuumTangent out;
+    out.P_epsilon.assign(1, arma::zeros(6));
+    out.invBhat.zeros(1, 1);
+    if (std::abs(Bhat_t) < simcoon::iota || !std::isfinite(Bhat_t)) {
+        out.Lt = L_tilde;
+        return out;
+    }
+    out.invBhat(0, 0) = 1.0 / Bhat_t;
+    out.P_epsilon[0] = out.invBhat(0, 0) * (L_tilde.t() * dPhidsigma);
+    out.Lt = L_tilde - kappa_t * out.P_epsilon[0].t();
+    return out;
 }
 
 

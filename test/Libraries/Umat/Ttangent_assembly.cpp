@@ -228,6 +228,67 @@ TEST(Ttangent_assembly, multiMech_nonsymmetric_Bhat_eliminates_multipliers)
     }
 }
 
+TEST(Ttangent_assembly, algorithmic_nonsymmetric_flow_derivative)
+{
+    // dLambda/dsigma is not symmetric when the flow magnitude depends on the stress along another
+    // direction than the flow itself (SMA: Hcur(sigma_eq) dDrucker(sigma)); then L~ = M^-1 L is not
+    // symmetric either and the multiplier elimination needs L~^T dPhi. Reference: the linearised
+    // system  M dsigma + kappa ds = L de,  dPhi . dsigma + K ds = 0  solved as one block.
+    const mat L = L_iso(70000., 0.3, "Enu");
+    const std::vector<vec> Lambda = {
+        { 1., -0.5, -0.5, 0.2, 0.0, 0.0 },
+        { -0.3, 0.6, -0.3, 0.0, 0.4, 0.0 }
+    };
+    const std::vector<vec> dPhi = {
+        { 1., -0.5, -0.5, 0.4, 0.0, 0.0 },
+        { -0.2, 0.7, -0.5, 0.0, 0.3, 0.1 }
+    };
+    const vec w0 = { 0.4, 0.1, -0.5, 0.0, 0.3, 0.2 }, w1 = { -0.1, 0.5, -0.4, 0.2, 0.0, 0.1 };
+    const std::vector<mat> dLambda = {
+        2.e-3 * (Lambda[0] * w0.t()) + 1.e-3 * eye(6, 6),     // rank-one, non-symmetric + a symmetric part
+        1.e-3 * (Lambda[1] * w1.t())
+    };
+    ASSERT_GT(norm(dLambda[0] - dLambda[0].t(), "fro"), 1e-4);
+    const mat K = { { -300., 150. }, { 80., -2000. } };
+    const vec Ds = { 3e-3, 2e-3 };
+
+    for (uword N : { uword(1), uword(2) }) {
+        std::vector<vec> kappa(N), n_l(N);
+        std::vector<mat> D(N);
+        mat M = eye(6, 6), Bhat(N, N);
+        for (uword j = 0; j < N; ++j) {
+            kappa[j] = L * Lambda[j];
+            n_l[j] = dPhi[j];
+            D[j] = dLambda[j];
+            M += Ds(j) * (L * D[j]);
+        }
+        for (uword l = 0; l < N; ++l)
+            for (uword j = 0; j < N; ++j) Bhat(l, j) = dot(n_l[l], kappa[j]) - K(l, j);
+
+        mat A = zeros(6 + N, 6 + N), rhs = zeros(6 + N, 6);
+        A.submat(0, 0, 5, 5) = M;
+        for (uword j = 0; j < N; ++j) {
+            A.submat(0, 6 + j, 5, 6 + j) = kappa[j];
+            A.submat(6 + j, 0, 6 + j, 5) = n_l[j].t();
+            for (uword k = 0; k < N; ++k) A(6 + j, 6 + k) = K(j, k);
+        }
+        rhs.rows(0, 5) = L;
+        const mat sol = solve(A, rhs);
+        const mat Lt_ref = sol.rows(0, 5);
+
+        const vec Ds_N = Ds.head(N);
+        auto ct = assemble_algorithmic_tangent(Bhat, kappa, n_l, Ds_N, L, D);
+        EXPECT_LT(norm(ct.Lt - Lt_ref, "fro"), 1e-10 * norm(L, "fro")) << "N = " << N;
+        for (uword l = 0; l < N; ++l) {
+            EXPECT_LT(norm(ct.P_epsilon[l] - sol.row(6 + l).t(), 2), 1e-10 * norm(sol.rows(6, 5 + N), "fro")) << "N = " << N;
+        }
+        if (N == 1) {
+            auto ct1 = assemble_algorithmic_tangent(Bhat(0, 0), kappa[0], n_l[0], Ds(0), L, D[0]);
+            EXPECT_LT(norm(ct1.Lt - Lt_ref, "fro"), 1e-10 * norm(L, "fro"));
+        }
+    }
+}
+
 TEST(Ttangent_assembly, parity_inactive_mechanism_masked_out)
 {
     // Confirm the active-set mask still works in the algorithmic helper.
