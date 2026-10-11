@@ -66,7 +66,9 @@ Small-strain mechanical models
      - Von Mises + Voce + 2x Armstrong-Frederick
      - legacy (kept)
      - E, nu, alpha, sigmaY, Q, b, C1, D1, C2, D2
-     - Pedagogical reference of kinematic hardening in CCP
+     - Pedagogical reference of kinematic hardening in CCP; the Voce term goes
+       through the modular VoceHardening (:math:`H_p = R(p)` in every mode,
+       ``statev[32]`` is its output), as EPCHG
    * - EPJCK
      - Von Mises + Johnson-Cook yield stress (power-law hardening x logarithmic
        strain-rate factor x thermal softening)
@@ -409,6 +411,19 @@ derivatives of the discrete update. For plasticity, the algorithmic operator is 
 von Mises criterion and isotropic hardening only; with kinematic hardening or a Hill, DFA,
 Drucker or Tresca criterion the cutting-plane update is path dependent and the operator is
 approximate (see the note on the scope of the algorithmic tangent in :doc:`solver`).
+
+**Mode 3 coverage (2.2).** The closest-point integrator with its exact operator runs for
+``MODUL`` rows whose criterion has a flow Hessian (von Mises, Hill, DFA, Ani; with every
+hardening law and a hyperelastic block), for the dedicated kernels ``EPICP``, ``EPCHA``,
+``EPICP`` / ``EPKCP`` thermomechanical, and for the SMA kernels ``SMADI`` / ``SMADC`` /
+``SMAAI`` / ``SMAAC`` and ``SMRDI`` / ``SMRDC`` / ``SMRAI`` / ``SMRAC`` (total derivatives by
+finite differences there: about 5x the cost of mode 2 per increment, so mode 3 is a tangent
+check rather than a production choice on SMA until the analytic derivatives land). For
+``EPJCK`` (and the adapter-served von Mises + isotropic names) mode 3 is **identical to mode
+2 by construction**: with a radial flow the cutting-plane update already is the closest-point
+projection and the algorithmic operator is the exact Jacobian of the discrete map, including
+the rate term. Mode 3 falls back to the mode-2 operator for a Tresca or Drucker row, a
+condensed stress state (plane stress, 1D), the thermomechanical SMA kernel and ``SMA_mono``.
 
 Validation and performance
 ==========================

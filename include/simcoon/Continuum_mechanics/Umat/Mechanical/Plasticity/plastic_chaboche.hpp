@@ -36,14 +36,15 @@ namespace simcoon{
 /**
  * @brief Elastic-plastic constitutive model with Chaboche kinematic hardening (J2, two Armstrong-Frederick branches, Voce isotropic term)
  *
- * @note **Integrator.** Under tangent_mode 0-2 the return mapping is the convex cutting plane
- * loop below (explicit Euler of \f$ dH_p = b (Q - H_p)\,dp \f$, flow at each iterate); under
+ * @note **Integrator.** The isotropic term is \f$ H_p = R(p) = Q(1 - e^{-bp}) \f$ (modular
+ * VoceHardening, statev[32] is its output) in every mode. Under tangent_mode 0-2 the return
+ * mapping is the convex cutting plane loop below (flow at each iterate); under
  * tangent_closest_point (3, full 3D states) the kernel runs the modular PlasticityMechanism
  * (von Mises + VoceHardening + ChabocheHardening with 2 branches) on its own props and state
- * through closest_point_return_mapping(): backward-Euler backstresses, \f$ H_p = R(p) =
- * Q(1 - e^{-bp}) \f$ exactly, flow at the converged stress, and cpp_consistent_tangent() — the
- * exact (non-symmetric, dynamic recovery) operator the cutting-plane algorithmic tangent only
- * approximates. Non-convergence requests tnew_dt = 0.5.
+ * through closest_point_return_mapping(): backward-Euler backstresses, flow at the converged
+ * stress, and cpp_consistent_tangent() — the exact (non-symmetric, dynamic recovery) operator
+ * the cutting-plane algorithmic tangent only approximates. Non-convergence requests
+ * tnew_dt = 0.5.
  *
  * @details This function implements the Chaboche unified viscoplasticity model for small and finite strain analysis.
  * The model features:
@@ -97,10 +98,10 @@ namespace simcoon{
  *
  * **Isotropic Hardening (Optional):**
  *
- * The isotropic hardening follows the Voce law, integrated in rate form
- * \f$ \dot{H}_p = b \left( Q - H_p \right) \dot{p} \f$ (a single term, so
- * \f$ R(p) = Q \left( 1 - e^{-b p} \right) \f$ exactly under monotonic flow):
- * where:
+ * The isotropic hardening follows the Voce law
+ * \f$ H_p = R(p) = Q \left( 1 - e^{-b p} \right) \f$ (the closed form of
+ * \f$ \dot{H}_p = b (Q - H_p) \dot{p} \f$, evaluated from the accumulated plastic strain
+ * \f$ p \f$ at every iterate; modular VoceHardening), where:
  * - \f$ Q \f$ is the saturation value of the isotropic hardening stress
  * - \f$ b \f$ is the hardening rate parameter
  * - \f$ p \f$ is the accumulated plastic strain
@@ -143,7 +144,7 @@ namespace simcoon{
  * H_{tot} = \sum_{i=1}^{2} \left( \tfrac{2}{3} C_i - D_i\, \mathbf{X}_i : \mathbf{n} \right) + b\,(Q - H_p)
  * \f]
  * is the total hardening modulus combining the two kinematic contributions and
- * the Voce isotropic term (integrated in rate form \f$ \dot{H}_p = b (Q - H_p) \dot{p} \f$).
+ * the Voce isotropic term \f$ R'(p) = b (Q - H_p) \f$.
  *
  * **Material Parameters (props):**
  *
@@ -184,7 +185,7 @@ namespace simcoon{
  * | statev[14..19] | \f$ \boldsymbol{a}_2 \f$ | Back-strain 2 (Voigt, engineering shear) | Strain |
  * | statev[20..25] | \f$ \mathbf{X}_1 = \tfrac{2}{3} C_1 \boldsymbol{a}_1 \f$ | Backstress 1 (Voigt) | Stress |
  * | statev[26..31] | \f$ \mathbf{X}_2 = \tfrac{2}{3} C_2 \boldsymbol{a}_2 \f$ | Backstress 2 (Voigt) | Stress |
- * | statev[32] | \f$ H_p \f$ | Integrated Voce isotropic hardening stress | Stress |
+ * | statev[32] | \f$ H_p \f$ | Voce isotropic hardening stress \f$ R(p) \f$ (output) | Stress |
  *
  * @param Etot Total strain tensor at beginning of increment (Voigt notation: \f$6 \times 1\f$ vector)
  * @param DEtot Strain increment tensor (Voigt notation: \f$6 \times 1\f$ vector)
@@ -232,7 +233,7 @@ namespace simcoon{
  * props(2) = 1.7e-5;      // alpha = 17e-6 /K
  * props(3) = 150;         // sigma_Y = 150 MPa
  *
- * // Isotropic hardening (Voce, rate form dHp = b (Q - Hp) dp)
+ * // Isotropic hardening (Voce, Hp = Q (1 - exp(-b p)))
  * props(4) = 100;         // Q = 100 MPa (saturation stress)
  * props(5) = 10;          // b = 10 (hardening rate)
  *
