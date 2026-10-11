@@ -408,18 +408,23 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
     // L(xi) and alpha(xi) are FROZEN at xi_n: since the Reuss mixture M(xi) and alpha(xi) are
     // LINEAR in xi, the effective flows Lambda_eff^F = lambdaTF + DM*sigma + Dalpha*(T+DT-T_init)
     // and Lambda_eff^R = -ETMean - DM*sigma - Dalpha*(T+DT-T_init) make the frozen-L residual the
-    // EXACT discrete system (M(xi)sigma = M(xi_n)sigma + Dxi*DM*sigma is an identity). ETMean is
-    // resolved by a short fixed point honouring the CCP guard; all derivative callbacks are TOTAL
-    // derivatives of the composed map (central FD probes with save/restore).
+    // EXACT discrete system (M(xi)sigma = M(xi_n)sigma + Dxi*DM*sigma is an identity). The state
+    // is rebuilt from the start values at every iterate (ETMean in closed form) and the callbacks
+    // return the analytic TOTAL derivatives of that composed map (linearise below).
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
         const double xi_n = xi;
         const double thp = (T + DT - T_init);
+        vec Dl_cur = zeros(2);        // multipliers of the refreshed state
+        bool ETMean_is_flow = false;  // the guard branch ETMean = lambdaTF is active
+        bool lin_stale = true;        // the linearisation below is not the one of the refreshed state
 
         // Backward-Euler state at (sig, Dl): xi, Hcur, lambdaTF, ETMean, ET, hardening, Lagrange.
         auto refresh_state = [&](const vec &sig, const vec &Dl) {
+            Dl_cur = Dl;
+            lin_stale = true;
             xi = xi_n + Dl(0) - Dl(1);
             Hcur = Hmin + (Hmax - Hmin)*(1. - exp(-1.*k1*std::max(Mises_stress(sig) - sigmacrit, 0.)));
             lambdaTF = sma_transformation_flow(sig, sigmacrit, Hmin, Hmax, k1, aniso_criteria, DFA_params, prager_b, prager_n);
@@ -428,16 +433,18 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
             // the reversal); the sweep form of this fixed point diverges when Dl_R > xi. The loop's
             // guard (no martensite, no transformation strain -> lambdaTF) is kept.
             const double xi_before = xi + Dl(1);
-            ETMean = (xi_before > simcoon::precision_umat) ? vec((dev(ET_start) + Dl(0)*dev(lambdaTF))/xi_before) : lambdaTF;
+            ETMean_is_flow = !(xi_before > simcoon::precision_umat);
+            ETMean = ETMean_is_flow ? lambdaTF : vec((dev(ET_start) + Dl(0)*dev(lambdaTF))/xi_before);
             ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
             if (!((Mises_strain(ET) > simcoon::precision_umat) && (xi > simcoon::precision_umat))) {
+                ETMean_is_flow = true;
                 ETMean = lambdaTF;
                 ET = ET_start + Dl(0)*lambdaTF - Dl(1)*ETMean;
             }
-            // Smooth hardening functions at xi clamped to [0,1]: FD probes step the raw xi past
-            // the bounds, where pow(xi, n) is NaN for the fractional exponents; the slope of Hf is
-            // infinite there (the loop uses 1e12), so a C1 continuation is a model change, not a
-            // numerical one. The Lagrange penalties are already C1-continued outside [0,1].
+            // Smooth hardening functions at xi clamped to [0,1]: an iterate can leave the bounds,
+            // where pow(xi, n) is NaN for the fractional exponents; the slope of Hf is infinite
+            // there (the loop uses 1e12), so a C1 continuation is a model change, not a numerical
+            // one. The Lagrange penalties are already C1-continued outside [0,1].
             const double xi_h = std::min(std::max(xi, 0.), 1.);
             if ((n1 == 1.) && (n2 == 1.)) { HfF = a1*xi_h + a3; }
             else { HfF = 0.5*a1*(1. + pow(xi_h, n1) - pow(1. - xi_h, n2)) + a3; }
@@ -463,21 +470,75 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
         // Effective flows (stiffness/CTE mixture variation folded in, see header comment).
         auto LamF_val = [&](const vec &sig) { return vec(lambdaTF + DM*sig + Dalpha*thp); };
         auto LamR_val = [&](const vec &sig) { return vec(-1.*ETMean - DM*sig - Dalpha*thp); };
-        // Total derivatives by central differences of the composed map: the state is saved,
-        // re-solved at the probe and restored by the builder.
-        struct SmaState { double xi, Hcur, HfF, HfR, l0, l1; vec lTF, ETM, ET; } saved;
-        auto save_state = [&]() { saved = SmaState{xi, Hcur, HfF, HfR, lambda0, lambda1, lambdaTF, ETMean, ET}; };
-        auto restore_state = [&]() {
-            xi = saved.xi; Hcur = saved.Hcur; HfF = saved.HfF; HfR = saved.HfR; lambda0 = saved.l0; lambda1 = saved.l1;
-            lambdaTF = saved.lTF; ETMean = saved.ETM; ET = saved.ET;
+        // Analytic total derivatives at the refreshed state (sig, Dl_cur), built once per iterate.
+        //   lambdaTF = Hcur g, g = dDrucker:   dlambdaTF/dsigma = g (x) dHcur + Hcur ddDrucker
+        //   ETMean (xi_n + Dl_F) = dev(ET_n) + Dl_F dev(lambdaTF) (independent of Dl_R):
+        //     dETMean/dsigma = Dl_F/(xi_n + Dl_F) dev(dlambdaTF/dsigma),  dETMean/dDl_F = (dev(lambdaTF) - ETMean)/(xi_n + Dl_F)
+        //   (guard branch ETMean = lambdaTF: dETMean/dsigma = dlambdaTF/dsigma, no multiplier dependence)
+        //   Phi_F = Hcur Drucker + A_xiF(sigma, xi) - lambda1(xi) - Y0t - D Hcur sigma_eq
+        //   Phi_R = -(1 + D) sigma:ETMean + A_xiR(sigma, xi) + lambda0(xi) - Y0t
+        // K_lj = dPhi_l/dDl_j; the flux chain c_j = sum_k Dl_k dLambda_k/dDl_j is -Dl_R dETMean/dDl_F for
+        // the forward row and zero for the reverse one.
+        mat dev_op = eye(6, 6);   // dev() of a Voigt vector
+        dev_op.submat(0, 0, 2, 2) -= ones(3, 3)/3.;
+        vec dPhiF_ds = zeros(6), dPhiR_ds = zeros(6), c_F = zeros(6);
+        mat dLamF_ds = zeros(6, 6), dLamR_ds = zeros(6, 6), K_cpp = zeros(2, 2);
+        auto linearise = [&](const vec &sig) {
+            if (!lin_stale) return;
+            lin_stale = false;
+            const double sig_eq = Mises_stress(sig);
+            const vec eta = eta_stress(sig);
+            vec dHcur = zeros(6);
+            if (sig_eq > sigmacrit) dHcur = (Hmax - Hmin)*k1*exp(-1.*k1*(sig_eq - sigmacrit))*eta;
+            const double Dr = aniso_criteria ? Drucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                             : Drucker_stress(sig, prager_b, prager_n);
+            const vec g = aniso_criteria ? dDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                         : dDrucker_stress(sig, prager_b, prager_n);
+            const mat ddDr = aniso_criteria ? ddDrucker_ani_stress(sig, DFA_params, prager_b, prager_n)
+                                            : ddDrucker_stress(sig, prager_b, prager_n);
+            const mat dlTF_ds = g*dHcur.t() + Hcur*ddDr;
+
+            mat dETM_ds = dlTF_ds;
+            vec dETM_dF = zeros(6);
+            if (!ETMean_is_flow) {
+                const double xi_before = xi_n + Dl_cur(0);
+                dETM_ds = (Dl_cur(0)/xi_before)*(dev_op*dlTF_ds);
+                dETM_dF = (dev(lambdaTF) - ETMean)/xi_before;
+            }
+
+            // slopes of the clamped hardening functions and of the penalties
+            double dHfF_dxi = 0., dHfR_dxi = 0.;
+            if ((xi > 0.) && (xi < 1.)) {
+                dHfF_dxi = ((n1 == 1.) && (n2 == 1.)) ? a1 : 0.5*a1*(n1*pow(xi, n1 - 1.) + n2*pow(1. - xi, n2 - 1.));
+                dHfR_dxi = ((n3 == 1.) && (n4 == 1.)) ? a2 : 0.5*a2*(n3*pow(xi, n3 - 1.) + n4*pow(1. - xi, n4 - 1.));
+            }
+            const double dl1_dxi = dlagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+            const double dl0_dxi = -1.*dlagrange_pow_0(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
+
+            const vec DMsig = DM*sig;
+            dPhiF_ds = Dr*dHcur + Hcur*g + DMsig + Dalpha*thp - D*(sig_eq*dHcur + Hcur*eta);
+            dPhiR_ds = -1.*(1. + D)*(ETMean + dETM_ds.t()*sig) - DMsig - Dalpha*thp;
+            dLamF_ds = dlTF_ds + DM;
+            dLamR_ds = -1.*dETM_ds - DM;
+            K_cpp(0, 0) = -1.*(dHfF_dxi + dl1_dxi);
+            K_cpp(0, 1) = dHfF_dxi + dl1_dxi;
+            K_cpp(1, 0) = -1.*(1. + D)*sum(sig%dETM_dF) + dHfR_dxi + dl0_dxi;
+            K_cpp(1, 1) = -1.*(dHfR_dxi + dl0_dxi);
+            c_F = -1.*Dl_cur(1)*dETM_dF;
         };
         std::vector<ReturnMechanism> mechs(2);
         mechs[0].Phi = PhiF_val;
         mechs[1].Phi = PhiR_val;
         mechs[0].Lambda = LamF_val;
         mechs[1].Lambda = LamR_val;
+        mechs[0].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiF_ds; };
+        mechs[1].dPhi_dsigma = [&](const vec &sig) { linearise(sig); return dPhiR_ds; };
+        mechs[0].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamF_ds; };
+        mechs[1].dLambda_dsigma = [&](const vec &sig) { linearise(sig); return dLamR_ds; };
         ReturnStateHooks hooks;
-        finite_difference_total_derivatives(mechs, hooks, refresh_state, save_state, restore_state);
+        hooks.update_state = refresh_state;
+        hooks.K = [&](const vec &sig, const vec &) { linearise(sig); return K_cpp; };
+        hooks.flow_state_coupling = [&](const vec &sig, const vec &) { linearise(sig); return std::vector<vec>{c_F, zeros(6)}; };
         vec Ycrit_cpp(2);
         // FB normalisation scales. Both YtF = Y0t + D*Hcur*Mises and YtR = Y0t + D*sigma:ETMean
         // degenerate to ~0 at low-stress/virgin states (Y0t may be 0, Hcur -> Hmin): a vanishing

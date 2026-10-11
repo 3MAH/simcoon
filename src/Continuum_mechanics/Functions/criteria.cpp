@@ -132,6 +132,68 @@ namespace simcoon
         return eta_stress(v);
     }
 
+    namespace {
+    // Hessian of f(sigma) (1 + b J3/J2^1.5)^(1/n) for a base equivalent stress f with gradient
+    // df and Hessian ddf (von Mises or DFA). Rows strain-typed, columns per stress component
+    // (the convention of deta_stress / ddEq_stress_P).
+    mat drucker_hessian(const vec &v, const double &f, const vec &df, const mat &ddf, const double &b, const double &n)
+    {
+        if (f <= simcoon::iota) return zeros(6, 6);   // same floor as the value and the gradient
+        if (n >= 10.) return ddf;
+
+        const double m = 1. / n;
+        const mat sigma = v2t_stress(v);
+        const mat s = dev(sigma);
+        const double J2 = J2_stress(v);
+        const double J3 = J3_stress(v);
+        const vec dJ2 = t2v_strain(dJ2DS(sigma));
+        const vec dJ3 = t2v_strain(dJ3DS(sigma));
+
+        // d2J2/dsigma2 (constant) and d2J3/dsigma2: derivative of s.s - (2/3) J2 I along each
+        // Voigt stress component (a shear component moves both symmetric entries)
+        mat ddJ2 = { { 2./3., -1./3., -1./3., 0., 0., 0.},
+                     {-1./3.,  2./3., -1./3., 0., 0., 0.},
+                     {-1./3., -1./3.,  2./3., 0., 0., 0.},
+                     {    0.,     0.,     0., 2., 0., 0.},
+                     {    0.,     0.,     0., 0., 2., 0.},
+                     {    0.,     0.,     0., 0., 0., 2.} };
+        mat ddJ3(6, 6);
+        const int ia[6] = {0, 1, 2, 0, 0, 1};
+        const int ib[6] = {0, 1, 2, 1, 2, 2};
+        for (int c = 0; c < 6; c++) {
+            mat E = zeros(3, 3);
+            E(ia[c], ib[c]) = 1.;
+            E(ib[c], ia[c]) = 1.;
+            const mat dS = dev(E);
+            const mat dt = dS*s + s*dS - (2./3.)*accu(s%dS)*eye(3, 3);
+            ddJ3.col(c) = t2v_strain(dt);
+        }
+
+        const double J2_3_2 = pow(J2, 1.5);
+        const double J2_5_2 = pow(J2, 2.5);
+        const double J2_7_2 = pow(J2, 3.5);
+        const vec q = dJ3/J2_3_2 - 1.5*J3*dJ2/J2_5_2;                       // d(J3/J2^1.5)/dsigma
+        const mat Q = ddJ3/J2_3_2 - 1.5*(dJ3*dJ2.t() + dJ2*dJ3.t())/J2_5_2
+                      - 1.5*J3*ddJ2/J2_5_2 + 3.75*J3*(dJ2*dJ2.t())/J2_7_2;
+        const double r = 1. + b*J3/J2_3_2;
+        return pow(r, m)*ddf
+             + m*b*pow(r, m - 1.)*(df*q.t() + q*df.t() + f*Q)
+             + f*m*(m - 1.)*b*b*pow(r, m - 2.)*(q*q.t());
+    }
+    }
+
+    mat ddDrucker_stress(const vec &v, const double &b, const double &n)
+    {
+        assert(v.size() == 6);
+        return drucker_hessian(v, Mises_stress(v), eta_stress(v), deta_stress(v), b, n);
+    }
+
+    mat ddDrucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
+    {
+        assert(v.size() == 6);
+        return drucker_hessian(v, DFA_stress(v, params), dDFA_stress(v, params), ddDFA_stress(v, params), b, n);
+    }
+
     // This function returns the combination of the Drucker equivalent stress by replacing VM by DFA
     double Drucker_ani_stress(const vec &v, const vec &params, const double &b, const double &n)
     {

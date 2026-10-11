@@ -134,7 +134,9 @@ def test_sma_unified_T_closest_point_superelastic_loop_and_exact_tangent():
     np.testing.assert_allclose(r3["Stress"][0], r2["Stress"][0], atol=0.5)   # same loop, O(h^2) apart
     k = 60   # forward transformation
     e, s, sv = r3["Strain"][:, k], r3["Stress"][:, k], r3["Statev"][:, k]
-    De0 = np.array([4e-4, -1e-4, -1e-4, 1.5e-4, 0.0, 0.0])
+    # non-proportional: the flow Hcur(sigma_eq) dDrucker(sigma) then has a non-symmetric stress
+    # derivative, which the tangent assembly has to carry (transpose of the algorithmic stiffness)
+    De0 = np.array([4e-4, -1e-4, -1e-4, 1.5e-4, 0.0, 0.8e-4])
 
     def call(d, mode):
         return sim.umat("SMADI", col(e), col(d), I3, I3, col(s), I3, col(SMADI), col(sv), 0.5, 0.01,
@@ -145,7 +147,7 @@ def test_sma_unified_T_closest_point_superelastic_loop_and_exact_tangent():
     Lt = call(De0, 3)[3][:, :, 0]
     fd = np.column_stack([(call(De0 + h * u, 3)[0][:, 0] - call(De0 - h * u, 3)[0][:, 0]) / (2 * h)
                           for u in np.eye(6)])
-    assert np.linalg.norm(Lt - fd) < 1e-5 * np.linalg.norm(fd)
+    assert np.linalg.norm(Lt - fd) < 1e-8 * np.linalg.norm(fd)
 
 
 DFA_ISO = [0.5, 0.5, 0.5, 1.5, 1.5, 1.5, 0.0]
@@ -156,7 +158,19 @@ def test_sma_unified_TR_closest_point_loop_and_tangent(name, extra):
     """unified_TR (transformation + reorientation, 3 rows) on the helper: the superelastic loop
     closes in mode 3 as in mode 2, and the operator is the exact Jacobian in the forward
     transformation (mode 2 is clamped to the continuum operator on the SMA kernels)."""
-    props = np.asarray(SMADI + extra + [100.0, 5000.0, 0.05, 1e-6, 1e-3, 1.0, 1e8], dtype=float)
+    _unified_TR_loop_and_tangent(name, extra, Y_Reo=100.0, points=[120])
+
+
+@pytest.mark.parametrize("name, extra", [("SMRDI", []), ("SMRAI", DFA_ISO)])
+def test_sma_unified_TR_closest_point_tangent_with_reorientation_active(name, extra):
+    """A low reorientation limit: on unloading the reorientation row is active alone (k = 260),
+    then together with the reverse transformation (k = 320); the operator stays the exact
+    Jacobian through the back-strain equation and the mean transformation strain."""
+    _unified_TR_loop_and_tangent(name, extra, Y_Reo=30.0, points=[120, 260, 320])
+
+
+def _unified_TR_loop_and_tangent(name, extra, Y_Reo, points):
+    props = np.asarray(SMADI + extra + [Y_Reo, 5000.0, 0.05, 1e-6, 1e-3, 1.0, 1e8], dtype=float)
     steps = [StepMeca(control=_UNIAXIAL, value=[0.04, 0, 0, 0, 0, 0], time=1.0, ninc=200, Dn_mini=0.01),
              StepMeca(control=["stress"] * 6, value=[0.0] * 6, time=1.0, ninc=200, Dn_mini=0.01)]
     r2 = solve(steps, name, props, 30, T_init=T_SUPERELASTIC, corate=3, tangent_mode=2)
@@ -164,16 +178,19 @@ def test_sma_unified_TR_closest_point_loop_and_tangent(name, extra):
     assert r2.status == 0 and r3.status == 0 and len(r3) == 400
     np.testing.assert_allclose(r3["Stress"][0], r2["Stress"][0], atol=0.5)
     assert abs(r3["Strain"][0, -1]) < 1e-3   # the loop closes (full reverse transformation)
-    k = 120
-    e, s, sv = r3["Strain"][:, k], r3["Stress"][:, k], r3["Statev"][:, k]
-    De0 = np.array([4e-4, -1e-4, -1e-4, 1.5e-4, 0.0, 0.0])
+    for k in points:
+        e, s, sv = r3["Strain"][:, k], r3["Stress"][:, k], r3["Statev"][:, k]
+        De0 = (1.0 if k < 200 else -1.0) * np.array([4e-4, -1e-4, -1e-4, 1.5e-4, 0.0, 0.8e-4])
 
-    def call(d):
-        return sim.umat(name, col(e), col(d), I3, I3, col(s), I3, col(props), col(sv), 0.5, 0.005,
-                        np.zeros((4, 1), order="F"), temp=np.full(1, T_SUPERELASTIC), n_threads=1,
-                        tangent_mode=3, start=False)
+        def call(d):
+            return sim.umat(name, col(e), col(d), I3, I3, col(s), I3, col(props), col(sv), 0.5, 0.005,
+                            np.zeros((4, 1), order="F"), temp=np.full(1, T_SUPERELASTIC), n_threads=1,
+                            tangent_mode=3, start=False)
 
-    h = 1e-7
-    Lt = call(De0)[3][:, :, 0]
-    fd = np.column_stack([(call(De0 + h * u)[0][:, 0] - call(De0 - h * u)[0][:, 0]) / (2 * h) for u in np.eye(6)])
-    assert np.linalg.norm(Lt - fd) < 1e-5 * np.linalg.norm(fd)
+        h = 1e-7
+        out = call(De0)
+        Lt = out[3][:, :, 0]
+        fd = np.column_stack([(call(De0 + h * u)[0][:, 0] - call(De0 - h * u)[0][:, 0]) / (2 * h) for u in np.eye(6)])
+        assert np.linalg.norm(Lt - fd) < 1e-7 * np.linalg.norm(fd), k
+        if k == 260:
+            assert out[1][17, 0] - sv[17] > 1e-6, "the reorientation row must be active here"

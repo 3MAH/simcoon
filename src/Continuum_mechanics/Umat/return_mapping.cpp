@@ -16,12 +16,10 @@
  */
 
 ///@file return_mapping.cpp
-///@brief Return-mapping integrators (closest point, cutting plane) and the finite-difference
-///derivative builder. Contracts and algorithms in the .hpp.
+///@brief Return-mapping integrators (closest point, cutting plane). Contracts and algorithms in the .hpp.
 
 #include <cmath>
 #include <stdexcept>
-#include <memory>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
@@ -299,106 +297,6 @@ bool cutting_plane_return_mapping(
         if (iter < maxiter && error > precision) hooks.constraints(Phi, Y_crit);
     }
     return error <= precision;
-}
-
-void finite_difference_total_derivatives(
-    std::vector<ReturnMechanism> &mechanisms,
-    ReturnStateHooks &hooks,
-    const std::function<bool(const vec &, const vec &)> &refresh,
-    const std::function<void()> &save,
-    const std::function<void()> &restore,
-    double h_sigma_rel,
-    double h_Dlambda) {
-
-    const int N = int(mechanisms.size());
-    // Shared by every callback: the kernel's state operations, the multipliers of the current
-    // iterate (the stress derivatives are taken at fixed Dlambda, which the mechanism callbacks do
-    // not receive) and the two probe passes, each evaluated once per (sigma, Dlambda) and read by
-    // all the rows and quantities that need it.
-    struct Ctx {
-        std::function<bool(const vec &, const vec &)> refresh;
-        std::function<void()> save, restore;
-        double h_sigma_rel, h_Dlambda;
-        vec Dl_cur;
-        vec sig_s, Dl_s; std::vector<vec> dPhi; std::vector<mat> dLambda;   // stress pass
-        vec sig_m, Dl_m; mat K; std::vector<vec> c;                        // multiplier pass
-    };
-    auto ctx = std::make_shared<Ctx>();
-    ctx->refresh = refresh; ctx->save = save; ctx->restore = restore;
-    ctx->h_sigma_rel = h_sigma_rel; ctx->h_Dlambda = h_Dlambda;
-    ctx->Dl_cur = zeros(N);
-    hooks.update_state = [ctx](const vec &sig, const vec &Dl) {
-        ctx->Dl_cur = Dl;
-        return ctx->refresh(sig, Dl);
-    };
-    auto same = [](const vec &a, const vec &b) { return a.n_elem == b.n_elem && all(a == b); };
-    // Every Phi_j and Lambda_j at (sig, Dl) with the state re-solved there, then the state put back.
-    // A probe whose state solve fails poisons the derivative (NaN): the helper rejects the iterate.
-    auto probe = [ctx, &mechanisms, N](const vec &sig, const vec &Dl, vec &Phi, std::vector<vec> &Lambda) {
-        ctx->save();
-        const bool ok = ctx->refresh(sig, Dl);
-        for (int j = 0; j < N; j++) {
-            Phi(j) = ok ? mechanisms[j].Phi(sig) : datum::nan;
-            Lambda[j] = ok ? mechanisms[j].Lambda(sig) : vec(6, fill::value(datum::nan));
-        }
-        ctx->restore();
-    };
-    auto stress_pass = [ctx, probe, same, N](const vec &sig) {
-        Ctx &x = *ctx;
-        if (same(x.sig_s, sig) && same(x.Dl_s, x.Dl_cur)) return;
-        const double h = x.h_sigma_rel*(norm(sig, 2) + 1.);
-        x.dPhi.assign(N, vec(6));
-        x.dLambda.assign(N, mat(6, 6));
-        vec Pp(N), Pm(N);
-        std::vector<vec> Lp(N), Lm(N);
-        for (int c = 0; c < 6; c++) {
-            vec sp = sig, sm = sig;
-            sp(c) += h;
-            sm(c) -= h;
-            probe(sp, x.Dl_cur, Pp, Lp);
-            probe(sm, x.Dl_cur, Pm, Lm);
-            for (int j = 0; j < N; j++) {
-                x.dPhi[j](c) = (Pp(j) - Pm(j))/(2.*h);
-                x.dLambda[j].col(c) = (Lp[j] - Lm[j])/(2.*h);
-            }
-        }
-        x.sig_s = sig;
-        x.Dl_s = x.Dl_cur;
-    };
-    for (int j = 0; j < N; j++) {
-        mechanisms[j].dPhi_dsigma = [ctx, stress_pass, j](const vec &sig) { stress_pass(sig); return ctx->dPhi[j]; };
-        mechanisms[j].dLambda_dsigma = [ctx, stress_pass, j](const vec &sig) { stress_pass(sig); return ctx->dLambda[j]; };
-    }
-    // Multiplier derivatives: one-sided at Dlambda = 0 (the state is undefined for Dlambda < 0).
-    // K_lj = dPhi_l/dDl_j; c_j = Dl_j dLambda^j/dDl_j = d(flux)/dDl_j - Lambda^j with the flux
-    // sum_k Dl_k Lambda^k.
-    auto multiplier_pass = [ctx, probe, same, &mechanisms, N](const vec &sig, const vec &Dl) {
-        Ctx &x = *ctx;
-        if (same(x.sig_m, sig) && same(x.Dl_m, Dl)) return;
-        x.K.set_size(N, N);
-        x.c.assign(N, vec());
-        vec Pp(N), Pm(N);
-        std::vector<vec> Lp(N), Lm(N);
-        for (int j = 0; j < N; j++) {
-            vec Dp = Dl, Dm = Dl;
-            Dp(j) += x.h_Dlambda;
-            Dm(j) = std::max(Dl(j) - x.h_Dlambda, 0.);
-            const double den = Dp(j) - Dm(j);
-            probe(sig, Dp, Pp, Lp);
-            probe(sig, Dm, Pm, Lm);
-            for (int l = 0; l < N; l++) x.K(l, j) = (Pp(l) - Pm(l))/den;
-            vec fp = zeros(6), fm = zeros(6);
-            for (int k = 0; k < N; k++) {
-                fp += Dp(k)*Lp[k];
-                fm += Dm(k)*Lm[k];
-            }
-            x.c[j] = (fp - fm)/den - mechanisms[j].Lambda(sig);
-        }
-        x.sig_m = sig;
-        x.Dl_m = Dl;
-    };
-    hooks.K = [ctx, multiplier_pass](const vec &sig, const vec &Dl) { multiplier_pass(sig, Dl); return ctx->K; };
-    hooks.flow_state_coupling = [ctx, multiplier_pass](const vec &sig, const vec &Dl) { multiplier_pass(sig, Dl); return ctx->c; };
 }
 
 ContinuumTangent cpp_consistent_tangent(const ReturnMappingResult &r, const mat &L) {
