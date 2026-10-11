@@ -138,7 +138,12 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     X_2(4) = statev(30);
     X_2(5) = statev(31);
     
-    double Hp = statev(32);
+    // Isotropic Voce term Hp = R(p) = Q (1 - exp(-b p)) through the modular block: the isotropic
+    // state is p, statev(32) is its output (the loop used to accumulate Hp by explicit Euler of
+    // dHp = b (Q - Hp) dp, a step-size dependent approximation of the same law).
+    VoceHardening hardening;
+    { int off = 0; hardening.configure(vec{Q, b}, off); }
+    double Hp = hardening.R(p);
 
     //Rotation of internal variables (tensors): the back-strains are strain-like, the
     //back-stresses stress-like
@@ -175,14 +180,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     }
     
     //Additional parameters and variables
-    double dHpdp=0.;
-    
-    if (p > simcoon::iota)	{
-        dHpdp = b*(Q-Hp);
-    }
-    else {
-        dHpdp = 0.;
-    }
+    double dHpdp = hardening.dR_dp(p);
     
     //Variables values at the start of the increment
     vec stress_start = stress;
@@ -231,8 +229,8 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
 
     // Closest-point projection (tangent_closest_point): the modular von Mises + Voce + Chaboche
     // row on this kernel's props and state (backward-Euler state and total derivatives in
-    // PlasticityMechanism::refresh_state); Hp = R(p) exactly, the loop's explicit Hp is not read.
-    // Condensed states keep the loop. Bhat / K of the tail only feed the cutting-plane tangent.
+    // PlasticityMechanism::refresh_state). Condensed states keep the loop. Bhat / K of the tail
+    // only feed the cutting-plane tangent.
     ReturnMappingResult rm;
     const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
     if (use_cpp) {
@@ -243,7 +241,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         iv.get("a_0").raw_voigt() = a_1;
         iv.get("a_1").raw_voigt() = a_2;
         mech.set_start();
-        A_p_start = -mech.isotropic_hardening().R(p);   // one hardening law at both ends of the increment
         if (mech.yield_function(stress) > 0.) {   // an admissible trial is committed as is (Lt = L below)
             rm = closest_point_return_mapping(stress, L, {&mech}, {0}, Ds_j, vec{sigmaY});
             if (rm.converged) {
@@ -257,7 +254,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
                 X_1 = X_i[0].to_arma_voigt();
                 X_2 = X_i[1].to_arma_voigt();
                 X = X_1 + X_2;
-                Hp = mech.isotropic_hardening().R(p);
+                Hp = hardening.R(p);
             }
             else {   // step cut; the kernel state is still the start state (the mechanism owned the iterate)
                 tnew_dt = 0.5;
@@ -270,12 +267,8 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     for (compteur = 0; ((compteur < simcoon::maxiter_umat) && (error > simcoon::precision_umat)); compteur++) {
         
         p = s_j(0);
-        if (p > simcoon::iota)	{
-            dHpdp = b*(Q-Hp);
-        }
-        else {
-            dHpdp = 0.;
-        }
+        Hp = hardening.R(p);
+        dHpdp = hardening.dR_dp(p);
         dPhidsigma = eta_stress(stress-X);
         dPhidp = -1.*dHpdp;
 //        dPhidp = -1.*dHpdp;
@@ -298,7 +291,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         Fischer_Burmeister_m(Phi, Y_crit, B, Ds_j, ds_j, error);
         
         s_j(0) += ds_j(0);
-        Hp += b*(Q-Hp)*ds_j(0);
         EP = EP + ds_j(0)*Lambdap;
         a_1 = a_1 + ds_j(0)*Lambdaa_1;
         a_2 = a_2 + ds_j(0)*Lambdaa_2;
@@ -310,6 +302,9 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
         stress = el_pred(L, Eel, ndi);
     }
+    // the loop reads p at the top and corrects s_j at the bottom
+    p = s_j(0);
+    Hp = hardening.R(p);
     }
     
     //Computation of the increments of variables

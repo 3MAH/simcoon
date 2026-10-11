@@ -117,3 +117,16 @@ def test_tangent_mode_none_returns_elastic_operator_for_explicit_integration():
     np.testing.assert_allclose(Lt0[:, :, 0], L, rtol=1e-12)
     np.testing.assert_allclose(sigma0, sigma2, rtol=1e-12)
     assert not np.allclose(Lt2[:, :, 0], L, rtol=1e-3)
+
+
+def test_closest_point_mode_is_the_cutting_plane_result_by_construction():
+    """Radial J2 flow with isotropic (rate- and temperature-dependent) hardening: the
+    cutting-plane update IS the closest-point projection and the algorithmic operator is the
+    exact Jacobian of the discrete map, so mode 3 returns the mode-2 state and tangent
+    bit for bit (no separate branch to maintain)."""
+    sigma2, statev2, _, Lt2 = _point(2)
+    sigma3, statev3, _, Lt3 = _point(3)
+    assert statev2[1, 0] > 0.0, "the point must yield"
+    np.testing.assert_array_equal(sigma3, sigma2)
+    np.testing.assert_array_equal(statev3, statev2)
+    np.testing.assert_array_equal(Lt3, Lt2)
