@@ -8,6 +8,7 @@ Schema (the orientation is the 'zxz' Euler angles in degrees, see
 
     path.json: {"initial_temperature": 293.15,
                 "corate": "logarithmic_R",
+                "formulation": "rate",
                 "blocks": [{"control_type": "small_strain",
                             "ncycle": 1,
                             "steps": [{"mode": "linear", "control": [...],
@@ -19,6 +20,9 @@ names a CSV file next to the path JSON (``<stem>_tab<k>.csv``, one row per
 increment, a ``#`` header naming the columns), written by :func:`save_path_json`
 and read back by :func:`load_path_json`. Whitespace-separated ``.txt`` tables are
 read the same way; a nested list in place of the filename is still accepted.
+
+``"formulation"`` is optional (``"rate"`` when absent). A path of the total formulation is
+written with ``"formulation": "total"`` and no ``"corate"``.
 """
 
 from __future__ import annotations
@@ -30,7 +34,7 @@ from typing import List, Tuple
 import numpy as np
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import CONTROL_TYPES, CORATE_TYPES, STEP_MODES, THERMAL_CONTROL, as_code
+from .maps import CONTROL_TYPES, CORATE_TYPES, STEP_MODES, THERMAL_CONTROL, as_code, corate_code
 from .micromechanics import euler_angles
 
 _STEP_SCALARS = ("time", "ninc", "mode", "Dn_init", "Dn_mini", "T_final",
@@ -179,9 +183,10 @@ def _step_from_json(d: dict, base_dir: str) -> StepMeca:
 
 
 def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
-                   corate="logarithmic_R") -> None:
-    """Write a loading path to JSON; ``blocks`` and ``corate`` take the forms of ``solve``
-    (a step, a Block or a sequence of them; ``None`` for the default rate).
+                   corate=None, formulation="rate") -> None:
+    """Write a loading path to JSON; ``blocks``, ``corate`` and ``formulation`` take the forms
+    of ``solve`` (a step, a Block or a sequence of them; ``None`` for the default rate, and no
+    rate under ``formulation="total"``).
 
     Enumerated entries are written by name (``"small_strain"``, ``"linear"``,
     ``"strain"``...) whatever form the objects hold, keys in the documented order,
@@ -192,14 +197,17 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
     if isinstance(blocks, (Block, StepMeca)):
         blocks = [blocks]
     blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
-    if corate is None:
-        corate = "logarithmic_R"
+    corate_code(corate, formulation)   # validates the pair
     filename = str(filename)
     base_dir = os.path.dirname(filename)
     stem = os.path.splitext(os.path.basename(filename))[0]
     ntab = 0
-    payload = {"initial_temperature": float(T_init),
-               "corate": _name_of(corate, CORATE_TYPES, "corate"), "blocks": []}
+    payload = {"initial_temperature": float(T_init)}
+    if formulation == "total":
+        payload["formulation"] = "total"
+    else:
+        payload["corate"] = _name_of("logarithmic_R" if corate is None else corate, CORATE_TYPES, "corate")
+    payload["blocks"] = []
     for b in blocks:
         steps = []
         for s in b.steps:
@@ -217,12 +225,8 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
         json.dump(payload, f, indent=2)
 
 
-def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
-    """Read a loading path; returns (blocks, T_init, corate).
-
-    A step's ``"tabular"`` entry is a table filename relative to the JSON (or a
-    nested list, read as the table itself).
-    """
+def _load_path(filename: str):
+    """(blocks, T_init, corate, formulation) of a path file; corate is None under "total"."""
     filename = str(filename)
     base_dir = os.path.dirname(filename)
     with open(filename) as f:
@@ -235,12 +239,26 @@ def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
         )
         for bd in payload["blocks"]
     ]
-    return blocks, float(payload.get("initial_temperature", 293.15)), payload.get("corate", "logarithmic_R")
+    formulation = payload.get("formulation", "rate")
+    corate = None if formulation == "total" else payload.get("corate", "logarithmic_R")
+    return blocks, float(payload.get("initial_temperature", 293.15)), corate, formulation
+
+
+def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
+    """Read a loading path; returns (blocks, T_init, corate).
+
+    A step's ``"tabular"`` entry is a table filename relative to the JSON (or a
+    nested list, read as the table itself).
+
+    ``corate`` is None for a path of the total formulation, which has no rate: its
+    ``"formulation"`` key is carried by :func:`load_simulation_json`, the entry to use for it.
+    """
+    return _load_path(filename)[:3]
 
 
 def load_simulation_json(material_file: str, path_file: str) -> dict:
     """Merge a material and a path JSON into kwargs for solve()."""
     kwargs = load_material_json(material_file)
-    blocks, T_init, corate = load_path_json(path_file)
-    kwargs.update({"blocks": blocks, "T_init": T_init, "corate": corate})
+    blocks, T_init, corate, formulation = _load_path(path_file)
+    kwargs.update({"blocks": blocks, "T_init": T_init, "corate": corate, "formulation": formulation})
     return kwargs

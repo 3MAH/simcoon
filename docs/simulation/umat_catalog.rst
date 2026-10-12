@@ -348,7 +348,8 @@ isotropic laws (both finite-difference verified).
    internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
    EPJCK, EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
    plasticity names served by the modular engine, ``PYEXT``) is refused under corates 4 and 5,
-   and ``MODUL`` under any corate but 3. ``EPCHA`` is also refused under corate 4: it stores
+   and ``MODUL`` under any corate but 3. Under the total formulation nothing is transported
+   (see :ref:`the total formulation <strain-space-route>` below). ``EPCHA`` is also refused under corate 4: it stores
    :math:`\mathbf{X}_i = \tfrac23 C_i\,\mathbf{a}_i`, and the Truesdell rate convects the
    back-strain and the back-stress differently.
 
@@ -387,10 +388,97 @@ a state function. :func:`simcoon.umat` does the same when it is given
    corate is already refused upstream under NLGEOM, so passing one down would not be more
    general -- it would be wrong.
 
+.. _strain-space-route:
+
+**The total formulation (strain space,** ``formulation="total"`` **).** Under the rate
+formulation a law works on :math:`\ln\mathbf{V}` (with the logarithmic rates) and the Kirchhoff stress
+:math:`\boldsymbol{\tau}`; under the total formulation it works on :math:`\ln\mathbf{U}` and the
+stress :math:`\mathbf{T}` dual to it. It is not an objective rate: no rate and no spin are
+involved, and ``corate`` must be left unset. This is the total-Lagrangian
+framework of Miehe, Apel and Lambrecht (*Comput. Methods Appl. Mech. Engrg.* 191, 2002,
+5383-5425). A log-strain box is fed the material Hencky strain
+:math:`\mathbf{H} = \tfrac12\ln\mathbf{C} = \ln\mathbf{U}`, a state function of
+:math:`\mathbf{F}` in reference components; the frame increment is the identity and the internal
+variables are never transported. Its output is the stress :math:`\mathbf{T}` conjugate to
+:math:`\mathbf{H}` per reference volume,
+:math:`\mathbf{T}:\dot{\mathbf{H}} = \mathbf{S}:\dot{\mathbf{E}} = \boldsymbol{\tau}:\mathbf{D}`, and
+the geometry is applied once, after the box:
+
+.. math::
+
+   \mathbf{S} = \mathbf{T}:\mathbb{P}, \qquad
+   \frac{\mathrm{d}\mathbf{S}}{\mathrm{d}\mathbf{E}} = \mathbb{P}^T:\frac{\partial\mathbf{T}}{\partial\mathbf{H}}:\mathbb{P} + \mathbf{T}:\mathbb{L}, \qquad
+   \mathbb{P} = 2\,\frac{\partial\mathbf{H}}{\partial\mathbf{C}}, \quad
+   \mathbb{L} = 4\,\frac{\partial^2\mathbf{H}}{\partial\mathbf{C}\,\partial\mathbf{C}} .
+
+This is the one exception to "the kernel's ``sigma`` is :math:`\boldsymbol{\tau}`": under the total
+formulation the ``sigma`` of a box kernel is :math:`\mathbf{T}`. No kernel changes; the dispatcher converts at entry
+(``Kirchoff2Hencky``) and at exit (``Hencky2Kirchoff``), and :math:`\boldsymbol{\tau}` stays the only
+stress on the route. In the eigenbasis of :math:`\mathbf{C}`, with :math:`\lambda_a` the principal
+stretches,
+
+.. math::
+
+   \boldsymbol{\tau} = \mathbf{R}\Big[\sum_{a,b}\kappa_{ab}\,\hat T_{ab}\,\mathbf{n}_a\otimes\mathbf{n}_b\Big]\mathbf{R}^T,
+   \qquad \kappa_{ab} = \frac{t_{ab}}{\sinh t_{ab}}, \quad t_{ab} = \ln\frac{\lambda_a}{\lambda_b},
+
+which in Voigt form is :math:`(\mathbf{A}^R)^T` applied to :math:`\mathbf{R}\,\mathbf{T}\,\mathbf{R}^T`.
+
+*Relation to the rate formulation under corate 3.* Under log_R a box kernel already runs in the
+rotated frame, on :math:`\mathbf{R}^T(\ln\mathbf{V})\mathbf{R} = \mathbf{H}`: the two formulations
+share the box, its strain and its internal variables. They differ in two ways.
+
+- The strain increment is the closed form :math:`\mathbf{H}(\mathbf{F}_1) - \mathbf{H}(\mathbf{F}_0)`
+  here, against the integral of :math:`\mathbf{A}^R:\mathbf{D}` there, whose residue is first order
+  in the step. An elastic law is therefore exact in a single increment.
+- The box output is read as :math:`\mathbf{T}` here and as :math:`\mathbf{R}^T\boldsymbol{\tau}\,\mathbf{R}`
+  there. Since :math:`\kappa_{aa} = 1` and :math:`\kappa_{ab} \le 1`, the two readings are identical
+  when the stress is coaxial with :math:`\mathbf{U}` (isotropic elasticity, proportional
+  plasticity), and differ otherwise. These are two constitutive statements, not two accuracies
+  of one. A yield criterion holds on :math:`\mathbf{T}` here and on :math:`\boldsymbol{\tau}` there: in
+  simple shear to :math:`\gamma = 1` with :math:`\sigma_Y = 250` MPa, the Cauchy shear and normal
+  stresses are 140.9 and -15.7 MPa here against 144.4 and -8.4 MPa under log_R, and the difference
+  does not vanish with the step. An anisotropic elastic law :math:`\mathbf{T} = \mathbf{L}:\mathbf{H}`
+  derives from a stored energy with its axes on the reference frame, so a closed path stores no
+  net work; read as :math:`\boldsymbol{\tau} = \mathbf{R}(\mathbf{L}:\mathbf{H})\mathbf{R}^T` it is only
+  Cauchy-elastic.
+
+*Reading one run in the measures of the other.* :math:`\ln\mathbf{V} = \mathbf{R}\,\mathbf{H}\,\mathbf{R}^T`
+and :math:`\boldsymbol{\tau} \leftrightarrow \mathbf{T}` are changes of measure, valid for any state:
+``sim.stress_convert`` has the keys ``"Kirchoff2Hencky"`` and ``"Hencky2Kirchoff"``, and the solver
+results offer ``LogStrainU``, ``LogStrainV`` and ``HenckyStress`` whenever the strain of the run is
+a state function of :math:`\mathbf{F}` (see :doc:`output`). On a path of prescribed
+:math:`\mathbf{F}`, and for a log-strain box kernel, a run under corate 3 and a run under the
+total formulation then compare as follows: the box output is the same, :math:`\mathbf{R}^T\boldsymbol{\tau}_{\text{rate}}\mathbf{R} =
+\mathbf{T}_{\text{total}}`, and the two Kirchhoff stresses differ by the map above,
+:math:`\boldsymbol{\tau}_{\text{total}} = (\mathbf{A}^R)^T\boldsymbol{\tau}_{\text{rate}}`, up to the
+first-order quadrature of the log_R strain. Under the other rates the box does not see
+:math:`\mathbf{H}` in the polar frame and this comparison has no meaning.
+
+*Scope.* Log-strain box kernels (``ELISO``, ``ELIST``, ``ELORT``, ``EPICP``, ``EPJCK``, ``EPCHA``,
+the plasticity names served by the modular engine, and ``PYEXT``, whose Python law then receives
+:math:`\ln\mathbf{U}` and must return :math:`\mathbf{T}`), and the hyperelastic kernels built on
+:math:`\mathbf{F}` (``NEOHI``, ``NEOHC``, ``MOORI``, ``YEOHH``, ``ISHAH``, ``GETHH``, ``SWANH``,
+``OGDEN``, ``HOLZA``, ``SNTVE``). The latter return the true :math:`\boldsymbol{\tau}` in both
+formulations, so their stress does not depend on it; the dispatcher forms their work on the dual
+pair, :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}` with
+:math:`\mathbf{T}` computed from :math:`\boldsymbol{\tau}`, and their box is
+:math:`\partial\mathbf{T}/\partial\mathbf{H}`. The rate law ``HYPOO`` integrates from its start
+stress and is refused. ``MODUL`` is refused as a whole (policy): its anisotropic hyperelastic block
+returns :math:`\boldsymbol{\tau}(\mathbf{V}^{el})`, which is not the stress dual to its strain.
+``"logarithmic"`` control is refused too (the stored strain is :math:`\ln\mathbf{U}`). The work of
+a box kernel is its own :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}`: the
+trapezoidal rule on a conjugate pair, second order in the step, with no correction to apply. Through :func:`simcoon.umat` the caller passes
+``formulation="total"``, :math:`\mathbf{H}(\mathbf{F}_0)`,
+:math:`\mathbf{H}(\mathbf{F}_1) - \mathbf{H}(\mathbf{F}_0)`,
+:math:`\Delta\mathbf{R} = \mathbf{I}`, and both deformation gradients; the stress stays Cauchy in
+and out, ``tangent_output="box"`` is :math:`\partial\mathbf{T}/\partial\mathbf{H}` and its
+``Lt_convert`` key to :math:`\mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}` is ``DTDH_2_DSDE``.
+
 **The Python contract.** ``sim.umat`` returns **Cauchy** stress and the **Kirchhoff box**
 tangent :math:`\partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e` with no :math:`J`,
-and takes ``corate=`` (default ``3``, log_R) selecting the rate that tangent is expressed
-in. The default is contract-preserving: corates 2 and 3 resolve to the same exact map, so it
+and, under the default ``formulation="rate"``, takes ``corate=`` (default ``3``, log_R)
+selecting the rate that tangent is expressed in. The default is contract-preserving: corates 2 and 3 resolve to the same exact map, so it
 returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
 tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.
 

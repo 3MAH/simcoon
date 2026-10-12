@@ -65,6 +65,12 @@ constexpr int tangent_algorithmic = 2;   ///< Simo-Hughes consistent operator (p
 constexpr int tangent_closest_point = 3; ///< closest-point-projection integrator with its exact operator (return_mapping.hpp)
 constexpr int tangent_default = tangent_algorithmic;
 
+/// Finite-strain formulation carried in the corate_type slot. Rate formulation: corate_type 0..5
+/// (corate_kinematics), the law works on \f$ \ln\mathbf{V} \f$ and the Kirchhoff stress
+/// \f$ \boldsymbol{\tau} \f$. Total formulation (no rate): the law works on \f$ \ln\mathbf{U} \f$,
+/// a state function of \f$ \mathbf{F} \f$, and on its dual stress \f$ \mathbf{T} \f$.
+constexpr int corate_type_total = 6;
+
 constexpr double div_tnew_dt_umat = 0.2;
 constexpr double mul_tnew_dt_umat  = 2.0;
 constexpr int maxiter_micro = 100;

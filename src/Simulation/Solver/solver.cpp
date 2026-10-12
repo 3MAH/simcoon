@@ -124,6 +124,22 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
         throw std::invalid_argument("solver: tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
                                     + std::to_string(ctrl.tangent_mode));
     }
+    if (corate_type < 0 || corate_type > corate_type_total) {
+        throw std::invalid_argument("solver: corate_type must be an objective rate (0..5) or the total-formulation code ("
+                                    + std::to_string(corate_type_total) + "); got " + std::to_string(corate_type));
+    }
+    // Total formulation: the kernel strain is the material ln U, re-read from F at every commit,
+    // and the box is dT/dH. Logarithmic control reads the strain as ln V and takes the box as
+    // its Jacobian; a small-strain block accumulates a strain that F does not carry.
+    if (corate_type == corate_type_total) {
+        for (const auto &bl : blocks) {
+            if (bl.control_type == 1 || bl.control_type == 3) {
+                throw simcoon::exception_solver("block " + std::to_string(bl.number) + ": control_type " + std::to_string(bl.control_type)
+                    + (bl.control_type == 1 ? " (small strain)" : " (logarithmic)")
+                    + " is not available under the total formulation (strain space); use control_type 2 (Green-Lagrange / PKII), 4, 5 or 6");
+            }
+        }
+    }
     // tabular (mode 3) steps carry an ABSOLUTE time column: repeating them (ncycle > 1)
     // is ill-defined (and generate() consumes the '2' hold flags on the first pass)
     for (const auto &bl : blocks) {

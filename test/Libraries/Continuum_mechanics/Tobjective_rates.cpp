@@ -618,3 +618,168 @@ TEST(Tobjective_rates, Dtau_LieDD_2_DtauDe_corate_matches_the_two_step_route)
     EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 0, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
     EXPECT_GT(norm(Dtau_LieDD_2_DtauDe_corate(C_tau, 1, F, tau) - box2, "fro"), 1.E-6*norm(box2, "fro"));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Total formulation (strain space, corate_type_total): the box is posed on H = 1/2 ln C in reference components and
+// returns the dual stress T. Helpers shared by the tests below.
+// ---------------------------------------------------------------------------------------------
+namespace {
+
+mat rot_zx(const double &a, const double &b) {
+    mat Rz = {{cos(a), -sin(a), 0.}, {sin(a), cos(a), 0.}, {0., 0., 1.}};
+    mat Rx = {{1., 0., 0.}, {0., cos(b), -sin(b)}, {0., sin(b), cos(b)}};
+    return Rz*Rx;
+}
+
+mat hencky(const mat &F) { return 0.5*logmat_sympd(R_Cauchy_Green(F)); }
+
+// An affine box T = T0 + L:H: its tangent is L whatever T0, and a non-coaxial T0 loads the
+// geometric term T:L of dS/dE as hard as the material one.
+mat S_of_C(const mat &C, const mat &L, const mat &T0) {
+    const mat U = sqrtmat_sympd(C);
+    const mat T = T0 + v2t_stress(L*t2v_strain(0.5*logmat_sympd(C)));
+    const mat invU = inv(U);
+    return invU*Hencky2Kirchoff(T, U)*invU;
+}
+
+mat DSDE_fd(const mat &C, const mat &L, const mat &T0, const double &h) {
+    mat D(6,6);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        const mat dC = 2.*v2t_strain(ej);
+        D.col(j) = t2v_stress(S_of_C(C + h*dC, L, T0) - S_of_C(C - h*dC, L, T0))/(2.*h);
+    }
+    return D;
+}
+
+const mat T0_noncoaxial = {{120., -45., 30.}, {-45., -80., 60.}, {30., 60., 25.}};
+
+}  // namespace
+
+// The two stress maps are mutual inverses, they realise the conjugacy T:dH = tau:D that defines
+// T, and they reduce to tau = R T R^T on a coaxial state. In Voigt form the map is A_R^T.
+TEST(Tobjective_rates, Hencky_Kirchoff_maps_are_conjugate_and_inverse)
+{
+    const mat F = rot_zx(0.7, -0.4)*mat({{1.30, 0.20, 0.10}, {0.20, 0.85, -0.05}, {0.10, -0.05, 1.10}});
+    const mat T = T0_noncoaxial;
+    const mat tau = Hencky2Kirchoff(T, F);
+
+    EXPECT_LT(norm(Kirchoff2Hencky(tau, F) - T, "fro"), 1.E-12*norm(T, "fro"));
+
+    mat R, U;
+    RU_decomposition(R, U, F);
+    EXPECT_LT(norm(t2v_stress(tau) - A_R(F).t()*t2v_stress(R*T*R.t()), 2), 1.E-12*norm(T, "fro"));
+
+    // a non-coaxial T is NOT simply rotated: that is the whole difference with the log_R reading
+    EXPECT_GT(norm(tau - R*T*R.t(), "fro"), 1.E-3*norm(T, "fro"));
+    const mat T_coax = 3.*U - 50.*U*U + 12.*eye(3,3);
+    EXPECT_LT(norm(Hencky2Kirchoff(T_coax, F) - R*T_coax*R.t(), "fro"), 1.E-12*norm(T_coax, "fro"));
+
+    const mat dF = {{0.3, -0.7, 0.2}, {0.5, 0.1, -0.4}, {-0.2, 0.6, 0.35}};
+    const double h = 1.E-6;
+    const mat dH = (hencky(F + h*dF) - hencky(F - h*dF))/(2.*h);
+    const mat Lv = dF*inv(F);
+    const double power = accu(tau % (0.5*(Lv + Lv.t())));
+    EXPECT_NEAR(accu(T % dH), power, 1.E-8*fabs(power));
+
+    // F = I: every eigenvalue coincides, both maps are the identity
+    EXPECT_LT(norm(Hencky2Kirchoff(T, eye(3,3)) - T, "fro"), 1.E-13*norm(T, "fro"));
+}
+
+// dS/dE = P^T Lt P + T:L against a finite difference of S(E), on a generic state and on every
+// coalescence pattern of the eigenvalues of C (the second divided differences switch branch there).
+TEST(Tobjective_rates, total_formulation_tangent_matches_finite_difference)
+{
+    const mat L_iso_ = L_iso(210000., 0.3, "Enu");
+    const mat L_ort = L_ortho(4500., 2300., 2700., 0.06, 0.08, 0.3, 2200., 2100., 2400., "EnuG");
+    const mat Q = rot_zx(0.6, 0.9);
+
+    std::vector<std::pair<std::string, mat>> stretches = {
+        {"generic",      mat({{1.30, 0.20, 0.10}, {0.20, 0.85, -0.05}, {0.10, -0.05, 1.10}})},
+        {"uniaxial",     Q*diagmat(vec({1.4, 0.85, 0.85}))*Q.t()},
+        {"equibiaxial",  Q*diagmat(vec({1.2, 1.2, 0.7}))*Q.t()},
+        {"spherical",    1.15*eye(3,3)},
+        {"identity",     eye(3,3)},
+    };
+    for (const auto &L : {L_iso_, L_ort}) {
+        for (const auto &[name, U] : stretches) {
+            const mat F = rot_zx(-0.3, 1.1)*U;      // S(E) cannot see the rotation
+            const mat C = U*U;
+            const mat T = T0_noncoaxial + v2t_stress(L*t2v_strain(hencky(F)));
+            const mat DSDE = DtauDe_corate_2_DSDE(L, corate_type_total, F, Hencky2Kirchoff(T, F));
+            const mat fd = DSDE_fd(C, L, T0_noncoaxial, 1.E-5);
+            EXPECT_LT(norm(DSDE - fd, "fro"), 1.E-7*norm(fd, "fro")) << name;
+            EXPECT_LT(norm(DSDE - DSDE.t(), "fro"), 1.E-10*norm(DSDE, "fro")) << name << ": symmetric box, symmetric dS/dE";
+            // exact inverse
+            EXPECT_LT(norm(DSDE_2_DtauDe_corate(DSDE, corate_type_total, F, Hencky2Kirchoff(T, F)) - L, "fro"), 1.E-9*norm(L, "fro")) << name;
+        }
+    }
+
+    // F = I, closed form of the geometric term: (T:L):dE = -(T dE + dE T)
+    mat geo = DtauDe_corate_2_DSDE(zeros(6,6), corate_type_total, eye(3,3), T0_noncoaxial);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        const mat dE = v2t_strain(ej);
+        EXPECT_LT(norm(geo.col(j) + t2v_stress(T0_noncoaxial*dE + dE*T0_noncoaxial), 2), 1.E-12*norm(T0_noncoaxial, "fro"));
+    }
+}
+
+// Two eigenvalues of C brought together from 1e-1 to 1e-13: the operator must follow the finite
+// difference all the way, with no spike where the divided differences change branch (1e-4).
+TEST(Tobjective_rates, total_formulation_tangent_is_smooth_through_coalescence)
+{
+    const mat L = L_ortho(4500., 2300., 2700., 0.06, 0.08, 0.3, 2200., 2100., 2400., "EnuG");
+    const mat Q = rot_zx(0.6, 0.9);
+    for (double gap : {1.E-1, 1.E-2, 1.E-3, 2.E-4, 1.01E-4, 0.99E-4, 5.E-5, 1.E-5, 1.E-7, 1.E-10, 1.E-13}) {
+        // all three within the gap, then two within the gap and one far
+        for (const vec &lam : {vec({1.2, 1.2*(1. + gap), 1.2*(1. - 0.6*gap)}), vec({1.2, 1.2*(1. + gap), 0.8})}) {
+            const mat U = Q*diagmat(lam)*Q.t();
+            const mat T = T0_noncoaxial + v2t_stress(L*t2v_strain(hencky(U)));
+            const mat DSDE = DtauDe_corate_2_DSDE(L, corate_type_total, U, Hencky2Kirchoff(T, U));
+            const mat fd = DSDE_fd(U*U, L, T0_noncoaxial, 1.E-5);
+            EXPECT_LT(norm(DSDE - fd, "fro"), 1.E-7*norm(fd, "fro")) << "gap " << gap << ", lam(2) " << lam(2);
+        }
+    }
+}
+
+// On a state coaxial with U (isotropic box) the strain-space reading and the log_R one are the
+// same function S(E), so the two tangent maps must agree.
+TEST(Tobjective_rates, total_formulation_tangent_equals_the_log_map_on_a_coaxial_state)
+{
+    const mat L = L_iso(210000., 0.3, "Enu");
+    const mat F = rot_zx(0.7, -0.4)*mat({{1.30, 0.20, 0.10}, {0.20, 0.85, -0.05}, {0.10, -0.05, 1.10}});
+    mat R, U;
+    RU_decomposition(R, U, F);
+    const mat T = v2t_stress(L*t2v_strain(hencky(F)));
+    const mat tau = R*T*R.t();
+    EXPECT_LT(norm(Hencky2Kirchoff(T, F) - tau, "fro"), 1.E-12*norm(tau, "fro"));
+    const mat ref = DtauDe_corate_2_DSDE(L, 3, F, tau);
+    EXPECT_LT(norm(DtauDe_corate_2_DSDE(L, corate_type_total, F, tau) - ref, "fro"), 1.E-8*norm(ref, "fro"));
+    // the spatial entry point reaches the same box through dS/dE
+    const mat lie = DSDE_2_Dtau_LieDD(ref, F);
+    EXPECT_LT(norm(Dtau_LieDD_2_DtauDe_corate(lie, corate_type_total, F, tau) - L, "fro"), 1.E-8*norm(L, "fro"));
+}
+
+// Kinematics of the route: no frame increment, and increments that are differences of a state
+// function, so any path with rotation sums to H(F_end) whatever the number of steps.
+TEST(Tobjective_rates, total_formulation_increment_is_a_state_function)
+{
+    const mat F_end = rot_zx(1.3, -0.8)*mat({{1.30, 0.40, 0.10}, {0.00, 0.85, -0.05}, {0.00, 0.00, 1.10}});
+    for (int n : {1, 7}) {
+        mat F0 = eye(3,3);
+        mat H = zeros(3,3);
+        for (int i = 1; i <= n; ++i) {
+            const mat F1 = eye(3,3) + (double(i)/n)*(F_end - eye(3,3));
+            mat DR, D, Omega;
+            corate_kinematics(corate_type_total, DR, D, Omega, F0, F1, 1./n);
+            EXPECT_LT(norm(DR - eye(3,3), "fro"), 1.E-15);
+            EXPECT_LT(norm(Omega, "fro"), 1.E-15);
+            H += Delta_log_strain_corate(F0, F1, DR, D, Omega, 1./n, corate_type_total);
+            F0 = F1;
+        }
+        EXPECT_LT(norm(H - hencky(F_end), "fro"), 1.E-13) << n << " steps";
+    }
+    EXPECT_FALSE(work_correction_applies(6));
+}

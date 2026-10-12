@@ -135,6 +135,9 @@ Solver parameters
    * - corate
      - int or string
      - Corotational spin rate type (see below)
+   * - formulation
+     - string
+     - ``"rate"`` (default) or ``"total"``: see below
    * - tangent_mode
      - int
      - Tangent-operator mode (default 2): see below
@@ -215,6 +218,44 @@ constitutive models (also exposed as named constants:
    passing explicit values should shift them by +1;
    scripts relying on the default silently upgrade from continuum to the
    (faster) algorithmic operator.
+
+.. _finite-strain-formulation:
+
+Finite-strain formulation
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``formulation`` parameter selects how a law is updated at finite strain. It fixes the pair
+of measures the law works on.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 14 22 22 42
+
+   * - formulation
+     - Strain of the law
+     - Stress of the law
+     - Update
+   * - ``"rate"``
+     - :math:`\ln\mathbf{V}` (spatial) under the logarithmic rates, the default included
+     - Kirchhoff :math:`\boldsymbol{\tau}`
+     - Integrated with the objective rate ``corate`` (table below); the stored state is
+       transported with the frame increment of that rate
+   * - ``"total"``
+     - :math:`\ln\mathbf{U}` (material)
+     - :math:`\mathbf{T}`, dual to :math:`\ln\mathbf{U}`
+     - No rate: the strain is a state function of :math:`\mathbf{F}` in reference components,
+       exact at any step size, and nothing is transported
+
+``"total"`` is the strain-space framework of Miehe, Apel and Lambrecht (2002). It takes no
+``corate`` (passing one raises), serves the laws listed in
+:ref:`the total formulation <strain-space-route>`, and refuses ``"logarithmic"`` and
+``"small_strain"`` control. **Its**
+``Strain`` **output is** :math:`\ln\mathbf{U}`. Under the default rate ``"logarithmic_R"`` the two
+formulations run a log-strain box law on the same strain and read its output differently; on a
+path of prescribed :math:`\mathbf{F}` they coincide whenever the stress is coaxial with the
+stretch, up to the first-order quadrature of the log_R strain. A hyperelastic law built on
+:math:`\mathbf{F}` gives the same stress in both. The outputs ``LogStrainU``, ``LogStrainV`` and
+``HenckyStress`` express either run in the measures of the other (see :doc:`output`).
 
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -302,6 +343,8 @@ Path and block parameters
 
 **initial_temperature**: initial temperature of the simulation (Kelvin); ``load_path_json`` returns it as ``T_init`` for ``solve``.
 
+**formulation**: ``"rate"`` (default when absent) or ``"total"``; a path of the total formulation carries no ``corate``.
+
 **corate**: objective rate of the finite-strain control types (``"jaumann"``, ``"green_naghdi"``, ``"logarithmic"``, ``"logarithmic_R"``, ``"truesdell"``, ``"logarithmic_F"``, see the table above); returned by ``load_path_json`` for ``solve(corate=...)``.
 
 **blocks**: the loading blocks, run in order. A block is mechanical or thermomechanical (coupled heat equation) according to its steps: all the steps of a block are :class:`~simcoon.solver.StepMeca` (``"thermomechanical": false``) or all are :class:`~simcoon.solver.StepThermomeca` (``"thermomechanical": true``).
@@ -354,7 +397,10 @@ Path and block parameters
    With ``"jaumann"``, ``"logarithmic"`` (XBM) or ``"logarithmic_F"`` under combined
    stretching and rotation, strain-controlled components are approximate and a difference
    is expected; this is one more reason to run with ``"logarithmic_R"`` (see the corate
-   table above).
+   table above). Under ``formulation="total"`` the stored strain is :math:`\ln\mathbf{U}` and the
+   law's tangent is :math:`\partial\mathbf{T}/\partial\mathbf{H}`, so ``"logarithmic"`` control
+   is refused, and ``"small_strain"`` blocks as well (their strain is not carried by
+   :math:`\mathbf{F}`): use ``"green_lagrange"``, ``"biot"``, ``"F"`` or ``"gradU"``.
 
 **ncycle**: number of times the step sequence of the block is repeated (cyclic loading). A block holding a tabular step cannot be cycled.
 

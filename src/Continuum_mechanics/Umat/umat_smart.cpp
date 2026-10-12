@@ -291,6 +291,21 @@ bool stress_output_is_kirchhoff(const std::string &umat_name)
     return it != conventions.end() && it->second.stress == StressMeasure::kirchhoff;
 }
 
+bool total_formulation_serves(const std::string &umat_name)
+{
+    return umat_name != "HYPOO" && umat_name != "MODUL" && stress_output_is_kirchhoff(umat_name);
+}
+
+vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, const bool &box, double &dW)
+{
+    dW = 0.;
+    if (box)
+        return t2v_stress(Hencky2Kirchoff(v2t_stress(sigma), F1));
+    const vec T1 = t2v_stress(Kirchoff2Hencky(v2t_stress(sigma), F1));
+    dW = 0.5*sum((T1 - sigma)%Detot);
+    return sigma;
+}
+
 void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
@@ -441,9 +456,21 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             throw simcoon::exception_solver(
                 "MODUL under finite strain requires corate_type = 3 "
                 "(log_R): the modular composition is hyperelastic in "
-                "the logarithmic strain; got corate_type = "
-                + std::to_string(corate_type));
+                "the logarithmic strain; got "
+                + (corate_type == corate_type_total ? std::string("the total formulation")
+                                                    : "corate_type = " + std::to_string(corate_type)));
         }
+    }
+
+    // Total formulation: admission and stress contract in total_formulation_serves().
+    const bool total = (corate_type == corate_type_total);
+    if (total) {
+        if (id_umat >= 0 && !total_formulation_serves(rve.sptr_matprops->umat_name)) {
+            throw simcoon::exception_solver(
+                "the total formulation (strain space) does not serve '"
+                + rve.sptr_matprops->umat_name + "'; use the rate formulation");
+        }
+        umat_M->sigma = t2v_stress(Kirchoff2Hencky(v2t_stress(umat_M->sigma), umat_M->F0));
     }
 
     if (id_umat == 7 && corate_type == 4) {   // EPCHA
@@ -577,7 +604,14 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         // NATIVE kernel returns it directly, so this is a pass-through for all but the
         // foreign-convention ones (the UMEXT/UMABA plugin adapters, whose contract belongs to
         // the host code). Cauchy is a derived OUTPUT (tau/J), never on the route.
-        if (conv.stress == StressMeasure::kirchhoff)
+        if (total) {
+            double dW_T;
+            umat_M->tau = total_formulation_tau(umat_M->sigma, umat_M->Detot, umat_M->F1, conv.material_frame, dW_T);
+            umat_M->Wm(0) += dW_T;
+            umat_M->Wm(1) += dW_T;
+            umat_M->sigma = umat_M->tau;
+        }
+        else if (conv.stress == StressMeasure::kirchhoff)
             umat_M->tau = umat_M->sigma;                                                      // the kernel's output IS the Kirchhoff stress
         else
             umat_M->tau = t2v_stress(Cauchy2Kirchoff(v2t_stress(umat_M->sigma), umat_M->F1));  // foreign Cauchy -> Kirchhoff

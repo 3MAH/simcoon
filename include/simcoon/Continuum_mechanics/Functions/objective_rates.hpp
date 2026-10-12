@@ -245,6 +245,52 @@ void logarithmic(arma::mat &DR, arma::mat &D, arma::mat &Omega, const double &DT
 arma::mat get_BBBB(const arma::mat &F);
 
 /**
+ * @brief Kirchhoff stress from the dual stress of the total formulation (strain space, corate_type_total).
+ *
+ * In the strain-space framework (Miehe, Apel and Lambrecht, Comput. Methods Appl. Mech. Engrg.
+ * 191, 2002, 5383-5425; this is their Eulerian map (2.19)) a small-strain law is posed on
+ * the material Hencky strain \f$ \mathbf{H} = \tfrac12\ln\mathbf{C} = \ln\mathbf{U} \f$, a state
+ * function of \f$ \mathbf{F} \f$ in reference components, and returns its work conjugate
+ * \f$ \mathbf{T} \f$ per reference volume: \f$ \mathbf{T}:\dot{\mathbf{H}} = \mathbf{S}:\dot{\mathbf{E}}
+ * = \boldsymbol\tau:\mathbf{D} \f$. With \f$ \mathbf{C} = \sum_a c_a\,\mathbf{n}_a\otimes\mathbf{n}_a \f$,
+ * \f$ \lambda_a = \sqrt{c_a} \f$ and \f$ \hat T_{ab} = \mathbf{n}_a\cdot\mathbf{T}\,\mathbf{n}_b \f$,
+ * \f[
+ *   \mathbf{S} = 2\,\frac{\partial\mathbf{H}}{\partial\mathbf{C}}:\mathbf{T}
+ *              = \sum_{a,b} \frac{\kappa_{ab}}{\lambda_a\lambda_b}\,\hat T_{ab}\,\mathbf{n}_a\otimes\mathbf{n}_b ,
+ *   \qquad
+ *   \boldsymbol\tau = \mathbf{F}\,\mathbf{S}\,\mathbf{F}^T
+ *              = \mathbf{R}\Big[\sum_{a,b}\kappa_{ab}\,\hat T_{ab}\,\mathbf{n}_a\otimes\mathbf{n}_b\Big]\mathbf{R}^T ,
+ *   \qquad
+ *   \kappa_{ab} = \frac{t_{ab}}{\sinh t_{ab}},\quad t_{ab} = \ln\frac{\lambda_a}{\lambda_b} .
+ * \f]
+ * \f$ \kappa \f$ is the kernel of A_R(): in Voigt form \f$ \boldsymbol\tau = (\mathbf{A}^R)^T
+ * (\mathbf{R}\,\mathbf{T}\,\mathbf{R}^T) \f$. The diagonal of \f$ \hat{\mathbf{T}} \f$ is unchanged
+ * and its off-diagonal terms are scaled by \f$ \kappa\in(0,1] \f$, so
+ * \f$ \boldsymbol\tau = \mathbf{R}\,\mathbf{T}\,\mathbf{R}^T \f$ exactly when \f$ \mathbf{T} \f$ is
+ * coaxial with \f$ \mathbf{U} \f$ (isotropic elasticity, proportional plasticity). For any other
+ * state this map is what distinguishes the strain-space reading of a box from the log_R one
+ * (corate 3), which reads the same box output as \f$ \mathbf{R}^T\boldsymbol\tau\,\mathbf{R} \f$.
+ *
+ * @param[in] T dual stress \f$ \mathbf{T} \f$ (3x3, reference components, MPa)
+ * @param[in] F deformation gradient
+ * @return the Kirchhoff stress \f$ \boldsymbol\tau \f$ (3x3)
+ * @throws exception_inv when an eigenvalue of \f$ \mathbf{C} \f$ is not above @c iota (step cut)
+ */
+arma::mat Hencky2Kirchoff(const arma::mat &T, const arma::mat &F);
+
+/**
+ * @brief Dual stress of the total formulation (strain space, corate_type_total) from the Kirchhoff stress: the exact
+ *        inverse of Hencky2Kirchoff(), \f$ \hat T_{ab} = (\mathbf{R}^T\boldsymbol\tau\,\mathbf{R})_{ab}/\kappa_{ab} \f$
+ *        in the eigenbasis of \f$ \mathbf{C} \f$. The amplification is \f$ \sinh t/t \f$ only
+ *        (1.16 at a simple shear of 1), so the dual stress is recovered from the stored
+ *        \f$ \boldsymbol\tau \f$ and needs no storage of its own.
+ * @param[in] tau Kirchhoff stress (3x3)
+ * @param[in] F deformation gradient
+ * @return the dual stress \f$ \mathbf{T} \f$ (3x3, reference components)
+ */
+arma::mat Kirchoff2Hencky(const arma::mat &tau, const arma::mat &F);
+
+/**
  * @brief This function computes the Green-Naghdi antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{GN}} \f$ from the transformation gradient \f$ \mathbf{F} \f$.
  * 
  * \f[
@@ -361,11 +407,15 @@ arma::mat Delta_log_strain_F(const arma::mat &D, const arma::mat &L, const doubl
  *    with @p DR \f$ = \Delta\mathbf{F} \f$. Since \f$ \Delta\mathbf{F}^{-T}\mathbf{b}_0^{-1}\Delta\mathbf{F}^{-1}
  *    = \mathbf{b}_1^{-1} \f$, lower-convected transport plus this increment gives
  *    \f$ \mathbf{e}_A(\mathbf{F}_1) \f$ exactly.
+ *  - **corate_type_total** (total formulation, not a rate): the closed form \f$ \mathbf{H}(\mathbf{F}_1)-\mathbf{H}(\mathbf{F}_0) \f$ of the
+ *    material Hencky strain \f$ \mathbf{H}=\tfrac12\ln\mathbf{C} \f$, in reference components. Exact
+ *    at any step size, and not a rate: nothing is transported.
  *  - **0/1** Jaumann / Green-Naghdi (\f$ \mathbf{A}=\mathbf{I} \f$): \f$ \mathbf{D}_e=\mathbf{D} \f$.
  *
  * Only affects rate-form/hypoelastic UMATs that accumulate \f$ \epsilon \f$; hyperelastic boxes read
  * stress/tangent off \f$ \mathbf{F}_1 \f$ and are unchanged.
- * @return the spatial logarithmic-strain increment for the chosen corate
+ * @return the logarithmic-strain increment: spatial (\f$ \ln\mathbf{V} \f$) for a rate, material
+ *         (\f$ \ln\mathbf{U} \f$) under corate_type_total
 */
 arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, const arma::mat &DR, const arma::mat &D, const arma::mat &Omega, const double &DTime, const int &corate_type);
 
@@ -373,7 +423,8 @@ arma::mat Delta_log_strain_corate(const arma::mat &F0, const arma::mat &F1, cons
  * @brief Whether the work correction applies: the logarithmic corates 2 (XBM), 3 (log_R) and
  *        5 (log_F), whose box kernels work on a strain increment other than \f$ \mathbf{D}\,\Delta t \f$.
  * @param corate_type the corate (see corate_kinematics)
- * @return true for 2, 3 and 5
+ * @return true for 2, 3 and 5. False for corate_type_total: its box works on the conjugate pair
+ *         \f$ (\mathbf{T},\mathbf{H}) \f$, so \f$ \mathbf{T}:\Delta\mathbf{H} \f$ is already the work.
  */
 inline bool work_correction_applies(const int corate_type) {
     return corate_type == 2 || corate_type == 3 || corate_type == 5;
@@ -417,6 +468,8 @@ double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_sta
  *        so every control_type (1..4, NLGEOM) dispatches the corate identically.
  *  - 0 Jaumann, 1 Green-Naghdi, 2 logarithmic/XBM, 3 log_R (DR=R-rotation), 4 Truesdell (DR=DF),
  *    5 log_F (DR=DF; @p Omega receives the velocity gradient L for the convected A^F:D rate).
+ *    corate_type_total (the total formulation, no rate; see Hencky2Kirchoff()): no frame increment,
+ *    DR = I and @p Omega = 0.
  */
 void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma::mat &Omega, const arma::mat &F0, const arma::mat &F1, const double &DTime);
 
@@ -756,7 +809,17 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
  * \f$ \mathbf{A}^{R}\!:\!\mathbf{D} \f$ = the Hoger/Miehe \f$ \mathrm{d}(\ln\mathbf{U})/\mathrm{d}\mathbf{C} \f$
  * in rate form, accumulating exactly \f$ \ln\mathbf{U} \f$ in the R frame, with no residual
  * rotation since R is also the polar rotation of \f$ \mathbf{F} \f$) |
- * 5 log_F (convected/Oldroyd-Lie, pure F pull-back). @c DSDE_2_DtauDe_corate maps
+ * 5 log_F (convected/Oldroyd-Lie, pure F pull-back) | corate_type_total (total formulation): the box is
+ * \f$ \partial\mathbf{T}/\partial\mathbf{H} \f$ in reference components and
+ * \f[ \frac{\mathrm{d}\mathbf{S}}{\mathrm{d}\mathbf{E}} = \mathbb{P}^T:\mathbf{L}_t:\mathbb{P} + \mathbf{T}:\mathbb{L},
+ *     \qquad \mathbb{P} = 2\frac{\partial\mathbf{H}}{\partial\mathbf{C}},\quad
+ *     \mathbb{L} = 4\frac{\partial^2\mathbf{H}}{\partial\mathbf{C}\,\partial\mathbf{C}} , \f]
+ * (Miehe, Apel and Lambrecht, 2002, eqs. (2.16)-(2.17) and (4.59)) with first and second divided
+ * differences of \f$ \tfrac12\ln \f$ on the eigenvalues of \f$ \mathbf{C} \f$, their
+ * \f$ \vartheta_{ij} \f$, \f$ \xi_{ij} \f$ and \f$ \eta \f$ of Box 4. The equal-eigenvalue cases
+ * of that box are replaced by continuous limits, so nearly equal eigenvalues are as accurate as
+ * equal ones. \f$ \mathbf{T} \f$ is recovered from @p tau by
+ * Kirchoff2Hencky(). @c DSDE_2_DtauDe_corate maps
  * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\to\mathbf{L}_t \f$; @c DtauDe_corate_2_DSDE is its inverse.
 */
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);
@@ -779,7 +842,7 @@ arma::mat DtauDe_corate_2_DSDE(const arma::mat &Lt, const int &corate_type, cons
  * is the chain rule through its increment \f$ \mathbf{D}_e = \mathbb{A}^F:\mathbf{D}\,\Delta t \f$
  * with the stress carried by \f$ \mathrm{sym}(\Delta\mathbf{F}\,\boldsymbol\tau\,\Delta\mathbf{F}^{-1}) \f$:
  * \f$ \mathbb{C}^J : (\mathbb{A}^F)^{-1} \f$, finite-difference verified, equal to the log box for
- * isotropic laws.
+ * isotropic laws. corate_type_total goes through \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E} \f$.
  *
  * @param Dtau_LieDD the spatial Kirchhoff-Lie tangent \f$ \partial(\mathcal{L}_v\boldsymbol\tau)/\partial\mathbf{D} \f$
  * @param corate_type the solver's corate (see corate_kinematics)

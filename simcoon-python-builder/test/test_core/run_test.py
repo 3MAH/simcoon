@@ -168,6 +168,119 @@ def test_objective_rate_return_de_small_increment():
         )
 
 
+def _rotated_stretch(t):
+    """Stretch and shear followed by a finite rotation: V and its principal axes both evolve."""
+    c, s = np.cos(1.2 * t), np.sin(1.2 * t)
+    rotation = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+    return rotation @ np.array([[1.0 + 0.4 * t, 0.3 * t, 0.0], [0.0, 1.0 - 0.2 * t, 0.0], [0.0, 0.0, 1.0 + 0.1 * t]])
+
+
+def _log_strain(F):
+    b, N = np.linalg.eigh(F @ F.T)
+    return N @ np.diag(0.5 * np.log(b)) @ N.T
+
+
+def _almansi_strain(F):
+    return 0.5 * (np.eye(3) - np.linalg.inv(F @ F.T))
+
+
+def _accumulated_strain(rate, ninc, batch=False, path=_rotated_stretch):
+    """Integrate the increment of objective_rate along a path F(t), the stored strain being
+    transported as the solver does: by the rotation DR (jaumann, green_naghdi, log, log_R),
+    lower-convected by DF (truesdell), by the symmetrised similarity of DF (log_F)."""
+    strain = np.zeros((3, 3))
+    F0 = path(0.0)
+    for t in np.linspace(0.0, 1.0, ninc + 1)[1:]:
+        F1 = path(t)
+        if batch:
+            de, _, DR, _ = sim.objective_rate(
+                rate, np.asfortranarray(F0[:, :, None]), np.asfortranarray(F1[:, :, None]), 1.0 / ninc, True)
+            de, DR = np.asarray(de)[:, 0], np.asarray(DR)[:, :, 0]
+        else:
+            de, _, DR, _ = sim.objective_rate(rate, F0, F1, 1.0 / ninc, True)
+            de, DR = np.asarray(de).ravel(), np.asarray(DR)
+        if rate == "truesdell":
+            DF_inv = np.linalg.inv(DR)
+            strain = DF_inv.T @ strain @ DF_inv
+        elif rate == "logarithmic_F":
+            strain = DR @ strain @ np.linalg.inv(DR)
+            strain = 0.5 * (strain + strain.T)
+        else:
+            strain = DR @ strain @ DR.T
+        strain = strain + np.array([[de[0], de[3] / 2, de[4] / 2], [de[3] / 2, de[1], de[5] / 2], [de[4] / 2, de[5] / 2, de[2]]])
+        F0 = F1
+    return strain
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("rate, target", [("logarithmic", _log_strain), ("truesdell", _almansi_strain)])
+def test_objective_rate_closed_form_increment_is_exact(rate, target, batch):
+    """The XBM increment accumulates to ln V and the Truesdell one to the Almansi strain, at any step."""
+    reference = target(_rotated_stretch(1.0))
+    for ninc in (1, 7):
+        np.testing.assert_allclose(_accumulated_strain(rate, ninc, batch), reference, rtol=0.0, atol=1e-13)
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("rate", ["logarithmic_R", "logarithmic_F"])
+def test_objective_rate_log_increment_converges_to_ln_V(rate, batch):
+    """log_R and log_F return a genuine rate of ln V (A^R:D, A^F:D): the accumulated strain
+    converges to ln V at first order. Rotating D instead leaves an error that no step removes."""
+    reference = _log_strain(_rotated_stretch(1.0))
+    errors = [np.abs(_accumulated_strain(rate, ninc, batch) - reference).max() for ninc in (16, 64, 256)]
+    assert errors[2] < 1e-4, errors
+    assert errors[0] / errors[1] > 3.0 and errors[1] / errors[2] > 3.0, errors
+
+
+@pytest.mark.parametrize("corate, rate", enumerate(ALL_RATE_NAMES))
+def test_objective_rate_increment_is_the_solver_increment(corate, rate):
+    """The strain accumulated from objective_rate is the Strain of the in-memory solver on the
+    same deformation-gradient path (control type F subdivides a simple shear linearly)."""
+    from simcoon.solver import Block, StepMeca, solve
+
+    ninc = 12
+    F_end = np.array([[1.0, 0.0, 0.6], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    step = StepMeca(control="F", value=F_end.ravel().tolist(), time=1.0, ninc=ninc, Dn_init=1.0, Dn_mini=1e-6)
+    results = solve(Block(steps=[step], control_type="F"), "ELISO", np.array([70000.0, 0.3, 0.0]), 1,
+                    T_init=290.0, corate=corate)
+    solver_strain = np.asarray(results["Strain"])[:, -1]
+
+    strain = _accumulated_strain(rate, ninc, path=lambda t: np.eye(3) + t * (F_end - np.eye(3)))
+    accumulated = np.array([strain[0, 0], strain[1, 1], strain[2, 2], 2 * strain[0, 1], 2 * strain[0, 2], 2 * strain[1, 2]])
+    np.testing.assert_allclose(accumulated, solver_strain, rtol=0.0, atol=1e-12)
+
+
+@pytest.mark.parametrize("corate, rate", list(enumerate(ALL_RATE_NAMES))[:4])
+def test_plastic_shear_driven_by_the_increment_is_the_solver_path(corate, rate):
+    """A coupler integrating EPICP point by point from objective_rate (strain and stress carried by
+    DR, then umat) follows the solver through a plastic simple shear. The log_R stress was 7 MPa
+    away with the increment that rotated D."""
+    from simcoon.solver import Block, StepMeca, solve
+
+    props, nstatev, ninc = np.array([200000.0, 0.3, 0.0, 300.0, 1000.0, 0.5]), 8, 24
+    F_end = np.array([[1.0, 0.0, 0.6], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    step = StepMeca(control="F", value=F_end.ravel().tolist(), time=1.0, ninc=ninc, Dn_init=1.0, Dn_mini=1e-6)
+    results = solve(Block(steps=[step], control_type="F"), "EPICP", props, nstatev, T_init=290.0, corate=corate)
+    solver_stress = np.asarray(results["Stress"])[:, -1]
+
+    col = lambda v: np.asfortranarray(np.asarray(v, float).reshape(-1, 1))
+    cube = lambda a: np.asfortranarray(np.asarray(a, float).reshape(3, 3, 1))
+    etot, sigma, statev, Wm = np.zeros(6), np.zeros(6), np.zeros(nstatev), np.zeros(4)
+    F0 = np.eye(3)
+    for i in range(ninc):
+        F1 = np.eye(3) + (i + 1) / ninc * (F_end - np.eye(3))
+        de, _, DR, _ = sim.objective_rate(rate, F0, F1, 1.0 / ninc, True)
+        de, DR = np.asarray(de).ravel(), np.asarray(DR)
+        etot = np.asarray(sim.t2v_strain(DR @ sim.v2t_strain(etot) @ DR.T)).ravel()
+        sigma = np.asarray(sim.t2v_stress(DR @ sim.v2t_stress(sigma) @ DR.T)).ravel()
+        out = sim.umat("EPICP", col(etot), col(de), cube(F0), cube(F1), col(sigma), cube(DR), col(props),
+                       col(statev), i / ninc, 1.0 / ninc, col(Wm), temp=np.array([290.0]), corate=corate, n_threads=1)
+        sigma, statev, Wm = (np.asarray(x).ravel() for x in out[:3])
+        etot, F0 = etot + de, F1
+    assert statev[1] > 0.3, "the path must be plastic"
+    np.testing.assert_allclose(sigma, solver_stress, rtol=0.0, atol=1e-7)
+
+
 # ---------------------------------------------------------------------------
 # Hyperelastic UMATs: principal-stretch (OGDEN) vs invariants (NEOHC)
 # ---------------------------------------------------------------------------

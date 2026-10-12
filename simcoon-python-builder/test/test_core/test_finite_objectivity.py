@@ -25,6 +25,11 @@ def _rz(th):
     return np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
 
 
+def _formulation(corate):
+    """solve() keywords of a parametrised case: an objective rate, or the total formulation."""
+    return {"formulation": "total"} if corate == "total" else {"corate": corate}
+
+
 _PLASTIC = {
     "EPICP": (np.array([200000., 0.3, 0., 300., 1000., 0.5]), 8, 0.05),
     # EPCHA carries stress-like back-stresses X_1, X_2: they used not to be rotated at all
@@ -34,9 +39,9 @@ _PLASTIC = {
 }
 
 
-@pytest.mark.parametrize("umat, corate", [("EPICP", c) for c in (0, 2, 3, 4)]
-                         + [("EPCHA", c) for c in (0, 2, 3)]
-                         + [("EPJCK", c) for c in (0, 2, 3, 4)])
+@pytest.mark.parametrize("umat, corate", [("EPICP", c) for c in (0, 2, 3, 4, "total")]
+                         + [("EPCHA", c) for c in (0, 2, 3, "total")]
+                         + [("EPJCK", c) for c in (0, 2, 3, 4, "total")])
 def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
     """A plastic prestretch, then a rigid 90 degree rotation: the stress just rotates, and no
     plastic strain or dissipation is created."""
@@ -48,7 +53,7 @@ def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
              StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-4)]
     r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, props, nstatev,
-                         T_init=290., corate=corate)
+                         T_init=290., **_formulation(corate))
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     assert r["Statev"][1, i1] > 1e-2, "the stretch must have yielded"
     tau1, tau2 = _v2t(r["Kirchhoff"][:, i1]), _v2t(r["Kirchhoff"][:, -1])
@@ -59,9 +64,10 @@ def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
     assert abs(r["Wm"][0, -1] - r["Wm"][0, i1]) < 1e-8 * r["Wm"][0, i1]
 
 
-@pytest.mark.parametrize("corate", [0, 2, 3])
-@pytest.mark.parametrize("control_type", [2, 3, 4])
-@pytest.mark.parametrize("umat", ["SNTVE", "ELISO"])
+# total formulation: no logarithmic control (see solver.rst)
+@pytest.mark.parametrize("umat, control_type, corate",
+                         [(u, ct, c) for c in (0, 2, 3) for ct in (2, 3, 4) for u in ("SNTVE", "ELISO")]
+                         + [(u, ct, "total") for ct in (2, 4) for u in ("SNTVE", "ELISO")])
 def test_stress_hold_under_spin(umat, control_type, corate):
     """Stress ramp, then every component held while a z-spin rotates the body: the material
     state does not change (PKII constant) and tau rotates with the spin, for every corate --
@@ -75,7 +81,7 @@ def test_stress_hold_under_spin(umat, control_type, corate):
              StepMeca(control="stress", value=[target, 0, 0, 0, 0, 0], time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-3, BC_w=w)]
     r = sim.solver.solve(Block(steps=steps, control_type=control_type), umat,
-                         np.array([100000., 0.3, 0.]), 1, T_init=290., corate=corate,
+                         np.array([100000., 0.3, 0.]), 1, T_init=290., **_formulation(corate),
                          record_tangent=False)
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     S1, S2 = r["PKII"][:, i1], r["PKII"][:, -1]
@@ -177,8 +183,8 @@ _ORTHO = np.array([70000., 30000., 15000., 0.3, 0.3, 0.3, 8000., 6000., 5000., 0
 
 
 @pytest.mark.parametrize("orientation", [(0., 0., 0.), (30., 0., 0.)], ids=["aligned", "psi30"])
-@pytest.mark.parametrize("corate", [0, 1, 2, 3, 4, 5])
-@pytest.mark.parametrize("umat", ["ELORT", "HYPOO"])
+@pytest.mark.parametrize("umat, corate", [(u, c) for u in ("ELORT", "HYPOO") for c in range(6)]
+                         + [("ELORT", "total")])   # the total formulation refuses the rate law HYPOO
 def test_orthotropic_axes_follow_a_rigid_rotation(umat, corate, orientation):
     """An orthotropic body stretched along x, then rotated rigidly by 90 degrees: the stress
     just rotates. With lab-fixed axes ELORT used to read the rotated stretch against E_y
@@ -190,7 +196,7 @@ def test_orthotropic_axes_follow_a_rigid_rotation(umat, corate, orientation):
              StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-4)]
     r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, _ORTHO, 1, T_init=290.,
-                         corate=corate, orientation=orientation)
+                         orientation=orientation, **_formulation(corate))
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     tau1, tau2 = _v2t(r["Kirchhoff"][:, i1]), _v2t(r["Kirchhoff"][:, -1])
     np.testing.assert_allclose(tau2, R @ tau1 @ R.T, atol=1e-10 * np.abs(tau1).max())

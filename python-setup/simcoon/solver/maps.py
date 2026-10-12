@@ -6,6 +6,7 @@ from simcoon._core import (  # noqa: F401  (re-exported)
     tangent_algorithmic,
     tangent_closest_point,
     tangent_default,
+    corate_type_total as _corate_type_total,
 )
 
 #: Block types (block.type in the C++ solver)
@@ -34,6 +35,12 @@ CORATE_TYPES = {
     "logarithmic_F": 5,    # log_F rate (A_F strain concentration)
 }
 
+#: Finite-strain formulation of the constitutive update. "rate": the law is integrated with an
+#: objective rate (CORATE_TYPES). "total": the strain is the state function ln U of F in
+#: reference components and the law returns its dual stress (Miehe-Apel-Lambrecht strain space);
+#: no rate is involved. The C++ solver carries the total formulation in its corate_type slot.
+FORMULATIONS = ("rate", "total")
+
 #: Thermal boundary condition of a thermomechanical step (cBC_T in the C++ solver)
 THERMAL_CONTROL = {
     "temperature": 0,      # prescribed temperature ramp
@@ -55,6 +62,25 @@ TANGENT_MODES = {
     "algorithmic": tangent_algorithmic,
     "closest_point": tangent_closest_point,
 }
+
+
+def corate_code(corate, formulation):
+    """Code the C++ solver reads in its corate_type slot for a formulation and an objective rate.
+
+    Parameters
+    ----------
+    corate : str, int or None
+        Objective rate (see CORATE_TYPES); None is 'logarithmic_R'. Only under "rate".
+    formulation : str
+        "rate" or "total" (see FORMULATIONS).
+    """
+    if formulation not in FORMULATIONS:
+        raise ValueError(f"unknown formulation '{formulation}'; valid names: {list(FORMULATIONS)}")
+    if formulation == "total":
+        if corate is not None:
+            raise ValueError("the total formulation involves no objective rate: leave corate unset")
+        return _corate_type_total
+    return as_code("logarithmic_R" if corate is None else corate, CORATE_TYPES, "corate")
 
 
 def as_code(value, mapping, what):

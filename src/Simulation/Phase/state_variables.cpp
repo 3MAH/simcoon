@@ -366,7 +366,14 @@ void state_variables::set_start(const int &corate_type)
         sigma_start = sigma;
         statev_start = statev;
         Etot += DEtot;
-        etot = rotate_strain(etot,DR) + Detot;
+        mat H;
+        if (corate_type == corate_type_total && logmat_sympd(H, mat(F1.t()*F1))) {
+            // total formulation: the strain is a state function of F, re-read rather than summed
+            etot = t2v_strain(0.5*H);
+        }
+        else {
+            etot = rotate_strain(etot,DR) + Detot;
+        }
         T += DT;
         F0 = F1;
         U0 = U1;

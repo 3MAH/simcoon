@@ -11,7 +11,7 @@ import simcoon._core as _core
 from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import CORATE_TYPES, TANGENT_MODES, as_code, tangent_default
+from .maps import TANGENT_MODES, as_code, corate_code, tangent_default
 from .micromechanics import to_phase_dicts, euler_angles
 from .results import SolverResults
 
@@ -29,6 +29,7 @@ def solve(
     phases: Optional[Sequence[Any]] = None,
     record_tangent: bool = True,
     raise_on_abort: bool = True,
+    formulation: str = "rate",
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -58,7 +59,16 @@ def solve(
         frame increment DR = R1 R0^T makes the tangent transport exact even
         with rotated internal-variable history (the XBM 'logarithmic' rate
         keeps a small tangent residual there). MODUL additionally requires
-        log_R under NLGEOM (the modular Hencky composition).
+        log_R under NLGEOM (the modular Hencky composition). Must stay None
+        under ``formulation="total"``.
+    formulation : str
+        Finite-strain formulation of the constitutive update. ``"rate"``
+        (default): the law is integrated with the objective rate ``corate``;
+        it works on ln V and the Kirchhoff stress tau. ``"total"``: the
+        strain-space framework of Miehe, Apel and Lambrecht (2002); the law
+        works on the material logarithmic strain ln U, a state function of F,
+        and on the stress T dual to it. No rate is involved; log-strain box
+        laws and hyperelastic laws built on F; no ``"logarithmic"`` control.
     tangent_mode : str or int
         Tangent operator mode: 'none', 'continuum', 'algorithmic' (default)
         or 'closest_point' (closest-point projection integrator with its exact
@@ -120,9 +130,7 @@ def solve(
         law_ctx = registered(umat_name)
         umat_name = UMAT_NAME
 
-    if corate is None:
-        corate = "logarithmic_R"
-    corate_code = as_code(corate, CORATE_TYPES, "corate")
+    corate_type = corate_code(corate, formulation)
     run_params = dict(params)
     run_params["tangent_mode"] = as_code(tangent_mode, TANGENT_MODES, "tangent mode")
 
@@ -145,12 +153,12 @@ def solve(
             int(nstatev),
             euler_angles(orientation),
             int(solver_type),
-            corate_code,
+            corate_type,
             run_params,
             bool(record_tangent),
             phases_py,
         )
-    res = SolverResults(raw, [bd["control_type"] > 1 for bd in blocks_py])
+    res = SolverResults(raw, [bd["control_type"] > 1 for bd in blocks_py], corate_type)
     if raise_on_abort and res.status != 0:
         raise RuntimeError(
             f"the solver aborted early after {len(res)} recorded increments "

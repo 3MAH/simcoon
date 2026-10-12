@@ -116,6 +116,27 @@ def test_simulation_json_solve_equivalence(tmp_path):
     np.testing.assert_allclose(res_json["Strain"], res_direct["Strain"], atol=1e-12)
 
 
+def test_total_formulation_path_roundtrip(tmp_path):
+    """A path of the total formulation carries "formulation": "total" and no corate."""
+    mf, pf = tmp_path / "m.json", tmp_path / "p.json"
+    F = [1.0, 0.3, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    block = Block(steps=[StepMeca(control="F", value=F, ninc=4)], control_type="F")
+    save_material_json(str(mf), "ELISO", ELISO_PROPS, 1)
+    save_path_json(str(pf), [block], T_init=290.0, formulation="total")
+    payload = json.loads(pf.read_text())
+    assert payload["formulation"] == "total" and "corate" not in payload
+    assert load_path_json(str(pf))[2] is None
+
+    kw = load_simulation_json(str(mf), str(pf))
+    assert kw["formulation"] == "total" and kw["corate"] is None
+    res_json = solve(**kw)
+    res_direct = solve(block, "ELISO", ELISO_PROPS, 1, T_init=290.0, formulation="total")
+    np.testing.assert_allclose(res_json["Stress"], res_direct["Stress"], atol=1e-12)
+
+    with pytest.raises(ValueError, match="no objective rate"):
+        save_path_json(str(pf), [block], corate="logarithmic_R", formulation="total")
+
+
 def test_results_npz_roundtrip(tmp_path):
     res = solve(_uniaxial_block(), "ELISO", ELISO_PROPS, 1, T_init=290.0)
     f = tmp_path / "results.npz"

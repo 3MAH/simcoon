@@ -530,14 +530,16 @@ void corate_kinematics(const int &corate_type, mat &DR, mat &D, mat &Omega, cons
         case 3: logarithmic_R(DR, N_1, N_2, D, Omega, DTime, F0, F1); break;   // DR = R-rotation
         case 4: Truesdell(DR, D, Omega, DTime, F0, F1); break;                 // DR = DF, Omega = L
         case 5: logarithmic_F(DR, N_1, N_2, D, Omega, DTime, F0, F1); break;   // DR = DF, Omega = L
+        case corate_type_total: Jaumann(DR, D, Omega, DTime, F0, F1); DR.eye(3,3); Omega.zeros(3,3); break;   // strain space: no frame increment
         default: break;
     }
 }
 
-// Corate-dispatched strain increment (full doc in objective_rates.hpp): A^F:D rate for log_F(5),
-// closed form for XBM(2), A^R:D for log_R(3), closed-form Almansi for Truesdell(4), plain D for
-// Jaumann/GN(0/1).
+// Dispatch documented in objective_rates.hpp.
 mat Delta_log_strain_corate(const mat &F0, const mat &F1, const mat &DR, const mat &D, const mat &Omega, const double &DTime, const int &corate_type) {
+    if (corate_type == corate_type_total) {   // total formulation: H = 1/2 ln C is a state function of F, reference components
+        return 0.5*logmat_sympd(R_Cauchy_Green(F1)) - 0.5*logmat_sympd(R_Cauchy_Green(F0));
+    }
     if (corate_type == 5) {   // log_F: convected A^F:D rate (Omega carries the velocity gradient L)
         return Delta_log_strain_F(v2t_strain(A_F(F1)*t2v_strain(D)), Omega, DTime);
     }
@@ -652,6 +654,142 @@ struct dk_spectral {
 };
 
 }  // namespace
+
+namespace {
+
+// Total formulation (strain space). The box is posed on H = f(C), f = 1/2 ln, in reference
+// components and returns the dual stress T; with That = N^T T N in the eigenbasis of C:
+//   S    = 2 Df(C)[T]          = 2 N (G % That) N^T,        G_ab    = f[c_a, c_b]
+//   tau  = F S F^T             = R N (kappa % That) N^T R^T, kappa   = 2 lam_a lam_b G_ab
+//   dS   = 2 Df(C)[dT] + 2 D2f(C)[T, dC],  D2f(C)[T, dC]_ab = sum_k Gam_akb (That_ak dC_kb + dC_ak That_kb)
+// with Gam_abc = f[c_a, c_b, c_c]. kappa(t) = t/sinh(t), t = ln(lam_a/lam_b), is A_R's kernel.
+struct hencky_spectral {
+    arma::vec c;                        // eigenvalues of C (SPD)
+    arma::mat N;                        // eigenvectors of C (columns)
+    arma::mat R;                        // polar rotation F U^{-1}
+    arma::mat::fixed<3,3> kappa;        // t/sinh(t)
+    arma::mat::fixed<3,3> G;            // first divided differences of 1/2 ln
+    double Gam[3][3][3];                // second divided differences of 1/2 ln
+
+    // f[x, y]: no difference of logs, hence no cancellation at any gap (Taylor below 1e-4 as A_R)
+    static double kappa_of(const double &x, const double &y) {
+        const double t = 0.5*std::log(x/y);
+        return (std::abs(t) > 1.e-4) ? t/std::sinh(t) : 1. - t*t/6. + 7.*t*t*t*t/360.;
+    }
+    static double dd1(const double &x, const double &y) {
+        return kappa_of(x, y)/(2.*std::sqrt(x*y));
+    }
+    // f[x, y, z]. Separated: difference of the two first differences over the WIDEST gap, so two
+    // coalescing arguments cost nothing. Clustered (spread below 1e-4): Taylor about the mean m,
+    // f[..] = sum_k f^(k+2)(m)/(k+2)! h_k(d), h_k the complete homogeneous polynomials of the
+    // offsets d (h_1 = 0 about the mean); truncated after h_4, exact limit -1/(4 m^2).
+    static double dd2(double x, double y, double z) {
+        if (x > y) std::swap(x, y);
+        if (y > z) std::swap(y, z);
+        if (x > y) std::swap(x, y);
+        const double m = (x + y + z)/3.;
+        if (z - x > 1.e-4*m) {
+            return (dd1(x, y) - dd1(y, z))/(x - z);
+        }
+        const double dx = (x - m)/m, dy = (y - m)/m, dz = (z - m)/m;
+        const double s2 = dx*dx + dy*dy + dz*dz;
+        const double s3 = dx*dx*dx + dy*dy*dy + dz*dz*dz;
+        return -(1. + s2/4. - 2.*s3/15. + s2*s2/12.)/(4.*m*m);
+    }
+
+    // tangent = false: the stress maps need kappa only
+    void build(const arma::mat &F, const bool &tangent) {
+        const bool success_eig_sym = arma::eig_sym(c, N, R_Cauchy_Green(F));
+        if (!success_eig_sym) {
+            throw simcoon::exception_eig_sym("Error in eig_sym function inside the total-formulation (strain-space) maps.");
+        }
+        // same recoverable failure as dk_spectral: a step cut, not NaN stresses
+        if (!c.is_finite() || c.min() <= simcoon::iota) {
+            throw simcoon::exception_inv("Near-singular F inside the total-formulation (strain-space) maps (eigenvalue of C <= iota).");
+        }
+        R = F*N*diagmat(1.0/sqrt(c))*N.t();
+        for (int a = 0; a < 3; ++a) {
+            for (int b = 0; b < 3; ++b) {
+                kappa(a, b) = kappa_of(c(a), c(b));
+                if (!tangent) continue;
+                G(a, b) = kappa(a, b)/(2.*std::sqrt(c(a)*c(b)));
+                for (int k = 0; k < 3; ++k) {
+                    Gam[a][b][k] = dd2(c(a), c(b), c(k));
+                }
+            }
+        }
+    }
+
+    // T in the eigenbasis of C, from the Kirchhoff stress: entrywise, amplification sinh(t)/t only
+    arma::mat That_of_tau(const arma::mat &tau) const {
+        return (N.t()*R.t()*tau*R*N)/kappa;
+    }
+
+    // D2f(C)[T, dC] in the eigenbasis
+    arma::mat::fixed<3,3> geometric(const arma::mat &That, const arma::mat &dCp) const {
+        arma::mat::fixed<3,3> X;
+        for (int a = 0; a < 3; ++a) {
+            for (int b = 0; b < 3; ++b) {
+                double x = 0.;
+                for (int k = 0; k < 3; ++k) {
+                    x += Gam[a][k][b]*(That(a, k)*dCp(k, b) + dCp(a, k)*That(k, b));
+                }
+                X(a, b) = x;
+            }
+        }
+        return X;
+    }
+};
+
+// dS/dE = P^T Lt P + T:L of the total formulation. The box Lt = dT/dH acts in reference
+// components, so unlike DtauDe_2_DSDE there is no R conjugation.
+mat hencky_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
+    hencky_spectral sp;
+    sp.build(F, true);
+    const mat That = sp.That_of_tau(tau);
+    mat DSDE(6, 6);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        const mat dCp = sp.N.t()*(2.*v2t_strain(ej))*sp.N;
+        const mat dH = sp.N*(sp.G % dCp)*sp.N.t();
+        const mat dTp = sp.N.t()*v2t_stress(Lt*t2v_strain(dH))*sp.N;
+        DSDE.col(j) = t2v_stress(2.*sp.N*(sp.G % dTp + sp.geometric(That, dCp))*sp.N.t());
+    }
+    return DSDE;
+}
+
+// Exact inverse: G > 0 entrywise, so every step of the forward map is undone in turn.
+mat DSDE_2_hencky_box(const mat &DSDE, const mat &F, const mat &tau) {
+    hencky_spectral sp;
+    sp.build(F, true);
+    const mat That = sp.That_of_tau(tau);
+    mat Lt(6, 6);
+    vec ej(6);
+    for (int j = 0; j < 6; ++j) {
+        ej.zeros(); ej(j) = 1.;
+        const mat dCp = (sp.N.t()*v2t_strain(ej)*sp.N)/sp.G;
+        const mat dS = v2t_stress(DSDE*t2v_strain(0.5*sp.N*dCp*sp.N.t()));
+        const mat dTp = (0.5*sp.N.t()*dS*sp.N - sp.geometric(That, dCp))/sp.G;
+        Lt.col(j) = t2v_stress(sp.N*dTp*sp.N.t());
+    }
+    return Lt;
+}
+
+}  // namespace
+
+mat Hencky2Kirchoff(const mat &T, const mat &F) {
+    hencky_spectral sp;
+    sp.build(F, false);
+    const mat RN = sp.R*sp.N;
+    return RN*(sp.kappa % (sp.N.t()*T*sp.N))*RN.t();
+}
+
+mat Kirchoff2Hencky(const mat &tau, const mat &F) {
+    hencky_spectral sp;
+    sp.build(F, false);
+    return sp.N*sp.That_of_tau(tau)*sp.N.t();
+}
 
 mat DtauDe_2_DSDE(const mat &Lt, const mat &F, const mat &tau){
 
@@ -932,6 +1070,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // plain GN: path-integral strain -> rate identity
         case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
         case 5:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau)*inv(A_F(F));   // log_F: De = A^F:D dt, stress carried by sym(DF X DF^-1)
+        case corate_type_total:  return DSDE_2_hencky_box(DSDE, F, tau);            // strain space: dT/dH in reference components
         case 2:                                                     // XBM (logarithmic)
         case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
                                                                     // R frame (Hoger/Miehe d(ln U)/dC in rate form),
@@ -948,6 +1087,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
         case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // plain GN: rate identity (see forward map)
         case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
         case 5:  return DtauDe_JaumannDD_2_DSDE(Lt*A_F(F), F, tau); // log_F: inverse of the forward map
+        case corate_type_total:  return hencky_box_2_DSDE(Lt, F, tau);              // strain space: P^T Lt P + T:L
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
         default: return DtauDe_2_DSDE(Lt, F, tau);
@@ -963,6 +1103,7 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
         case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
         case 5:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau)*inv(A_F(F));   // log_F: chain rule through De = A^F:D dt
+        case corate_type_total:  return DSDE_2_hencky_box(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);   // strain space, through dS/dE
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map
         default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);
