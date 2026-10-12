@@ -43,10 +43,10 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         {"PKII2Kirchhoff",7},
         {"PKI2Cauchy",8},
         {"PKII2Cauchy",9},
-        {"Kirchoff2Hencky",10},
-        {"Kirchhoff2Hencky",10},
-        {"Hencky2Kirchoff",11},
-        {"Hencky2Kirchhoff",11}
+        {"Kirchoff2LogStressU",10},
+        {"Kirchhoff2LogStressU",10},
+        {"LogStressU2Kirchoff",11},
+        {"LogStressU2Kirchhoff",11}
     };
 
     const auto it = list_stress_convert.find(converter_key);
@@ -60,7 +60,7 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             "PKI2Kirchoff (or PKI2Kirchhoff), "
             "PKII2Kirchoff (or PKII2Kirchhoff), "
             "PKI2Cauchy, PKII2Cauchy, "
-            "Kirchoff2Hencky (or Kirchhoff2Hencky) or Hencky2Kirchoff (or Hencky2Kirchhoff)"
+            "Kirchoff2LogStressU (or Kirchhoff2LogStressU) or LogStressU2Kirchoff (or LogStressU2Kirchhoff)"
         );
     }
     const int select = it->second;
@@ -108,11 +108,11 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             break;
         }            
         case 10: {   // T dual to ln U; J plays no part
-            functor_stress_converter = [](const mat &tau, const mat &F, const double &) { return simcoon::Kirchoff2Hencky(tau, F); };
+            functor_stress_converter = [](const mat &tau, const mat &F, const double &) { return simcoon::Kirchoff2LogStressU(tau, F); };
             break;
         }
         case 11: {
-            functor_stress_converter = [](const mat &T, const mat &F, const double &) { return simcoon::Hencky2Kirchoff(T, F); };
+            functor_stress_converter = [](const mat &T, const mat &F, const double &) { return simcoon::LogStressU2Kirchoff(T, F); };
             break;
         }
         default: {

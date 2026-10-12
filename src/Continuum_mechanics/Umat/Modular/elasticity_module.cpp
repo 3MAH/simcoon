@@ -338,7 +338,7 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
     hyper_invariants_response(dW, b_el, J_el, V_el, total ? corate_type_total : 3, sigma, Lt, A);
     if (total) {
         // dual stress of H_el: equal to tau when coaxial, and what makes a fibre potential exact
-        sigma = t2v_stress(Kirchoff2Hencky(v2t_stress(sigma), V_el));
+        sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(sigma), V_el));
     }
 }
 

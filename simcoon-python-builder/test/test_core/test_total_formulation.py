@@ -384,17 +384,17 @@ def _rotate(R, v, strain=False):
 
 @pytest.mark.parametrize("corate", [2, 3, 4, "total"])
 def test_the_measures_of_the_other_formulation_are_derived_from_F(corate):
-    """LogStrainU, LogStrainV and HenckyStress are changes of measure, computed from F and the
-    Kirchhoff stress: ln V = R (ln U) R^T, and tau = Hencky2Kirchoff(T)."""
+    """LogStrainU, LogStrainV and LogStressU are changes of measure, computed from F and the
+    Kirchhoff stress: ln V = R (ln U) R^T, and tau = LogStressU2Kirchoff(T)."""
     F = _rz(0.4) @ np.diag([1.15, 0.95, 1.0]) @ _shear(0.4)
     r = _solve("EPICP", EPICP, 8, [F], 20, corate)
     assert r["LogStrainV"] is r["LogStrain"]
     R, _ = _polar(F)
     np.testing.assert_allclose(r["LogStrainU"][:, -1], _t2v_strain(_lnU(F)), atol=1e-12)
     np.testing.assert_allclose(_rotate(R, r["LogStrainU"][:, -1], strain=True), r["LogStrainV"][:, -1], atol=1e-12)
-    T = r["HenckyStress"]
+    T = r["LogStressU"]
     assert T.shape == r["Kirchhoff"].shape
-    back = sim.stress_convert(np.asfortranarray(T), np.asfortranarray(r["F"]), "Hencky2Kirchoff")
+    back = sim.stress_convert(np.asfortranarray(T), np.asfortranarray(r["F"]), "LogStressU2Kirchoff")
     np.testing.assert_allclose(back, r["Kirchhoff"], atol=1e-9 * np.abs(r["Kirchhoff"]).max())
     np.testing.assert_allclose(_v2t(T[:, -1]), _dual_stress(_v2t(r["Kirchhoff"][:, -1]), F), atol=1e-8)
     if corate == "total":
@@ -404,16 +404,16 @@ def test_the_measures_of_the_other_formulation_are_derived_from_F(corate):
 @pytest.mark.parametrize("corate", [0, 1, 5])
 def test_the_material_measures_are_not_offered_when_the_strain_is_not_a_state_function(corate):
     r = _solve("EPICP", EPICP, 8, [_shear(0.3)], 5, corate)
-    assert "LogStrainU" not in r and "HenckyStress" not in r
+    assert "LogStrainU" not in r and "LogStressU" not in r
     assert "LogStrainV" in r
     with pytest.raises(KeyError):
-        r["HenckyStress"]
+        r["LogStressU"]
 
 
 def test_one_box_read_in_the_two_formulations():
     """Plastic simple shear under corate 3 and under the total formulation, on the same measures:
     the box output is the same (R^T tau_rate R = T_total), and the two Kirchhoff stresses differ
-    by the A_R map, tau_total = Hencky2Kirchoff(R^T tau_rate R). Neither closes with the step
+    by the A_R map, tau_total = LogStressU2Kirchoff(R^T tau_rate R). Neither closes with the step
     beyond the quadrature of the log_R strain."""
     F = _shear(1.0)
     R, _ = _polar(F)
@@ -421,8 +421,8 @@ def test_one_box_read_in_the_two_formulations():
     for n in (100, 200):
         rr, rt = _solve("EPICP", EPICP, 8, [F], n, 3), _solve("EPICP", EPICP, 8, [F], n, "total")
         box_rate = _rotate(R.T, rr["Kirchhoff"][:, -1])
-        gap.append(np.abs(box_rate - rt["HenckyStress"][:, -1]).max())
-        read_as_T = np.ravel(sim.stress_convert(box_rate, F, "Hencky2Kirchoff"))
+        gap.append(np.abs(box_rate - rt["LogStressU"][:, -1]).max())
+        read_as_T = np.ravel(sim.stress_convert(box_rate, F, "LogStressU2Kirchoff"))
         np.testing.assert_allclose(read_as_T, rt["Kirchhoff"][:, -1], atol=2 * gap[-1] + 1e-9)
         np.testing.assert_allclose(rr["Statev"][1, -1], rt["Statev"][1, -1], rtol=1e-3)
     assert gap[1] < 0.6 * gap[0] < 0.1                             # first order in the step
@@ -495,7 +495,7 @@ def test_modular_fibre_block_tangent_is_the_derivative_of_the_dual_stress():
         F = expm(_v2t(H * np.array([1., 1., 1., .5, .5, .5])))
         s, _, _, Lt = _umat6(mat.umat_name, mat.props, np.eye(3), F, np.zeros(6), statev, np.zeros(4),
                              start=True)
-        return np.ravel(sim.stress_convert(s * np.linalg.det(F), F, "Kirchoff2Hencky")), Lt
+        return np.ravel(sim.stress_convert(s * np.linalg.det(F), F, "Kirchoff2LogStressU")), Lt
 
     H = np.array([0.20, -0.05, -0.10, 0.30, 0.10, -0.15])
     _, Lt = box(H)

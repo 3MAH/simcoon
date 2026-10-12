@@ -439,7 +439,7 @@ int kinematic_code(const py::object &value) {
 				if (total) {
 					// Kirchhoff -> dual stress T. No throw in the parallel region: a degenerate F
 					// becomes a step-cut request, raised as StepCut in serial context below.
-					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2Hencky(simcoon::v2t_stress(sigma), F0.slice(pt))); }
+					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F0.slice(pt))); }
 					catch (const std::exception &) { total_cut = true; }
 				}
 			}

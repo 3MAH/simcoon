@@ -34,8 +34,8 @@ converter_key : str
         - 'PKII2Kirchoff' : Second Piola-Kirchhoff -> Kirchoff
         - 'PKI2Cauchy'   : First Piola-Kirchhoff -> Cauchy
         - 'PKII2Cauchy'  : Second Piola-Kirchhoff -> Cauchy
-        - 'Kirchoff2Hencky' : Kirchoff -> T, the stress dual to ln U (reference components)
-        - 'Hencky2Kirchoff' : T -> Kirchoff
+        - 'Kirchoff2LogStressU' : Kirchoff -> T, the stress dual to ln U (reference components)
+        - 'LogStressU2Kirchoff' : T -> Kirchoff
 
         T is the stress of the total formulation (T : d(ln U) = tau : D). The two
         maps are a change of measure of one stress state, exact for any F.

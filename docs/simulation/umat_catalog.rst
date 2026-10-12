@@ -415,7 +415,7 @@ the geometry is applied once, after the box:
 
 This is the one exception to "the kernel's ``sigma`` is :math:`\boldsymbol{\tau}`": under the total
 formulation the ``sigma`` of a box kernel is :math:`\mathbf{T}`. No kernel changes; the dispatcher converts at entry
-(``Kirchoff2Hencky``) and at exit (``Hencky2Kirchoff``), and :math:`\boldsymbol{\tau}` stays the only
+(``Kirchoff2LogStressU``) and at exit (``LogStressU2Kirchoff``), and :math:`\boldsymbol{\tau}` stays the only
 stress on the route. In the eigenbasis of :math:`\mathbf{C}`, with :math:`\lambda_a` the principal
 stretches,
 
@@ -447,8 +447,8 @@ share the box, its strain and its internal variables. They differ in two ways.
 
 *Reading one run in the measures of the other.* :math:`\ln\mathbf{V} = \mathbf{R}\,\mathbf{H}\,\mathbf{R}^T`
 and :math:`\boldsymbol{\tau} \leftrightarrow \mathbf{T}` are changes of measure, valid for any state:
-``sim.stress_convert`` has the keys ``"Kirchoff2Hencky"`` and ``"Hencky2Kirchoff"``, and the solver
-results offer ``LogStrainU``, ``LogStrainV`` and ``HenckyStress`` whenever the strain of the run is
+``sim.stress_convert`` has the keys ``"Kirchoff2LogStressU"`` and ``"LogStressU2Kirchoff"``, and the solver
+results offer ``LogStrainU``, ``LogStrainV`` and ``LogStressU`` whenever the strain of the run is
 a state function of :math:`\mathbf{F}` (see :doc:`output`). On a path of prescribed
 :math:`\mathbf{F}`, and for a log-strain box kernel, a run under corate 3 and a run under the
 total formulation then compare as follows: the box output is the same, :math:`\mathbf{R}^T\boldsymbol{\tau}_{\text{rate}}\mathbf{R} =

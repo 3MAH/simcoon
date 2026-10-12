@@ -538,7 +538,7 @@ bool total_formulation_serves(const std::string &umat_name);
  * @brief Kirchhoff stress at the exit of a kernel run under the total formulation.
  *
  * A log-strain box (@p box true) returned \f$ \mathbf{T} \f$: \f$ \boldsymbol{\tau} \f$ is its
- * Hencky2Kirchoff() image and its work \f$ \tfrac12(\mathbf{T}_n+\mathbf{T}_{n+1}):\Delta\mathbf{H} \f$
+ * LogStressU2Kirchoff() image and its work \f$ \tfrac12(\mathbf{T}_n+\mathbf{T}_{n+1}):\Delta\mathbf{H} \f$
  * is already the stress power. A kernel built on \f$ \mathbf{F} \f$ returned
  * \f$ \boldsymbol{\tau} \f$ and formed \f$ \tfrac12(\mathbf{T}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{H} \f$:
  * @p dW is then the missing \f$ \tfrac12(\mathbf{T}_{n+1}-\boldsymbol{\tau}_{n+1}):\Delta\mathbf{H} \f$,

@@ -81,7 +81,7 @@ run gives every conjugate pair:
    * - ``LogStrainU``
      - (6, N)
      - Material logarithmic strain :math:`\ln \mathbf{U} = \frac{1}{2}\ln(\mathbf{F}^T\mathbf{F})`, computed from :math:`\mathbf{F}`, in reference components: the strain of the total formulation. :math:`\ln\mathbf{V} = \mathbf{R}\,\ln\mathbf{U}\,\mathbf{R}^T`. Offered (policy) under ``kinematic_form="total"`` and under the rates whose strain is a function of :math:`\mathbf{F}`, exactly or in the limit of small steps: ``"logarithmic"``, ``"logarithmic_R"`` and ``"truesdell"``
-   * - ``HenckyStress``
+   * - ``LogStressU``
      - (6, N)
      - Stress :math:`\mathbf{T}` dual to :math:`\ln \mathbf{U}` (:math:`\mathbf{T}:\mathrm{d}\ln\mathbf{U} = \boldsymbol{\tau}:\mathbf{D}`), computed from ``Kirchhoff`` and :math:`\mathbf{F}`, in reference components: the stress of the total formulation. A change of measure of the stress of the run, whatever its formulation: it is what the law returned only under ``kinematic_form="total"`` (and, to first order in the step, under ``"logarithmic_R"`` for a log-strain box law), and not what a total run would have given. Offered with ``LogStrainU``
    * - ``GreenLagrange``

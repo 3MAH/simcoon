@@ -663,7 +663,7 @@ namespace {
 //   tau  = F S F^T             = R N (kappa % That) N^T R^T, kappa   = 2 lam_a lam_b G_ab
 //   dS   = 2 Df(C)[dT] + 2 D2f(C)[T, dC],  D2f(C)[T, dC]_ab = sum_k Gam_akb (That_ak dC_kb + dC_ak That_kb)
 // with Gam_abc = f[c_a, c_b, c_c]. kappa(t) = t/sinh(t), t = ln(lam_a/lam_b), is A_R's kernel.
-struct hencky_spectral {
+struct logU_spectral {
     arma::vec c;                        // eigenvalues of C (SPD)
     arma::mat N;                        // eigenvectors of C (columns)
     arma::mat R;                        // polar rotation F U^{-1}
@@ -743,8 +743,8 @@ struct hencky_spectral {
 
 // dS/dE = P^T Lt P + T:L of the total formulation. The box Lt = dT/dH acts in reference
 // components, so unlike DtauDe_2_DSDE there is no R conjugation.
-mat hencky_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
-    hencky_spectral sp;
+mat logU_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
+    logU_spectral sp;
     sp.build(F, true);
     const mat That = sp.That_of_tau(tau);
     mat DSDE(6, 6);
@@ -760,8 +760,8 @@ mat hencky_box_2_DSDE(const mat &Lt, const mat &F, const mat &tau) {
 }
 
 // Exact inverse: G > 0 entrywise, so every step of the forward map is undone in turn.
-mat DSDE_2_hencky_box(const mat &DSDE, const mat &F, const mat &tau) {
-    hencky_spectral sp;
+mat DSDE_2_logU_box(const mat &DSDE, const mat &F, const mat &tau) {
+    logU_spectral sp;
     sp.build(F, true);
     const mat That = sp.That_of_tau(tau);
     mat Lt(6, 6);
@@ -778,15 +778,15 @@ mat DSDE_2_hencky_box(const mat &DSDE, const mat &F, const mat &tau) {
 
 }  // namespace
 
-mat Hencky2Kirchoff(const mat &T, const mat &F) {
-    hencky_spectral sp;
+mat LogStressU2Kirchoff(const mat &T, const mat &F) {
+    logU_spectral sp;
     sp.build(F, false);
     const mat RN = sp.R*sp.N;
     return RN*(sp.kappa % (sp.N.t()*T*sp.N))*RN.t();
 }
 
-mat Kirchoff2Hencky(const mat &tau, const mat &F) {
-    hencky_spectral sp;
+mat Kirchoff2LogStressU(const mat &tau, const mat &F) {
+    logU_spectral sp;
     sp.build(F, false);
     return sp.N*sp.That_of_tau(tau)*sp.N.t();
 }
@@ -1070,7 +1070,7 @@ mat DSDE_2_DtauDe_corate(const mat &DSDE, const int &corate_type, const mat &F, 
         case 1:  return DSDE_2_Dtau_GreenNaghdiDD(DSDE, F, tau);    // plain GN: path-integral strain -> rate identity
         case 4:  return DSDE_2_Dtau_LieDD(DSDE, F);                 // Truesdell: the convected box IS the Lie tangent
         case 5:  return DSDE_2_Dtau_JaumannDD(DSDE, F, tau)*inv(A_F(F));   // log_F: De = A^F:D dt, stress carried by sym(DF X DF^-1)
-        case corate_type_total:  return DSDE_2_hencky_box(DSDE, F, tau);            // strain space: dT/dH in reference components
+        case corate_type_total:  return DSDE_2_logU_box(DSDE, F, tau);            // strain space: dT/dH in reference components
         case 2:                                                     // XBM (logarithmic)
         case 3:                                                     // log_R: A^R:D accumulates EXACTLY ln U in the
                                                                     // R frame (Hoger/Miehe d(ln U)/dC in rate form),
@@ -1087,7 +1087,7 @@ mat DtauDe_corate_2_DSDE(const mat &Lt, const int &corate_type, const mat &F, co
         case 1:  return DtauDe_GreenNaghdiDD_2_DSDE(Lt, F, tau);    // plain GN: rate identity (see forward map)
         case 4:  return Dtau_LieDD_2_DSDE(Lt, F);                   // Truesdell: convected box = Lie tangent
         case 5:  return DtauDe_JaumannDD_2_DSDE(Lt*A_F(F), F, tau); // log_F: inverse of the forward map
-        case corate_type_total:  return hencky_box_2_DSDE(Lt, F, tau);              // strain space: P^T Lt P + T:L
+        case corate_type_total:  return logU_box_2_DSDE(Lt, F, tau);              // strain space: P^T Lt P + T:L
         case 2:                                                     // XBM and...
         case 3:                                                     // log_R: exact map (see DSDE_2_DtauDe_corate)
         default: return DtauDe_2_DSDE(Lt, F, tau);
@@ -1103,7 +1103,7 @@ mat Dtau_LieDD_2_DtauDe_corate(const mat &Dtau_LieDD, const int &corate_type, co
         case 1:  return Dtau_LieDD_Dtau_GreenNaghdiDD(Dtau_LieDD, F, tau);
         case 4:  return Dtau_LieDD;                                   // Truesdell: the convected box IS the Lie tangent
         case 5:  return Dtau_LieDD_Dtau_JaumannDD(Dtau_LieDD, tau)*inv(A_F(F));   // log_F: chain rule through De = A^F:D dt
-        case corate_type_total:  return DSDE_2_hencky_box(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);   // strain space, through dS/dE
+        case corate_type_total:  return DSDE_2_logU_box(Dtau_LieDD_2_DSDE(Dtau_LieDD, F), F, tau);   // strain space, through dS/dE
         case 2:                                                       // XBM and...
         case 3:                                                       // log_R: exact spectral map
         default: return Dtau_LieDD_Dtau_logarithmicDD(Dtau_LieDD, F, tau);

@@ -300,8 +300,8 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
 {
     dW = 0.;
     if (box)
-        return t2v_stress(Hencky2Kirchoff(v2t_stress(sigma), F1));
-    const vec T1 = t2v_stress(Kirchoff2Hencky(v2t_stress(sigma), F1));
+        return t2v_stress(LogStressU2Kirchoff(v2t_stress(sigma), F1));
+    const vec T1 = t2v_stress(Kirchoff2LogStressU(v2t_stress(sigma), F1));
     dW = 0.5*sum((T1 - sigma)%Detot);
     return sigma;
 }
@@ -468,7 +468,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
                 "the total formulation (strain space) does not serve '"
                 + rve.sptr_matprops->umat_name + "'; use the rate formulation");
         }
-        umat_M->sigma = t2v_stress(Kirchoff2Hencky(v2t_stress(umat_M->sigma), umat_M->F0));
+        umat_M->sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(umat_M->sigma), umat_M->F0));
     }
 
     if (id_umat == 7 && corate_type == 4) {   // EPCHA

@@ -388,7 +388,7 @@ public:
      *       - Under the total kinematic form (set_kinematic_form) the strain is
      *         \f$ \mathbf{H}^{el} \f$ in reference components and the block returns the stress
      *         dual to it, \f$ \mathbf{T} = \partial \psi / \partial \mathbf{H}^{el} \f$
-     *         (Kirchoff2Hencky() of the stress above at \f$ \mathbf{F} := \mathbf{V}^{el} \f$),
+     *         (Kirchoff2LogStressU() of the stress above at \f$ \mathbf{F} := \mathbf{V}^{el} \f$),
      *         with \f$ \partial \mathbf{T} / \partial \mathbf{H}^{el} \f$. This is exact for an
      *         anisotropic \f$ W \f$ too, coaxial or not.
      *

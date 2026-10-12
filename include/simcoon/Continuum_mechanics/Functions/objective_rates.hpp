@@ -276,11 +276,11 @@ arma::mat get_BBBB(const arma::mat &F);
  * @return the Kirchhoff stress \f$ \boldsymbol\tau \f$ (3x3)
  * @throws exception_inv when an eigenvalue of \f$ \mathbf{C} \f$ is not above @c iota (step cut)
  */
-arma::mat Hencky2Kirchoff(const arma::mat &T, const arma::mat &F);
+arma::mat LogStressU2Kirchoff(const arma::mat &T, const arma::mat &F);
 
 /**
  * @brief Dual stress of the total formulation (strain space, corate_type_total) from the Kirchhoff stress: the exact
- *        inverse of Hencky2Kirchoff(), \f$ \hat T_{ab} = (\mathbf{R}^T\boldsymbol\tau\,\mathbf{R})_{ab}/\kappa_{ab} \f$
+ *        inverse of LogStressU2Kirchoff(), \f$ \hat T_{ab} = (\mathbf{R}^T\boldsymbol\tau\,\mathbf{R})_{ab}/\kappa_{ab} \f$
  *        in the eigenbasis of \f$ \mathbf{C} \f$. The amplification is \f$ \sinh t/t \f$ only
  *        (1.16 at a simple shear of 1), so the dual stress is recovered from the stored
  *        \f$ \boldsymbol\tau \f$ and needs no storage of its own.
@@ -288,7 +288,7 @@ arma::mat Hencky2Kirchoff(const arma::mat &T, const arma::mat &F);
  * @param[in] F deformation gradient
  * @return the dual stress \f$ \mathbf{T} \f$ (3x3, reference components)
  */
-arma::mat Kirchoff2Hencky(const arma::mat &tau, const arma::mat &F);
+arma::mat Kirchoff2LogStressU(const arma::mat &tau, const arma::mat &F);
 
 /**
  * @brief This function computes the Green-Naghdi antisymmetric tensor-valued function \f$ \mathbf{\mathcal{B}}^{\textrm{GN}} \f$ from the transformation gradient \f$ \mathbf{F} \f$.
@@ -468,7 +468,7 @@ double Delta_work_conjugacy(const arma::vec &tau_start, const arma::vec &tau_sta
  *        so every control_type (1..4, NLGEOM) dispatches the corate identically.
  *  - 0 Jaumann, 1 Green-Naghdi, 2 logarithmic/XBM, 3 log_R (DR=R-rotation), 4 Truesdell (DR=DF),
  *    5 log_F (DR=DF; @p Omega receives the velocity gradient L for the convected A^F:D rate).
- *    corate_type_total (the total formulation, no rate; see Hencky2Kirchoff()): no frame increment,
+ *    corate_type_total (the total formulation, no rate; see LogStressU2Kirchoff()): no frame increment,
  *    DR = I and @p Omega = 0.
  */
 void corate_kinematics(const int &corate_type, arma::mat &DR, arma::mat &D, arma::mat &Omega, const arma::mat &F0, const arma::mat &F1, const double &DTime);
@@ -819,7 +819,7 @@ arma::mat DSDE_2_Dsigma_logarithmicDD(const arma::mat &DSDE, const arma::mat &F,
  * \f$ \vartheta_{ij} \f$, \f$ \xi_{ij} \f$ and \f$ \eta \f$ of Box 4. The equal-eigenvalue cases
  * of that box are replaced by continuous limits, so nearly equal eigenvalues are as accurate as
  * equal ones. \f$ \mathbf{T} \f$ is recovered from @p tau by
- * Kirchoff2Hencky(). @c DSDE_2_DtauDe_corate maps
+ * Kirchoff2LogStressU(). @c DSDE_2_DtauDe_corate maps
  * \f$ \mathrm{d}\mathbf{S}/\mathrm{d}\mathbf{E}\to\mathbf{L}_t \f$; @c DtauDe_corate_2_DSDE is its inverse.
 */
 arma::mat DSDE_2_DtauDe_corate(const arma::mat &DSDE, const int &corate_type, const arma::mat &F, const arma::mat &tau);

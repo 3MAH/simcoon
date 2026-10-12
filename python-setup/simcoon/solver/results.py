@@ -22,7 +22,7 @@ from simcoon import _core
 _ALIASES: Dict[str, str] = {"LogStrainV": "LogStrain"}
 #: corate_type codes whose strain is a state function of F: 'logarithmic', 'logarithmic_R',
 #: 'truesdell' and the total formulation. Only there are the material measures of the total
-#: formulation ('LogStrainU', 'HenckyStress') offered.
+#: formulation ('LogStrainU', 'LogStressU') offered.
 _STATE_FUNCTION_STRAIN = (2, 3, 4, _core.corate_type_total)
 #: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain,
 #: 3 since 'LogStrain' is ln V computed from F (no longer an alias of 'Strain')
@@ -52,7 +52,7 @@ def _log_strain(F: np.ndarray, strain: np.ndarray, finite: np.ndarray) -> np.nda
     return out
 
 
-def _hencky_stress(tau: np.ndarray, F: np.ndarray, finite: np.ndarray) -> np.ndarray:
+def _log_stress_u(tau: np.ndarray, F: np.ndarray, finite: np.ndarray) -> np.ndarray:
     """T dual to ln U from the Kirchhoff stress, (6, N), where ``finite``; else ``tau`` (T = tau
     at F = I). NaN where F is not finite or degenerate, as in :func:`_log_strain`."""
     out = np.array(tau, dtype=float, copy=True)
@@ -65,7 +65,7 @@ def _hencky_stress(tau: np.ndarray, F: np.ndarray, finite: np.ndarray) -> np.nda
 
     def convert(k):
         return _core.stress_convert(np.asfortranarray(tau[:, k], dtype=float),
-                                    np.asfortranarray(F[:, :, k], dtype=float), "Kirchoff2Hencky")
+                                    np.asfortranarray(F[:, :, k], dtype=float), "Kirchoff2LogStressU")
     try:
         out[:, idx] = convert(idx)
     except Exception:
@@ -97,7 +97,7 @@ class SolverResults:
         ln V for the logarithmic rates, the Almansi strain for 'truesdell'),
         'LogStrain' (ln V computed from F whatever the rate; the small strain on small-strain
         blocks -- derived on first access and then kept; 'LogStrainV' is the same field),
-        'LogStrainU' (ln U computed from F, reference components) and 'HenckyStress' (the stress T
+        'LogStrainU' (ln U computed from F, reference components) and 'LogStressU' (the stress T
         dual to ln U, computed from 'Kirchhoff' and F) -- the measures of the total formulation,
         offered when the strain of the run is a state function of F (``kinematic_form="total"``, or the
         rates 'logarithmic', 'logarithmic_R', 'truesdell'), 'GreenLagrange' ((6, N), computed from F),
@@ -145,7 +145,7 @@ class SolverResults:
         self._pending = {"LogStrain": self._derive_log_strain}
         if corate_type in _STATE_FUNCTION_STRAIN:
             self._pending["LogStrainU"] = self._derive_log_strain_U
-            self._pending["HenckyStress"] = self._derive_hencky_stress
+            self._pending["LogStressU"] = self._derive_log_stress_u
         if "Lt" in raw:
             self.field_data["TangentMatrix"] = raw["Lt"].reshape(n, 6, 6).transpose(1, 2, 0)
         if self.sv_type == 2:
@@ -171,8 +171,8 @@ class SolverResults:
         # ln U of F is ln V of F^T
         return _log_strain(self.field_data["F"].transpose(1, 0, 2), self.field_data["Strain"], self._finite())
 
-    def _derive_hencky_stress(self) -> np.ndarray:
-        return _hencky_stress(self.field_data["Kirchhoff"], self.field_data["F"], self._finite())
+    def _derive_log_stress_u(self) -> np.ndarray:
+        return _log_stress_u(self.field_data["Kirchhoff"], self.field_data["F"], self._finite())
 
     def _materialize(self, key: str = None) -> None:
         """Compute the pending derived field(s) into field_data (all of them when key is None)."""

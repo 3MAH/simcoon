@@ -259,7 +259,7 @@ formulations run a log-strain box law on the same strain and read its output dif
 path of prescribed :math:`\mathbf{F}` they coincide whenever the stress is coaxial with the
 stretch, up to the first-order quadrature of the log_R strain. A hyperelastic law built on
 :math:`\mathbf{F}` gives the same stress in both. The outputs ``LogStrainU``, ``LogStrainV`` and
-``HenckyStress`` express either run in the measures of the other (see :doc:`output`).
+``LogStressU`` express either run in the measures of the other (see :doc:`output`).
 
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
