@@ -99,7 +99,7 @@ class SolverResults:
         blocks -- derived on first access and then kept; 'LogStrainV' is the same field),
         'LogStrainU' (ln U computed from F, reference components) and 'HenckyStress' (the stress T
         dual to ln U, computed from 'Kirchhoff' and F) -- the measures of the total formulation,
-        offered when the strain of the run is a state function of F (formulation "total", or the
+        offered when the strain of the run is a state function of F (``kinematic_form="total"``, or the
         rates 'logarithmic', 'logarithmic_R', 'truesdell'), 'GreenLagrange' ((6, N), computed from F),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical

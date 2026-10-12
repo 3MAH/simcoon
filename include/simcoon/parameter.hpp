@@ -71,6 +71,12 @@ constexpr int tangent_default = tangent_algorithmic;
 /// a state function of \f$ \mathbf{F} \f$, and on its dual stress \f$ \mathbf{T} \f$.
 constexpr int corate_type_total = 6;
 
+/// Kinematic form of the finite-strain constitutive update, for the interfaces that name it:
+/// @c rate (objective rates, \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$) or @c total
+/// (\f$ \ln\mathbf{U} \f$ and its dual stress \f$ \mathbf{T} \f$, no rate). In a corate_type
+/// slot the total form is corate_type_total.
+enum class KinematicForm { rate, total };
+
 constexpr double div_tnew_dt_umat = 0.2;
 constexpr double mul_tnew_dt_umat  = 2.0;
 constexpr int maxiter_micro = 100;

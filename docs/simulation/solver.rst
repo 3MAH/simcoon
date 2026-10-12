@@ -52,7 +52,7 @@ The last part is to define the loading path. Create a folder ``data`` and a file
 
     {
       "initial_temperature": 293.5,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "small_strain",
@@ -132,12 +132,12 @@ Solver parameters
    * - T_init
      - float
      - Initial temperature in Kelvin (default 293.15); ``load_path_json`` returns the value read from the path file
+   * - kinematic_form
+     - string or int
+     - ``"total"``, an objective rate, or ``"rate"`` (default, the rate ``"logarithmic_R"``): see below
    * - corate
-     - int or string
-     - Corotational spin rate type (see below)
-   * - formulation
-     - string
-     - ``"rate"`` (default) or ``"total"``: see below
+     - string or int
+     - Former name of ``kinematic_form``: the same value under either name
    * - tangent_mode
      - int
      - Tangent-operator mode (default 2): see below
@@ -224,21 +224,25 @@ constitutive models (also exposed as named constants:
 Finite-strain formulation
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``formulation`` parameter selects how a law is updated at finite strain. It fixes the pair
-of measures the law works on.
+The ``kinematic_form`` parameter selects how a law is updated at finite strain. It fixes the pair
+of measures the law works on. It is one value: ``"total"``, or an objective rate of the table
+below (by name or by code), which means the rate formulation with that rate, or ``"rate"``, the
+rate formulation with its default rate ``"logarithmic_R"`` (also the default when nothing is
+given). ``corate`` is the former name of the same parameter and takes the same values; given
+together, the two must agree.
 
 .. list-table::
    :header-rows: 1
    :widths: 14 22 22 42
 
-   * - formulation
+   * - kinematic_form
      - Strain of the law
      - Stress of the law
      - Update
-   * - ``"rate"``
+   * - ``"rate"`` or an objective rate
      - :math:`\ln\mathbf{V}` (spatial) under the logarithmic rates, the default included
      - Kirchhoff :math:`\boldsymbol{\tau}`
-     - Integrated with the objective rate ``corate`` (table below); the stored state is
+     - Integrated with the objective rate (table below); the stored state is
        transported with the frame increment of that rate
    * - ``"total"``
      - :math:`\ln\mathbf{U}` (material)
@@ -246,8 +250,8 @@ of measures the law works on.
      - No rate: the strain is a state function of :math:`\mathbf{F}` in reference components,
        exact at any step size, and nothing is transported
 
-``"total"`` is the strain-space framework of Miehe, Apel and Lambrecht (2002). It takes no
-``corate`` (passing one raises), serves the laws listed in
+``"total"`` is the strain-space framework of Miehe, Apel and Lambrecht (2002). It involves no
+objective rate, serves the laws listed in
 :ref:`the total formulation <strain-space-route>`, and refuses ``"logarithmic"`` and
 ``"small_strain"`` control. **Its**
 ``Strain`` **output is** :math:`\ln\mathbf{U}`. Under the default rate ``"logarithmic_R"`` the two
@@ -260,7 +264,7 @@ stretch, up to the first-order quadrature of the log_R strain. A hyperelastic la
 Corotational spin rate types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The ``corate`` parameter controls the corotational formulation used in finite deformation problems:
+As an objective rate, ``kinematic_form`` (or ``corate``) controls the corotational formulation used in finite deformation problems:
 
 .. list-table::
    :header-rows: 1
@@ -326,7 +330,7 @@ General structure
 
     {
       "initial_temperature": 293.15,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "small_strain",
@@ -343,9 +347,9 @@ Path and block parameters
 
 **initial_temperature**: initial temperature of the simulation (Kelvin); ``load_path_json`` returns it as ``T_init`` for ``solve``.
 
-**formulation**: ``"rate"`` (default when absent) or ``"total"``; a path of the total formulation carries no ``corate``.
+**kinematic_form**: ``"total"``, or the objective rate of the finite-strain control types (``"jaumann"``, ``"green_naghdi"``, ``"logarithmic"``, ``"logarithmic_R"``, ``"truesdell"``, ``"logarithmic_F"``, see the table above), or ``"rate"`` for the default rate ``"logarithmic_R"`` (also when absent). ``load_path_json`` returns it as its third element, for ``solve(kinematic_form=...)``.
 
-**corate**: objective rate of the finite-strain control types (``"jaumann"``, ``"green_naghdi"``, ``"logarithmic"``, ``"logarithmic_R"``, ``"truesdell"``, ``"logarithmic_F"``, see the table above); returned by ``load_path_json`` for ``solve(corate=...)``.
+**corate**: former name of ``kinematic_form``, still read.
 
 **blocks**: the loading blocks, run in order. A block is mechanical or thermomechanical (coupled heat equation) according to its steps: all the steps of a block are :class:`~simcoon.solver.StepMeca` (``"thermomechanical": false``) or all are :class:`~simcoon.solver.StepThermomeca` (``"thermomechanical": true``).
 
@@ -397,7 +401,7 @@ Path and block parameters
    With ``"jaumann"``, ``"logarithmic"`` (XBM) or ``"logarithmic_F"`` under combined
    stretching and rotation, strain-controlled components are approximate and a difference
    is expected; this is one more reason to run with ``"logarithmic_R"`` (see the corate
-   table above). Under ``formulation="total"`` the stored strain is :math:`\ln\mathbf{U}` and the
+   table above). Under ``kinematic_form="total"`` the stored strain is :math:`\ln\mathbf{U}` and the
    law's tangent is :math:`\partial\mathbf{T}/\partial\mathbf{H}`, so ``"logarithmic"`` control
    is refused, and ``"small_strain"`` blocks as well (their strain is not carried by
    :math:`\mathbf{F}`): use ``"green_lagrange"``, ``"biot"``, ``"F"`` or ``"gradU"``.
@@ -550,7 +554,7 @@ Stress-controlled tension/compression cycle, 1000 increments per step:
 
     {
       "initial_temperature": 293.15,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "small_strain",
@@ -593,7 +597,7 @@ Hyperelasticity with deformation gradient control
 
     {
       "initial_temperature": 293.5,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "F",
@@ -628,7 +632,7 @@ Finite deformation with spin (logarithmic strain)
 
     {
       "initial_temperature": 290.0,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "logarithmic",
@@ -660,7 +664,7 @@ Adiabatic strain-controlled loading/unloading (heat equation on, no heat flux):
 
     {
       "initial_temperature": 290.0,
-      "corate": "logarithmic_R",
+      "kinematic_form": "logarithmic_R",
       "blocks": [
         {
           "control_type": "small_strain",

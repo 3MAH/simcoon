@@ -11,7 +11,7 @@ import simcoon._core as _core
 from simcoon.pyumat import UMAT_NAME, registered
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import TANGENT_MODES, as_code, corate_code, tangent_default
+from .maps import TANGENT_MODES, as_code, kinematic_code, tangent_default
 from .micromechanics import to_phase_dicts, euler_angles
 from .results import SolverResults
 
@@ -29,7 +29,7 @@ def solve(
     phases: Optional[Sequence[Any]] = None,
     record_tangent: bool = True,
     raise_on_abort: bool = True,
-    formulation: str = "rate",
+    kinematic_form: Union[str, int, None] = None,
     **params,
 ) -> SolverResults:
     """Solve a homogeneous loading path with the C++ simcoon solver, in memory.
@@ -54,21 +54,24 @@ def solve(
     T_init : float
         Initial temperature.
     corate : str, int or None
-        Objective rate for the finite-strain control types (see CORATE_TYPES).
-        Default (None): 'logarithmic_R' — the exact polar rotation, whose
-        frame increment DR = R1 R0^T makes the tangent transport exact even
-        with rotated internal-variable history (the XBM 'logarithmic' rate
-        keeps a small tangent residual there). MODUL additionally requires
-        log_R under NLGEOM (the modular Hencky composition). Must stay None
-        under ``formulation="total"``.
-    formulation : str
-        Finite-strain formulation of the constitutive update. ``"rate"``
-        (default): the law is integrated with the objective rate ``corate``;
-        it works on ln V and the Kirchhoff stress tau. ``"total"``: the
-        strain-space framework of Miehe, Apel and Lambrecht (2002); the law
-        works on the material logarithmic strain ln U, a state function of F,
-        and on the stress T dual to it. No rate is involved; log-strain box
-        laws and hyperelastic laws built on F; no ``"logarithmic"`` control.
+        Former name of ``kinematic_form``: the same value under either name.
+    kinematic_form : str, int or None
+        Kinematic form of the finite-strain constitutive update, one value:
+
+        - ``"total"``: the strain-space framework of Miehe, Apel and Lambrecht
+          (2002); the law works on the material logarithmic strain ln U, a
+          state function of F, and on the stress T dual to it. No rate is
+          involved; log-strain box laws and hyperelastic laws built on F; no
+          ``"logarithmic"`` nor ``"small_strain"`` control.
+        - an objective rate (see CORATE_TYPES, name or code): the rate form
+          with that rate; the law works on ln V (logarithmic rates) and the
+          Kirchhoff stress tau.
+        - ``"rate"``, or None (default): the rate form with 'logarithmic_R' —
+          the exact polar rotation, whose frame increment DR = R1 R0^T makes
+          the tangent transport exact even with rotated internal-variable
+          history (the XBM 'logarithmic' rate keeps a small tangent residual
+          there). Under the rate form MODUL requires log_R (the modular Hencky
+          composition).
     tangent_mode : str or int
         Tangent operator mode: 'none', 'continuum', 'algorithmic' (default)
         or 'closest_point' (closest-point projection integrator with its exact
@@ -130,7 +133,7 @@ def solve(
         law_ctx = registered(umat_name)
         umat_name = UMAT_NAME
 
-    corate_type = corate_code(corate, formulation)
+    corate_type = kinematic_code(kinematic_form, corate)
     run_params = dict(params)
     run_params["tangent_mode"] = as_code(tangent_mode, TANGENT_MODES, "tangent mode")
 

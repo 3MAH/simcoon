@@ -63,7 +63,7 @@ def test_path_json_holds_names(tmp_path):
     save_path_json(str(f), [Block(steps=[step], control_type=3)], T_init=290.0, corate=1)
     with open(f) as fh:
         payload = json.load(fh)
-    assert payload["corate"] == "green_naghdi"
+    assert payload["kinematic_form"] == "green_naghdi" and "corate" not in payload
     block = payload["blocks"][0]
     assert block["control_type"] == "logarithmic"
     s = block["steps"][0]
@@ -117,24 +117,49 @@ def test_simulation_json_solve_equivalence(tmp_path):
 
 
 def test_total_formulation_path_roundtrip(tmp_path):
-    """A path of the total formulation carries "formulation": "total" and no corate."""
+    """A path carries one "kinematic_form" value: "total" or the name of its objective rate. The
+    third element of load_path_json is that value, valid under either name in solve."""
     mf, pf = tmp_path / "m.json", tmp_path / "p.json"
     F = [1.0, 0.3, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
     block = Block(steps=[StepMeca(control="F", value=F, ninc=4)], control_type="F")
     save_material_json(str(mf), "ELISO", ELISO_PROPS, 1)
-    save_path_json(str(pf), [block], T_init=290.0, formulation="total")
+    save_path_json(str(pf), [block], T_init=290.0, kinematic_form="total")
     payload = json.loads(pf.read_text())
-    assert payload["formulation"] == "total" and "corate" not in payload
-    assert load_path_json(str(pf))[2] is None
+    assert payload["kinematic_form"] == "total" and "corate" not in payload
+    blocks, T_init, form = load_path_json(str(pf))
+    assert form == "total"
 
     kw = load_simulation_json(str(mf), str(pf))
-    assert kw["formulation"] == "total" and kw["corate"] is None
-    res_json = solve(**kw)
-    res_direct = solve(block, "ELISO", ELISO_PROPS, 1, T_init=290.0, formulation="total")
-    np.testing.assert_allclose(res_json["Stress"], res_direct["Stress"], atol=1e-12)
+    assert kw["kinematic_form"] == "total" and "corate" not in kw
+    res_direct = solve(block, "ELISO", ELISO_PROPS, 1, T_init=290.0, kinematic_form="total")
+    for res in (solve(**kw), solve(blocks, "ELISO", ELISO_PROPS, 1, T_init=T_init, corate=form)):
+        np.testing.assert_allclose(res["Stress"], res_direct["Stress"], atol=1e-12)
 
-    with pytest.raises(ValueError, match="no objective rate"):
-        save_path_json(str(pf), [block], corate="logarithmic_R", formulation="total")
+    with pytest.raises(ValueError, match="one value"):
+        save_path_json(str(pf), [block], corate="logarithmic_R", kinematic_form="total")
+
+
+def test_path_json_reads_the_former_corate_key(tmp_path):
+    """A file written before "kinematic_form" carries "corate": same value, still read. The two
+    keys together must agree, "rate" leaving the choice of the rate to "corate"."""
+    pf = tmp_path / "p.json"
+    save_path_json(str(pf), [_uniaxial_block()], corate="jaumann")
+    payload = json.loads(pf.read_text())
+    assert payload["kinematic_form"] == "jaumann"
+
+    payload["corate"] = payload.pop("kinematic_form")
+    pf.write_text(json.dumps(payload))
+    assert load_path_json(str(pf))[2] == "jaumann"
+    payload["kinematic_form"] = "rate"
+    pf.write_text(json.dumps(payload))
+    assert load_path_json(str(pf))[2] == "jaumann"
+    payload["kinematic_form"] = "total"
+    pf.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="one value"):
+        load_path_json(str(pf))
+    del payload["corate"], payload["kinematic_form"]
+    pf.write_text(json.dumps(payload))
+    assert load_path_json(str(pf))[2] == "logarithmic_R"
 
 
 def test_results_npz_roundtrip(tmp_path):

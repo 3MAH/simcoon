@@ -18,7 +18,7 @@ from .maps import (
     BLOCK_TYPES,
     CONTROL_TYPES,
     CORATE_TYPES,
-    FORMULATIONS,
+    KINEMATIC_FORMS,
     STEP_MODES,
     TANGENT_MODES,
     THERMAL_CONTROL,
@@ -45,7 +45,7 @@ from . import micromechanics
 __all__ = [
     "micromechanics",
     "Block", "StepMeca", "StepThermomeca", "SolverResults", "solve",
-    "BLOCK_TYPES", "CONTROL_TYPES", "CORATE_TYPES", "FORMULATIONS", "STEP_MODES",
+    "BLOCK_TYPES", "CONTROL_TYPES", "CORATE_TYPES", "KINEMATIC_FORMS", "STEP_MODES",
     "TANGENT_MODES", "THERMAL_CONTROL",
     "tangent_none", "tangent_continuum", "tangent_algorithmic",
     "tangent_closest_point", "tangent_default",

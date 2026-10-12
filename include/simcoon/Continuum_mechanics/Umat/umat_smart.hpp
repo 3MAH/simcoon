@@ -528,9 +528,9 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
  * \f$ \mathbf{T} \f$. Served: the log-strain boxes, whose output is then \f$ \mathbf{T} \f$, and
  * the hyperelastic kernels built on \f$ \mathbf{F} \f$, whose output stays the true
  * \f$ \boldsymbol{\tau} \f$. Refused: the rate law HYPOO, which integrates from a start stress
- * that has no meaning in that space; MODUL, whose anisotropic hyperelastic block returns
- * \f$ \boldsymbol{\tau}(\mathbf{V}^{el}) \f$ and not the stress dual to its strain; and any kernel
- * whose stress is not the Kirchhoff stress. Never throws.
+ * that has no meaning in that space, and any kernel whose stress is not the Kirchhoff stress.
+ * MODUL is a log-strain box: it is told the form (KinematicForm) so that its hyperelastic block
+ * returns the stress dual to its strain. Never throws.
  */
 bool total_formulation_serves(const std::string &umat_name);
 

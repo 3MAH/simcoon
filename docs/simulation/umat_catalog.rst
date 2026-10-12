@@ -348,7 +348,7 @@ isotropic laws (both finite-difference verified).
    internal variables each kernel declares in ``umat_conventions`` (``umat_smart.cpp``: EPICP,
    EPJCK, EPCHA, the elastic and hyperelastic kernels); a kernel that has not declared them (the
    plasticity names served by the modular engine, ``PYEXT``) is refused under corates 4 and 5,
-   and ``MODUL`` under any corate but 3. Under the total formulation nothing is transported
+   and ``MODUL`` under any corate but 3 (it runs under the total formulation). Under the total formulation nothing is transported
    (see :ref:`the total formulation <strain-space-route>` below). ``EPCHA`` is also refused under corate 4: it stores
    :math:`\mathbf{X}_i = \tfrac23 C_i\,\mathbf{a}_i`, and the Truesdell rate convects the
    back-strain and the back-stress differently.
@@ -380,17 +380,19 @@ a state function. :func:`simcoon.umat` does the same when it is given
 
 .. note::
 
-   ``MODUL`` passes corate 3 unconditionally rather than the solver's value, because it
+   Under the rate formulation ``MODUL`` passes corate 3 unconditionally rather than the solver's value, because it
    evaluates its potential at :math:`\mathbf{V}^{el}` in the corotated frame
    (:math:`\mathbf{R} = \mathbf{I}`), where the log box with respect to
    :math:`\ln \mathbf{V}^{el}` **is**
    :math:`\partial \boldsymbol{\tau} / \partial \boldsymbol{\varepsilon}^{el}`. Any other
    corate is already refused upstream under NLGEOM, so passing one down would not be more
-   general -- it would be wrong.
+   general -- it would be wrong. Under the total formulation the block is told so
+   (``KinematicForm::total``) and returns :math:`\mathbf{T}` and
+   :math:`\partial\mathbf{T}/\partial\mathbf{H}^{el}` instead.
 
 .. _strain-space-route:
 
-**The total formulation (strain space,** ``formulation="total"`` **).** Under the rate
+**The total formulation (strain space,** ``kinematic_form="total"`` **).** Under the rate
 formulation a law works on :math:`\ln\mathbf{V}` (with the logarithmic rates) and the Kirchhoff stress
 :math:`\boldsymbol{\tau}`; under the total formulation it works on :math:`\ln\mathbf{U}` and the
 stress :math:`\mathbf{T}` dual to it. It is not an objective rate: no rate and no spin are
@@ -464,12 +466,15 @@ formulations, so their stress does not depend on it; the dispatcher forms their 
 pair, :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}` with
 :math:`\mathbf{T}` computed from :math:`\boldsymbol{\tau}`, and their box is
 :math:`\partial\mathbf{T}/\partial\mathbf{H}`. The rate law ``HYPOO`` integrates from its start
-stress and is refused. ``MODUL`` is refused as a whole (policy): its anisotropic hyperelastic block
-returns :math:`\boldsymbol{\tau}(\mathbf{V}^{el})`, which is not the stress dual to its strain.
+stress and is refused. ``MODUL`` is a log-strain box and is served: its mechanisms work on
+:math:`\mathbf{H}` and :math:`\mathbf{T}` as those of ``EPICP`` do, and its hyperelastic block
+returns :math:`\mathbf{T} = \partial\psi/\partial\mathbf{H}^{el}` with
+:math:`\partial\mathbf{T}/\partial\mathbf{H}^{el}`. A fibre block (Holzapfel) is then the law built
+on :math:`\mathbf{F}` at any step, where under corate 3 it converges to it at first order.
 ``"logarithmic"`` control is refused too (the stored strain is :math:`\ln\mathbf{U}`). The work of
 a box kernel is its own :math:`\tfrac12(\mathbf{T}_n + \mathbf{T}_{n+1}):\Delta\mathbf{H}`: the
 trapezoidal rule on a conjugate pair, second order in the step, with no correction to apply. Through :func:`simcoon.umat` the caller passes
-``formulation="total"``, :math:`\mathbf{H}(\mathbf{F}_0)`,
+``kinematic_form="total"``, :math:`\mathbf{H}(\mathbf{F}_0)`,
 :math:`\mathbf{H}(\mathbf{F}_1) - \mathbf{H}(\mathbf{F}_0)`,
 :math:`\Delta\mathbf{R} = \mathbf{I}`, and both deformation gradients; the stress stays Cauchy in
 and out, ``tangent_output="box"`` is :math:`\partial\mathbf{T}/\partial\mathbf{H}` and its
@@ -477,7 +482,8 @@ and out, ``tangent_output="box"`` is :math:`\partial\mathbf{T}/\partial\mathbf{H
 
 **The Python contract.** ``sim.umat`` returns **Cauchy** stress and the **Kirchhoff box**
 tangent :math:`\partial \hat{\boldsymbol{\tau}} / \partial \mathbf{D}_e` with no :math:`J`,
-and, under the default ``formulation="rate"``, takes ``corate=`` (default ``3``, log_R)
+and, under the rate formulation, takes the objective rate as ``kinematic_form=`` (``corate=``, its
+former name; default ``3``, log_R)
 selecting the rate that tangent is expressed in. The default is contract-preserving: corates 2 and 3 resolve to the same exact map, so it
 returns precisely the box the finite kernels used to produce unconditionally. Rescaling that
 tangent by :math:`1/J` at the boundary would break ``Lt_convert`` by exactly :math:`J`.

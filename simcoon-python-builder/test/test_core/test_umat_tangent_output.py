@@ -28,7 +28,7 @@ def _col(a, n=N):
 
 def _call(name, corate, **kwargs):
     """``corate`` is an objective rate, or "total" for the total formulation."""
-    kwargs.update({"formulation": "total"} if corate == "total" else {"corate": corate})
+    kwargs.update({"kinematic_form": "total"} if corate == "total" else {"corate": corate})
     props, nstatev, de = LAWS[name]
     rng = np.random.default_rng(1)
     F0 = np.asfortranarray(np.eye(3)[:, :, None] + 0.05 * rng.standard_normal((3, 3, N)))

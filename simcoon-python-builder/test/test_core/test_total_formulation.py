@@ -1,4 +1,4 @@
-"""The total formulation (strain space), ``formulation="total"``.
+"""The total formulation (strain space), ``kinematic_form="total"``.
 
 The law works on ln U and on its dual stress T, where the rate formulation works on ln V and the
 Kirchhoff stress. A log-strain box kernel is fed the material Hencky strain H = 1/2 ln C = ln U, a state function of
@@ -73,16 +73,16 @@ def _dual_stress(tau, F):
     return R.T @ _v2t(np.linalg.solve(np.asarray(sim.A_R(F)).T, _t2v(tau))) @ R
 
 
-def _formulation(corate):
+def _kinematic_form(corate):
     """solve() keywords: an objective rate, or the total formulation."""
-    return {"formulation": "total"} if corate == "total" else {"corate": corate}
+    return {"kinematic_form": "total"} if corate == "total" else {"corate": corate}
 
 
 def _solve(umat, props, nstatev, targets, ninc, corate, control_type="F"):
     steps = [StepMeca(control="F", value=np.asarray(F).ravel().tolist(), time=1., ninc=ninc,
                       Dn_init=1., Dn_mini=1e-6) for F in targets]
     return sim.solver.solve(Block(steps=steps, control_type=control_type), umat,
-                            np.asarray(props, float), nstatev, T_init=290., **_formulation(corate))
+                            np.asarray(props, float), nstatev, T_init=290., **_kinematic_form(corate))
 
 
 def _umat6(umat, props, F0, F1, sigma, statev, Wm, start=False, **kw):
@@ -92,20 +92,46 @@ def _umat6(umat, props, F0, F1, sigma, statev, Wm, start=False, **kw):
     H0, H1 = _t2v_strain(_lnU(F0)), _t2v_strain(_lnU(F1))
     s, sv, wm, Lt = sim.umat(umat, col(H0), col(H1 - H0), cube(F0), cube(F1), col(sigma), cube(np.eye(3)),
                              col(props), col(statev), 0. if start else 1., 0. if start else 1., col(Wm),
-                             np.array([290.]), n_threads=1, formulation="total", start=start, **kw)
+                             np.array([290.]), n_threads=1, kinematic_form="total", start=start, **kw)
     return s[:, 0], np.asarray(sv)[:, 0], np.asarray(wm)[:, 0], Lt[:, :, 0]
 
 
-def test_total_is_a_formulation_not_a_corate():
-    assert sim.solver.FORMULATIONS == ("rate", "total")
+def test_kinematic_form_is_one_value_under_two_names():
+    """"total", "rate" (log_R) or an objective rate, given as kinematic_form or as corate, its
+    former name. The total formulation is not an objective rate: it has no integer code."""
+    from simcoon.solver.maps import kinematic_code
+    assert sim.solver.KINEMATIC_FORMS == ("total", "rate", *sim.solver.CORATE_TYPES)
     assert sim.corate_type_total not in sim.solver.CORATE_TYPES.values()
-    with pytest.raises(ValueError, match="corate"):
-        _solve("ELISO", ELISO, 1, [_shear(0.1)], 1, sim.corate_type_total)
-    step = StepMeca(control="F", value=_shear(0.1).ravel().tolist(), time=1., ninc=1)
-    with pytest.raises(ValueError, match="no objective rate"):
-        sim.solver.solve(Block(steps=[step], control_type="F"), "ELISO", ELISO, 1, corate=3, formulation="total")
-    with pytest.raises(ValueError, match="formulation"):
-        sim.solver.solve(Block(steps=[step], control_type="F"), "ELISO", ELISO, 1, formulation="lagrangian")
+    for name in ("kinematic_form", "corate"):
+        assert kinematic_code(**{name: "total"}) == sim.corate_type_total
+        assert kinematic_code(**{name: "jaumann"}) == 0
+        assert kinematic_code(**{name: 4}) == 4
+        assert kinematic_code(**{name: "rate"}) == 3
+        with pytest.raises(ValueError, match="kinematic_form"):
+            kinematic_code(**{name: sim.corate_type_total})
+        with pytest.raises(ValueError, match="kinematic_form"):
+            kinematic_code(**{name: "lagrangian"})
+    assert kinematic_code() == 3
+    assert kinematic_code("rate", "jaumann") == 0 and kinematic_code("jaumann", 0) == 0
+    for pair in (("total", 3), ("jaumann", "truesdell"), ("rate", "total")):
+        with pytest.raises(ValueError, match="one value"):
+            kinematic_code(*pair)
+
+
+def test_solve_reads_the_value_under_either_name():
+    one = {name: _solve_kw("EPICP", EPICP, 8, **{name: "total"})["Kirchhoff"][:, -1]
+           for name in ("kinematic_form", "corate")}
+    np.testing.assert_array_equal(one["kinematic_form"], one["corate"])
+    rate = {kw: _solve_kw("EPICP", EPICP, 8, **dict([kw]))["Kirchhoff"][:, -1]
+            for kw in (("kinematic_form", "jaumann"), ("corate", 0))}
+    np.testing.assert_array_equal(*rate.values())
+    assert np.abs(rate[("corate", 0)] - one["corate"]).max() > 1.
+
+
+def _solve_kw(umat, props, nstatev, **kw):
+    step = StepMeca(control="F", value=_shear(0.5).ravel().tolist(), time=1., ninc=20, Dn_init=1., Dn_mini=1e-6)
+    return sim.solver.solve(Block(steps=[step], control_type="F"), umat, np.asarray(props, float), nstatev,
+                            T_init=290., **kw)
 
 
 def test_elastic_branch_is_exact_in_one_increment():
@@ -214,7 +240,7 @@ def test_a_law_built_on_F_converges_under_mixed_control():
     st = StepMeca(control=["strain"] + ["stress"] * 5, value=[0.3, 0, 0, 0, 0, 0], time=1., ninc=10,
                   Dn_init=1., Dn_mini=1e-3)
     out = {c: sim.solver.solve(Block(steps=[st], control_type="green_lagrange"), "NEOHC", [1000., 10000.], 1,
-                               T_init=290., **_formulation(c)) for c in (3, "total")}
+                               T_init=290., **_kinematic_form(c)) for c in (3, "total")}
     assert len(out["total"]) == len(out[3]) == 10                 # no step cut
     np.testing.assert_allclose(out["total"]["Kirchhoff"][:, -1], out[3]["Kirchhoff"][:, -1], atol=1e-6)
 
@@ -224,14 +250,14 @@ def test_small_strain_control_is_refused():
     formulation re-reads its strain from F."""
     st = StepMeca(control=["strain"] + ["stress"] * 5, value=[0.01, 0, 0, 0, 0, 0], time=1., ninc=2)
     with pytest.raises(RuntimeError, match="control_type 1"):
-        sim.solver.solve(Block(steps=[st]), "EPICP", EPICP, 8, T_init=290., formulation="total")
+        sim.solver.solve(Block(steps=[st]), "EPICP", EPICP, 8, T_init=290., kinematic_form="total")
 
 
 def test_logarithmic_control_is_refused():
     st = StepMeca(control=["strain"] + ["stress"] * 5, value=[0.1, 0, 0, 0, 0, 0], time=1., ninc=10)
     with pytest.raises(RuntimeError, match="control_type 3"):
         sim.solver.solve(Block(steps=[st], control_type="logarithmic"), "EPICP", EPICP, 8, T_init=290.,
-                         formulation="total")
+                         kinematic_form="total")
 
 
 @pytest.mark.parametrize("control_type, target", [("green_lagrange", 0.15), ("biot", 1.15)])
@@ -242,7 +268,7 @@ def test_mixed_control_converges_like_log_R_on_a_coaxial_path(control_type, targ
     st = StepMeca(control=["strain"] + ["stress"] * 5, value=[target, 0, 0, 0, 0, 0], time=1., ninc=50,
                   Dn_init=1., Dn_mini=1e-3)
     out = {c: sim.solver.solve(Block(steps=[st], control_type=control_type), "EPICP", EPICP, 8, T_init=290.,
-                               **_formulation(c)) for c in (3, "total")}
+                               **_kinematic_form(c)) for c in (3, "total")}
     assert len(out["total"]) == len(out[3]) == 50                 # no step cut
     assert np.abs(out["total"]["Kirchhoff"][1:, -1]).max() < 1e-6
     assert out["total"]["Kirchhoff"][0, -1] == pytest.approx(out[3]["Kirchhoff"][0, -1], rel=1e-6)
@@ -269,9 +295,27 @@ def test_umat_refuses_a_rate_law():
         _umat6("HYPOO", ORTHO, np.eye(3), _shear(0.1), np.zeros(6), np.zeros(1), np.zeros(4))
 
 
-def test_umat_takes_no_corate_under_the_total_formulation():
-    with pytest.raises(ValueError, match="no objective rate"):
-        _umat6("EPICP", EPICP, np.eye(3), _shear(0.1), np.zeros(6), np.zeros(8), np.zeros(4), corate=3)
+def test_umat_reads_the_value_under_either_name():
+    """sim.umat: kinematic_form and corate are one value, by name or by code."""
+    args = ("EPICP", EPICP, np.eye(3), _shear(0.1), np.zeros(6), np.zeros(8), np.zeros(4))
+    ref = _umat6(*args)                                   # kinematic_form="total"
+    with pytest.raises(ValueError, match="one value"):
+        _umat6(*args, corate=3)
+    np.testing.assert_array_equal(_umat6(*args, corate="total")[0], ref[0])
+
+    def rate(**kw):
+        col = lambda a: np.asfortranarray(np.asarray(a, float).reshape(-1, 1))
+        cube = lambda a: np.asfortranarray(np.asarray(a, float).reshape(3, 3, 1))
+        return sim.umat("EPICP", col(np.zeros(6)), col([2e-3, 0, 0, 4e-3, 0, 0]), cube(np.eye(3)),
+                        cube(_shear(4e-3)), col(np.zeros(6)), cube(np.eye(3)), col(EPICP), col(np.zeros(8)),
+                        0., 1., col(np.zeros(4)), np.array([290.]), n_threads=1, start=True, **kw)[3]
+
+    np.testing.assert_array_equal(rate(corate=0), rate(kinematic_form="jaumann"))
+    np.testing.assert_array_equal(rate(), rate(kinematic_form="rate"))
+    np.testing.assert_array_equal(rate(), rate(kinematic_form=3))
+    np.testing.assert_array_equal(rate(kinematic_form="rate", corate=0), rate(corate=0))
+    with pytest.raises(ValueError, match="kinematic_form"):
+        rate(kinematic_form="lagrangian")
 
 
 def test_umat_serves_a_law_built_on_F_like_the_solver():
@@ -293,7 +337,7 @@ def test_umat_needs_the_deformation_gradients():
     with pytest.raises(ValueError, match="F0 and F1"):
         sim.umat("EPICP", col(np.zeros(6)), col(np.zeros(6)), empty, empty, col(np.zeros(6)),
                  np.asfortranarray(np.eye(3).reshape(3, 3, 1)), col(EPICP), col(np.zeros(8)), 0., 1.,
-                 col(np.zeros(4)), n_threads=1, formulation="total")
+                 col(np.zeros(4)), n_threads=1, kinematic_form="total")
 
 
 def test_material_tangent_matches_finite_difference_with_plastic_history():
@@ -386,9 +430,75 @@ def test_one_box_read_in_the_two_formulations():
 
 
 def test_which_laws_the_total_formulation_serves():
-    """Log-strain boxes and hyperelastic laws built on F; not the rate law, the modular
-    material, nor a small-strain-only law."""
-    for name in ("ELISO", "ELORT", "EPICP", "EPCHA", "EPJCK", "PYEXT", "NEOHC", "SNTVE", "HOLZA", "OGDEN"):
+    """Log-strain boxes, the modular material among them, and hyperelastic laws built on F; not
+    the rate law nor a small-strain-only law."""
+    for name in ("ELISO", "ELORT", "EPICP", "EPCHA", "EPJCK", "PYEXT", "MODUL", "NEOHC", "SNTVE", "HOLZA", "OGDEN"):
         assert sim.total_formulation_serves(name), name
-    for name in ("HYPOO", "MODUL", "SMADI", "ZENER", "UMEXT", "no such law"):
+    for name in ("HYPOO", "SMADI", "ZENER", "UMEXT", "no such law"):
         assert not sim.total_formulation_serves(name), name
+
+
+# ---------------------------------------------------------------------------------------------
+# The modular material (MODUL) under the total formulation
+# ---------------------------------------------------------------------------------------------
+
+def _holzapfel():
+    from simcoon.modular import HolzapfelElasticity, ModularMaterial
+    el = HolzapfelElasticity(C10=0.0354, k1=0.0107, k2=7.48, kappa_d=0.0,
+                             fibres=sim.Rotation.from_euler("zxz", [[0.0, 0.0, 30.0]], degrees=True),
+                             kappa=1000.0)
+    return el, ModularMaterial(elasticity=el)
+
+
+def test_modular_plasticity_is_the_dedicated_box_under_the_total_formulation():
+    """A MODUL J2 composition and EPICP are the same log-strain box: same stress, same plastic
+    work, in plastic simple shear under the total formulation. The two kernels split the
+    non-recoverable work differently (Wm_ir against Wm_d), whatever the formulation."""
+    from simcoon.modular import elastoplastic_model
+    mat = elastoplastic_model(E=210000., nu=0.3, sigma_Y=250., k=1., m=1.)
+    ref = _solve("EPICP", EPICP, 8, [_shear(1.0)], 50, "total")
+    mod = _solve(mat.umat_name, mat.props, mat.nstatev, [_shear(1.0)], 50, "total")
+    np.testing.assert_allclose(mod["Kirchhoff"][:, -1], ref["Kirchhoff"][:, -1], rtol=0, atol=1e-6)
+    np.testing.assert_allclose(mod["Wm"][:2, -1], ref["Wm"][:2, -1], rtol=1e-8, atol=1e-8)
+
+
+def test_modular_isotropic_hyperelastic_block_is_the_standalone_law():
+    """MODUL with a Yeoh block against YEOHH, built on F: the same stress at any step, since the
+    block is evaluated on a state function of F."""
+    from simcoon.modular import ModularMaterial, YeohElasticity
+    mat = ModularMaterial(elasticity=YeohElasticity(C10=0.30, C20=-0.010, C30=0.0005, kappa=1000.0))
+    ref = _solve("YEOHH", [0.30, -0.010, 0.0005, 1000.0], 1, [_shear(0.8)], 2, "total")
+    mod = _solve(mat.umat_name, mat.props, mat.nstatev, [_shear(0.8)], 2, "total")
+    np.testing.assert_allclose(mod["Kirchhoff"][:, -1], ref["Kirchhoff"][:, -1],
+                               rtol=0, atol=1e-9 * np.abs(ref["Kirchhoff"][:, -1]).max())
+
+
+def test_modular_fibre_block_is_exact_at_any_step_under_the_total_formulation():
+    """MODUL with a Holzapfel block against HOLZA, in two increments. The block returns the stress
+    dual to its strain, so the fibre response is the one of the law built on F; under corate 3
+    it only converges to it, at first order in the step (test_finite_objectivity)."""
+    el, mat = _holzapfel()
+    ref = _solve("HOLZA", el.potential_params(), 1, [_shear(0.5)], 2, "total")
+    mod = _solve(mat.umat_name, mat.props, mat.nstatev, [_shear(0.5)], 2, "total")
+    np.testing.assert_allclose(mod["Kirchhoff"][:, -1], ref["Kirchhoff"][:, -1],
+                               rtol=0, atol=1e-9 * np.abs(ref["Kirchhoff"][:, -1]).max())
+    np.testing.assert_allclose(mod["Wm"][0, -1], ref["Wm"][0, -1], rtol=1e-6)
+
+
+def test_modular_fibre_block_tangent_is_the_derivative_of_the_dual_stress():
+    """dT/dH of the Holzapfel block by central differences on a non-coaxial state."""
+    _, mat = _holzapfel()
+    statev = np.zeros(mat.nstatev)
+    statev[0] = 290.
+
+    def box(H):
+        F = expm(_v2t(H * np.array([1., 1., 1., .5, .5, .5])))
+        s, _, _, Lt = _umat6(mat.umat_name, mat.props, np.eye(3), F, np.zeros(6), statev, np.zeros(4),
+                             start=True)
+        return np.ravel(sim.stress_convert(s * np.linalg.det(F), F, "Kirchoff2Hencky")), Lt
+
+    H = np.array([0.20, -0.05, -0.10, 0.30, 0.10, -0.15])
+    _, Lt = box(H)
+    h = 1e-6
+    fd = np.column_stack([(box(H + h * e)[0] - box(H - h * e)[0]) / (2 * h) for e in np.eye(6)])
+    np.testing.assert_allclose(Lt, fd, rtol=0, atol=1e-6 * np.abs(fd).max())

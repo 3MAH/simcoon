@@ -35,11 +35,14 @@ CORATE_TYPES = {
     "logarithmic_F": 5,    # log_F rate (A_F strain concentration)
 }
 
-#: Finite-strain formulation of the constitutive update. "rate": the law is integrated with an
-#: objective rate (CORATE_TYPES). "total": the strain is the state function ln U of F in
+#: Kinematic form of the finite-strain constitutive update: ONE value, which names the form and,
+#: for the rate form, its objective rate. "total": the strain is the state function ln U of F in
 #: reference components and the law returns its dual stress (Miehe-Apel-Lambrecht strain space);
-#: no rate is involved. The C++ solver carries the total formulation in its corate_type slot.
-FORMULATIONS = ("rate", "total")
+#: no rate is involved. A name of CORATE_TYPES: the rate form with that objective rate. "rate":
+#: the rate form with its default rate, 'logarithmic_R'. The C++ solver carries the total form
+#: in its corate_type slot.
+KINEMATIC_FORMS = ("total", "rate", *CORATE_TYPES)
+_KINEMATIC_CODES = {"total": _corate_type_total, "rate": CORATE_TYPES["logarithmic_R"], **CORATE_TYPES}
 
 #: Thermal boundary condition of a thermomechanical step (cBC_T in the C++ solver)
 THERMAL_CONTROL = {
@@ -64,23 +67,33 @@ TANGENT_MODES = {
 }
 
 
-def corate_code(corate, formulation):
-    """Code the C++ solver reads in its corate_type slot for a formulation and an objective rate.
+def kinematic_code(kinematic_form=None, corate=None):
+    """Code the C++ solver reads in its corate_type slot for a kinematic form.
 
-    Parameters
-    ----------
-    corate : str, int or None
-        Objective rate (see CORATE_TYPES); None is 'logarithmic_R'. Only under "rate".
-    formulation : str
-        "rate" or "total" (see FORMULATIONS).
+    ``kinematic_form`` and ``corate`` are two names of the same value (``corate`` is the former
+    one): "total", "rate", or an objective rate by name or code (see KINEMATIC_FORMS). Neither
+    given: 'logarithmic_R'. Both given: they must agree, ``kinematic_form="rate"`` leaving the
+    choice of the rate to ``corate``.
     """
-    if formulation not in FORMULATIONS:
-        raise ValueError(f"unknown formulation '{formulation}'; valid names: {list(FORMULATIONS)}")
-    if formulation == "total":
-        if corate is not None:
-            raise ValueError("the total formulation involves no objective rate: leave corate unset")
-        return _corate_type_total
-    return as_code("logarithmic_R" if corate is None else corate, CORATE_TYPES, "corate")
+    def code(value):
+        if isinstance(value, str):
+            return as_code(value, _KINEMATIC_CODES, "kinematic_form")
+        return as_code(value, CORATE_TYPES, "kinematic_form")   # the total form has a name only
+
+    if kinematic_form is None:
+        return code("rate" if corate is None else corate)
+    if corate is None or code(corate) == code(kinematic_form):
+        return code(kinematic_form)
+    if kinematic_form == "rate" and code(corate) != _corate_type_total:
+        return code(corate)
+    raise ValueError(f"kinematic_form and corate (its former name) are one value; got "
+                     f"{kinematic_form!r} and {corate!r}")
+
+
+def kinematic_name(kinematic_form=None, corate=None):
+    """The documented name of a kinematic form: "total" or the name of its objective rate."""
+    code = kinematic_code(kinematic_form, corate)
+    return next(name for name, c in {"total": _corate_type_total, **CORATE_TYPES}.items() if c == code)
 
 
 def as_code(value, mapping, what):

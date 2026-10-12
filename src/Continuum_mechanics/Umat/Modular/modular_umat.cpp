@@ -873,13 +873,15 @@ void umat_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode
+    const int& tangent_mode,
+    const KinematicForm& kinematic_form
 ) {
     // Create a fresh instance each call. Configuration is re-parsed from props
     // and state is restored from statev, ensuring correctness for multi-point
     // simulations. The cost of re-parsing props is negligible compared to the
     // Newton iteration in return_mapping.
     ModularUMAT mumat;
+    mumat.set_kinematic_form(kinematic_form);
 
     mumat.run(
         umat_name, Etot, DEtot, sigma, Lt, L, DR,

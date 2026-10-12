@@ -110,9 +110,34 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
     throw py::error_already_set();
 }
 
+// Code of a kinematic form given as "total", "rate" (log_R), or an objective rate by name or
+// code; -1 when not given. The names are those of simcoon.solver.maps.
+int kinematic_code(const py::object &value) {
+    if (value.is_none()) return -1;
+    if (py::isinstance<py::str>(value)) {
+        static const std::map<std::string, int> names = {
+            {"total", simcoon::corate_type_total}, {"rate", 3}, {"jaumann", 0}, {"green_naghdi", 1},
+            {"logarithmic", 2}, {"logarithmic_R", 3}, {"truesdell", 4}, {"logarithmic_F", 5}};
+        const auto it = names.find(value.cast<std::string>());
+        if (it == names.end()) {
+            throw std::invalid_argument("kinematic_form (or corate) must be 'total', 'rate' or an objective rate "
+                                        "('jaumann', 'green_naghdi', 'logarithmic', 'logarithmic_R', 'truesdell', "
+                                        "'logarithmic_F'); got '" + value.cast<std::string>() + "'");
+        }
+        return it->second;
+    }
+    const int code = value.cast<int>();
+    if (code < 0 || code > 5) {
+        throw std::invalid_argument("corate must be 0 (Jaumann), 1 (Green-Naghdi), 2 (logarithmic), "
+                                    "3 (logarithmic_R), 4 (Truesdell) or 5 (logarithmic_F); got "
+                                    + std::to_string(code));
+    }
+    return code;
+}
+
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const std::optional<int> &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const std::string &formulation){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -124,25 +149,18 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			throw std::invalid_argument("tangent_mode must be 0 (none), 1 (continuum), 2 (algorithmic) or 3 (closest-point); got "
 			                            + std::to_string(tangent_mode));
 		}
-		if (formulation != "rate" && formulation != "total") {
-			throw std::invalid_argument("formulation must be 'rate' or 'total'; got '" + formulation + "'");
-		}
-		// The total formulation has no objective rate; the dispatch carries it in the corate slot
-		const bool total = (formulation == "total");
-		int corate_type = simcoon::corate_type_total;
-		if (total) {
-			if (corate_py.has_value()) {
-				throw std::invalid_argument("umat: the total formulation involves no objective rate, leave corate unset");
+		// kinematic_form and corate (its former name) are one value; the dispatch carries the
+		// total formulation in the corate slot
+		const int form = kinematic_code(kinematic_form_py), former = kinematic_code(corate_py);
+		int corate_type = (form >= 0) ? form : ((former >= 0) ? former : 3);
+		if (form >= 0 && former >= 0 && form != former) {
+			const bool default_rate = py::isinstance<py::str>(kinematic_form_py) && kinematic_form_py.cast<std::string>() == "rate";
+			if (!default_rate || former == simcoon::corate_type_total) {
+				throw std::invalid_argument("umat: kinematic_form and corate (its former name) are one value; got two that differ");
 			}
+			corate_type = former;
 		}
-		else {
-			corate_type = corate_py.value_or(3);
-			if (corate_type < 0 || corate_type > 5) {
-				throw std::invalid_argument("corate must be 0 (Jaumann), 1 (Green-Naghdi), 2 (logarithmic), "
-				                            "3 (logarithmic_R), 4 (Truesdell) or 5 (logarithmic_F); got "
-				                            + std::to_string(corate_type));
-			}
-		}
+		const bool total = (corate_type == simcoon::corate_type_total);
 		// tangent_output: the box d(tau_hat)/dDe as the kernels return it, or the material dS/dE
 		// (TL) / spatial Lie dsigma/dD (UL) tangent, converted per point inside the parallel loop
 		enum { tangent_out_box, tangent_out_material, tangent_out_spatial };
@@ -295,8 +313,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 				break;
 			}
 			case 200: { // MODUL (modular UMAT, small-strain)
-				umat_function = &simcoon::umat_modular;
-				arguments_type = 1;
+				arguments_type = 3;   // called by name: it takes the kinematic form
 				break;
 			}
 			case 21: case 22: case 23: case 24: case 25: case 26: case 27: {
@@ -353,7 +370,7 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 		if (total) {
 			if (!simcoon::total_formulation_serves(umat_name_py)) {
 				throw std::invalid_argument("umat: the total formulation (strain space) does not serve '"
-				                            + umat_name_py + "'; use formulation='rate'");
+				                            + umat_name_py + "'; use kinematic_form='rate'");
 			}
 			if (!kirchhoff_normalize) {
 				throw std::invalid_argument("umat: the total formulation (strain space) needs F0 and F1 to map the stress to and from the Cauchy stress");
@@ -433,6 +450,10 @@ arma::vec::fixed<6> lab_start_stress(const arma::vec::fixed<6> &tau_start_tr, co
 			switch (arguments_type) {
 				case 1: {
 					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
+					break;
+				}
+				case 3: {
+					simcoon::umat_modular(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate);
 					break;
 				}
 				case 2: {

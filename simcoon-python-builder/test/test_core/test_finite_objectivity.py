@@ -25,9 +25,9 @@ def _rz(th):
     return np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
 
 
-def _formulation(corate):
+def _kinematic_form(corate):
     """solve() keywords of a parametrised case: an objective rate, or the total formulation."""
-    return {"formulation": "total"} if corate == "total" else {"corate": corate}
+    return {"kinematic_form": "total"} if corate == "total" else {"corate": corate}
 
 
 _PLASTIC = {
@@ -53,7 +53,7 @@ def test_rigid_rotation_of_a_plastic_state_is_exact(corate, umat):
              StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-4)]
     r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, props, nstatev,
-                         T_init=290., **_formulation(corate))
+                         T_init=290., **_kinematic_form(corate))
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     assert r["Statev"][1, i1] > 1e-2, "the stretch must have yielded"
     tau1, tau2 = _v2t(r["Kirchhoff"][:, i1]), _v2t(r["Kirchhoff"][:, -1])
@@ -81,7 +81,7 @@ def test_stress_hold_under_spin(umat, control_type, corate):
              StepMeca(control="stress", value=[target, 0, 0, 0, 0, 0], time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-3, BC_w=w)]
     r = sim.solver.solve(Block(steps=steps, control_type=control_type), umat,
-                         np.array([100000., 0.3, 0.]), 1, T_init=290., **_formulation(corate),
+                         np.array([100000., 0.3, 0.]), 1, T_init=290., **_kinematic_form(corate),
                          record_tangent=False)
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     S1, S2 = r["PKII"][:, i1], r["PKII"][:, -1]
@@ -196,7 +196,7 @@ def test_orthotropic_axes_follow_a_rigid_rotation(umat, corate, orientation):
              StepMeca(control="F", value=(R @ F1).ravel().tolist(), time=1., ninc=100,
                       Dn_init=1., Dn_mini=1e-4)]
     r = sim.solver.solve(Block(steps=steps, control_type="F"), umat, _ORTHO, 1, T_init=290.,
-                         orientation=orientation, **_formulation(corate))
+                         orientation=orientation, **_kinematic_form(corate))
     i1 = np.argmin(np.abs(r["Time"] - 1.0))
     tau1, tau2 = _v2t(r["Kirchhoff"][:, i1]), _v2t(r["Kirchhoff"][:, -1])
     np.testing.assert_allclose(tau2, R @ tau1 @ R.T, atol=1e-10 * np.abs(tau1).max())

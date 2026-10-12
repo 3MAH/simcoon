@@ -293,7 +293,7 @@ bool stress_output_is_kirchhoff(const std::string &umat_name)
 
 bool total_formulation_serves(const std::string &umat_name)
 {
-    return umat_name != "HYPOO" && umat_name != "MODUL" && stress_output_is_kirchhoff(umat_name);
+    return umat_name != "HYPOO" && stress_output_is_kirchhoff(umat_name);
 }
 
 vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, const bool &box, double &dW)
@@ -452,13 +452,11 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
     if (id_umat == 200) {   // MODUL
         // tau = d psi / d eps_el is a stored-energy law only when the accumulated strain is ln V:
         // corate 3, or 2 in closed form. Only 3 is accepted (policy: the production rate).
-        if (corate_type != 3) {
+        if (corate_type != 3 && corate_type != corate_type_total) {
             throw simcoon::exception_solver(
-                "MODUL under finite strain requires corate_type = 3 "
-                "(log_R): the modular composition is hyperelastic in "
-                "the logarithmic strain; got "
-                + (corate_type == corate_type_total ? std::string("the total formulation")
-                                                    : "corate_type = " + std::to_string(corate_type)));
+                "MODUL under finite strain requires corate_type = 3 (log_R) or the total "
+                "formulation: the modular composition is hyperelastic in the logarithmic "
+                "strain; got corate_type = " + std::to_string(corate_type));
         }
     }
 
@@ -566,7 +564,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
             }
             case 200: {
                 // MODUL under NLGEOM is a Hencky hyperelastic composition:
-                umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode);
+                umat_modular(rve.sptr_matprops->umat_name, umat_M->etot, umat_M->Detot, umat_M->sigma, umat_M->Lt, umat_M->L, DR_kernel, rve.sptr_matprops->nprops, rve.sptr_matprops->props, umat_M->nstatev, umat_M->statev, umat_M->T, umat_M->DT, Time, DTime, umat_M->Wm(0), umat_M->Wm(1), umat_M->Wm(2), umat_M->Wm(3), ndi, nshr, start, tnew_dt, umat_M->tangent_mode, total ? KinematicForm::total : KinematicForm::rate);
                 break;
             }
             case 9: {

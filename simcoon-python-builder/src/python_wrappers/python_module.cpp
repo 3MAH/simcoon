@@ -239,7 +239,7 @@ PYBIND11_MODULE(_core, m)
     // 0 Jaumann, 1 Green-Naghdi, 2 XBM/log, 3 log_R, 4 Truesdell, 5 log_F). Default 3 = log_R,
     // the framework's route. The small-strain/in-rate kernels ignore it, since
     // their tangent is already in the solver's frame.
-    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = pybind11::none(), "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), "formulation"_a = "rate", simcoon_docs::umat);
+    m.def("umat", &launch_umat, "umat_name"_a, "etot"_a, "Detot"_a, "F0"_a, "F1"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "temp"_a = pybind11::none(), "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "corate"_a = pybind11::none(), "work_correction"_a = true, "tangent_output"_a = "box", "start"_a = pybind11::none(), "kinematic_form"_a = pybind11::none(), simcoon_docs::umat);
     m.def("umat_T", &launch_umat_T, "umat_name"_a, "etot"_a, "Detot"_a, "sigma"_a, "DR"_a, "props"_a, "statev"_a, "time"_a, "dtime"_a, "Wm"_a, "Wt"_a, "T"_a, "DT"_a, "ndi"_a = 3, "n_threads"_a = 4, "tangent_mode"_a = simcoon::tangent_default, "start"_a = pybind11::none());
 
     // Register the from-python converters for read and solver
@@ -251,7 +251,7 @@ PYBIND11_MODULE(_core, m)
     m.attr("tangent_closest_point") = simcoon::tangent_closest_point;
     m.attr("tangent_default") = simcoon::tangent_default;
     m.attr("corate_type_total") = simcoon::corate_type_total;
-    m.def("total_formulation_serves", &simcoon::total_formulation_serves, "umat_name"_a, "Whether the named law can run under formulation='total' (ln U and its dual stress T): the log-strain box laws and the hyperelastic laws built on F; not HYPOO, MODUL, nor a law whose stress is not the Kirchhoff stress.");
+    m.def("total_formulation_serves", &simcoon::total_formulation_serves, "umat_name"_a, "Whether the named law can run under kinematic_form='total' (ln U and its dual stress T): the log-strain box laws, MODUL among them, and the hyperelastic laws built on F; not HYPOO nor a law whose stress is not the Kirchhoff stress.");
 
     //The file-driven entry points (solver, read_matprops, read_path) are gone: the loading
     //programme is built in Python and handed over in memory. See simcoon.solver.solve.

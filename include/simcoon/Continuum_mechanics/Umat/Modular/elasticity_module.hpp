@@ -41,6 +41,7 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <armadillo>
 #include <stdexcept>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/tensor.hpp>
 
@@ -137,6 +138,7 @@ private:
     tensor4 L_t_;           ///< Typed stiffness, rebuilt by configure_* (eng→Mandel once)
     tensor4 M_t_;           ///< Typed compliance, rebuilt by configure_*
     bool configured_;
+    KinematicForm kinematic_form_ = KinematicForm::rate;  ///< HYPER_INVARIANTS: which stress and tangent evaluate() returns
 
     /// Rebuild the typed L/M mirrors after L_/M_ change; every configure_*
     /// path must call this so L_tensor()/M_tensor() stay cheap const-refs.
@@ -285,6 +287,14 @@ public:
     [[nodiscard]] bool has_constant_stiffness() const noexcept { return type_ != ElasticityType::HYPER_INVARIANTS; }
 
     /**
+     * @brief Kinematic form the block is evaluated in (default: rate).
+     *
+     * Read by a hyperelastic block only, see evaluate(). The linear blocks are the same
+     * operator on the strain they are given, whatever its form.
+     */
+    void set_kinematic_form(KinematicForm kinematic_form) noexcept { kinematic_form_ = kinematic_form; }
+
+    /**
      * @brief Check if the module is configured
      * @return True if configure has been called
      */
@@ -375,7 +385,14 @@ public:
      *         \boldsymbol{\varepsilon}^{el} \f$. MODUL under finite strain refuses any other
      *         corate (select_umat_M_finite), and that guard is what makes this exact.
      *
-     *       The linear blocks carry no \f$ J \f$ and build no rate, so neither applies to them.
+     *       - Under the total kinematic form (set_kinematic_form) the strain is
+     *         \f$ \mathbf{H}^{el} \f$ in reference components and the block returns the stress
+     *         dual to it, \f$ \mathbf{T} = \partial \psi / \partial \mathbf{H}^{el} \f$
+     *         (Kirchoff2Hencky() of the stress above at \f$ \mathbf{F} := \mathbf{V}^{el} \f$),
+     *         with \f$ \partial \mathbf{T} / \partial \mathbf{H}^{el} \f$. This is exact for an
+     *         anisotropic \f$ W \f$ too, coaxial or not.
+     *
+     *       The linear blocks carry no \f$ J \f$ and build no rate, so none of this applies to them.
      *
      * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
      * @param[in]  ndi number of direct stress components. ndi < 3 statically
