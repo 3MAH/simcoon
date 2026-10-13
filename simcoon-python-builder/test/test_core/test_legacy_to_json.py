@@ -135,7 +135,7 @@ def test_convert_to_json(tmp_path):
     from_json = slv.load_simulation_json(Path(data) / "material.json",
                                                 Path(data) / "path.json")
     blocks, T_init = legacy.from_file(data, "path.txt")
-    assert from_json["corate"] == "logarithmic"          # Rate_type 2 of the .inp
+    assert from_json["kinematic_form"] == "logarithmic"          # Rate_type 2 of the .inp
     assert from_json["T_init"] == T_init
     as_text = lambda bs: json.dumps([b.to_dict(T_init) for b in bs],
                                     default=lambda o: np.asarray(o).tolist())

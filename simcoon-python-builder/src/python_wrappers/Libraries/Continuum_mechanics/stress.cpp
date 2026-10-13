@@ -9,6 +9,7 @@
 #include <assert.h>
 
 #include <simcoon/Continuum_mechanics/Functions/stress.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/stress.hpp>
 
@@ -41,7 +42,11 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
         {"PKII2Kirchoff",7},
         {"PKII2Kirchhoff",7},
         {"PKI2Cauchy",8},
-        {"PKII2Cauchy",9}
+        {"PKII2Cauchy",9},
+        {"Kirchoff2LogStressU",10},
+        {"Kirchhoff2LogStressU",10},
+        {"LogStressU2Kirchoff",11},
+        {"LogStressU2Kirchhoff",11}
     };
 
     const auto it = list_stress_convert.find(converter_key);
@@ -54,7 +59,8 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             "Kirchoff2PKII (or Kirchhoff2PKII), "
             "PKI2Kirchoff (or PKI2Kirchhoff), "
             "PKII2Kirchoff (or PKII2Kirchhoff), "
-            "PKI2Cauchy or PKII2Cauchy"
+            "PKI2Cauchy, PKII2Cauchy, "
+            "Kirchoff2LogStressU (or Kirchhoff2LogStressU) or LogStressU2Kirchoff (or LogStressU2Kirchhoff)"
         );
     }
     const int select = it->second;
@@ -101,8 +107,16 @@ py::array_t<double> stress_convert(const py::array_t<double> &sigma, const py::a
             functor_stress_converter = &simcoon::PKII2Cauchy;
             break;
         }            
+        case 10: {   // T dual to ln U; J plays no part
+            functor_stress_converter = [](const mat &tau, const mat &F, const double &) { return simcoon::Kirchoff2LogStressU(tau, F); };
+            break;
+        }
+        case 11: {
+            functor_stress_converter = [](const mat &T, const mat &F, const double &) { return simcoon::LogStressU2Kirchoff(T, F); };
+            break;
+        }
         default: {
-            throw std::invalid_argument("Invalid input of the stress converter key: Cauchy2PKI, Cauchy2PKII, Cauchy2Kirchoff, Kirchoff2Cauchy, Kirchoff2PKI, Kirchoff2PKII, PKI2Kirchoff, PKII2Kirchoff, PKI2Cauchy or PKII2Cauchy");                
+            throw std::invalid_argument("Invalid input of the stress converter key");   // unreachable: the key was validated above
         }
     }
 

@@ -669,13 +669,14 @@ constexpr auto umat = R"pbdoc(
         100 points or fewer always run serially.
     tangent_mode : int
         0 none, 1 continuum, 2 algorithmic (default).
-    corate : int
-        Objective rate the returned tangent is expressed in: 0 Jaumann,
-        1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default), 4 Truesdell,
-        5 log_F. Choosing the coupler's own rate here spares it a tangent
+    corate : int or str, optional
+        Former name of ``kinematic_form``: the same value under either name.
+        As an objective rate, it is the one the returned tangent is expressed
+        in: 0 Jaumann, 1 Green-Naghdi, 2 XBM (logarithmic), 3 log_R (default),
+        4 Truesdell, 5 log_F. Choosing the coupler's own rate here spares it a tangent
         conversion. Kernels fed the corotated strain (the small-strain and
         log-strain boxes, MODUL, HYPOO) are in-rate already: their tangent
-        ignores it (the in-memory solver runs MODUL under 3 only), but Wm
+        ignores it (the in-memory solver runs MODUL under 3 or the total form only), but Wm
         does not (see Notes). Any other value raises ValueError.
     work_correction : bool
         Apply the log-corate work correction to Wm (default True, see Notes).
@@ -691,7 +692,7 @@ constexpr auto umat = R"pbdoc(
         The conversion runs per point inside the parallel loop: the corate's
         box -> dS/dE map (the one the solver uses; for corates 0-3 it equals
         Lt_convert with DsigmaDe_JaumannDD_2_DSDE, DsigmaDe_GreenNaghdiDD_2_DSDE
-        or DsigmaDe_2_DSDE), then DSDE_2_Dsigma_LieDD for 'spatial'. One call
+        or DsigmaDe_2_DSDE; DTDH_2_DSDE under kinematic_form='total'), then DSDE_2_Dsigma_LieDD for 'spatial'. One call
         replaces umat plus one or two Lt_convert passes.
     start : bool, optional
         Whether this call initialises the material points. True re-initialises
@@ -702,6 +703,18 @@ constexpr auto umat = R"pbdoc(
         correction of the first increment. A coupler that knows when a point is
         fresh should pass it explicitly: True on its initialisation call only,
         False otherwise. umat_T takes the same argument.
+    kinematic_form : str or int, optional
+        Kinematic form of the update, one value. An objective rate, by code
+        (0 to 5) or by name ('jaumann', 'green_naghdi', 'logarithmic',
+        'logarithmic_R', 'truesdell', 'logarithmic_F'): the rate form with
+        that rate; the law works on ln V and the Kirchhoff stress tau.
+        'rate' or None (default): the rate form with log_R.
+        'total': the strain-space framework of Miehe, Apel and Lambrecht
+        (2002); the law works on the material logarithmic strain ln U, a
+        state function of F, and on the stress T dual to it. Pass
+        etot = ln U(F0), Detot = ln U(F1) - ln U(F0), DR = I and both F; the
+        box is then dT/dH, and the stress stays Cauchy in and out (T is
+        converted at the two ends). No objective rate is involved.
 
     Returns
     -------

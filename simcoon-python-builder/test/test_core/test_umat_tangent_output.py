@@ -27,6 +27,8 @@ def _col(a, n=N):
 
 
 def _call(name, corate, **kwargs):
+    """``corate`` is an objective rate, or "total" for the total formulation."""
+    kwargs.update({"kinematic_form": "total"} if corate == "total" else {"corate": corate})
     props, nstatev, de = LAWS[name]
     rng = np.random.default_rng(1)
     F0 = np.asfortranarray(np.eye(3)[:, :, None] + 0.05 * rng.standard_normal((3, 3, N)))
@@ -35,7 +37,7 @@ def _call(name, corate, **kwargs):
     statev = np.zeros((nstatev, N), order="F")
     statev[0] = 290.0
     out = sim.umat(name, _col(np.zeros(6)), _col(de), F0, F1, _col([150.0, 20.0, 0, 10.0, 0, 0]), DR,
-                   _col(props), statev, 0.5, 1.0, _col(np.zeros(4)), corate=corate, **kwargs)
+                   _col(props), statev, 0.5, 1.0, _col(np.zeros(4)), **kwargs)
     return out, F1
 
 
@@ -53,6 +55,32 @@ def test_fused_tangent_matches_lt_convert(name, corate):
                                    rtol=0, atol=1e-10 * scale)
     np.testing.assert_allclose(spatial, sim.Lt_convert(material, F1, sigma, "DSDE_2_Dsigma_LieDD"),
                                rtol=0, atol=1e-10 * scale)
+
+
+@pytest.mark.parametrize("name", sorted(LAWS))
+def test_total_formulation_fused_tangent_matches_lt_convert(name):
+    """Total formulation: the box is dT/dH, and its dS/dE needs the geometric term T:L (key
+    DTDH_2_DSDE), for a log-strain box and for a law built on F alike."""
+    (sigma, _, _, box), F1 = _call(name, "total")
+    (s_m, _, _, material), _ = _call(name, "total", tangent_output="material")
+    (s_s, _, _, spatial), _ = _call(name, "total", tangent_output="spatial")
+    np.testing.assert_array_equal(s_m, sigma)
+    np.testing.assert_array_equal(s_s, sigma)
+    scale = np.abs(box).max()
+    np.testing.assert_allclose(material, sim.Lt_convert(box, F1, sigma, "DTDH_2_DSDE"), rtol=0, atol=1e-10 * scale)
+    np.testing.assert_allclose(spatial, sim.Lt_convert(material, F1, sigma, "DSDE_2_Dsigma_LieDD"),
+                               rtol=0, atol=1e-10 * scale)
+    # not the log map of corates 2 and 3: the stress here is far from coaxial with U
+    assert np.abs(material - sim.Lt_convert(box, F1, sigma, "DsigmaDe_2_DSDE")).max() > 1e-6 * scale
+
+
+def test_a_law_built_on_F_has_one_material_tangent():
+    """NEOHC is a function of F alone: its stress and its dS/dE do not depend on the formulation,
+    which only names the intermediate box."""
+    (s_r, _, _, m_r), _ = _call("NEOHC", 3, tangent_output="material")
+    (s_t, _, _, m_t), _ = _call("NEOHC", "total", tangent_output="material")
+    np.testing.assert_allclose(s_t, s_r, rtol=0, atol=1e-10 * np.abs(s_r).max())
+    np.testing.assert_allclose(m_t, m_r, rtol=0, atol=1e-8 * np.abs(m_r).max())
 
 
 def test_default_is_the_box():

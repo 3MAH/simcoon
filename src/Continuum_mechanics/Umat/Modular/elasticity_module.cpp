@@ -24,6 +24,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/hyperelastic.hpp>
 #include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
+#include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
 #include <stdexcept>
 
@@ -332,7 +334,12 @@ void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
         hyper_potential_derivatives(hyper_potential_, hyper_props_,
                                     isochoric_invariants(b_el, J_el), J_el, A);
     // tau = dpsi/deps_el per reference volume (isotropic psi); corate 3, never the solver's.
-    hyper_invariants_response(dW, b_el, J_el, V_el, 3, sigma, Lt, A);
+    const bool total = (kinematic_form_ == KinematicForm::total);
+    hyper_invariants_response(dW, b_el, J_el, V_el, total ? corate_type_total : 3, sigma, Lt, A);
+    if (total) {
+        // dual stress of H_el: equal to tau when coaxial, and what makes a fibre potential exact
+        sigma = t2v_stress(Kirchoff2LogStressU(v2t_stress(sigma), V_el));
+    }
 }
 
 arma::vec ElasticityModule::thermal_strain(double DT) const {

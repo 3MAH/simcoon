@@ -140,6 +140,10 @@ public:
      */
     void set_elasticity(ElasticityType type, const arma::vec& props, int& offset);
 
+    /// Kinematic form of the finite-strain update, forwarded to the elasticity block
+    /// (ElasticityModule::set_kinematic_form). Default: rate.
+    void set_kinematic_form(KinematicForm kinematic_form) noexcept { elasticity_.set_kinematic_form(kinematic_form); }
+
     /**
      * @brief Add a plasticity mechanism
      * @param yield_type Type of yield criterion
@@ -551,6 +555,11 @@ private:
  *
  * Standard UMAT interface for the modular constitutive model.
  * Can be registered in umat_smart.cpp for dispatch.
+ *
+ * @p kinematic_form is the one argument past that interface. Under KinematicForm::total the
+ * strain is \f$ \ln\mathbf{U} \f$ in reference components (DR is the identity) and @p sigma is
+ * its dual stress \f$ \mathbf{T} \f$; only a hyperelastic elasticity block reads it
+ * (ElasticityModule::evaluate).
  */
 void umat_modular(
     const std::string& umat_name,
@@ -576,7 +585,8 @@ void umat_modular(
     const int& nshr,
     const bool& start,
     double& tnew_dt,
-    const int& tangent_mode = tangent_default
+    const int& tangent_mode = tangent_default,
+    const KinematicForm& kinematic_form = KinematicForm::rate
 );
 
 /**

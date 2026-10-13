@@ -10,6 +10,7 @@
 #include <simcoon/python_wrappers/parallel_nogil.hpp>
 #include <simcoon/exception.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/objective_rates.hpp>
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/objective_rates.hpp>
 #include <simcoon/Continuum_mechanics/Functions/transfer.hpp>
@@ -72,36 +73,8 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
     }
     const int corate = it_corate->second;
 
-    void (*corate_function)(mat &, mat &, mat &, const double &, const mat &, const mat &);
-    void (*corate_function_2)(mat &, mat &, mat &, mat &, mat &, const double &, const mat &, const mat &);
-    switch (corate) {
-
-        case 0: {
-            corate_function = &simcoon::Jaumann;
-            break;
-        }
-        case 1: {
-            corate_function = &simcoon::Green_Naghdi;
-            break;
-        }
-        case 2: {
-            corate_function = &simcoon::logarithmic;
-            break;
-        }
-        case 3: {
-            corate_function_2 = &simcoon::logarithmic_R;
-            break;
-        }
-        case 4: {
-            corate_function = &simcoon::Truesdell;
-            break;
-        }
-        case 5: {
-            corate_function_2 = &simcoon::logarithmic_F;
-            break;
-        }
-    }
-    
+    // Kinematics and strain increment both come from the solver's dispatchers, so that the
+    // increment returned here accumulates to the same strain as in the solver.
     if (F1.ndim() == 2) {            
         if (F0.ndim() != 2) {
             throw std::invalid_argument("the number of dim of F1 should be the same as F0");
@@ -112,51 +85,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         mat DR = zeros(3,3);
         mat D = zeros(3,3);
         mat Omega = zeros(3,3); 
-        mat DR_N = zeros(3,3);
-        mat N_1 = zeros(3,3);
-        mat N_2 = zeros(3,3);
-
-		switch (corate) {
-
-            case 0: case 1: case 2: case 4: {
-                corate_function(DR, D, Omega, DTime, F0_cpp, F1_cpp);
-                break;
-            }
-            case 3: case 5: {
-                corate_function_2(DR, N_1, N_2, D, Omega, DTime, F0_cpp, F1_cpp);
-                break;
-            }
-        }
+        simcoon::corate_kinematics(corate, DR, D, Omega, F0_cpp, F1_cpp, DTime);
 
         if (return_de) {
-            //also return the strain increment
-            vec de = zeros(6);
-
-    		switch (corate) {
-                case 0: case 1: case 2: case 4: {
-                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
-                    break;
-                }
-                case 3: {
-                    DR_N = simcoon::Hughes_Winget(N_1-N_2, DTime);
-                    de = (0.5*DTime)*simcoon::t2v_strain((D+(DR*D*DR.t())));
-                    de = simcoon::rotate_strain(de, DR_N);
-                    break;
-                }
-                case 5: {
-                    mat De_mat = (0.5*DTime)*(D+(DR*D*DR.t()));
-                    DR_N = simcoon::Hughes_Winget(N_1-D, DTime);
-                    mat inv_DR_N;
-                    try {
-                        inv_DR_N = inv(DR_N);
-                    } catch (const std::runtime_error &e) {
-                        cerr << "Error in inv: " << e.what() << endl;
-                        throw simcoon::exception_inv("Error in inv function inside objective_rate (inv_DR_N).");
-                    }
-                    de = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                    break;
-                }
-            }
+            vec de = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_cpp, F1_cpp, DR, D, Omega, DTime, corate));
             return py::make_tuple(simpy::arma_to_numpy::col_to_arr(de,false), simpy::arma_to_numpy::mat_to_arr(D, false), simpy::arma_to_numpy::mat_to_arr(DR, false), simpy::arma_to_numpy::mat_to_arr(Omega, false));
         }
         else{
@@ -169,14 +101,11 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
         int nb_points = F1_cpp.n_slices;
         cube DR(3,3,nb_points);
         cube D(3,3,nb_points);            
-        cube N_1(3,3,nb_points);
-        cube N_2(3,3,nb_points);                            
         cube Omega = zeros(3,3, nb_points); 	
         mat de;
         if(return_de) {
             de.set_size(6,nb_points);
         }
-        mat I = eye(3,3);        
 
         // F0: one for all points (2-D array or a single slice) or one per point
         mat F0_one;
@@ -194,38 +123,10 @@ py::tuple objective_rate(const std::string& corate_name, const py::array_t<doubl
 
         parallel_for_nogil(nb_points, [&](int pt) {
             const mat &F0_pt = F0_per_point ? F0_cpp.slice(pt) : F0_one;
-            switch (corate) {
-                case 0: case 1: case 2: case 4: {
-                    corate_function(DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
-                    if (return_de) {
-                        vec de_col = de.unsafe_col(pt);
-                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                    }
-                    break;
-                }
-                case 3: {
-                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
-                    if (return_de) {
-                        vec de_col = de.unsafe_col(pt);
-                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-N_2.slice(pt), DTime);
-                        de_col = (0.5*DTime) * simcoon::t2v_strain(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        de_col = simcoon::rotate_strain(de_col, DR_N);
-                    }
-                    break;
-                }
-                case 5: {
-                    corate_function_2(DR.slice(pt), N_1.slice(pt), N_2.slice(pt), D.slice(pt), Omega.slice(pt), DTime, F0_pt, F1_cpp.slice(pt));
-                    if (return_de) {
-                        vec de_col = de.unsafe_col(pt);
-                        mat De_mat = (0.5*DTime)*(D.slice(pt)+(DR.slice(pt)*D.slice(pt)*DR.slice(pt).t()));
-                        mat DR_N = simcoon::Hughes_Winget(N_1.slice(pt)-D.slice(pt), DTime);
-                        mat inv_DR_N;
-                        if (!inv(inv_DR_N, DR_N))   // as the single-point path
-                            throw simcoon::exception_inv("Error in inv function inside objective_rate (inv_DR_N).");
-                        de_col = simcoon::t2v_strain(DR_N*De_mat*inv_DR_N);
-                    }
-                    break;
-                }
+            simcoon::corate_kinematics(corate, DR.slice(pt), D.slice(pt), Omega.slice(pt), F0_pt, F1_cpp.slice(pt), DTime);
+            if (return_de) {
+                vec de_col = de.unsafe_col(pt);
+                de_col = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_cpp.slice(pt), DR.slice(pt), D.slice(pt), Omega.slice(pt), DTime, corate));
             }
         }, n_threads);
         if (return_de){	                     
@@ -247,7 +148,7 @@ py::array_t<double> Delta_log_strain(const py::array_t<double> &D, const py::arr
 
 //This function computes the logarithmic strain velocity and the logarithmic spin, along with the correct rotation increment
 py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<double> &F, const py::array_t<double> &stress, const std::string &converter_key) {
-    static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}};
+    static const std::map<string, int> list_Lt_convert = { {"Dsigma_LieDD_2_DSDE",0}, {"DsigmaDe_2_DSDE",1},{"DsigmaDe_JaumannDD_2_DSDE",2}, {"Dsigma_LieDD_Dsigma_JaumannDD",3}, {"Dsigma_LieDD_Dsigma_GreenNaghdiDD",4}, {"Dsigma_LieDD_Dsigma_logarithmicDD",5}, {"DsigmaDe_GreenNaghdiDD_2_DSDE",6}, {"DSDE_2_Dsigma_GreenNaghdiDD",7}, {"DSDE_2_Dsigma_JaumannDD",8}, {"DSDE_2_Dsigma_LieDD",9}, {"DSDE_2_Dsigma_logarithmicDD",10}, {"DTDH_2_DSDE",11}};
     // guarded lookup: operator[] would default-insert 0 = Dsigma_LieDD_2_DSDE, so a
     // misspelled or renamed key silently performed a DIFFERENT conversion and returned a
     // plausible-looking wrong tangent. fedoo selects this key from a table, where the
@@ -278,6 +179,7 @@ py::array_t<double> Lt_convert(const py::array_t<double> &Lt, const py::array_t<
             case 1:  return simcoon::DtauDe_2_DSDE(Lt_pt, F_pt, tau);
             case 2:  return simcoon::DtauDe_JaumannDD_2_DSDE(Lt_pt, F_pt, tau);
             case 6:  return simcoon::DtauDe_GreenNaghdiDD_2_DSDE(Lt_pt, F_pt, tau);
+            case 11: return simcoon::DtauDe_corate_2_DSDE(Lt_pt, simcoon::corate_type_total, F_pt, tau);   // total formulation: box dT/dH
             // Cauchy spatial-tangent menu (dsigma/dD, 1/J) -- fedoo's material Jacobian
             case 3:  return simcoon::Dsigma_LieDD_Dsigma_JaumannDD(Lt_pt, sig_pt);
             case 4:  return simcoon::Dsigma_LieDD_Dsigma_GreenNaghdiDD(Lt_pt, F_pt, sig_pt);

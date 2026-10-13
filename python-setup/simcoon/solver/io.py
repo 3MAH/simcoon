@@ -7,7 +7,7 @@ Schema (the orientation is the 'zxz' Euler angles in degrees, see
                     "orientation": {"psi": 0, "theta": 0, "phi": 0}}
 
     path.json: {"initial_temperature": 293.15,
-                "corate": "logarithmic_R",
+                "kinematic_form": "logarithmic_R",
                 "blocks": [{"control_type": "small_strain",
                             "ncycle": 1,
                             "steps": [{"mode": "linear", "control": [...],
@@ -19,6 +19,9 @@ names a CSV file next to the path JSON (``<stem>_tab<k>.csv``, one row per
 increment, a ``#`` header naming the columns), written by :func:`save_path_json`
 and read back by :func:`load_path_json`. Whitespace-separated ``.txt`` tables are
 read the same way; a nested list in place of the filename is still accepted.
+
+``"kinematic_form"`` takes the values of ``solve``: ``"total"``, an objective rate
+(``"logarithmic_R"`` when absent) or ``"rate"``. ``"corate"`` is its former name and is still read.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from typing import List, Tuple
 import numpy as np
 
 from .blocks import Block, StepMeca, StepThermomeca
-from .maps import CONTROL_TYPES, CORATE_TYPES, STEP_MODES, THERMAL_CONTROL, as_code
+from .maps import CONTROL_TYPES, STEP_MODES, THERMAL_CONTROL, as_code, kinematic_name
 from .micromechanics import euler_angles
 
 _STEP_SCALARS = ("time", "ninc", "mode", "Dn_init", "Dn_mini", "T_final",
@@ -179,9 +182,10 @@ def _step_from_json(d: dict, base_dir: str) -> StepMeca:
 
 
 def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
-                   corate="logarithmic_R") -> None:
-    """Write a loading path to JSON; ``blocks`` and ``corate`` take the forms of ``solve``
-    (a step, a Block or a sequence of them; ``None`` for the default rate).
+                   corate=None, kinematic_form=None) -> None:
+    """Write a loading path to JSON; ``blocks`` and ``kinematic_form`` (``corate``, its former
+    name) take the forms of ``solve`` (a step, a Block or a sequence of them; ``"total"`` or an
+    objective rate, ``None`` for the default one).
 
     Enumerated entries are written by name (``"small_strain"``, ``"linear"``,
     ``"strain"``...) whatever form the objects hold, keys in the documented order,
@@ -192,14 +196,12 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
     if isinstance(blocks, (Block, StepMeca)):
         blocks = [blocks]
     blocks = [b if isinstance(b, Block) else Block(steps=[b]) for b in blocks]
-    if corate is None:
-        corate = "logarithmic_R"
     filename = str(filename)
     base_dir = os.path.dirname(filename)
     stem = os.path.splitext(os.path.basename(filename))[0]
     ntab = 0
     payload = {"initial_temperature": float(T_init),
-               "corate": _name_of(corate, CORATE_TYPES, "corate"), "blocks": []}
+               "kinematic_form": kinematic_name(kinematic_form, corate), "blocks": []}
     for b in blocks:
         steps = []
         for s in b.steps:
@@ -217,11 +219,14 @@ def save_path_json(filename: str, blocks: List[Block], T_init: float = 293.15,
         json.dump(payload, f, indent=2)
 
 
-def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
-    """Read a loading path; returns (blocks, T_init, corate).
+def load_path_json(filename: str) -> Tuple[List[Block], float, str]:
+    """Read a loading path; returns (blocks, T_init, kinematic_form).
 
     A step's ``"tabular"`` entry is a table filename relative to the JSON (or a
     nested list, read as the table itself).
+
+    ``kinematic_form`` is ``"total"`` or the name of the objective rate of the path, to pass to
+    ``solve`` as ``kinematic_form`` (or as ``corate``, its former name).
     """
     filename = str(filename)
     base_dir = os.path.dirname(filename)
@@ -235,12 +240,13 @@ def load_path_json(filename: str) -> Tuple[List[Block], float, object]:
         )
         for bd in payload["blocks"]
     ]
-    return blocks, float(payload.get("initial_temperature", 293.15)), payload.get("corate", "logarithmic_R")
+    kinematic_form = kinematic_name(payload.get("kinematic_form"), payload.get("corate"))
+    return blocks, float(payload.get("initial_temperature", 293.15)), kinematic_form
 
 
 def load_simulation_json(material_file: str, path_file: str) -> dict:
     """Merge a material and a path JSON into kwargs for solve()."""
     kwargs = load_material_json(material_file)
-    blocks, T_init, corate = load_path_json(path_file)
-    kwargs.update({"blocks": blocks, "T_init": T_init, "corate": corate})
+    blocks, T_init, kinematic_form = load_path_json(path_file)
+    kwargs.update({"blocks": blocks, "T_init": T_init, "kinematic_form": kinematic_form})
     return kwargs

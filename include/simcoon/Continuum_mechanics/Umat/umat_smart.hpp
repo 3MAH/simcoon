@@ -522,6 +522,39 @@ const std::map<std::string, int> &finite_umat_names();
 bool stress_output_is_kirchhoff(const std::string &umat_name);
 
 /**
+ * @brief True when the named kernel can run under the total formulation (corate_type_total).
+ *
+ * Under the total formulation a law works on \f$ \ln\mathbf{U} \f$ and on its dual stress
+ * \f$ \mathbf{T} \f$. Served: the log-strain boxes, whose output is then \f$ \mathbf{T} \f$, and
+ * the hyperelastic kernels built on \f$ \mathbf{F} \f$, whose output stays the true
+ * \f$ \boldsymbol{\tau} \f$. Refused: the rate law HYPOO, which integrates from a start stress
+ * that has no meaning in that space, and any kernel whose stress is not the Kirchhoff stress.
+ * MODUL is a log-strain box: it is told the form (KinematicForm) so that its hyperelastic block
+ * returns the stress dual to its strain. Never throws.
+ */
+bool total_formulation_serves(const std::string &umat_name);
+
+/**
+ * @brief Kirchhoff stress at the exit of a kernel run under the total formulation.
+ *
+ * A log-strain box (@p box true) returned \f$ \mathbf{T} \f$: \f$ \boldsymbol{\tau} \f$ is its
+ * LogStressU2Kirchoff() image and its work \f$ \tfrac12(\mathbf{T}_n+\mathbf{T}_{n+1}):\Delta\mathbf{H} \f$
+ * is already the stress power. A kernel built on \f$ \mathbf{F} \f$ returned
+ * \f$ \boldsymbol{\tau} \f$ and formed \f$ \tfrac12(\mathbf{T}_n+\boldsymbol{\tau}_{n+1}):\Delta\mathbf{H} \f$:
+ * @p dW is then the missing \f$ \tfrac12(\mathbf{T}_{n+1}-\boldsymbol{\tau}_{n+1}):\Delta\mathbf{H} \f$,
+ * to add to the total and to the recoverable work.
+ *
+ * @param[in] sigma stress returned by the kernel
+ * @param[in] Detot strain increment the kernel was given, \f$ \Delta\mathbf{H} \f$
+ * @param[in] F1 deformation gradient at the end of the increment
+ * @param[in] box true for a log-strain box, false for a kernel built on \f$ \mathbf{F} \f$
+ * @param[out] dW work to add (zero for a box)
+ * @return the Kirchhoff stress
+ * @throws exception_inv, exception_eig_sym for a degenerate @p F1 (step cut)
+ */
+arma::vec total_formulation_tau(const arma::vec &sigma, const arma::vec &Detot, const arma::mat &F1, const bool &box, double &dW);
+
+/**
  * @brief From the name of the umat, select the appropriate function to determine the mechanical response considering non-linear kinematics
  * @param rve Reference to the phase characteristics.
  * @param DR_global frame increment of the corate, in global coordinates (\f$ \Delta\mathbf{F} \f$ for corates 4 and 5)
@@ -531,7 +564,9 @@ bool stress_output_is_kirchhoff(const std::string &umat_name);
  * @param nshr number of shear stress components
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
- * @param corate_type objective rate (0 Jaumann, 1 Green-Naghdi, 2 logarithmic, 3 log_R, 4 Truesdell, 5 log_F)
+ * @param corate_type objective rate (0 Jaumann, 1 Green-Naghdi, 2 logarithmic, 3 log_R, 4 Truesdell, 5 log_F),
+ *        or corate_type_total for the total formulation: the kernel then works on \f$ \ln\mathbf{U} \f$ and its
+ *        dual stress \f$ \mathbf{T} \f$ instead of \f$ \ln\mathbf{V} \f$ and \f$ \boldsymbol{\tau} \f$
  * @param tnew_dt New increment of time if the max number of iteration has not converged
  * @details Under the logarithmic corates (2, 3, 5) the mechanical work is corrected to the true
  * work per reference volume (see Delta_work_conjugacy). Example: 

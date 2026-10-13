@@ -19,7 +19,11 @@ from simcoon import _core
 
 
 #: read-only aliases of a stored history
-_ALIASES: Dict[str, str] = {}
+_ALIASES: Dict[str, str] = {"LogStrainV": "LogStrain"}
+#: corate_type codes whose strain is a state function of F: 'logarithmic', 'logarithmic_R',
+#: 'truesdell' and the total formulation. Only there are the material measures of the total
+#: formulation ('LogStrainU', 'LogStressU') offered.
+_STATE_FUNCTION_STRAIN = (2, 3, 4, _core.corate_type_total)
 #: version of the archive layout written by save(): 2 since 'Strain' is the logarithmic strain,
 #: 3 since 'LogStrain' is ln V computed from F (no longer an alias of 'Strain')
 _ARCHIVE_FORMAT = 3
@@ -48,6 +52,31 @@ def _log_strain(F: np.ndarray, strain: np.ndarray, finite: np.ndarray) -> np.nda
     return out
 
 
+def _log_stress_u(tau: np.ndarray, F: np.ndarray, finite: np.ndarray) -> np.ndarray:
+    """T dual to ln U from the Kirchhoff stress, (6, N), where ``finite``; else ``tau`` (T = tau
+    at F = I). NaN where F is not finite or degenerate, as in :func:`_log_strain`."""
+    out = np.array(tau, dtype=float, copy=True)
+    finite = np.asarray(finite, dtype=bool)
+    ok = np.isfinite(F).all(axis=(0, 1))
+    out[:, finite & ~ok] = np.nan
+    idx = np.flatnonzero(finite & ok)
+    if idx.size == 0:
+        return out
+
+    def convert(k):
+        return _core.stress_convert(np.asfortranarray(tau[:, k], dtype=float),
+                                    np.asfortranarray(F[:, :, k], dtype=float), "Kirchoff2LogStressU")
+    try:
+        out[:, idx] = convert(idx)
+    except Exception:
+        for k in idx:   # isolate the degenerate increments
+            try:
+                out[:, k] = np.ravel(convert(k))
+            except Exception:
+                out[:, k] = np.nan
+    return out
+
+
 def _deformed(F: np.ndarray) -> np.ndarray:
     """Increments whose F differs from the identity (fallback when the block kinds are unknown)."""
     return np.any(np.abs(F - np.eye(3)[:, :, None]) > 0., axis=(0, 1))
@@ -67,7 +96,11 @@ class SolverResults:
         'Kirchhoff', 'PKII', 'Strain' (the strain integrated with the objective rate, (6, N):
         ln V for the logarithmic rates, the Almansi strain for 'truesdell'),
         'LogStrain' (ln V computed from F whatever the rate; the small strain on small-strain
-        blocks -- derived on first access and then kept), 'GreenLagrange' ((6, N), computed from F),
+        blocks -- derived on first access and then kept; 'LogStrainV' is the same field),
+        'LogStrainU' (ln U computed from F, reference components) and 'LogStressU' (the stress T
+        dual to ln U, computed from 'Kirchhoff' and F) -- the measures of the total formulation,
+        offered when the strain of the run is a state function of F (``kinematic_form="total"``, or the
+        rates 'logarithmic', 'logarithmic_R', 'truesdell'), 'GreenLagrange' ((6, N), computed from F),
         'Statev' ((nstatev, N)), 'Wm' ((4, N)), 'F', 'R', 'DR' ((3, 3, N));
         'TangentMatrix' ((6, 6, N)) for mechanical runs; thermomechanical
         runs add 'Wt' ((3, N)) and the coupled tangents 'dSdE' ((6, 6, N)),
@@ -77,9 +110,10 @@ class SolverResults:
         recorded history is then partial).
     """
 
-    def __init__(self, raw: Dict[str, np.ndarray], finite_blocks=None):
+    def __init__(self, raw: Dict[str, np.ndarray], finite_blocks=None, corate_type=None):
         """``finite_blocks[k]`` tells whether block k runs a finite-strain control type; when
-        omitted, the increments whose F differs from the identity are taken as finite."""
+        omitted, the increments whose F differs from the identity are taken as finite.
+        ``corate_type`` is the code the run was made with (None: unknown)."""
         self.status = int(raw.get("status", 0))
         self.sv_type = int(raw.get("sv_type", 1))
 
@@ -109,6 +143,9 @@ class SolverResults:
         self._finite_blocks = None if finite_blocks is None else np.asarray(finite_blocks, dtype=bool)
         self._block = np.asarray(raw["block"], dtype=int)
         self._pending = {"LogStrain": self._derive_log_strain}
+        if corate_type in _STATE_FUNCTION_STRAIN:
+            self._pending["LogStrainU"] = self._derive_log_strain_U
+            self._pending["LogStressU"] = self._derive_log_stress_u
         if "Lt" in raw:
             self.field_data["TangentMatrix"] = raw["Lt"].reshape(n, 6, 6).transpose(1, 2, 0)
         if self.sv_type == 2:
@@ -122,13 +159,20 @@ class SolverResults:
                 self.scalar_data["drdT"] = raw["drdT"].ravel()
 
     # -- derived fields, computed on first access ------------------------------
-    def _derive_log_strain(self) -> np.ndarray:
-        F = self.field_data["F"]
+    def _finite(self) -> np.ndarray:
         if self._finite_blocks is None:
-            finite = _deformed(F)
-        else:
-            finite = self._finite_blocks[self._block]
-        return _log_strain(F, self.field_data["Strain"], finite)
+            return _deformed(self.field_data["F"])
+        return self._finite_blocks[self._block]
+
+    def _derive_log_strain(self) -> np.ndarray:
+        return _log_strain(self.field_data["F"], self.field_data["Strain"], self._finite())
+
+    def _derive_log_strain_U(self) -> np.ndarray:
+        # ln U of F is ln V of F^T
+        return _log_strain(self.field_data["F"].transpose(1, 0, 2), self.field_data["Strain"], self._finite())
+
+    def _derive_log_stress_u(self) -> np.ndarray:
+        return _log_stress_u(self.field_data["Kirchhoff"], self.field_data["F"], self._finite())
 
     def _materialize(self, key: str = None) -> None:
         """Compute the pending derived field(s) into field_data (all of them when key is None)."""
