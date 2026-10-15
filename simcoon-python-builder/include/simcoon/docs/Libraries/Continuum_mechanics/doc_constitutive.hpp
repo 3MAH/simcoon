@@ -661,7 +661,15 @@ constexpr auto umat = R"pbdoc(
     temp : numpy.ndarray, optional
         Temperature per point.
     ndi : int
-        Number of direct stress components (3, 2 or 1).
+        Number of direct stress components (3, 2 or 1). With ndi < 3 the
+        components absent from the (ndi, nshr) state are stress-free: the
+        elastic prediction condenses them away (truss, beam fibre, plane
+        stress). The returned tangent stays 6x6; condensing it is the caller's.
+    nshr : int, optional
+        Number of shear stress components kept, in the order 12, 13, 23
+        (Abaqus convention). Default: 3 for ndi = 3, 1 for ndi = 2 (plane
+        stress), 0 for ndi = 1 (truss). ndi = 1, nshr = 2 is the beam fibre
+        (11, 12, 13 kept; 22, 33, 23 stress-free).
     n_threads : int
         Point-loop threads: 1 runs serially on every platform; otherwise it
         caps the worker threads on Windows (0 = all hardware threads), while

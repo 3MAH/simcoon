@@ -38,7 +38,6 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     //From the props to the material properties
@@ -185,7 +184,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     
     //Determination of the initial, predicted stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV_tilde - EP;
-    stress = el_pred(L0, Eel, ndi);
+    stress = el_pred(L0, Eel, ndi, nshr);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_mec);
@@ -300,7 +299,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
         
         //the stress is now computed using the relationship stress = L0 E-sum LpEp
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde - EP;
-        stress = el_pred(L0, Eel, ndi);
+        stress = el_pred(L0, Eel, ndi, nshr);
     }
     
     

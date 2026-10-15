@@ -38,7 +38,6 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     //From the props to the material properties
@@ -115,7 +114,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         // dashpot dissipation on the branch forces L_i (eps_e - EV_i), trapezoidal
         Dgamma_loc += 0.5*sum((L_i[i]*(eps_e_start - EV_i_start[i]) + L_i[i]*(eps_e - EV_i[i]))%DEV_i);
     }
-    stress = el_pred(L0, eps_e - EV_tilde, ndi);
+    stress = el_pred(L0, eps_e - EV_tilde, ndi, nshr);
     Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
     //Computation of the mechanical and thermal work quantities

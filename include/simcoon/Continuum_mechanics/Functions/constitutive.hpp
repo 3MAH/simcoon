@@ -365,10 +365,14 @@ arma::mat H_iso(const double &etaB, const double &etaS);
 //Update the elastic prediction, providing the stiffness tensor and the trial elastic strain
 
 /**
- * @brief Provides the stress tensor (elastic prediction), from the previous stress increment, providing the elastic stiffness tensor and the trial elastic strain increment:
- * @param sigma_start, L, Eel, ndi
+ * @brief Provides the stress tensor (elastic prediction), from the previous stress, the elastic stiffness tensor and the trial elastic strain increment
+ * @param sigma_start The previous stress (6), stress-free on the condensed components
+ * @param L Stiffness matrix (6x6)
+ * @param Eel Elastic strain increment (6)
+ * @param ndi Number of direct stress components (optional, default = 3)
+ * @param nshr Number of shear stress components (optional, default = -1: Abaqus' default for ndi)
  * @return The predicted 6 vec stress vector (arma::vec)
- * @details The input parameters are : sigma_start: The previous stress, L : Stiffness matrix; Eel : elastic strain vector, ndi (optional, default = 3): number of dimensions
+ * @details Incremental form of el_pred(L, Eel, ndi, nshr): \f$ \boldsymbol{\sigma} = \boldsymbol{\sigma}_{start} + \mathbf{Q} : \Delta\boldsymbol{\varepsilon}^{el} \f$, with the same condensed stiffness \f$ \mathbf{Q} \f$.
  * @code 
         vec sigma_start = zeros(6);
         sigma_start.randu(6);
@@ -379,22 +383,37 @@ arma::mat H_iso(const double &etaB, const double &etaS);
         vec sigma =  el_pred(sigma_start,L, Eel, ndi);
  * @endcode 
  */
-arma::vec el_pred(const arma::vec &sigma_start, const arma::mat &L, const arma::vec &Eel, const int &ndi=3);
+arma::vec el_pred(const arma::vec &sigma_start, const arma::mat &L, const arma::vec &Eel, const int &ndi=3, const int &nshr=-1);
     
 /**
- * @brief Provides the stress tensor (elastic prediction), from the elastic stiffness tensor and the trial elastic strain:
- * @param L, Eel, ndi
+ * @brief Provides the stress tensor (elastic prediction), from the elastic stiffness tensor and the trial elastic strain
+ * @param L Stiffness matrix (6x6)
+ * @param Eel Elastic strain (6)
+ * @param ndi Number of direct stress components (optional, default = 3)
+ * @param nshr Number of shear stress components (optional, default = -1: Abaqus' default for ndi)
  * @return The predicted 6 vec stress vector (arma::vec)
- * @details The input parameters are : L : Stiffness matrix; Eel ; elastic strain vector, ndi (optional, default = 3): number of dimensions
+ * @details The stress state follows the Abaqus (ndi, nshr) convention. With ndi = 3 the stress is \f$ \mathbf{L} : \boldsymbol{\varepsilon}^{el} \f$.
+ * With ndi < 3 the stress keeps the first ndi direct components and the first nshr shears (12, 13, 23) — the set \f$ K \f$;
+ * every other component \f$ C \f$ is stress-free and its strain is eliminated (Schur complement):
+ \f[
+    \boldsymbol{\sigma}_K = \mathbf{Q} : \boldsymbol{\varepsilon}^{el}_K, \quad \mathbf{Q} = \mathbf{L}_{KK} - \mathbf{L}_{KC} \, \mathbf{L}_{CC}^{-1} \, \mathbf{L}_{CK}, \quad \boldsymbol{\sigma}_C = \mathbf{0}
+ \f]
+ * The components of Eel on \f$ C \f$ are not read. Supported states: (1, 0) truss, uniaxial \f$ \sigma = E \varepsilon \f$;
+ * (1, 2) beam fibre, 11-12-13 (Abaqus B31); (2, 1) plane stress, 11-22-12; (2, 3) plane stress with transverse shears.
+ * nshr = -1 picks (1, 0) and (2, 1). The condensation applies to the elastic strain only: with an additive split
+ * \f$ \boldsymbol{\varepsilon}^{el} = \boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^{in} \f$ the inelastic strain on \f$ C \f$ stays free,
+ * so a return mapping that calls el_pred at every iterate converges to the exact condensed state. The tangent returned by
+ * the UMATs stays 6x6: condensing it on \f$ K \f$ is the caller's job.
  * @code 
         mat L = L_iso(70000, 0.3,"Enu");
         vec Eel;
         Eel.randu(6);
-        int ndi = 3;
-        vec sigma =  el_pred(L, Eel, ndi);
+        int ndi = 1;
+        int nshr = 2;
+        vec sigma =  el_pred(L, Eel, ndi, nshr);   // sigma(0) = E Eel(0), sigma(3) = G Eel(3), sigma(4) = G Eel(4)
  * @endcode 
 */
-arma::vec el_pred(const arma::mat &L, const arma::vec &Eel, const int &ndi=3);
+arma::vec el_pred(const arma::mat &L, const arma::vec &Eel, const int &ndi=3, const int &nshr=-1);
 
 //Return 
 /**

@@ -93,7 +93,6 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     
     //From the props to the material properties
     double E = props(0);
@@ -165,7 +164,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    stress = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi, nshr);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -239,7 +238,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
         
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        stress = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi, nshr);
     }
     }
     

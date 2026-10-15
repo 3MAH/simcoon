@@ -74,7 +74,6 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     
     //From the props to the material properties
     double E = props(0);
@@ -202,7 +201,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    stress = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi, nshr);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -300,7 +299,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
         
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        stress = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi, nshr);
     }
     // the loop reads p at the top and corrects s_j at the bottom
     p = s_j(0);

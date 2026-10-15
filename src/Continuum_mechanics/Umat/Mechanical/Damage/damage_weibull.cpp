@@ -49,7 +49,6 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     UNUSED(DR);
     
@@ -119,8 +118,8 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
     mat L_tilde = (1.-Damage)*L;
-    stress = el_pred(L_tilde, Eel, ndi);
-    sigma_eff = el_pred(L, Eel, ndi);
+    stress = el_pred(L_tilde, Eel, ndi, nshr);
+    sigma_eff = el_pred(L, Eel, ndi, nshr);
     
     //Define the Damage function and the stress
     vec Phi = zeros(1);
@@ -180,8 +179,8 @@ void umat_damage_weibull(const string &umat_name, const vec &Etot, const vec &DE
         
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init);
-        stress = el_pred(L_tilde, Eel, ndi);
-        sigma_eff = el_pred(L, Eel, ndi);
+        stress = el_pred(L_tilde, Eel, ndi, nshr);
+        sigma_eff = el_pred(L, Eel, ndi, nshr);
     }
     
     //Computation of the increments of variables

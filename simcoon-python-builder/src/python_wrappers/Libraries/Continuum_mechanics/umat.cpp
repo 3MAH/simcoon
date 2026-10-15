@@ -137,7 +137,7 @@ int kinematic_code(const py::object &value) {
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -197,6 +197,20 @@ int kinematic_code(const py::object &value) {
 			nshr=1;
 		} else {
 			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
+		}
+		// nshr given: a condensed state other than the default of ndi, e.g. the beam fibre
+		// (ndi = 1, nshr = 2: 11, 12, 13). ndi = 3 is never condensed (el_pred).
+		if (nshr_py) {
+			nshr = *nshr_py;
+			if (nshr < 0 || nshr > 3)
+				throw std::invalid_argument("nshr should be 0, 1, 2 or 3");
+		}
+		// nshr given: a condensed state other than the default of ndi, e.g. the beam fibre
+		// (ndi = 1, nshr = 2: 11, 12, 13). ndi = 3 is never condensed (el_pred).
+		if (nshr_py) {
+			nshr = *nshr_py;
+			if (nshr < 0 || nshr > 3)
+				throw std::invalid_argument("nshr should be 0, 1, 2 or 3");
 		}
 
 		// start re-initialises the point (T_init, stress, internal variables, Wm):
@@ -518,7 +532,7 @@ int kinematic_code(const py::object &value) {
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py){
 		// Point-wise thermomechanical UMAT batch entry (small strain), mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).

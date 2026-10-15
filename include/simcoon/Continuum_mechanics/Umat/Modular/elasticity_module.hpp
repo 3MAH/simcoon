@@ -396,18 +396,20 @@ public:
      *
      * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
      * @param[in]  ndi number of direct stress components. ndi < 3 statically
-     *             condenses the STRESS only — the tangent is always the full
+     *             condenses the STRESS only (el_pred) — the tangent is always the full
      *             6x6, which is the pre-existing contract (the mechanisms have
      *             always received an uncondensed stiffness). The condensation
      *             is a property of a linear operator: a nonlinear block cannot
      *             honour it, plane stress there being the constraint
      *             \f$ \sigma_{33} = 0 \f$ solved by iterating on
      *             \f$ \varepsilon_{33} \f$ one level up.
+     * @param[in]  nshr number of shear stress components of the condensed
+     *             state (el_pred's (ndi, nshr) convention; -1 = Abaqus default)
      * @param[out] sigma stress (6-Voigt)
      * @param[out] Lt tangent \f$ \partial \boldsymbol{\sigma} / \partial
      *             \boldsymbol{\varepsilon}^{el} \f$ (6x6, never condensed)
      */
-    void evaluate(const arma::vec& eps_el, int ndi,
+    void evaluate(const arma::vec& eps_el, int ndi, int nshr,
                   arma::vec& sigma, arma::mat& Lt) const;
 
     // ========== Derived Quantities ==========

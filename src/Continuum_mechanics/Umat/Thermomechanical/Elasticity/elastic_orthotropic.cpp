@@ -52,7 +52,6 @@ void umat_elasticity_ortho_T(const vec &Etot, const vec &DEtot, vec &sigma, doub
     UNUSED(statev);
     UNUSED(T);
     UNUSED(Time);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
 	//From the props to the material properties
@@ -104,7 +103,7 @@ void umat_elasticity_ortho_T(const vec &Etot, const vec &DEtot, vec &sigma, doub
     
     //Compute the elastic strain and the related stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(dSdE, Eel, ndi);
+    sigma = el_pred(dSdE, Eel, ndi, nshr);
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;
