@@ -37,7 +37,6 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     vec sigma_start = sigma;
@@ -107,7 +106,7 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     EV1 = st.EV_i[0];
     const vec DEV1 = EV1 - EV1_start;
     v += norm_strain(DEV1);
-    sigma = el_pred(L0, eps_e - EV1, ndi);
+    sigma = el_pred(L0, eps_e - EV1, ndi, nshr);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;

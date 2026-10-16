@@ -55,7 +55,6 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     UNUSED(statev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     double T_init = statev(0);
@@ -85,7 +84,7 @@ void umat_saint_venant(const string &umat_name, const vec &etot, const vec &Deto
     vec Eel = t2v_strain(Green_Lagrange(F1));
         
     //Compute the PKII stress and then the Kirchhoff stress (the route stress)
-    mat S = v2t_stress(el_pred(L, Eel, ndi));
+    mat S = v2t_stress(el_pred(L, Eel, ndi, nshr));
     sigma = t2v_stress(PKII2Kirchoff(S, F1));
 
     // Box tangent in the canonical convention Lt = d(tau_hat)/d(De), IN the solver's corate.

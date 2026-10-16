@@ -54,7 +54,6 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     double Tinit = statev(0);
@@ -235,7 +234,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
             Hp_ts = simcoon::iota;
         
         //effective stress
-        sigma_eff = el_pred(L,Eel,ndi);
+        sigma_eff = el_pred(L,Eel,ndi, nshr);
         sigma_eff_ts = Theta_ts*sigma_eff;
         
         //Determine the Phi functions and their derivatives
@@ -319,7 +318,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
         //damaged modulus
         //Compute the elastic strain and the related stress
         Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-        stress = el_pred(L_tilde, Eel, ndi);
+        stress = el_pred(L_tilde, Eel, ndi, nshr);
         
         if (fabs(stress(1)) < simcoon::iota )
             Yd_22 = 0.;
@@ -480,7 +479,7 @@ void umat_damage_LLD_0(const string &umat_name, const vec &Etot, const vec &DEto
     //damaged modulus
     //Compute the elastic strain and the related stress
     Eel = Etot + DEtot - alpha*(T+DT-Tinit) - EP;
-    stress = el_pred(L_tilde, Eel, ndi);
+    stress = el_pred(L_tilde, Eel, ndi, nshr);
     
     {
 		//Tangent modulus

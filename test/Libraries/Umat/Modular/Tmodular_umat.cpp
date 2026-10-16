@@ -489,7 +489,7 @@ TEST(ModularHyperelastic, GroundStateStiffnessMatchesEvaluate) {
 
         vec sigma;
         mat Lt;
-        em.evaluate(zeros<vec>(6), 3, sigma, Lt);
+        em.evaluate(zeros<vec>(6), 3, 3, sigma, Lt);
         const int id = static_cast<int>(potential);
         EXPECT_LT(norm(sigma, 2), 1e-12) << "natural state, potential " << id;
         EXPECT_LT(norm(Lt - em.L0(), "fro"), 1e-12 * norm(Lt, "fro")) << "potential " << id;
@@ -510,7 +510,7 @@ TEST(ModularHyperelastic, EvaluateRejectsReducedDimension) {
     em.configure(ElasticityType::HYPER_INVARIANTS, yeoh_block, offset);
     vec sigma;
     mat Lt;
-    EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, sigma, Lt), std::runtime_error);
+    EXPECT_THROW(em.evaluate(zeros<vec>(6), 2, 1, sigma, Lt), std::runtime_error);
 }
 
 // evaluate()'s tangent must be d(tau)/d(eps_el) of the potential itself:
@@ -525,14 +525,14 @@ TEST(ModularHyperelastic, TangentMatchesFiniteDifference) {
         em.configure_hyper_invariants(potential, p, 0.0);
         vec sigma, s_p, s_m;
         mat Lt, unused;
-        em.evaluate(eps, 3, sigma, Lt);
+        em.evaluate(eps, 3, 3, sigma, Lt);
         mat L_fd(6, 6);
         for (uword j = 0; j < 6; ++j) {
             vec e_p = eps, e_m = eps;
             e_p(j) += h;
             e_m(j) -= h;
-            em.evaluate(e_p, 3, s_p, unused);
-            em.evaluate(e_m, 3, s_m, unused);
+            em.evaluate(e_p, 3, 3, s_p, unused);
+            em.evaluate(e_m, 3, 3, s_m, unused);
             L_fd.col(j) = (s_p - s_m) / (2.0 * h);
         }
         EXPECT_LT(norm(Lt - L_fd, "fro") / norm(Lt, "fro"), 1e-7)
@@ -573,7 +573,7 @@ TEST_F(ElasticityModuleTest, EvaluateMatchesElasticPredictorAndTangent) {
     const vec eps = {1.0e-3, -3.0e-4, -3.0e-4, 5.0e-4, -2.0e-4, 1.0e-4};
     vec sigma;
     mat Lt;
-    em.evaluate(eps, 3, sigma, Lt);
+    em.evaluate(eps, 3, 3, sigma, Lt);
 
     // stress and tangent come from ONE call and must be consistent: sigma is
     // the elastic predictor and Lt its exact derivative.
@@ -589,8 +589,8 @@ TEST_F(ElasticityModuleTest, EvaluateMatchesElasticPredictorAndTangent) {
         em_(j) -= h;
         vec sp, sm;
         mat dummy;
-        em.evaluate(ep, 3, sp, dummy);
-        em.evaluate(em_, 3, sm, dummy);
+        em.evaluate(ep, 3, 3, sp, dummy);
+        em.evaluate(em_, 3, 3, sm, dummy);
         EXPECT_LT(norm((sp - sm) / (2.0 * h) - Lt.col(j), 2), 1e-4 * norm(Lt.col(j), 2));
     }
 }
@@ -599,7 +599,7 @@ TEST_F(ElasticityModuleTest, EvaluateThrowsWhenNotConfigured) {
     ElasticityModule em;
     vec sigma;
     mat Lt;
-    EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, sigma, Lt), std::runtime_error);
+    EXPECT_THROW(em.evaluate(arma::zeros<vec>(6), 3, 3, sigma, Lt), std::runtime_error);
 }
 
 // ndi < 3 condenses the STRESS only; the tangent stays the full 6x6. That
@@ -614,7 +614,7 @@ TEST_F(ElasticityModuleTest, EvaluateCondensesStressOnlyForPlaneStress) {
     const vec eps = {1.0e-3, -3.0e-4, 0.0, 5.0e-4, 0.0, 0.0};
     vec sigma;
     mat Lt;
-    em.evaluate(eps, 2, sigma, Lt);
+    em.evaluate(eps, 2, 1, sigma, Lt);
 
     EXPECT_LT(norm(sigma - el_pred(em.L0(), eps, 2), 2), 1e-12);
     EXPECT_NEAR(sigma(2), 0.0, 1e-12);   // out-of-plane stress condensed away

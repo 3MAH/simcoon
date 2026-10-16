@@ -73,8 +73,12 @@ The contract
   it as a loading step (a bare callable registered instead of a ``PythonUMAT`` must
   do it itself).
 * **ndi** follows the classical convention: 3 = 3D (plane strain is 3D with a null
-  out-of-plane strain), 2 = plane stress (the law must condense, cf. ``el_pred``),
-  1 = uniaxial. ``nshr`` is the number of shear components.
+  out-of-plane strain), 2 = plane stress, 1 = uniaxial. ``nshr`` is the number of
+  shear components kept, in the order 12, 13, 23 (Abaqus). With ``ndi < 3`` every
+  component outside the ``(ndi, nshr)`` state is stress-free and the law must condense
+  it, as ``el_pred`` does: ``(1, 0)`` truss, ``(1, 2)`` beam fibre (11, 12, 13),
+  ``(2, 1)`` plane stress. ``sim.umat(..., ndi=1, nshr=2)`` selects a state other than
+  the default of ``ndi``.
 * **tangent_mode**: 0 = return the elastic operator as ``Lt``, 1 = continuum tangent,
   2 = algorithmic (consistent) tangent (default of the solver).
 * **Wm** is the accumulated ``(Wm, Wm_r, Wm_ir, Wm_d)`` at the beginning of the

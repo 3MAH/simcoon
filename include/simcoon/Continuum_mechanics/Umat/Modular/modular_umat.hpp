@@ -376,6 +376,7 @@ private:
      * @param DT Temperature increment
      * @param DTime Time increment
      * @param ndi Number of direct stress components
+     * @param nshr Number of shear stress components
      * @param Ds_total Output: converged multiplier increments
      * @param tangent_mode selects the closest-point branch (tangent_closest_point)
      * @return false only when the closest-point solve did not converge (the
@@ -392,6 +393,7 @@ private:
         double DT,
         double DTime,
         int ndi,
+        int nshr,
         arma::vec& Ds_total,
         int tangent_mode
     );
@@ -421,6 +423,7 @@ private:
         double DT,
         double DTime,
         int ndi,
+        int nshr,
         arma::vec& Phi,
         arma::vec& Y_crit,
         arma::vec& sigma,
@@ -458,6 +461,7 @@ private:
         double DT_init,
         double DTime,
         int ndi,
+        int nshr,
         const arma::vec& Y_crit,
         arma::vec& sigma,
         arma::vec& Ds_total
@@ -476,10 +480,11 @@ private:
      *        state: T + DT - T_init at the end of the increment (T is the
      *        start-of-increment temperature, as in the legacy kernels)
      * @param ndi number of direct stress components
+     * @param nshr number of shear stress components
      * @param sigma Output: stress
      */
     void refresh_stress(const arma::vec& Etot_end, double DT_init, int ndi,
-                        arma::vec& sigma);
+                        int nshr, arma::vec& sigma);
 
     /**
      * @brief Compute the tangent modulus.

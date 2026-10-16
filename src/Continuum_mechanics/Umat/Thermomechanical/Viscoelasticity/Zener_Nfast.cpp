@@ -26,7 +26,6 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
     
     //From the props to the material properties
@@ -126,7 +125,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         v(i) += norm_strain(DEV_i[i]);
         EV += EV_i[i];
     }
-    sigma = el_pred(L0, eps_e - EV, ndi);
+    sigma = el_pred(L0, eps_e - EV, ndi, nshr);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;

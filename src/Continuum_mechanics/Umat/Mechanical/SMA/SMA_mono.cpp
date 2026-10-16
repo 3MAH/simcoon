@@ -62,7 +62,6 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     UNUSED(nstatev);
     UNUSED(Time);
     UNUSED(DTime);
-    UNUSED(nshr);
     UNUSED(tnew_dt);
 
 	// ######################  Props #################################
@@ -218,7 +217,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    stress = el_pred(L, Eel, ndi);
+    stress = el_pred(L, Eel, ndi, nshr);
     
     //Need to define the thermodynamic parameters:
 	vec lambda0 = zeros(nvariants);
@@ -383,7 +382,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
 
             //the stress is now computed using the relationship stress = L(E-Ep)
             Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-            stress = el_pred(L, Eel, ndi);
+            stress = el_pred(L, Eel, ndi, nshr);
         }
                        
 		vec lambda_eff = zeros(6);
@@ -439,7 +438,7 @@ void umat_sma_mono(const string &umat_name, const vec &Etot, const vec &DEtot, v
     }
 	else {
         Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-        stress = el_pred(L, Eel, ndi);
+        stress = el_pred(L, Eel, ndi, nshr);
         
         ///Computation of the tangent modulus
         Lt = L;

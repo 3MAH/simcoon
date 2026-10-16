@@ -43,7 +43,6 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
 
     //From the props to the material properties
     double E = props(0);
@@ -130,7 +129,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
 
     //Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    sigma = el_pred(L, Eel, ndi, nshr);
 
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -163,7 +162,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
             s_j(0) += x0;
             EP = EP + x0*Lambda_trial;
             Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-            sigma = el_pred(L, Eel, ndi);
+            sigma = el_pred(L, Eel, ndi, nshr);
         }
     }
 
@@ -219,7 +218,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
 
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        sigma = el_pred(L, Eel, ndi, nshr);
     }
 
     // The loop reads p at the top and corrects s_j at the bottom: bring p and the hardening to

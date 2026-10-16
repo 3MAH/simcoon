@@ -330,7 +330,7 @@ void ModularUMAT::run(
     // Perform return mapping (unconverged-at-maxiter commit semantics: see
     // the return_mapping doc).
     arma::vec Ds_total = arma::zeros(n_total);
-    const bool converged = return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, Ds_total, tangent_mode);
+    const bool converged = return_mapping(Etot, DEtot, sigma, T_init_, T, DT, DTime, ndi, nshr, Ds_total, tangent_mode);
 
     // Reject unusable committed states with a step cut: non-finite stress
     // (true divergence), a runaway COMMITTED multiplier (multiplier_cap —
@@ -372,7 +372,7 @@ void ModularUMAT::run(
             if (rotate) mech->rotate(DR);
         }
         arma::vec sigma_at_start;
-        refresh_stress(Etot, T - T_init_, ndi, sigma_at_start);
+        refresh_stress(Etot, T - T_init_, ndi, nshr, sigma_at_start);
         Lt = stiffness_reduction() * L_cur_;
         return;
     }
@@ -410,13 +410,13 @@ void ModularUMAT::run(
 }
 
 void ModularUMAT::refresh_stress(const arma::vec& Etot_end, double DT_init,
-                                 int ndi, arma::vec& sigma) {
+                                 int ndi, int nshr, arma::vec& sigma) {
     arma::vec E_inel = arma::zeros(6);
     for (const auto& mech : mechanisms_) {
         E_inel += mech->inelastic_strain();
     }
     const arma::vec Eel = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
-    elasticity_.evaluate(Eel, ndi, sigma_eff_, L_cur_);
+    elasticity_.evaluate(Eel, ndi, nshr, sigma_eff_, L_cur_);
     // strain equivalence (Lemaitre): the mechanisms work on sigma_eff_, damage scales it
     sigma = stiffness_reduction() * sigma_eff_;
 }
@@ -430,6 +430,7 @@ bool ModularUMAT::return_mapping(
     double DT,
     double DTime,
     int ndi,
+    int nshr,
     arma::vec& Ds_total,
     int tangent_mode
 ) {
@@ -448,7 +449,7 @@ bool ModularUMAT::return_mapping(
     for (auto& mech : mechanisms_) {
         mech->predict(Etot_end, DTime);   // closed-form parts first (viscoelastic branches)
     }
-    refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
+    refresh_stress(Etot_end, T + DT - T_init, ndi, nshr, sigma);
     if (n_total == 0) {
         return true;
     }
@@ -474,7 +475,7 @@ bool ModularUMAT::return_mapping(
             inert_rows = true;
         }
         if (inert_rows) {
-            refresh_stress(Etot_end, T + DT - T_init, ndi, sigma);
+            refresh_stress(Etot_end, T + DT - T_init, ndi, nshr, sigma);
         }
         double residual = 0.0;
         for (const auto& mech : mechanisms_) {
@@ -497,9 +498,9 @@ bool ModularUMAT::return_mapping(
         all_cpp = !mechanisms_[m]->carries_multipliers() || mechanisms_[m]->supports_closest_point();
     }
     if (all_cpp) {
-        return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, Y_crit, sigma, Ds_total);
+        return return_mapping_cpp(Etot_end, T + DT - T_init, DTime, ndi, nshr, Y_crit, sigma, Ds_total);
     }
-    return_mapping_ccp(Etot_end, T + DT - T_init, DT, DTime, ndi, Phi, Y_crit, sigma, Ds_total,
+    return_mapping_ccp(Etot_end, T + DT - T_init, DT, DTime, ndi, nshr, Phi, Y_crit, sigma, Ds_total,
                        elastic_pass ? 1 : 0);
     return true;   // the reference CCP convention commits an unconverged-at-maxiter state
 }
@@ -521,6 +522,7 @@ void ModularUMAT::return_mapping_ccp(
     double DT,
     double DTime,
     int ndi,
+    int nshr,
     arma::vec& Phi,
     arma::vec& Y_crit,
     arma::vec& sigma,
@@ -537,7 +539,7 @@ void ModularUMAT::return_mapping_ccp(
         for (size_t m = 0; m < mechanisms_.size(); ++m) mechanisms_[m]->update(ds, mech_offset_[m]);
     };
     // D may have evolved in update: the reduction factor is re-evaluated with the stress
-    hooks.refresh = [&]() { refresh_stress(Etot_end, DT_init, ndi, sigma); };
+    hooks.refresh = [&]() { refresh_stress(Etot_end, DT_init, ndi, nshr, sigma); };
     hooks.consistency = [&]() {
         double res = 0.0;
         for (const auto& mech : mechanisms_) res += mech->consistency_residual(sigma_eff_);
@@ -626,6 +628,7 @@ bool ModularUMAT::return_mapping_cpp(
     double DT_init,
     double DTime,
     int ndi,
+    int nshr,
     const arma::vec& Y_crit_all,
     arma::vec& sigma,
     arma::vec& Ds_total
@@ -637,8 +640,8 @@ bool ModularUMAT::return_mapping_cpp(
         arma::vec E_inel = arma::zeros(6);
         for (const auto& mech : mechanisms_) E_inel += mech->inelastic_strain();
         hooks.eps_el_tr = Etot_end - elasticity_.thermal_strain(DT_init) - E_inel;
-        hooks.elastic_response = [&, ndi](const arma::vec& eps_el, arma::vec& sig, arma::mat& Lt) {
-            elasticity_.evaluate(eps_el, ndi, sig, Lt);
+        hooks.elastic_response = [&, ndi, nshr](const arma::vec& eps_el, arma::vec& sig, arma::mat& Lt) {
+            elasticity_.evaluate(eps_el, ndi, nshr, sig, Lt);
         };
     }
     std::vector<StrainMechanism*> rows(mechanisms_.size());
@@ -665,7 +668,7 @@ bool ModularUMAT::return_mapping_cpp(
 
     // Commit: the stress from the refreshed state (self-consistent with it), the solve for
     // the tangent.
-    refresh_stress(Etot_end, DT_init, ndi, sigma);
+    refresh_stress(Etot_end, DT_init, ndi, nshr, sigma);
     cpp_result_ = std::move(r);
     return true;
 }

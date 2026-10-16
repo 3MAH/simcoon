@@ -297,14 +297,14 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
 
 // ========== Derived Quantities ==========
 
-void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi,
+void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                 arma::vec& sigma, arma::mat& Lt) const {
     if (!configured_) {
         throw std::runtime_error("ElasticityModule: not configured");
     }
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
         // el_pred rather than a bare L_ * eps_el: it carries the ndi condensation.
-        sigma = el_pred(L_, eps_el, ndi);
+        sigma = el_pred(L_, eps_el, ndi, nshr);
         Lt = L_;
         return;
     }

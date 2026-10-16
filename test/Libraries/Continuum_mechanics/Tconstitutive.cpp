@@ -21,6 +21,8 @@
 
 #include <gtest/gtest.h>
 #include <armadillo>
+#include <vector>
+#include <stdexcept>
 
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -290,6 +292,57 @@ TEST(Tconstitutive, el_pred_both_overloads)
 
     // Both should give same result when sigma_start = 0
     EXPECT_LT(norm(sigma1 - sigma2, 2), 1.E-9);
+}
+
+// Condensed states (ndi < 3): sigma_K = Q eps_K with Q = inv(S_KK), S = inv(L) — the stiffness
+// of the kept components when every other one is stress-free.
+TEST(Tconstitutive, el_pred_condensed_states)
+{
+    const double E = 70000., nu = 0.3, G = E / (2. * (1. + nu));
+    const mat L = L_iso(E, nu, "Enu");
+    const vec Eel = {1.e-3, 4.e-4, -2.e-4, 6.e-4, -3.e-4, 5.e-4};
+
+    // truss (1, 0): Young's modulus, not the oedometric L(0,0)
+    vec sigma = el_pred(L, Eel, 1, 0);
+    EXPECT_NEAR(sigma(0), E * Eel(0), 1.e-9);
+    EXPECT_LT(norm(sigma.subvec(1, 5), 2), 1.e-12);
+    EXPECT_LT(norm(el_pred(L, Eel, 1) - sigma, 2), 1.e-12);   // nshr = -1 -> (1, 0)
+
+    // beam fibre (1, 2): 11, 12, 13 kept
+    sigma = el_pred(L, Eel, 1, 2);
+    const vec sigma_beam = {E * Eel(0), 0., 0., G * Eel(3), G * Eel(4), 0.};
+    EXPECT_LT(norm(sigma - sigma_beam, 2), 1.e-9);
+
+    // plane stress (2, 1): the classical reduced stiffness
+    sigma = el_pred(L, Eel, 2, 1);
+    const double c = E / (1. - nu * nu);
+    const vec sigma_ps = {c * (Eel(0) + nu * Eel(1)), c * (nu * Eel(0) + Eel(1)), 0., G * Eel(3), 0., 0.};
+    EXPECT_LT(norm(sigma - sigma_ps, 2), 1.e-9);
+    EXPECT_LT(norm(el_pred(L, Eel, 2) - sigma, 2), 1.e-12);   // nshr = -1 -> (2, 1)
+
+    // fully anisotropic (SPD, all couplings): Q = inv(S_KK) for every supported state
+    mat A = randu(6, 6);
+    const mat La = A * A.t() + 6. * eye(6, 6);
+    const mat Sa = inv(La);
+    const std::vector<std::pair<int, int>> states = {{1, 0}, {1, 2}, {2, 1}, {2, 3}};
+    for (const auto &st : states) {
+        uvec K = {0};
+        if (st.first == 2) K = {0, 1};
+        for (int j = 0; j < st.second; j++) K = join_cols(K, uvec{uword(3 + j)});
+        const vec s = el_pred(La, Eel, st.first, st.second);
+        vec s_ref = zeros(6);
+        s_ref(K) = inv(Sa(K, K)) * Eel(K);
+        EXPECT_LT(norm(s - s_ref, 2), 1.e-10 * norm(s_ref, 2)) << "ndi=" << st.first << " nshr=" << st.second;
+        // incremental overload: same operator on the increment
+        const vec s0 = s_ref * 0.5;
+        EXPECT_LT(norm(el_pred(s0, La, Eel, st.first, st.second) - (s0 + s_ref), 2), 1.e-10 * norm(s_ref, 2));
+    }
+
+    // ndi = 3 is never condensed, whatever nshr
+    EXPECT_LT(norm(el_pred(La, Eel, 3, 1) - La * Eel, 2), 1.e-12);
+
+    EXPECT_THROW(el_pred(L, Eel, 0, 0), std::invalid_argument);
+    EXPECT_THROW(el_pred(L, Eel, 1, 4), std::invalid_argument);
 }
 
 TEST(Tconstitutive, Isotropize)

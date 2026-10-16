@@ -91,7 +91,6 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     UNUSED(nprops);
     UNUSED(nstatev);
     UNUSED(Time);
-    UNUSED(nshr);
     
 	//From the props to the material properties
     double rho = props(0);
@@ -173,7 +172,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     
 	///Elastic prediction - Accounting for the thermal prediction
 	vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi);
+    sigma = el_pred(L, Eel, ndi, nshr);
     
 	//Define the plastic function and the stress
 	vec Phi = zeros(1);
@@ -251,7 +250,7 @@ void umat_plasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
         
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi);
+        sigma = el_pred(L, Eel, ndi, nshr);
     }
     }
     

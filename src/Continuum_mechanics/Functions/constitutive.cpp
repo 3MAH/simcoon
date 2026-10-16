@@ -23,6 +23,8 @@ along with simcoon.  If not, see <http://www.gnu.org/licenses/>.
 #include <assert.h>
 #include <math.h>
 #include <string.h>
+#include <string>
+#include <stdexcept>
 #include <armadillo>
 #include <simcoon/exception.hpp>
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
@@ -555,64 +557,42 @@ mat H_iso(const double &etaB, const double &etaS) {
 	return 3.*etaB*Ivol() + 2.*etaS*Idev();
 }
 
-vec el_pred(const vec &sigma_start, const mat &L, const vec &DE_el, const int &ndi) {
-    
+// Condensed stress states (ndi < 3), Abaqus ordering: the stress keeps the first ndi direct
+// components and the first nshr shears (12, 13, 23); every other component is stress-free. Its
+// strain is free and eliminated: Q = L_KK - L_KC L_CC^-1 L_CK on the kept set K. ndi = 3 is the
+// full or plane-strain-like state, whose missing shears are zero strain, not zero stress.
+// nshr < 0 picks Abaqus' default for ndi: truss (1, 0), plane stress (2, 1), 3D (3, 3).
+static vec condensed_pred(const mat &L, const vec &E, const int &ndi, const int &nshr) {
+
+    const int ns = (nshr < 0) ? ((ndi == 1) ? 0 : 1) : nshr;
+    if ((ndi != 1 && ndi != 2) || ns > 3) {
+        throw std::invalid_argument("el_pred: invalid condensed state (ndi = " + std::to_string(ndi) + ", nshr = " + std::to_string(nshr) + ")");
+    }
+    uvec K(ndi + ns), C(6 - ndi - ns);
+    int nk = 0, nc = 0;
+    for (int i = 0; i < 6; i++) {
+        if ((i < 3) ? (i < ndi) : (i - 3 < ns)) K(nk++) = i;
+        else C(nc++) = i;
+    }
+    const mat Q = L(K, K) - L(K, C) * solve(L(C, C), L(C, K));
     vec sigma = zeros(6);
-    if (ndi == 1) {
-        
-        ///WARNING : This needs to be fixed
-        sigma(0) = sigma_start(0) + L(0,0)*DE_el(0);
-    }
-    else if (ndi == 2) {
-        
-        double Q11 = L(0,0)-L(0,2)*L(2,0)/L(2,2);
-        double Q12 = L(0,1)-L(0,2)*L(2,1)/L(2,2);
-        double Q14 = L(0,3)-L(0,2)*L(2,3)/L(2,2);
-        double Q21 = L(1,0)-L(1,2)*L(2,0)/L(2,2);
-        double Q22 = L(1,1)-L(1,2)*L(2,1)/L(2,2);
-        double Q24 = L(1,3)-L(1,2)*L(2,3)/L(2,2);
-        double Q41 = L(3,0)-L(3,2)*L(2,0)/L(2,2);
-        double Q42 = L(3,1)-L(3,2)*L(2,1)/L(2,2);
-        double Q44 = L(3,3)-L(3,2)*L(2,3)/L(2,2);
-        
-        sigma(0) = sigma_start(0) + Q11*DE_el(0) + Q12*DE_el(1) + Q14*DE_el(3);
-        sigma(1) = sigma_start(1) + Q21*DE_el(0) + Q22*DE_el(1) + Q24*DE_el(3);
-        sigma(3) = sigma_start(3) + Q41*DE_el(0) + Q42*DE_el(1) + Q44*DE_el(3);
-    }
-    else
-        sigma = sigma_start + L*DE_el;
-    
+    sigma(K) = Q * E(K);
     return sigma;
 }
-    
+
+vec el_pred(const vec &sigma_start, const mat &L, const vec &DE_el, const int &ndi, const int &nshr) {
+
+    if (ndi == 3)
+        return sigma_start + L*DE_el;
+    return sigma_start + condensed_pred(L, DE_el, ndi, nshr);
+}
+
 //Provides the elastic prediction, providing the stiffness tensor and the trial elastic strain
-vec el_pred(const mat &L, const vec &E_el, const int &ndi) {
-    
-    vec sigma = zeros(6);
-    if (ndi == 1) {
-        ///WARNING : This needs to be fixed        
-        sigma(0) = L(0,0)*(E_el(0));
-    }
-    else if (ndi == 2) {
-        
-        double Q11 = L(0,0)-L(0,2)*L(2,0)/L(2,2);
-        double Q12 = L(0,1)-L(0,2)*L(2,1)/L(2,2);
-        double Q14 = L(0,3)-L(0,2)*L(2,3)/L(2,2);
-        double Q21 = L(1,0)-L(1,2)*L(2,0)/L(2,2);
-        double Q22 = L(1,1)-L(1,2)*L(2,1)/L(2,2);
-        double Q24 = L(1,3)-L(1,2)*L(2,3)/L(2,2);
-        double Q41 = L(3,0)-L(3,2)*L(2,0)/L(2,2);
-        double Q42 = L(3,1)-L(3,2)*L(2,1)/L(2,2);
-        double Q44 = L(3,3)-L(3,2)*L(2,3)/L(2,2);
-        
-        sigma(0) = Q11*E_el(0) + Q12*E_el(1) + Q14*E_el(3);
-        sigma(1) = Q21*E_el(0) + Q22*E_el(1) + Q24*E_el(3);
-        sigma(3) = Q41*E_el(0) + Q42*E_el(1) + Q44*E_el(3);
-    }
-    else
-        sigma = L*E_el;
-    
-    return sigma;
+vec el_pred(const mat &L, const vec &E_el, const int &ndi, const int &nshr) {
+
+    if (ndi == 3)
+        return L*E_el;
+    return condensed_pred(L, E_el, ndi, nshr);
 }
     
 mat Isotropize(const mat &Lt) {
