@@ -120,6 +120,8 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     const double thermal_factor = 1. - pow(Tstar, m_jc);
     const double dthermal_dT_start = dthermal_dT(Tstar_start);
     const double dthermal_dT_end = dthermal_dT(Tstar);
+    const double d2thermal_dT2_end = (Tstar > simcoon::iota && Tstar < 1. - simcoon::iota)
+        ? -m_jc * (m_jc - 1.) * pow(Tstar, m_jc - 2.) / ((T_melt - T_ref) * (T_melt - T_ref)) : 0.;
 
     // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
     // power-law block carries the blend; same law, no second implementation)
@@ -303,8 +305,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     // Irreversible entropy of the temperature-dependent stored hardening, eta_ir = -dG^ir/dT
     double eta_ir = -dthermal_dT_end*stored_hardening(p);
     double eta_ir_start = -dthermal_dT_start*stored_hardening(p_start);
-    // d eta_ir / dp at the end of the increment: the reversible coupling -theta deta_ir/dp pdot
-    // enters the heat source like the thermoelastic -theta alpha:dsigma/dt
+    // d eta_ir / dp at the end of the increment
     const double deta_ir_dp = -dthermal_dT_end*Hp;
 
     double eta = eta_r + eta_ir;
@@ -314,12 +315,6 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
 
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-
     // Hardening force A_p = -f_T B p^n (the dissipation f_T [A f_rate + B p^n (f_rate - 1)] Dp
     // is then non-negative at every temperature and rate) and its derivatives
     double A_p = -thermal_factor*Hp;
@@ -328,36 +323,19 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
 
     // Dissipation increment over the step (the quantity Wm_d accumulates)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp;
+    // its derivatives through dDp = P and dDEP = Lambdap P (flow direction held fixed over the
+    // increment), plus the explicit softening of A_p
+    const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + dA_pdp*Dp);
+    const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
+    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0] + 0.5*dA_pdtheta*Dp;
 
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = dA_pdp*P_epsilon[0]*(Dp/DTime) + A_p/DTime*P_epsilon[0] + (dSdE*DEP)*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
-        Gamma_theta = (dA_pdp*P_theta[0] + dA_pdtheta)*(Dp/DTime) + A_p/DTime*P_theta[0] + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
+    // Entropy derivatives at the end of the increment, eta = c_0 ln(T/T_init) + alpha:sigma + eta_ir(T, p)
+    const double T1 = T + DT;
+    const vec deta_dE = dSdE.t()*alpha + deta_ir_dp*P_epsilon[0];
+    const double deta_dT = c_0/T1 + sum(dSdT%alpha) - d2thermal_dT2_end*stored_hardening(p) + deta_ir_dp*P_theta[0];
 
-        // Thermoelastic coupling and the coupling of the stored hardening, -theta deta_ir/dp pdot
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha) - (T + DT)/DTime*deta_ir_dp*P_epsilon[0];
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime)
-                  - (T + DT)/DTime*deta_ir_dp*P_theta[0] - deta_ir_dp*Dp/DTime;
-
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
-
-        // The dissipation enters r through its converged increment (the form of the viscous
-        // kernels, viscous_heat_source), not its linearization Gamma_epsilon:DEtot +
-        // Gamma_theta*DT (EPICP_T): at fixed DTime the rate-dependent Dp is a logarithmic
-        // function of DEtot, so the first-order expansion built on P_epsilon = invBhat
-        // L:dPhi/dsigma -- with the rate term C (A + Hp)/Dp in Bhat -- underestimates it and
-        // vanishes under step refinement. Gamma_epsilon / Gamma_theta are its first-order
-        // derivatives, so drdE / drdT stay the Newton linearizations of this r.
-        // Thermoelastic and hardening-entropy couplings on the converged increment
-        const double N_coupling = -(T + DT)*(sum(alpha%(sigma - sigma_start)) + deta_ir_dp*Dp)/DTime
-                                  - Deta*DT/DTime - rho*c_p*DT/DTime;
-        r = N_coupling + Dgamma_loc/DTime;
-    }
+    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, deta_dE, deta_dT, T1, r, drdE, drdT);
 
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

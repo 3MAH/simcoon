@@ -12,6 +12,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
 
@@ -138,9 +139,10 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     const vec dDgamma_dE = 0.5*((st.dSdE - L1*dEVdE).t()*DEV1 + dEVdE.t()*A_mid2);
     const double dDgamma_dT = 0.5*(sum((st.dSdT - L1*dEVdT)%DEV1) + sum(dEVdT%A_mid2));
 
-    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
-    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
-                        rho*c_p, DTime, r, drdE, drdT);
+    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    const double T1 = T + DT;
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
+                          c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

@@ -128,7 +128,11 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
 
-    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT, abaqus_nlgeom(dfgrd1));
+    // The kernels return the heat of the increment R = DTime r; Abaqus takes its rate (RPL, DRPLDE, DRPLDT)
+    const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
+    const mat drpldE = rve_sv_T->drdE*inv_dtime;
+    const mat drpldT = rve_sv_T->drdT*inv_dtime;
+    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r*inv_dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, drpldE, drpldT, abaqus_nlgeom(dfgrd1));
     
     
 }

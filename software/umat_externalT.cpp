@@ -134,13 +134,17 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     
 	abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, dSdE, dSdT, drpldE, drpldT, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, Wt, statev_smart, DR, start);
     external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), ndi, nshr, start, pnewdt);
-	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r, Wm, Wt, dSdE, dSdT, drpldE, drpldT, abaqus_nlgeom(dfgrd1));
+	// r is the heat of the increment (simcoon contract, see heat_source_increment); Abaqus takes the rates
+	const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
+	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r*inv_dtime, Wm, Wt, dSdE, dSdT, drpldE*inv_dtime, drpldT*inv_dtime, abaqus_nlgeom(dfgrd1));
 }
 
 void external_umat_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)
 {  	
 
-    //Write here your UMAT
+    //Write here your UMAT. Contract of the simcoon thermomechanical kernels: r is the heat of the
+    //increment per unit reference volume, storage included, r = Dgamma - (T+DT)(eta_{n+1} - eta_n)
+    //(heat_source_increment, tangent_assembly.hpp), drdE / drdT its derivatives.
 
 }
 

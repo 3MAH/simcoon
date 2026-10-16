@@ -138,6 +138,22 @@ The thermo-mechanical version provides:
 - Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
 
+The simcoon kernels return the heat of the increment :math:`r` (storage included, see
+:doc:`output`); ``umat_singleT`` divides it and its derivatives by ``dtime`` to give
+Abaqus the rates it expects (zero at ``dtime = 0``).
+
+The whole thermomechanics stays in simcoon: ``rpl`` carries the complete heat of the
+model, :math:`r = \Delta\gamma - T_{n+1} \Delta\eta`, i.e. the dissipation, the
+thermoelastic and latent couplings and the heat storage, and ``drpldt`` the matching
+heat capacity. The heat follows from the free energy of the law; it is not a
+Taylor-Quinney fraction of the plastic work, the stored energy :math:`W_m^{ir}` does
+not heat the material. Therefore, with these UMATs:
+
+- set ``*SPECIFIC HEAT`` to a negligible value, otherwise the storage is counted twice;
+- do not use ``*INELASTIC HEAT FRACTION``.
+
+An adiabatic analysis then reads ``rpl = 0`` exactly, as in the simcoon solver.
+
 Material Jacobian convention
 ----------------------------
 

@@ -96,22 +96,4 @@ LinearViscoStep maxwell_parallel_step(const mat &L0, const vector<mat> &L_i, con
     return st;
 }
 
-void viscous_heat_source(const double &Dgamma, const vec &dDgamma_dE, const double &dDgamma_dT,
-                         const LinearViscoStep &st, const vec &alpha, const vec &sigma,
-                         const vec &sigma_start, const double &T, const double &DT,
-                         const double &rho_cp, const double &DTime,
-                         double &r, mat &drdE, mat &drdT) {
-    if (DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-        return;
-    }
-    const double Tm = T + 0.5*DT;
-    const double alpha_Dsigma = dot(alpha, sigma - sigma_start);
-    r = (Dgamma - Tm*alpha_Dsigma - rho_cp*DT)/DTime;
-    drdE = (dDgamma_dE - Tm*(st.dSdE.t()*alpha))/DTime;
-    drdT = (dDgamma_dT - 0.5*alpha_Dsigma - Tm*dot(alpha, st.dSdT) - rho_cp)/DTime;
-}
-
 } //namespace simcoon

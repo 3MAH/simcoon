@@ -659,7 +659,8 @@ constexpr auto umat = R"pbdoc(
     time, dtime : float
         Time at the start of the increment and its increment.
     temp : numpy.ndarray, optional
-        Temperature per point.
+        Temperature at the start of the increment: one value shared by every
+        point, or one per point.
     ndi : int
         Number of direct stress components (3, 2 or 1). With ndi < 3 the
         components absent from the (ndi, nshr) state are stress-free: the
@@ -723,6 +724,12 @@ constexpr auto umat = R"pbdoc(
         etot = ln U(F0), Detot = ln U(F1) - ln U(F0), DR = I and both F; the
         box is then dT/dH, and the stress stays Cauchy in and out (T is
         converted at the two ends). No objective rate is involved.
+    DT : numpy.ndarray, optional
+        Temperature increment, shared or per point like temp (keyword only;
+        needs temp). The kernel
+        sees T = temp at the start and T + DT at the end of the increment, as
+        umat_T does: thermal expansion and temperature-dependent properties
+        follow the prescribed temperature. Zero when not given.
 
     Returns
     -------
@@ -766,6 +773,59 @@ constexpr auto umat = R"pbdoc(
     cannot subdivide, so it raises simcoon.StepCut (a RuntimeError) carrying the
     smallest requested ``ratio``. The input arrays are untouched: discard the
     call and retry with a smaller increment. umat_T behaves the same way.
+)pbdoc";
+
+constexpr auto umat_T = R"pbdoc(
+    Run a thermomechanical UMAT on a batch of material points.
+
+    Parameters
+    ----------
+    umat_name : str
+        Thermomechanical law: ELISO, ELIST, ELORT, EPICP, EPKCP, EPJCK, ZENER,
+        ZENNK, PRONK, SMADI, SMADC, SMAAI or SMAAC.
+    etot, Detot : numpy.ndarray
+        Strain at the start of the increment and its increment, shape (6, N).
+        Under finite strain: the log-strain pair of the chosen form (as umat).
+    sigma : numpy.ndarray
+        Stress at the start of the increment, shape (6, N); Cauchy under
+        finite strain.
+    DR : numpy.ndarray
+        Rotation increment, shape (3, 3, N) (ignored by the total form).
+    props, statev, Wm, Wt : numpy.ndarray
+        Material parameters, state variables, mechanical work terms (4, N)
+        and thermal work terms (3, N).
+    time, dtime : float
+        Time at the start of the increment and its increment (zero accepted).
+    T, DT : numpy.ndarray
+        Temperature at the start of the increment and its increment, one entry
+        per point.
+    ndi, nshr, n_threads, tangent_mode, start
+        As umat.
+    F0, F1 : numpy.ndarray, optional
+        Deformation gradients at the start and the end of the increment, shape
+        (3, 3, N), keyword only. Given, the call is a finite-strain one: ELISO
+        only for now, under kinematic_form 'rate' (log_R, corate 3, the
+        default) or 'total' (ln U and its dual stress T, DR = I); other laws
+        and rates are refused. The stress stays Cauchy in and out.
+    kinematic_form : str or int, optional
+        'rate' (or 3) or 'total'; needs F0 and F1.
+
+    Returns
+    -------
+    tuple
+        (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT). r is the heat of
+        the increment per unit reference volume (MPa), storage included,
+
+            r = Delta gamma - (T + DT) (eta_{n+1} - eta_n),
+
+        with Delta gamma the dissipation added to Wm_d and eta the entropy
+        (eta = rho c_p ln(T/T_init) + alpha : sigma + ...): dtime times the
+        heat source. r = 0 is the adiabatic condition, at any dtime including
+        zero. drdE (6, N) and drdT (N,) are its derivatives with respect to
+        the strain increment and to DT; dSdE (6, 6, N) and dSdT (6, N) those of
+        the stress. Under finite strain, dSdE and drdE are the box derivatives
+        (with respect to the log-strain increment of the form, as umat's
+        default tangent), dSdT the derivative of the Cauchy stress.
 )pbdoc";
 
 } // namespace simcoon_docs

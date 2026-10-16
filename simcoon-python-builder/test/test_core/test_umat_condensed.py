@@ -69,3 +69,22 @@ def test_beam_fibre_MODUL_matches_EPICP():
 def test_invalid_nshr():
     with pytest.raises(ValueError):
         _drive("EPICP", EPICP, 8, np.zeros(6), 1, ndi=1, nshr=4)
+
+
+def _umat_T_once(de, **kwargs):
+    props = _col([7.8e-9, 4.6e8, E, NU, 0.0])   # ELISO_T: rho, c_p, E, nu, alpha
+    out = sim.umat_T("ELISO", _col(np.zeros(6)), _col(de), _col(np.zeros(6)), np.asfortranarray(np.eye(3)[:, :, None]),
+                     props, _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.full(1, 293.15),
+                     np.zeros(1), n_threads=1, start=True, **kwargs)
+    return out[0].ravel()
+
+
+def test_umat_T_honours_nshr():
+    de = np.array([1e-3, 0, 0, 5e-4, -3e-4, 0])
+    np.testing.assert_allclose(_umat_T_once(de, ndi=1, nshr=2), [E * 1e-3, 0, 0, G * 5e-4, -G * 3e-4, 0],
+                               rtol=1e-12, atol=1e-12)
+
+
+def test_umat_T_invalid_nshr():
+    with pytest.raises(ValueError):
+        _umat_T_once(np.zeros(6), ndi=1, nshr=4)

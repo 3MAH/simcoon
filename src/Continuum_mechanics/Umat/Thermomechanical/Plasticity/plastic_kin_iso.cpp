@@ -324,38 +324,23 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
     
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-    
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-    
     double A_p = -Hp;
     double dA_pdp = -dHpdp;
     vec A_a = -X;
     mat dA_ada = -1.*kX*Ireal();
-    
-    //    double A_theta = 0;
-    
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = (dSdE*DEP)*(1./DTime) + (dA_pdp)*P_epsilon[0]*(Dp/DTime) + sum((dA_ada*Lambdaa)%P_epsilon[0])*(Da/DTime) + A_p/DTime*P_epsilon[0] + sum(A_a%Lambdaa)*P_epsilon[0]*(1./DTime) + sum(sigma%Lambdap)*P_epsilon[0]/DTime;
-        Gamma_theta = dA_pdp*P_theta[0]*(Dp/DTime) + sum((dA_ada*Lambdaa)%Da)*P_theta[0]/DTime + A_p/DTime*P_theta[0] + sum(A_a%Lambdaa)*P_theta[0]*(1./DTime) + sum(dSdT%DEP)*(1./DTime) + sum(sigma%Lambdap)*P_theta[0]/DTime;
-        
-        N_epsilon = -1./DTime*(T + DT)*(dSdE*alpha);
-        N_theta = -1./DTime*(T + DT)*sum(dSdT%alpha) -1.*Deta/DTime - rho*c_p*(1./DTime);
-        
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
-        
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
-    
+
+    // Dissipation of the increment (the quantity Wm_d accumulates) and its derivatives through
+    // dDp = P, dDEP = Lambdap P and dDa = Lambdaa P (flow directions held fixed over the increment)
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%DEP) + 0.5*(A_p_start + A_p)*Dp + 0.5*sum((A_a_start + A_a)%Da);
+    const double f_p = 0.5*(sum((sigma_start+sigma)%Lambdap) + A_p_start + A_p + sum((A_a_start + A_a)%Lambdaa)
+                            + dA_pdp*Dp + sum((dA_ada*Lambdaa)%Da));
+    const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
+    const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0];
+
+    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    const double T1 = T + DT;
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha),
+                          T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

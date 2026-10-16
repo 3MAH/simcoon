@@ -23,4 +23,10 @@
 
 #include <armadillo>
 
+/**
+ * @brief User thermomechanical UMAT, same argument list and contract as the built-in kernels.
+ * @details r is the heat of the increment per unit reference volume, storage included,
+ * \f$ r = \Delta\gamma - \theta_{n+1} (\eta_{n+1} - \eta_n) \f$ (heat_source_increment()), and
+ * drdE / drdT its derivatives: not a rate, and defined at a zero time increment.
+ */
 extern void umat_external_T(const arma::vec &, const arma::vec &, arma::vec &, double &, arma::mat &, arma::mat &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &,const double &,const double &, double &, double &, double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &);

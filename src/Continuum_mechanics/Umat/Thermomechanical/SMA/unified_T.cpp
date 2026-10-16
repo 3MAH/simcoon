@@ -314,7 +314,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     //Define the value of DM_sig
     vec DM_sig = (DM*sigma_start);
     //Define the value of Dalpha_T
-    vec Dalpha_T = Dalpha*(T+DT);
+    vec Dalpha_T = Dalpha*(T+DT-T_init);
 
     //Set the thermo forces
     double A_xiF = rhoDs0*(T+DT) - rhoDE0 + 0.5*sum(sigma%DM_sig) + sum(sigma%Dalpha)*(T+DT-T_init) - HfF;
@@ -403,7 +403,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         L = inv(M_eff);
 
         DM_sig = DM*sigma;
-        Dalpha_T = Dalpha*(T+DT);
+        Dalpha_T = Dalpha*(T+DT-T_init);
 
         if (aniso_criteria) {
             lambdaTF = Hcur * dDrucker_ani_stress(sigma, DFA_params, prager_b, prager_n);
@@ -510,7 +510,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
         dPhihatFdxiF = 0.;
         dPhihatFdxiR = 0.;
 
-        dA_xiFdsigma = DM_sig + Dalpha*(T+DT);
+        dA_xiFdsigma = DM_sig + Dalpha*(T+DT-T_init);
         dA_xiFdxiF = -dHfF;
         dA_xiFdxiR = dHfF;
 
@@ -696,40 +696,28 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
 
-    vec Gamma_epsilon = zeros(6);
-    double Gamma_theta = 0.;
-
-    vec N_epsilon = zeros(6);
-    double N_theta = 0.;
-
-    if(DTime < 1.E-12) {
-        r = 0.;
-        drdE = zeros(6);
-        drdT = 0.;
-    }
-    else {
-        Gamma_epsilon = (dSdE*DET)*(1./DTime)
-        + (dSdE*dA_xiFdsigma + dA_xiFdxiF*P_epsilon[0] + dA_xiFdxiR*P_epsilon[1])*(DxiF/DTime)
-        + (dSdE*dA_xiRdsigma + dA_xiRdxiF*P_epsilon[0] + dA_xiRdxiR*P_epsilon[1])*(DxiR/DTime)
-        + (A_xiF + sum(sigma%lambdaTF))*P_epsilon[0]/DTime
-        + (A_xiR + sum(sigma%lambdaTR))*P_epsilon[1]/DTime;
-
-        Gamma_theta = sum(dSdT%DET)*(1./DTime)
-        + (dA_xiFdtheta + sum(dA_xiFdsigma%dSdT) + dA_xiFdxiF*P_theta[0] + dA_xiFdxiR*P_theta[1])*(DxiF/DTime)
-        + (dA_xiRdtheta + sum(dA_xiRdsigma%dSdT) + dA_xiRdxiF*P_theta[0] + dA_xiRdxiR*P_theta[1])*(DxiR/DTime)
-        + (A_xiF + sum(sigma%lambdaTF))*P_theta[0]/DTime
-        + (A_xiR + sum(sigma%lambdaTR))*P_theta[1]/DTime;
-
-        N_epsilon = -1.*(dSdE*dA_thetadsigma + dA_thetadxiF*P_epsilon[0] + dA_thetadxiR*P_epsilon[1])*((T + DT)/DTime);
-        N_theta = -1.*((T+DT)*sum(dSdT%dA_thetadsigma) + Deta + (c_0+Dc_0*xi) + (T+DT)*(dA_thetadxiF*P_theta[0] + dA_thetadxiR*P_theta[1]))*(1./DTime);
-
-        drdE = N_epsilon + Gamma_epsilon;
-        drdT = N_theta + Gamma_theta;
-
-        r = sum(N_epsilon%DEtot) + N_theta*DT + sum(Gamma_epsilon%DEtot) + Gamma_theta*DT;
-    }
-
     double Dgamma_loc = 0.5*sum((sigma_start+sigma)%(DET)) + 0.5*(A_xiF_start + A_xiF)*DxiF + 0.5*(A_xiR_start + A_xiR)*DxiR;
+
+    // Derivatives of the dissipation through dDxi = P and dDET = lambdaTF P_F + lambdaTR P_R
+    // (transformation directions held fixed over the increment) and of the end forces A_xi
+    const double f_F = 0.5*(sum((sigma_start+sigma)%lambdaTF) + A_xiF_start + A_xiF);
+    const double f_R = 0.5*(sum((sigma_start+sigma)%lambdaTR) + A_xiR_start + A_xiR);
+    const vec dDgamma_dE = 0.5*(dSdE.t()*DET
+        + (dSdE.t()*dA_xiFdsigma + dA_xiFdxiF*P_epsilon[0] + dA_xiFdxiR*P_epsilon[1])*DxiF
+        + (dSdE.t()*dA_xiRdsigma + dA_xiRdxiF*P_epsilon[0] + dA_xiRdxiR*P_epsilon[1])*DxiR)
+        + f_F*P_epsilon[0] + f_R*P_epsilon[1];
+    const double dDgamma_dT = 0.5*(sum(dSdT%DET)
+        + (dA_xiFdtheta + sum(dA_xiFdsigma%dSdT) + dA_xiFdxiF*P_theta[0] + dA_xiFdxiR*P_theta[1])*DxiF
+        + (dA_xiRdtheta + sum(dA_xiRdsigma%dSdT) + dA_xiRdxiF*P_theta[0] + dA_xiRdxiR*P_theta[1])*DxiR)
+        + f_F*P_theta[0] + f_R*P_theta[1];
+
+    // Entropy derivatives at the end of the increment, eta = c_0(xi) ln(T/T_init) + alpha(xi):sigma + rho Ds0 xi
+    const double T1 = T + DT;
+    const vec deta_dE = dSdE.t()*dA_thetadsigma + dA_thetadxiF*P_epsilon[0] + dA_thetadxiR*P_epsilon[1];
+    const double deta_dT = c_0/T1 + sum(dSdT%dA_thetadsigma) + dA_thetadxiF*P_theta[0] + dA_thetadxiR*P_theta[1];
+
+    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, deta_dE, deta_dT, T1, r, drdE, drdT);
 
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);

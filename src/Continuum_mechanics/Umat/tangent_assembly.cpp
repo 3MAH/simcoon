@@ -295,4 +295,13 @@ ContinuumTangent compute_tangent_operator(
                                     arma::vec{Ds}, L, provider);
 }
 
+void heat_source_increment(const double &Dgamma, const arma::vec &dDgamma_dE, const double &dDgamma_dT,
+                           const double &Deta, const arma::vec &deta_dE, const double &deta_dT,
+                           const double &T1, double &r, arma::mat &drdE, arma::mat &drdT)
+{
+    r = Dgamma - T1*Deta;
+    drdE = dDgamma_dE - T1*deta_dE;
+    drdT = dDgamma_dT - Deta - T1*deta_dT;   // 1x1
+}
+
 } // namespace simcoon

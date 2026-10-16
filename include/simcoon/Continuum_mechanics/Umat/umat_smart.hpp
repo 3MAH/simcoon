@@ -806,7 +806,8 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
  * @param nshr number of shear stress components
  * @param sigma arma::vec containing the components of the stress tensor
  * @param statev_smart evolution variables in the form of an arma::vec
- * @param r Volumetric heat generation per unit time (total)
+ * @param r Volumetric heat generation per unit time (total, storage included): the kernel's heat of the
+ *        increment divided by the time increment
  * @param Wm variables related to mechanical work
  * @param Wt variables related to thermal work 
  * @param dSdE arma::mat containing the mechanical tangent operator
@@ -850,7 +851,8 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
 
-    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE, rve_sv_T->drdT);
+    // the kernels return the heat of the increment R = DTime r: Abaqus takes the rate
+    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r/dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE/dtime, rve_sv_T->drdT/dtime);
  * @endcode
 */ 
 void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom);
