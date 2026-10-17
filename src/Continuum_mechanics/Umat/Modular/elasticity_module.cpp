@@ -299,18 +299,16 @@ void ElasticityModule::configure(ElasticityType type, const arma::vec& props, in
 
 void ElasticityModule::evaluate(const arma::vec& eps_el, int ndi, int nshr,
                                 arma::vec& sigma, arma::mat& Lt) const {
+    (void)nshr;
     if (!configured_) {
         throw std::runtime_error("ElasticityModule: not configured");
     }
-    // The module is 3D: condensed states (ndi < 3) are solved one level up, around the whole
-    // law (condensed_state.hpp), which calls it with ndi = 3.
-    (void)nshr;
     if (type_ != ElasticityType::HYPER_INVARIANTS) {
         sigma = L_ * eps_el;
         Lt = L_;
         return;
     }
-    if (ndi != 3) {
+    if (ndi != 3) {   // condensed states are solved around the whole law (condensed_state.hpp)
         throw std::runtime_error(
             "ElasticityModule: a hyperelastic block supports ndi = 3 only (got "
             + std::to_string(ndi) + ")");

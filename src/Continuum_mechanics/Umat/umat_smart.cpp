@@ -309,7 +309,6 @@ vec total_formulation_tau(const vec &sigma, const vec &Detot, const mat &F1, con
     return sigma;
 }
 
-// The 3D dispatch: select_umat_T (end of file) wraps it with the condensed-state driver.
 static void select_umat_T_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
     UNUSED(solver_type);
@@ -407,7 +406,7 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
 {
     // The finite route runs 3D (the solver imposes stress-free components through mixed boundary
     // conditions); condensed states go through select_umat_M or sim.umat.
-    if (make_condensed_state(ndi, nshr).active()) {
+    if (ndi < 3) {
         throw std::invalid_argument("select_umat_M_finite: condensed stress states (ndi < 3) are not supported on the finite route");
     }
     const std::map<string, int> &list_umat = finite_umat_names();
@@ -636,7 +635,6 @@ void select_umat_M_finite(phase_characteristics &rve, const mat &DR_global,const
         rve.local2global();
 }
     
-// The 3D dispatch: select_umat_M (below) wraps it with the condensed-state driver.
 static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
 
@@ -776,73 +774,58 @@ static void select_umat_M_3D(phase_characteristics &rve, const mat &DR_global,co
     
 namespace {
 
-// What a kernel call overwrites in a phase and its sub-phases (micromechanics), restored before
-// every evaluation of the condensed Newton so each one integrates the whole increment from the
-// start state.
+// State a kernel call overwrites, sub-phases included, restored before each condensed evaluation.
+// Not to_start(): the Abaqus entries do not fill the *_start fields (same field list as to_start).
 struct phase_snapshot {
-    vec sigma, tau, PKII, statev, Wm, Wt;
+    state_variables *sv;
+    vec *Wm = nullptr, *Wt = nullptr;
+    vec sigma, tau, PKII, statev, Wm0, Wt0;
     std::vector<phase_snapshot> sub;
 };
 
-phase_snapshot take_snapshot(const phase_characteristics &pc) {
+phase_snapshot take_snapshot(phase_characteristics &pc) {
     phase_snapshot s;
-    const state_variables &sv = *pc.sptr_sv_global;
-    s.sigma = sv.sigma;
-    s.tau = sv.tau;
-    s.PKII = sv.PKII;
-    s.statev = sv.statev;
-    if (auto sv_M = std::dynamic_pointer_cast<state_variables_M>(pc.sptr_sv_global)) s.Wm = sv_M->Wm;
-    if (auto sv_T = std::dynamic_pointer_cast<state_variables_T>(pc.sptr_sv_global)) {
-        s.Wm = sv_T->Wm;
-        s.Wt = sv_T->Wt;
+    s.sv = pc.sptr_sv_global.get();
+    if (auto sv_M = dynamic_cast<state_variables_M *>(s.sv)) s.Wm = &sv_M->Wm;
+    if (auto sv_T = dynamic_cast<state_variables_T *>(s.sv)) {
+        s.Wm = &sv_T->Wm;
+        s.Wt = &sv_T->Wt;
     }
-    for (const auto &sub : pc.sub_phases) s.sub.push_back(take_snapshot(sub));
+    s.sigma = s.sv->sigma;
+    s.tau = s.sv->tau;
+    s.PKII = s.sv->PKII;
+    s.statev = s.sv->statev;
+    if (s.Wm) s.Wm0 = *s.Wm;
+    if (s.Wt) s.Wt0 = *s.Wt;
+    s.sub.reserve(pc.sub_phases.size());
+    for (auto &sub : pc.sub_phases) s.sub.push_back(take_snapshot(sub));
     return s;
 }
 
-void restore_snapshot(phase_characteristics &pc, const phase_snapshot &s) {
-    state_variables &sv = *pc.sptr_sv_global;
-    sv.sigma = s.sigma;
-    sv.tau = s.tau;
-    sv.PKII = s.PKII;
-    sv.statev = s.statev;
-    if (auto sv_M = std::dynamic_pointer_cast<state_variables_M>(pc.sptr_sv_global)) sv_M->Wm = s.Wm;
-    if (auto sv_T = std::dynamic_pointer_cast<state_variables_T>(pc.sptr_sv_global)) {
-        sv_T->Wm = s.Wm;
-        sv_T->Wt = s.Wt;
-    }
-    for (size_t i = 0; i < pc.sub_phases.size(); i++) restore_snapshot(pc.sub_phases[i], s.sub[i]);
+void restore_snapshot(const phase_snapshot &s) {
+    s.sv->sigma = s.sigma;
+    s.sv->tau = s.tau;
+    s.sv->PKII = s.PKII;
+    s.sv->statev = s.statev;
+    if (s.Wm) *s.Wm = s.Wm0;
+    if (s.Wt) *s.Wt = s.Wt0;
+    for (const auto &sub : s.sub) restore_snapshot(sub);
 }
 
-// Condensed state (ndi < 3) around the 3D dispatch run_3D: Newton on the stress-free components
-// of the global strain increment (condensed_state.hpp). The kernels always run 3D; the converged
-// stress and its tangent leave condensed on the kept set (zero on the stress-free components).
-// No convergence: start state restored and a step cut requested.
+// Condensed state around the 3D dispatch run_3D (solve_condensed); no convergence: start state
+// restored, step cut requested
+template <class Run>
 bool select_condensed(phase_characteristics &rve, const condensed_state &cs, bool &start, double &tnew_dt,
-                      const std::function<void(bool &, double &)> &run_3D, const std::function<const mat &()> &tangent) {
-
+                      const mat &Lt, Run &&run_3D) {
     state_variables &sv = *rve.sptr_sv_global;
     const phase_snapshot snap = take_snapshot(rve);
     const bool start0 = start;
-    double tnew = 1.;
-    vec sigma_it = zeros(6);
-    mat Lt_it = zeros(6, 6);
-    auto evaluate = [&]() {
-        restore_snapshot(rve, snap);
+    auto restore = [&]() {
+        restore_snapshot(snap);
         start = start0;
-        tnew = 1.;
-        run_3D(start, tnew);
-        sigma_it = sv.sigma;
-        Lt_it = tangent();
-        return tnew >= 1.;
     };
-    if (!solve_condensed(cs, sv.DEtot, sigma_it, Lt_it, evaluate)) {
-        restore_snapshot(rve, snap);
-        start = start0;
-        tnew_dt = std::min(tnew_dt, (tnew < 1.) ? tnew : 0.5);
+    if (!solve_condensed(cs, sv.DEtot, sv.sigma, Lt, [&](double &tn) { run_3D(start, tn); }, restore, tnew_dt))
         return false;
-    }
-    sv.sigma(cs.C).zeros();
     sv.tau(cs.C).zeros();
     sv.PKII(cs.C).zeros();
     return true;
@@ -852,29 +835,27 @@ bool select_condensed(phase_characteristics &rve, const condensed_state &cs, boo
 
 void select_umat_M(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-    const condensed_state cs = make_condensed_state(ndi, nshr);
-    if (!cs.active()) {
+    if (ndi == 3) {
         select_umat_M_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
         return;
     }
+    const condensed_state cs = make_condensed_state(ndi, nshr);
     auto sv = std::dynamic_pointer_cast<state_variables_M>(rve.sptr_sv_global);
-    if (select_condensed(rve, cs, start, tnew_dt,
-                         [&](bool &st, double &tn) { select_umat_M_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); },
-                         [&]() -> const mat & { return sv->Lt; }))
+    if (select_condensed(rve, cs, start, tnew_dt, sv->Lt,
+                         [&](bool &st, double &tn) { select_umat_M_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
         condense_tangent(cs, sv->Lt);
 }
 
 void select_umat_T(phase_characteristics &rve, const mat &DR_global,const double &Time,const double &DTime, const int &ndi, const int &nshr, bool &start, const int &solver_type, double &tnew_dt)
 {
-    const condensed_state cs = make_condensed_state(ndi, nshr);
-    if (!cs.active()) {
+    if (ndi == 3) {
         select_umat_T_3D(rve, DR_global, Time, DTime, ndi, nshr, start, solver_type, tnew_dt);
         return;
     }
+    const condensed_state cs = make_condensed_state(ndi, nshr);
     auto sv = std::dynamic_pointer_cast<state_variables_T>(rve.sptr_sv_global);
-    if (select_condensed(rve, cs, start, tnew_dt,
-                         [&](bool &st, double &tn) { select_umat_T_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); },
-                         [&]() -> const mat & { return sv->dSdE; }))
+    if (select_condensed(rve, cs, start, tnew_dt, sv->dSdE,
+                         [&](bool &st, double &tn) { select_umat_T_3D(rve, DR_global, Time, DTime, 3, 3, st, solver_type, tn); }))
         condense_tangent_T(cs, sv->dSdE, sv->dSdT, sv->drdE, sv->drdT);
 }
 

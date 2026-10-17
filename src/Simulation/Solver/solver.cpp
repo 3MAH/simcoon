@@ -883,8 +883,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                 //Run the umat for the first time in the block. So that we get the proper tangent properties
                 run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                 
-                // The kernels return the heat of the increment R = DTime r (MPa): the thermal balance
-                // is written on increments, -R = DTime Q, so DTime = 0 is the adiabatic R = 0
+                // r is the heat of the increment (MPa): the balance is written on increments,
+                // -r = DTime Q, so DTime = 0 is the adiabatic r = 0
                 sv_T->Q = 0.;
                 dQdE = -1.*sv_T->drdE.t();
                 dQdT = -1.*sv_T->drdT;
@@ -944,7 +944,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                 if (sptr_thermomeca->cBC_T == 0) {
                                     sptr_thermomeca->Ts(inc) -= residual(6);
                                 }
-                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > 1.E-12)) {
+                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
                                     sptr_thermomeca->Ts(inc) -= residual(6)/DTime;   // the residual is a heat, Ts a flux
                                 }
                             }
@@ -963,7 +963,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                     DTime = Dtinc*sptr_thermomeca->times(inc);
                                     
                                     run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
-                                    sv_T->Q = (DTime < 1.E-12) ? 0. : -1.*sv_T->r/DTime;   // output: heat flux (rate)
+                                    sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
                                     if (!sv_T->sigma.is_finite() || !std::isfinite(sv_T->r)) {   // cut, or give up at Dn_mini
                                         if (Dtinc_cur == sptr_thermomeca->Dn_mini) {
                                             cout << "Non-finite stress at step:" << sptr_thermomeca->number << " inc: " << inc << " at the minimal increment; the simulation stops.\n";
@@ -992,8 +992,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                             residual(k) = lambda_solver*(sv_T->DEtot(k) - Dtinc*sptr_thermomeca->mecas(inc,k));
                                         }
                                     }
-                                    // thermal balance on increments, -R - DTime Q_imposed = 0, with R = 0
-                                    // at zero increments
+                                    // thermal balance on increments: -r - DTime Q_imposed = 0
                                     if (sptr_thermomeca->cBC_T == 1) {
                                         residual(6) = -Dtinc*sptr_thermomeca->times(inc)*sptr_thermomeca->Ts(inc);
                                     }
@@ -1054,8 +1053,8 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         rve.to_start();
                                         run_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, blocks[i].control_type, tnew_dt);
                                         
-                                        // -R - DTime Q_imposed = 0 (R = DTime r, the heat of the increment)
-                                        sv_T->Q = (DTime < 1.E-12) ? 0. : -1.*sv_T->r/DTime;   // output: heat flux (rate)
+                                        // -r - DTime Q_imposed = 0, r the heat of the increment
+                                        sv_T->Q = (DTime > simcoon::iota) ? -1.*sv_T->r/DTime : 0.;   // output: heat flux (rate)
                                         dQdE = -1.*sv_T->drdE.t();
                                         dQdT = -1.*sv_T->drdT;
                                         if (sptr_thermomeca->cBC_T == 3) {
@@ -1136,7 +1135,7 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                                 if (sptr_thermomeca->cBC_T == 0) {
                                                     sptr_thermomeca->Ts(inc+1) -= residual(6);
                                                 }
-                                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > 1.E-12)) {
+                                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
                                                     sptr_thermomeca->Ts(inc+1) -= residual(6)/DTime;   // the residual is a heat, Ts a flux
                                                 }
                                             }

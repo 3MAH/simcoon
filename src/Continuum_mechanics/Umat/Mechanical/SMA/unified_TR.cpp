@@ -399,7 +399,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // iterate — the back-strain by a Newton on its backward-Euler equation, ETMean in closed form —
     // and the callbacks return the analytic TOTAL derivatives of that composed map (linearise below).
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
         const double xi_n = xi;

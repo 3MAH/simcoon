@@ -231,7 +231,7 @@ void umat_plasticity_chaboche(const string &umat_name, const vec &Etot, const ve
     // PlasticityMechanism::refresh_state). Condensed states keep the loop. Bhat / K of the tail
     // only feed the cutting-plane tangent.
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::VOCE, KinHardType::CHABOCHE, vec{sigmaY, Q, b, C_1, D_1, C_2, D_2}, 1, 2);
         auto &iv = mech.variables();

@@ -15,10 +15,6 @@
 
  */
 
-///@file condensed_state.cpp
-///@brief Condensed stress states (ndi, nshr): truss, beam fibre, plane stress.
-///@version 1.0
-
 #include <armadillo>
 #include <string>
 #include <stdexcept>
@@ -54,22 +50,18 @@ condensed_state make_condensed_state(const int &ndi, const int &nshr) {
     return cs;
 }
 
-bool solve_condensed(const condensed_state &cs, vec &DEtot, const vec &sigma, const mat &Lt,
-                     const std::function<bool()> &evaluate, const int &maxiter) {
+bool condensed_newton_step(const condensed_state &cs, vec &DEtot, const vec &sigma, const mat &Lt, bool &converged) {
 
-    for (int it = 0; it < maxiter; it++) {
-        if (!evaluate()) return false;
-        const vec res = sigma(cs.C);
-        if (!res.is_finite()) return false;
-        const mat L_CC = Lt(cs.C, cs.C);
-        // relative to the stress, with a floor at the stress of a 1e-14 strain (zero load)
-        const double tol = 1.e-10*abs(sigma).max() + 1.e-14*abs(L_CC).max();
-        if (abs(res).max() <= tol) return true;
-        vec dE;
-        if (!solve(dE, L_CC, res, solve_opts::no_approx) || !dE.is_finite()) return false;
-        DEtot(cs.C) -= dE;
-    }
-    return false;
+    const vec res = sigma(cs.C);
+    if (!res.is_finite()) return false;
+    const mat L_CC = Lt(cs.C, cs.C);
+    // relative to the stress, with a floor at the stress of a 1e-14 strain (zero load)
+    converged = abs(res).max() <= 1.e-10*abs(sigma).max() + 1.e-14*abs(L_CC).max();
+    if (converged) return true;
+    vec dE;
+    if (!solve(dE, L_CC, res, solve_opts::no_approx) || !dE.is_finite()) return false;
+    DEtot(cs.C) -= dE;
+    return true;
 }
 
 void condense_tangent(const condensed_state &cs, mat &Lt) {
@@ -89,10 +81,12 @@ void condense_tangent_T(const condensed_state &cs, mat &dSdE, mat &dSdT, mat &dr
     const uword nK = cs.K.n_elem;
     const mat X_E = X.cols(0, nK - 1);
     const vec X_T = X.col(nK);
+    const mat Q = dSdE(cs.K, cs.K) - dSdE(cs.K, cs.C)*X_E;
     const vec qT_K = qT(cs.K) - dSdE(cs.K, cs.C)*X_T;
     const vec rE_K = rE(cs.K) - (rE(cs.C).t()*X_E).t();
     const double rT = drdT(0, 0) - dot(rE(cs.C), X_T);
-    condense_tangent(cs, dSdE);
+    dSdE.zeros();
+    dSdE(cs.K, cs.K) = Q;
     dSdT.zeros();
     drdE.zeros();
     for (uword k = 0; k < nK; k++) {

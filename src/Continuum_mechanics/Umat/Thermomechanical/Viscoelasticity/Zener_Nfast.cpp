@@ -163,7 +163,7 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         dDgamma_dT += 0.5*(sum((st.dSdT - L_i[i]*dEVdT)%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
-    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    // heat of the increment and its derivatives (heat_source_increment)
     const double T1 = T + DT;
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
                           c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);

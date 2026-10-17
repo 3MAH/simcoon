@@ -305,7 +305,6 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     // Irreversible entropy of the temperature-dependent stored hardening, eta_ir = -dG^ir/dT
     double eta_ir = -dthermal_dT_end*stored_hardening(p);
     double eta_ir_start = -dthermal_dT_start*stored_hardening(p_start);
-    // d eta_ir / dp at the end of the increment
     const double deta_ir_dp = -dthermal_dT_end*Hp;
 
     double eta = eta_r + eta_ir;
@@ -334,7 +333,7 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     const vec deta_dE = dSdE.t()*alpha + deta_ir_dp*P_epsilon[0];
     const double deta_dT = c_0/T1 + sum(dSdT%alpha) - d2thermal_dT2_end*stored_hardening(p) + deta_ir_dp*P_theta[0];
 
-    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    // heat of the increment and its derivatives (heat_source_increment)
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, deta_dE, deta_dT, T1, r, drdE, drdT);
 
     //Computation of the mechanical and thermal work quantities

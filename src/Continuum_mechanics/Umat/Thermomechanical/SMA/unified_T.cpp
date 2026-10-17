@@ -716,7 +716,7 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     const vec deta_dE = dSdE.t()*dA_thetadsigma + dA_thetadxiF*P_epsilon[0] + dA_thetadxiR*P_epsilon[1];
     const double deta_dT = c_0/T1 + sum(dSdT%dA_thetadsigma) + dA_thetadxiF*P_theta[0] + dA_thetadxiR*P_theta[1];
 
-    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    // heat of the increment and its derivatives (heat_source_increment)
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, deta_dE, deta_dT, T1, r, drdE, drdT);
 
     //Computation of the mechanical and thermal work quantities

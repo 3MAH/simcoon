@@ -199,7 +199,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     // Condensed states keep the loop; the thermal tail reads dPhidsigma / Lambdap / Lambdaa /
     // kappa_j / dHpdp.
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::PRAGER, vec{sigmaY, k, m, 1.5*kX});
         auto &iv = mech.variables();
@@ -337,7 +337,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     const vec dDgamma_dE = 0.5*dSdE.t()*DEP + f_p*P_epsilon[0];
     const double dDgamma_dT = 0.5*sum(dSdT%DEP) + f_p*P_theta[0];
 
-    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    // heat of the increment and its derivatives (heat_source_increment)
     const double T1 = T + DT;
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha),
                           T1, r, drdE, drdT);

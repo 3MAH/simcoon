@@ -22,7 +22,7 @@
 #pragma once
 
 #include <armadillo>
-#include <functional>
+#include <algorithm>
 
 namespace simcoon {
 
@@ -60,6 +60,18 @@ int default_nshr(const int &ndi);
 condensed_state make_condensed_state(const int &ndi, const int &nshr = -1);
 
 /**
+ * @brief One Newton step of solve_condensed on the stress-free components.
+ * @param cs The condensed state
+ * @param DEtot Strain increment (6), its \f$ C \f$ components updated unless converged
+ * @param sigma Current stress (6)
+ * @param Lt Current tangent (6x6)
+ * @param converged [out] whether \f$ \boldsymbol{\sigma}_C \f$ is zero to tolerance
+ * @return false on a non-finite residual or a singular \f$ \mathbf{L}_{t,CC} \f$
+ */
+bool condensed_newton_step(const condensed_state &cs, arma::vec &DEtot, const arma::vec &sigma, const arma::mat &Lt,
+                           bool &converged);
+
+/**
  * @brief Solves the stress-free condition of a condensed state around a 3D law.
  *
  * The material point is the 3D law with the end-of-increment strain on \f$ C \f$ as unknown:
@@ -76,16 +88,37 @@ condensed_state make_condensed_state(const int &ndi, const int &nshr = -1);
  * @param cs The condensed state (must be active)
  * @param DEtot Strain increment (6). On entry its \f$ C \f$ components are the starting guess
  *        (the caller's, zero when it has none); on exit they are the converged ones
- * @param sigma Stress written by evaluate (6), read for the residual
- * @param Lt Tangent written by evaluate (6x6), read for the Newton step
- * @param evaluate Integrates the increment with the current DEtot from the start state (the
- *        callee restores the start state); returns false when the law requests a step cut
+ * @param sigma Stress written by run (6), read for the residual; its \f$ C \f$ components are
+ *        set to zero on convergence
+ * @param Lt Tangent written by run (6x6), read for the Newton step
+ * @param run run(tnew) integrates the increment with the current DEtot from the start state and
+ *        lowers tnew below 1 to request a step cut
+ * @param restore Puts back the start state (stress, internal variables, energies) that run
+ *        overwrites; called before every evaluation and once more on failure
+ * @param tnew_dt Step-cut request: lowered to the law's own request, or 0.5, on failure
  * @param maxiter Maximal number of evaluations
  * @return true on convergence; false on a step-cut request, a singular \f$ \mathbf{L}_{t,CC} \f$,
- *         a non-finite residual or maxiter evaluations (the caller requests a step cut)
+ *         a non-finite residual or maxiter evaluations, with the start state restored
  */
-bool solve_condensed(const condensed_state &cs, arma::vec &DEtot, const arma::vec &sigma, const arma::mat &Lt,
-                     const std::function<bool()> &evaluate, const int &maxiter = 40);
+template <class Run, class Restore>
+bool solve_condensed(const condensed_state &cs, arma::vec &DEtot, arma::vec &sigma, const arma::mat &Lt,
+                     Run &&run, Restore &&restore, double &tnew_dt, const int &maxiter = 40) {
+    double tnew = 1.;
+    for (int it = 0; it < maxiter; it++) {
+        restore();
+        tnew = 1.;
+        run(tnew);
+        bool converged = false;
+        if (tnew < 1. || !condensed_newton_step(cs, DEtot, sigma, Lt, converged)) break;
+        if (converged) {
+            sigma(cs.C).zeros();
+            return true;
+        }
+    }
+    restore();
+    tnew_dt = std::min(tnew_dt, (tnew < 1.) ? tnew : 0.5);
+    return false;
+}
 
 /**
  * @brief Static condensation of a tangent on the kept set.

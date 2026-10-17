@@ -117,11 +117,10 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     //Variables at the start of the increment
     const std::vector<vec> EV_i_start = EV_i;
-    // start state: T, EV_i before the update. The start elastic strain comes from the start state
-    // (sigma = L0 (eps_e - EV_tilde)), not from Etot: only Etot + DEtot is read, so a caller that
-    // does not know every strain component (condensed_state.hpp) gets the same answer
-    vec eps_e_start = M0*sigma_start;
-    for (int i=0; i<N_prony; i++) eps_e_start += (M0*L_i[i])*EV_i_start[i];
+    // start strain from the start state, not Etot: condensed callers do not know every component
+    vec sigma_EV = sigma_start;
+    for (int i=0; i<N_prony; i++) sigma_EV += L_i[i]*EV_i_start[i];
+    const vec eps_e_start = M0*sigma_EV;   // sigma = L0 (eps_e - EV_tilde), EV_tilde = M0 sum L_i EV_i
     for (int i=0; i<N_prony; i++) {
         A_v_start[i] = L_i[i]*(eps_e_start - EV_i[i]);
     }
@@ -176,7 +175,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         dDgamma_dT += 0.5*(-sum((L_i[i]*(alpha + dEVdT))%DEV_i[i]) + sum(dEVdT%A_mid2));
     }
 
-    // heat of the increment R = Dgamma - (T+DT) Deta and its exact derivatives (tangent_assembly.hpp)
+    // heat of the increment and its derivatives (heat_source_increment)
     const double T1 = T + DT;
     heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
                           c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);

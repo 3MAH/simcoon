@@ -397,8 +397,7 @@ public:
      * @param[in]  eps_el elastic strain (6-Voigt, engineering shear)
      * @param[in]  ndi number of direct stress components: 3. The module is 3D; a
      *             condensed state (ndi < 3) is solved around the whole law
-     *             (condensed_state.hpp), which calls it with ndi = 3. A
-     *             hyperelastic block refuses ndi < 3.
+     *             (condensed_state.hpp). A hyperelastic block refuses ndi < 3.
      * @param[in]  nshr number of shear stress components (unused)
      * @param[out] sigma stress (6-Voigt)
      * @param[out] Lt tangent \f$ \partial \boldsymbol{\sigma} / \partial

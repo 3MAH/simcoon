@@ -190,7 +190,7 @@ void umat_plasticity_iso(const string &umat_name, const vec &Etot, const vec &DE
     // to the local tolerance, with the helper's exact operator. Condensed states keep the loop.
     // Bhat / K of the tail only feed the cutting-plane tangent.
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     if (use_cpp) {
         PlasticityMechanism mech(YieldType::VON_MISES, IsoHardType::POWER_LAW, KinHardType::NONE, vec{sigmaY, k, m});
         auto &iv = mech.variables();

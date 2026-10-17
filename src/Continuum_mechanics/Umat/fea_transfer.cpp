@@ -20,11 +20,11 @@
 ///@version 1.0
 
 #include <iostream>
+#include <algorithm>
 #include <assert.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
-#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 
 using namespace std;
 using namespace arma;
@@ -37,51 +37,42 @@ namespace simcoon {
 
 namespace {
 
-// The element's ntens components (Abaqus order: ndi direct, then nshr shears 12, 13, 23) are the
-// kept set K of the (ndi, nshr) state, in the same order: entry i of an Abaqus array is the
-// simcoon component K(i). The other components have zero strain (ndi = 3) or are stress-free
-// and condensed by the material point (ndi < 3, select_umat_M / select_umat_T).
-uvec abaqus_components(const int &ndi, const int &nshr) {
-    return make_condensed_state(ndi, nshr).K;
+// Abaqus arrays hold the element's ntens components in order (ndi direct, then nshr shears 12,
+// 13, 23): entry i is the simcoon component K(i). The others have zero strain (ndi = 3) or are
+// stress-free, solved by the material point (ndi < 3, condensed_state.hpp)
+struct abaqus_components {
+    int ndi, ntens;
+    abaqus_components(const int &ndi_, const int &nshr) : ndi(ndi_), ntens(ndi_ + nshr) {}
+    int operator()(const int &i) const { return (i < ndi) ? i : 3 + i - ndi; }
+};
+
+// Abaqus vector -> simcoon 6 entries (vec, 6x1 or 1x6 mat), zero outside K
+template <class V> void abaqus2vec(const double *a, const abaqus_components &K, V &v) {
+    v.zeros();
+    for (int i = 0; i < K.ntens; i++) v(K(i)) = a[i];
 }
 
-// Abaqus vector (ntens) -> simcoon 6-vector, zero outside K
-void abaqus2vec(const double *a, const uvec &K, vec &v) {
-    v.zeros(6);
-    for (uword i = 0; i < K.n_elem; i++) v(K(i)) = a[i];
+template <class V> void vec2abaqus(const V &v, const abaqus_components &K, double *a) {
+    for (int i = 0; i < K.ntens; i++) a[i] = v(K(i));
 }
 
-// 6-entry simcoon vector or 1x6 / 6x1 matrix -> Abaqus vector (ntens)
-template <class V> void vec2abaqus(const V &v, const uvec &K, double *a) {
-    for (uword i = 0; i < K.n_elem; i++) a[i] = v(K(i));
-}
-
-// Abaqus matrix (ntens x ntens, column-major) -> simcoon 6x6, zero outside K x K
-void abaqus2mat(const double *a, const uvec &K, mat &M) {
-    const uword n = K.n_elem;
+// column-major ntens x ntens <-> the K x K block of a 6x6
+void abaqus2mat(const double *a, const abaqus_components &K, mat &M) {
     M.zeros(6, 6);
-    for (uword j = 0; j < n; j++)
-        for (uword i = 0; i < n; i++) M(K(i), K(j)) = a[j*n + i];
+    for (int j = 0; j < K.ntens; j++)
+        for (int i = 0; i < K.ntens; i++) M(K(i), K(j)) = a[j*K.ntens + i];
 }
 
-// simcoon 6x6 -> Abaqus matrix (ntens x ntens, column-major), the K x K block
-void mat2abaqus(const mat &M, const uvec &K, double *a) {
-    const uword n = K.n_elem;
-    for (uword j = 0; j < n; j++)
-        for (uword i = 0; i < n; i++) a[j*n + i] = M(K(i), K(j));
-}
-
-void abaqus2rotation(const double *drot, mat &DR) {
-    DR.set_size(3, 3);
-    for (int j = 0; j < 3; j++)
-        for (int i = 0; i < 3; i++) DR(i, j) = drot[j*3 + i];
+void mat2abaqus(const mat &M, const abaqus_components &K, double *a) {
+    for (int j = 0; j < K.ntens; j++)
+        for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
 }
 
 }  // namespace
 
 void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int &nstatev, double *statev, const int &ndi, const int &nshr, vec &sigma, mat &Lt, vec &Wm, vec &statev_smart)
 {
-    const uvec K = abaqus_components(ndi, nshr);
+    const abaqus_components K(ndi, nshr);
     abaqus2vec(stress, K, sigma);
     abaqus2mat(ddsdde, K, Lt);
 
@@ -95,15 +86,15 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int 
 
 void abaqus2smart_M(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
-    // The condensed components arrive at zero: the material point solves them (no state kept)
-    const uvec K = abaqus_components(ndi, nshr);
+    // the stress-free components arrive at zero: the material point solves them, no state kept
+    const abaqus_components K(ndi, nshr);
     abaqus2vec(stress, K, sigma);
     abaqus2vec(stran, K, Etot);
     abaqus2vec(dstran, K, DEtot);
     abaqus2mat(ddsdde, K, Lt);
 
     ///@brief rotation matrix
-    abaqus2rotation(drot, DR);
+    DR = mat(drot, 3, 3);
 
     ///@brief Temperature and temperature increment creation
     T = temperature;
@@ -130,21 +121,17 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
 
 void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
 
-    const uvec K = abaqus_components(ndi, nshr);
+    const abaqus_components K(ndi, nshr);
     abaqus2vec(stress, K, sigma);
     abaqus2vec(stran, K, Etot);
     abaqus2vec(dstran, K, DEtot);
     abaqus2mat(ddsdde, K, dSdE);
-    dSdT.zeros();
-    drpldE.zeros();
-    for (uword i = 0; i < K.n_elem; i++) {
-        dSdT(K(i)) = ddsddt[i];
-        drpldE(K(i)) = drplde[i];
-    }
+    abaqus2vec(ddsddt, K, dSdT);
+    abaqus2vec(drplde, K, drpldE);
     drpldT(0) = drpldt;
 
     ///@brief rotation matrix
-    abaqus2rotation(drot, DR);
+    DR = mat(drot, 3, 3);
 
     ///@brief Temperature and temperature increment creation
     T = temperature;
@@ -190,12 +177,10 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
 
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom)
 {
-    // The tangent arrives condensed on the element's components (select_umat_M): the K x K
-    // block is DDSDDE. The sigma (x) I term belongs to NLGEOM steps and to the 3 direct
-    // components: plane stress and 1D take the condensed kernel tangent as it is (the element
-    // owns the thickness)
+    // the tangent arrives condensed (select_umat_M): DDSDDE is its K x K block; sigma (x) I only
+    // for NLGEOM with 3 direct components, plane stress and 1D take it as it is
     const mat Lt = (nlgeom && ndi == 3) ? abaqus_jacobian(Lt_kernel, sigma) : Lt_kernel;
-    const uvec K = abaqus_components(ndi, nshr);
+    const abaqus_components K(ndi, nshr);
     vec2abaqus(sigma, K, stress);
     mat2abaqus(Lt, K, ddsdde);
 
@@ -213,15 +198,14 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     UNUSED(nstatev);
     // simcoon -> the INPUT arrays of an Abaqus UMAT (UMABA plugin): ddsdde is overwritten by
     // that UMAT, so the kernel tangent goes out as it is
-    const uvec K = abaqus_components(ndi, nshr);
+    const abaqus_components K(ndi, nshr);
     vec2abaqus(sigma, K, stress);
     vec2abaqus(Etot, K, stran);
     vec2abaqus(DEtot, K, dstran);
     mat2abaqus(Lt_kernel, K, ddsdde);
 
     ///@brief rotation matrix
-    for (int j = 0; j < 3; j++)
-        for (int i = 0; i < 3; i++) drot[j*3 + i] = DR(i, j);
+    std::copy(DR.begin(), DR.end(), drot);
 
     ///@brief Temperature and temperature increment creation
     temperature = T;
@@ -252,7 +236,7 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
 
     // dSdE, dSdT, drpldE and drpldT arrive condensed on the element's components (select_umat_T)
     const mat dSdE = (nlgeom && ndi == 3) ? abaqus_jacobian(dSdE_kernel, sigma) : dSdE_kernel;
-    const uvec K = abaqus_components(ndi, nshr);
+    const abaqus_components K(ndi, nshr);
     vec2abaqus(sigma, K, stress);
     mat2abaqus(dSdE, K, ddsdde);
     vec2abaqus(dSdT, K, ddsddt);

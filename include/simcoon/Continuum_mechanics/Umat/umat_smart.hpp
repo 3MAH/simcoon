@@ -859,8 +859,9 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     rve.sptr_matprops->update(0, umat_name, 1., 0., 0., 0., nprops, props_smart);
     select_umat_T(rve, DR, Time, DTime, ndi, nshr, start, solver_type, pnewdt);
 
-    // the kernels return the heat of the increment R = DTime r: Abaqus takes the rate
-    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r/dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE/dtime, rve_sv_T->drdT/dtime);
+    // r is the heat of the increment; Abaqus takes the rates
+    const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
+    smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, rve_sv_T->sigma, rve_sv_T->statev, rve_sv_T->r*inv_dtime, rve_sv_T->Wm, rve_sv_T->Wt, rve_sv_T->dSdE, rve_sv_T->dSdT, rve_sv_T->drdE*inv_dtime, rve_sv_T->drdT*inv_dtime);
  * @endcode
 */ 
 void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const arma::vec &sigma, const arma::vec &statev_smart, const double &r, const arma::vec &Wm, const arma::vec &Wt, const arma::mat &dSdE, const arma::mat &dSdT, const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom);

@@ -107,7 +107,7 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
     double Deta_r = eta_r - eta_r_start;
     double Deta_ir = eta_ir - eta_ir_start;
     
-    // heat of the increment R = -(T+DT) Deta (no dissipation) and its exact derivatives
+    // heat of the increment (no dissipation) and its derivatives (heat_source_increment)
     const double T1 = T + DT;
     heat_source_increment(0., zeros(6), 0., Deta, dSdE.t()*alpha, c_0/T1 + sum(dSdT%alpha), T1, r, drdE, drdT);
     

@@ -134,35 +134,17 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     double r = 0.;
     
 	abaqus2smart_T(stress, ddsdde, ddsddt, drplde, drpldt, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, dSdE, dSdT, drpldE, drpldT, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, Wt, statev_smart, DR, start);
-    // The law is 3D: a condensed state (ndi < 3) is solved around it, and its derivatives
-    // condensed on the element's components (condensed_state.hpp)
-    const condensed_state cs = make_condensed_state(ndi, nshr);
-    if (!cs.active()) {
+    // ndi < 3: solved around the 3D law (condensed_state.hpp)
+    if (ndi == 3) {
         external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), ndi, nshr, start, pnewdt);
     }
     else {
+        const condensed_state cs = make_condensed_state(ndi, nshr);
         const vec sigma0 = sigma, statev0 = statev_smart, Wm0 = Wm, Wt0 = Wt;
-        double tnew = 1.;
-        auto evaluate = [&]() {
-            sigma = sigma0;
-            statev_smart = statev0;
-            Wm = Wm0;
-            Wt = Wt0;
-            tnew = 1.;
-            external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), 3, 3, start, tnew);
-            return tnew >= 1.;
-        };
-        if (solve_condensed(cs, DEtot, sigma, dSdE, evaluate)) {
+        auto restore = [&]() { sigma = sigma0; statev_smart = statev0; Wm = Wm0; Wt = Wt0; r = 0.; };
+        auto run = [&](double &tnew) { external_umat_T(Etot, DEtot, sigma, r, dSdE, dSdT, drpldE, drpldT, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3),  Wt(0), Wt(1), Wt(2), 3, 3, start, tnew); };
+        if (solve_condensed(cs, DEtot, sigma, dSdE, run, restore, pnewdt))
             condense_tangent_T(cs, dSdE, dSdT, drpldE, drpldT);
-        }
-        else {
-            sigma = sigma0;
-            statev_smart = statev0;
-            Wm = Wm0;
-            Wt = Wt0;
-            r = 0.;
-            pnewdt = (tnew < 1.) ? tnew : 0.5;
-        }
     }
 	// r is the heat of the increment (simcoon contract, see heat_source_increment); Abaqus takes the rates
 	const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;

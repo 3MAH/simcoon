@@ -169,9 +169,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     //Variables at the start of the increment
     vec DEV_tilde = zeros(6);
     vec EV_tilde_start = EV_tilde;
-    // The start strain comes from the start state (sigma = L0 (eps - alpha DT - EV_tilde - EP)),
-    // not from Etot: only Etot + DEtot is read, so a caller that does not know every strain
-    // component (condensed_state.hpp) gets the same answer
+    // start strain from the start state, not Etot: condensed callers do not know every component
     const vec eps_th_start = M0*stress_start + EV_tilde_start + EP_start;   // Etot - alpha (T - T_init)
     for (int i=0; i<N_prony; i++) {
         A_v_start[i] += L_i[i]*(eps_th_start - alpha*DT - EV_i[i]);
