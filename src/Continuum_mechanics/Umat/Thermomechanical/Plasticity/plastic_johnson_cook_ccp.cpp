@@ -28,6 +28,7 @@
 #include <simcoon/Simulation/Maths/rotation.hpp>
 #include <simcoon/Simulation/Maths/num_solve.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Thermomechanical/Plasticity/plastic_johnson_cook_ccp.hpp>
+#include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_johnson_cook_ccp.hpp>   // johnson_cook_softening
 #include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Modular/hardening.hpp>
 
@@ -101,27 +102,27 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     //Additional parameters
     double c_0 = rho*c_p;
 
-    // Thermal softening factor f_T = 1 - T*^m and its temperature derivative; T* clamped to
-    // [0, 1) (defined below T_ref, never at the singular melting point), the derivative is zero
-    // where the clamped factor is flat
+    // Thermal softening factor f_T = 1 - g(T*), g = T*^m C2-regularized near T* = 0 for m < 2
+    // (johnson_cook_softening), and its temperature derivatives; T* clamped to [0, 1) (defined
+    // below T_ref, never at the singular melting point), flat at the melting clamp
+    const double DTm = T_melt - T_ref;
     auto homologous = [&](const double &theta) {
-        double Tstar = (theta - T_ref) / (T_melt - T_ref);
+        double Tstar = (theta - T_ref) / DTm;
         if (Tstar < 0.) Tstar = 0.;
         if (Tstar >= 1.) Tstar = 1. - simcoon::iota;
         return Tstar;
     };
-    auto dthermal_dT = [&](const double &Tstar) {
-        return (Tstar > simcoon::iota && Tstar < 1. - simcoon::iota)
-            ? -m_jc * pow(Tstar, m_jc - 1.) / (T_melt - T_ref) : 0.;
-    };
+    double g_start, dg_start, d2g_start, g, dg, d2g;
     const double Tstar_start = homologous(T);
     const double Tstar = homologous(T + DT);
-    const double thermal_factor_start = 1. - pow(Tstar_start, m_jc);
-    const double thermal_factor = 1. - pow(Tstar, m_jc);
-    const double dthermal_dT_start = dthermal_dT(Tstar_start);
-    const double dthermal_dT_end = dthermal_dT(Tstar);
-    const double d2thermal_dT2_end = (Tstar > simcoon::iota && Tstar < 1. - simcoon::iota)
-        ? -m_jc * (m_jc - 1.) * pow(Tstar, m_jc - 2.) / ((T_melt - T_ref) * (T_melt - T_ref)) : 0.;
+    johnson_cook_softening(Tstar_start, m_jc, g_start, dg_start, d2g_start);
+    johnson_cook_softening(Tstar, m_jc, g, dg, d2g);
+    const bool melt_start = Tstar_start >= 1. - simcoon::iota, melt = Tstar >= 1. - simcoon::iota;
+    const double thermal_factor_start = 1. - g_start;
+    const double thermal_factor = 1. - g;
+    const double dthermal_dT_start = melt_start ? 0. : -dg_start / DTm;
+    const double dthermal_dT_end = melt ? 0. : -dg / DTm;
+    const double d2thermal_dT2_end = melt ? 0. : -d2g / (DTm * DTm);
 
     // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
     // power-law block carries the blend; same law, no second implementation)
@@ -342,9 +343,9 @@ void umat_plasticity_johnson_cook_CCP_T(const vec &Etot, const vec &DEtot, vec &
     Wm_ir += -0.5*(A_p_start + A_p)*Dp;
     Wm_d += Dgamma_loc;
 
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
 
     //statev evolving variables
     statev(0) = T_init;

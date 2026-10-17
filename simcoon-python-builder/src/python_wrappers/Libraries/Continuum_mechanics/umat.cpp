@@ -3,6 +3,7 @@
 #include <pybind11/numpy.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <optional>
 #include <vector>
 
@@ -164,6 +165,25 @@ struct condensed_F1 {
 	}
 };
 
+// ndi < 3: the stress-free components each point solved go back into the caller's Detot, so
+// that etot + Detot carries them to the next increment. Written once the batch has converged,
+// through the array's own strides (a copy was taken when it is not F-contiguous)
+void write_back_free_strain(const py::array_t<double> &Detot_py, const simcoon::condensed_state &cs, const arma::mat &Detot_C) {
+	py::array_t<double> out = Detot_py;   // same buffer
+	char *base = reinterpret_cast<char *>(out.mutable_data());
+	const py::ssize_t s0 = out.strides(0), s1 = (out.ndim() > 1) ? out.strides(1) : 0;
+	for (arma::uword pt = 0; pt < Detot_C.n_cols; pt++)
+		for (arma::uword j = 0; j < cs.C.n_elem; j++) {
+			const double v = Detot_C(j, pt);
+			std::memcpy(base + cs.C(j)*s0 + pt*s1, &v, sizeof(double));
+		}
+}
+
+void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::condensed_state &cs, const std::string &fname) {
+	if (cs.active() && !Detot_py.writeable())
+		throw std::invalid_argument(fname + ": with ndi < 3 the solved stress-free components are written back into Detot, which must be writable");
+}
+
 }  // namespace
 	
 	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py){
@@ -251,6 +271,8 @@ struct condensed_F1 {
 			throw std::invalid_argument("umat: DT must have 1 entry (shared) or one per material point ("
 			                            + std::to_string(nb_points) + "); got " + std::to_string(vec_DT.n_elem));
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		require_writable_Detot(Detot_py, cs, "umat");
+		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // solved per point, written back below
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(sigma_py); // copy: the umat updates it and it is returned to python
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		cube F0, F1;
@@ -524,6 +546,7 @@ struct condensed_F1 {
 					};
 					if (simcoon::solve_condensed(cs, Detot_pt, sigma, Lt.slice(pt), run, restore, tnew_dt_pt)) {
 						simcoon::condense_tangent(cs, Lt.slice(pt));
+						Detot_C.col(pt) = Detot_pt(cs.C);
 						if (rebuild_F1) F1_pt = (*F1_of)(cs, Detot_pt, Detot);
 					}
 				}
@@ -585,6 +608,7 @@ struct condensed_F1 {
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat", tnew_dt);
+		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
 		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, false), simpy::arma_to_numpy::mat_to_arr(list_statev, false), simpy::arma_to_numpy::mat_to_arr(list_Wm, false), simpy::arma_to_numpy::cube_to_arr(Lt, false));
 
 	}
@@ -646,6 +670,8 @@ struct condensed_F1 {
 		}
 		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		require_writable_Detot(Detot_py, cs, "umat_T");
+		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // as launch_umat
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		vec vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py);
@@ -765,8 +791,12 @@ struct condensed_F1 {
 			// finite strain, as launch_umat: Cauchy -> Kirchhoff (x J0) -> T (total form); a
 			// degenerate F is a step-cut request (no throw in the parallel region)
 			bool finite_cut = false;
+			double tau_start[6];
 			if (finite) {
-				sigma *= arma::det(F0.slice(pt));
+				const double J0 = arma::det(F0.slice(pt));
+				if (J0 > simcoon::iota) sigma *= J0;
+				else finite_cut = true;
+				for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
 				if (total) {
 					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F0.slice(pt))); }
 					catch (const std::exception &) { finite_cut = true; }
@@ -800,6 +830,7 @@ struct condensed_F1 {
 				try {   // no throw out of the parallel region: a failure is a step-cut request
 					if (simcoon::solve_condensed(cs, Detot_pt, sigma, dSdE.slice(pt), run_law, restore, tnew_dt_pt)) {
 						simcoon::condense_tangent_T(cs, dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt));
+						Detot_C.col(pt) = Detot_pt(cs.C);
 						if (finite) F1_pt = condensed_F1(F1.slice(pt))(cs, Detot_pt, Detot);
 					}
 				}
@@ -819,9 +850,20 @@ struct condensed_F1 {
 					}
 					catch (const std::exception &) { finite_cut = true; }
 				}
+				else if (!arma::approx_equal(F0.slice(pt), F1_pt, "absdiff", 0.)) {
+					// true work under log_R, as launch_umat
+					const arma::vec::fixed<6> ts(tau_start);
+					const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+					                                                Detot_pt, F0.slice(pt), F1_pt, 3);
+					Wm(0) += dW;
+					Wm(1) += dW;
+				}
 				const double J1 = arma::det(F1_pt);
-				sigma /= J1;
-				dSdT.slice(pt) /= J1;
+				if (J1 > simcoon::iota) {
+					sigma /= J1;
+					dSdT.slice(pt) /= J1;
+				}
+				else finite_cut = true;
 				if (finite_cut) tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
 			}
 			tnew_dt[pt] = tnew_dt_pt;
@@ -829,6 +871,7 @@ struct condensed_F1 {
 		parallel_for_nogil(nb_points, thermal_point_kernel, n_threads);
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
+		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
 
 		// post-loop repacking (serial): dSdT (6,1,N) -> (6,N), drdE (1,6,N) -> (6,N), drdT (1,1,N) -> (N)
 		mat dSdT_out(ncomp, nb_points);

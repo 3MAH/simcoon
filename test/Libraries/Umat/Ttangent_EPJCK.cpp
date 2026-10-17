@@ -107,7 +107,9 @@ double jc_yield(double p, double pdot, double T) {
     hardening.configure(vec{B, n}, offset);
     const double rate = 1. + C * std::max(std::log(pdot / edot0), 0.);
     const double Tstar = std::min(std::max((T - T_ref) / (T_melt - T_ref), 0.), 1.);
-    return (A + hardening.R(p)) * rate * (1. - std::pow(Tstar, m));
+    double g, dg, d2g;
+    johnson_cook_softening(Tstar, m, g, dg, d2g);   // T*^m, C2-continued below T* = 1e-3
+    return (A + hardening.R(p)) * rate * (1. - g);
 }
 
 } // namespace
@@ -367,4 +369,26 @@ TEST(Ttangent_EPJCK, thermomechanical_twin_matches_mechanical_block)
     const vec dSdT_el = -L * alpha;
     // flow direction ~ sigma', so the softening term kappa P_theta reduces sigma_11 further
     EXPECT_LT(dSdT(0, 0), dSdT_el(0));
+}
+
+// The softening T*^m is singular in curvature at T* = 0 for m < 2 (and in slope for m < 1): below
+// T* = 1e-3 its C2 cubic continuation keeps g, g', g'' continuous and bounded
+TEST(Ttangent_EPJCK, thermal_softening_is_C2_and_bounded_near_T_ref)
+{
+    const double c = 1.e-3, h = 1.e-12;
+    for (double m : {0.5, 1.03, 1.09, 1.5}) {
+        double gl, dgl, d2gl, gr, dgr, d2gr, g0, dg0, d2g0;
+        johnson_cook_softening(c - h, m, gl, dgl, d2gl);
+        johnson_cook_softening(c, m, gr, dgr, d2gr);
+        EXPECT_NEAR(gl, gr, 1.e-8 * gr) << m;   // g' h ~ 1e-9 g
+        EXPECT_NEAR(dgl, dgr, 1.e-6 * dgr) << m;
+        EXPECT_NEAR(d2gl, d2gr, 1.e-6 * fabs(d2gr)) << m;
+        johnson_cook_softening(0., m, g0, dg0, d2g0);
+        EXPECT_DOUBLE_EQ(g0, 0.);
+        EXPECT_TRUE(std::isfinite(dg0) && std::isfinite(d2g0)) << m;
+        EXPECT_LT(fabs(d2g0), 20. * fabs(d2gr)) << m;
+        double gm, dgm, d2gm;
+        johnson_cook_softening(0.5, m, gm, dgm, d2gm);   // exact above the cutoff
+        EXPECT_DOUBLE_EQ(gm, pow(0.5, m));
+    }
 }

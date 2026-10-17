@@ -941,11 +941,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                         sptr_thermomeca->mecas(inc,k) -= residual(k);
                                     }
                                 }
-                                if (sptr_thermomeca->cBC_T == 0) {
-                                    sptr_thermomeca->Ts(inc) -= residual(6);
-                                }
-                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
-                                    sptr_thermomeca->Ts(inc) -= residual(6)/DTime;   // the residual is a heat, Ts a flux
+                                // flux control only (temperature control has no target to shift): the residual is a heat, Ts a flux
+                                if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
+                                    sptr_thermomeca->Ts(inc) -= residual(6)/DTime;
                                 }
                             }
                             
@@ -1132,11 +1130,9 @@ int solver_run(std::vector<block> &blocks, const double &T_init, const solver_ou
                                                         sptr_thermomeca->mecas(inc+1,k) -= residual(k);
                                                     }
                                                 }
-                                                if (sptr_thermomeca->cBC_T == 0) {
-                                                    sptr_thermomeca->Ts(inc+1) -= residual(6);
-                                                }
-                                                else if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
-                                                    sptr_thermomeca->Ts(inc+1) -= residual(6)/DTime;   // the residual is a heat, Ts a flux
+                                                // flux control only (temperature control has no target to shift): the residual is a heat, Ts a flux
+                                                if ((sptr_thermomeca->cBC_T == 1) && (DTime > simcoon::iota)) {
+                                                    sptr_thermomeca->Ts(inc+1) -= residual(6)/DTime;
                                                 }
                                             }
                                         }

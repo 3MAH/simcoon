@@ -48,10 +48,10 @@
 ///@param sse unused
 ///@param spd unused
 ///@param scd unused
-///@param rpl unused
+///@param rpl heat source (rate, r/dtime: the kernels return the heat of the increment r)
 ///@param ddsddt array containing the thermal tangent operator
-///@param drple unused
-///@param drpldt unused
+///@param drplde derivative of rpl with respect to the strain increment (ntens)
+///@param drpldt derivative of rpl with respect to the temperature
 ///@param stran array containing total strain component (dimension ntens) at the beginning of increment
 ///@param dstran array containing the component of total strain increment (dimension ntens)
 ///@param time two compoenent array : first component is the value of step time at the beginning of the current increment and second component is the value of total time at the beginning of the current increment
@@ -115,7 +115,8 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	double DTime = 0.;
     int solver_type = 0;
     
-	int nstatev_smart = nstatev-7;
+	// STATEV: Wm, Wt, then the stress-free strain when ndi < 3 (abaqus2smart_T), then the law
+	int nstatev_smart = nstatev - 7 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -148,7 +149,7 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     }
 	// r is the heat of the increment (simcoon contract, see heat_source_increment); Abaqus takes the rates
 	const double inv_dtime = (dtime > simcoon::iota) ? 1./dtime : 0.;
-	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r*inv_dtime, Wm, Wt, dSdE, dSdT, drpldE*inv_dtime, drpldT*inv_dtime, abaqus_nlgeom(dfgrd1));
+	smart2abaqus_T(stress, ddsdde, ddsddt, drplde, drpldt, rpl, statev, ndi, nshr, sigma, statev_smart, r*inv_dtime, Wm, Wt, dSdE, dSdT, drpldE*inv_dtime, drpldT*inv_dtime, abaqus_nlgeom(dfgrd1), Etot + DEtot);
 }
 
 void external_umat_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r, mat &dSdE, mat &dSdT, mat &drdE, mat &drdT, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT,const double &Time,const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, double &Wt, double &Wt_r, double &Wt_ir, const int &ndi, const int &nshr, const bool &start, double &tnew_dt)

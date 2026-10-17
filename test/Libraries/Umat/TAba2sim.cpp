@@ -48,7 +48,7 @@ TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
 
     double stress[6];
     double ddsdde[36];
-    double statev[4 + 2];   // the four energies Wm, then the state variables
+    double statev[4 + 3 + 2];   // Wm, the plane-stress free strain (unused at ndi = 3), then the state variables
     smart2abaqus_M(stress, ddsdde, statev, 3, 3, sigma, statev_smart, Wm, Lt);
 
     const vec I = {1., 1., 1., 0., 0., 0.};

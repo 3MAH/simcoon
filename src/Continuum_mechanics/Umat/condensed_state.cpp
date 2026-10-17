@@ -31,9 +31,12 @@ int default_nshr(const int &ndi) {
 condensed_state make_condensed_state(const int &ndi, const int &nshr) {
 
     const int ns = (nshr < 0) ? default_nshr(ndi) : nshr;
-    if (ndi < 1 || ndi > 3 || ns > 3) {
+    // the condensed states an element passes: truss (1, 0), beams (1, 1) and (1, 2), plane stress
+    // (2, 1) and (2, 3); ndi = 3 condenses nothing
+    const bool valid = (ndi == 3 && ns <= 3) || (ndi == 2 && (ns == 1 || ns == 3)) || (ndi == 1 && ns <= 2);
+    if (!valid) {
         throw std::invalid_argument("invalid stress state (ndi = " + std::to_string(ndi) + ", nshr = " + std::to_string(nshr)
-                                    + "): ndi is 1, 2 or 3 and nshr 0 to 3");
+                                    + "): condensed states are (1, 0), (1, 1), (1, 2), (2, 1) and (2, 3)");
     }
     condensed_state cs;
     cs.K.set_size(ndi + ns);
@@ -55,12 +58,13 @@ bool condensed_newton_step(const condensed_state &cs, vec &DEtot, const vec &sig
     const vec res = sigma(cs.C);
     if (!res.is_finite()) return false;
     const mat L_CC = Lt(cs.C, cs.C);
-    // relative to the stress, with a floor at the stress of a 1e-14 strain (zero load)
-    converged = abs(res).max() <= 1.e-10*abs(sigma).max() + 1.e-14*abs(L_CC).max();
-    if (converged) return true;
+    // solved before the convergence test: a singular L_CC fails here (step cut), never in the
+    // condensation of the converged tangent
     vec dE;
     if (!solve(dE, L_CC, res, solve_opts::no_approx) || !dE.is_finite()) return false;
-    DEtot(cs.C) -= dE;
+    // relative to the stress, with a floor at the stress of a 1e-14 strain (zero load)
+    converged = abs(res).max() <= 1.e-10*abs(sigma).max() + 1.e-14*abs(L_CC).max();
+    if (!converged) DEtot(cs.C) -= dE;
     return true;
 }
 

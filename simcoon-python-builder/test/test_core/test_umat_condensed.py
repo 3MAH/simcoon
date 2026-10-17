@@ -5,8 +5,9 @@ the free strain components are solved around it (Newton on the law's own tangent
 answer is the 3D law at the strain that makes them stress-free, whatever the law (plasticity,
 closed-form viscoelasticity, SMA, MODUL, hyperelasticity under finite strain). The tangent and
 the thermal derivatives leave condensed on the kept components (zero on the others): the block
-an element uses as it is. Only the kept strain components are read; the caller does not track
-the others.
+an element uses as it is. The solved free components are written back into Detot (in place), so
+a caller accumulating etot += Detot carries them to the next increment; one that does not gets
+the same answer, the free increment then absorbing the whole free strain.
 """
 
 import numpy as np
@@ -76,9 +77,17 @@ def test_beam_fibre_MODUL_matches_EPICP():
     np.testing.assert_allclose(s_mod, s_ref, rtol=1e-9, atol=1e-9)
 
 
-def test_invalid_nshr():
+@pytest.mark.parametrize("ndi,nshr", [(1, 4), (2, 0), (2, 2), (1, 3)])
+def test_invalid_stress_state(ndi, nshr):
+    """Only the states an element passes: (2, 0) would make shear 12 stress-free silently."""
     with pytest.raises(ValueError):
-        _drive("EPICP", EPICP, 8, np.zeros(6), 1, ndi=1, nshr=4)
+        _drive("EPICP", EPICP, 8, np.zeros(6), 1, ndi=ndi, nshr=nshr)
+
+
+def test_planar_beam_keeps_11_12():
+    de = np.array([1e-3, 0, 0, 5e-4, 0, 0])
+    sigma, _, _ = _drive("EPICP", EPICP, 8, de, 1, ndi=1, nshr=1)
+    np.testing.assert_allclose(sigma, [E * 1e-3, 0, 0, G * 5e-4, 0, 0], rtol=1e-12, atol=1e-12)
 
 
 # --- the condensed point is the 3D law at the stress-free strain, with its exact tangent -------
@@ -146,6 +155,55 @@ def test_condensed_point_is_the_3D_law_with_its_exact_tangent(name, ndi, nshr):
         fd[:, j] = (_umat(name, props, nstatev, e_last, dp, *start_state, T, tm, False, ndi, nshr)[0][K]
                     - _umat(name, props, nstatev, e_last, dm, *start_state, T, tm, False, ndi, nshr)[0][K]) / (2 * h)
     assert np.abs(Lt[np.ix_(K, K)] - fd).max() < 1e-6 * np.abs(fd).max()
+
+
+@pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])
+def test_free_strain_written_back_into_Detot(ndi, nshr):
+    """Detot comes back with the solved free increments: etot + Detot is the total strain of the
+    3D law at the stress-free point, and keeping it changes nothing to the answer."""
+    K, C = _kept(ndi, nshr)
+    de = np.zeros(6)
+    de[K] = PATH[K]
+    e = np.zeros(6)
+    cn = [np.zeros(6), np.zeros(8), np.zeros(4)]
+    forgetful = [np.zeros(6), np.zeros(8), np.zeros(4)]   # carries the kept strain only
+    for i in range(12):
+        Detot = _col(de)
+        out = sim.umat("EPICP", _col(e), Detot, np.empty(0), np.empty(0), _col(cn[0]), I3, _col(EPICP),
+                       _col(cn[1]), 0.0, 0.05, _col(cn[2]), temp=np.array([293.15]), ndi=ndi, nshr=nshr,
+                       n_threads=1, start=(i == 0))
+        np.testing.assert_array_equal(Detot.ravel()[K], de[K])
+        e = e + Detot.ravel()
+        cn = [out[0].ravel(), out[1].ravel(), out[2].ravel()]
+        s_f, sv_f, wm_f, _ = _umat("EPICP", EPICP, 8, i * de, de, *forgetful, 293.15, 2, i == 0, ndi, nshr)
+        forgetful = [s_f, sv_f, wm_f]
+    np.testing.assert_allclose(cn[0], forgetful[0], rtol=1e-9, atol=1e-9 * np.abs(cn[0]).max())
+    # the total strain is the 3D law's: elastic + plastic, sigma_C = 0 -> eps_C = (M sigma + EP)_C
+    M = np.linalg.inv(sim.L_iso([E, NU], "Enu"))
+    np.testing.assert_allclose(e[C], (M @ cn[0] + cn[1][2:8])[C], rtol=1e-8, atol=1e-12)
+
+
+def test_free_strain_write_back_layouts():
+    """C-ordered (6, N) arrays are written back through their strides; a read-only one is refused."""
+    de = np.zeros((6, 2))
+    de[0] = [1e-3, 2e-3]
+    args = dict(temp=np.array([293.15]), ndi=1, n_threads=1, start=True)
+    Detot = np.ascontiguousarray(de)
+    sim.umat("ELISO", np.zeros((6, 2)), Detot, np.empty(0), np.empty(0), np.zeros((6, 2)),
+             np.asfortranarray(np.repeat(np.eye(3)[:, :, None], 2, axis=2)), _col([E, NU, 0.0]),
+             np.zeros((1, 2)), 0.0, 1.0, np.zeros((4, 2)), **args)
+    np.testing.assert_allclose(Detot[[1, 2]], -NU * de[[0, 0]], rtol=1e-12)
+    np.testing.assert_allclose(Detot[3:], 0.0, atol=1e-15)
+    Detot = _col(de[:, 0])   # umat_T: the same write-back
+    sim.umat_T("ELISO", _col(np.zeros(6)), Detot, _col(np.zeros(6)), I3, _col([RHO, C_P, E, NU, 0.0]), _col([0.0]),
+               0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.array([293.15]), np.array([0.0]), ndi=1,
+               n_threads=1, start=True)
+    np.testing.assert_allclose(Detot.ravel()[[1, 2]], -NU * 1e-3, rtol=1e-12)
+    Detot = _col(de[:, 0])
+    Detot.setflags(write=False)
+    with pytest.raises(ValueError, match="writable"):
+        sim.umat("ELISO", _col(np.zeros(6)), Detot, np.empty(0), np.empty(0), _col(np.zeros(6)), I3,
+                 _col([E, NU, 0.0]), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), **args)
 
 
 def test_condensed_refusals():

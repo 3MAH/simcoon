@@ -204,9 +204,11 @@ The converged point is the 3D law itself on the condensed state, for every law
 (plasticity, viscoelasticity, damage, SMA, ``MODUL``), and ``DDSDDE`` (with
 ``DDSDDT``, ``DRPLDE``, ``DRPLDT`` in the thermomechanical bridge) is its exact
 condensed derivative whenever the law's 3D tangent is exact: the global Newton
-keeps its quadratic convergence. Nothing is stored in ``STATEV`` for it: the
-laws read their start state from their stress and internal variables, never
-from the strain components the element does not pass. The cost is two to four
+keeps its quadratic convergence. The solved strain is kept in ``STATEV``
+right after the energies (``6 - NTENS`` values, simcoon order, rotated with
+``DROT`` as Abaqus rotates ``STRAN``), so each increment solves only its change:
+for plane stress, the thickness strain and the transverse shears
+(:math:`\varepsilon_{33}, \gamma_{13}, \gamma_{23}`). The cost is two to four
 evaluations of the law per increment (more for a law whose 3D tangent is
 approximate, such as ``SMADI`` under ``tangent_mode = 2``); a point that does
 not converge asks for a smaller increment through ``PNEWDT``. The custom-model
@@ -326,11 +328,16 @@ simcoon uses a specific layout for state variables (``statev`` array):
     statev[1]                - Wm_r (recoverable work)
     statev[2]                - Wm_ir (irrecoverable work)
     statev[3]                - Wm_d (dissipated work)
-    statev[4:nstatev]        - Model-specific state variables (nstatev_smart of them)
+    statev[4:4+nC]           - Stress-free strain components (NDI < 3 only, nC = 6 - NTENS)
+    statev[4+nC:nstatev]     - Model-specific state variables (nstatev_smart of them)
 
-Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``: the four work
-quantities come first, then the model's own variables (the same layout as the
-Ansys ``ustatev``, see :doc:`ansys`).
+Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4 + nC``: the four work
+quantities come first, then the solved stress-free strain when ``NDI < 3``
+(``nC = 0`` for 3D, plane-strain and axisymmetric elements, 3 for plane stress
+and ``B31`` beams, 5 for trusses), then the model's own variables (the same
+layout as the Ansys ``ustatev`` when ``nC = 0``, see :doc:`ansys`). The
+thermomechanical bridge stores the three thermal energies ``Wt, Wt_r, Wt_ir``
+after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``.
 
 Available Models
 ----------------
@@ -488,7 +495,7 @@ Troubleshooting
 
 **Convergence issues**
 
-- Check that ``*DEPVAR`` matches ``nstatev_smart + 4``
+- Check that ``*DEPVAR`` matches ``nstatev_smart + 4 + nC`` (``+ 7 + nC`` thermomechanical)
 - Verify material properties are in correct units
 - Start with small load increments
 - Check the tangent modulus is properly computed (symmetric, positive definite for elastic)

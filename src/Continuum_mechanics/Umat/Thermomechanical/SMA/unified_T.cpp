@@ -725,9 +725,9 @@ void umat_sma_unified_T_T(const string &umat_name, const vec &Etot, const vec &D
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
 
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
 
     ///@brief statev evolving variables
     statev(0) = T_init;

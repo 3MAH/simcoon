@@ -174,9 +174,9 @@ void umat_zener_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
         
     //Return the statev;
     statev(0) = T_init;

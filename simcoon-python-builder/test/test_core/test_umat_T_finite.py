@@ -147,3 +147,24 @@ def test_finite_requests_outside_the_scope_are_refused(kwargs, match):
         sim.umat_T(kwargs.get("umat", "ELISO"), _col(np.zeros(6)), _col(np.zeros(6)), _col(np.zeros(6)),
                    _cube(np.eye(3)), _col(props), _col(np.zeros(8)), 0., 0.1, _col(np.zeros(4)),
                    _col(np.zeros(3)), np.array([T0]), np.array([0.]), **args)
+
+
+def test_rate_form_work_matches_umat():
+    """Under log_R the work is the true stress power (Delta_work_conjugacy), as sim.umat: with no
+    temperature change the thermal ELISO is the mechanical one, Wm included."""
+    props_M = np.array([E, NU, ALPHA])
+    sigma, sigma_M, statev, Wm, Wm_M, Wt = np.zeros(6), np.zeros(6), np.array([T0]), np.zeros(4), np.zeros(4), np.zeros(3)
+    etot, statev_M = np.zeros(6), np.zeros(1)
+    for i in range(10):
+        F0, F1 = _F(i / 10), _F((i + 1) / 10)
+        _, de, DR = _increments("rate", F0, F1)
+        e_start = _t2v_strain(DR @ _v2t_strain(etot) @ DR.T)
+        out = _step("rate", e_start, de, DR, F0, F1, sigma, statev, Wm, Wt, T0, 0.0, i == 0)
+        sigma, statev, Wm, Wt = out[0].ravel(), out[1].ravel(), out[2].ravel(), out[3].ravel()
+        s_M, sv_M, wm_M, _ = sim.umat("ELISO", _col(e_start), _col(de), _cube(F0), _cube(F1), _col(sigma_M), _cube(DR),
+                                      _col(props_M), _col(statev_M), 0.0 if i == 0 else 1.0, 0.1, _col(Wm_M),
+                                   temp=np.array([T0]), n_threads=1, start=(i == 0), corate=3)
+        sigma_M, statev_M, Wm_M = s_M.ravel(), sv_M.ravel(), wm_M.ravel()
+        etot = e_start + de
+    np.testing.assert_allclose(sigma, sigma_M, rtol=1e-12, atol=1e-12 * np.abs(sigma_M).max())
+    np.testing.assert_allclose(Wm, Wm_M, rtol=1e-12, atol=1e-15)

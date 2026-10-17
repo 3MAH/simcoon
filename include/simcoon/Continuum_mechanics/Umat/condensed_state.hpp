@@ -53,9 +53,11 @@ int default_nshr(const int &ndi);
  * @param ndi Number of direct stress components (1, 2 or 3)
  * @param nshr Number of shear components (0 to 3); negative picks default_nshr(ndi)
  * @return The condensed state
- * @details Supported condensed states: (1, 0) truss, (1, 2) beam fibre (11, 12, 13),
- * (2, 1) plane stress (11, 22, 12), (2, 3) plane stress with transverse shears. Throws
- * std::invalid_argument on any other ndi or nshr.
+ * @details Supported condensed states: (1, 0) truss, (1, 1) planar beam fibre (11, 12, Abaqus
+ * B21), (1, 2) beam fibre (11, 12, 13, Abaqus B31), (2, 1) plane stress (11, 22, 12), (2, 3) plane
+ * stress with transverse shears; with ndi = 3 any nshr from 0 to 3 (nothing condensed). Throws
+ * std::invalid_argument on any other ndi or nshr, e.g. (2, 0), which would make shear 12
+ * stress-free.
  */
 condensed_state make_condensed_state(const int &ndi, const int &nshr = -1);
 

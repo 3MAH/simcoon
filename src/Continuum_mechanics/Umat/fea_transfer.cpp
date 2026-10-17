@@ -24,6 +24,8 @@
 #include <assert.h>
 #include <armadillo>
 #include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
 
 using namespace std;
@@ -68,6 +70,21 @@ void mat2abaqus(const mat &M, const abaqus_components &K, double *a) {
         for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
 }
 
+// The stress-free strain (ndi < 3, condensed_state.hpp) is kept in STATEV after the energies,
+// in simcoon order. Read at the start of the increment, rotated with it (DROT) as Abaqus rotates
+// STRAN: the material point then solves its change, not the whole value
+void read_free_strain(const double *statev, const int &offset, const uvec &C, const mat &DR, vec &Etot) {
+    if (C.is_empty()) return;
+    vec E_C = zeros(6);
+    for (uword j = 0; j < C.n_elem; j++) E_C(C(j)) = statev[offset + j];
+    Etot(C) = rotate_strain(E_C, DR)(C);
+}
+
+void write_free_strain(const vec &Etot_end, const int &offset, const uvec &C, double *statev) {
+    if (Etot_end.n_elem != 6) return;
+    for (uword j = 0; j < C.n_elem; j++) statev[offset + j] = Etot_end(C(j));
+}
+
 }  // namespace
 
 void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int &nstatev, double *statev, const int &ndi, const int &nshr, vec &sigma, mat &Lt, vec &Wm, vec &statev_smart)
@@ -86,7 +103,6 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int 
 
 void abaqus2smart_M(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
-    // the stress-free components arrive at zero: the material point solves them, no state kept
     const abaqus_components K(ndi, nshr);
     abaqus2vec(stress, K, sigma);
     abaqus2vec(stran, K, Etot);
@@ -114,8 +130,11 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
     for (int i=0; i<4; i++) {
         Wm(i) = statev[i];
     }
-    for (int i=0; i<nstatev-4; i++) {
-        statev_smart(i) = statev[i+4];
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    read_free_strain(statev, 4, C, DR, Etot);
+    const int offset = 4 + C.n_elem;
+    for (int i=0; i<nstatev-offset; i++) {
+        statev_smart(i) = statev[i+offset];
     }
 }
 
@@ -154,8 +173,11 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     for (int i=0; i<3; i++) {
         Wt(i) = statev[i+4];
     }
-    for (int i=0; i<nstatev-7; i++) {
-        statev_smart(i) = statev[i+7];
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    read_free_strain(statev, 7, C, DR, Etot);
+    const int offset = 7 + C.n_elem;
+    for (int i=0; i<nstatev-offset; i++) {
+        statev_smart(i) = statev[i+offset];
     }
 }
 
@@ -175,7 +197,7 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
     return Lt + 0.5*(sigma_I + sigma_I.t());
 }
 
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom)
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom, const vec &Etot_end)
 {
     // the tangent arrives condensed (select_umat_M): DDSDDE is its K x K block; sigma (x) I only
     // for NLGEOM with 3 direct components, plane stress and 1D take it as it is
@@ -188,8 +210,11 @@ void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &n
     for (int i=0; i<4; i++) {
         statev[i] = Wm(i);
     }
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    write_free_strain(Etot_end, 4, C, statev);
+    const int offset = 4 + C.n_elem;
     for (unsigned int i=0; i<statev_smart.n_elem; i++) {
-        statev[i+4] = statev_smart(i);
+        statev[i+offset] = statev_smart(i);
     }
 }
 
@@ -232,7 +257,7 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
     }
 }
 
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT, const bool &nlgeom) {
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT, const bool &nlgeom, const vec &Etot_end) {
 
     // dSdE, dSdT, drpldE and drpldT arrive condensed on the element's components (select_umat_T)
     const mat dSdE = (nlgeom && ndi == 3) ? abaqus_jacobian(dSdE_kernel, sigma) : dSdE_kernel;
@@ -251,8 +276,11 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     for (int i=0; i<3; i++) {
         statev[i+4] = Wt(i);
     }
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    write_free_strain(Etot_end, 7, C, statev);
+    const int offset = 7 + C.n_elem;
     for (unsigned int i=0; i<statev_smart.n_elem; i++) {
-        statev[i+7] = statev_smart(i);
+        statev[i+offset] = statev_smart(i);
     }
 }
 
