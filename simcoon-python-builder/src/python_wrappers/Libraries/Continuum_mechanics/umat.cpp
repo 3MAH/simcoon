@@ -165,19 +165,53 @@ struct condensed_F {
 		l(cs.C) = e(cs.C);
 		return simcoon::eR_to_F(simcoon::v2t_strain(l), R);
 	}
+	// the total form: the strain state is the whole H = ln U, F = R exp(H)
+	arma::mat total(const arma::vec &H) const { return R*arma::expmat_sym(simcoon::v2t_strain(H)); }
 };
 
-// ndi < 3: the stress-free components each point solved go back into the caller's Detot, so
-// that etot + Detot carries them to the next increment. Written once the batch has converged,
-// through the array's own strides (a copy was taken when it is not F-contiguous)
-void write_back_free_strain(const py::array_t<double> &Detot_py, const simcoon::condensed_state &cs, const arma::mat &Detot_C) {
+// condense = 'approximate': the stress the law returns vanishes on the free set (tau_hat_C under the
+// rate form, T_C under the total one), Newton with the law's own tangent. 'exact': the second
+// Piola-Kirchhoff stress S_C vanishes, i.e. the traction on the free material faces (P N = 0), with
+// the Green-Lagrange E_C as unknowns and dS/dE as Jacobian; it needs F0, F1. Both coincide at small
+// strain and when the free directions are principal (condensed_state.hpp)
+bool condense_exact(const std::string &condense) {
+	if (condense == "approximate") return false;
+	if (condense == "exact") return true;
+	throw std::invalid_argument("condense must be 'approximate' or 'exact'; got '" + condense + "'");
+}
+
+// dH/dE, H = 1/2 ln C, C = I + 2 E (Voigt, engineering shears on both sides): Daleckii-Krein in the
+// eigenbasis of C, dH_ab = 2 g_ab dE_ab with g_ab the divided difference of 1/2 ln
+arma::mat dH_dE(const arma::mat &C) {
+	arma::vec c;
+	arma::mat N;
+	arma::eig_sym(c, N, C);
+	arma::mat g(3, 3);
+	for (int a = 0; a < 3; a++)
+		for (int b = 0; b < 3; b++)
+			g(a, b) = (std::fabs(c(a) - c(b)) > 1.e-12*c.max()) ? 0.5*(std::log(c(a)) - std::log(c(b)))/(c(a) - c(b))
+			                                                     : 0.5/c(a);
+	arma::mat P(6, 6);
+	for (int j = 0; j < 6; j++) {
+		arma::vec e = arma::zeros(6);
+		e(j) = 1.;
+		P.col(j) = simcoon::t2v_strain(N*(2.*(g % (N.t()*simcoon::v2t_strain(e)*N)))*N.t());
+	}
+	return P;
+}
+
+// ndi < 3: the solved strain goes back into the caller's Detot (rows: the free components, or all
+// six under condense='exact', where Detot is the increment of the law's own strain), so that
+// etot + Detot carries it to the next increment. Written once the batch has converged, through the
+// array's own strides (a copy was taken when it is not F-contiguous)
+void write_back_free_strain(const py::array_t<double> &Detot_py, const arma::uvec &rows, const arma::mat &Detot_C) {
 	py::array_t<double> out = Detot_py;   // same buffer
 	char *base = reinterpret_cast<char *>(out.mutable_data());
 	const py::ssize_t s0 = out.strides(0), s1 = (out.ndim() > 1) ? out.strides(1) : 0;
 	for (arma::uword pt = 0; pt < Detot_C.n_cols; pt++)
-		for (arma::uword j = 0; j < cs.C.n_elem; j++) {
+		for (arma::uword j = 0; j < rows.n_elem; j++) {
 			const double v = Detot_C(j, pt);
-			std::memcpy(base + cs.C(j)*s0 + pt*s1, &v, sizeof(double));
+			std::memcpy(base + rows(j)*s0 + pt*s1, &v, sizeof(double));
 		}
 }
 
@@ -188,7 +222,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py, const std::string &condense){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -274,7 +308,6 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			                            + std::to_string(nb_points) + "); got " + std::to_string(vec_DT.n_elem));
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
 		require_writable_Detot(Detot_py, cs, "umat");
-		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // solved per point, written back below
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(sigma_py); // copy: the umat updates it and it is returned to python
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		cube F0, F1;
@@ -431,12 +464,22 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				throw std::invalid_argument("umat: the total formulation (strain space) needs F0 and F1 to map the stress to and from the Cauchy stress");
 			}
 		}
-		if (cs.active() && total) {
-			throw std::invalid_argument("umat: condensed stress states (ndi < 3) run under kinematic_form='rate'");
+		// condense='exact' needs the deformation gradients (without them both conditions are sigma_C = 0)
+		const bool exact = cs.active() && condense_exact(condense) && kirchhoff_normalize;
+		if (exact && !total && corate_type != 3) {
+			throw std::invalid_argument("umat: condense='exact' runs under kinematic_form='rate' (log_R) or 'total'");
 		}
-		if (cs.active() && tangent_out != tangent_out_box) {
-			throw std::invalid_argument("umat: condensed stress states (ndi < 3) return the box tangent (tangent_output='box')");
+		if (cs.active() && !exact && tangent_out != tangent_out_box) {
+			throw std::invalid_argument("umat: condensed stress states (ndi < 3) return the box tangent (tangent_output='box'), "
+			                            "or dS/dE under condense='exact' (tangent_output='material')");
 		}
+		if (exact && tangent_out != tangent_out_material) {
+			throw std::invalid_argument("umat: condense='exact' returns dS/dE condensed on the kept components: "
+			                            "tangent_output='material'");
+		}
+		// the solved strain written back into Detot: the free components, or the whole law increment
+		const uvec wb_rows = exact ? arma::regspace<uvec>(0, 5) : cs.C;
+		mat Detot_W = cs.active() ? mat(list_Detot.rows(wb_rows)) : mat();
 		if (tangent_out != tangent_out_box) {
 			if (F1_py.ndim() != 3 || F1_py.shape(2) != nb_points) {
 				throw std::invalid_argument("umat: tangent_output='" + tangent_output
@@ -493,11 +536,12 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			mat F0_pt = have_F0 ? mat(F0.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
 			mat F1_pt = have_F1 ? mat(F1.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
 			const bool rebuild_F = cs.active() && have_F0 && have_F1
-			                       && (arguments_type == 2 || !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.));
+			                       && (total || arguments_type == 2 || !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.));
 			std::optional<condensed_F> F1_of;
+			auto F_at = [&](const condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
 			if (rebuild_F) {
 				try {   // no throw in the parallel region: a degenerate F is a step-cut request
-					F0_pt = condensed_F(F0.slice(pt))(cs, etot);
+					F0_pt = F_at(condensed_F(F0.slice(pt)), etot);
 					F1_of.emplace(F1.slice(pt));
 				}
 				catch (const std::exception &) {
@@ -524,7 +568,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				}
 			}
 			// the total formulation has no frame increment, whatever DR the caller holds
-			const mat &DR_pt = total ? I3 : DR.slice(pt);
+			mat DR_pt = total ? I3 : mat(DR.slice(pt));
 			double tau_start[6];
 			for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
 			// the law integrates Detot_pt: Detot (the caller's view) except on the stress-free
@@ -551,20 +595,60 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				run_law(tnew_dt_pt);
 			}
 			else {
-				// Newton on the stress-free strain components (solve_condensed). Under finite strain
-				// F1 follows them: an F-based law reads it at every evaluation, a box law only
-				// through J, rebuilt once at the end
+				// Newton on the free strain components (solve_condensed), the law restored to its start
+				// state before every evaluation; no throw out of the parallel region: a failure is a
+				// step-cut request
 				const vec sigma0 = sigma, statev0 = statev, Wm0 = Wm;
 				auto restore = [&]() { sigma = sigma0; statev = statev0; Wm = Wm0; };
-				try {   // no throw out of the parallel region: a failure is a step-cut request
-					auto run = [&](double &tnew) {
-						if (rebuild_F && arguments_type == 2) F1_pt = (*F1_of)(cs, etot + Detot_pt);
-						run_law(tnew);
-					};
-					if (simcoon::solve_condensed(cs, Detot_pt, sigma, Lt.slice(pt), run, restore, tnew_dt_pt)) {
-						simcoon::condense_tangent(cs, Lt.slice(pt));
-						Detot_C.col(pt) = Detot_pt(cs.C);
-						if (rebuild_F) F1_pt = (*F1_of)(cs, etot + Detot_pt);
+				try {
+					if (!exact) {
+						// the stress the law returns vanishes on C, unknowns Detot_pt(C). Under finite
+						// strain F1 follows: an F-based law reads it at every evaluation (and under the
+						// total form returns tau, with dT/dH: its residual is T at that F1), a box law
+						// only through J, rebuilt once at the end
+						const bool T_residual = total && arguments_type == 2;
+						vec res_T;
+						auto run = [&](double &tnew) {
+							if (rebuild_F && arguments_type == 2) F1_pt = F_at(*F1_of, etot + Detot_pt);
+							run_law(tnew);
+							if (T_residual) res_T = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F1_pt));
+						};
+						if (simcoon::solve_condensed(cs, Detot_pt, T_residual ? res_T : sigma, Lt.slice(pt), run, restore, tnew_dt_pt)) {
+							simcoon::condense_tangent(cs, Lt.slice(pt));
+							Detot_W.col(pt) = Detot_pt(wb_rows);
+							if (rebuild_F) F1_pt = F_at(*F1_of, etot + Detot_pt);
+						}
+					}
+					else {
+						// S_C = 0, unknowns the Green-Lagrange E1(C): E1(K) from the caller's F1,
+						// F1 = R1 U1(E1), and the law fed the increment of its own strain from F0 to
+						// that F1 (H1 - etot, or the log_R increment and its rotation)
+						vec E1 = simcoon::t2v_strain(simcoon::Green_Lagrange(F_at(*F1_of, etot + Detot_pt)));
+						E1(cs.K) = simcoon::t2v_strain(simcoon::Green_Lagrange(F1.slice(pt)))(cs.K);
+						vec S;
+						mat M;
+						const double dt = (DTime > simcoon::iota) ? DTime : 1.;
+						auto run = [&](double &tnew) {
+							const mat C1 = arma::eye(3, 3) + 2.*simcoon::v2t_strain(E1);
+							F1_pt = F1_of->R*arma::sqrtmat_sympd(C1);
+							if (total) Detot_pt = simcoon::t2v_strain(0.5*arma::logmat_sympd(C1)) - etot;
+							else {
+								mat D, Omega;
+								simcoon::corate_kinematics(3, DR_pt, D, Omega, F0_pt, F1_pt, dt);
+								Detot_pt = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_pt, DR_pt, D, Omega, dt, 3));
+							}
+							run_law(tnew);
+							mat tau = simcoon::v2t_stress(sigma);
+							if (total_box) tau = simcoon::LogStressU2Kirchoff(tau, F1_pt);
+							const mat Fi = arma::inv(F1_pt);
+							S = simcoon::t2v_stress(Fi*tau*Fi.t());
+							M = simcoon::DtauDe_corate_2_DSDE(Lt.slice(pt), corate_type, F1_pt, tau);
+						};
+						if (simcoon::solve_condensed(cs, E1, S, M, run, restore, tnew_dt_pt)) {
+							simcoon::condense_tangent(cs, M);
+							Lt.slice(pt) = M;
+							Detot_W.col(pt) = Detot_pt;
+						}
 					}
 				}
 				catch (const std::exception &) {
@@ -588,7 +672,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				// increment: identical F (small-strain use with placeholder F) carries no D, and the
 				// correction would cancel the kernel's work.
 				const arma::vec::fixed<6> ts(tau_start);
-				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR_pt), ts, sigma,
 				                                                Detot_pt, F0_pt, F1_pt, corate_type);
 				Wm(0) += dW;
 				Wm(1) += dW;
@@ -600,7 +684,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				const double J1 = arma::det(F1_pt);
 				if (J1 > simcoon::iota) sigma /= J1;
 			}
-			if (tangent_out != tangent_out_box) {
+			if (tangent_out != tangent_out_box && !exact) {   // exact: already dS/dE
 				// same maps as Lt_convert on the returned (Cauchy) stress, with the corate the law ran with
 				const mat dSdE = simcoon::DtauDe_corate_2_DSDE(Lt.slice(pt), corate_type, F1.slice(pt),
 				                                               arma::det(F1.slice(pt))*simcoon::v2t_stress(sigma));
@@ -625,12 +709,12 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat", tnew_dt);
-		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
+		if (cs.active()) write_back_free_strain(Detot_py, wb_rows, Detot_W);
 		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, false), simpy::arma_to_numpy::mat_to_arr(list_statev, false), simpy::arma_to_numpy::mat_to_arr(list_Wm, false), simpy::arma_to_numpy::cube_to_arr(Lt, false));
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py){
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py, const std::string &condense){
 		// Point-wise thermomechanical UMAT batch entry, mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
@@ -682,13 +766,15 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			if (F0.n_rows != 3 || F0.n_cols != 3 || F0.n_slices != nb_points
 			    || F1.n_rows != 3 || F1.n_cols != 3 || F1.n_slices != nb_points)
 				throw std::invalid_argument("umat_T: F0/F1 must carry one 3x3 slice per material point");
-			if (cs.active() && total)
-				throw std::invalid_argument("umat_T: condensed stress states (ndi < 3) run under kinematic_form='rate'");
 		}
+		// as launch_umat; under 'exact' dSdE, dSdT and drdE come back as the material derivatives
+		// dS/dE, dS/dtheta, dr/dE condensed on the kept components
+		const bool exact = cs.active() && condense_exact(condense) && finite;
 		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
 		require_writable_Detot(Detot_py, cs, "umat_T");
-		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // as launch_umat
+		const uvec wb_rows = exact ? arma::regspace<uvec>(0, 5) : cs.C;   // as launch_umat
+		mat Detot_W = cs.active() ? mat(list_Detot.rows(wb_rows)) : mat();
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		vec vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py);
@@ -809,9 +895,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 			mat F0_pt = finite ? mat(F0.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
 			mat F1_pt = finite ? mat(F1.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
 			std::optional<condensed_F> F1_of;
+			auto F_at = [&](const condensed_F &Fc, const vec &e) { return total ? Fc.total(e) : Fc(cs, e); };
 			if (finite && cs.active()) {
 				try {
-					F0_pt = condensed_F(F0.slice(pt))(cs, etot);
+					F0_pt = F_at(condensed_F(F0.slice(pt)), etot);
 					F1_of.emplace(F1.slice(pt));
 				}
 				catch (const std::exception &) {
@@ -834,7 +921,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					catch (const std::exception &) { finite_cut = true; }
 				}
 			}
-			const mat &DR_pt = total ? I3 : DR.slice(pt);
+			mat DR_pt = total ? I3 : mat(DR.slice(pt));
 
 			// as launch_umat: Detot_pt and F1_pt alias the caller's arrays unless condensed
 			vec Detot_pt(Detot.memptr(), Detot.n_elem, cs.active(), true);
@@ -860,15 +947,58 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				const vec sigma0 = sigma, statev0 = statev, Wm0 = Wm, Wt0 = Wt;
 				auto restore = [&]() { sigma = sigma0; statev = statev0; Wm = Wm0; Wt = Wt0; list_r(pt) = 0.; };
 				try {   // no throw out of the parallel region: a failure is a step-cut request
-					if (simcoon::solve_condensed(cs, Detot_pt, sigma, dSdE.slice(pt), run_law, restore, tnew_dt_pt)) {
-						if (finite) {   // d(ln V_C)/dtheta = -L_CC^-1 dtau_C/dtheta, its direct part is dlnJ/dtheta
-							const vec dC = -arma::solve(mat(dSdE.slice(pt)(cs.C, cs.C)), vec(mat(dSdT.slice(pt)).rows(cs.C)));
-							for (arma::uword j = 0; j < cs.C.n_elem; j++)
-								if (cs.C(j) < 3) dlnJ_dT += dC(j);
+					if (!exact) {
+						if (simcoon::solve_condensed(cs, Detot_pt, sigma, dSdE.slice(pt), run_law, restore, tnew_dt_pt)) {
+							if (finite) {   // d(strain_C)/dtheta = -L_CC^-1 dstress_C/dtheta, its direct part is dlnJ/dtheta
+								const vec dC = -arma::solve(mat(dSdE.slice(pt)(cs.C, cs.C)), vec(mat(dSdT.slice(pt)).rows(cs.C)));
+								for (arma::uword j = 0; j < cs.C.n_elem; j++)
+									if (cs.C(j) < 3) dlnJ_dT += dC(j);
+							}
+							simcoon::condense_tangent_T(cs, dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt));
+							Detot_W.col(pt) = Detot_pt(wb_rows);
+							if (finite) F1_pt = F_at(*F1_of, etot + Detot_pt);
 						}
-						simcoon::condense_tangent_T(cs, dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt));
-						Detot_C.col(pt) = Detot_pt(cs.C);
-						if (finite) F1_pt = (*F1_of)(cs, etot + Detot_pt);
+					}
+					else {
+						// as launch_umat (S_C = 0 on the Green-Lagrange E1(C)); the box laws here return
+						// tau (rate) or T (total)
+						vec E1 = simcoon::t2v_strain(simcoon::Green_Lagrange(F_at(*F1_of, etot + Detot_pt)));
+						E1(cs.K) = simcoon::t2v_strain(simcoon::Green_Lagrange(F1.slice(pt)))(cs.K);
+						vec S;
+						mat M;
+						const double dt = (DTime > simcoon::iota) ? DTime : 1.;
+						auto kirchhoff = [&](const mat &law_stress) { return total ? simcoon::LogStressU2Kirchoff(law_stress, F1_pt) : law_stress; };
+						auto run = [&](double &tnew) {
+							const mat C1 = arma::eye(3, 3) + 2.*simcoon::v2t_strain(E1);
+							F1_pt = F1_of->R*arma::sqrtmat_sympd(C1);
+							if (total) Detot_pt = simcoon::t2v_strain(0.5*arma::logmat_sympd(C1)) - etot;
+							else {
+								mat D, Omega;
+								simcoon::corate_kinematics(3, DR_pt, D, Omega, F0_pt, F1_pt, dt);
+								Detot_pt = simcoon::t2v_strain(simcoon::Delta_log_strain_corate(F0_pt, F1_pt, DR_pt, D, Omega, dt, 3));
+							}
+							run_law(tnew);
+							const mat tau = kirchhoff(simcoon::v2t_stress(sigma));
+							const mat Fi = arma::inv(F1_pt);
+							S = simcoon::t2v_stress(Fi*tau*Fi.t());
+							M = simcoon::DtauDe_corate_2_DSDE(dSdE.slice(pt), total ? simcoon::corate_type_total : 3, F1_pt, tau);
+						};
+						if (simcoon::solve_condensed(cs, E1, S, M, run, restore, tnew_dt_pt)) {
+							// material derivatives at fixed F1: dS/dtheta = F^-1 dtau/dtheta F^-T,
+							// dr/dE = dr/dH dH/dE (rate: dH rotated by R1 into the box)
+							const mat Fi = arma::inv(F1_pt);
+							mat dSdT_S = simcoon::t2v_stress(Fi*kirchhoff(simcoon::v2t_stress(vec(dSdT.slice(pt))))*Fi.t());
+							mat P = dH_dE(F1_pt.t()*F1_pt);
+							if (!total)
+								for (int j = 0; j < 6; j++)
+									P.col(j) = simcoon::t2v_strain(F1_of->R*simcoon::v2t_strain(vec(P.col(j)))*F1_of->R.t());
+							mat drdE_E = P.t()*arma::vectorise(drdE.slice(pt));   // drdE is stored (6, 1)
+							simcoon::condense_tangent_T(cs, M, dSdT_S, drdE_E, drdT.slice(pt));
+							dSdE.slice(pt) = M;
+							dSdT.slice(pt) = dSdT_S;
+							drdE.slice(pt) = drdE_E;
+							Detot_W.col(pt) = Detot_pt;
+						}
 					}
 				}
 				catch (const std::exception &) {
@@ -883,14 +1013,15 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 					try {
 						double dW_T;
 						sigma = simcoon::total_formulation_tau(sigma, Detot_pt, F1_pt, true, dW_T);
-						dSdT.slice(pt) = simcoon::t2v_stress(simcoon::LogStressU2Kirchoff(simcoon::v2t_stress(vec(dSdT.slice(pt))), F1_pt));
+						if (!exact)
+							dSdT.slice(pt) = simcoon::t2v_stress(simcoon::LogStressU2Kirchoff(simcoon::v2t_stress(vec(dSdT.slice(pt))), F1_pt));
 					}
 					catch (const std::exception &) { finite_cut = true; }
 				}
 				else if (!arma::approx_equal(F0_pt, F1_pt, "absdiff", 0.)) {
 					// true work under log_R, as launch_umat
 					const arma::vec::fixed<6> ts(tau_start);
-					const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+					const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR_pt), ts, sigma,
 					                                                Detot_pt, F0_pt, F1_pt, 3);
 					Wm(0) += dW;
 					Wm(1) += dW;
@@ -898,8 +1029,10 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 				const double J1 = arma::det(F1_pt);
 				if (J1 > simcoon::iota) {
 					sigma /= J1;
-					dSdT.slice(pt) /= J1;
-					dSdT.slice(pt) -= sigma * dlnJ_dT;
+					if (!exact) {   // the Cauchy derivative; exact returns dS/dtheta
+						dSdT.slice(pt) /= J1;
+						dSdT.slice(pt) -= sigma * dlnJ_dT;
+					}
 				}
 				else finite_cut = true;
 				if (finite_cut) tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
@@ -909,7 +1042,7 @@ void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::
 		parallel_for_nogil(nb_points, thermal_point_kernel, n_threads);
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
-		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
+		if (cs.active()) write_back_free_strain(Detot_py, wb_rows, Detot_W);
 
 		// post-loop repacking (serial): dSdT (6,1,N) -> (6,N), drdE (1,6,N) -> (6,N), drdT (1,1,N) -> (N)
 		mat dSdT_out(ncomp, nb_points);

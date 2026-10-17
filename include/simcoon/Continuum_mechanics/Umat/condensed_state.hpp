@@ -87,6 +87,19 @@ bool condensed_newton_step(const condensed_state &cs, arma::vec &DEtot, const ar
  * viscous strains on \f$ C \f$ are free, and the law never sees an incompatible strain. The
  * Newton is quadratic when \f$ \mathbf{L}_t \f$ is the law's consistent tangent.
  *
+ * The unknown, the residual and the Jacobian are any consistent triple: under finite strain the
+ * law's own pair (ln V and \f$ \hat{\boldsymbol\tau} \f$ under the rate form, \f$ \mathbf{H} = \ln\mathbf{U} \f$
+ * and its dual \f$ \mathbf{T} \f$ under the total one, sim.umat condense='approximate'), or the
+ * Green-Lagrange \f$ \mathbf{E}_C \f$, the second Piola-Kirchhoff \f$ \mathbf{S}_C \f$ and
+ * \f$ \partial\mathbf{S}/\partial\mathbf{E} \f$ (condense='exact'). \f$ \mathbf{S}_C = \mathbf{0} \f$ is the
+ * traction-free condition on the free material faces (\f$ \mathbf{P}\mathbf{e}_3 = \mathbf{F}\mathbf{S}\mathbf{e}_3 = \mathbf{0} \f$
+ * for a shell). The two coincide at small strain and when the free directions are principal for
+ * \f$ \mathbf{U} \f$ (truss, plane stress of a material symmetric about the free planes);
+ * otherwise the law's pair leaves \f$ \mathbf{S}_C \f$ of second order in the shears that couple kept
+ * and free directions, \f$ S_{33} \simeq -(\gamma_{13}\tau_{13} + \gamma_{23}\tau_{23}) \simeq -\mu\gamma_t^2 \f$
+ * for a shell under transverse shear, and of first order for anisotropy axes tilted out of the
+ * free planes.
+ *
  * @param cs The condensed state (must be active)
  * @param DEtot Strain increment (6). On entry its \f$ C \f$ components are the starting guess
  *        (the caller's, zero when it has none); on exit they are the converged ones
