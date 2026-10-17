@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -126,7 +127,33 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     double DT = 0.;
     
 	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, Lt, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, statev_smart, DR, start);
-    external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, pnewdt);
+    // The law is 3D: a condensed state (ndi < 3) is solved around it, and its tangent condensed
+    // on the element's components (condensed_state.hpp)
+    const condensed_state cs = make_condensed_state(ndi, nshr);
+    if (!cs.active()) {
+        external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, pnewdt);
+    }
+    else {
+        const vec sigma0 = sigma, statev0 = statev_smart, Wm0 = Wm;
+        double tnew = 1.;
+        auto evaluate = [&]() {
+            sigma = sigma0;
+            statev_smart = statev0;
+            Wm = Wm0;
+            tnew = 1.;
+            external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), 3, 3, start, tnew);
+            return tnew >= 1.;
+        };
+        if (solve_condensed(cs, DEtot, sigma, Lt, evaluate)) {
+            condense_tangent(cs, Lt);
+        }
+        else {
+            sigma = sigma0;
+            statev_smart = statev0;
+            Wm = Wm0;
+            pnewdt = (tnew < 1.) ? tnew : 0.5;
+        }
+    }
 	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma, statev_smart, Wm, Lt, abaqus_nlgeom(dfgrd1));
 }
 

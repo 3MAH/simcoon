@@ -663,9 +663,15 @@ constexpr auto umat = R"pbdoc(
         point, or one per point.
     ndi : int
         Number of direct stress components (3, 2 or 1). With ndi < 3 the
-        components absent from the (ndi, nshr) state are stress-free: the
-        elastic prediction condenses them away (truss, beam fibre, plane
-        stress). The returned tangent stays 6x6; condensing it is the caller's.
+        components absent from the (ndi, nshr) state are stress-free (truss,
+        beam fibre, plane stress): the law runs 3D and their strain is solved
+        at each point (a Newton on the law's own tangent), so the result is the
+        3D law at the strain that makes them stress-free, whatever the law
+        (under finite strain F1 follows through ln V1). Only the kept strain
+        components are read; the solved ones are not returned. The tangent
+        (and in umat_T dSdT, drdE, drdT) comes back condensed on the kept
+        components, zero elsewhere. Condensed states run under
+        kinematic_form='rate' with tangent_output='box'.
     nshr : int, optional
         Number of shear stress components kept, in the order 12, 13, 23
         (Abaqus convention). Default: 3 for ndi = 3, 1 for ndi = 2 (plane

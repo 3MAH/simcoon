@@ -404,7 +404,11 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details With ndi < 3 the components outside the (ndi, nshr) state are stress-free: the law runs
+ * 3D and their strain increment is solved around it (condensed_state.hpp), the global state being
+ * restored before every evaluation; the stress and the tangent leave condensed on the kept
+ * components (zero elsewhere), ready for smart2abaqus. No convergence: start state kept, tnew_dt < 1.
+ * Example: 
  * @code 
     bool start = false;
     double Time = 0.;
@@ -614,7 +618,11 @@ void select_umat_M_finite(phase_characteristics &rve, const arma::mat &DR_global
  * @param start bolean that states if it is the beginning of the simulation (or not)
  * @param solver_type type of solver to be used (0 = Newton-Raphson)
  * @param tnew_dt New increment of time if the max number of iteration has not converged
- * @details Example: 
+ * @details With ndi < 3 the components outside the (ndi, nshr) state are stress-free: the law runs
+ * 3D and their strain increment is solved around it (condensed_state.hpp), the global state being
+ * restored before every evaluation; the stress and the tangent leave condensed on the kept
+ * components (zero elsewhere), ready for smart2abaqus. No convergence: start state kept, tnew_dt < 1.
+ * Example: 
  * @code 
     bool start = false;
     double Time = 0.;

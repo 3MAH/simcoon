@@ -182,8 +182,36 @@ only where Abaqus's definition has it: for ``NLGEOM`` steps (Abaqus hands
 ``DFGRD1`` as the identity otherwise, which ``abaqus_nlgeom`` reads) and for the
 cases with three direct components (3D, plane strain, axisymmetric). Without
 ``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation procedures
-(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D
-condense the kernel tangent as it is, the element owning the thickness change.
+(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D take
+the condensed tangent as it is, the element owning the thickness change.
+
+Plane stress, shells, beams and trusses
+---------------------------------------
+
+The bridges accept every ``(NDI, NSHR)`` state Abaqus passes: plane stress and
+shells ``(2, 1)``, shells with transverse shear ``(2, 3)``, trusses ``(1, 0)``
+and beams such as ``B31`` ``(1, 2)`` (11, 12, 13), next to the 3D, plane-strain
+and axisymmetric ones (``NDI = 3``). The ``NTENS`` components of ``STRESS``,
+``STRAN`` and ``DDSDDE`` map in Abaqus order to the simcoon components (the
+direct ones, then the shears 12, 13, 23).
+
+With ``NDI < 3`` the other components are stress-free and Abaqus does not give
+their strain. The material point solves it: the simcoon law always runs 3D, and
+a Newton iteration on its own tangent finds the strain that makes those stress
+components vanish, each evaluation integrating the whole increment from the
+start state (``condensed_state.hpp``, ``select_umat_M`` / ``select_umat_T``).
+The converged point is the 3D law itself on the condensed state, for every law
+(plasticity, viscoelasticity, damage, SMA, ``MODUL``), and ``DDSDDE`` (with
+``DDSDDT``, ``DRPLDE``, ``DRPLDT`` in the thermomechanical bridge) is its exact
+condensed derivative whenever the law's 3D tangent is exact: the global Newton
+keeps its quadratic convergence. Nothing is stored in ``STATEV`` for it: the
+laws read their start state from their stress and internal variables, never
+from the strain components the element does not pass. The cost is two to four
+evaluations of the law per increment (more for a law whose 3D tangent is
+approximate, such as ``SMADI`` under ``tangent_mode = 2``); a point that does
+not converge asks for a smaller increment through ``PNEWDT``. The custom-model
+bridges (``umat_externalM`` / ``umat_externalT``) wrap ``external_umat`` the
+same way, so a custom law is written 3D only.
 
 Using umat_externalM (Custom Model)
 -----------------------------------

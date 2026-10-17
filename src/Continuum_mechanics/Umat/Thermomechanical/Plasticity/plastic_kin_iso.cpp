@@ -171,7 +171,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
     
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi, nshr);
+    sigma = el_pred(L, Eel);
     
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -266,7 +266,7 @@ void umat_plasticity_kin_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, do
         
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi, nshr);
+        sigma = el_pred(L, Eel);
     }
     }
     

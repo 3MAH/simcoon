@@ -348,7 +348,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
     ///Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    stress = el_pred(L, Eel, ndi, nshr);
+    stress = el_pred(L, Eel);
 
     //Define the functions for the system to solve
     vec Phi = zeros(2);
@@ -790,7 +790,7 @@ void umat_sma_unified_T(const string &umat_name, const vec &Etot, const vec &DEt
 
         //the stress is now computed using the relationship stress = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-        stress = el_pred(L, Eel, ndi, nshr);
+        stress = el_pred(L, Eel);
     }
     }
 

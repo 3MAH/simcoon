@@ -349,7 +349,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // Elastic prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    stress = el_pred(L, Eel, ndi, nshr);
+    stress = el_pred(L, Eel);
 
     // Residual / Jacobian containers
     vec Phi = zeros(3);
@@ -883,7 +883,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         }
 
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-        stress = el_pred(L, Eel, ndi, nshr);
+        stress = el_pred(L, Eel);
     }
     }
 

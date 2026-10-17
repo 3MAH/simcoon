@@ -169,8 +169,12 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     //Variables at the start of the increment
     vec DEV_tilde = zeros(6);
     vec EV_tilde_start = EV_tilde;
+    // The start strain comes from the start state (sigma = L0 (eps - alpha DT - EV_tilde - EP)),
+    // not from Etot: only Etot + DEtot is read, so a caller that does not know every strain
+    // component (condensed_state.hpp) gets the same answer
+    const vec eps_th_start = M0*stress_start + EV_tilde_start + EP_start;   // Etot - alpha (T - T_init)
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v_start[i] += L_i[i]*(eps_th_start - alpha*DT - EV_i[i]);
     }
     
     //Variables required for the loop
@@ -184,7 +188,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     
     //Determination of the initial, predicted stress
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EV_tilde - EP;
-    stress = el_pred(L0, Eel, ndi, nshr);
+    stress = el_pred(L0, Eel);
 
     //Define the plastic function and the stress
     vec Phi = zeros(N_mec);
@@ -299,7 +303,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
         
         //the stress is now computed using the relationship stress = L0 E-sum LpEp
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EV_tilde - EP;
-        stress = el_pred(L0, Eel, ndi, nshr);
+        stress = el_pred(L0, Eel);
     }
     
     
@@ -352,7 +356,7 @@ void umat_prony_Nfast_plastic(const string &umat_name, const vec &Etot, const ve
     
     double A_p = -Hp;
     for (int i=0; i<N_prony; i++) {
-        A_v[i] += L_i[i]*(Etot - alpha*(T+DT-T_init) - EV_i[i]);
+        A_v[i] += L_i[i]*(Etot + DEtot - alpha*(T+DT-T_init) - EV_i[i]);   // end of the increment
     }
     double Dgamma_loc = 0.;
     for (int i=0; i<N_prony; i++) {

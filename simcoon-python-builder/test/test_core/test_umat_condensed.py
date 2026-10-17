@@ -1,13 +1,17 @@
-"""sim.umat(ndi=..., nshr=...): condensed stress states.
+"""sim.umat / sim.umat_T (ndi=..., nshr=...): condensed stress states.
 
-With ndi < 3 the components outside the (ndi, nshr) state are stress-free and the elastic
-prediction condenses them away: (1, 0) truss, sigma = E eps (not the oedometric lambda + 2 mu);
-(1, 2) beam fibre, 11, 12, 13 kept. Only the kept strain components are read, so they are the
-only ones a coupler passes. The plastic state is the exact uniaxial / tension-torsion J2 one.
+With ndi < 3 the components outside the (ndi, nshr) state are stress-free: the law runs 3D and
+the free strain components are solved around it (Newton on the law's own tangent), so the
+answer is the 3D law at the strain that makes them stress-free, whatever the law (plasticity,
+closed-form viscoelasticity, SMA, MODUL, hyperelasticity under finite strain). The tangent and
+the thermal derivatives leave condensed on the kept components (zero on the others): the block
+an element uses as it is. Only the kept strain components are read; the caller does not track
+the others.
 """
 
 import numpy as np
 import pytest
+from scipy.linalg import expm
 
 import simcoon as sim
 from simcoon.modular import IsotropicElasticity, LinearIsotropicHardening, ModularMaterial, Plasticity
@@ -16,18 +20,24 @@ E, NU, SY = 70000.0, 0.3, 200.0
 G = E / (2.0 * (1.0 + NU))
 H = 1000.0
 EPICP = [E, NU, 0.0, SY, H, 1.0]   # linear hardening: R(p) = H p
+STATES = [(1, 0), (1, 2), (2, 1), (2, 3)]
+I3 = np.asfortranarray(np.eye(3)[:, :, None])
 
 
 def _col(a):
     return np.asfortranarray(np.asarray(a, dtype=float).reshape(-1, 1))
 
 
+def _kept(ndi, nshr):
+    K = [i for i in range(ndi)] + [3 + i for i in range(nshr)]
+    return K, [i for i in range(6) if i not in K]
+
+
 def _drive(name, props, nstatev, de, n_inc, **kwargs):
     etot, sigma = np.zeros(6), _col(np.zeros(6))
     statev, wm = _col(np.zeros(nstatev)), _col(np.zeros(4))
-    DR = np.asfortranarray(np.eye(3)[:, :, None])
     for i in range(n_inc):
-        sigma, statev, wm, Lt = sim.umat(name, _col(etot), _col(de), np.empty(0), np.empty(0), sigma, DR,
+        sigma, statev, wm, Lt = sim.umat(name, _col(etot), _col(de), np.empty(0), np.empty(0), sigma, I3,
                                          _col(props), statev, float(i), 1.0, wm, temp=np.full(1, 293.15),
                                          n_threads=1, start=(i == 0), **kwargs)
         etot = etot + de
@@ -53,7 +63,7 @@ def test_beam_fibre_tension_torsion_J2():
     ep = statev[2:8]
     np.testing.assert_allclose(sigma[[1, 2, 4, 5]], 0.0, atol=1e-12)
     assert p > 1e-3
-    np.testing.assert_allclose(np.sqrt(s * s + 3.0 * t * t), SY + H * p, rtol=1e-6)
+    np.testing.assert_allclose(np.sqrt(s * s + 3.0 * t * t), SY + H * p, rtol=1e-9)
     np.testing.assert_allclose([s, t], [E * (etot[0] - ep[0]), G * (etot[3] - ep[3])], rtol=1e-9)
 
 
@@ -63,7 +73,7 @@ def test_beam_fibre_MODUL_matches_EPICP():
     de = np.array([1e-3, 0, 0, 1e-3, 0, 0])
     s_ref, _, _ = _drive("EPICP", EPICP, 8, de, 20, ndi=1, nshr=2)
     s_mod, _, _ = _drive("MODUL", mat.props, mat.nstatev, de, 20, ndi=1, nshr=2)
-    np.testing.assert_allclose(s_mod, s_ref, rtol=1e-5, atol=1e-9)
+    np.testing.assert_allclose(s_mod, s_ref, rtol=1e-9, atol=1e-9)
 
 
 def test_invalid_nshr():
@@ -71,12 +81,153 @@ def test_invalid_nshr():
         _drive("EPICP", EPICP, 8, np.zeros(6), 1, ndi=1, nshr=4)
 
 
+# --- the condensed point is the 3D law at the stress-free strain, with its exact tangent -------
+
+SMADI = [0, 70000.0, 70000.0, 0.3, 0.3, 1e-6, 1e-6, 0.0, 0.05, 0.021, 0.0, 6.0, 5.0,
+         293.15, 273.15, 313.15, 333.15, 0.2, 0.2, 0.2, 0.2, 300.0, 1.4, 2.0, 1e-6, 1e-3, 1.0, 1e8]
+_MOD = ModularMaterial(elasticity=IsotropicElasticity(C1=E, C2=NU),
+                       mechanisms=[Plasticity(sigma_Y=SY, isotropic_hardening=LinearIsotropicHardening(H=H))])
+# name: (props, nstatev, temperature, strain scale, tangent_mode); every tangent here is exact in 3D
+LAWS = {
+    "EPICP": (EPICP, 8, 293.15, 1.0, 2),
+    "ZENER": ([3000., 0.35, 0., 1500., 0.35, 3000., 1200.], 8, 293.15, 10.0, 2),
+    "PRONK": ([3000., 0.35, 0., 1., 1500., 0.35, 3000., 1200.], 14, 293.15, 10.0, 2),
+    "SMADI": (SMADI, 17, 353.15, 6.0, 3),
+    "MODUL": (list(_MOD.props), _MOD.nstatev, 293.15, 1.0, 2),
+}
+PATH = np.array([3e-4, -1e-4, 0.0, 2e-4, -1.5e-4, 1e-4])
+
+
+def _umat(name, props, nstatev, e, de, s, sv, wm, T, tm, start, ndi=3, nshr=None):
+    out = sim.umat(name, _col(e), _col(de), np.empty(0), np.empty(0), _col(s), I3, _col(props), _col(sv),
+                   0.0, 0.05, _col(wm), temp=np.array([T]), ndi=ndi, nshr=nshr, n_threads=1, start=start,
+                   tangent_mode=tm)
+    return out[0].ravel(), out[1].ravel(), out[2].ravel(), out[3][:, :, 0]
+
+
+@pytest.mark.parametrize("ndi,nshr", STATES)
+@pytest.mark.parametrize("name", list(LAWS))
+def test_condensed_point_is_the_3D_law_with_its_exact_tangent(name, ndi, nshr):
+    props, nstatev, T, scale, tm = LAWS[name]
+    K, C = _kept(ndi, nshr)
+    de = np.zeros(6)
+    de[K] = scale * PATH[K]
+    e = np.zeros(6)                                              # condensed: the caller keeps eps_K only
+    cn = [np.zeros(6), np.zeros(nstatev), np.zeros(4)]
+    ref = [np.zeros(6), np.zeros(6), np.zeros(nstatev), np.zeros(4)]   # 3D reference, full strain
+    dC = np.zeros(len(C))
+    for i in range(12):
+        start_state, e_last = [x.copy() for x in cn], e.copy()
+        s, sv, wm, Lt = _umat(name, props, nstatev, e, de, *cn, T, tm, i == 0, ndi, nshr)
+        d3 = de.copy()
+        d3[C] = dC
+        for _ in range(60):
+            s3, sv3, wm3, L3 = _umat(name, props, nstatev, ref[0], d3, *ref[1:], T, tm, i == 0)
+            if np.abs(s3[C]).max() <= 1e-11 * np.abs(s3).max():
+                break
+            d3[C] -= np.linalg.solve(L3[np.ix_(C, C)], s3[C])
+        dC = d3[C]
+        cn = [s, sv, wm]
+        e = e + de
+        ref = [ref[0] + d3, s3, sv3, wm3]
+    np.testing.assert_allclose(s, s3, rtol=1e-9, atol=1e-9 * np.abs(s3).max())
+    np.testing.assert_array_equal(s[C], 0.0)
+    np.testing.assert_allclose(sv, sv3, rtol=1e-9, atol=1e-12)
+    np.testing.assert_allclose(wm, wm3, rtol=1e-9, atol=1e-12)
+    # the tangent: condensed on K, zero elsewhere, the derivative of the condensed stress
+    np.testing.assert_array_equal(np.delete(Lt, K, axis=0), 0.0)
+    np.testing.assert_array_equal(np.delete(Lt, K, axis=1), 0.0)
+    h = 1e-8
+    fd = np.zeros((len(K), len(K)))
+    for j, k in enumerate(K):
+        dp, dm = de.copy(), de.copy()
+        dp[k] += h
+        dm[k] -= h
+        fd[:, j] = (_umat(name, props, nstatev, e_last, dp, *start_state, T, tm, False, ndi, nshr)[0][K]
+                    - _umat(name, props, nstatev, e_last, dm, *start_state, T, tm, False, ndi, nshr)[0][K]) / (2 * h)
+    assert np.abs(Lt[np.ix_(K, K)] - fd).max() < 1e-6 * np.abs(fd).max()
+
+
+def test_condensed_refusals():
+    F = np.asfortranarray(np.repeat(np.eye(3)[:, :, None], 1, axis=2))
+    args = ("ELISO", _col(np.zeros(6)), _col(np.zeros(6)), F, F, _col(np.zeros(6)), I3, _col([E, NU, 0.0]),
+            _col([0.0]), 0.0, 1.0, _col(np.zeros(4)))
+    with pytest.raises(ValueError, match="rate"):
+        sim.umat(*args, ndi=2, kinematic_form="total", n_threads=1)
+    with pytest.raises(ValueError, match="box"):
+        sim.umat(*args, ndi=2, tangent_output="material", n_threads=1)
+
+
+# --- finite strain: F1 follows the solved stretch through ln V ----------------------------------
+
+R_ = expm(np.array([[0, -0.3, 0.1], [0.3, 0, -0.2], [-0.1, 0.2, 0]]))
+
+
+def _F(lnv):
+    return np.asfortranarray((expm(sim.v2t_strain(lnv)) @ R_)[:, :, None])
+
+
+def _hyper(name, props, lnv, ndi, nshr=None):
+    s, _, _, Lt = sim.umat(name, _col(np.zeros(6)), _col(np.zeros(6)), I3, _F(lnv), _col(np.zeros(6)), I3,
+                           _col(props), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr,
+                           n_threads=1, corate=3)
+    return s.ravel(), Lt[:, :, 0]
+
+
+@pytest.mark.parametrize("ndi,nshr", STATES)
+@pytest.mark.parametrize("name,props", [("NEOHC", [1000., 10000.]), ("NEOHI", [2000., 0.40, 0.0])])
+def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
+    """An F-based law: the caller's F1 knows the kept stretches only; the point solves the others
+    (ln V1 on the free components) and returns the Cauchy stress of that F1, with the box tangent
+    d(tau)/d(ln V) condensed on the kept components."""
+    K, C = _kept(ndi, nshr)
+    lnv = np.zeros(6)
+    lnv[K] = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])[K]   # large, non-coaxial
+
+    def solved(l):   # 3D reference: Newton on ln V1(C) so that tau_C = 0
+        l3 = l.copy()
+        for _ in range(60):
+            s3, L3 = _hyper(name, props, l3, 3)
+            tau = np.linalg.det(_F(l3)[:, :, 0]) * s3
+            if np.abs(tau[C]).max() <= 1e-13 * np.abs(tau).max():
+                break
+            l3[C] -= np.linalg.solve(L3[np.ix_(C, C)], tau[C])
+        return s3, np.linalg.det(_F(l3)[:, :, 0])
+
+    s, Lt = _hyper(name, props, lnv, ndi, nshr)
+    s3, J3 = solved(lnv)
+    np.testing.assert_allclose(s, s3, rtol=1e-9, atol=1e-9 * np.abs(s3).max())
+    np.testing.assert_array_equal(s[C], 0.0)
+    h = 1e-6
+    fd = np.zeros((len(K), len(K)))
+    for j, k in enumerate(K):
+        lp, lm = lnv.copy(), lnv.copy()
+        lp[k] += h
+        lm[k] -= h
+        (sp, Jp), (sm, Jm) = solved(lp), solved(lm)
+        fd[:, j] = (Jp * sp[K] - Jm * sm[K]) / (2 * h)
+    assert np.abs(Lt[np.ix_(K, K)] - fd).max() < 1e-6 * np.abs(fd).max()
+
+
+# --- thermomechanical: the stress, the heat and their four derivatives -----------------------
+
+RHO, C_P, ALPHA = 7.8e-9, 4.6e8, 1.2e-5
+THERMO = {"ELISO": ([RHO, C_P, E, NU, ALPHA], 1, 1.0, 1e-8),
+          "ZENER": ([4.4, 0.656, 3000., 0.35, 1e-4, 1500., 0.35, 3000., 1200.], 8, 10.0, 1e-8),
+          "EPICP": ([RHO, C_P, E, NU, ALPHA, SY, H, 1.0], 8, 1.0, 1e-3)}   # drdE: flow direction held fixed
+
+
+def _umat_T(name, props, e, de, s, sv, wm, wt, T, DT, start, ndi=3, nshr=None):
+    out = sim.umat_T(name, _col(e), _col(de), _col(s), I3, _col(props), _col(sv), 0.0, 0.05, _col(wm), _col(wt),
+                     np.array([T]), np.array([DT]), ndi=ndi, nshr=nshr, n_threads=1, start=start)
+    return dict(s=out[0].ravel(), sv=out[1].ravel(), wm=out[2].ravel(), wt=out[3].ravel(), r=out[4].ravel()[0],
+                L=out[5][:, :, 0], dT=out[6].ravel(), rE=out[7].ravel(), rT=out[8].ravel()[0])
+
+
 def _umat_T_once(de, **kwargs):
-    props = _col([7.8e-9, 4.6e8, E, NU, 0.0])   # ELISO_T: rho, c_p, E, nu, alpha
-    out = sim.umat_T("ELISO", _col(np.zeros(6)), _col(de), _col(np.zeros(6)), np.asfortranarray(np.eye(3)[:, :, None]),
-                     props, _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.full(1, 293.15),
-                     np.zeros(1), n_threads=1, start=True, **kwargs)
-    return out[0].ravel()
+    out = _umat_T("ELISO", [RHO, C_P, E, NU, 0.0], np.zeros(6), de, np.zeros(6), [0.0], np.zeros(4), np.zeros(3),
+                  293.15, 0.0, True, **kwargs)
+    return out["s"]
 
 
 def test_umat_T_honours_nshr():
@@ -88,3 +239,55 @@ def test_umat_T_honours_nshr():
 def test_umat_T_invalid_nshr():
     with pytest.raises(ValueError):
         _umat_T_once(np.zeros(6), ndi=1, nshr=4)
+
+
+@pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])
+@pytest.mark.parametrize("name", list(THERMO))
+def test_umat_T_condensed_heat_and_derivatives(name, ndi, nshr):
+    props, nstatev, scale, tol_rE = THERMO[name]
+    K, C = _kept(ndi, nshr)
+    de = np.zeros(6)
+    de[K] = scale * PATH[K]
+    T, DT = 293.15, 0.5
+    e = np.zeros(6)
+    cn = [np.zeros(6), np.zeros(nstatev), np.zeros(4), np.zeros(3)]
+    ref = [np.zeros(6), np.zeros(6), np.zeros(nstatev), np.zeros(4), np.zeros(3)]
+    dC = np.zeros(len(C))
+    for i in range(12):
+        start_state, T_last, e_last = [x.copy() for x in cn], T, e.copy()
+        o = _umat_T(name, props, e, de, *cn, T, DT, i == 0, ndi, nshr)
+        d3 = de.copy()
+        d3[C] = dC
+        for _ in range(60):
+            o3 = _umat_T(name, props, ref[0], d3, *ref[1:], T, DT, i == 0)
+            if np.abs(o3["s"][C]).max() <= 1e-11 * np.abs(o3["s"]).max():
+                break
+            d3[C] -= np.linalg.solve(o3["L"][np.ix_(C, C)], o3["s"][C])
+        dC = d3[C]
+        cn = [o["s"], o["sv"], o["wm"], o["wt"]]
+        e = e + de
+        ref = [ref[0] + d3, o3["s"], o3["sv"], o3["wm"], o3["wt"]]
+        T += DT
+    for key in ("s", "sv", "wm", "wt", "r"):
+        np.testing.assert_allclose(o[key], o3[key], rtol=1e-9, atol=1e-12)
+    for key in ("dT", "rE"):
+        np.testing.assert_array_equal(o[key][C], 0.0)
+
+    def f(d, dt):
+        return _umat_T(name, props, e_last, d, *start_state, T_last, dt, False, ndi, nshr)
+    h, hT = 1e-8, 1e-5
+    fdL = np.zeros((len(K), len(K)))
+    fdr = np.zeros(len(K))
+    for j, k in enumerate(K):
+        dp, dm = de.copy(), de.copy()
+        dp[k] += h
+        dm[k] -= h
+        op, om = f(dp, DT), f(dm, DT)
+        fdL[:, j] = (op["s"][K] - om["s"][K]) / (2 * h)
+        fdr[j] = (op["r"] - om["r"]) / (2 * h)
+    op, om = f(de, DT + hT), f(de, DT - hT)
+    assert np.abs(o["L"][np.ix_(K, K)] - fdL).max() < 1e-6 * np.abs(fdL).max()
+    assert np.abs(o["dT"][K] - (op["s"][K] - om["s"][K]) / (2 * hT)).max() < 1e-6 * np.abs(o["dT"][K]).max()
+    assert np.abs(o["rE"][K] - fdr).max() < tol_rE * np.abs(fdr).max()
+    fdrT = (op["r"] - om["r"]) / (2 * hT)
+    assert abs(o["rT"] - fdrT) < max(1e-6, 0.1 * tol_rE) * abs(fdrT)

@@ -73,12 +73,15 @@ TEST(Taba2sim, ddsdde_is_the_abaqus_jacobian)
             ASSERT_NEAR(ddsdde[i + 6*j], Lt(i, j), 1.e-12);
         }
     }
-    // plane stress condenses the kernel tangent, NLGEOM or not
+    // plane stress: the tangent arrives condensed (select_umat_M) and goes out as its block on
+    // 11, 22, 12, NLGEOM or not
     double ps_on[9], ps_off[9];
     smart2abaqus_M(stress, ps_on, statev, 2, 1, sigma, statev_smart, Wm, Lt, true);
     smart2abaqus_M(stress, ps_off, statev, 2, 1, sigma, statev_smart, Wm, Lt, false);
     for (int k = 0; k < 9; k++) ASSERT_NEAR(ps_on[k], ps_off[k], 1.e-12);
-    ASSERT_NEAR(ps_on[0], Lt(0,0) - Lt(0,2)*Lt(2,0)/Lt(2,2), 1.e-12);
+    ASSERT_NEAR(ps_on[0], Lt(0,0), 1.e-12);
+    ASSERT_NEAR(ps_on[2], Lt(3,0), 1.e-12);
+    ASSERT_NEAR(ps_on[6], Lt(0,3), 1.e-12);
 
     // DFGRD1 = identity is how Abaqus says "no NLGEOM"
     double F_id[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};

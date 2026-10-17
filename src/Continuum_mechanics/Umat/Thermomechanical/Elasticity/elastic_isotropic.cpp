@@ -88,7 +88,7 @@ void umat_elasticity_iso_T(const vec &Etot, const vec &DEtot, vec &sigma, double
 	
 	//Compute the elastic strain and the related stress
 	vec Eel = Etot + DEtot - alpha*(T+DT-T_init);
-    sigma = el_pred(dSdE, Eel, ndi, nshr);
+    sigma = el_pred(dSdE, Eel);
     
     //Computation of the increments of variables
     vec Dsigma = sigma - sigma_start;

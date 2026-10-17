@@ -176,10 +176,11 @@ void abaqus2smart_T(const double *stress, const double *ddsdde,
  * @param sigma simcoon stress vector
  * @param statev_smart simcoon state variables vector
  * @param Wm simcoon work quantities vector
- * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel)
+ * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel), condensed on the
+ *        element's components when ndi < 3 (select_umat_M): ddsdde is its block on them
  * @param nlgeom whether the step is geometrically nonlinear (abaqus_nlgeom(dfgrd1)): ddsdde
  *        then gets abaqus_jacobian of Lt for the 3D, plane-strain and axisymmetric cases;
- *        plane stress and 1D always condense the kernel tangent as it is
+ *        plane stress and 1D take the condensed tangent as it is
  */
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, 
     const int &ndi, const int &nshr, 
@@ -272,9 +273,9 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran,
  * @param r simcoon heat generation rate
  * @param Wm simcoon mechanical work quantities vector
  * @param Wt simcoon thermal work quantities vector
- * @param dSdE simcoon mechanical tangent matrix
- * @param dSdT simcoon stress-temperature tangent matrix
- * @param drpldE simcoon heat generation-strain tangent matrix
+ * @param dSdE simcoon mechanical tangent matrix (condensed when ndi < 3, select_umat_T)
+ * @param dSdT simcoon stress-temperature tangent matrix (condensed when ndi < 3)
+ * @param drpldE simcoon heat generation-strain tangent matrix (condensed when ndi < 3)
  * @param drpldT simcoon heat generation-temperature tangent matrix
  */
 void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, 

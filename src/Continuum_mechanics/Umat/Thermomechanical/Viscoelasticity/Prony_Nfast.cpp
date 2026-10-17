@@ -117,8 +117,13 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
     
     //Variables at the start of the increment
     const std::vector<vec> EV_i_start = EV_i;
+    // start state: T, EV_i before the update. The start elastic strain comes from the start state
+    // (sigma = L0 (eps_e - EV_tilde)), not from Etot: only Etot + DEtot is read, so a caller that
+    // does not know every strain component (condensed_state.hpp) gets the same answer
+    vec eps_e_start = M0*sigma_start;
+    for (int i=0; i<N_prony; i++) eps_e_start += (M0*L_i[i])*EV_i_start[i];
     for (int i=0; i<N_prony; i++) {
-        A_v_start[i] = L_i[i]*(Etot - alpha*(T-T_init) - EV_i[i]);   // start state: T, EV_i before the update
+        A_v_start[i] = L_i[i]*(eps_e_start - EV_i[i]);
     }
 
     // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
@@ -132,7 +137,7 @@ void umat_prony_Nfast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r
         v(i) += norm_strain(DEV_i[i]);
         EV_tilde += (M0*L_i[i])*EV_i[i];
     }
-    sigma = el_pred(L0, eps_e - EV_tilde, ndi, nshr);
+    sigma = el_pred(L0, eps_e - EV_tilde);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;
