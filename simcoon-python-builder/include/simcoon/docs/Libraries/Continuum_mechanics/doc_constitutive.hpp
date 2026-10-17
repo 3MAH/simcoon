@@ -665,17 +665,17 @@ constexpr auto umat = R"pbdoc(
         Number of direct stress components (3, 2 or 1). With ndi < 3 the
         components absent from the (ndi, nshr) state are stress-free (truss,
         beam fibre, plane stress): the law runs 3D and their strain is solved
-        at each point (a Newton on the law's own tangent), so the result is the
-        3D law at the strain that makes them stress-free, whatever the law
-        (under finite strain F1 follows through ln V1). The solved free
-        increments are written back into Detot, in place, once the batch has
+        at each point (a Newton), so the result is the 3D law at the strain
+        that makes them stress-free, whatever the law, under the rate and the
+        total forms (see condense for which stress is freed). The solved
+        strain is written back into Detot, in place, once the batch has
         converged (Detot must be a writable float64 array), and the caller
-        carries them with etot += Detot. Under finite strain this is required:
-        F0 and F1 hold the rotation and the kept stretches, the free stretches
-        of F0 and F1 come from etot and etot + Detot. The tangent
-        (and in umat_T dSdT, drdE, drdT) comes back condensed on the kept
-        components, zero elsewhere. Condensed states run under
-        kinematic_form='rate' with tangent_output='box'.
+        carries it with etot += Detot. Under finite strain this is required:
+        F0 and F1 give the rotation (and under the rate form the kept
+        stretches), the free stretches come from etot and etot + Detot. The
+        tangent (and in umat_T dSdT, drdE, drdT) comes back condensed on the
+        kept components, zero elsewhere: the box tangent
+        (tangent_output='box'), or dS/dE under condense='exact'.
     nshr : int, optional
         Number of shear stress components kept, in the order 12, 13, 23
         (Abaqus convention). Default: 3 for ndi = 3, 1 for ndi = 2 (plane
@@ -736,6 +736,25 @@ constexpr auto umat = R"pbdoc(
         etot = ln U(F0), Detot = ln U(F1) - ln U(F0), DR = I and both F; the
         box is then dT/dH, and the stress stays Cauchy in and out (T is
         converted at the two ends). No objective rate is involved.
+    condense : str, optional
+        Which stress vanishes on the free components when ndi < 3.
+        'approximate' (default): the stress the law itself returns, tau_hat_C
+        under the rate form, T_C under the total one; Newton on the free
+        components of the law's strain with its own tangent, box tangent out.
+        'exact': the second Piola-Kirchhoff stress S_C, i.e. the traction on
+        the free material faces (P N = 0: the shell normal, the truss sides);
+        Newton on the Green-Lagrange E_C with dS/dE. It needs F0 and F1: the
+        kept E_K and the rotation come from F1, the law is fed the increment
+        of its own strain from F0 to the solved F1 (written back into Detot on
+        all six components), and Lt is dS/dE condensed on the kept components
+        (tangent_output='material'). The two coincide at small strain and when
+        the free directions are principal (truss, plane stress of a material
+        symmetric about the free planes). Otherwise 'approximate' leaves a
+        compressive S_C of second order in the shears coupling kept and free
+        directions (about -mu gamma^2 on S_33 of a shell under transverse
+        shear gamma, lateral stresses of the order of the Poynting effect in
+        beam torsion), first order for anisotropy axes tilted out of the free
+        planes: use 'exact' there.
     DT : numpy.ndarray, optional
         Temperature increment, shared or per point like temp (keyword only;
         needs temp). The kernel
@@ -811,8 +830,10 @@ constexpr auto umat_T = R"pbdoc(
     T, DT : numpy.ndarray
         Temperature at the start of the increment and its increment, one entry
         per point.
-    ndi, nshr, n_threads, tangent_mode, start
-        As umat.
+    ndi, nshr, n_threads, tangent_mode, start, condense
+        As umat. Under condense='exact' (finite strain, ndi < 3) dSdE, dSdT and
+        drdE are the material derivatives dS/dE, dS/dtheta and dr/dE, condensed
+        on the kept components.
     F0, F1 : numpy.ndarray, optional
         Deformation gradients at the start and the end of the increment, shape
         (3, 3, N), keyword only. Given, the call is a finite-strain one: ELISO

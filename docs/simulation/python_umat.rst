@@ -80,7 +80,11 @@ The contract
   ``sim.umat(..., ndi=1, nshr=2)`` selects a state other than the default of ``ndi``.
   The law itself is always called 3D (``ndi = 3``): ``sim.umat`` solves the
   stress-free strain components around it and condenses its tangent, so a Python
-  law never condenses anything.
+  law never condenses anything. The solved strain comes back in ``Detot`` (in
+  place; the caller carries it with ``etot += Detot``). Under finite strain,
+  ``condense='approximate'`` (default) frees the stress the law returns and
+  ``condense='exact'`` the second Piola-Kirchhoff stress, i.e. the traction on
+  the free material faces (see :func:`simcoon.umat`).
 * **tangent_mode**: 0 = return the elastic operator as ``Lt``, 1 = continuum tangent,
   2 = algorithmic (consistent) tangent (default of the solver).
 * **Wm** is the accumulated ``(Wm, Wm_r, Wm_ir, Wm_d)`` at the beginning of the
