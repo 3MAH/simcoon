@@ -101,7 +101,10 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
     // Implicit (backward-Euler) step of the Maxwell branches in closed form: the exact solution of
     // the discrete equations and its consistent tangent (linear_viscoelastic.hpp)
     const std::vector<vec> EV_i_start = EV_i;
-    const vec eps_e_start = Etot - alpha*(T - T_init);
+    // start strain from the start state, not Etot: condensed callers do not know every component
+    vec sigma_EV = stress_start;
+    for (int i=0; i<N_prony; i++) sigma_EV += L_i[i]*EV_i_start[i];
+    const vec eps_e_start = M0*sigma_EV;   // sigma = L0 (eps_e - EV_tilde), EV_tilde = M0 sum L_i EV_i
     const vec eps_e = Etot + DEtot - alpha*(T + DT - T_init);
     const LinearViscoStep st = maxwell_parallel_step(L0, L_i, H_i, EV_i_start, eps_e, alpha, DTime);
     vec EV_tilde = zeros(6);
@@ -114,7 +117,7 @@ void umat_prony_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         // dashpot dissipation on the branch forces L_i (eps_e - EV_i), trapezoidal
         Dgamma_loc += 0.5*sum((L_i[i]*(eps_e_start - EV_i_start[i]) + L_i[i]*(eps_e - EV_i[i]))%DEV_i);
     }
-    stress = el_pred(L0, eps_e - EV_tilde, ndi, nshr);
+    stress = el_pred(L0, eps_e - EV_tilde);
     Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
     //Computation of the mechanical and thermal work quantities

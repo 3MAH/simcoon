@@ -68,6 +68,9 @@ void abaqus2smart_M_light(const double *stress, const double *ddsdde,
 /**
  * @brief Full transfer from Abaqus input arrays to simcoon format (mechanical)
  * @details Converts all UMAT inputs from Abaqus format to simcoon Armadillo format.
+ *          STATEV layout: Wm (4), then, when ndi < 3, the 6 - ntens stress-free strain
+ *          components the material point solves (condensed_state.hpp, simcoon order, rotated
+ *          with DROT and returned in Etot), then the law's state variables (nstatev - 4 - (6 - ntens)).
  *          Use this before calling a simcoon constitutive model from an Abaqus UMAT wrapper.
  * 
  * @param stress Abaqus stress array
@@ -113,6 +116,8 @@ void abaqus2smart_M(const double *stress, const double *ddsdde,
  * @brief Full transfer from Abaqus input arrays to simcoon format (thermomechanical)
  * @details Converts all thermomechanical UMAT inputs from Abaqus format.
  *          Includes thermal tangent operators and heat generation terms.
+ *          STATEV layout: Wm (4), Wt (3), then the stress-free strain components when
+ *          ndi < 3 (as abaqus2smart_M), then the law's state variables.
  * 
  * @param stress Abaqus stress array
  * @param ddsdde Abaqus mechanical tangent array
@@ -176,15 +181,20 @@ void abaqus2smart_T(const double *stress, const double *ddsdde,
  * @param sigma simcoon stress vector
  * @param statev_smart simcoon state variables vector
  * @param Wm simcoon work quantities vector
- * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel)
+ * @param Lt simcoon tangent matrix (dsigma/deps of the corotated kernel), condensed on the
+ *        element's components when ndi < 3 (select_umat_M): ddsdde is its block on them
  * @param nlgeom whether the step is geometrically nonlinear (abaqus_nlgeom(dfgrd1)): ddsdde
  *        then gets abaqus_jacobian of Lt for the 3D, plane-strain and axisymmetric cases;
- *        plane stress and 1D always condense the kernel tangent as it is
+ *        plane stress and 1D take the condensed tangent as it is
+ * @param Etot_end total strain at the end of the increment (Etot + DEtot): when ndi < 3 its
+ *        stress-free components are stored in STATEV after Wm (layout in abaqus2smart_M);
+ *        empty leaves those slots untouched
  */
 void smart2abaqus_M(double *stress, double *ddsdde, double *statev, 
     const int &ndi, const int &nshr, 
     const arma::vec &sigma, const arma::vec &statev_smart, 
-    const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom = true);
+    const arma::vec &Wm, const arma::mat &Lt, const bool &nlgeom = true,
+    const arma::vec &Etot_end = arma::vec());
 
 /**
  * @brief The Abaqus material Jacobian of a corotated kernel tangent.
@@ -272,10 +282,12 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran,
  * @param r simcoon heat generation rate
  * @param Wm simcoon mechanical work quantities vector
  * @param Wt simcoon thermal work quantities vector
- * @param dSdE simcoon mechanical tangent matrix
- * @param dSdT simcoon stress-temperature tangent matrix
- * @param drpldE simcoon heat generation-strain tangent matrix
+ * @param dSdE simcoon mechanical tangent matrix (condensed when ndi < 3, select_umat_T)
+ * @param dSdT simcoon stress-temperature tangent matrix (condensed when ndi < 3)
+ * @param drpldE simcoon heat generation-strain tangent matrix (condensed when ndi < 3)
  * @param drpldT simcoon heat generation-temperature tangent matrix
+ * @param nlgeom as smart2abaqus_M
+ * @param Etot_end as smart2abaqus_M, stored after Wm and Wt (layout in abaqus2smart_T)
  */
 void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, 
     double *drplde, double &drpldt, double &rpl, double *statev, 
@@ -283,7 +295,8 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt,
     const arma::vec &sigma, const arma::vec &statev_smart, const double &r, 
     const arma::vec &Wm, const arma::vec &Wt, 
     const arma::mat &dSdE, const arma::mat &dSdT, 
-    const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom = true);
+    const arma::mat &drpldE, const arma::mat &drpldT, const bool &nlgeom = true,
+    const arma::vec &Etot_end = arma::vec());
 
 //=============================================================================
 // ANSYS USERMAT TRANSFER FUNCTIONS

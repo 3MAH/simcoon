@@ -326,7 +326,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     double lambda1 = lagrange_pow_1(xi, c_lambda, p0_lambda, n_lambda, alpha_lambda);
 
     vec DM_sig = DM*stress_start;
-    vec Dalpha_T = Dalpha*(T+DT);
+    vec Dalpha_T = Dalpha*(T+DT-T_init);
 
     double A_xiF       = rhoDs0*(T+DT) - rhoDE0 + 0.5*sum(stress%DM_sig)        + sum(stress%Dalpha)*(T+DT-T_init) - HfF;
     double A_xiF_start = rhoDs0*(T)    - rhoDE0 + 0.5*sum(stress_start%DM_sig)  + sum(stress_start%Dalpha)*(T-T_init) - HfF;
@@ -349,7 +349,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
 
     // Elastic prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - ET;
-    stress = el_pred(L, Eel, ndi, nshr);
+    stress = el_pred(L, Eel);
 
     // Residual / Jacobian containers
     vec Phi = zeros(3);
@@ -399,7 +399,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
     // iterate — the back-strain by a Newton on its backward-Euler equation, ETMean in closed form —
     // and the callbacks return the analytic TOTAL derivatives of that composed map (linearise below).
     ReturnMappingResult rm;
-    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point) && (ndi == 3);
+    const bool use_cpp = (tangent_mode == simcoon::tangent_closest_point);
     const mat L_cpp = use_cpp ? L : mat();   // frozen stiffness used consistently by the helper and the tangent
     if (use_cpp) {
         const double xi_n = xi;
@@ -629,7 +629,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         L = inv(M_eff);
 
         DM_sig   = DM*stress;
-        Dalpha_T = Dalpha*(T+DT);
+        Dalpha_T = Dalpha*(T+DT-T_init);
 
         // Hcur explicit (depends on \sigma )
         if (Mises_stress(stress) > sigmacrit) sigmastar = Mises_stress(stress) - sigmacrit;
@@ -734,7 +734,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         } else {
             dPhihatFdsigma = dHcurdsigma * Drucker_stress(stress, prager_b, prager_n) + Hcur * dDrucker_stress(stress, prager_b, prager_n);
         }
-        dA_xiFdsigma = DM_sig + Dalpha*(T+DT);
+        dA_xiFdsigma = DM_sig + Dalpha*(T+DT-T_init);
         dlambda1dsigma = zeros(6);
         dYtFdsigma = D*(dHcurdsigma * Mises_stress(stress) + Hcur * eta_stress(stress));
 
@@ -883,7 +883,7 @@ void umat_sma_unified_TR(const string &umat_name, const vec &Etot, const vec &DE
         }
 
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - ET;
-        stress = el_pred(L, Eel, ndi, nshr);
+        stress = el_pred(L, Eel);
     }
     }
 

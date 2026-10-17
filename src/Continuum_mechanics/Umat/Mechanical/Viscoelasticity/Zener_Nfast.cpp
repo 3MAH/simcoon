@@ -111,7 +111,7 @@ void umat_zener_Nfast(const string &umat_name, const vec &Etot, const vec &DEtot
         v(i) += norm_strain(EV_i[i] - EV_i_start[i]);
         EV += EV_i[i];
     }
-    stress = el_pred(L0, eps_e - EV, ndi, nshr);
+    stress = el_pred(L0, eps_e - EV);
     Lt = (tangent_mode == tangent_none) ? L0 : st.dSdE;
 
     // dashpot dissipation on the viscous stresses sigma - L_i EV_i, trapezoidal

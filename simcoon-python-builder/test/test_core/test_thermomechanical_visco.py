@@ -23,17 +23,18 @@ def test_free_thermal_expansion_creates_no_viscous_strain():
 
 
 def test_heat_released_during_a_strain_hold_balances_the_dissipation():
-    """Strain ramp then hold at constant temperature: over the hold, the integrated heat source
-    equals the dissipation minus the thermoelastic term T alpha : dsigma. It used to be a
-    linearisation in (dE, dT), zero during the hold (and of the wrong sign here)."""
+    """Strain ramp then hold at constant temperature: over the hold, the heat released (the sum of
+    the heats of the increments, "r") equals the dissipation minus the thermoelastic term
+    T alpha : dsigma. It used to be a linearisation in (dE, dT), zero during the hold (and of the
+    wrong sign here)."""
     uni = ["strain"] + ["stress"] * 5
     ramp = StepThermomeca(control=uni, value=[0.01, 0, 0, 0, 0, 0], ninc=20, time=0.1, T_final=T0)
     hold = StepThermomeca(control=uni, value=[0.01, 0, 0, 0, 0, 0], ninc=200, time=5.0, T_final=T0)
     r = sim.solver.solve([ramp, hold], "PRONK", PROPS, 14, T_init=T0)
     t = np.asarray(r["Time"])
-    rate = np.asarray(r["r"]).ravel()
+    heat_inc = np.asarray(r["r"]).ravel()
     i1 = int(np.argmin(np.abs(t - 0.1)))
-    heat = np.sum(rate[i1 + 1:] * np.diff(t)[i1:])
+    heat = np.sum(heat_inc[i1 + 1:])
     dWd = r["Wm"][3, -1] - r["Wm"][3, i1]
     dsig = r["Stress"][:, -1] - r["Stress"][:, i1]
     assert dWd > 0.0
@@ -66,7 +67,7 @@ def test_creep_recovery_dissipation_is_nonnegative(umat):
     wd = r["Wm"][3]
     assert wd[-1] > 0.05
     assert np.diff(wd).min() > -1e-6 * wd[-1]
-    heat = np.sum(r["r"][1:] * np.diff(r["Time"]))
+    heat = np.sum(r["r"][1:])
     np.testing.assert_allclose(heat, wd[-1] - wd[0], rtol=1e-4)
 
 

@@ -138,6 +138,22 @@ The thermo-mechanical version provides:
 - Heat capacity ``drpldt`` (:math:`\partial r / \partial T`)
 - Heat generation rate ``rpl``
 
+The simcoon kernels return the heat of the increment :math:`r` (storage included, see
+:doc:`output`); ``umat_singleT`` divides it and its derivatives by ``dtime`` to give
+Abaqus the rates it expects (zero at ``dtime = 0``).
+
+The whole thermomechanics stays in simcoon: ``rpl`` carries the complete heat of the
+model, :math:`r = \Delta\gamma - T_{n+1} \Delta\eta`, i.e. the dissipation, the
+thermoelastic and latent couplings and the heat storage, and ``drpldt`` the matching
+heat capacity. The heat follows from the free energy of the law; it is not a
+Taylor-Quinney fraction of the plastic work, the stored energy :math:`W_m^{ir}` does
+not heat the material. Therefore, with these UMATs:
+
+- set ``*SPECIFIC HEAT`` to a negligible value, otherwise the storage is counted twice;
+- do not use ``*INELASTIC HEAT FRACTION``.
+
+An adiabatic analysis then reads ``rpl = 0`` exactly, as in the simcoon solver.
+
 Material Jacobian convention
 ----------------------------
 
@@ -166,8 +182,38 @@ only where Abaqus's definition has it: for ``NLGEOM`` steps (Abaqus hands
 ``DFGRD1`` as the identity otherwise, which ``abaqus_nlgeom`` reads) and for the
 cases with three direct components (3D, plane strain, axisymmetric). Without
 ``NLGEOM`` the Jacobian is the kernel tangent, so linear-perturbation procedures
-(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D
-condense the kernel tangent as it is, the element owning the thickness change.
+(``*FREQUENCY``, ``*BUCKLE``) see the right stiffness; plane stress and 1D take
+the condensed tangent as it is, the element owning the thickness change.
+
+Plane stress, shells, beams and trusses
+---------------------------------------
+
+The bridges accept every ``(NDI, NSHR)`` state Abaqus passes: plane stress and
+shells ``(2, 1)``, shells with transverse shear ``(2, 3)``, trusses ``(1, 0)``
+and beams such as ``B31`` ``(1, 2)`` (11, 12, 13), next to the 3D, plane-strain
+and axisymmetric ones (``NDI = 3``). The ``NTENS`` components of ``STRESS``,
+``STRAN`` and ``DDSDDE`` map in Abaqus order to the simcoon components (the
+direct ones, then the shears 12, 13, 23).
+
+With ``NDI < 3`` the other components are stress-free and Abaqus does not give
+their strain. The material point solves it: the simcoon law always runs 3D, and
+a Newton iteration on its own tangent finds the strain that makes those stress
+components vanish, each evaluation integrating the whole increment from the
+start state (``condensed_state.hpp``, ``select_umat_M`` / ``select_umat_T``).
+The converged point is the 3D law itself on the condensed state, for every law
+(plasticity, viscoelasticity, damage, SMA, ``MODUL``), and ``DDSDDE`` (with
+``DDSDDT``, ``DRPLDE``, ``DRPLDT`` in the thermomechanical bridge) is its exact
+condensed derivative whenever the law's 3D tangent is exact: the global Newton
+keeps its quadratic convergence. The solved strain is kept in ``STATEV``
+right after the energies (``6 - NTENS`` values, simcoon order, rotated with
+``DROT`` as Abaqus rotates ``STRAN``), so each increment solves only its change:
+for plane stress, the thickness strain and the transverse shears
+(:math:`\varepsilon_{33}, \gamma_{13}, \gamma_{23}`). The cost is two to four
+evaluations of the law per increment (more for a law whose 3D tangent is
+approximate, such as ``SMADI`` under ``tangent_mode = 2``); a point that does
+not converge asks for a smaller increment through ``PNEWDT``. The custom-model
+bridges (``umat_externalM`` / ``umat_externalT``) wrap ``external_umat`` the
+same way, so a custom law is written 3D only.
 
 Using umat_externalM (Custom Model)
 -----------------------------------
@@ -282,11 +328,16 @@ simcoon uses a specific layout for state variables (``statev`` array):
     statev[1]                - Wm_r (recoverable work)
     statev[2]                - Wm_ir (irrecoverable work)
     statev[3]                - Wm_d (dissipated work)
-    statev[4:nstatev]        - Model-specific state variables (nstatev_smart of them)
+    statev[4:4+nC]           - Stress-free strain components (NDI < 3 only, nC = 6 - NTENS)
+    statev[4+nC:nstatev]     - Model-specific state variables (nstatev_smart of them)
 
-Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4``: the four work
-quantities come first, then the model's own variables (the same layout as the
-Ansys ``ustatev``, see :doc:`ansys`).
+Set ``*DEPVAR`` in your input file to ``nstatev_smart + 4 + nC``: the four work
+quantities come first, then the solved stress-free strain when ``NDI < 3``
+(``nC = 0`` for 3D, plane-strain and axisymmetric elements, 3 for plane stress
+and ``B31`` beams, 5 for trusses), then the model's own variables (the same
+layout as the Ansys ``ustatev`` when ``nC = 0``, see :doc:`ansys`). The
+thermomechanical bridge stores the three thermal energies ``Wt, Wt_r, Wt_ir``
+after ``Wm``: ``*DEPVAR`` is then ``nstatev_smart + 7 + nC``.
 
 Available Models
 ----------------
@@ -444,7 +495,7 @@ Troubleshooting
 
 **Convergence issues**
 
-- Check that ``*DEPVAR`` matches ``nstatev_smart + 4``
+- Check that ``*DEPVAR`` matches ``nstatev_smart + 4 + nC`` (``+ 7 + nC`` thermomechanical)
 - Verify material properties are in correct units
 - Start with small load increments
 - Check the tangent modulus is properly computed (symmetric, positive definite for elastic)

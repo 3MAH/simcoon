@@ -12,6 +12,7 @@
 #include <simcoon/Continuum_mechanics/Functions/constitutive.hpp>
 #include <simcoon/Continuum_mechanics/Functions/contimech.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Viscoelasticity/linear_viscoelastic.hpp>
+#include <simcoon/Continuum_mechanics/Umat/tangent_assembly.hpp>
 using namespace std;
 using namespace arma;
 
@@ -106,7 +107,7 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     EV1 = st.EV_i[0];
     const vec DEV1 = EV1 - EV1_start;
     v += norm_strain(DEV1);
-    sigma = el_pred(L0, eps_e - EV1, ndi, nshr);
+    sigma = el_pred(L0, eps_e - EV1);
     if (tangent_mode == tangent_none) {
         dSdE = L0;
         dSdT = -L0*alpha;
@@ -138,9 +139,10 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     const vec dDgamma_dE = 0.5*((st.dSdE - L1*dEVdE).t()*DEV1 + dEVdE.t()*A_mid2);
     const double dDgamma_dT = 0.5*(sum((st.dSdT - L1*dEVdT)%DEV1) + sum(dEVdT%A_mid2));
 
-    // heat source of the actual increments and its exact derivatives (linear_viscoelastic.hpp)
-    viscous_heat_source(Dgamma_loc, dDgamma_dE, dDgamma_dT, st, alpha, sigma, sigma_start, T, DT,
-                        rho*c_p, DTime, r, drdE, drdT);
+    // heat of the increment and its derivatives (heat_source_increment)
+    const double T1 = T + DT;
+    heat_source_increment(Dgamma_loc, dDgamma_dE, dDgamma_dT, Deta, st.dSdE.t()*alpha,
+                          c_0/T1 + dot(alpha, st.dSdT), T1, r, drdE, drdT);
     
     //Computation of the mechanical and thermal work quantities
     Wm += 0.5*sum((sigma_start+sigma)%DEtot);
@@ -148,9 +150,9 @@ void umat_zener_fast_T(const vec &Etot, const vec &DEtot, vec &sigma, double &r,
     Wm_ir += 0.;
     Wm_d += Dgamma_loc;
     
-    Wt += (T+0.5*DT)*Deta;
-    Wt_r += (T+0.5*DT)*Deta_r;
-    Wt_ir += (T+0.5*DT)*Deta_ir;
+    Wt += (T+DT)*Deta;
+    Wt_r += (T+DT)*Deta_r;
+    Wt_ir += (T+DT)*Deta_ir;
         
     //Return the statev;
     statev(0) = T_init;

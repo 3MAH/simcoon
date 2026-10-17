@@ -3,6 +3,7 @@
 #include <pybind11/numpy.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <optional>
 #include <vector>
 
@@ -16,6 +17,8 @@
 #include <simcoon/python_wrappers/Libraries/Continuum_mechanics/umat.hpp>
 
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
+#include <simcoon/Continuum_mechanics/Functions/kinematics.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_callback.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/External/external_umat.hpp>
 #include <simcoon/Continuum_mechanics/Umat/Mechanical/Plasticity/plastic_isotropic.hpp>
@@ -135,9 +138,57 @@ int kinematic_code(const py::object &value) {
     return code;
 }
 
+// (ndi, nshr) of a batch: nshr defaults to Abaqus' for ndi; ndi < 3 is a condensed state,
+// solved per point around the 3D law (condensed_state.hpp)
+simcoon::condensed_state batch_stress_state(const int &ndi, const std::optional<int> &nshr_py, int &nshr) {
+	if (ndi < 1 || ndi > 3)
+		throw std::invalid_argument("ndi should be 1, 2 or 3");
+	if (nshr_py && (*nshr_py < 0 || *nshr_py > 3))
+		throw std::invalid_argument("nshr should be 0, 1, 2 or 3");
+	nshr = nshr_py.value_or(simcoon::default_nshr(ndi));
+	return simcoon::make_condensed_state(ndi, nshr);
+}
+
+// Deformation gradient of a condensed finite-strain point. The caller's F holds the rotation and
+// the kept stretches only: F = exp(ln V) R with ln V on the free components replaced by the strain
+// state, etot at the start of the increment, etot + Detot_pt at its end
+struct condensed_F {
+	arma::vec lnV;
+	arma::mat R;
+	explicit condensed_F(const arma::mat &F) {
+		arma::mat V;
+		simcoon::VR_decomposition(V, R, F);
+		lnV = simcoon::t2v_strain(arma::logmat_sympd(V));
+	}
+	arma::mat operator()(const simcoon::condensed_state &cs, const arma::vec &e) const {
+		arma::vec l = lnV;
+		l(cs.C) = e(cs.C);
+		return simcoon::eR_to_F(simcoon::v2t_strain(l), R);
+	}
+};
+
+// ndi < 3: the stress-free components each point solved go back into the caller's Detot, so
+// that etot + Detot carries them to the next increment. Written once the batch has converged,
+// through the array's own strides (a copy was taken when it is not F-contiguous)
+void write_back_free_strain(const py::array_t<double> &Detot_py, const simcoon::condensed_state &cs, const arma::mat &Detot_C) {
+	py::array_t<double> out = Detot_py;   // same buffer
+	char *base = reinterpret_cast<char *>(out.mutable_data());
+	const py::ssize_t s0 = out.strides(0), s1 = (out.ndim() > 1) ? out.strides(1) : 0;
+	for (arma::uword pt = 0; pt < Detot_C.n_cols; pt++)
+		for (arma::uword j = 0; j < cs.C.n_elem; j++) {
+			const double v = Detot_C(j, pt);
+			std::memcpy(base + cs.C(j)*s0 + pt*s1, &v, sizeof(double));
+		}
+}
+
+void require_writable_Detot(const py::array_t<double> &Detot_py, const simcoon::condensed_state &cs, const std::string &fname) {
+	if (cs.active() && !Detot_py.writeable())
+		throw std::invalid_argument(fname + ": with ndi < 3 the solved stress-free components are written back into Detot, which must be writable");
+}
+
 }  // namespace
 	
-	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py){
+	py::tuple launch_umat(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &F0_py, const py::array_t<double> &F1_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const std::optional<py::array_t<double>> &T_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const py::object &corate_py, const bool &work_correction_on, const std::string &tangent_output, const std::optional<bool> &start_py, const py::object &kinematic_form_py, const std::optional<py::array_t<double>> &DT_py){
 		// tangent_mode: 0 = none (explicit integration, Lt = elastic L),
 		//               1 = continuum, 2 = algorithmic (Simo-Hughes, DEFAULT),
 		//               3 = closest-point (reserved). See parameter.hpp tangent_* constants.
@@ -189,29 +240,7 @@ int kinematic_code(const py::object &value) {
 		void (*umat_function_finite)(const std::string &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, arma::vec &, arma::mat &, arma::mat &, const arma::mat &, const int &, const arma::vec &, const int &, arma::vec &, const double &, const double &, const double &, const double &, double &, double &, double &, double &, const int &, const int &, const bool &, double &, const int &, const int &);
 		const int ncomp=6;
 		int nshr;
-		if (ndi==3) {
-			nshr=3;
-		} else if (ndi==1) {
-			nshr=0;
-		} else if (ndi==2) {
-			nshr=1;
-		} else {
-			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
-		}
-		// nshr given: a condensed state other than the default of ndi, e.g. the beam fibre
-		// (ndi = 1, nshr = 2: 11, 12, 13). ndi = 3 is never condensed (el_pred).
-		if (nshr_py) {
-			nshr = *nshr_py;
-			if (nshr < 0 || nshr > 3)
-				throw std::invalid_argument("nshr should be 0, 1, 2 or 3");
-		}
-		// nshr given: a condensed state other than the default of ndi, e.g. the beam fibre
-		// (ndi = 1, nshr = 2: 11, 12, 13). ndi = 3 is never condensed (el_pred).
-		if (nshr_py) {
-			nshr = *nshr_py;
-			if (nshr < 0 || nshr > 3)
-				throw std::invalid_argument("nshr should be 0, 1, 2 or 3");
-		}
+		const simcoon::condensed_state cs = batch_stress_state(ndi, nshr_py, nshr);
 
 		// start re-initialises the point (T_init, stress, internal variables, Wm):
 		// the caller's choice when given, otherwise inferred from Time.
@@ -227,13 +256,25 @@ int kinematic_code(const py::object &value) {
 			vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py.value());
 			use_temp = true;
 		}
-		else {
-			use_temp = false; 
+		vec vec_DT;
+		if (DT_py.has_value()) {
+			if (!use_temp)
+				throw std::invalid_argument("umat: DT is the increment of temp, which must be given too");
+			vec_DT = simpy::numpy_to_arma::arr_to_col_view(DT_py.value());
 		}
 
 		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		int nb_points = list_etot.n_cols; //number of material points
+		// temp and DT: one value shared by every point, or one per point
+		if (use_temp && vec_T.n_elem != 1 && vec_T.n_elem != static_cast<arma::uword>(nb_points))
+			throw std::invalid_argument("umat: temp must have 1 entry (shared) or one per material point ("
+			                            + std::to_string(nb_points) + "); got " + std::to_string(vec_T.n_elem));
+		if (DT_py.has_value() && vec_DT.n_elem != 1 && vec_DT.n_elem != static_cast<arma::uword>(nb_points))
+			throw std::invalid_argument("umat: DT must have 1 entry (shared) or one per material point ("
+			                            + std::to_string(nb_points) + "); got " + std::to_string(vec_DT.n_elem));
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		require_writable_Detot(Detot_py, cs, "umat");
+		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // solved per point, written back below
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(sigma_py); // copy: the umat updates it and it is returned to python
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		cube F0, F1;
@@ -390,6 +431,12 @@ int kinematic_code(const py::object &value) {
 				throw std::invalid_argument("umat: the total formulation (strain space) needs F0 and F1 to map the stress to and from the Cauchy stress");
 			}
 		}
+		if (cs.active() && total) {
+			throw std::invalid_argument("umat: condensed stress states (ndi < 3) run under kinematic_form='rate'");
+		}
+		if (cs.active() && tangent_out != tangent_out_box) {
+			throw std::invalid_argument("umat: condensed stress states (ndi < 3) return the box tangent (tangent_output='box')");
+		}
 		if (tangent_out != tangent_out_box) {
 			if (F1_py.ndim() != 3 || F1_py.shape(2) != nb_points) {
 				throw std::invalid_argument("umat: tangent_output='" + tangent_output
@@ -421,6 +468,7 @@ int kinematic_code(const py::object &value) {
 		// log-corate work correction (finite-strain calls only): decided once, not per point
 		const bool work_correction = work_correction_on && kirchhoff_normalize
 		                             && simcoon::work_correction_applies(corate_type);
+		const mat I3 = eye(3, 3);
 		auto point_kernel = [&](int pt) {
 			// Alias the props column without copying: the parallel region makes no
 			// allocation for it, and never touches Python (no GIL needed by workers).
@@ -434,11 +482,29 @@ int kinematic_code(const py::object &value) {
 			vec Detot = list_Detot.unsafe_col(pt);
 			vec Wm = list_Wm.unsafe_col(pt);
 
-			double T = 0.0, DT = 0.0;
-			if (use_temp && pt < vec_T.n_elem) {
-				T = vec_T(pt);
-			}
+			const double T = use_temp ? vec_T(vec_T.n_elem == 1 ? 0 : pt) : 0.0;
+			const double DT = vec_DT.n_elem ? vec_DT(vec_DT.n_elem == 1 ? 0 : pt) : 0.0;
 			double tnew_dt_pt = 1.;   // per-point: no shared write inside the parallel region
+
+			// F0_pt, F1_pt alias the caller's slices unless condensed: a condensed finite point
+			// takes its free stretches from the strain state (condensed_F); F1 follows the solve
+			const bool have_F0 = F0.n_slices == static_cast<arma::uword>(nb_points);
+			const bool have_F1 = F1.n_slices == static_cast<arma::uword>(nb_points);
+			mat F0_pt = have_F0 ? mat(F0.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
+			mat F1_pt = have_F1 ? mat(F1.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
+			const bool rebuild_F = cs.active() && have_F0 && have_F1
+			                       && (arguments_type == 2 || !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.));
+			std::optional<condensed_F> F1_of;
+			if (rebuild_F) {
+				try {   // no throw in the parallel region: a degenerate F is a step-cut request
+					F0_pt = condensed_F(F0.slice(pt))(cs, etot);
+					F1_of.emplace(F1.slice(pt));
+				}
+				catch (const std::exception &) {
+					tnew_dt[pt] = 0.5;
+					return;
+				}
+			}
 
 			bool total_cut = false;
 			if (kirchhoff_normalize) {
@@ -448,37 +514,68 @@ int kinematic_code(const py::object &value) {
 				// meaningful finite-strain state: pass through unscaled
 				// (previous behavior) instead of producing 0/NaN — no throw
 				// here, this runs inside the parallel region.
-				const double J0 = arma::det(F0.slice(pt));
+				const double J0 = arma::det(F0_pt);
 				if (J0 > simcoon::iota) sigma *= J0;
 				if (total) {
 					// Kirchhoff -> dual stress T. No throw in the parallel region: a degenerate F
 					// becomes a step-cut request, raised as StepCut in serial context below.
-					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F0.slice(pt))); }
+					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F0_pt)); }
 					catch (const std::exception &) { total_cut = true; }
 				}
 			}
 			// the total formulation has no frame increment, whatever DR the caller holds
-			const mat DR_pt = total ? mat(eye(3,3)) : mat(DR.slice(pt));
+			const mat &DR_pt = total ? I3 : DR.slice(pt);
 			double tau_start[6];
 			for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
-			switch (arguments_type) {
-				case 1: {
-					umat_function(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode);
-					break;
+			// the law integrates Detot_pt: Detot (the caller's view) except on the stress-free
+			// components, solved below; plain aliases when nothing is condensed
+			vec Detot_pt(Detot.memptr(), Detot.n_elem, cs.active(), true);
+			const int ndi_law = cs.active() ? 3 : ndi, nshr_law = cs.active() ? 3 : nshr;
+			auto run_law = [&](double &tnew) {
+				switch (arguments_type) {
+					case 1: {
+						umat_function(umat_name_py, etot, Detot_pt, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode);
+						break;
+					}
+					case 3: {
+						simcoon::umat_modular(umat_name_py, etot, Detot_pt, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate);
+						break;
+					}
+					case 2: {
+						umat_function_finite(umat_name_py, etot, Detot_pt, F0_pt, F1_pt, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi_law, nshr_law, start, tnew, corate_type, tangent_mode);
+						break;
+					}
 				}
-				case 3: {
-					simcoon::umat_modular(umat_name_py, etot, Detot, sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, tangent_mode, total ? simcoon::KinematicForm::total : simcoon::KinematicForm::rate);
-					break;
+			};
+			if (!cs.active()) {
+				run_law(tnew_dt_pt);
+			}
+			else {
+				// Newton on the stress-free strain components (solve_condensed). Under finite strain
+				// F1 follows them: an F-based law reads it at every evaluation, a box law only
+				// through J, rebuilt once at the end
+				const vec sigma0 = sigma, statev0 = statev, Wm0 = Wm;
+				auto restore = [&]() { sigma = sigma0; statev = statev0; Wm = Wm0; };
+				try {   // no throw out of the parallel region: a failure is a step-cut request
+					auto run = [&](double &tnew) {
+						if (rebuild_F && arguments_type == 2) F1_pt = (*F1_of)(cs, etot + Detot_pt);
+						run_law(tnew);
+					};
+					if (simcoon::solve_condensed(cs, Detot_pt, sigma, Lt.slice(pt), run, restore, tnew_dt_pt)) {
+						simcoon::condense_tangent(cs, Lt.slice(pt));
+						Detot_C.col(pt) = Detot_pt(cs.C);
+						if (rebuild_F) F1_pt = (*F1_of)(cs, etot + Detot_pt);
+					}
 				}
-				case 2: {
-					umat_function_finite(umat_name_py, etot, Detot, F0.slice(pt), F1.slice(pt), sigma, Lt.slice(pt), L.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, tnew_dt_pt, corate_type, tangent_mode);
-					break;
+				catch (const std::exception &) {
+					restore();
+					tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
 				}
 			}
 			if (total) {   // back to Kirchhoff, before the /J below
 				try {
 					double dW_T;
-					sigma = simcoon::total_formulation_tau(sigma, Detot, F1.slice(pt), total_box, dW_T);
+					sigma = simcoon::total_formulation_tau(sigma, Detot_pt, F1_pt, total_box, dW_T);
 					Wm(0) += dW_T;
 					Wm(1) += dW_T;
 				}
@@ -486,13 +583,13 @@ int kinematic_code(const py::object &value) {
 				if (total_cut) tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
 			}
 			tnew_dt[pt] = tnew_dt_pt;   // own slot: no shared write in the parallel region
-			if (work_correction && !arma::approx_equal(F0.slice(pt), F1.slice(pt), "absdiff", 0.)) {
+			if (work_correction && !arma::approx_equal(F0_pt, F1_pt, "absdiff", 0.)) {
 				// true work under the log corates, as select_umat_M_finite. Only when F0 -> F1 is the
 				// increment: identical F (small-strain use with placeholder F) carries no D, and the
 				// correction would cancel the kernel's work.
 				const arma::vec::fixed<6> ts(tau_start);
 				const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
-				                                                Detot, F0.slice(pt), F1.slice(pt), corate_type);
+				                                                Detot_pt, F0_pt, F1_pt, corate_type);
 				Wm(0) += dW;
 				Wm(1) += dW;
 			}
@@ -500,7 +597,7 @@ int kinematic_code(const py::object &value) {
 				// kernel internal (Kirchhoff) -> python contract (Cauchy);
 				// Lt is deliberately NOT rescaled (see the block above).
 				// Same degenerate-F passthrough as the input side.
-				const double J1 = arma::det(F1.slice(pt));
+				const double J1 = arma::det(F1_pt);
 				if (J1 > simcoon::iota) sigma /= J1;
 			}
 			if (tangent_out != tangent_out_box) {
@@ -528,12 +625,13 @@ int kinematic_code(const py::object &value) {
 		// engine on a non-finite or runaway return mapping, statev left untouched): surface it.
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat", tnew_dt);
+		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
 		return py::make_tuple(simpy::arma_to_numpy::mat_to_arr(list_sigma, false), simpy::arma_to_numpy::mat_to_arr(list_statev, false), simpy::arma_to_numpy::mat_to_arr(list_Wm, false), simpy::arma_to_numpy::cube_to_arr(Lt, false));
 
 	}
 
-	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py){
-		// Point-wise thermomechanical UMAT batch entry (small strain), mirroring launch_umat.
+	py::tuple launch_umat_T(const std::string &umat_name_py, const py::array_t<double> &etot_py, const py::array_t<double> &Detot_py, const py::array_t<double> &sigma_py, const py::array_t<double> &DR_py, const py::array_t<double> &props_py, const py::array_t<double> &statev_py, const double Time, const double DTime, const py::array_t<double> &Wm_py, const py::array_t<double> &Wt_py, const py::array_t<double> &T_py, const py::array_t<double> &DT_py, const int &ndi, const std::optional<int> &nshr_py, const unsigned int &n_threads, const int &tangent_mode, const std::optional<bool> &start_py, const std::optional<py::array_t<double>> &F0_py, const std::optional<py::array_t<double>> &F1_py, const py::object &kinematic_form_py){
+		// Point-wise thermomechanical UMAT batch entry, mirroring launch_umat.
 		// Dispatch follows the select_umat_T table (umat_smart.cpp).
 		// Returns (sigma, statev, Wm, Wt, r, dSdE, dSdT, drdE, drdT).
 
@@ -556,23 +654,41 @@ int kinematic_code(const py::object &value) {
 
 		const int ncomp = 6;
 		int nshr;
-		if (ndi==3) {
-			nshr=3;
-		} else if (ndi==1) {
-			nshr=0;
-		} else if (ndi==2) {
-			nshr=1;
-		} else {
-			throw std::invalid_argument( "ndi should be 1, 2 or 3 dimenions" );
-		}
+		const simcoon::condensed_state cs = batch_stress_state(ndi, nshr_py, nshr);
 
 		// start re-initialises the point (T_init, stress, internal variables, Wm):
 		// the caller's choice when given, otherwise inferred from Time.
 		const bool start = start_py.value_or(Time <= simcoon::limit);
 		mat list_etot = simpy::numpy_to_arma::arr_to_mat_view(etot_py);
 		unsigned int nb_points = list_etot.n_cols; //number of material points
+
+		// Finite strain (F0, F1): ELISO only, isotropic so its frame is immaterial
+		if (F0_py.has_value() != F1_py.has_value())
+			throw std::invalid_argument("umat_T: give both F0 and F1 (finite strain) or neither (small strain)");
+		const bool finite = F0_py.has_value();
+		const int form = kinematic_code(kinematic_form_py);
+		if (!finite && form >= 0)
+			throw std::invalid_argument("umat_T: kinematic_form needs F0 and F1");
+		const bool total = (form == simcoon::corate_type_total);
+		cube F0, F1;
+		if (finite) {
+			if (umat_name_py != "ELISO")
+				throw std::invalid_argument("umat_T: finite strain serves ELISO only for now; got " + umat_name_py);
+			if (form >= 0 && form != 3 && !total)
+				throw std::invalid_argument("umat_T: finite strain serves kinematic_form='rate' (log_R, corate 3) "
+				                            "or 'total'; got code " + std::to_string(form));
+			F0 = simpy::numpy_to_arma::arr_to_cube_view(F0_py.value());
+			F1 = simpy::numpy_to_arma::arr_to_cube_view(F1_py.value());
+			if (F0.n_rows != 3 || F0.n_cols != 3 || F0.n_slices != nb_points
+			    || F1.n_rows != 3 || F1.n_cols != 3 || F1.n_slices != nb_points)
+				throw std::invalid_argument("umat_T: F0/F1 must carry one 3x3 slice per material point");
+			if (cs.active() && total)
+				throw std::invalid_argument("umat_T: condensed stress states (ndi < 3) run under kinematic_form='rate'");
+		}
 		std::vector<double> tnew_dt(nb_points, 1.);   // step-cut request, one slot per point
 		mat list_Detot = simpy::numpy_to_arma::arr_to_mat_view(Detot_py);
+		require_writable_Detot(Detot_py, cs, "umat_T");
+		mat Detot_C = cs.active() ? mat(list_Detot.rows(cs.C)) : mat();   // as launch_umat
 		mat list_sigma = simpy::numpy_to_arma::arr_to_mat(std::move(sigma_py)); //copy: modified by the umat and returned
 		cube DR = simpy::numpy_to_arma::arr_to_cube_view(DR_py);
 		vec vec_T = simpy::numpy_to_arma::arr_to_col_view(T_py);
@@ -671,6 +787,7 @@ int kinematic_code(const py::object &value) {
 			}
 		}
 
+		const mat I3 = eye(3, 3);
 		auto thermal_point_kernel = [&](int pt) {
 			// props aliased without copying: no NumPy-backed allocation in the
 			// parallel region (same GIL-safety pattern as launch_umat)
@@ -688,21 +805,111 @@ int kinematic_code(const py::object &value) {
 			double DT = vec_DT(pt);
 			double tnew_dt_pt = 1.;
 
-			switch (arguments_type) {
-				case 1: {
-					umat_function(etot, Detot, sigma, list_r(pt), dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi, nshr, start, tnew_dt_pt, tangent_mode);
-					break;
+			// as launch_umat: F0_pt, F1_pt alias the caller's slices unless condensed
+			mat F0_pt = finite ? mat(F0.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
+			mat F1_pt = finite ? mat(F1.slice(pt).memptr(), 3, 3, cs.active(), true) : mat();
+			std::optional<condensed_F> F1_of;
+			if (finite && cs.active()) {
+				try {
+					F0_pt = condensed_F(F0.slice(pt))(cs, etot);
+					F1_of.emplace(F1.slice(pt));
 				}
-				case 2: {
-					umat_function_named(umat_name_py, etot, Detot, sigma, list_r(pt), dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt), DR.slice(pt), nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi, nshr, start, tnew_dt_pt, tangent_mode);
-					break;
+				catch (const std::exception &) {
+					tnew_dt[pt] = 0.5;
+					return;
 				}
+			}
+
+			// finite strain, as launch_umat: Cauchy -> Kirchhoff (x J0) -> T (total form); a
+			// degenerate F is a step-cut request (no throw in the parallel region)
+			bool finite_cut = false;
+			double tau_start[6];
+			if (finite) {
+				const double J0 = arma::det(F0_pt);
+				if (J0 > simcoon::iota) sigma *= J0;
+				else finite_cut = true;
+				for (int k = 0; k < 6; k++) tau_start[k] = sigma(k);
+				if (total) {
+					try { sigma = simcoon::t2v_stress(simcoon::Kirchoff2LogStressU(simcoon::v2t_stress(sigma), F0_pt)); }
+					catch (const std::exception &) { finite_cut = true; }
+				}
+			}
+			const mat &DR_pt = total ? I3 : DR.slice(pt);
+
+			// as launch_umat: Detot_pt and F1_pt alias the caller's arrays unless condensed
+			vec Detot_pt(Detot.memptr(), Detot.n_elem, cs.active(), true);
+			double dlnJ_dT = 0.;   // condensed finite point: J follows theta through the free stretches
+			const int ndi_law = cs.active() ? 3 : ndi, nshr_law = cs.active() ? 3 : nshr;
+			auto run_law = [&](double &tnew) {
+				switch (arguments_type) {
+					case 1: {
+						umat_function(etot, Detot_pt, sigma, list_r(pt), dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode);
+						break;
+					}
+					case 2: {
+						umat_function_named(umat_name_py, etot, Detot_pt, sigma, list_r(pt), dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt), DR_pt, nprops, local_props, nstatev, statev, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), Wt(0), Wt(1), Wt(2), ndi_law, nshr_law, start, tnew, tangent_mode);
+						break;
+					}
+				}
+			};
+			if (!cs.active()) {
+				run_law(tnew_dt_pt);
+			}
+			else {
+				// as launch_umat; no law here reads F1, rebuilt once at the end for J
+				const vec sigma0 = sigma, statev0 = statev, Wm0 = Wm, Wt0 = Wt;
+				auto restore = [&]() { sigma = sigma0; statev = statev0; Wm = Wm0; Wt = Wt0; list_r(pt) = 0.; };
+				try {   // no throw out of the parallel region: a failure is a step-cut request
+					if (simcoon::solve_condensed(cs, Detot_pt, sigma, dSdE.slice(pt), run_law, restore, tnew_dt_pt)) {
+						if (finite) {   // d(ln V_C)/dtheta = -L_CC^-1 dtau_C/dtheta, its direct part is dlnJ/dtheta
+							const vec dC = -arma::solve(mat(dSdE.slice(pt)(cs.C, cs.C)), vec(mat(dSdT.slice(pt)).rows(cs.C)));
+							for (arma::uword j = 0; j < cs.C.n_elem; j++)
+								if (cs.C(j) < 3) dlnJ_dT += dC(j);
+						}
+						simcoon::condense_tangent_T(cs, dSdE.slice(pt), dSdT.slice(pt), drdE.slice(pt), drdT.slice(pt));
+						Detot_C.col(pt) = Detot_pt(cs.C);
+						if (finite) F1_pt = (*F1_of)(cs, etot + Detot_pt);
+					}
+				}
+				catch (const std::exception &) {
+					restore();
+					tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
+				}
+			}
+			if (finite) {
+				// back to Kirchhoff (total: T and dT/dtheta mapped at fixed F1), then Cauchy;
+				// dSdE and drdE stay box derivatives, r per reference volume
+				if (total) {
+					try {
+						double dW_T;
+						sigma = simcoon::total_formulation_tau(sigma, Detot_pt, F1_pt, true, dW_T);
+						dSdT.slice(pt) = simcoon::t2v_stress(simcoon::LogStressU2Kirchoff(simcoon::v2t_stress(vec(dSdT.slice(pt))), F1_pt));
+					}
+					catch (const std::exception &) { finite_cut = true; }
+				}
+				else if (!arma::approx_equal(F0_pt, F1_pt, "absdiff", 0.)) {
+					// true work under log_R, as launch_umat
+					const arma::vec::fixed<6> ts(tau_start);
+					const double dW = simcoon::Delta_work_conjugacy(lab_start_stress(ts, DR.slice(pt)), ts, sigma,
+					                                                Detot_pt, F0_pt, F1_pt, 3);
+					Wm(0) += dW;
+					Wm(1) += dW;
+				}
+				const double J1 = arma::det(F1_pt);
+				if (J1 > simcoon::iota) {
+					sigma /= J1;
+					dSdT.slice(pt) /= J1;
+					dSdT.slice(pt) -= sigma * dlnJ_dT;
+				}
+				else finite_cut = true;
+				if (finite_cut) tnew_dt_pt = std::min(tnew_dt_pt, 0.5);
 			}
 			tnew_dt[pt] = tnew_dt_pt;
 		};
 		parallel_for_nogil(nb_points, thermal_point_kernel, n_threads);
 		if (std::any_of(tnew_dt.begin(), tnew_dt.end(), [](double r) { return r < 1.; }))
 			raise_step_cut("umat_T", tnew_dt);
+		if (cs.active()) write_back_free_strain(Detot_py, cs, Detot_C);
 
 		// post-loop repacking (serial): dSdT (6,1,N) -> (6,N), drdE (1,6,N) -> (6,N), drdT (1,1,N) -> (N)
 		mat dSdT_out(ncomp, nb_points);

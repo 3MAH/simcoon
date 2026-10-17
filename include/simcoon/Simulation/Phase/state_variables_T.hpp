@@ -57,12 +57,18 @@ namespace simcoon{
         arma::mat dSdE; ///< mechanical tangent; kernel output, crosses l2g only
         arma::mat dSdEt; ///< read by nobody, never crosses
         arma::mat dSdT; ///< thermal stress tangent, a Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel output, crosses l2g only
-        double Q; ///< heat flux, set by the solver as -r; crosses g2l only
-        double r; ///< heat source; kernel output, crosses l2g only
+        double Q; ///< heat flux (rate), set by the solver as -r/DTime (0 at DTime = 0); crosses g2l only
+        /**
+         * Heat of the increment per unit reference volume (MPa), storage included:
+         * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment, tangent_assembly.hpp),
+         * i.e. the time increment times the heat source. \f$ r = 0 \f$ is the adiabatic condition, also at
+         * \f$ \Delta t = 0 \f$. Kernel output, crosses l2g only.
+         */
+        double r;
         double r_in; ///< never crosses
     
         /**
-         * Heat source strain tangent \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$, a
+         * Strain derivative of the heat of the increment, \f$ \partial r / \partial \boldsymbol{\varepsilon} \f$, a
          * Voigt vector stored as a mat (1x6 by the constructors, 6x1 by the solver); kernel
          * output, crosses l2g only. Dual to the engineering strain, it rotates with the STRESS
          * operator \f$ \mathbf{Q}_S = \mathbf{Q}_E^{-T} \f$: \f$ \partial r/\partial \boldsymbol{\varepsilon}'
@@ -70,7 +76,7 @@ namespace simcoon{
          * \f$ \boldsymbol{\varepsilon}' = \mathbf{Q}_E \boldsymbol{\varepsilon} \f$.
          */
         arma::mat drdE;
-        arma::mat drdT; ///< heat source temperature tangent; kernel output, crosses l2g only
+        arma::mat drdT; ///< temperature derivative of the heat of the increment r; kernel output, crosses l2g only
 
 		state_variables_T(); 	//default constructor
     state_variables_T(const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::vec &, const arma::vec &, const double &, const double &, const int &, const arma::vec &, const arma::vec &, const double &, const double &, const double &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::vec &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &, const arma::mat &); //Constructor with parameters

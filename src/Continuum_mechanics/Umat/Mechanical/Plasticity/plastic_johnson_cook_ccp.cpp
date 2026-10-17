@@ -93,16 +93,22 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
         Wm_d = 0.;
     }
 
-    // Thermal softening factor f_T = 1 - T*^m, T* clamped to [0, 1) (defined below T_ref, never
-    // at the singular melting point), at the start and end-of-increment temperatures
+    // Thermal softening factor f_T = 1 - g(T*), g = T*^m C2-regularized near T* = 0 for m < 2
+    // (johnson_cook_softening, the same law as the thermomechanical kernel), T* clamped to [0, 1)
+    // (defined below T_ref, never at the singular melting point), at the start and end temperatures
     auto homologous = [&](const double &theta) {
         double Tstar = (theta - T_ref) / (T_melt - T_ref);
         if (Tstar < 0.) Tstar = 0.;
         if (Tstar >= 1.) Tstar = 1. - simcoon::iota;
         return Tstar;
     };
-    const double thermal_factor_start = 1. - pow(homologous(T), m_jc);
-    const double thermal_factor = 1. - pow(homologous(T + DT), m_jc);
+    auto softening = [&](const double &theta) {
+        double g, dg, d2g;
+        johnson_cook_softening(homologous(theta), m_jc, g, dg, d2g);
+        return g;
+    };
+    const double thermal_factor_start = 1. - softening(T);
+    const double thermal_factor = 1. - softening(T + DT);
 
     // Strain hardening Hp = B p^n, C1-regularized at the onset for n < 1 (the modular
     // power-law block carries the blend; same law, no second implementation)
@@ -129,7 +135,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
 
     //Elastic prediction - Accounting for the thermal prediction
     vec Eel = Etot + DEtot - alpha*(T+DT-T_init) - EP;
-    sigma = el_pred(L, Eel, ndi, nshr);
+    sigma = el_pred(L, Eel);
 
     //Define the plastic function and the stress
     vec Phi = zeros(1);
@@ -162,7 +168,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
             s_j(0) += x0;
             EP = EP + x0*Lambda_trial;
             Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-            sigma = el_pred(L, Eel, ndi, nshr);
+            sigma = el_pred(L, Eel);
         }
     }
 
@@ -218,7 +224,7 @@ void umat_plasticity_johnson_cook_CCP(const string &umat_name, const vec &Etot, 
 
         //the stress is now computed using the relationship sigma = L(E-Ep)
         Eel = Etot + DEtot - alpha*(T + DT - T_init) - EP;
-        sigma = el_pred(L, Eel, ndi, nshr);
+        sigma = el_pred(L, Eel);
     }
 
     // The loop reads p at the top and corrects s_j at the bottom: bring p and the hardening to

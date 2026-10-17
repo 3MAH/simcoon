@@ -20,8 +20,12 @@
 ///@version 1.0
 
 #include <iostream>
+#include <algorithm>
 #include <assert.h>
 #include <armadillo>
+#include <simcoon/parameter.hpp>
+#include <simcoon/Simulation/Maths/rotation.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 #include <simcoon/Continuum_mechanics/Umat/fea_transfer.hpp>
 
 using namespace std;
@@ -33,258 +37,92 @@ namespace simcoon {
 // ABAQUS UMAT TRANSFER FUNCTIONS
 //=============================================================================
 
+namespace {
+
+// Abaqus arrays hold the element's ntens components in order (ndi direct, then nshr shears 12,
+// 13, 23): entry i is the simcoon component K(i). The others have zero strain (ndi = 3) or are
+// stress-free, solved by the material point (ndi < 3, condensed_state.hpp)
+struct abaqus_components {
+    int ndi, ntens;
+    abaqus_components(const int &ndi_, const int &nshr) : ndi(ndi_), ntens(ndi_ + nshr) {}
+    int operator()(const int &i) const { return (i < ndi) ? i : 3 + i - ndi; }
+};
+
+// Abaqus vector -> simcoon 6 entries (vec, 6x1 or 1x6 mat), zero outside K
+template <class V> void abaqus2vec(const double *a, const abaqus_components &K, V &v) {
+    v.zeros();
+    for (int i = 0; i < K.ntens; i++) v(K(i)) = a[i];
+}
+
+template <class V> void vec2abaqus(const V &v, const abaqus_components &K, double *a) {
+    for (int i = 0; i < K.ntens; i++) a[i] = v(K(i));
+}
+
+// column-major ntens x ntens <-> the K x K block of a 6x6
+void abaqus2mat(const double *a, const abaqus_components &K, mat &M) {
+    M.zeros(6, 6);
+    for (int j = 0; j < K.ntens; j++)
+        for (int i = 0; i < K.ntens; i++) M(K(i), K(j)) = a[j*K.ntens + i];
+}
+
+void mat2abaqus(const mat &M, const abaqus_components &K, double *a) {
+    for (int j = 0; j < K.ntens; j++)
+        for (int i = 0; i < K.ntens; i++) a[j*K.ntens + i] = M(K(i), K(j));
+}
+
+// The stress-free strain (ndi < 3, condensed_state.hpp) is kept in STATEV after the energies,
+// in simcoon order. Read at the start of the increment, rotated with it (DROT) as Abaqus rotates
+// STRAN: the material point then solves its change, not the whole value
+void read_free_strain(const double *statev, const int &offset, const uvec &C, const mat &DR, vec &Etot) {
+    if (C.is_empty()) return;
+    vec E_C = zeros(6);
+    for (uword j = 0; j < C.n_elem; j++) E_C(C(j)) = statev[offset + j];
+    Etot(C) = rotate_strain(E_C, DR)(C);
+}
+
+void write_free_strain(const vec &Etot_end, const int &offset, const uvec &C, double *statev) {
+    if (Etot_end.n_elem != 6) return;
+    for (uword j = 0; j < C.n_elem; j++) statev[offset + j] = Etot_end(C(j));
+}
+
+}  // namespace
+
 void abaqus2smart_M_light(const double *stress, const double *ddsdde, const int &nstatev, double *statev, const int &ndi, const int &nshr, vec &sigma, mat &Lt, vec &Wm, vec &statev_smart)
 {
-    
-    if(ndi == 1){                       // 1D
-        sigma(0) = stress[0];
-        Lt(0,0) = ddsdde[0];
-    }
-    else if(ndi == 2){                  // 2D Plane Stress
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(3) = stress[2];
-        
-        for(int i=0 ; i<3 ; i++)
-        {
-            for(int j=0 ; j<3 ; j++)
-                Lt(j,i) = ddsdde[i*3+j];
-        }
-    }
-    else if(ndi == 3){
-        if(nshr == 1) {
-            sigma(0) = stress[0];       // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            
-            Lt(0,0) = ddsdde[0];
-            Lt(0,1) = ddsdde[4];
-            Lt(0,2) = ddsdde[8];
-            Lt(0,3) = ddsdde[3];
-            Lt(1,0) = ddsdde[1];
-            Lt(1,1) = ddsdde[5];
-            Lt(1,2) = ddsdde[9];
-            Lt(1,3) = ddsdde[7];
-            Lt(2,0) = ddsdde[2];
-            Lt(2,1) = ddsdde[6];
-            Lt(2,2) = ddsdde[10];
-            Lt(2,3) = ddsdde[11];
-            Lt(3,0) = ddsdde[12];
-            Lt(3,1) = ddsdde[13];
-            Lt(3,2) = ddsdde[14];
-            Lt(3,3) = ddsdde[15];
-        }
-        else {                          // 3D
-            sigma(0) = stress[0];
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            sigma(4) = stress[4];
-            sigma(5) = stress[5];
-            
-            Lt(0,0) = ddsdde[0];
-            Lt(0,1) = ddsdde[6];
-            Lt(0,2) = ddsdde[12];
-            Lt(0,3) = ddsdde[18];
-            Lt(0,4) = ddsdde[24];
-            Lt(0,5) = ddsdde[30];
-            Lt(1,0) = ddsdde[1];
-            Lt(1,1) = ddsdde[7];
-            Lt(1,2) = ddsdde[13];
-            Lt(1,3) = ddsdde[19];
-            Lt(1,4) = ddsdde[25];
-            Lt(1,5) = ddsdde[31];
-            Lt(2,0) = ddsdde[2];
-            Lt(2,1) = ddsdde[8];
-            Lt(2,2) = ddsdde[14];
-            Lt(2,3) = ddsdde[20];
-            Lt(2,4) = ddsdde[26];
-            Lt(2,5) = ddsdde[32];
-            Lt(3,0) = ddsdde[3];
-            Lt(3,1) = ddsdde[9];
-            Lt(3,2) = ddsdde[15];
-            Lt(3,3) = ddsdde[21];
-            Lt(3,4) = ddsdde[27];
-            Lt(3,5) = ddsdde[33];
-            Lt(4,0) = ddsdde[4];
-            Lt(4,1) = ddsdde[10];
-            Lt(4,2) = ddsdde[16];
-            Lt(4,3) = ddsdde[22];
-            Lt(4,4) = ddsdde[28];
-            Lt(4,5) = ddsdde[34];
-            Lt(5,0) = ddsdde[5];
-            Lt(5,1) = ddsdde[11];
-            Lt(5,2) = ddsdde[17];
-            Lt(5,3) = ddsdde[23];
-            Lt(5,4) = ddsdde[29];
-            Lt(5,5) = ddsdde[35];
-        }
-    }
-    
+    const abaqus_components K(ndi, nshr);
+    abaqus2vec(stress, K, sigma);
+    abaqus2mat(ddsdde, K, Lt);
+
     for (int i=0; i<4; i++) {
         Wm(i) = statev[i];
     }
     for (int i=0; i<nstatev-4; i++) {
         statev_smart(i) = statev[i+4];
     }
-    
 }
-
 
 void abaqus2smart_M(const double *stress, const double *ddsdde, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops,const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &Lt, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &statev_smart, mat &DR, bool &start)
 {
-    
-    if(ndi == 1){                       // 1D
-        sigma(0) = stress[0];
-        Etot(0) = stran[0];
-        DEtot(0) = dstran[0];
-        Lt(0,0) = ddsdde[0];
-        
-    }
-    else if(ndi == 2){                  // 2D Plane Stress
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(3) = stress[2];
-        
-        Etot(0) = stran[0];
-        Etot(1) = stran[1];
-        Etot(3) = stran[2];
-        
-        DEtot(0) = dstran[0];
-        DEtot(1) = dstran[1];
-        DEtot(3) = dstran[2];
-        
-        for(int i=0 ; i<3 ; i++)
-        {
-            for(int j=0 ; j<3 ; j++)
-                Lt(j,i) = ddsdde[i*3+j];
-        }
-    }
-    else if(ndi == 3){
-        if(nshr == 1) {
-            sigma(0) = stress[0];       // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            
-            Etot(0) = stran[0];
-            Etot(1) = stran[1];
-            Etot(2) = stran[2];
-            Etot(3) = stran[3];
-            
-            DEtot(0) = dstran[0];
-            DEtot(1) = dstran[1];
-            DEtot(2) = dstran[2];
-            DEtot(3) = dstran[3];
-            
-            Lt(0,0) = ddsdde[0];
-            Lt(0,1) = ddsdde[4];
-            Lt(0,2) = ddsdde[8];
-            Lt(0,3) = ddsdde[3];
-            Lt(1,0) = ddsdde[1];
-            Lt(1,1) = ddsdde[5];
-            Lt(1,2) = ddsdde[9];
-            Lt(1,3) = ddsdde[7];
-            Lt(2,0) = ddsdde[2];
-            Lt(2,1) = ddsdde[6];
-            Lt(2,2) = ddsdde[10];
-            Lt(2,3) = ddsdde[11];
-            Lt(3,0) = ddsdde[12];
-            Lt(3,1) = ddsdde[13];
-            Lt(3,2) = ddsdde[14];
-            Lt(3,3) = ddsdde[15];
-        }
-        else {                          // 3D
-            sigma(0) = stress[0];
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            sigma(4) = stress[4];
-            sigma(5) = stress[5];
-            
-            Etot(0) = stran[0];
-            Etot(1) = stran[1];
-            Etot(2) = stran[2];
-            Etot(3) = stran[3];
-            Etot(4) = stran[4];
-            Etot(5) = stran[5];
-            
-            DEtot(0) = dstran[0];
-            DEtot(1) = dstran[1];
-            DEtot(2) = dstran[2];
-            DEtot(3) = dstran[3];
-            DEtot(4) = dstran[4];
-            DEtot(5) = dstran[5];
-            
-            Lt(0,0) = ddsdde[0];
-            Lt(0,1) = ddsdde[6];
-            Lt(0,2) = ddsdde[12];
-            Lt(0,3) = ddsdde[18];
-            Lt(0,4) = ddsdde[24];
-            Lt(0,5) = ddsdde[30];
-            Lt(1,0) = ddsdde[1];
-            Lt(1,1) = ddsdde[7];
-            Lt(1,2) = ddsdde[13];
-            Lt(1,3) = ddsdde[19];
-            Lt(1,4) = ddsdde[25];
-            Lt(1,5) = ddsdde[31];
-            Lt(2,0) = ddsdde[2];
-            Lt(2,1) = ddsdde[8];
-            Lt(2,2) = ddsdde[14];
-            Lt(2,3) = ddsdde[20];
-            Lt(2,4) = ddsdde[26];
-            Lt(2,5) = ddsdde[32];
-            Lt(3,0) = ddsdde[3];
-            Lt(3,1) = ddsdde[9];
-            Lt(3,2) = ddsdde[15];
-            Lt(3,3) = ddsdde[21];
-            Lt(3,4) = ddsdde[27];
-            Lt(3,5) = ddsdde[33];
-            Lt(4,0) = ddsdde[4];
-            Lt(4,1) = ddsdde[10];
-            Lt(4,2) = ddsdde[16];
-            Lt(4,3) = ddsdde[22];
-            Lt(4,4) = ddsdde[28];
-            Lt(4,5) = ddsdde[34];
-            Lt(5,0) = ddsdde[5];
-            Lt(5,1) = ddsdde[11];
-            Lt(5,2) = ddsdde[17];
-            Lt(5,3) = ddsdde[23];
-            Lt(5,4) = ddsdde[29];
-            Lt(5,5) = ddsdde[35];
-        }
-    }
-    
+    const abaqus_components K(ndi, nshr);
+    abaqus2vec(stress, K, sigma);
+    abaqus2vec(stran, K, Etot);
+    abaqus2vec(dstran, K, DEtot);
+    abaqus2mat(ddsdde, K, Lt);
+
     ///@brief rotation matrix
-    DR(0,0) = drot[0];
-    DR(0,1) = drot[3];
-    DR(0,2) = drot[6];
-    DR(1,0) = drot[1];
-    DR(1,1) = drot[4];
-    DR(1,2) = drot[7];
-    DR(2,0) = drot[2];
-    DR(2,1) = drot[5];
-    DR(2,2) = drot[8];
-    
+    DR = mat(drot, 3, 3);
+
     ///@brief Temperature and temperature increment creation
     T = temperature;
     DT = Dtemperature;
-    
+
     ///@brief Time
     Time = time[1];
     DTime = dtime;
-    
+
     ///@brief Initialization
-    if(Time < 1E-12)
-    {
-        start = true;
-    }
-    else
-    {
-        start = false;
-    }
-    
+    start = (Time < 1E-12);
+
     ///@brief : Pass the material properties and the internal variables
     for (int i=0; i<nprops; i++) {
         props_smart(i) = props[i];
@@ -292,184 +130,39 @@ void abaqus2smart_M(const double *stress, const double *ddsdde, const double *st
     for (int i=0; i<4; i++) {
         Wm(i) = statev[i];
     }
-    for (int i=0; i<nstatev-4; i++) {
-        statev_smart(i) = statev[i+4];
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    read_free_strain(statev, 4, C, DR, Etot);
+    const int offset = 4 + C.n_elem;
+    for (int i=0; i<nstatev-offset; i++) {
+        statev_smart(i) = statev[i+offset];
     }
-    
 }
 
 void abaqus2smart_T(const double *stress, const double *ddsdde, const double *ddsddt, const double *drplde, const double &drpldt, const double *stran, const double *dstran, const double *time, const double &dtime, const double &temperature, const double &Dtemperature, const int &nprops, const double *props, const int &nstatev, double *statev, const int &ndi, const int &nshr, const double *drot, vec &sigma, mat &dSdE, mat &dSdT, mat &drpldE, mat &drpldT, vec &Etot, vec &DEtot, double &T, double &DT, double &Time, double &DTime, vec &props_smart, vec &Wm, vec &Wt, vec &statev_smart, mat &DR, bool &start) {
-    
-    if(ndi == 1){                       // 1D
-        sigma(0) = stress[0];
-        Etot(0) = stran[0];
-        DEtot(0) = dstran[0];
-        dSdE(0,0) = ddsdde[0];
-        dSdT(0,0) = ddsddt[0];
-        drpldE(0,0) = drplde[0];
-    }
-    else if(ndi == 2){                  // 2D Plane Stress
-        sigma(0) = stress[0];
-        sigma(1) = stress[1];
-        sigma(3) = stress[2];
-        
-        Etot(0) = stran[0];
-        Etot(1) = stran[1];
-        Etot(3) = stran[2];
-        
-        DEtot(0) = dstran[0];
-        DEtot(1) = dstran[1];
-        DEtot(3) = dstran[2];
-        
-        for(int i=0 ; i<3 ; i++)
-        {
-            dSdT(i,0) = ddsddt[i];
-            drpldE(i,0) = drplde[i];
-            
-            for(int j=0 ; j<3 ; j++)
-                dSdE(j,i) = ddsdde[i*3+j];
-        }
-    }
-    else if(ndi == 3){
-        if(nshr == 1) {
-            sigma(0) = stress[0];       // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            
-            Etot(0) = stran[0];
-            Etot(1) = stran[1];
-            Etot(2) = stran[2];
-            Etot(3) = stran[3];
-            
-            DEtot(0) = dstran[0];
-            DEtot(1) = dstran[1];
-            DEtot(2) = dstran[2];
-            DEtot(3) = dstran[3];
-            
-            for(int i=0 ; i<4 ; i++)
-            {
-                dSdT(i,0) = ddsddt[i];
-                drpldE(i,0) = drplde[i];
-            }
-            
-            dSdE(0,0) = ddsdde[0];
-            dSdE(0,1) = ddsdde[4];
-            dSdE(0,2) = ddsdde[8];
-            dSdE(0,3) = ddsdde[3];
-            dSdE(1,0) = ddsdde[1];
-            dSdE(1,1) = ddsdde[5];
-            dSdE(1,2) = ddsdde[9];
-            dSdE(1,3) = ddsdde[7];
-            dSdE(2,0) = ddsdde[2];
-            dSdE(2,1) = ddsdde[6];
-            dSdE(2,2) = ddsdde[10];
-            dSdE(2,3) = ddsdde[11];
-            dSdE(3,0) = ddsdde[12];
-            dSdE(3,1) = ddsdde[13];
-            dSdE(3,2) = ddsdde[14];
-            dSdE(3,3) = ddsdde[15];
-            
-        }
-        else {                          // 3D
-            sigma(0) = stress[0];
-            sigma(1) = stress[1];
-            sigma(2) = stress[2];
-            sigma(3) = stress[3];
-            sigma(4) = stress[4];
-            sigma(5) = stress[5];
-            
-            Etot(0) = stran[0];
-            Etot(1) = stran[1];
-            Etot(2) = stran[2];
-            Etot(3) = stran[3];
-            Etot(4) = stran[4];
-            Etot(5) = stran[5];
-            
-            DEtot(0) = dstran[0];
-            DEtot(1) = dstran[1];
-            DEtot(2) = dstran[2];
-            DEtot(3) = dstran[3];
-            DEtot(4) = dstran[4];
-            DEtot(5) = dstran[5];
-            
-            for(int i=0 ; i<6 ; i++)
-            {
-                dSdT(i,0) = ddsddt[i];
-                drpldE(i,0) = drplde[i];
-            }
-            
-            dSdE(0,0) = ddsdde[0];
-            dSdE(0,1) = ddsdde[6];
-            dSdE(0,2) = ddsdde[12];
-            dSdE(0,3) = ddsdde[18];
-            dSdE(0,4) = ddsdde[24];
-            dSdE(0,5) = ddsdde[30];
-            dSdE(1,0) = ddsdde[1];
-            dSdE(1,1) = ddsdde[7];
-            dSdE(1,2) = ddsdde[13];
-            dSdE(1,3) = ddsdde[19];
-            dSdE(1,4) = ddsdde[25];
-            dSdE(1,5) = ddsdde[31];
-            dSdE(2,0) = ddsdde[2];
-            dSdE(2,1) = ddsdde[8];
-            dSdE(2,2) = ddsdde[14];
-            dSdE(2,3) = ddsdde[20];
-            dSdE(2,4) = ddsdde[26];
-            dSdE(2,5) = ddsdde[32];
-            dSdE(3,0) = ddsdde[3];
-            dSdE(3,1) = ddsdde[9];
-            dSdE(3,2) = ddsdde[15];
-            dSdE(3,3) = ddsdde[21];
-            dSdE(3,4) = ddsdde[27];
-            dSdE(3,5) = ddsdde[33];
-            dSdE(4,0) = ddsdde[4];
-            dSdE(4,1) = ddsdde[10];
-            dSdE(4,2) = ddsdde[16];
-            dSdE(4,3) = ddsdde[22];
-            dSdE(4,4) = ddsdde[28];
-            dSdE(4,5) = ddsdde[34];
-            dSdE(5,0) = ddsdde[5];
-            dSdE(5,1) = ddsdde[11];
-            dSdE(5,2) = ddsdde[17];
-            dSdE(5,3) = ddsdde[23];
-            dSdE(5,4) = ddsdde[29];
-            dSdE(5,5) = ddsdde[35];
-            
-        }
-    }
-    
+
+    const abaqus_components K(ndi, nshr);
+    abaqus2vec(stress, K, sigma);
+    abaqus2vec(stran, K, Etot);
+    abaqus2vec(dstran, K, DEtot);
+    abaqus2mat(ddsdde, K, dSdE);
+    abaqus2vec(ddsddt, K, dSdT);
+    abaqus2vec(drplde, K, drpldE);
     drpldT(0) = drpldt;
-    
+
     ///@brief rotation matrix
-    DR(0,0) = drot[0];
-    DR(0,1) = drot[3];
-    DR(0,2) = drot[6];
-    DR(1,0) = drot[1];
-    DR(1,1) = drot[4];
-    DR(1,2) = drot[7];
-    DR(2,0) = drot[2];
-    DR(2,1) = drot[5];
-    DR(2,2) = drot[8];
-    
+    DR = mat(drot, 3, 3);
+
     ///@brief Temperature and temperature increment creation
     T = temperature;
     DT = Dtemperature;
-    
+
     ///@brief Time
     Time = time[1];
     DTime = dtime;
-    
+
     ///@brief Initialization
-    if(Time < 1E-12)
-    {
-        start = true;
-    }
-    else
-    {
-        start = false;
-    }
-    
+    start = (Time < 1E-12);
+
     ///@brief : Pass the material properties and the internal variables
     for (int i=0; i<nprops; i++) {
         props_smart(i) = props[i];
@@ -480,12 +173,14 @@ void abaqus2smart_T(const double *stress, const double *ddsdde, const double *dd
     for (int i=0; i<3; i++) {
         Wt(i) = statev[i+4];
     }
-    for (int i=0; i<nstatev-7; i++) {
-        statev_smart(i) = statev[i+7];
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    read_free_strain(statev, 7, C, DR, Etot);
+    const int offset = 7 + C.n_elem;
+    for (int i=0; i<nstatev-offset; i++) {
+        statev_smart(i) = statev[i+offset];
     }
-    
 }
-    
+
 bool abaqus_nlgeom(const double *dfgrd1) {
     // Abaqus sets DFGRD1 to the identity when the step has no geometric nonlinearity
     const double identity[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
@@ -502,257 +197,57 @@ mat abaqus_jacobian(const mat &Lt, const vec &sigma) {
     return Lt + 0.5*(sigma_I + sigma_I.t());
 }
 
-void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom)
+void smart2abaqus_M(double *stress, double *ddsdde, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const vec &Wm, const mat &Lt_kernel, const bool &nlgeom, const vec &Etot_end)
 {
-    // the sigma (x) I term belongs to NLGEOM steps and to the 3 direct components: plane
-    // stress and 1D condense the kernel tangent as it is (the element owns the thickness)
+    // the tangent arrives condensed (select_umat_M): DDSDDE is its K x K block; sigma (x) I only
+    // for NLGEOM with 3 direct components, plane stress and 1D take it as it is
     const mat Lt = (nlgeom && ndi == 3) ? abaqus_jacobian(Lt_kernel, sigma) : Lt_kernel;
-    
-    if(ndi == 1) {                          // 1D
-        stress[0] = sigma(0);
-        ddsdde[0] = Lt(0,0);
-    }
-    else if(ndi == 2) {                     // 2D Plane Stress
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(3);
-        
-        assert(Lt(2,2) > 0.);
-        ddsdde[0] = Lt(0,0)-Lt(0,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[4] = Lt(1,1)-Lt(1,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[3] = Lt(0,1)-Lt(0,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[1] = Lt(1,0)-Lt(1,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[6] = Lt(0,3)-Lt(0,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[7] = Lt(1,3)-Lt(1,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[2] = Lt(3,0)-Lt(3,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[5] = Lt(3,1)-Lt(3,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[8] = Lt(3,3)-Lt(3,2)*Lt(2,3)/Lt(2,2);
-    }
-    else if(ndi == 3){
-        if (nshr == 1) {                    // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            
-            ddsdde[0] = Lt(0,0);
-            ddsdde[4] = Lt(0,1);
-            ddsdde[8] = Lt(0,2);
-            ddsdde[3] = Lt(0,3);
-            ddsdde[1] = Lt(1,0);
-            ddsdde[5] = Lt(1,1);
-            ddsdde[9] = Lt(1,2);
-            ddsdde[7] = Lt(1,3);
-            ddsdde[2] = Lt(2,0);
-            ddsdde[6] = Lt(2,1);
-            ddsdde[10] = Lt(2,2);
-            ddsdde[11] = Lt(2,3);
-            ddsdde[12] = Lt(3,0);
-            ddsdde[13] = Lt(3,1);
-            ddsdde[14] = Lt(3,2);
-            ddsdde[15] = Lt(3,3);
-        }
-        else {                              // 3D
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            stress[4] = sigma(4);
-            stress[5] = sigma(5);
-            
-            ddsdde[0] = Lt(0,0);
-            ddsdde[6] = Lt(0,1);
-            ddsdde[12] = Lt(0,2);
-            ddsdde[18] = Lt(0,3);
-            ddsdde[24] = Lt(0,4);
-            ddsdde[30] = Lt(0,5);
-            ddsdde[1] = Lt(1,0);
-            ddsdde[7] = Lt(1,1);
-            ddsdde[13] = Lt(1,2);
-            ddsdde[19] = Lt(1,3);
-            ddsdde[25] = Lt(1,4);
-            ddsdde[31] = Lt(1,5);
-            ddsdde[2] = Lt(2,0);
-            ddsdde[8] = Lt(2,1);
-            ddsdde[14] = Lt(2,2);
-            ddsdde[20] = Lt(2,3);
-            ddsdde[26] = Lt(2,4);
-            ddsdde[32] = Lt(2,5);
-            ddsdde[3] = Lt(3,0);
-            ddsdde[9] = Lt(3,1);
-            ddsdde[15] = Lt(3,2);
-            ddsdde[21] = Lt(3,3);
-            ddsdde[27] = Lt(3,4);
-            ddsdde[33] = Lt(3,5);
-            ddsdde[4] = Lt(4,0);
-            ddsdde[10] = Lt(4,1);
-            ddsdde[16] = Lt(4,2);
-            ddsdde[22] = Lt(4,3);
-            ddsdde[28] = Lt(4,4);
-            ddsdde[34] = Lt(4,5);
-            ddsdde[5] = Lt(5,0);
-            ddsdde[11] = Lt(5,1);
-            ddsdde[17] = Lt(5,2);
-            ddsdde[23] = Lt(5,3);
-            ddsdde[29] = Lt(5,4);
-            ddsdde[35] = Lt(5,5);
-        }
-    }
-    
+    const abaqus_components K(ndi, nshr);
+    vec2abaqus(sigma, K, stress);
+    mat2abaqus(Lt, K, ddsdde);
+
     ///@brief : Pass the state variables
     for (int i=0; i<4; i++) {
         statev[i] = Wm(i);
     }
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    write_free_strain(Etot_end, 4, C, statev);
+    const int offset = 4 + C.n_elem;
     for (unsigned int i=0; i<statev_smart.n_elem; i++) {
-        statev[i+4] = statev_smart(i);
+        statev[i+offset] = statev_smart(i);
     }
 }
 
 void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *dstran, double *time, double &dtime, double &temperature, double &Dtemperature, int &nprops, double *props,  int &nstatev, double *statev, const int &ndi, const int &nshr, double *drot, const vec &sigma, const mat &Lt_kernel, const vec &Etot, const vec &DEtot, const double &T, const double &DT, const double &Time, const double &DTime, const vec &props_smart, const vec &Wm, const vec &statev_smart, const mat &DR, bool &start)
 {
+    UNUSED(nstatev);
     // simcoon -> the INPUT arrays of an Abaqus UMAT (UMABA plugin): ddsdde is overwritten by
     // that UMAT, so the kernel tangent goes out as it is
-    const mat &Lt = Lt_kernel;
-    
-    if(ndi == 1) {                          // 1D
-        stress[0] = sigma(0);
-        ddsdde[0] = Lt(0,0);
-    }
-    else if(ndi == 2) {                     // 2D Plane Stress
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(3);
-        
-        assert(Lt(2,2) > 0.);
-        ddsdde[0] = Lt(0,0)-Lt(0,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[4] = Lt(1,1)-Lt(1,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[3] = Lt(0,1)-Lt(0,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[1] = Lt(1,0)-Lt(1,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[6] = Lt(0,3)-Lt(0,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[7] = Lt(1,3)-Lt(1,2)*Lt(2,3)/Lt(2,2);
-        ddsdde[2] = Lt(3,0)-Lt(3,2)*Lt(2,0)/Lt(2,2);
-        ddsdde[5] = Lt(3,1)-Lt(3,2)*Lt(2,1)/Lt(2,2);
-        ddsdde[8] = Lt(3,3)-Lt(3,2)*Lt(2,3)/Lt(2,2);
-    }
-    else if(ndi == 3){
-        if (nshr == 1) {                    // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            
-            ddsdde[0] = Lt(0,0);
-            ddsdde[4] = Lt(0,1);
-            ddsdde[8] = Lt(0,2);
-            ddsdde[3] = Lt(0,3);
-            ddsdde[1] = Lt(1,0);
-            ddsdde[5] = Lt(1,1);
-            ddsdde[9] = Lt(1,2);
-            ddsdde[7] = Lt(1,3);
-            ddsdde[2] = Lt(2,0);
-            ddsdde[6] = Lt(2,1);
-            ddsdde[10] = Lt(2,2);
-            ddsdde[11] = Lt(2,3);
-            ddsdde[12] = Lt(3,0);
-            ddsdde[13] = Lt(3,1);
-            ddsdde[14] = Lt(3,2);
-            ddsdde[15] = Lt(3,3);
-        }
-        else {                              // 3D
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            stress[4] = sigma(4);
-            stress[5] = sigma(5);
-            
-            stran[0] = Etot(0);
-            stran[1] = Etot(1);
-            stran[2] = Etot(2);
-            stran[3] = Etot(3);
-            stran[4] = Etot(4);
-            stran[5] = Etot(5);
-            
-            dstran[0] = DEtot(0);
-            dstran[1] = DEtot(1);
-            dstran[2] = DEtot(2);
-            dstran[3] = DEtot(3);
-            dstran[4] = DEtot(4);
-            dstran[5] = DEtot(5);
-            
-            ddsdde[0] = Lt(0,0);
-            ddsdde[6] = Lt(0,1);
-            ddsdde[12] = Lt(0,2);
-            ddsdde[18] = Lt(0,3);
-            ddsdde[24] = Lt(0,4);
-            ddsdde[30] = Lt(0,5);
-            ddsdde[1] = Lt(1,0);
-            ddsdde[7] = Lt(1,1);
-            ddsdde[13] = Lt(1,2);
-            ddsdde[19] = Lt(1,3);
-            ddsdde[25] = Lt(1,4);
-            ddsdde[31] = Lt(1,5);
-            ddsdde[2] = Lt(2,0);
-            ddsdde[8] = Lt(2,1);
-            ddsdde[14] = Lt(2,2);
-            ddsdde[20] = Lt(2,3);
-            ddsdde[26] = Lt(2,4);
-            ddsdde[32] = Lt(2,5);
-            ddsdde[3] = Lt(3,0);
-            ddsdde[9] = Lt(3,1);
-            ddsdde[15] = Lt(3,2);
-            ddsdde[21] = Lt(3,3);
-            ddsdde[27] = Lt(3,4);
-            ddsdde[33] = Lt(3,5);
-            ddsdde[4] = Lt(4,0);
-            ddsdde[10] = Lt(4,1);
-            ddsdde[16] = Lt(4,2);
-            ddsdde[22] = Lt(4,3);
-            ddsdde[28] = Lt(4,4);
-            ddsdde[34] = Lt(4,5);
-            ddsdde[5] = Lt(5,0);
-            ddsdde[11] = Lt(5,1);
-            ddsdde[17] = Lt(5,2);
-            ddsdde[23] = Lt(5,3);
-            ddsdde[29] = Lt(5,4);
-            ddsdde[35] = Lt(5,5);
-        }
-    }
+    const abaqus_components K(ndi, nshr);
+    vec2abaqus(sigma, K, stress);
+    vec2abaqus(Etot, K, stran);
+    vec2abaqus(DEtot, K, dstran);
+    mat2abaqus(Lt_kernel, K, ddsdde);
 
-    
     ///@brief rotation matrix
-    drot[0] = DR(0,0);
-    drot[3] = DR(0,1);
-    drot[6] = DR(0,2);
-    drot[1] = DR(1,0);
-    drot[4] = DR(1,1);
-    drot[7] = DR(1,2);
-    drot[2] = DR(2,0);
-    drot[5] = DR(2,1);
-    drot[8] = DR(2,2);
-    
+    std::copy(DR.begin(), DR.end(), drot);
+
     ///@brief Temperature and temperature increment creation
     temperature = T;
     Dtemperature = DT;
-    
+
     ///@brief Time
     time[1] = Time;
     dtime = DTime;
-    
+
     ///@brief Initialization
-    if(Time < 1E-12)
-    {
-        start = true;
-    }
-    else
-    {
-        start = false;
-    }
-    
+    start = (Time < 1E-12);
+
     ///@brief : Pass the material properties and the internal variables
     for (int i=0; i<nprops; i++) {
         props[i] = props_smart(i);
     }
+
     ///@brief : Pass the state variables
     for (int i=0; i<4; i++) {
         statev[i] = Wm(i);
@@ -761,138 +256,19 @@ void smart2abaqus_M_full(double *stress, double *ddsdde, double *stran, double *
         statev[i+4] = statev_smart(i);
     }
 }
-    
-void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT, const bool &nlgeom) {
+
+void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drplde, double &drpldt, double &rpl, double *statev, const int &ndi, const int &nshr, const vec &sigma, const vec &statev_smart, const double &r, const vec &Wm, const vec &Wt, const mat &dSdE_kernel, const mat &dSdT, const mat &drpldE, const mat &drpldT, const bool &nlgeom, const vec &Etot_end) {
+
+    // dSdE, dSdT, drpldE and drpldT arrive condensed on the element's components (select_umat_T)
     const mat dSdE = (nlgeom && ndi == 3) ? abaqus_jacobian(dSdE_kernel, sigma) : dSdE_kernel;
-    
-    if(ndi == 1) {                          // 1D
-        stress[0] = sigma(0);
-        ddsdde[0] = dSdE(0,0);
-        ddsddt[0] = dSdT(0,0);
-        drplde[0] = drpldE(0,0);
-    }
-    else if(ndi == 2) {                     // 2D Plane Stress
-        stress[0] = sigma(0);
-        stress[1] = sigma(1);
-        stress[2] = sigma(3);
-        
-        ddsddt[0] = dSdT(0,0);
-        ddsddt[1] = dSdT(1,0);
-        ddsddt[2] = dSdT(2,0);
-        
-        drplde[0] = drpldE(0,0);
-        drplde[1] = drpldE(1,0);
-        drplde[2] = drpldE(2,0);
-        
-        assert(dSdE(2,2) > 0.);
-        ddsdde[0] = dSdE(0,0)-dSdE(0,2)*dSdE(2,0)/dSdE(2,2);
-        ddsdde[4] = dSdE(1,1)-dSdE(1,2)*dSdE(2,1)/dSdE(2,2);
-        ddsdde[3] = dSdE(0,1)-dSdE(0,2)*dSdE(2,1)/dSdE(2,2);
-        ddsdde[1] = dSdE(1,0)-dSdE(1,2)*dSdE(2,0)/dSdE(2,2);
-        ddsdde[6] = dSdE(0,3)-dSdE(0,2)*dSdE(2,3)/dSdE(2,2);
-        ddsdde[7] = dSdE(1,3)-dSdE(1,2)*dSdE(2,3)/dSdE(2,2);
-        ddsdde[2] = dSdE(3,0)-dSdE(3,2)*dSdE(2,0)/dSdE(2,2);
-        ddsdde[5] = dSdE(3,1)-dSdE(3,2)*dSdE(2,1)/dSdE(2,2);
-        ddsdde[8] = dSdE(3,3)-dSdE(3,2)*dSdE(2,3)/dSdE(2,2);
-    }
-    else if(ndi == 3){
-        if (nshr == 1) {                    // 2D Generalized Plane Strain (Plane Strain, Axisymetric)
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            
-            ddsddt[0] = dSdT(0,0);
-            ddsddt[1] = dSdT(1,0);
-            ddsddt[2] = dSdT(2,0);
-            ddsddt[3] = dSdT(3,0);
-            
-            drplde[0] = drpldE(0,0);
-            drplde[1] = drpldE(1,0);
-            drplde[2] = drpldE(2,0);
-            drplde[3] = drpldE(3,0);
-            
-            ddsdde[0] = dSdE(0,0);
-            ddsdde[4] = dSdE(0,1);
-            ddsdde[8] = dSdE(0,2);
-            ddsdde[3] = dSdE(0,3);
-            ddsdde[1] = dSdE(1,0);
-            ddsdde[5] = dSdE(1,1);
-            ddsdde[9] = dSdE(1,2);
-            ddsdde[7] = dSdE(1,3);
-            ddsdde[2] = dSdE(2,0);
-            ddsdde[6] = dSdE(2,1);
-            ddsdde[10] = dSdE(2,2);
-            ddsdde[11] = dSdE(2,3);
-            ddsdde[12] = dSdE(3,0);
-            ddsdde[13] = dSdE(3,1);
-            ddsdde[14] = dSdE(3,2);
-            ddsdde[15] = dSdE(3,3);
-        }
-        else {                              // 3D
-            stress[0] = sigma(0);
-            stress[1] = sigma(1);
-            stress[2] = sigma(2);
-            stress[3] = sigma(3);
-            stress[4] = sigma(4);
-            stress[5] = sigma(5);
-            
-            ddsddt[0] = dSdT(0,0);
-            ddsddt[1] = dSdT(1,0);
-            ddsddt[2] = dSdT(2,0);
-            ddsddt[3] = dSdT(3,0);
-            ddsddt[4] = dSdT(4,0);
-            ddsddt[5] = dSdT(5,0);
-            
-            drplde[0] = drpldE(0,0);
-            drplde[1] = drpldE(1,0);
-            drplde[2] = drpldE(2,0);
-            drplde[3] = drpldE(3,0);
-            drplde[4] = drpldE(4,0);
-            drplde[5] = drpldE(5,0);
-            
-            ddsdde[0] = dSdE(0,0);
-            ddsdde[6] = dSdE(0,1);
-            ddsdde[12] = dSdE(0,2);
-            ddsdde[18] = dSdE(0,3);
-            ddsdde[24] = dSdE(0,4);
-            ddsdde[30] = dSdE(0,5);
-            ddsdde[1] = dSdE(1,0);
-            ddsdde[7] = dSdE(1,1);
-            ddsdde[13] = dSdE(1,2);
-            ddsdde[19] = dSdE(1,3);
-            ddsdde[25] = dSdE(1,4);
-            ddsdde[31] = dSdE(1,5);
-            ddsdde[2] = dSdE(2,0);
-            ddsdde[8] = dSdE(2,1);
-            ddsdde[14] = dSdE(2,2);
-            ddsdde[20] = dSdE(2,3);
-            ddsdde[26] = dSdE(2,4);
-            ddsdde[32] = dSdE(2,5);
-            ddsdde[3] = dSdE(3,0);
-            ddsdde[9] = dSdE(3,1);
-            ddsdde[15] = dSdE(3,2);
-            ddsdde[21] = dSdE(3,3);
-            ddsdde[27] = dSdE(3,4);
-            ddsdde[33] = dSdE(3,5);
-            ddsdde[4] = dSdE(4,0);
-            ddsdde[10] = dSdE(4,1);
-            ddsdde[16] = dSdE(4,2);
-            ddsdde[22] = dSdE(4,3);
-            ddsdde[28] = dSdE(4,4);
-            ddsdde[34] = dSdE(4,5);
-            ddsdde[5] = dSdE(5,0);
-            ddsdde[11] = dSdE(5,1);
-            ddsdde[17] = dSdE(5,2);
-            ddsdde[23] = dSdE(5,3);
-            ddsdde[29] = dSdE(5,4);
-            ddsdde[35] = dSdE(5,5);
-        }
-    }
-    
+    const abaqus_components K(ndi, nshr);
+    vec2abaqus(sigma, K, stress);
+    mat2abaqus(dSdE, K, ddsdde);
+    vec2abaqus(dSdT, K, ddsddt);
+    vec2abaqus(drpldE, K, drplde);
     drpldt = drpldT(0,0);
     rpl = r;
-    
+
     ///@brief : Pass the state variables
     for (int i=0; i<4; i++) {
         statev[i] = Wm(i);
@@ -900,8 +276,11 @@ void smart2abaqus_T(double *stress, double *ddsdde, double *ddsddt, double *drpl
     for (int i=0; i<3; i++) {
         statev[i+4] = Wt(i);
     }
+    const uvec C = make_condensed_state(ndi, nshr).C;
+    write_free_strain(Etot_end, 7, C, statev);
+    const int offset = 7 + C.n_elem;
     for (unsigned int i=0; i<statev_smart.n_elem; i++) {
-        statev[i+7] = statev_smart(i);
+        statev[i+offset] = statev_smart(i);
     }
 }
 

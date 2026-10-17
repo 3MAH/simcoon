@@ -57,28 +57,19 @@ namespace simcoon{
  * thermoelastic entropy \f$ \eta_r = c_0 \ln(\theta/\theta_0) + \boldsymbol{\alpha}:\boldsymbol{\sigma} \f$
  * the kernel carries \f$ \eta_{ir} = -\partial G^{ir}/\partial\theta = -f'_\theta\, B p^{n+1}/(n+1) \geq 0 \f$
  * (\f$ W_t^{ir} \f$ accumulates \f$ (\theta + \tfrac12\Delta\theta)\,\Delta\eta_{ir} \f$). No
- * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the sum of the reversible couplings
- * evaluated on the converged increment, the thermoelastic \f$ -\theta\,\boldsymbol{\alpha}:\Delta\boldsymbol{\sigma}/\Delta t \f$
- * and the hardening-entropy coupling \f$ -\theta\,(\partial\eta_{ir}/\partial p)\,\Delta p/\Delta t \f$
- * with \f$ \partial\eta_{ir}/\partial p = -f'_\theta B p^n \f$, of the heat-capacity and
- * entropy-increment terms of EPICP's framework, and of the intrinsic dissipation on the
- * converged increment,
- * \f$ \Gamma\,\Delta t = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
- * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$ with \f$ A_p = -f_\theta B p^{n} \f$ (the increment
- * \f$ W_m^d \f$ accumulates, same energy split as the mechanical kernel). EPICP's
- * thermomechanical kernel reconstructs \f$ \Gamma \f$ from its linearization
- * \f$ \boldsymbol{\Gamma}_\varepsilon : \Delta\boldsymbol{\varepsilon} + \Gamma_\theta \Delta\theta \f$,
- * which is exact to first order for a rate-independent law. It is not for Johnson-Cook: at
- * fixed \f$ \Delta t \f$ the plastic increment is a logarithmic function of the strain
- * increment, the rate term \f$ C (A + B p^n) / \Delta p \f$ in \f$ \hat{B} \f$ drives
- * \f$ \mathbf{P}_\varepsilon \to 0 \f$ under step refinement and the linearized dissipation
- * vanishes while the physical one stays finite. The linearizations
- * \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ and \f$ \partial r/\partial\theta \f$
- * keep the \f$ \boldsymbol{\Gamma}_\varepsilon \f$, \f$ \Gamma_\theta \f$ terms (first-order
- * derivatives of the dissipation increment, \f$ O(\Delta p) \f$ relative) as the Newton
- * derivatives: they govern the convergence rate of the coupled Newton, the residual uses \f$ r \f$.
- * Under adiabatic loading the first law reads \f$ W_t = W_m^d \f$, which the kernel satisfies to
- * the step error.
+ * Taylor-Quinney coefficient is introduced: \f$ r \f$ is the heat of the increment
+ * \f$ r = \Delta\gamma - \theta_{n+1}\,\Delta\eta \f$ (heat_source_increment()), with
+ * \f$ \eta = \eta_r + \eta_{ir} \f$ and the dissipation the kernel adds to \f$ W_m^d \f$,
+ * \f$ \Delta\gamma = \tfrac12 (\boldsymbol{\sigma}^n + \boldsymbol{\sigma}^{n+1}):\Delta\boldsymbol{\varepsilon}^{p}
+ * + \tfrac12 (A_p^n + A_p^{n+1})\,\Delta p \f$, \f$ A_p = -f_\theta B p^{n} \f$ (same energy split as
+ * the mechanical kernel), both evaluated on the converged increment: at fixed \f$ \Delta t \f$
+ * the rate-dependent \f$ \Delta p \f$ is a logarithmic function of the strain increment, which a
+ * linearization would miss. \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ and
+ * \f$ \partial r/\partial\theta \f$ differentiate it through \f$ \mathbf{P}_\varepsilon \f$,
+ * \f$ P_\theta \f$, with the flow direction held fixed over the increment, and
+ * \f$ \partial\eta_{ir}/\partial\theta = -f''_\theta B p^{n+1}/(n+1) \f$,
+ * \f$ \partial\eta_{ir}/\partial p = -f'_\theta B p^n \f$. Under adiabatic loading
+ * (\f$ r = 0 \f$) every increment satisfies \f$ \theta_{n+1}\Delta\eta = \Delta W_m^d \f$.
  *
  * **Tangent modes.** The mechanical block \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$
  * follows @p tangent_mode (continuum or algorithmic). As in the other thermomechanical kernels,
@@ -109,11 +100,11 @@ namespace simcoon{
  * @param Etot Total strain at \f$ t_n \f$ (6x1 Voigt)
  * @param DEtot Strain increment (6x1 Voigt)
  * @param sigma Stress [input/output] (6x1 Voigt)
- * @param r Internal heat production [output]
+ * @param r Heat of the increment per reference volume, storage included (heat_source_increment()) [output]
  * @param dSdE Mechanical tangent \f$ \partial\boldsymbol{\sigma}/\partial\boldsymbol{\varepsilon} \f$ [output] (6x6)
  * @param dSdT Thermal stress sensitivity \f$ \partial\boldsymbol{\sigma}/\partial\theta \f$ [output] (6x1)
- * @param drdE Heat source strain sensitivity \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ [output] (6x1)
- * @param drdT Heat source temperature sensitivity \f$ \partial r/\partial\theta \f$ [output] (1x1)
+ * @param drdE Strain derivative of the heat of the increment \f$ \partial r/\partial\boldsymbol{\varepsilon} \f$ [output] (6x1)
+ * @param drdT Temperature derivative of the heat of the increment \f$ \partial r/\partial\theta \f$ [output] (1x1)
  * @param DR Rotation increment (3x3)
  * @param nprops Number of material properties (13)
  * @param props Material properties vector

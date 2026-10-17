@@ -32,6 +32,7 @@
 #include <simcoon/Simulation/Phase/phase_characteristics.hpp>
 #include <simcoon/Simulation/Phase/state_variables_M.hpp>
 #include <simcoon/Continuum_mechanics/Umat/umat_smart.hpp>
+#include <simcoon/Continuum_mechanics/Umat/condensed_state.hpp>
 
 #include <simcoon/Simulation/Maths/lagrange.hpp>
 #include <simcoon/Simulation/Maths/rotation.hpp>
@@ -112,7 +113,8 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
 	double DTime = 0.;
     int solver_type = 0;
     
-	int nstatev_smart = nstatev-4;
+	// STATEV: Wm, then the stress-free strain when ndi < 3 (abaqus2smart_M), then the law
+	int nstatev_smart = nstatev - 4 - static_cast<int>(make_condensed_state(ndi, nshr).C.n_elem);
     vec props_smart = zeros(nprops);
     vec statev_smart = zeros(nstatev_smart);
     
@@ -126,8 +128,19 @@ extern "C" void umat_(double *stress, double *statev, double *ddsdde, double &ss
     double DT = 0.;
     
 	abaqus2smart_M(stress, ddsdde, stran, dstran, time, dtime, temperature, Dtemperature, nprops, props, nstatev, statev, ndi, nshr, drot, sigma, Lt, Etot, DEtot, T, DT, Time, DTime, props_smart, Wm, statev_smart, DR, start);
-    external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, pnewdt);
-	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma, statev_smart, Wm, Lt, abaqus_nlgeom(dfgrd1));
+    // ndi < 3: solved around the 3D law (condensed_state.hpp)
+    if (ndi == 3) {
+        external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), ndi, nshr, start, pnewdt);
+    }
+    else {
+        const condensed_state cs = make_condensed_state(ndi, nshr);
+        const vec sigma0 = sigma, statev0 = statev_smart, Wm0 = Wm;
+        auto restore = [&]() { sigma = sigma0; statev_smart = statev0; Wm = Wm0; };
+        auto run = [&](double &tnew) { external_umat(Etot, DEtot, sigma, Lt, DR, nprops, props_smart, nstatev_smart, statev_smart, T, DT, Time, DTime, Wm(0), Wm(1), Wm(2), Wm(3), 3, 3, start, tnew); };
+        if (solve_condensed(cs, DEtot, sigma, Lt, run, restore, pnewdt))
+            condense_tangent(cs, Lt);
+    }
+	smart2abaqus_M(stress, ddsdde, statev, ndi, nshr, sigma, statev_smart, Wm, Lt, abaqus_nlgeom(dfgrd1), Etot + DEtot);
 }
 
 void external_umat(const vec &Etot, const vec &DEtot, vec &sigma, mat &Lt, const mat &DR, const int &nprops, const vec &props, const int &nstatev, vec &statev, const double &T, const double &DT, const double &Time, const double &DTime, double &Wm, double &Wm_r, double &Wm_ir, double &Wm_d, const int &ndi, const int &nshr, const bool &start, double &tnew_dt) {
