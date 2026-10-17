@@ -669,9 +669,10 @@ constexpr auto umat = R"pbdoc(
         3D law at the strain that makes them stress-free, whatever the law
         (under finite strain F1 follows through ln V1). The solved free
         increments are written back into Detot, in place, once the batch has
-        converged (Detot must be a writable float64 array): a caller adding
-        Detot to etot carries the free strain to the next increment, one that
-        does not gets the same answer. The tangent
+        converged (Detot must be a writable float64 array), and the caller
+        carries them with etot += Detot. Under finite strain this is required:
+        F0 and F1 hold the rotation and the kept stretches, the free stretches
+        of F0 and F1 come from etot and etot + Detot. The tangent
         (and in umat_T dSdT, drdE, drdT) comes back condensed on the kept
         components, zero elsewhere. Condensed states run under
         kinematic_form='rate' with tangent_output='box'.

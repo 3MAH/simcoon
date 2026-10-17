@@ -5,9 +5,10 @@ the free strain components are solved around it (Newton on the law's own tangent
 answer is the 3D law at the strain that makes them stress-free, whatever the law (plasticity,
 closed-form viscoelasticity, SMA, MODUL, hyperelasticity under finite strain). The tangent and
 the thermal derivatives leave condensed on the kept components (zero on the others): the block
-an element uses as it is. The solved free components are written back into Detot (in place), so
-a caller accumulating etot += Detot carries them to the next increment; one that does not gets
-the same answer, the free increment then absorbing the whole free strain.
+an element uses as it is. The solved free components are written back into Detot (in place) and
+the caller carries them with etot += Detot. At small strain a caller that does not gets the same
+answer (the free increment absorbs the whole free strain); under finite strain F0 and F1 take
+their free stretches from etot, which must carry them.
 """
 
 import numpy as np
@@ -265,6 +266,99 @@ def test_hyperelastic_condensed_through_ln_V(name, props, ndi, nshr):
         (sp, Jp), (sm, Jm) = solved(lp), solved(lm)
         fd[:, j] = (Jp * sp[K] - Jm * sm[K]) / (2 * h)
     assert np.abs(Lt[np.ix_(K, K)] - fd).max() < 1e-6 * np.abs(fd).max()
+
+
+@pytest.mark.parametrize("ndi,nshr", STATES)
+def test_MODUL_hyperelastic_condensed_matches_NEOHC(ndi, nshr):
+    """MODUL with a neo-Hookean block is a log-strain box (rate form, F1 for J only): condensed,
+    it is the NEOHC kernel condensed, and the free increments it writes back into Detot are the
+    ln V components of the 3D stress-free point."""
+    from simcoon.modular import NeoHookeanElasticity
+    mod = ModularMaterial(elasticity=NeoHookeanElasticity(mu=1000.0, kappa=10000.0))
+    K, C = _kept(ndi, nshr)
+    lnv = np.zeros(6)
+    lnv[K] = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])[K]
+    F1 = np.asfortranarray(expm(sim.v2t_strain(lnv))[:, :, None])   # no rotation: box = lab
+
+    def modul(d, ndi_, nshr_):
+        Detot = _col(d)
+        s, _, _, Lt = sim.umat("MODUL", _col(np.zeros(6)), Detot, I3, F1 if ndi_ < 3 else
+                               np.asfortranarray(expm(sim.v2t_strain(d))[:, :, None]), _col(np.zeros(6)), I3,
+                               _col(mod.props), _col(np.zeros(mod.nstatev)), 0.0, 1.0, _col(np.zeros(4)),
+                               ndi=ndi_, nshr=nshr_, n_threads=1, corate=3)
+        return s.ravel(), Lt[:, :, 0], Detot.ravel()
+
+    s, Lt, d_solved = modul(lnv, ndi, nshr)
+    np.testing.assert_array_equal(s[C], 0.0)
+    np.testing.assert_array_equal(d_solved[K], lnv[K])
+    I3_ = np.asfortranarray(np.eye(3)[:, :, None])
+    s_neo, Lt_neo = sim.umat("NEOHC", _col(np.zeros(6)), _col(np.zeros(6)), I3_, F1, _col(np.zeros(6)), I3_,
+                             _col([1000.0, 10000.0]), _col([0.0]), 0.0, 1.0, _col(np.zeros(4)), ndi=ndi, nshr=nshr,
+                             n_threads=1, corate=3)[0::3]
+    np.testing.assert_allclose(s, s_neo.ravel(), rtol=1e-8, atol=1e-8 * np.abs(s).max())
+    np.testing.assert_allclose(Lt[np.ix_(K, K)], Lt_neo[:, :, 0][np.ix_(K, K)], rtol=1e-7,
+                               atol=1e-7 * np.abs(Lt).max())
+    # the 3D law at the written-back strain: the same stress, stress-free on C
+    s3, _, _ = modul(d_solved, 3, None)
+    np.testing.assert_allclose(s3, s, rtol=1e-8, atol=1e-8 * np.abs(s).max())
+
+
+# --- finite strain over several increments: the free stretch travels in etot -------------------
+
+_NEO_MOD = ModularMaterial(elasticity=__import__("simcoon.modular", fromlist=["x"]).NeoHookeanElasticity(
+    mu=1000.0, kappa=10000.0))
+FINITE_LAWS = {"NEOHC": ([1000.0, 10000.0], 1), "MODUL": (list(_NEO_MOD.props), _NEO_MOD.nstatev)}
+
+
+def _finite_path(name, ndi, nshr, n):
+    """Proportional ln V path on the kept components in n increments. The caller's F knows the kept
+    stretches only; it accumulates etot += Detot (the solved free increments written back)."""
+    props, nstatev = FINITE_LAWS[name]
+    K, _ = _kept(ndi, nshr)
+    target = np.zeros(6)
+    target[K] = np.array([0.25, -0.08, 0.0, 0.12, -0.07, 0.05])[K]
+    e, s, sv, wm, F0 = np.zeros(6), np.zeros(6), np.zeros(nstatev), np.zeros(4), np.eye(3)
+    for i in range(n):
+        F1 = expm(sim.v2t_strain(target * (i + 1) / n))
+        de = _col(target / n)
+        out = sim.umat(name, _col(e), de, np.asfortranarray(F0[:, :, None]), np.asfortranarray(F1[:, :, None]),
+                       _col(s), I3, _col(props), _col(sv), float(i), 1.0, _col(wm), ndi=ndi, nshr=nshr,
+                       n_threads=1, corate=3, start=(i == 0))
+        s, sv, wm = out[0].ravel(), out[1].ravel(), out[2].ravel()
+        e, F0 = e + de.ravel(), F1
+    return s, e
+
+
+@pytest.mark.parametrize("ndi,nshr", [(1, 0), (2, 1)])   # isotropic: the free direction stays principal
+@pytest.mark.parametrize("name", list(FINITE_LAWS))
+def test_finite_condensed_point_over_increments(name, ndi, nshr):
+    """Elastic and coaxial: n increments land where one does. The start and end F of each increment
+    take their free stretches from etot (the caller's F lacks them): a J0, J1 or F1 built from the
+    caller's F alone would drift, and the written-back free strain would be counted twice."""
+    _, C = _kept(ndi, nshr)
+    s1, e1 = _finite_path(name, ndi, nshr, 1)
+    s8, e8 = _finite_path(name, ndi, nshr, 8)
+    np.testing.assert_allclose(s8, s1, rtol=1e-9, atol=1e-9 * np.abs(s1).max())
+    np.testing.assert_allclose(e8[C], e1[C], rtol=1e-9, atol=1e-12)
+
+
+def test_umat_T_finite_condensed_dSdT_follows_the_free_stretch():
+    """Plane stress under finite strain: theta moves eps_33, hence J; dSdT is the derivative of the
+    Cauchy stress, J included (finite differences on DT)."""
+    props = [RHO, C_P, E, NU, ALPHA]
+    lnv = np.array([0.05, -0.02, 0.0, 0.03, 0.0, 0.0])
+    F1 = np.asfortranarray(expm(sim.v2t_strain(lnv))[:, :, None])
+
+    def run(DT):
+        out = sim.umat_T("ELISO", _col(np.zeros(6)), _col(lnv), _col(np.zeros(6)), I3, _col(props), _col([0.0]),
+                         0.0, 1.0, _col(np.zeros(4)), _col(np.zeros(3)), np.array([293.15]), np.array([DT]),
+                         ndi=2, n_threads=1, start=True, F0=I3, F1=F1)
+        return out[0].ravel(), out[6].ravel()
+    s, dSdT = run(20.0)
+    h = 1e-3
+    fd = (run(20.0 + h)[0] - run(20.0 - h)[0]) / (2 * h)
+    K = [0, 1, 3]
+    np.testing.assert_allclose(dSdT[K], fd[K], rtol=1e-6, atol=1e-9 * np.abs(fd).max())
 
 
 # --- thermomechanical: the stress, the heat and their four derivatives -----------------------
